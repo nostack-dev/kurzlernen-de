@@ -2,11 +2,16 @@ const APP_ID="arondight45-kurzlernen-vs-v3";
 const SEND_MS=50;
 const RELAY_REDUNDANCY=3;
 const JOIN_DIAGNOSTIC_MS=12000;
+const DATA_RELAY_FALLBACK_MS=2200;
+const DATA_RELAY_HEARTBEAT_MS=1000;
+const DATA_RELAY_PEER_TIMEOUT_MS=6000;
+const DATA_RELAY_BROKERS=["wss://test.mosquitto.org:8081/mqtt","wss://broker.emqx.io:8084/mqtt"];
 const DEFAULT_TRANSPORTS=[
   {name:"Nostr",load:()=>import("trystero")},
   {name:"MQTT",load:()=>import("@trystero-p2p/mqtt")},
   {name:"Torrent",load:()=>import("@trystero-p2p/torrent")}
 ];
+const DEFAULT_DATA_RELAY_LOADER=()=>import("mqtt");
 const DISCOVERY_MAX_ROOMS=8;
 const PROXIMITY_CELL_M=800;
 const GESTURE_BUCKET_MS=8000;
@@ -113,6 +118,17 @@ async function peerNetworkSnapshot(pc){
     }
   }catch(error){out.statsError=errorMessage(error);}
   return out;
+}
+function randomPeerId(cryptoObj=globalThis.crypto){
+  const bytes=new Uint8Array(12);
+  try{cryptoObj?.getRandomValues?.(bytes);}catch{for(let i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256);}
+  if(!bytes.some(Boolean))for(let i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256);
+  return[...bytes].map(v=>v.toString(16).padStart(2,"0")).join("");
+}
+function relayRoomLevel(roomId){return String(roomId||"").replace(/[^A-Za-z0-9_-]/g,"_").slice(0,96);}
+function relayTopic(roomId){return`arondight45/vs-data/v1/${relayRoomLevel(roomId)}`;}
+function decodePayload(value){
+  try{const text=typeof value==="string"?value:new TextDecoder().decode(value);return JSON.parse(text);}catch{return null;}
 }
 
 export function networkMaterialFromCandidate(candidate){
@@ -254,12 +270,80 @@ export class LanVsSession{
   }
 }
 
+export class MqttDataRelay{
+  constructor(options={}){
+    this.onPeer=options.onPeer;this.onPose=options.onPose;this.onOrigin=options.onOrigin;this.onCombat=options.onCombat;this.onLeave=options.onLeave;this.onError=options.onError;this.onTransport=options.onTransport;this.onDiagnostic=options.onDiagnostic;
+    this.loadMqtt=options.loadMqtt||DEFAULT_DATA_RELAY_LOADER;this.brokerUrls=Array.isArray(options.brokerUrls)&&options.brokerUrls.length?[...new Set(options.brokerUrls)]:DATA_RELAY_BROKERS;
+    this.localId=String(options.localId||randomPeerId());this.clients=[];this.roomIds=[];this.peerId=null;this.peerRoomId="";this.started=false;this.timer=0;this.lastHelloMs=0;this.lastPeerSeenMs=0;this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.seq=0;this.lastRxSeq=0;this.seenCombat=new Set();
+  }
+  diag(stage,detail={}){const payload=emitNetworkEvent(stage,{transport:"MQTT DATA RELAY",roomId:this.peerRoomId||"",peerId:this.peerId||"",...detail});this.onDiagnostic?.(payload);return payload;}
+  async start(roomIds){
+    if(this.started)return;this.started=true;this.roomIds=[...new Set((Array.isArray(roomIds)?roomIds:[roomIds]).filter(Boolean))].slice(0,DISCOVERY_MAX_ROOMS);if(!this.roomIds.length){this.started=false;throw Error("MQTT data relay requires room ids");}
+    this.diag("data-relay-start",{brokers:this.brokerUrls,roomCount:this.roomIds.length});this.onTransport?.("MQTT DATA RELAY");
+    try{
+      const mod=await this.loadMqtt(),connect=mod?.connect||mod?.default?.connect;if(typeof connect!=="function")throw Error("MQTT browser client unavailable");
+      for(let i=0;i<this.brokerUrls.length;i++)this.openBroker(connect,this.brokerUrls[i],i);
+      this.timer=setInterval(()=>this.tick(),SEND_MS);
+    }catch(error){this.started=false;this.diag("data-relay-error",{error:errorMessage(error)});this.onError?.(error);throw error;}
+  }
+  openBroker(connect,url,index){
+    let client;
+    try{client=connect(url,{clientId:`a45_${this.localId}_${index}`,clean:true,keepalive:15,reconnectPeriod:1000,connectTimeout:5000,protocolVersion:4,forceNativeWebSocket:true,resubscribe:true});}catch(error){this.diag("data-relay-broker-error",{broker:url,error:errorMessage(error)});return;}
+    const entry={url,client,open:false};this.clients.push(entry);
+    client.on?.("connect",()=>{
+      entry.open=true;this.diag("data-relay-broker-open",{broker:url});
+      const topics=this.roomIds.map(id=>`${relayTopic(id)}/+`);
+      try{client.subscribe(topics,{qos:0},error=>{if(error)this.diag("data-relay-subscribe-error",{broker:url,error:errorMessage(error)});else this.publishHello(true);});}catch(error){this.diag("data-relay-subscribe-error",{broker:url,error:errorMessage(error)});}
+    });
+    client.on?.("message",(topic,payload,packet)=>this.handleMessage(topic,payload,packet));
+    client.on?.("error",error=>this.diag("data-relay-broker-error",{broker:url,error:errorMessage(error)}));
+    client.on?.("close",()=>{if(entry.open)this.diag("data-relay-broker-close",{broker:url});entry.open=false;});
+    client.on?.("offline",()=>{entry.open=false;this.diag("data-relay-broker-offline",{broker:url});});
+  }
+  publish(roomId,packet,qos=0){
+    if(!this.started)return false;const body=JSON.stringify({v:1,id:this.localId,...packet});let sent=false;
+    for(const entry of this.clients){if(!entry.open&&!entry.client?.connected)continue;try{entry.client.publish(`${relayTopic(roomId)}/${this.localId}`,body,{qos,retain:false});sent=true;}catch(error){this.diag("data-relay-publish-error",{broker:entry.url,error:errorMessage(error)});}}
+    return sent;
+  }
+  publishHello(force=false){
+    const now=Date.now();if(!force&&now-this.lastHelloMs<DATA_RELAY_HEARTBEAT_MS)return;this.lastHelloMs=now;
+    for(const roomId of this.peerRoomId?[this.peerRoomId]:this.roomIds)this.publish(roomId,{type:this.peerId?"heartbeat":"hello",ts:now},0);
+  }
+  handleMessage(topic,payload,packet){
+    if(packet?.retain)return;const data=decodePayload(payload);if(!data||data.v!==1||typeof data.id!=="string"||data.id===this.localId)return;
+    const prefix="arondight45/vs-data/v1/",raw=String(topic||"");if(!raw.startsWith(prefix))return;const rest=raw.slice(prefix.length),slash=rest.indexOf("/");if(slash<1)return;const roomLevel=rest.slice(0,slash),roomId=this.roomIds.find(id=>relayRoomLevel(id)===roomLevel);if(!roomId)return;
+    if(!this.peerId)this.adoptPeer(data.id,roomId);if(data.id!==this.peerId||roomId!==this.peerRoomId)return;this.lastPeerSeenMs=Date.now();
+    if(data.type==="hello"||data.type==="heartbeat")return;
+    if(data.type==="bye"){const old=this.peerId;this.peerId=null;this.peerRoomId="";this.lastRxSeq=0;this.diag("data-relay-peer-leave",{peerId:old});this.onLeave?.(old);return;}
+    if(data.type==="pose"&&validPose(data.pose)){const seq=Number(data.seq)||0;if(seq&&seq<=this.lastRxSeq)return;if(seq)this.lastRxSeq=seq;this.onPose?.({...data.pose,seq},this.peerId);return;}
+    if(data.type==="origin"&&validOrigin(data.origin)){this.onOrigin?.({...data.origin},this.peerId);return;}
+    if(data.type==="combat"&&validCombat(data.packet)){const key=String(data.mid||"");if(key&&this.seenCombat.has(key))return;if(key){this.seenCombat.add(key);while(this.seenCombat.size>256)this.seenCombat.delete(this.seenCombat.values().next().value);}this.onCombat?.({...data.packet},this.peerId);}
+  }
+  adoptPeer(peerId,roomId){
+    if(this.peerId)return;this.peerId=peerId;this.peerRoomId=roomId;this.lastPeerSeenMs=Date.now();this.lastRxSeq=0;this.originDirty=Boolean(this.pendingOrigin);this.diag("data-relay-peer",{peerId,roomId,mode:"broker-relay"});this.onPeer?.(peerId,roomId,"MQTT DATA RELAY");this.publishHello(true);
+  }
+  tick(){
+    if(!this.started)return;this.publishHello();
+    if(this.peerId&&Date.now()-this.lastPeerSeenMs>DATA_RELAY_PEER_TIMEOUT_MS){const old=this.peerId;this.peerId=null;this.peerRoomId="";this.lastRxSeq=0;this.diag("data-relay-peer-timeout",{peerId:old});this.onLeave?.(old);return;}
+    if(!this.peerId)return;
+    if(this.originDirty&&this.pendingOrigin&&this.publish(this.peerRoomId,{type:"origin",origin:this.pendingOrigin,ts:Date.now()},0))this.originDirty=false;
+    if(this.pendingPose){const seq=++this.seq;this.publish(this.peerRoomId,{type:"pose",pose:this.pendingPose,seq,ts:Date.now()},0);}
+  }
+  setOrigin(origin){if(!validOrigin(origin))return false;const next={lon:Number(origin.lon),lat:Number(origin.lat),...(("alt" in origin)?{alt:Number(origin.alt)}:{})},old=this.pendingOrigin;if(!old||old.lon!==next.lon||old.lat!==next.lat||old.alt!==next.alt){this.pendingOrigin=next;this.originDirty=true;}return true;}
+  setPose(pose){if(!validPose(pose))return false;this.pendingPose={...pose,p:[...pose.p],q:[...pose.q],...(pose.g?{g:[...pose.g]}:{})};return true;}
+  sendCombat(packet){if(!validCombat(packet)||!this.peerId||!this.peerRoomId)return false;const mid=`${this.localId}-${Date.now().toString(36)}-${(++this.seq).toString(36)}`;return this.publish(this.peerRoomId,{type:"combat",packet:{...packet},mid,ts:Date.now()},0);}
+  stop(log=true){
+    clearInterval(this.timer);this.timer=0;if(this.started&&this.peerId&&this.peerRoomId)this.publish(this.peerRoomId,{type:"bye",ts:Date.now()},0);for(const entry of this.clients)try{entry.client?.end?.(true);}catch{}const had=this.started,peerId=this.peerId;this.clients=[];this.roomIds=[];this.peerId=null;this.peerRoomId="";this.started=false;this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.seq=0;this.lastRxSeq=0;this.seenCombat.clear();if(log&&had)this.diag("data-relay-stop",{peerId:String(peerId||"")});
+  }
+}
+
 export class LanVsFinder{
   constructor(options={}){
-    this.options=options;this.children=[];this.active=null;this.roomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren=new Set();this.gestureDeferMs=Number.isFinite(options.gestureDeferMs)?Math.max(0,Number(options.gestureDeferMs)):GESTURE_DEFER_MS;
+    this.options=options;this.children=[];this.active=null;this.roomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren=new Set();this.gestureDeferMs=Number.isFinite(options.gestureDeferMs)?Math.max(0,Number(options.gestureDeferMs)):GESTURE_DEFER_MS;this.dataRelayDelayMs=Number.isFinite(options.dataRelayDelayMs)?Math.max(0,Number(options.dataRelayDelayMs)):DATA_RELAY_FALLBACK_MS;this.dataRelayTimer=0;this.dataRelay=null;
     if(Array.isArray(options.transportStrategies)&&options.transportStrategies.length)this.transportStrategies=options.transportStrategies;
     else if(typeof options.loadTransport==="function")this.transportStrategies=[{name:String(options.transportName||"Custom"),load:options.loadTransport}];
     else this.transportStrategies=DEFAULT_TRANSPORTS;
+    this.dataRelayEnabled=options.dataRelayEnabled!==false;this.loadMqtt=options.loadMqtt||DEFAULT_DATA_RELAY_LOADER;this.dataRelayBrokerUrls=options.dataRelayBrokerUrls;
   }
   makeChild(roomId,strategy){
     let child=null;const opts=this.options;
@@ -268,13 +352,20 @@ export class LanVsFinder{
       ...(Number.isFinite(opts.relayRedundancy)?{relayRedundancy:opts.relayRedundancy}:{}),...(Number.isFinite(opts.joinDiagnosticMs)?{joinDiagnosticMs:opts.joinDiagnosticMs}:{}),
       onTransport:name=>{if(!this.active||this.active===child)opts.onTransport?.(name,roomId);},onDiagnostic:event=>opts.onDiagnostic?.(event,roomId,strategy.name),onPeer:peerId=>this.adopt(child,peerId,roomId,strategy.name),
       onPose:(pose,peerId)=>{if(this.active===child)opts.onPose?.(pose,peerId);},onOrigin:(origin,peerId)=>{if(this.active===child)opts.onOrigin?.(origin,peerId);},onCombat:(packet,peerId)=>{if(this.active===child)opts.onCombat?.(packet,peerId);},onLeave:peerId=>{if(this.active===child)opts.onLeave?.(peerId);},
-      onError:error=>{if(this.active===child)opts.onError?.(error);else{this.failedChildren.add(child);if(!this.active&&this.children.length&&this.failedChildren.size>=this.children.length)opts.onError?.(error);}}
+      onError:error=>{if(this.active===child)opts.onError?.(error);else{this.failedChildren.add(child);this.ensureDataRelay("webrtc-join-error");}}
     });
     if(this.pendingPose)child.setPose(this.pendingPose);if(this.pendingOrigin)child.setOrigin(this.pendingOrigin);return child;
   }
+  makeDataRelay(){
+    const opts=this.options;let relay=null;relay=new MqttDataRelay({loadMqtt:this.loadMqtt,...(this.dataRelayBrokerUrls?{brokerUrls:this.dataRelayBrokerUrls}:{}),onTransport:name=>{if(!this.active||this.active===relay)opts.onTransport?.(name,this.roomIds[0]||"");},onDiagnostic:event=>opts.onDiagnostic?.(event,event.roomId||"","MQTT DATA RELAY"),onPeer:(peerId,roomId)=>this.adopt(relay,peerId,roomId,"MQTT DATA RELAY"),onPose:(pose,peerId)=>{if(this.active===relay)opts.onPose?.(pose,peerId);},onOrigin:(origin,peerId)=>{if(this.active===relay)opts.onOrigin?.(origin,peerId);},onCombat:(packet,peerId)=>{if(this.active===relay)opts.onCombat?.(packet,peerId);},onLeave:peerId=>{if(this.active===relay)opts.onLeave?.(peerId);},onError:error=>{if(this.active===relay||(!this.active&&this.failedChildren.size>=this.children.filter(child=>child!==relay).length))opts.onError?.(error);}});if(this.pendingPose)relay.setPose(this.pendingPose);if(this.pendingOrigin)relay.setOrigin(this.pendingOrigin);return relay;
+  }
+  ensureDataRelay(reason="timeout"){
+    if(!this.started||this.active||!this.dataRelayEnabled||this.dataRelay)return;
+    clearTimeout(this.dataRelayTimer);this.dataRelayTimer=0;const relay=this.makeDataRelay();this.dataRelay=relay;this.children.push(relay);emitNetworkEvent("finder-data-relay-fallback",{reason,roomCount:this.roomIds.length});relay.start(this.roomIds).catch(error=>{if(this.dataRelay===relay)this.dataRelay=null;this.children=this.children.filter(child=>child!==relay);this.options.onError?.(error);});
+  }
   adopt(child,peerId,roomId,transportName){
     if(this.active&&this.active!==child){child.stop(false);return;}
-    if(!this.active){this.active=child;for(const other of this.children)if(other!==child)other.stop(false);this.children=[child];this.failedChildren.clear();emitNetworkEvent("finder-selected",{roomId,transport:transportName,peerId});}
+    if(!this.active){this.active=child;clearTimeout(this.dataRelayTimer);this.dataRelayTimer=0;for(const other of this.children)if(other!==child)other.stop(false);this.children=[child];this.dataRelay=child instanceof MqttDataRelay?child:null;this.failedChildren.clear();emitNetworkEvent("finder-selected",{roomId,transport:transportName,peerId});}
     this.options.onPeer?.(peerId,roomId,transportName);
   }
   async start(roomIds){
@@ -282,16 +373,17 @@ export class LanVsFinder{
     const ids=[...new Set((Array.isArray(roomIds)?roomIds:[roomIds]).filter(id=>typeof id==="string"&&id))].slice(0,DISCOVERY_MAX_ROOMS);if(!ids.length){this.started=false;throw Error("VS discovery produced no room candidates");}
     this.roomIds=ids;
     const makeEntries=list=>list.flatMap(id=>this.transportStrategies.map(strategy=>({id,strategy,child:this.makeChild(id,strategy)}))),trustedIds=ids.filter(id=>!id.startsWith("tap-")),gestureIds=ids.filter(id=>id.startsWith("tap-")),trusted=makeEntries(trustedIds),gesture=makeEntries(gestureIds),entries=[...trusted,...gesture];this.children=entries.map(entry=>entry.child);
-    emitNetworkEvent("finder-start",{roomCount:ids.length,transportNames:this.transportStrategies.map(item=>item.name),trustedRooms:trustedIds.length,gestureRooms:gestureIds.length});
+    emitNetworkEvent("finder-start",{roomCount:ids.length,transportNames:[...this.transportStrategies.map(item=>item.name),...(this.dataRelayEnabled?["MQTT DATA RELAY"]:[])],trustedRooms:trustedIds.length,gestureRooms:gestureIds.length});
+    if(this.dataRelayEnabled)this.dataRelayTimer=setTimeout(()=>this.ensureDataRelay("webrtc-timeout"),this.dataRelayDelayMs);
     const results=[],startEntries=async list=>{if(!list.length)return[];return Promise.allSettled(list.map(entry=>entry.child.start(entry.id)));};
     results.push(...await startEntries(trusted));
     if(!this.active&&gesture.length){await new Promise(resolve=>setTimeout(resolve,this.gestureDeferMs));if(this.started&&!this.active)results.push(...await startEntries(gesture));}
-    if(!this.active&&this.started&&results.length&&results.every(result=>result.status==="rejected")){const reason=results.find(result=>result.status==="rejected")?.reason||Error("VS signaling unavailable");this.stop();throw reason;}
+    if(!this.active&&this.started&&results.length&&results.every(result=>result.status==="rejected")){this.ensureDataRelay("signaling-unavailable");if(!this.dataRelay){const reason=results.find(result=>result.status==="rejected")?.reason||Error("VS signaling unavailable");this.stop();throw reason;}}
   }
   setOrigin(origin){if(!validOrigin(origin))return false;this.pendingOrigin={...origin};for(const child of this.active?[this.active]:this.children)child.setOrigin(origin);return true;}
   setPose(pose){if(!validPose(pose))return false;this.pendingPose={...pose,p:[...pose.p],q:[...pose.q],...(pose.g?{g:[...pose.g]}:{})};for(const child of this.active?[this.active]:this.children)child.setPose(pose);return true;}
   sendCombat(packet){return this.active?.sendCombat(packet)||false;}
-  stop(){for(const child of this.children)child.stop(false);this.children=[];this.active=null;this.roomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren.clear();emitNetworkEvent("finder-stop");}
+  stop(){clearTimeout(this.dataRelayTimer);this.dataRelayTimer=0;for(const child of this.children)child.stop(false);this.children=[];this.active=null;this.dataRelay=null;this.roomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren.clear();emitNetworkEvent("finder-stop");}
 }
 
 async function hashRoomMaterial(material,cryptoObj){
