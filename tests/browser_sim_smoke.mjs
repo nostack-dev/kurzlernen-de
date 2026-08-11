@@ -15,6 +15,13 @@ page.on("request",request=>{
   const u=new URL(request.url());
   if(u.hostname!=="127.0.0.1"&&u.hostname!=="localhost")externalRequests.push(request.url());
 });
+// This broad SIL test is the deterministic no-GPS/no-WORLD startup path. The
+// dedicated WORLD tests grant a real fixture location and validate auto-WORLD.
+await page.evaluateOnNewDocument(()=>{
+  Object.defineProperty(navigator,"geolocation",{configurable:true,value:{
+    getCurrentPosition(_success,error){queueMicrotask(()=>error?.({code:1,message:"CI geolocation denied"}));},
+  }});
+});
 
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function waitForSimTime(target,timeout=60000){
@@ -59,29 +66,36 @@ try{
   await page.setViewport({width:1280,height:900,deviceScaleFactor:1});
   await page.goto(url,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
+  await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});
 
   const boot=await page.evaluate(()=>({
     title:document.title,status:document.querySelector("#status")?.textContent||"",
     controller:document.querySelector("#tController")?.textContent||"",
     canvasCount:document.querySelectorAll("canvas").length,
     mode:document.querySelector("#tMode")?.textContent||"",
-    externalScripts:[...document.scripts].filter(s=>s.src).map(s=>s.src),
+    scripts:[...document.scripts].filter(s=>s.src).map(s=>s.src),
   }));
   if(boot.title!=="Arondight45 Drone Digital Twin"||!boot.status.includes("SIM ready")||
      !boot.controller.includes("shared fc::StateRuntime → fc::Runtime / WASM")||boot.canvasCount<1||boot.mode!=="SIM")
     throw new Error(`boot mismatch: ${JSON.stringify(boot)}`);
-  if(boot.externalScripts.length||externalRequests.length)throw new Error("self-contained build made external requests");
+  const remoteScripts=boot.scripts.filter(src=>{const u=new URL(src);return u.hostname!=="127.0.0.1"&&u.hostname!=="localhost";});
+  if(remoteScripts.length||externalRequests.length)throw new Error(`self-contained fallback made external requests: scripts=${JSON.stringify(remoteScripts)} requests=${JSON.stringify(externalRequests)}`);
 
   const cameraBoot=await page.evaluate(()=>({
     mode:document.querySelector("#viewport")?.dataset.cameraMode||"",
-    follow:document.querySelector("#camFollow")?.dataset.active||"",
+    fpv:document.querySelector("#camFpv")?.dataset.active||"",
+    tilt:document.querySelector("#viewport")?.dataset.fpvTiltDeg||"",
+    auto:document.querySelector("#viewport")?.dataset.autoFlightStart||"",
+    soloCamera:document.querySelector("#soloCamera")?.textContent?.trim()||"",
+    panel:getComputedStyle(document.querySelector(".panel")).display,
   }));
-  if(cameraBoot.mode!=="follow"||cameraBoot.follow!=="1")throw new Error(`FOLLOW camera default failed: ${JSON.stringify(cameraBoot)}`);
-  await page.click("#camFpv");
-  const fpv=await page.$eval("#viewport",e=>({mode:e.dataset.cameraMode||"",tilt:e.dataset.fpvTiltDeg||""}));
-  if(fpv.mode!=="fpv"||fpv.tilt!=="-15")throw new Error(`FPV camera failed: ${JSON.stringify(fpv)}`);
-  await page.click("#camFollow");
+  if(cameraBoot.mode!=="fpv"||cameraBoot.fpv!=="1"||cameraBoot.tilt!=="-15"||cameraBoot.auto!=="fpv"||cameraBoot.soloCamera!=="FPV"||cameraBoot.panel!=="none")
+    throw new Error(`direct FPV startup failed: ${JSON.stringify(cameraBoot)}`);
 
+  // Re-enter once through the now-hidden main UI path so the legacy-settings
+  // migration assertions below still begin from a deliberately clean V5 state.
+  await page.click("#soloExit");
+  await page.waitForFunction(()=>!document.body.classList.contains("solo-flight"),{timeout:5000});
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.evaluate(()=>{
     localStorage.setItem("arondight45PhoneControlSettingsV1",JSON.stringify({leftSensitivity:1,rightSensitivity:1}));
@@ -329,5 +343,5 @@ try{
     throw new Error(`mobile layout failed: ${JSON.stringify(mobile)}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Browser SIL E2E passed: shared WASM GAME/STATE FC, spring-centred AGL target, wall-clock 1 kHz pacing, one-phone forward/strafe/braking, real nose-up body-pitch + heading control, persisted FPV tilt/FOV + third-person distance, live rotor-physics audio, FC-driven ESC arm/disarm tones, axis settings, FC-authoritative arming, race/reset, local fallback and responsive layout.");
+  console.log("Browser SIL E2E passed: direct FPV/Solo fallback startup, shared WASM GAME/STATE FC, spring-centred AGL target, wall-clock 1 kHz pacing, one-phone forward/strafe/braking, real nose-up body-pitch + heading control, persisted FPV tilt/FOV + third-person distance, live rotor-physics audio, FC-driven ESC arm/disarm tones, axis settings, FC-authoritative arming, race/reset, local fallback and responsive layout.");
 }finally{await browser.close();}
