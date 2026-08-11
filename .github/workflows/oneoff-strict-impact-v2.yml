@@ -1,0 +1,184 @@
+name: Final strict physical-impact review v2
+
+on:
+  push:
+    branches: [fix/requirements-1a-complete]
+
+permissions:
+  contents: write
+
+jobs:
+  validate-commit:
+    if: github.event.head_commit.message == 'Run final strict impact review v2'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/requirements-1a-complete
+          fetch-depth: 0
+
+      - name: Apply final reviewed map-impact corrections
+        run: |
+          set -euxo pipefail
+          python3 tools/requirements_1a_render_fix.py
+          rm -f .github/workflows/oneoff-*.yml
+          node --check sim/flight_fire_fx.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node --check tests/world_shot_decal_smoke.mjs
+          node --check tests/architecture_invariants.mjs
+          git diff --check
+
+      - name: Shared runtime host gate GCC and Clang
+        run: |
+          set -euxo pipefail
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core-gcc
+          /tmp/fc-core-gcc
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control-gcc
+          /tmp/state-control-gcc
+          g++ -std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -Iesp32 tests/drone_hil_protocol_test.cpp -o /tmp/hil-gcc
+          ASAN_OPTIONS=detect_leaks=1 /tmp/hil-gcc
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil-host-gcc
+          /tmp/sil-host-gcc
+          clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core-clang
+          /tmp/fc-core-clang
+          clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control-clang
+          /tmp/state-control-clang
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+
+      - name: Build exact shared controller runtime to WebAssembly
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
+            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
+              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' \
+              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
+              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
+              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
+              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
+              -o generated/flight_core.mjs
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
+            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
+              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='node' \
+              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
+              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
+              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
+              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
+              -o generated/flight_core_node.mjs
+          node --check generated/flight_core.mjs
+          node --check generated/flight_core_node.mjs
+          node tests/sil_wasm_smoke.mjs generated/flight_core_node.mjs
+
+      - name: Build exact ESP32-S31 production and HIL firmware
+        run: |
+          set -euxo pipefail
+          docker run --rm -v "$PWD:/src" -w /src espressif/idf@sha256:68085df693b34bacfd69984ae05bb1e3b475ea3d4684943cfeed5a39954850e7 bash -lc '
+            set -euxo pipefail
+            . "$IDF_PATH/export.sh"
+            rm -rf /tmp/arondight45-production /tmp/arondight45-hil
+            mkdir -p /tmp/arondight45-production/main /tmp/arondight45-hil/main
+            cp esp32/Arondight45_DroneFC_Core.hpp esp32/Arondight45_StateControl.hpp esp32/Arondight45_HardwareSensors.hpp esp32/Arondight45_FirmwareRuntime.hpp esp32/Arondight45_DroneFC_S31.cpp /tmp/arondight45-production/main/
+            cat > /tmp/arondight45-production/CMakeLists.txt <<"EOF"
+          cmake_minimum_required(VERSION 3.16)
+          include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+          project(arondight45_s31_production)
+          EOF
+            cat > /tmp/arondight45-production/main/CMakeLists.txt <<"EOF"
+          idf_component_register(SRCS "Arondight45_DroneFC_S31.cpp" INCLUDE_DIRS ".")
+          EOF
+            cd /tmp/arondight45-production
+            python "$IDF_PATH/tools/idf.py" --preview set-target esp32s31
+            python "$IDF_PATH/tools/idf.py" --preview build
+            cd /src
+            cp esp32/Arondight45_DroneFC_Core.hpp esp32/Arondight45_StateControl.hpp esp32/Arondight45_HardwareSensors.hpp esp32/Arondight45_FirmwareRuntime.hpp esp32/Arondight45_HIL_Protocol.hpp esp32/Arondight45_DroneFC_HIL_S31.cpp /tmp/arondight45-hil/main/
+            cat > /tmp/arondight45-hil/CMakeLists.txt <<"EOF"
+          cmake_minimum_required(VERSION 3.16)
+          include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+          project(arondight45_s31_hil)
+          EOF
+            cat > /tmp/arondight45-hil/main/CMakeLists.txt <<"EOF"
+          idf_component_register(SRCS "Arondight45_DroneFC_HIL_S31.cpp" INCLUDE_DIRS ".")
+          EOF
+            cd /tmp/arondight45-hil
+            python "$IDF_PATH/tools/idf.py" --preview set-target esp32s31
+            python "$IDF_PATH/tools/idf.py" --preview build
+          '
+
+      - name: Bundle exact release browser pages
+        run: |
+          set -euxo pipefail
+          BUILD_DIR=/tmp/arondight45-web-build
+          rm -rf "$BUILD_DIR"
+          mkdir -p "$BUILD_DIR"
+          cd "$BUILD_DIR"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund \
+            three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 \
+            qrcode-generator@1.4.4 jsqr@1.4.0
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
+          ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
+          node --check /tmp/arondight45-simulator.bundle.mjs
+          node --check /tmp/arondight45-controller.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          for html_name,marker,bundle_name in [
+              ('drone_simulator.html','<script type="module" src="./sim/real_world_bootstrap.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),
+              ('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs'),
+          ]:
+              path=Path(html_name);html=path.read_text();assert marker in html
+              bundle=Path(bundle_name).read_text().replace('</script','<\\/script')
+              path.write_text(html.replace(marker,'<script type="module">\n'+bundle+'\n</script>'))
+          PY
+          rm -rf generated
+
+      - name: Execute final strict browser gate
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
+          HTTP_PID=$!
+          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; }
+          trap cleanup EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/world_shot_decal_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/world_fpv_frame_lock_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/game_speed_envelope_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+
+      - name: Prove exact product tree and commit clean branch
+        run: |
+          set -euxo pipefail
+          rm -f node_modules
+          rm -rf generated
+          git checkout -- drone_simulator.html drone_controller.html
+          git rm .github/workflows/oneoff-strict-impact-v2.yml tools/requirements_1a_render_fix.py
+          git fetch origin main
+          python3 - <<'PY'
+          import subprocess
+          allowed={
+            'REAL_WORLD_DIGITAL_TWIN.md',
+            'esp32/Arondight45_FirmwareRuntime.hpp',
+            'sim/flight_fire_fx.mjs',
+            'sim/real_world_bootstrap.mjs',
+            'sim/simulator.mjs',
+            'tests/architecture_invariants.mjs',
+            'tests/real_world_ui_smoke.mjs',
+            'tests/world_shot_decal_smoke.mjs',
+          }
+          changed=set(subprocess.check_output(['git','diff','--name-only','origin/main'],text=True).splitlines())
+          if changed!=allowed: raise SystemExit(f'product diff mismatch: changed={sorted(changed)} expected={sorted(allowed)}')
+          print('Exact final product diff:',sorted(changed))
+          PY
+          git diff --check origin/main
+          git config user.name 'Christian Heinrich Hohlfeld'
+          git config user.email 'chris.hohlfeld@gmail.com'
+          git add -A
+          git commit -m 'Finalize physically truthful WORLD impacts'
+          git push origin HEAD:fix/requirements-1a-complete
