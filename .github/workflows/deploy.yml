@@ -70,7 +70,7 @@ jobs:
           cd "$BUILD_DIR"
           npm init -y >/dev/null
           npm install --ignore-scripts --no-audit --no-fund \
-            three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 \
+            three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 mqtt@5.15.2 \
             qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.3 @trystero-p2p/mqtt@0.25.3 @trystero-p2p/torrent@0.25.3
           ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
           cd "$GITHUB_WORKSPACE"
@@ -109,6 +109,10 @@ jobs:
           grep -q 'RTCPeerConnection' drone_simulator.html
           grep -q 'RTCPeerConnection' drone_controller.html
           grep -q 'arondight45-kurzlernen-vs-v3' drone_simulator.html
+          grep -q 'arondight45/vs-data/v1' drone_simulator.html
+          grep -q 'test.mosquitto.org' drone_simulator.html
+          grep -q 'broker.emqx.io' drone_simulator.html
+          grep -q 'public.cloud.shiftr.io' drone_simulator.html
           grep -q 'api4.ipify.org' drone_simulator.html
           grep -q 'stun.cloudflare.com' drone_simulator.html
           grep -q 'SCAN CONTROLLER OFFER' drone_simulator.html
@@ -121,11 +125,15 @@ jobs:
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
+          mkdir -p generated
+          ./node_modules/.bin/esbuild sim/mqtt_data_relay.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=generated/mqtt_data_relay_probe.mjs
+          node --check generated/mqtt_data_relay_probe.mjs
           python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
           HTTP_PID=$!
-          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; }
+          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; rm -rf generated; }
           trap cleanup EXIT
           sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/mqtt_data_relay_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/network_logbook_browser_smoke.mjs http://127.0.0.1:4174
@@ -151,6 +159,7 @@ jobs:
           node --check sim/flight_logbook.mjs
           node --check sim/auto_flight_start.mjs
           node --check sim/lan_vs.mjs
+          node --check sim/mqtt_data_relay.mjs
           node --check tests/architecture_invariants.mjs
           node --check tests/control_semantics_test.mjs
           node --check tests/sil_wasm_smoke.mjs
@@ -159,6 +168,7 @@ jobs:
           node --check tests/solo_layout_smoke.mjs
           node --check tests/vs_combat_browser_smoke.mjs
           node --check tests/network_logbook_browser_smoke.mjs
+          node --check tests/mqtt_data_relay_browser_smoke.mjs
           node --check tests/real_world_ui_smoke.mjs
           node --check tests/world_shot_decal_smoke.mjs
           node --check tests/world_fpv_frame_lock_smoke.mjs
