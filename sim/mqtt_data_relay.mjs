@@ -5,7 +5,7 @@ const BROKERS=[
   "wss://broker.emqx.io:8084/mqtt",
   "wss://public:public@public.cloud.shiftr.io"
 ];
-const PROTOCOL_VERSION=1;
+const PROTOCOL_VERSION=2;
 const HELLO_MS=1000;
 const HEARTBEAT_MS=5000;
 const CONNECT_ERROR_MS=10000;
@@ -22,9 +22,27 @@ function packetId(){return `${Date.now().toString(36)}-${randomId().slice(0,12)}
 function parsePayload(payload){
   try{const text=typeof payload==="string"?payload:new TextDecoder().decode(payload);if(text.length>MAX_PACKET_BYTES)return null;const value=JSON.parse(text);return value&&value.v===PROTOCOL_VERSION&&typeof value.id==="string"&&typeof value.kind==="string"?value:null;}catch{return null;}
 }
-function packetQos(packet){return packet?.kind==="action"&&packet?.action==="pose"?0:1;}
+function packetQos(packet){return packet?.kind==="sealed"&&packet?.fast?0:1;}
 function statusObject(url){return brokerStates.get(url)||{readyState:3,error:"missing"};}
 export function getRelaySockets(){return Object.fromEntries(BROKERS.map(url=>[url,{...statusObject(url)}]));}
+function bytesToBase64(bytes){let raw="";for(let i=0;i<bytes.length;i++)raw+=String.fromCharCode(bytes[i]);return btoa(raw);}
+function base64ToBytes(value){const raw=atob(String(value||"")),out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out;}
+async function generateIdentity(){
+  const subtle=globalThis.crypto?.subtle;if(!subtle)throw Error("WebCrypto unavailable for VS relay encryption");
+  const pair=await subtle.generateKey({name:"ECDH",namedCurve:"P-256"},true,["deriveKey"]),publicJwk=await subtle.exportKey("jwk",pair.publicKey);return{pair,publicJwk};
+}
+async function derivePeerKey(privateKey,publicJwk){
+  const subtle=globalThis.crypto?.subtle;if(!subtle)throw Error("WebCrypto unavailable for VS relay encryption");
+  const peerPublic=await subtle.importKey("jwk",publicJwk,{name:"ECDH",namedCurve:"P-256"},false,[]);
+  return subtle.deriveKey({name:"ECDH",public:peerPublic},privateKey,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+}
+async function seal(key,value){
+  const iv=globalThis.crypto.getRandomValues(new Uint8Array(12)),plain=new TextEncoder().encode(JSON.stringify(value)),cipher=new Uint8Array(await globalThis.crypto.subtle.encrypt({name:"AES-GCM",iv},key,plain));
+  return{iv:bytesToBase64(iv),box:bytesToBase64(cipher)};
+}
+async function openSealed(key,iv,box){
+  const plain=await globalThis.crypto.subtle.decrypt({name:"AES-GCM",iv:base64ToBytes(iv)},key,base64ToBytes(box));return JSON.parse(new TextDecoder().decode(plain));
+}
 
 function ensureClients(){
   if(clients)return clients;
@@ -62,12 +80,13 @@ function publish(topic,packet){
   const qos=packetQos(packet);
   return Promise.allSettled(open.map(({client})=>new Promise((resolve,reject)=>client.publish(topic,text,{qos,retain:false},error=>error?reject(error):resolve())))).then(results=>{if(results.every(result=>result.status==="rejected"))throw results[0].reason||Error("VS broker relay publish failed");});
 }
-function fakePeer(){return{connectionState:"connected",iceConnectionState:"broker-relay",iceGatheringState:"complete",signalingState:"stable",addEventListener(){},getStats:async()=>new Map()};}
+function fakePeer(){return{connectionState:"connected",iceConnectionState:"broker-relay-e2ee",iceGatheringState:"complete",signalingState:"stable",addEventListener(){},getStats:async()=>new Map()};}
 
 class RelayRoom{
   constructor(config,roomId,callbacks={}){
-    this.appId=clean(config?.appId||"app");this.roomId=clean(roomId);this.topic=`arondight45/vs-data/v1/${this.appId}/${this.roomId}`;
-    this.id=randomId();this.actions=new Map();this.peers=new Set();this.seen=new Set();this.pendingPings=new Map();this.closed=false;this._onPeerJoin=null;this._onPeerLeave=null;this.onJoinError=callbacks?.onJoinError;
+    this.appId=clean(config?.appId||"app");this.roomId=clean(roomId);this.topic=`arondight45/vs-data/v2/${this.appId}/${this.roomId}`;
+    this.id=randomId();this.actions=new Map();this.peers=new Set();this.peerKeys=new Map();this.peerPublicKeys=new Map();this.seen=new Set();this.pendingPings=new Map();this.closed=false;this._onPeerJoin=null;this._onPeerLeave=null;this.onJoinError=callbacks?.onJoinError;
+    this.cryptoReady=generateIdentity().then(identity=>{this.identity=identity;return identity;}).catch(error=>{this.onJoinError?.({peerId:"",error});throw error;});
     subscribeRoom(this);
     this.helloTimer=setInterval(()=>this._announce(),HELLO_MS);this.heartbeatTimer=setInterval(()=>this._announce(),HEARTBEAT_MS);
     this.errorTimer=setTimeout(()=>{if(!this.closed&&!this.peers.size&&!(clients||[]).some(({client})=>client.connected))this.onJoinError?.({peerId:"",error:Error("MQTT data relay brokers unavailable")});},CONNECT_ERROR_MS);
@@ -78,18 +97,39 @@ class RelayRoom{
   set onPeerLeave(fn){this._onPeerLeave=typeof fn==="function"?fn:null;}
   get onPeerLeave(){return this._onPeerLeave;}
   _base(kind,target=""){return{v:PROTOCOL_VERSION,kind,id:this.id,msgId:packetId(),target:String(target||""),ts:Date.now()};}
-  _announce(){if(!this.closed)publish(this.topic,this._base("hello")).catch(()=>{});}
+  _announce(){if(this.closed)return;this.cryptoReady.then(()=>publish(this.topic,{...this._base("hello"),key:this.identity.publicJwk})).catch(()=>{});}
   _remember(msgId){if(!msgId||this.seen.has(msgId))return false;this.seen.add(msgId);if(this.seen.size>MAX_SEEN)this.seen.delete(this.seen.values().next().value);return true;}
-  _adopt(peerId){if(!peerId||peerId===this.id||this.peers.has(peerId))return;this.peers.add(peerId);this._onPeerJoin?.(peerId);publish(this.topic,this._base("hello",peerId)).catch(()=>{});}
-  _receive(packet){
+  async _adopt(peerId,publicJwk){
+    if(!peerId||peerId===this.id)return;
+    if(this.peers.has(peerId)){if(publicJwk&&!this.peerPublicKeys.has(peerId))this.peerPublicKeys.set(peerId,publicJwk);return;}
+    if(!publicJwk||typeof publicJwk!=="object")return;
+    await this.cryptoReady;
+    const key=await derivePeerKey(this.identity.pair.privateKey,publicJwk);
+    if(this.closed)return;
+    this.peerPublicKeys.set(peerId,publicJwk);this.peerKeys.set(peerId,key);this.peers.add(peerId);this._onPeerJoin?.(peerId);
+    publish(this.topic,{...this._base("hello",peerId),key:this.identity.publicJwk}).catch(()=>{});
+  }
+  _receive(packet){this._receiveAsync(packet).catch(error=>this.onJoinError?.({peerId:String(packet?.id||""),error}));}
+  async _receiveAsync(packet){
     if(this.closed||packet.id===this.id||!this._remember(packet.msgId))return;if(packet.target&&packet.target!==this.id)return;
-    if(packet.kind==="hello"){this._adopt(packet.id);return;}if(packet.kind==="bye"){if(this.peers.delete(packet.id))this._onPeerLeave?.(packet.id);return;}
-    this._adopt(packet.id);
-    if(packet.kind==="action")this.actions.get(String(packet.action||""))?.onMessage?.(packet.data,{peerId:packet.id});
-    else if(packet.kind==="ping")publish(this.topic,{...this._base("pong",packet.id),nonce:packet.nonce}).catch(()=>{});
+    if(packet.kind==="hello"){await this._adopt(packet.id,packet.key);return;}
+    if(packet.kind==="bye"){if(this.peers.delete(packet.id))this._onPeerLeave?.(packet.id);this.peerKeys.delete(packet.id);this.peerPublicKeys.delete(packet.id);return;}
+    if(!this.peers.has(packet.id))return;
+    if(packet.kind==="sealed"){
+      const key=this.peerKeys.get(packet.id);if(!key)return;
+      const payload=await openSealed(key,packet.iv,packet.box);this.actions.get(String(payload?.action||""))?.onMessage?.(payload?.data,{peerId:packet.id});
+    }else if(packet.kind==="ping")publish(this.topic,{...this._base("pong",packet.id),nonce:packet.nonce}).catch(()=>{});
     else if(packet.kind==="pong"){const pending=this.pendingPings.get(packet.nonce);if(pending){this.pendingPings.delete(packet.nonce);pending.resolve(performance.now()-pending.started);}}
   }
-  makeAction(name){const key=String(name||"");const action={onMessage:null,send:(data,{target}={})=>publish(this.topic,{...this._base("action",target),action:key,data})};this.actions.set(key,action);return action;}
+  async _sendAction(action,data,target){
+    const targets=target?[String(target)]:[...this.peers];if(!targets.length)throw Error("VS broker peer unavailable");
+    const results=await Promise.allSettled(targets.map(async peerId=>{
+      const key=this.peerKeys.get(peerId);if(!key)throw Error("VS broker encryption key unavailable");
+      const encrypted=await seal(key,{action,data});return publish(this.topic,{...this._base("sealed",peerId),fast:action==="pose",...encrypted});
+    }));
+    if(results.every(result=>result.status==="rejected"))throw results[0].reason||Error("VS broker encrypted send failed");
+  }
+  makeAction(name){const key=String(name||"");const action={onMessage:null,send:(data,{target}={})=>this._sendAction(key,data,target)};this.actions.set(key,action);return action;}
   getPeers(){return Object.fromEntries([...this.peers].map(peerId=>[peerId,fakePeer()]));}
   ping(peerId){
     if(!this.peers.has(peerId))return Promise.reject(Error("VS broker peer unavailable"));
@@ -97,7 +137,7 @@ class RelayRoom{
   }
   leave(){
     if(this.closed)return;this.closed=true;clearInterval(this.helloTimer);clearInterval(this.heartbeatTimer);clearTimeout(this.errorTimer);
-    publish(this.topic,this._base("bye")).catch(()=>{});unsubscribeRoom(this);for(const {resolve} of this.pendingPings.values())resolve(NaN);this.pendingPings.clear();this.peers.clear();
+    publish(this.topic,this._base("bye")).catch(()=>{});unsubscribeRoom(this);for(const {resolve} of this.pendingPings.values())resolve(NaN);this.pendingPings.clear();this.peers.clear();this.peerKeys.clear();this.peerPublicKeys.clear();
   }
 }
 
