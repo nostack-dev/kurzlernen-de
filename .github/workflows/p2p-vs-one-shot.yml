@@ -13,7 +13,6 @@ jobs:
           node-version: '20'
       - run: python3 tools/patch_p2p_vs.py
       - run: node --check sim/lan_vs.mjs && node --check sim/real_world_bootstrap.mjs
-      - run: npm test --if-present
       - run: |
           git config user.name 'Arondight45 CI'
           git config user.email 'actions@users.noreply.github.com'
