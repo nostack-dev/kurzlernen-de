@@ -12,11 +12,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      - name: Restore parent test and apply surgical ARM migration
+      - name: Restore known-good full test and apply surgical ARM migration
         shell: bash
         run: |
           set -euxo pipefail
-          git show HEAD^:tests/browser_sim_smoke.mjs > tests/browser_sim_smoke.mjs
+          git show b242392:tests/browser_sim_smoke.mjs > tests/browser_sim_smoke.mjs
           python3 - <<'PY'
           from pathlib import Path
           p=Path('tests/browser_sim_smoke.mjs');s=p.read_text()
