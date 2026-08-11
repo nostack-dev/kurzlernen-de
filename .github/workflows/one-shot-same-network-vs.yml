@@ -1,0 +1,62 @@
+name: one-shot-same-network-vs
+on:
+  push:
+    paths:
+      - '.github/workflows/one-shot-same-network-vs.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Simplify VS to same-network auto-connect
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('sim/lan_vs.mjs')
+          s=p.read_text()
+          start=s.index('// Browsers cannot read the Wi-Fi SSID.')
+          s=s[:start] + '''const NETWORK_IP_URL="https://api.ipify.org?format=json";\n\nexport async function sameNetworkRoomKey({fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto}={}){\n  if(typeof fetchFn!=="function")throw Error("Network lookup unavailable");\n  if(!cryptoObj?.subtle)throw Error("Secure room hashing unavailable");\n  const controller=new AbortController();\n  const timeout=setTimeout(()=>controller.abort(),5000);\n  try{\n    const response=await fetchFn(NETWORK_IP_URL,{cache:"no-store",signal:controller.signal});\n    if(!response?.ok)throw Error(`Network lookup failed (${response?.status||0})`);\n    const data=await response.json();\n    const ip=String(data?.ip||"").trim();\n    if(!ip||ip.length>64||!/^[0-9a-fA-F:.]+$/.test(ip))throw Error("Network lookup returned invalid address");\n    const bytes=new TextEncoder().encode(`arondight45-vs-network:${ip}`);\n    const digest=new Uint8Array(await cryptoObj.subtle.digest("SHA-256",bytes));\n    const key=[...digest.slice(0,12)].map(v=>v.toString(16).padStart(2,"0")).join("");\n    return `net-${key}`;\n  }finally{clearTimeout(timeout);}\n}\n'''
+          p.write_text(s)
+
+          p=Path('sim/real_world_bootstrap.mjs')
+          s=p.read_text()
+          s=s.replace('import {LanVsSession,nearbyRoomKey} from "./lan_vs.mjs";','import {LanVsSession,sameNetworkRoomKey} from "./lan_vs.mjs";',1)
+          s=s.replace('this.vsSession=null;this.vsPeerMesh=null;this.vsConnected=false;this.installUi();this.installLookHud();this.installFreeLookSurface();this.installVsUi();window.addEventListener(CAMERA_SETTINGS_EVENT',
+                      'this.vsSession=null;this.vsPeerMesh=null;this.vsConnected=false;this.vsStarting=false;this.installUi();this.installLookHud();this.installFreeLookSurface();this.installVsUi();queueMicrotask(()=>this.startVs());window.addEventListener(CAMERA_SETTINGS_EVENT',1)
+          old='''  installVsUi(){\n    const viewport=$("viewport");if(!viewport||$("lanVsButton"))return;const button=document.createElement("button");button.id="lanVsButton";button.type="button";button.textContent="FIND MATE · VS";button.style.cssText="position:absolute;z-index:6;left:max(10px,env(safe-area-inset-left));bottom:max(12px,calc(env(safe-area-inset-bottom) + 8px));padding:9px 12px;border:1px solid #70ddff88;border-radius:10px;background:#071522e8;color:#dff7ff;font:800 10px system-ui;letter-spacing:.05em;touch-action:manipulation";viewport.appendChild(button);const status=document.createElement("div");status.id="lanVsStatus";status.style.cssText="position:absolute;z-index:6;left:max(10px,env(safe-area-inset-left));bottom:max(52px,calc(env(safe-area-inset-bottom) + 48px));padding:5px 8px;border-radius:8px;background:#071522d9;color:#aeeaff;font:800 9px system-ui;display:none";viewport.appendChild(status);button.onclick=()=>this.toggleVs();\n  }\n  async toggleVs(){\n    if(this.vsSession){this.stopVs();return;}const button=$("lanVsButton"),status=$("lanVsStatus");if(button)button.textContent="FINDING MATE…";if(status){status.style.display="block";status.textContent="Nearby VS matchmaking…";}let lat=Number(this.lastLocation?.coords?.latitude??this.originLat),lon=Number(this.lastLocation?.coords?.longitude??this.originLon);if(!Number.isFinite(lat)||!Number.isFinite(lon)){try{this.lastLocation=await geolocate();lat=Number(this.lastLocation.coords.latitude);lon=Number(this.lastLocation.coords.longitude);}catch{if(button)button.textContent="FIND MATE · VS";if(status)status.textContent="GPS is needed to find a nearby mate";return;}}const session=new LanVsSession({onPeer:()=>{this.vsConnected=true;if(button)button.textContent="VS · CONNECTED";if(status)status.textContent="Mate found · direct P2P";this.ensureVsPeerMesh();},onPose:pose=>this.applyVsPose(pose),onLeave:()=>{this.vsConnected=false;if(button)button.textContent="FINDING MATE…";if(status)status.textContent="Mate left · searching…";if(this.vsPeerMesh)this.vsPeerMesh.visible=false;},onError:error=>{if(button)button.textContent="FIND MATE · VS";if(status)status.textContent=`VS unavailable · ${error?.message||error}`;}});this.vsSession=session;try{await session.start(nearbyRoomKey(lat,lon));}catch{if(this.vsSession===session)this.vsSession=null;}\n  }\n  stopVs(){this.vsSession?.stop();this.vsSession=null;this.vsConnected=false;if(this.vsPeerMesh)this.vsPeerMesh.visible=false;const b=$("lanVsButton"),s=$("lanVsStatus");if(b)b.textContent="FIND MATE · VS";if(s)s.style.display="none";}\n'''
+          new='''  installVsUi(){\n    const viewport=$("viewport");if(!viewport||$("lanVsButton"))return;const button=document.createElement("button");button.id="lanVsButton";button.type="button";button.textContent="VS · AUTO";button.style.cssText="position:absolute;z-index:6;left:max(10px,env(safe-area-inset-left));bottom:max(12px,calc(env(safe-area-inset-bottom) + 8px));padding:9px 12px;border:1px solid #70ddff88;border-radius:10px;background:#071522e8;color:#dff7ff;font:800 10px system-ui;letter-spacing:.05em;touch-action:manipulation";viewport.appendChild(button);const status=document.createElement("div");status.id="lanVsStatus";status.style.cssText="position:absolute;z-index:6;left:max(10px,env(safe-area-inset-left));bottom:max(52px,calc(env(safe-area-inset-bottom) + 48px));padding:5px 8px;border-radius:8px;background:#071522d9;color:#aeeaff;font:800 9px system-ui;display:none";viewport.appendChild(status);button.onclick=()=>this.toggleVs();\n  }\n  toggleVs(){if(this.vsSession||this.vsStarting)this.stopVs();else this.startVs();}\n  async startVs(){\n    if(this.vsSession||this.vsStarting)return;this.vsStarting=true;const button=$("lanVsButton"),status=$("lanVsStatus");if(button)button.textContent="VS · CONNECTING";if(status){status.style.display="block";status.textContent="Same network · finding mate…";}\n    try{const roomId=await sameNetworkRoomKey();if(!this.vsStarting)return;const session=new LanVsSession({onPeer:()=>{this.vsConnected=true;if(button)button.textContent="VS · CONNECTED";if(status)status.textContent="Same network · mate connected";this.ensureVsPeerMesh();},onPose:pose=>this.applyVsPose(pose),onLeave:()=>{this.vsConnected=false;if(button)button.textContent="VS · WAITING";if(status)status.textContent="Same network · waiting for mate";if(this.vsPeerMesh)this.vsPeerMesh.visible=false;},onError:error=>{if(button)button.textContent="VS · RETRY";if(status)status.textContent=`VS unavailable · ${error?.message||error}`;}});this.vsSession=session;await session.start(roomId);if(!this.vsConnected){if(button)button.textContent="VS · WAITING";if(status)status.textContent="Same network · waiting for mate";}}catch(error){this.vsSession?.stop();this.vsSession=null;if(button)button.textContent="VS · RETRY";if(status){status.style.display="block";status.textContent=`VS unavailable · ${error?.message||error}`;}}finally{this.vsStarting=false;}\n  }\n  stopVs(){this.vsStarting=false;this.vsSession?.stop();this.vsSession=null;this.vsConnected=false;if(this.vsPeerMesh)this.vsPeerMesh.visible=false;const b=$("lanVsButton"),s=$("lanVsStatus");if(b)b.textContent="VS · AUTO";if(s)s.style.display="none";}\n'''
+          if old not in s: raise SystemExit('VS UI block anchor not found')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('tests/lan_vs_smoke.mjs')
+          s=p.read_text()
+          s=s.replace('import {LanVsSession,nearbyRoomKey} from "../sim/lan_vs.mjs";','import {webcrypto} from "node:crypto";\nimport {LanVsSession,sameNetworkRoomKey} from "../sim/lan_vs.mjs";',1)
+          start=s.index('const harness=transportHarness();')
+          s=s[:start]+'''const fakeFetch=ip=>async()=>({ok:true,json:async()=>({ip})});\nconst room=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto});\nconst sameRoom=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto});\nconst otherRoom=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.8"),cryptoObj:webcrypto});\nassert.equal(room,sameRoom);\nassert.notEqual(room,otherRoom);\nassert.match(room,/^net-[0-9a-f]{24}$/);\nassert.ok(!room.includes("203.0.113.7"));\n\nconst harness=transportHarness();\n''' + s[s.index('let aPeer=0',start):]
+          p.write_text(s)
+          PY
+          node --check sim/lan_vs.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node --check tests/lan_vs_smoke.mjs
+          node tests/lan_vs_smoke.mjs
+          node tests/architecture_invariants.mjs
+      - name: Commit product changes
+        run: |
+          git config user.name "Arondight45 CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add sim/lan_vs.mjs sim/real_world_bootstrap.mjs tests/lan_vs_smoke.mjs
+          git commit -m "Simplify VS to same-network auto-connect"
+          git push
+      - name: Remove one-shot workflow
+        if: always()
+        run: |
+          git pull --rebase || true
+          git rm -f .github/workflows/one-shot-same-network-vs.yml || true
+          git config user.name "Arondight45 CI"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "Remove same-network VS one-shot" || exit 0
+          git push
