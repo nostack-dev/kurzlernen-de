@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   validate-and-commit:
-    if: github.event.head_commit.message == 'Run full 1a hardening and validation'
+    if: github.event.head_commit.message == 'Run full 1a validation clean workspace'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -26,6 +26,12 @@ jobs:
           node --check tests/world_shot_decal_smoke.mjs
           node --check tests/real_world_ui_smoke.mjs
           node --check tests/architecture_invariants.mjs
+          # Product hygiene tests intentionally allow only the two permanent
+          # workflows. Remove all temporary runners from this checkout before
+          # executing the release gate; their deletions are committed at the end.
+          rm -f .github/workflows/oneoff-requirements-1a.yml \
+                .github/workflows/oneoff-requirements-1a-v2.yml \
+                .github/workflows/oneoff-requirements-1a-diagnostic.yml
 
       - name: Host-test shared Production HIL and SIL runtime
         run: |
@@ -80,6 +86,8 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
           ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
+          node --check /tmp/arondight45-simulator.bundle.mjs
+          node --check /tmp/arondight45-controller.bundle.mjs
           python3 - <<'PY'
           from pathlib import Path
           builds=[
@@ -114,11 +122,10 @@ jobs:
       - name: Commit validated product branch
         run: |
           set -euxo pipefail
-          rm -f node_modules
+          rm -f node_modules tools/requirements_1a_patch.py
           git checkout -- drone_simulator.html drone_controller.html
-          git rm .github/workflows/oneoff-requirements-1a.yml .github/workflows/oneoff-requirements-1a-v2.yml tools/requirements_1a_patch.py
           git config user.name 'Christian Heinrich Hohlfeld'
           git config user.email 'chris.hohlfeld@gmail.com'
-          git add sim/flight_fire_fx.mjs sim/real_world_bootstrap.mjs sim/simulator.mjs esp32/Arondight45_FirmwareRuntime.hpp tests/architecture_invariants.mjs tests/real_world_ui_smoke.mjs tests/world_shot_decal_smoke.mjs REAL_WORLD_DIGITAL_TWIN.md
+          git add -A
           git commit -m 'Complete 1a physical impact and twin contracts'
           git push origin HEAD:fix/requirements-1a-complete
