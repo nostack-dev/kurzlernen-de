@@ -141,4 +141,4 @@ class RelayRoom{
   }
 }
 
-export function joinRoom(config,roomId,callbacks={}){if(!String(roomId||"").startsWith("net-"))throw Error("MQTT data relay requires a trusted network/proximity room");return new RelayRoom(config,roomId,callbacks);}
+export function joinRoom(config,roomId,callbacks={}){const id=String(roomId||"");if(!/^(?:net|tap)-/.test(id))throw Error("MQTT data relay requires an automatic network/proximity/gesture room");return new RelayRoom(config,id,callbacks);}

@@ -4,7 +4,7 @@ const base=process.argv[2]||"http://127.0.0.1:4174";
 const executablePath=process.env.CHROME_BIN;
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage"]});
-const roomId=`net-ci-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,9)}`;
+const roomId=`tap-ci-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,9)}`;
 const a=await browser.newPage(),b=await browser.newPage();
 for(const [page,label] of [[a,"A"],[b,"B"]]){
   page.on("console",msg=>console.log(`[${label}]`,msg.type(),msg.text()));
