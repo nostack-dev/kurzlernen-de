@@ -12,6 +12,7 @@ function requestStartupLocation(){
 // Surface the browser GPS permission immediately. Flight startup never waits for
 // this promise, so denied GPS or an offline network cannot block local SIM.
 // Release validation proves long-range NAV, realtime catch-up and visual cadence.
+// This comment intentionally triggers the final exact-SHA Deploy + S31 gate.
 const startupLocation=requestStartupLocation();
 
 async function waitForBridge(timeoutMs=30000){
