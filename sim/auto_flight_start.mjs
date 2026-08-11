@@ -11,6 +11,7 @@ function requestStartupLocation(){
 
 // Surface the browser GPS permission immediately. Flight startup never waits for
 // this promise, so denied GPS or an offline network cannot block local SIM.
+// Release validation also proves long-range NAV continuity and realtime catch-up.
 const startupLocation=requestStartupLocation();
 
 async function waitForBridge(timeoutMs=30000){
