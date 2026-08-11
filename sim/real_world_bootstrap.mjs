@@ -106,7 +106,7 @@ class RealWorldBridge{
     try{localStorage.setItem(MODE_STORAGE,"training");}catch{}
   }
   installVsUi(){
-    const viewport=$("viewport");if(!viewport||$("lanVsButton"))return;const button=document.createElement("button");button.id="lanVsButton";button.type="button";button.textContent="FIND MATE";button.setAttribute("aria-label","Find nearby mate on the same network");button.style.cssText="border:1px solid #70ddff88;background:#071522e8;color:#dff7ff;font-weight:800;letter-spacing:.04em;touch-action:manipulation;white-space:nowrap";const attach=()=>{const topbar=$("soloTopbar");if(topbar&&button.parentNode!==topbar)topbar.appendChild(button);else if(!button.parentNode)viewport.appendChild(button);};attach();setTimeout(attach,0);button.onclick=()=>this.toggleVs();
+    const viewport=$("viewport");if(!viewport||$("lanVsButton"))return;const button=document.createElement("button");button.id="lanVsButton";button.type="button";button.textContent="FIND MATE";button.setAttribute("aria-label","Find nearby mate on the same network");button.style.cssText="border:1px solid #70ddff88;background:#071522e8;color:#dff7ff;font-weight:800;letter-spacing:.04em;touch-action:manipulation;white-space:nowrap";button.onclick=()=>this.toggleVs();const attach=()=>{const topbar=$("soloTopbar");if(!topbar)return false;if(button.parentNode!==topbar)topbar.appendChild(button);return true;};if(!attach()){const observer=new MutationObserver(()=>{if(attach())observer.disconnect();});observer.observe(document.documentElement,{childList:true,subtree:true});}
   }
   toggleVs(){if(this.vsSession||this.vsStarting)this.stopVs();else this.startVs();}
   async startVs(){
