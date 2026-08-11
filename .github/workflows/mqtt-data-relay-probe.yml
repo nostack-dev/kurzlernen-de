@@ -1,0 +1,37 @@
+name: MQTT data relay branch probe
+
+on:
+  push:
+    branches: ["fix/mqtt-data-relay-prod"]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Build browser relay probe
+        run: |
+          set -euxo pipefail
+          TMP=/tmp/mqtt-relay-node
+          mkdir -p "$TMP" generated
+          cd "$TMP"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund mqtt@5.15.2 esbuild@0.25.8 puppeteer-core@24.16.0
+          ln -s "$TMP/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          node --check sim/lan_vs.mjs
+          node --check sim/mqtt_data_relay.mjs
+          ./node_modules/.bin/esbuild sim/mqtt_data_relay.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=generated/mqtt_data_relay_probe.mjs
+          node --check generated/mqtt_data_relay_probe.mjs
+      - name: Real two-browser broker data path
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/mqtt-relay-http.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; rm -rf generated' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/mqtt_data_relay_browser_smoke.mjs http://127.0.0.1:4174
