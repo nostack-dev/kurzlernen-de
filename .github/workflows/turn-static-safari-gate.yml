@@ -1,4 +1,4 @@
-name: Static TURN Safari validation gate
+name: Safari broker relay validation gate
 
 on:
   push:
@@ -20,13 +20,13 @@ jobs:
         id: guard
         shell: bash
         run: |
-          if git log -1 --pretty=%B | grep -Fq '[turn-safari-fixed]'; then
+          if git log -1 --pretty=%B | grep -Fq '[safari-broker-fixed]'; then
             echo 'skip=true' >> "$GITHUB_OUTPUT"
           else
             echo 'skip=false' >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Patch network transport
+      - name: Patch robust WSS 443 relay
         if: steps.guard.outputs.skip != 'true'
         shell: bash
         run: |
@@ -34,93 +34,125 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          lan=Path('sim/lan_vs.mjs')
-          s=lan.read_text()
-          old='''const STUN_ICE_SERVERS=[\n  {urls:["stun:stun.cloudflare.com:3478","stun:stun.cloudflare.com:53"]},\n  {urls:"stun:stun.l.google.com:19302"}\n];'''
-          new=old+'''\nconst TURN_CONFIG=[\n  {urls:["turn:openrelay.metered.ca:80","turn:openrelay.metered.ca:443","turn:openrelay.metered.ca:443?transport=tcp"],username:"openrelayproject",credential:"openrelayproject"}\n];'''
-          assert old in s and 'const TURN_CONFIG=' not in s
-          s=s.replace(old,new,1)
-          old_join='room=joinRoom({appId:APP_ID,relayConfig:{redundancy:this.relayRedundancy}},this.roomId,{onJoinError});'
-          new_join='room=joinRoom({appId:APP_ID,relayConfig:{redundancy:this.relayRedundancy},turnConfig:TURN_CONFIG},this.roomId,{onJoinError});'
-          assert old_join in s
-          s=s.replace(old_join,new_join,1)
-          lan.write_text(s)
-
           relay=Path('sim/mqtt_data_relay.mjs')
           s=relay.read_text()
-          assert '"wss://public:public@public.cloud.shiftr.io"' in s
-          s=s.replace('"wss://public:public@public.cloud.shiftr.io"','"wss://public.cloud.shiftr.io"',1)
+          old='''const BROKERS=[\n  "wss://test.mosquitto.org:8081/mqtt",\n  "wss://broker.emqx.io:8084/mqtt",\n  "wss://public:public@public.cloud.shiftr.io"\n];'''
+          new='''const BROKERS=[\n  "wss://mqtt.eclipseprojects.io:443/mqtt",\n  "wss://public.cloud.shiftr.io",\n  "wss://test.mosquitto.org:8081/mqtt",\n  "wss://broker.emqx.io:8084/mqtt"\n];'''
+          assert old in s
+          s=s.replace(old,new,1)
+          s=s.replace('const CONNECT_ERROR_MS=10000;','const CONNECT_ERROR_MS=18000;',1)
           old_connect='const client=mqtt.connect(url,{clientId:`a45relay-${randomId().slice(0,20)}-${index}`,clean:true,reconnectPeriod:1000,connectTimeout:5000,keepalive:20,protocolVersion:4,resubscribe:true});'
-          new_connect='const auth=url==="wss://public.cloud.shiftr.io"?{username:"public",password:"public"}:{};\n    const client=mqtt.connect(url,{...auth,forceNativeWebSocket:true,clientId:`a45-${randomId().slice(0,18)}`,clean:true,reconnectPeriod:1000,connectTimeout:8000,keepalive:20,protocolVersion:4,resubscribe:true});'
+          new_connect='const auth=url==="wss://public.cloud.shiftr.io"?{username:"public",password:"public"}:{};\n    const client=mqtt.connect(url,{...auth,forceNativeWebSocket:true,clientId:`a45-${randomId().slice(0,12)}${index}`,clean:true,reconnectPeriod:1200,connectTimeout:10000,keepalive:20,protocolVersion:4,resubscribe:true});'
           assert old_connect in s
           s=s.replace(old_connect,new_connect,1)
           relay.write_text(s)
-          PY
-          node --check sim/lan_vs.mjs
-          node --check sim/mqtt_data_relay.mjs
-          grep -Fq 'turnConfig:TURN_CONFIG' sim/lan_vs.mjs
-          grep -Fq 'forceNativeWebSocket:true' sim/mqtt_data_relay.mjs
 
-      - name: Real browser relay probes
+          lan=Path('sim/lan_vs.mjs')
+          s=lan.read_text()
+          old_diag='return Object.entries(sockets).map(([url,socket])=>({url,state:networkSocketState(socket)}));'
+          new_diag='return Object.entries(sockets).map(([url,socket])=>({url,state:networkSocketState(socket),error:String(socket?.error||"")}));'
+          assert old_diag in s
+          s=s.replace(old_diag,new_diag,1)
+          lan.write_text(s)
+
+          smoke=Path('tests/mqtt_data_relay_browser_smoke.mjs')
+          s=smoke.read_text()
+          old_check='for(const side of [stateA,stateB]){if(side.joinError)throw new Error(`broker join error: ${side.joinError}`);if(!Object.values(side.sockets).some(socket=>socket.readyState===1))throw new Error(`no broker websocket open: ${JSON.stringify(side.sockets)}`);}'
+          new_check='for(const side of [stateA,stateB]){if(side.joinError)throw new Error(`broker join error: ${side.joinError}`);if(side.sockets["wss://mqtt.eclipseprojects.io:443/mqtt"]?.readyState!==1)throw new Error(`WSS 443 Eclipse broker not open: ${JSON.stringify(side.sockets)}`);}'
+          assert old_check in s
+          s=s.replace(old_check,new_check,1)
+          smoke.write_text(s)
+          PY
+          node --check sim/mqtt_data_relay.mjs
+          node --check sim/lan_vs.mjs
+          node --check tests/mqtt_data_relay_browser_smoke.mjs
+          grep -Fq 'wss://mqtt.eclipseprojects.io:443/mqtt' sim/mqtt_data_relay.mjs
+          grep -Fq 'forceNativeWebSocket:true' sim/mqtt_data_relay.mjs
+          ! grep -Fq 'public:public@public.cloud.shiftr.io' sim/mqtt_data_relay.mjs
+          node tests/architecture_invariants.mjs
+          node tests/lan_vs_smoke.mjs
+
+      - name: Chromium two-browser encrypted relay
         if: steps.guard.outputs.skip != 'true'
         shell: bash
         run: |
           set -euxo pipefail
-          TMP=/tmp/a45-relay-probe
+          TMP=/tmp/a45-broker-node
           rm -rf "$TMP"
           mkdir -p "$TMP"
           cd "$TMP"
           npm init -y >/dev/null
-          npm install --ignore-scripts --no-audit --no-fund puppeteer-core@24.16.0 mqtt@5.15.2 esbuild@0.25.8
+          npm install --ignore-scripts --no-audit --no-fund mqtt@5.15.2 esbuild@0.25.8 puppeteer-core@24.16.0
+          ln -s "$TMP/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p generated
+          ./node_modules/.bin/esbuild sim/mqtt_data_relay.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=generated/mqtt_data_relay_probe.mjs
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          cat > turn_probe.mjs <<'EOF'
-          import puppeteer from 'puppeteer-core'
-          const browser=await puppeteer.launch({headless:true,executablePath:process.env.CHROME_BIN,args:['--no-sandbox','--disable-dev-shm-usage']})
-          const page=await browser.newPage()
-          try {
-            const result=await page.evaluate(async()=>{
-              const pc=new RTCPeerConnection({iceTransportPolicy:'relay',iceServers:[{urls:['turn:openrelay.metered.ca:80','turn:openrelay.metered.ca:443','turn:openrelay.metered.ca:443?transport=tcp'],username:'openrelayproject',credential:'openrelayproject'}]})
-              pc.createDataChannel('probe')
-              const candidates=[]
-              let finish
-              const done=new Promise(resolve=>finish=resolve)
-              pc.onicecandidate=e=>{if(e.candidate)candidates.push({type:e.candidate.type||'',candidate:e.candidate.candidate});else finish()}
-              await pc.setLocalDescription(await pc.createOffer())
-              await Promise.race([done,new Promise(resolve=>setTimeout(resolve,15000))])
-              pc.close()
-              return candidates
-            })
-            if(!result.some(c=>c.type==='relay'||/ typ relay /.test(` ${c.candidate} `)))throw new Error(`no TURN relay candidate: ${JSON.stringify(result)}`)
-            console.log('TURN relay candidate OK',result)
-          } finally { await browser.close() }
-          EOF
-          CHROME_BIN="$CHROME_BIN" node turn_probe.mjs
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/a45-broker-http.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; rm -rf generated' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/mqtt_data_relay_browser_smoke.mjs http://127.0.0.1:4174
 
-          cat > mqtt_probe.mjs <<'EOF'
-          import puppeteer from 'puppeteer-core'
-          import {build} from 'esbuild'
-          import {writeFile} from 'node:fs/promises'
-          const dir='/tmp/a45-mqtt-page'
-          await import('node:fs/promises').then(fs=>fs.mkdir(dir,{recursive:true}))
-          await writeFile(`${dir}/entry.js`,`import mqtt from 'mqtt'; globalThis.probe=()=>new Promise((resolve,reject)=>{const c=mqtt.connect('wss://public.cloud.shiftr.io',{username:'public',password:'public',forceNativeWebSocket:true,clientId:'a45probe-'+Math.random().toString(36).slice(2,12),clean:true,connectTimeout:10000,reconnectPeriod:0,protocolVersion:4}); const t=setTimeout(()=>{c.end(true);reject(Error('timeout'))},12000); c.on('connect',()=>{clearTimeout(t);c.end(true);resolve(true)}); c.on('error',e=>{clearTimeout(t);c.end(true);reject(e)})})`)
-          await build({entryPoints:[`${dir}/entry.js`],bundle:true,format:'iife',platform:'browser',outfile:`${dir}/bundle.js`})
-          await writeFile(`${dir}/index.html`,'<script src="bundle.js"></script>')
-          const {spawn}=await import('node:child_process')
-          const srv=spawn('python3',['-m','http.server','4188','--bind','127.0.0.1'],{cwd:dir,stdio:'ignore'})
-          await new Promise(r=>setTimeout(r,700))
-          const browser=await puppeteer.launch({headless:true,executablePath:process.env.CHROME_BIN,args:['--no-sandbox','--disable-dev-shm-usage']})
-          try {const p=await browser.newPage();await p.goto('http://127.0.0.1:4188');await p.evaluate(()=>globalThis.probe());console.log('WSS 443 MQTT OK')} finally {await browser.close();srv.kill()}
-          EOF
-          CHROME_BIN="$CHROME_BIN" node mqtt_probe.mjs
-
-      - name: Commit validated transport fix
+      - name: WebKit two-browser encrypted relay
         if: steps.guard.outputs.skip != 'true'
         shell: bash
         run: |
           set -euxo pipefail
+          TMP=/tmp/a45-webkit-node
+          rm -rf "$TMP"
+          mkdir -p "$TMP"
+          cd "$TMP"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund playwright@1.54.2 mqtt@5.15.2 esbuild@0.25.8
+          npx playwright install --with-deps webkit
+          ln -sf "$TMP/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p generated
+          ./node_modules/.bin/esbuild sim/mqtt_data_relay.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=generated/mqtt_data_relay_probe.mjs
+          python3 -m http.server 4175 --bind 127.0.0.1 >/tmp/a45-webkit-http.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; rm -rf generated' EXIT
+          sleep 1
+          cat >/tmp/a45-webkit-node/relay.mjs <<'EOF'
+          import {webkit} from 'playwright'
+          const browser=await webkit.launch({headless:true})
+          const roomId=`tap-webkit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`
+          const a=await browser.newPage(),b=await browser.newPage()
+          const setup=async(page,label)=>{
+            await page.goto('http://127.0.0.1:4175/tests/mqtt_relay_probe.html')
+            await page.evaluate(async({roomId,label})=>{
+              const mod=await import('/generated/mqtt_data_relay_probe.mjs')
+              const s=globalThis.__r={label,peer:'',messages:[],error:'',mod}
+              const room=mod.joinRoom({appId:'a45-webkit-ci'},roomId,{onJoinError:d=>s.error=String(d?.error?.message||d?.error||'')})
+              const action=room.makeAction('probe');action.onMessage=(data,{peerId}={})=>s.messages.push({data,peerId});room.onPeerJoin=id=>s.peer=id;s.room=room;s.action=action
+            },{roomId,label})
+          }
+          const snap=p=>p.evaluate(()=>({peer:__r.peer,messages:__r.messages,error:__r.error,sockets:__r.mod.getRelaySockets()}))
+          const sleep=ms=>new Promise(r=>setTimeout(r,ms))
+          try{
+            await Promise.all([setup(a,'a'),setup(b,'b')])
+            let A,B;const deadline=Date.now()+30000
+            while(Date.now()<deadline){[A,B]=await Promise.all([snap(a),snap(b)]);if(A.peer&&B.peer)break;await sleep(400)}
+            if(!A?.peer||!B?.peer)throw Error(`WebKit peers missing A=${JSON.stringify(A)} B=${JSON.stringify(B)}`)
+            await a.evaluate(()=>__r.action.send({from:'webkit-a'},{target:__r.peer}));await sleep(1200);B=await snap(b)
+            if(!B.messages.some(x=>x.data?.from==='webkit-a'))throw Error(`WebKit A->B missing ${JSON.stringify(B)}`)
+            for(const x of [await snap(a),B]){if(x.error)throw Error(`WebKit relay error ${x.error}`);if(x.sockets['wss://mqtt.eclipseprojects.io:443/mqtt']?.readyState!==1)throw Error(`WebKit Eclipse WSS443 not open ${JSON.stringify(x.sockets)}`)}
+            console.log('WebKit encrypted broker relay passed',A.peer,B.peer)
+          } finally {await Promise.allSettled([a.evaluate(()=>__r?.room?.leave?.()),b.evaluate(()=>__r?.room?.leave?.())]);await browser.close()}
+          EOF
+          cd /tmp/a45-webkit-node
+          node relay.mjs
+
+      - name: Commit validated Safari broker fix
+        if: steps.guard.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd "$GITHUB_WORKSPACE"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add sim/lan_vs.mjs sim/mqtt_data_relay.mjs
-          git commit -m 'Add TURN and Safari-safe broker transport [turn-safari-fixed]'
+          git add sim/mqtt_data_relay.mjs sim/lan_vs.mjs tests/mqtt_data_relay_browser_smoke.mjs
+          git commit -m 'Harden static relay for Safari on WSS 443 [safari-broker-fixed]'
           git push origin HEAD:fix/turn-static-safari
