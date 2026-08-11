@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {webcrypto} from "node:crypto";
-import {LanVsSession,sameNetworkRoomKey,manualRoomKey} from "../sim/lan_vs.mjs";
+import {LanVsSession,sameNetworkRoomKey} from "../sim/lan_vs.mjs";
 
 function transportHarness(){
   const rooms=new Map();
@@ -51,19 +51,16 @@ function deadTransport(){
 
 const calls=[];
 const fakeFetch=ip=>async url=>{calls.push(String(url));return{ok:true,json:async()=>({ip})};};
-const room=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto});
-const sameRoom=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto});
-const otherRoom=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.8"),cryptoObj:webcrypto});
-assert.equal(room,sameRoom);
-assert.notEqual(room,otherRoom);
+const room=await sameNetworkRoomKey({fetchFn:fakeFetch("198.51.100.99"),cryptoObj:webcrypto,natAddressFn:async()=>"203.0.113.7"});
+const sameRoom=await sameNetworkRoomKey({fetchFn:fakeFetch("198.51.100.100"),cryptoObj:webcrypto,natAddressFn:async()=>"203.0.113.7"});
+const otherRoom=await sameNetworkRoomKey({fetchFn:fakeFetch("198.51.100.99"),cryptoObj:webcrypto,natAddressFn:async()=>"203.0.113.8"});
+assert.equal(room,sameRoom,"same WebRTC NAT must produce the same automatic room");
+assert.notEqual(room,otherRoom,"different NATs must not collide");
 assert.match(room,/^net-[0-9a-f]{24}$/);
-assert.ok(!room.includes("203.0.113.7"));
-assert.ok(calls.every(url=>url.includes("api4.ipify.org")),"auto room must prefer shared IPv4 egress over per-device IPv6");
-const codeA=await manualRoomKey(" 7k-42 ",{cryptoObj:webcrypto});
-const codeB=await manualRoomKey("7K42",{cryptoObj:webcrypto});
-assert.equal(codeA,codeB,"pair code normalization must be deterministic");
-assert.match(codeA,/^code-[0-9a-f]{24}$/);
-await assert.rejects(()=>manualRoomKey("12",{cryptoObj:webcrypto}),/4-12/);
+assert.equal(calls.length,0,"HTTP address service must not run when STUN already found the shared NAT");
+const httpRoom=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto,natAddressFn:async()=>null});
+assert.equal(httpRoom,room,"HTTP IPv4 fallback must converge on the same room as STUN for the same NAT");
+assert.ok(calls.every(url=>url.includes("api4.ipify.org")),"HTTP fallback must force shared IPv4 rather than per-device IPv6");
 
 const harness=transportHarness();
 let aPeer=0,bPeer=0,aPose=null,bPose=null,aOrigin=null,bOrigin=null,aLeft=0;
@@ -89,10 +86,9 @@ assert.ok(aPose.seq>oldSeq,"pose sequence did not advance");
 b.stop();await new Promise(r=>setTimeout(r,5));assert.equal(aLeft,1);
 a.stop();
 
-// Real failure mode: both peers can sit in a healthy-looking primary room forever
-// while the Nostr rendezvous path is unavailable. Both must automatically abandon
-// that path and converge on the same MQTT room without user timing tricks.
-const dead=deadTransport(),fallback=transportHarness(),fallbackRoom=await manualRoomKey("FALL42",{cryptoObj:webcrypto});
+// Real failure mode: both peers can sit in a healthy-looking Nostr room forever.
+// Both must automatically abandon that path and converge on the same MQTT room.
+const dead=deadTransport(),fallback=transportHarness(),fallbackRoom=room;
 let faPeer=0,fbPeer=0,faPose=null,fbPose=null;const faTransports=[],fbTransports=[];
 const fa=new LanVsSession({loadTransport:dead.loadTransport,loadFallbackTransport:fallback.loadTransport,fallbackAfterMs:20,onTransport:name=>faTransports.push(name),onPeer:()=>faPeer++,onPose:p=>faPose=p});
 const fb=new LanVsSession({loadTransport:dead.loadTransport,loadFallbackTransport:fallback.loadTransport,fallbackAfterMs:20,onTransport:name=>fbTransports.push(name),onPeer:()=>fbPeer++,onPose:p=>fbPose=p});
@@ -108,4 +104,4 @@ await new Promise(r=>setTimeout(r,90));
 assert.deepEqual(faPose?.p,[40,50,60]);assert.deepEqual(fbPose?.p,[10,20,30]);
 fa.stop();fb.stop();
 
-console.log("LAN VS deterministic Trystero-0.25 two-peer smoke passed, including automatic Nostr -> MQTT signaling fallback");
+console.log("LAN VS deterministic smoke passed: automatic same-NAT room, no pair code, and Nostr -> MQTT signaling fallback");
