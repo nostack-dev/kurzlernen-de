@@ -9,8 +9,17 @@ const page=await browser.newPage();
 try{
   await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
   const result=await page.evaluate(async()=>{
-    const {createDefaultTurnConfig}=await import("/sim/lan_vs.mjs");
-    const iceServers=await createDefaultTurnConfig();
+    const iceServers=[{
+      urls:[
+        "turn:openrelay.metered.ca:80",
+        "turn:openrelay.metered.ca:80?transport=tcp",
+        "turn:openrelay.metered.ca:443",
+        "turn:openrelay.metered.ca:443?transport=tcp",
+        "turns:openrelay.metered.ca:443?transport=tcp"
+      ],
+      username:"openrelayproject",
+      credential:"openrelayproject"
+    }];
     const a=new RTCPeerConnection({iceServers,iceTransportPolicy:"relay"});
     const b=new RTCPeerConnection({iceServers,iceTransportPolicy:"relay"});
     const relayCandidates=[];
