@@ -337,6 +337,7 @@ try{
 
   await page.$eval("#touchThrottle",e=>{e.value=".25";});
   const throttleStart=await simTime();await waitForSimTime(throttleStart+.1,15000);
+  await page.waitForFunction(()=>{const values=(document.querySelector("#motors")?.textContent||"").trim().split(/\s+/).map(Number);return values.length===4&&values.every(v=>Number.isFinite(v)&&v>1050);},{timeout:2000});
   const throttleMotors=await page.$eval("#motors",e=>(e.textContent||"").trim().split(/\s+/).map(Number));
   if(!throttleMotors.every(v=>Number.isFinite(v)&&v>1050))throw new Error(`local throttle failed: ${throttleMotors.join(" ")}`);
 
