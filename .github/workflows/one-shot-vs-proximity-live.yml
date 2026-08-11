@@ -15,7 +15,7 @@ jobs:
           set -euxo pipefail
           mkdir -p /tmp/vs-live && cd /tmp/vs-live
           npm init -y >/dev/null
-          npm install --ignore-scripts --no-audit --no-fund esbuild@0.25.8 puppeteer-core@24.16.0 @trystero-p2p/mqtt@0.25.1
+          npm install --ignore-scripts --no-audit --no-fund esbuild@0.25.8 puppeteer-core@24.16.0 trystero@0.25.1 @trystero-p2p/mqtt@0.25.1
           ln -s /tmp/vs-live/node_modules "$GITHUB_WORKSPACE/node_modules"
       - name: Two independent browsers find one overlapping room and exchange WebRTC data
         run: |
