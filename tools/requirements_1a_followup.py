@@ -43,4 +43,26 @@ if fire_marker not in text:
 text=text.replace(fire_marker,fire_marker+'requireText("sim/flight_fire_fx.mjs","el.dataset.pulse");\n',1)
 arch.write_text(text)
 
+# The moving-target release gate must isolate the intended ray without weakening
+# the deliberate own-airframe blocker. Existing training geometry can otherwise
+# sit in front of the fixture and make the test prove the wrong thing.
+replace_once(
+    "tests/world_shot_decal_smoke.mjs",
+    'const THREE=await import("/node_modules/three/build/three.module.js"),b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),scene=b.threeScene,cam=b.threeCamera,r=v.getBoundingClientRect(),dir=new THREE.Vector3();cam.getWorldDirection(dir);\n    const targetRoot=new THREE.Group();',
+    'const THREE=await import("/node_modules/three/build/three.module.js"),b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),scene=b.threeScene,cam=b.threeCamera,r=v.getBoundingClientRect(),dir=new THREE.Vector3(),hidden=[];cam.getWorldDirection(dir);scene.traverse(node=>{if(node.isMesh&&node.visible&&!node.userData?.flightFireDecal){hidden.push([node,node.visible]);node.visible=false;}});\n    const targetRoot=new THREE.Group();',
+)
+replace_once(
+    "tests/world_shot_decal_smoke.mjs",
+    'scene.remove(blockerRoot);scene.remove(targetRoot);targetMesh.geometry.dispose();targetMesh.material.dispose();blockerMesh.geometry.dispose();blockerMesh.material.dispose();return result;',
+    'scene.remove(blockerRoot);scene.remove(targetRoot);for(const [node,visible]of hidden)node.visible=visible;targetMesh.geometry.dispose();targetMesh.material.dispose();blockerMesh.geometry.dispose();blockerMesh.material.dispose();return result;',
+)
+
+# Visual acknowledgement must not depend on gameplay metadata. An unmarked
+# moving mesh still receives a generic object decal that follows its surface.
+anchor='''  if(targetVisual.after!==targetVisual.before+1||targetVisual.builds!==1||targetVisual.impact?.kind!=="target"||!targetVisual.impact.target||!targetVisual.impact.object||!targetVisual.attached||!near(targetVisual.delta?.x,1,.015)||!near(targetVisual.delta?.y,0,.015)||!near(targetVisual.delta?.z,0,.015))\n    throw new Error(`moving target/airframe impact acknowledgement failed: ${JSON.stringify(targetVisual)}`);\n\n'''
+if anchor not in Path("tests/world_shot_decal_smoke.mjs").read_text():
+    raise SystemExit("moving-target assertion anchor missing")
+generic='''  if(targetVisual.after!==targetVisual.before+1||targetVisual.builds!==1||targetVisual.impact?.kind!=="target"||!targetVisual.impact.target||!targetVisual.impact.object||!targetVisual.attached||!near(targetVisual.delta?.x,1,.015)||!near(targetVisual.delta?.y,0,.015)||!near(targetVisual.delta?.z,0,.015))\n    throw new Error(`moving target/airframe impact acknowledgement failed: ${JSON.stringify(targetVisual)}`);\n\n  const genericVisual=await page.evaluate(async()=>{\n    const THREE=await import("/node_modules/three/build/three.module.js"),b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),scene=b.threeScene,cam=b.threeCamera,r=v.getBoundingClientRect(),dir=new THREE.Vector3(),hidden=[];cam.getWorldDirection(dir);scene.traverse(node=>{if(node.isMesh&&node.visible&&!node.userData?.flightFireDecal){hidden.push([node,node.visible]);node.visible=false;}});\n    const root=new THREE.Group(),mesh=new THREE.Mesh(new THREE.BoxGeometry(.6,.6,.6),new THREE.MeshBasicMaterial({color:0xffffff}));root.add(mesh);root.position.copy(cam.position).addScaledVector(dir,3);scene.add(root);scene.updateMatrixWorld(true);\n    let impact=null;v.addEventListener("arondight45:impact",e=>{impact={kind:e.detail.kind,target:Boolean(e.detail.target),object:e.detail.object===mesh};},{once:true});\n    const before=Number(v.dataset.fireObjectHits||0),x=r.left+r.width*.5,y=r.top+r.height*.5,send=type=>v.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:504,pointerType:"touch",clientX:x,clientY:y,button:0}));\n    send("pointerdown");await new Promise(resolve=>setTimeout(resolve,35));send("pointerup");await new Promise(resolve=>setTimeout(resolve,20));scene.updateMatrixWorld(true);\n    const decal=mesh.children.find(node=>node.userData?.flightFireDecal&&node.userData?.flightFireKind==="object"&&!node.userData?.flightFireTarget),p0=new THREE.Vector3(),p1=new THREE.Vector3();if(decal)decal.getWorldPosition(p0);root.position.x+=.75;scene.updateMatrixWorld(true);if(decal)decal.getWorldPosition(p1);\n    const result={before,after:Number(v.dataset.fireObjectHits||0),impact,attached:Boolean(decal),delta:decal?{x:p1.x-p0.x,y:p1.y-p0.y,z:p1.z-p0.z}:null};\n    scene.remove(root);for(const [node,visible]of hidden)node.visible=visible;mesh.geometry.dispose();mesh.material.dispose();return result;\n  });\n  if(genericVisual.after!==genericVisual.before+1||genericVisual.impact?.kind!=="object"||genericVisual.impact.target||!genericVisual.impact.object||!genericVisual.attached||!near(genericVisual.delta?.x,.75,.015)||!near(genericVisual.delta?.y,0,.015)||!near(genericVisual.delta?.z,0,.015))\n    throw new Error(`unmarked moving-object impact was ignored or detached: ${JSON.stringify(genericVisual)}`);\n\n'''
+p=Path("tests/world_shot_decal_smoke.mjs");p.write_text(p.read_text().replace(anchor,generic,1))
+
 print("1a follow-up hardening applied")
