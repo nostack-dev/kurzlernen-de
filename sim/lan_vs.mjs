@@ -3,10 +3,43 @@ const SEND_MS=50;
 const FALLBACK_AFTER_MS=4500;
 const DEFAULT_PRIMARY_LOADER=()=>import("trystero");
 const DEFAULT_FALLBACK_LOADER=()=>import("@trystero-p2p/mqtt");
+const STUN_ICE_SERVERS=[{urls:["stun:stun.cloudflare.com:3478","stun:stun.cloudflare.com:53"]}];
+const NETWORK_IPV4_URL="https://api4.ipify.org?format=json";
 
 function finiteArray(value,length){return Array.isArray(value)&&value.length===length&&value.every(Number.isFinite);}
 function validPose(pose){return Boolean(pose&&finiteArray(pose.p,3)&&finiteArray(pose.q,4)&&(!pose.g||finiteArray(pose.g,2)));}
 function validOrigin(origin){return Boolean(origin&&Number.isFinite(origin.lon)&&Number.isFinite(origin.lat)&&Math.abs(origin.lon)<=180&&Math.abs(origin.lat)<=90&&(!("alt" in origin)||Number.isFinite(origin.alt)));}
+function validIpv4(value){
+  const parts=String(value||"").trim().split(".");
+  return parts.length===4&&parts.every(part=>/^\d{1,3}$/.test(part)&&Number(part)>=0&&Number(part)<=255);
+}
+function srflxIpv4(candidate){
+  if(!candidate)return null;
+  if(candidate.type==="srflx"&&validIpv4(candidate.address))return candidate.address;
+  const raw=String(candidate.candidate||candidate||"").trim(),parts=raw.split(/\s+/),typ=parts.indexOf("typ");
+  return typ>4&&parts[typ+1]==="srflx"&&validIpv4(parts[4])?parts[4]:null;
+}
+
+async function webRtcNatIpv4({RTCPeerConnectionCtor=globalThis.RTCPeerConnection}={}){
+  if(typeof RTCPeerConnectionCtor!=="function")return null;
+  let pc=null,timer=0;
+  try{
+    pc=new RTCPeerConnectionCtor({iceServers:STUN_ICE_SERVERS,iceCandidatePoolSize:1});
+    pc.createDataChannel("vs-discovery");
+    return await new Promise((resolve,reject)=>{
+      let settled=false;
+      const finish=value=>{if(settled)return;settled=true;clearTimeout(timer);resolve(value||null);};
+      timer=setTimeout(()=>finish(null),2600);
+      pc.onicecandidate=event=>{
+        const ip=srflxIpv4(event.candidate);
+        if(ip)finish(ip);else if(!event.candidate)finish(null);
+      };
+      Promise.resolve(pc.createOffer())
+        .then(offer=>pc.setLocalDescription(offer))
+        .catch(reject);
+    });
+  }catch{return null;}finally{clearTimeout(timer);try{pc?.close?.();}catch{}}
+}
 
 export class LanVsSession{
   constructor(options={}){
@@ -126,8 +159,6 @@ export class LanVsSession{
   }
 }
 
-const NETWORK_IP_URLS=["https://api4.ipify.org?format=json","https://api.ipify.org?format=json"];
-
 async function hashRoomMaterial(material,cryptoObj){
   if(!cryptoObj?.subtle)throw Error("Secure room hashing unavailable");
   const bytes=new TextEncoder().encode(material);
@@ -135,27 +166,20 @@ async function hashRoomMaterial(material,cryptoObj){
   return [...digest.slice(0,12)].map(v=>v.toString(16).padStart(2,"0")).join("");
 }
 
-export async function manualRoomKey(code,{cryptoObj=globalThis.crypto}={}){
-  const normalized=String(code||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"");
-  if(normalized.length<4||normalized.length>12)throw Error("Pair code must be 4-12 letters or digits");
-  return `code-${await hashRoomMaterial(`arondight45-vs-code:${normalized}`,cryptoObj)}`;
-}
-
-export async function sameNetworkRoomKey({fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto}={}){
-  if(typeof fetchFn!=="function")throw Error("Network lookup unavailable");
-  let lastError=null;
-  for(const url of NETWORK_IP_URLS){
-    const controller=new AbortController();
-    const timeout=setTimeout(()=>controller.abort(),3500);
+export async function sameNetworkRoomKey({fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto,natAddressFn=webRtcNatIpv4}={}){
+  let address=null,lastError=null;
+  try{address=await natAddressFn?.();}catch(error){lastError=error;}
+  if(!validIpv4(address)){
+    if(typeof fetchFn!=="function")throw lastError||Error("Network lookup unavailable");
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),3500);
     try{
-      const response=await fetchFn(url,{cache:"no-store",signal:controller.signal});
+      const response=await fetchFn(NETWORK_IPV4_URL,{cache:"no-store",signal:controller.signal});
       if(!response?.ok)throw Error(`Network lookup failed (${response?.status||0})`);
-      const data=await response.json();
-      const ip=String(data?.ip||"").trim();
-      if(!ip||ip.length>64||!/^[0-9a-fA-F:.]+$/.test(ip))throw Error("Network lookup returned invalid address");
-      const key=await hashRoomMaterial(`arondight45-vs-network:${ip}`,cryptoObj);
-      return `net-${key}`;
+      const data=await response.json();address=String(data?.ip||"").trim();
+      if(!validIpv4(address))throw Error("Network lookup returned invalid IPv4 address");
     }catch(error){lastError=error;}finally{clearTimeout(timeout);}
   }
-  throw lastError||Error("Network lookup unavailable");
+  if(!validIpv4(address))throw lastError||Error("Could not determine shared network address");
+  const key=await hashRoomMaterial(`arondight45-vs-network:${address}`,cryptoObj);
+  return `net-${key}`;
 }
