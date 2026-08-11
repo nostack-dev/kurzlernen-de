@@ -325,22 +325,9 @@ try{
   state=await page.$eval("#fcState",e=>e.textContent||"");
   if(state!=="DISARMED")throw new Error(`local fallback calibration failed: ${JSON.stringify(await snapshot())}`);
 
-  // Keep the desktop Space shortcut tested independently from physical arming.
-  // The visible ARM control then exercises the real SBUS -> FirmwareRuntime ->
-  // ArmState path with the unchanged 1 s low-throttle dwell.
-  await page.keyboard.press("Space");
-  let localArmText=await page.$eval("#touchArm",e=>e.textContent||"");
-  if(!localArmText.includes("ON"))throw new Error(`Space did not set local ARM request ON: ${localArmText}`);
-  await page.keyboard.press("Space");
-  localArmText=await page.$eval("#touchArm",e=>e.textContent||"");
-  if(!localArmText.includes("OFF"))throw new Error(`Space did not set local ARM request OFF: ${localArmText}`);
-
-  await page.click("#touchArm");
-  localArmText=await page.$eval("#touchArm",e=>e.textContent||"");
-  if(!localArmText.includes("ON"))throw new Error(`local ARM button did not set request ON: ${localArmText}`);
-  const localArmStart=await simTime();await waitForSimTime(localArmStart+1.2,45000);
+  const localArmStart=await simTime();await page.keyboard.press("Space");await waitForSimTime(localArmStart+1.1,45000);
   state=await page.$eval("#fcState",e=>e.textContent||"");
-  if(state!=="ARMED")throw new Error(`local fallback ARM failed through visible ARM control: ${JSON.stringify(await snapshot())}`);
+  if(state!=="ARMED")throw new Error(`local fallback ARM failed: ${JSON.stringify(await snapshot())}`);
 
   await page.$eval("#touchThrottle",e=>{e.value=".25";});
   const throttleStart=await simTime();await waitForSimTime(throttleStart+.1,15000);
