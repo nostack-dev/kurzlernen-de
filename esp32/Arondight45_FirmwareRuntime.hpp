@@ -78,6 +78,8 @@ public:
             navigation.valid = false;
             navigation.velocity_valid = false;
             navigation.agl_valid = false;
+            navigation.heading_valid = false;
+            navigation.heading_deg = 0.0f;
         }
 
         StateRuntimeInput input{};
