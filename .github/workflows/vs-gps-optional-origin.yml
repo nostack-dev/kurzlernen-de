@@ -1,0 +1,116 @@
+name: vs-gps-optional-origin
+on:
+  push:
+    branches: ["fix/vs-gps-optional-origin"]
+    paths: [".github/workflows/vs-gps-optional-origin.yml"]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Implement GPS-independent VS shared origin
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Transport: add a small reliable shared-origin action, independent of pose/GPS availability.
+          p=Path('sim/lan_vs.mjs')
+          s=p.read_text()
+          s=s.replace(
+            'function validPose(pose){return Boolean(pose&&finiteArray(pose.p,3)&&finiteArray(pose.q,4)&&(!pose.g||finiteArray(pose.g,2)));}',
+            'function validPose(pose){return Boolean(pose&&finiteArray(pose.p,3)&&finiteArray(pose.q,4)&&(!pose.g||finiteArray(pose.g,2)));}\nfunction validOrigin(origin){return Boolean(origin&&Number.isFinite(origin.lon)&&Number.isFinite(origin.lat)&&Math.abs(origin.lon)<=180&&Math.abs(origin.lat)<=90&&(!("alt" in origin)||Number.isFinite(origin.alt)));}'
+          )
+          s=s.replace(
+            'constructor({onPeer,onPose,onLeave,onError,loadTransport=DEFAULT_LOADER}={}){\n    this.room=null;this.poseAction=null;this.timer=0;this.peerId=null;this.onPeer=onPeer;this.onPose=onPose;this.onLeave=onLeave;this.onError=onError;this.pendingPose=null;this.loadTransport=loadTransport;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;',
+            'constructor({onPeer,onPose,onOrigin,onLeave,onError,loadTransport=DEFAULT_LOADER}={}){\n    this.room=null;this.poseAction=null;this.originAction=null;this.timer=0;this.peerId=null;this.onPeer=onPeer;this.onPose=onPose;this.onOrigin=onOrigin;this.onLeave=onLeave;this.onError=onError;this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.loadTransport=loadTransport;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;this.originBusy=false;'
+          )
+          s=s.replace(
+            'this.poseAction=poseAction;\n      poseAction.onMessage=',
+            'this.poseAction=poseAction;\n      const originAction=room.makeAction("origin");\n      if(!originAction||typeof originAction.send!=="function")throw Error("VS origin action unavailable");\n      this.originAction=originAction;\n      originAction.onMessage=(origin,{peerId}={})=>{if(!peerId||peerId!==this.peerId||!validOrigin(origin))return;this.onOrigin?.({...origin},peerId);};\n      poseAction.onMessage='
+          )
+          s=s.replace(
+            'this.peerId=peerId;this.lastRxSeq=0;this.onPeer?.(peerId);\n      };',
+            'this.peerId=peerId;this.lastRxSeq=0;this.originDirty=Boolean(this.pendingOrigin);this.onPeer?.(peerId);\n      };',1
+          )
+          # There are two peer assignment sites; ensure pose-first discovery also triggers origin publication.
+          s=s.replace(
+            'if(!this.peerId){this.peerId=peerId;this.lastRxSeq=0;this.onPeer?.(peerId);}',
+            'if(!this.peerId){this.peerId=peerId;this.lastRxSeq=0;this.originDirty=Boolean(this.pendingOrigin);this.onPeer?.(peerId);}'
+          )
+          s=s.replace(
+            'this.timer=setInterval(()=>this.flushPose(),SEND_MS);',
+            'this.timer=setInterval(()=>{this.flushOrigin();this.flushPose();},SEND_MS);'
+          )
+          s=s.replace(
+            '  flushPose(){',
+            '  flushOrigin(){\n    if(this.originBusy||!this.peerId||!this.pendingOrigin||!this.originDirty||!this.originAction)return;\n    const packet={...this.pendingOrigin};this.originBusy=true;\n    Promise.resolve(this.originAction.send(packet,{target:this.peerId}))\n      .then(()=>{this.originDirty=false;})\n      .catch(error=>this.onError?.(error))\n      .finally(()=>{this.originBusy=false;});\n  }\n  flushPose(){'
+          )
+          s=s.replace(
+            '  setPose(pose){',
+            '  setOrigin(origin){\n    if(!validOrigin(origin))return false;\n    const next={lon:Number(origin.lon),lat:Number(origin.lat),...(("alt" in origin)?{alt:Number(origin.alt)}:{})};\n    const old=this.pendingOrigin;\n    if(!old||old.lon!==next.lon||old.lat!==next.lat||old.alt!==next.alt){this.pendingOrigin=next;this.originDirty=true;}\n    return true;\n  }\n  setPose(pose){'
+          )
+          s=s.replace(
+            'this.room?.leave?.();this.room=null;this.poseAction=null;this.peerId=null;this.pendingPose=null;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;',
+            'this.room?.leave?.();this.room=null;this.poseAction=null;this.originAction=null;this.peerId=null;this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;this.originBusy=false;'
+          )
+          p.write_text(s)
+
+          # UI/world bridge: local GPS is optional. A GPS peer supplies a shared geodetic origin.
+          p=Path('sim/real_world_bootstrap.mjs')
+          s=p.read_text()
+          old='this.vsSession=null;this.vsPeerMesh=null;this.vsConnected=false;this.vsStarting=false;this.installUi();'
+          new='this.vsSession=null;this.vsPeerMesh=null;this.vsConnected=false;this.vsStarting=false;this.vsSharedOrigin=null;this.installUi();'
+          assert s.count(old)==1, s.count(old)
+          s=s.replace(old,new,1)
+          old='onPose:pose=>this.applyVsPose(pose),onLeave:'
+          new='onPose:pose=>this.applyVsPose(pose),onOrigin:origin=>{if(!Number.isFinite(this.originLon)||!Number.isFinite(this.originLat))this.vsSharedOrigin={lon:origin.lon,lat:origin.lat,alt:Number.isFinite(origin.alt)?origin.alt:0};if(status&&!Number.isFinite(this.originLon)&&this.vsSharedOrigin)status.textContent="Mate GPS origin shared · VS active";},onLeave:'
+          assert s.count(old)==1, s.count(old)
+          s=s.replace(old,new,1)
+          s=s.replace(
+            'this.vsSession?.stop();this.vsSession=null;this.vsConnected=false;if(this.vsPeerMesh)',
+            'this.vsSession?.stop();this.vsSession=null;this.vsConnected=false;this.vsSharedOrigin=null;if(this.vsPeerMesh)',1
+          )
+          old='if(Array.isArray(pose.g)&&pose.g.length===2&&Number.isFinite(this.originLon)&&Number.isFinite(this.originLat)){const local=lngLatToMeters(this.originLon,this.originLat,Number(pose.g[0]),Number(pose.g[1]));x=local[0];y=local[1];}'
+          new='if(Array.isArray(pose.g)&&pose.g.length===2){const geoLon=Number.isFinite(this.originLon)?this.originLon:this.vsSharedOrigin?.lon,geoLat=Number.isFinite(this.originLat)?this.originLat:this.vsSharedOrigin?.lat;if(Number.isFinite(geoLon)&&Number.isFinite(geoLat)){const local=lngLatToMeters(geoLon,geoLat,Number(pose.g[0]),Number(pose.g[1]));x=local[0];y=local[1];}}'
+          assert s.count(old)==1, s.count(old)
+          s=s.replace(old,new,1)
+          old='if(this.active&&Number.isFinite(this.originLon)&&Number.isFinite(this.originLat))pose.g=metersToLngLat(this.originLon,this.originLat,p.x,p.y);this.vsSession.setPose(pose);'
+          new='if(this.active&&Number.isFinite(this.originLon)&&Number.isFinite(this.originLat)){this.vsSession.setOrigin({lon:this.originLon,lat:this.originLat,alt:0});pose.g=metersToLngLat(this.originLon,this.originLat,p.x,p.y);}this.vsSession.setPose(pose);'
+          assert s.count(old)==1, s.count(old)
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          # Deterministic transport regression: one peer has origin, the other does not.
+          p=Path('tests/lan_vs_smoke.mjs')
+          s=p.read_text()
+          s=s.replace('let aPeer=0,bPeer=0,aPose=null,bPose=null,aLeft=0;','let aPeer=0,bPeer=0,aPose=null,bPose=null,aOrigin=null,bOrigin=null,aLeft=0;')
+          s=s.replace('const a=new LanVsSession({...harness,onPeer:()=>aPeer++,onPose:p=>aPose=p,onLeave:()=>aLeft++});','const a=new LanVsSession({...harness,onPeer:()=>aPeer++,onPose:p=>aPose=p,onOrigin:o=>aOrigin=o,onLeave:()=>aLeft++});')
+          s=s.replace('const b=new LanVsSession({...harness,onPeer:()=>bPeer++,onPose:p=>bPose=p});','const b=new LanVsSession({...harness,onPeer:()=>bPeer++,onPose:p=>bPose=p,onOrigin:o=>bOrigin=o});')
+          marker='assert.equal(aPeer,1);assert.equal(bPeer,1);'
+          insert='assert.equal(aPeer,1);assert.equal(bPeer,1);\nassert.equal(a.setOrigin({lon:9.17,lat:47.66,alt:411}),true);\nassert.equal(b.setOrigin({lon:NaN,lat:47.66}),false);\nawait new Promise(r=>setTimeout(r,90));\nassert.deepEqual(bOrigin,{lon:9.17,lat:47.66,alt:411});\nassert.equal(aOrigin,null,"GPS-less peer must not invent an origin");'
+          assert marker in s
+          s=s.replace(marker,insert,1)
+          p.write_text(s)
+
+          p=Path('tests/architecture_invariants.mjs')
+          s=p.read_text()
+          marker='console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, radial configurable GAME velocity envelope, geospatial WGS84/ENU render adapter only, direct WebRTC control and HIL-only bridge.");'
+          guard='''requireText("sim/lan_vs.mjs","room.makeAction(\\"origin\\")","VS must exchange shared origin independently from pose");\nrequireText("sim/lan_vs.mjs","setOrigin(origin)","VS must expose optional geodetic origin publication");\nrequireText("sim/real_world_bootstrap.mjs","this.vsSharedOrigin","GPS-less peers must accept a mate-provided world origin");\nrequireText("sim/real_world_bootstrap.mjs","this.vsSession.setOrigin({lon:this.originLon,lat:this.originLat,alt:0})","GPS-capable peers must publish their world origin");\n'''
+          assert marker in s
+          if 'mate-provided world origin' not in s:s=s.replace(marker,guard+marker,1)
+          p.write_text(s)
+          PY
+          node --check sim/lan_vs.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node tests/lan_vs_smoke.mjs
+          node tests/architecture_invariants.mjs
+      - name: Commit implementation
+        run: |
+          git config user.name 'Arondight45 CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add sim/lan_vs.mjs sim/real_world_bootstrap.mjs tests/lan_vs_smoke.mjs tests/architecture_invariants.mjs
+          git commit -m 'Share VS world origin when peer lacks GPS'
+          git push
