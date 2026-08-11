@@ -36,6 +36,7 @@ jobs:
           node tests/control_semantics_test.mjs
           node tests/architecture_invariants.mjs
           node tests/lan_vs_smoke.mjs
+          node tests/turn_config_smoke.mjs
 
       - name: Build exact shared controller runtime to WebAssembly
         run: |
@@ -56,7 +57,7 @@ jobs:
               -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
               -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
               -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
-              -o generated/flight_core_node.mjs
+              -o generated/flight_core.mjs
           node --check generated/flight_core.mjs
           node --check generated/flight_core_node.mjs
           node tests/sil_wasm_smoke.mjs generated/flight_core_node.mjs
@@ -111,6 +112,7 @@ jobs:
           grep -q 'arondight45-kurzlernen-vs-v3' drone_simulator.html
           grep -q 'api4.ipify.org' drone_simulator.html
           grep -q 'stun.cloudflare.com' drone_simulator.html
+          grep -q 'staticauth.openrelay.metered.ca' drone_simulator.html
           grep -q 'SCAN CONTROLLER OFFER' drone_simulator.html
           grep -q 'SCAN VIEW ANSWER' drone_controller.html
           ! grep -q '/control' drone_controller.html
@@ -126,6 +128,7 @@ jobs:
           cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; }
           trap cleanup EXIT
           sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/turn_relay_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/network_logbook_browser_smoke.mjs http://127.0.0.1:4174
@@ -159,6 +162,8 @@ jobs:
           node --check tests/solo_layout_smoke.mjs
           node --check tests/vs_combat_browser_smoke.mjs
           node --check tests/network_logbook_browser_smoke.mjs
+          node --check tests/turn_config_smoke.mjs
+          node --check tests/turn_relay_browser_smoke.mjs
           node --check tests/real_world_ui_smoke.mjs
           node --check tests/world_shot_decal_smoke.mjs
           node --check tests/world_fpv_frame_lock_smoke.mjs
