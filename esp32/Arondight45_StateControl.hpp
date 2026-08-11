@@ -180,8 +180,8 @@ public:
         // never become stored propulsion after the pilot releases translation.
         // Neutral means an immediate zero-velocity target, so clear the cruise
         // compensation before computing the braking acceleration. The P/D path
-        // then commands counter-tilt immediately, still under the same 6.0 m/s²
-        // and 32° physical envelopes.
+        // then commands counter-tilt immediately, still under the same 7.5 m/s²
+        // and 40° physical envelopes.
         if (target_horizontal_speed <= kHorizontalIntegralNeutralTargetMps) {
             horizontal_integral_forward_mps2_ = 0.0f;
             horizontal_integral_right_mps2_ = 0.0f;
@@ -290,9 +290,9 @@ public:
 
 private:
     static constexpr float kGravityMps2 = 9.80665f;
-    static constexpr float kInnerAttitudeRangeDeg = 32.0f;
-    static constexpr float kMaxTiltDeg = 32.0f;
-    static constexpr float kMaxTiltTangent = 0.62486935f;
+    static constexpr float kInnerAttitudeRangeDeg = kInnerMaxAttitudeDeg;
+    static constexpr float kMaxTiltDeg = 40.0f;
+    static constexpr float kMaxTiltTangent = 0.83909963f;
     static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;
     static constexpr float kDegradedMaxTiltDeg = 12.0f;
     static constexpr float kDegradedBodyPitchScale = 0.35f;
@@ -300,12 +300,12 @@ private:
     static constexpr float kHorizontalVelocityGain = 0.80f;
     static constexpr float kHorizontalIntegralGain = 0.55f;
     static constexpr float kHorizontalAntiWindupGain = 2.50f;
-    static constexpr float kHorizontalIntegralLimitMps2 = 4.0f;
+    static constexpr float kHorizontalIntegralLimitMps2 = 7.0f;
     static constexpr float kHorizontalIntegralNeutralTargetMps = 0.05f;
     static constexpr float kHorizontalAccelerationDamping = 0.55f;
     static constexpr float kMeasuredAccelerationFilterTauS = 0.06f;
     static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
-    static constexpr float kMaxHorizontalAccelerationMps2 = 6.0f;
+    static constexpr float kMaxHorizontalAccelerationMps2 = 7.5f;
 
     static constexpr float kAglToVerticalSpeed = 1.30f;
     static constexpr float kMaxVerticalSpeedMps = 2.0f;

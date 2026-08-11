@@ -123,13 +123,23 @@ int main() {
     CHECK(fc::pulse(0.0f, true) == fc::kEscIdleUs);
     CHECK(fc::pulse(1.0f, true) == fc::kEscMaxUs);
 
+    // Expanding the inner physical attitude range for GAME must not make MANUAL
+    // full-stick more aggressive. MANUAL remains exactly the established 32°.
+    fc::RC full_manual{};
+    full_manual.ch.fill(992);
+    full_manual.ch[FC_SBUS_ROLL] = 1811;
+    full_manual.ch[FC_SBUS_PITCH] = 1811;
+    const fc::Command manual_command = fc::command(full_manual);
+    CHECK(std::fabs(manual_command.roll * fc::kInnerMaxAttitudeDeg - fc::kManualMaxAttitudeDeg) < 0.05f);
+    CHECK(std::fabs(manual_command.pitch * fc::kInnerMaxAttitudeDeg + fc::kManualMaxAttitudeDeg) < 0.05f);
+
     // A 25-degree physical pitch request must create immediate differential
     // motor authority in the real inner loop. This guards responsiveness at the
     // motor-command layer without changing airframe or propulsion physics.
     fc::Controller responsive_controller;
     const auto responsive_mix = responsive_controller.run(
         fc::Imu{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
-        fc::Command{0.0f, 25.0f / 32.0f, 0.50f, 0.0f, false}, 0.001f, false);
+        fc::Command{0.0f, 25.0f / fc::kInnerMaxAttitudeDeg, 0.50f, 0.0f, false}, 0.001f, false);
     CHECK(responsive_mix.motor[0] > 0.80f);
     CHECK(responsive_mix.motor[1] > 0.80f);
     CHECK(responsive_mix.motor[2] < 0.20f);

@@ -289,9 +289,13 @@ inline Command sanitize(Command c) {
     return c;
 }
 
+constexpr float kManualMaxAttitudeDeg = 32.0f;
+constexpr float kInnerMaxAttitudeDeg = 40.0f;
+constexpr float kManualAttitudeCommandScale = kManualMaxAttitudeDeg / kInnerMaxAttitudeDeg;
+
 inline Command command(const RC& r) {
-    return {shape(centered(r.ch[FC_SBUS_ROLL]), 0.035f, 0.3f),
-            -shape(centered(r.ch[FC_SBUS_PITCH]), 0.035f, 0.3f),
+    return {shape(centered(r.ch[FC_SBUS_ROLL]), 0.035f, 0.3f) * kManualAttitudeCommandScale,
+            -shape(centered(r.ch[FC_SBUS_PITCH]), 0.035f, 0.3f) * kManualAttitudeCommandScale,
             throttle(r.ch[FC_SBUS_THROTTLE]),
             shape(centered(r.ch[FC_SBUS_YAW]), 0.045f, 0.2f),
             r.ch[FC_SBUS_ARM] > 1300};
@@ -384,8 +388,8 @@ public:
 
     Mix run(Imu s, Command cmd, float dt, bool integrate) {
         constexpr float kAngleToRate = 4.5f;
-        const float roll_rate = clamp((cmd.roll * 32.0f - attitude.roll) * kAngleToRate, -240.0f, 240.0f);
-        const float pitch_rate = clamp((cmd.pitch * 32.0f - attitude.pitch) * kAngleToRate, -240.0f, 240.0f);
+        const float roll_rate = clamp((cmd.roll * kInnerMaxAttitudeDeg - attitude.roll) * kAngleToRate, -240.0f, 240.0f);
+        const float pitch_rate = clamp((cmd.pitch * kInnerMaxAttitudeDeg - attitude.pitch) * kAngleToRate, -240.0f, 240.0f);
         const float yaw_rate = cmd.yaw * 180.0f;
         return mix(cmd.throttle,
                    roll_pid_.run(roll_rate, s.g.x, dt, integrate),

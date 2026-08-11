@@ -53,6 +53,7 @@ async function runDirection(direction,{label,targetMps,minSteadyMps,maxSteadyMps
   const all=motion.filter(x=>x.time>=start&&x.time<=start+holdS+.15);
   const t90=all.find(x=>x.forward*direction.forwardUnit+x.right*direction.rightUnit>=targetMps*.90)?.time-start;
   const result={name:direction.name,average,orthogonal,vertical,t90:Number.isFinite(t90)?t90:null};
+  console.log(`GAME speed sample ${label} ${direction.name}: ${(average*3.6).toFixed(2)} km/h · cross ${orthogonal.toFixed(3)} m/s · |vz| ${vertical.toFixed(3)} m/s · t90 ${result.t90}`);
   if(!(average>=minSteadyMps&&average<=maxSteadyMps))throw new Error(`${direction.name}: ${label} target did not converge; steady=${(average*3.6).toFixed(1)} km/h (${average.toFixed(2)} m/s), target=${(targetMps*3.6).toFixed(0)} km/h`);
   if(orthogonal>1.2)throw new Error(`${direction.name}: excessive cross-axis drift ${orthogonal.toFixed(2)} m/s at ${label}`);
   if(vertical>1.2)throw new Error(`${direction.name}: AGL destabilized, |vz| avg ${vertical.toFixed(2)} m/s at ${label}`);
