@@ -1,0 +1,143 @@
+name: One-shot 1a requirements hardening
+
+on:
+  push:
+    branches: [fix/requirements-1a-complete]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Add one-shot 1a requirements hardening'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/requirements-1a-complete
+      - name: Apply hardening patch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, count=None):
+              p=Path(path); text=p.read_text()
+              hits=text.count(old)
+              if hits == 0:
+                  raise SystemExit(f"{path}: missing patch marker: {old[:100]!r}")
+              if count is not None and hits != count:
+                  raise SystemExit(f"{path}: expected {count} marker(s), found {hits}: {old[:100]!r}")
+              p.write_text(text.replace(old,new))
+
+          # Fire: one scene target build per gesture, no forced layout flush, and
+          # one persistent WebAudio graph instead of per-shot AudioNode allocation.
+          replace('sim/flight_fire_fx.mjs',
+              '  viewport.dataset.fireDecalWrites="0";\n',
+              '  viewport.dataset.fireDecalWrites="0";\n  viewport.dataset.fireRaycastBuilds="0";\n',1)
+          replace('sim/flight_fire_fx.mjs',
+              '  let decalCursor=0,decalWrites=0,active=null,nextShotAt=0,fireTimer=0,audioCtx=null,noiseBuffer=null;\n',
+              '  let decalCursor=0,decalWrites=0,active=null,nextShotAt=0,fireTimer=0,audioCtx=null,noiseBuffer=null,noiseSource=null,noiseFilter=null,noiseGain=null,raycastBuilds=0;\n',1)
+          replace('sim/flight_fire_fx.mjs',
+              '''  function ensureAudio(){\n    if(audioCtx)return audioCtx;const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return null;audioCtx=new Ctx();noiseBuffer=audioCtx.createBuffer(1,Math.floor(audioCtx.sampleRate*.045),audioCtx.sampleRate);const data=noiseBuffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*(1-i/data.length);return audioCtx;\n  }\n  function shotSound(){\n    const ctx=ensureAudio();if(!ctx||!noiseBuffer)return;try{if(ctx.state==="suspended")ctx.resume();const src=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),gain=ctx.createGain();src.buffer=noiseBuffer;filter.type="bandpass";filter.frequency.value=1350;filter.Q.value=.7;gain.gain.setValueAtTime(.18,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.05);src.connect(filter).connect(gain).connect(ctx.destination);src.start();src.stop(ctx.currentTime+.055);}catch{}\n  }\n  function screenImpact(x,y){const el=screenImpacts[screenImpactCursor++%screenImpacts.length];el.classList.remove("active");el.style.left=`${x}px`;el.style.top=`${y}px`;void el.offsetWidth;el.classList.add("active");}\n''',
+              '''  function ensureAudio(){\n    if(audioCtx)return audioCtx;const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return null;audioCtx=new Ctx();noiseBuffer=audioCtx.createBuffer(1,Math.floor(audioCtx.sampleRate*.25),audioCtx.sampleRate);const data=noiseBuffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=Math.random()*2-1;noiseSource=audioCtx.createBufferSource();noiseFilter=audioCtx.createBiquadFilter();noiseGain=audioCtx.createGain();noiseSource.buffer=noiseBuffer;noiseSource.loop=true;noiseFilter.type="bandpass";noiseFilter.frequency.value=1350;noiseFilter.Q.value=.7;noiseGain.gain.value=.00001;noiseSource.connect(noiseFilter).connect(noiseGain).connect(audioCtx.destination);noiseSource.start();return audioCtx;\n  }\n  function shotSound(){\n    const ctx=ensureAudio();if(!ctx||!noiseGain)return;try{if(ctx.state==="suspended")void ctx.resume();const now=ctx.currentTime,gain=noiseGain.gain;gain.cancelScheduledValues(now);gain.setValueAtTime(.00001,now);gain.linearRampToValueAtTime(.18,now+.002);gain.exponentialRampToValueAtTime(.00001,now+.052);}catch{}\n  }\n  function screenImpact(x,y){const el=screenImpacts[screenImpactCursor++%screenImpacts.length];el.style.left=`${x}px`;el.style.top=`${y}px`;el.classList.add("active");}\n''',1)
+          replace('sim/flight_fire_fx.mjs',
+              '  function aimPoint(){\n',
+              '''  function rebuildCandidates(){\n    candidates.length=0;scene.traverse(object=>{if(object.isMesh&&object.visible&&!object.userData?.arondightAirframe&&!object.userData?.flightFireDecal&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});raycastBuilds++;viewport.dataset.fireRaycastBuilds=String(raycastBuilds);\n  }\n  function aimPoint(){\n''',1)
+          replace('sim/flight_fire_fx.mjs',
+              '    candidates.length=0;scene.traverse(object=>{if(object.isMesh&&object.visible&&!object.userData?.arondightAirframe&&!object.userData?.flightFireDecal&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});intersections.length=0;raycaster.intersectObjects(candidates,false,intersections);const hit=intersections[0];\n',
+              '    intersections.length=0;raycaster.intersectObjects(candidates,false,intersections);const hit=intersections[0];\n',1)
+          replace('sim/flight_fire_fx.mjs',
+              '    if(!isEnabled()||event.button!==0||blocked(event.target)||active)return;active={id:event.pointerId,clientX:event.clientX,clientY:event.clientY};try{viewport.setPointerCapture?.(event.pointerId);}catch{}ensureAudio();nextShotAt=0;fire(performance.now());scheduleFire();event.preventDefault();\n',
+              '    if(!isEnabled()||event.button!==0||blocked(event.target)||active)return;active={id:event.pointerId,clientX:event.clientX,clientY:event.clientY};try{viewport.setPointerCapture?.(event.pointerId);}catch{}rebuildCandidates();ensureAudio();nextShotAt=0;fire(performance.now());scheduleFire();event.preventDefault();\n',1)
+          replace('sim/flight_fire_fx.mjs',
+              'style.remove();try{audioCtx?.close();}catch{}}};\n',
+              'style.remove();try{noiseSource?.stop();}catch{}try{audioCtx?.close();}catch{}}};\n',1)
+
+          # WORLD AGL sensor envelope must cover 50 m vertical AGL at the actual
+          # 40 degree GAME attitude envelope: 50/cos(40deg) ~= 65.27 m.
+          replace('sim/simulator.mjs','const NAV_AGL_RAY_MAX_M = 60;','const NAV_AGL_RAY_MAX_M = 70;',1)
+          replace('tests/architecture_invariants.mjs','"NAV_AGL_RAY_MAX_M = 60"','"NAV_AGL_RAY_MAX_M = 70"',1)
+
+          # Expired NAV means every NAV validity bit is expired, including heading.
+          replace('esp32/Arondight45_FirmwareRuntime.hpp',
+              '            navigation.valid = false;\n            navigation.velocity_valid = false;\n            navigation.agl_valid = false;\n',
+              '            navigation.valid = false;\n            navigation.velocity_valid = false;\n            navigation.agl_valid = false;\n            navigation.heading_valid = false;\n            navigation.heading_deg = 0.0f;\n',1)
+
+          # Static release invariants for the performance hotpath and cross-layer
+          # AGL/tilt contract, so these gaps cannot silently return.
+          fire_marker='for(const marker of ["installFlightFireFx","THREE.Raycaster","addVisualShotImpact","SHOT_INTERVAL_MS","DECAL_POOL_SIZE=32","touch-action:none"])requireText("sim/flight_fire_fx.mjs",marker);\n'
+          fire_guard='''for(const marker of ["installFlightFireFx","THREE.Raycaster","addVisualShotImpact","SHOT_INTERVAL_MS","DECAL_POOL_SIZE=32","touch-action:none"])requireText("sim/flight_fire_fx.mjs",marker);\nconst fireFxSource=read("sim/flight_fire_fx.mjs"),fireHotStart=fireFxSource.indexOf("  function fire(now){"),fireHotEnd=fireFxSource.indexOf("  function scheduleFire()",fireHotStart),shotSoundStart=fireFxSource.indexOf("  function shotSound(){"),shotSoundEnd=fireFxSource.indexOf("  function screenImpact",shotSoundStart);\nif(fireHotStart<0||fireHotEnd<=fireHotStart)fail("cannot isolate fire hotpath");\nif(fireFxSource.slice(fireHotStart,fireHotEnd).includes("scene.traverse"))fail("fire hotpath traverses the whole THREE scene per shot");\nif(shotSoundStart<0||shotSoundEnd<=shotSoundStart)fail("cannot isolate shot audio hotpath");\nif(fireFxSource.slice(shotSoundStart,shotSoundEnd).includes("createBufferSource"))fail("shot audio allocates AudioNodes per shot");\nforbidText("sim/flight_fire_fx.mjs","offsetWidth","fire impact animation must not force synchronous layout");\nfor(const marker of ["function rebuildCandidates()","fireRaycastBuilds","noiseSource.loop=true","noiseGain.gain"])requireText("sim/flight_fire_fx.mjs",marker);\n'''
+          replace('tests/architecture_invariants.mjs',fire_marker,fire_guard,1)
+
+          sim_marker='requireText("sim/simulator.mjs","cdA=[.035,.035,.07].map(x=>x*p.dragScale)");\n'
+          sim_guard='''requireText("sim/simulator.mjs","cdA=[.035,.035,.07].map(x=>x*p.dragScale)");\nconst sensorContractSource=read("sim/simulator.mjs"),stateContractSource=read("esp32/Arondight45_StateControl.hpp");\nconst rayMatch=sensorContractSource.match(/NAV_AGL_RAY_MAX_M = ([0-9.]+)/),tiltMatch=stateContractSource.match(/kMaxTiltDeg = ([0-9.]+)f/),clearanceMatch=stateContractSource.match(/kStateMaxClearanceM = ([0-9.]+)f/);\nif(!rayMatch||!tiltMatch||!clearanceMatch)fail("cannot parse WORLD AGL/tilt sensor contract");\nconst rayM=Number(rayMatch[1]),tiltDeg=Number(tiltMatch[1]),clearanceM=Number(clearanceMatch[1]),requiredSlantM=clearanceM/Math.cos(tiltDeg*Math.PI/180);\nif(!(rayM>=requiredSlantM+.25))fail(`WORLD NAV ray ${rayM} m cannot cover ${clearanceM} m AGL at ${tiltDeg} deg GAME tilt; needs ${requiredSlantM.toFixed(2)} m plus margin`);\n'''
+          replace('tests/architecture_invariants.mjs',sim_marker,sim_guard,1)
+          replace('tests/architecture_invariants.mjs',
+              'requireText("esp32/Arondight45_FirmwareRuntime.hpp","kNavigationTimeoutUs");\n',
+              'requireText("esp32/Arondight45_FirmwareRuntime.hpp","kNavigationTimeoutUs");\nrequireText("esp32/Arondight45_FirmwareRuntime.hpp","navigation.heading_valid = false;");\n',1)
+
+          # Runtime E2E proves one raycast target rebuild per gesture even when a
+          # gesture emits >32 recycled decal writes.
+          replace('tests/real_world_ui_smoke.mjs',
+              'before=Number(v.dataset.fireShots||0),writes0=Number(v.dataset.fireDecalWrites||0);send("pointerdown",sx,sy);',
+              'before=Number(v.dataset.fireShots||0),writes0=Number(v.dataset.fireDecalWrites||0),builds0=Number(v.dataset.fireRaycastBuilds||0);send("pointerdown",sx,sy);',1)
+          replace('tests/real_world_ui_smoke.mjs',
+              'return{before,during,writes0,writes,worldDecals,aimX,aimY,expectedX,expectedY,aimUi,pool:Number(v.dataset.fireDecalPoolSize||0)};});',
+              'return{before,during,writes0,writes,builds0,builds:Number(v.dataset.fireRaycastBuilds||0),worldDecals,aimX,aimY,expectedX,expectedY,aimUi,pool:Number(v.dataset.fireDecalPoolSize||0)};});',1)
+          replace('tests/real_world_ui_smoke.mjs',
+              'if(dragFire.during-dragFire.before<4||dragFire.pool!==32||dragFire.writes<=dragFire.writes0||dragFire.worldDecals<1||dragFire.aimUi||Math.abs(dragFire.aimX-dragFire.expectedX)>1||Math.abs(dragFire.aimY-dragFire.expectedY)>1)',
+              'if(dragFire.during-dragFire.before<4||dragFire.pool!==32||dragFire.writes<=dragFire.writes0||dragFire.builds-dragFire.builds0!==1||dragFire.worldDecals<1||dragFire.aimUi||Math.abs(dragFire.aimX-dragFire.expectedX)>1||Math.abs(dragFire.aimY-dragFire.expectedY)>1)',1)
+          replace('tests/real_world_ui_smoke.mjs',
+              'writes0=Number(v.dataset.fireDecalWrites||0);send("pointerdown",sx,sy);',
+              'writes0=Number(v.dataset.fireDecalWrites||0),builds0=Number(v.dataset.fireRaycastBuilds||0);send("pointerdown",sx,sy);',1)
+          replace('tests/real_world_ui_smoke.mjs',
+              'return{writes0,writes:Number(v.dataset.fireDecalWrites||0),meshes,visible,pool:Number(v.dataset.fireDecalPoolSize||0)};});',
+              'return{writes0,writes:Number(v.dataset.fireDecalWrites||0),builds0,builds:Number(v.dataset.fireRaycastBuilds||0),meshes,visible,pool:Number(v.dataset.fireDecalPoolSize||0)};});',1)
+          replace('tests/real_world_ui_smoke.mjs',
+              'if(pooledDecals.pool!==32||pooledDecals.meshes!==32||pooledDecals.visible>32||pooledDecals.writes-pooledDecals.writes0<=32)',
+              'if(pooledDecals.pool!==32||pooledDecals.meshes!==32||pooledDecals.visible>32||pooledDecals.writes-pooledDecals.writes0<=32||pooledDecals.builds-pooledDecals.builds0!==1)',1)
+
+          # Bring the canonical digital-twin requirements document back in sync
+          # with the production constants and state the real hardware NAV1 dependency.
+          replace('REAL_WORLD_DIGITAL_TWIN.md',
+              'The browser navigation twin uses a 60 m downward ground ray; with the controller\'s 25° maximum GAME tilt, a 50 m vertical AGL corresponds to about 55.2 m slant range and therefore remains inside that simulated sensor envelope.',
+              'The browser navigation twin uses a 70 m downward ground ray; with the controller\'s 40° maximum GAME tilt, a 50 m vertical AGL corresponds to about 65.3 m slant range and therefore remains inside that simulated sensor envelope.',1)
+          replace('REAL_WORLD_DIGITAL_TWIN.md','50 m range contract, 60 m navigation-ray coverage','50 m range contract, 70 m navigation-ray coverage',1)
+          replace('REAL_WORLD_DIGITAL_TWIN.md',
+              'The shared GAME horizontal speed command envelope remains **5 m/s** in Production, HIL and WASM until measured physical-airframe data justifies a retune. WORLD never multiplies physical speed for visual effect.',
+              'The shared GAME horizontal speed command envelope is **25 m/s (90 km/h)** in Production, HIL and WASM. The phone default remains 36 km/h (10 m/s) and the persisted setting is configurable from 5–90 km/h. WORLD never multiplies physical speed for visual effect.',1)
+          replace('REAL_WORLD_DIGITAL_TWIN.md',
+              'The NAV range twin now permits the configured 60 m slant ray all the way through `groundRange`, so a 50 m AGL command remains measurable at the controller\'s 25° tilt envelope instead of being accidentally clipped by the former internal 50 m ray clamp.',
+              'The NAV range twin permits the configured 70 m slant ray all the way through `groundRange`, so a 50 m AGL command remains measurable at the controller\'s 40° tilt envelope instead of being clipped by a shorter internal ray limit.',1)
+          nav_anchor='WORLD settings include a **WORLD GRID** toggle, default ON.'
+          nav_text='''Full physical GAME velocity control is deliberately fail-closed on the S31: the production adapter must receive a fresh NAV1 UART stream containing world-frame velocity, AGL and an absolute heading measurement. The ICM-42688-P is a 6-DoF IMU and cannot make absolute yaw observable by itself, so the firmware never fabricates heading from gyro integration. If velocity, AGL or heading is absent/stale, `StateRuntime` reports navigation degraded and does not pretend that the configured km/h target is being closed-loop controlled. The exact NAV1 encoder/CRC/sequence contract is shared by Production, physical HIL and browser SIL.\n\n'''+nav_anchor
+          replace('REAL_WORLD_DIGITAL_TWIN.md',nav_anchor,nav_text,1)
+
+          # The docs must never silently regress to the old speed/tilt/ray contract.
+          doc=Path('REAL_WORLD_DIGITAL_TWIN.md').read_text()
+          for stale in ['remains **5 m/s**','25° maximum GAME tilt','60 m navigation-ray coverage','configured 60 m slant ray']:
+              if stale in doc:
+                  raise SystemExit(f'stale digital-twin requirement remains: {stale}')
+          PY
+
+          node --check sim/flight_fire_fx.mjs
+          node --check sim/simulator.mjs
+          node --check tests/architecture_invariants.mjs
+          node --check tests/real_world_ui_smoke.mjs
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
+          /tmp/fc_core_test
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
+          /tmp/state_control_test
+          g++ -std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -Iesp32 tests/drone_hil_protocol_test.cpp -o /tmp/hil_test
+          ASAN_OPTIONS=detect_leaks=1 /tmp/hil_test
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+
+          git rm .github/workflows/oneoff-requirements-1a.yml
+          git config user.name 'Christian Heinrich Hohlfeld'
+          git config user.email 'chris.hohlfeld@gmail.com'
+          git add sim/flight_fire_fx.mjs sim/simulator.mjs esp32/Arondight45_FirmwareRuntime.hpp tests/architecture_invariants.mjs tests/real_world_ui_smoke.mjs REAL_WORLD_DIGITAL_TWIN.md
+          git commit -m 'Close 1a digital twin requirement gaps'
+          git push origin HEAD:fix/requirements-1a-complete
