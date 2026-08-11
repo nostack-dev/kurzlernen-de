@@ -1,0 +1,93 @@
+name: NAV startup hardening
+
+on:
+  push:
+    paths:
+      - '.github/workflows/nav-startup-hardening.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Apply deterministic NAV fixes
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def patch(path, old, new, count=1):
+              p=Path(path); s=p.read_text()
+              if old not in s:
+                  raise SystemExit(f'{path}: expected patch marker missing: {old!r}')
+              if count is not None and s.count(old) != count:
+                  raise SystemExit(f'{path}: expected {count} occurrences of {old!r}, got {s.count(old)}')
+              p.write_text(s.replace(old,new,1 if count==1 else -1))
+
+          # One shared GAME envelope: 50 m vertical clearance at 40 deg tilt needs
+          # 65.27 m slant range. Keep 10 m sensor/model reserve above that minimum.
+          patch('sim/control_semantics.mjs',
+                'export const MAX_GAME_CLEARANCE_M=50.0;\n',
+                'export const MAX_GAME_CLEARANCE_M=50.0;\nexport const MAX_GAME_TILT_DEG=40.0;\nexport const GAME_AGL_SENSOR_RANGE_MARGIN_M=10.0;\nexport const MIN_GAME_AGL_SENSOR_SLANT_RANGE_M=Math.ceil(MAX_GAME_CLEARANCE_M/Math.cos(MAX_GAME_TILT_DEG*Math.PI/180)+GAME_AGL_SENSOR_RANGE_MARGIN_M);\n')
+
+          patch('sim/simulator.mjs',
+                'MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M,clearanceRateMps',
+                'MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M,MIN_GAME_AGL_SENSOR_SLANT_RANGE_M,clearanceRateMps')
+          patch('sim/simulator.mjs',
+                'const NAV_AGL_RAY_MAX_M = 60;',
+                'const NAV_AGL_RAY_MAX_M = MIN_GAME_AGL_SENSOR_SLANT_RANGE_M;')
+
+          # The initial browser permission prompt is the measurement used by WORLD.
+          # Do not request GPS twice; manual WORLD activation still acquires its own fix.
+          patch('sim/real_world_bootstrap.mjs',
+                '  async activate(){\n',
+                '  async activate(locationFix=null){\n')
+          patch('sim/real_world_bootstrap.mjs',
+                '      const fix=await geolocate();',
+                '      const fix=locationFix?.coords?locationFix:await geolocate();')
+
+          patch('tests/control_semantics_test.mjs',
+                '  MIN_GAME_HORIZONTAL_SPEED_KMH,MAX_GAME_HORIZONTAL_SPEED_KMH,DEFAULT_GAME_HORIZONTAL_SPEED_KMH,gameHorizontalSpeedScale,gameStateStickMagnitude,inverseGameStateStickMagnitude\n',
+                '  MIN_GAME_HORIZONTAL_SPEED_KMH,MAX_GAME_HORIZONTAL_SPEED_KMH,DEFAULT_GAME_HORIZONTAL_SPEED_KMH,gameHorizontalSpeedScale,gameStateStickMagnitude,inverseGameStateStickMagnitude,\n  MAX_GAME_TILT_DEG,GAME_AGL_SENSOR_RANGE_MARGIN_M,MIN_GAME_AGL_SENSOR_SLANT_RANGE_M\n')
+          patch('tests/control_semantics_test.mjs',
+                'assert.equal(MIN_GAME_CLEARANCE_M,.5);assert.equal(MAX_GAME_CLEARANCE_M,50);\n',
+                'assert.equal(MIN_GAME_CLEARANCE_M,.5);assert.equal(MAX_GAME_CLEARANCE_M,50);\nassert.equal(MAX_GAME_TILT_DEG,40);assert.equal(GAME_AGL_SENSOR_RANGE_MARGIN_M,10);\nconst requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.cos(MAX_GAME_TILT_DEG*Math.PI/180);\nassert.ok(MIN_GAME_AGL_SENSOR_SLANT_RANGE_M>=requiredAglSlant+GAME_AGL_SENSOR_RANGE_MARGIN_M,`AGL sensor envelope ${MIN_GAME_AGL_SENSOR_SLANT_RANGE_M} m cannot cover ${MAX_GAME_CLEARANCE_M} m at ${MAX_GAME_TILT_DEG} deg plus margin`);\n')
+          patch('tests/control_semantics_test.mjs',
+                'assert.ok(simulatorSource.includes("physics.step(latest.motors,DT)"),"SIL optimization must retain the same 1 ms physics integration path");\n',
+                'assert.ok(simulatorSource.includes("physics.step(latest.motors,DT)"),"SIL optimization must retain the same 1 ms physics integration path");\nassert.ok(simulatorSource.includes("NAV_AGL_RAY_MAX_M = MIN_GAME_AGL_SENSOR_SLANT_RANGE_M"),"simulated AGL rangefinder must cover the shared GAME clearance/tilt envelope");\n')
+
+          patch('tests/architecture_invariants.mjs',
+                'import {phoneAxis} from "../sim/control_semantics.mjs";\n',
+                'import {phoneAxis,MAX_GAME_CLEARANCE_M,MAX_GAME_TILT_DEG,GAME_AGL_SENSOR_RANGE_MARGIN_M,MIN_GAME_AGL_SENSOR_SLANT_RANGE_M} from "../sim/control_semantics.mjs";\n')
+          patch('tests/architecture_invariants.mjs',
+                'requireText("esp32/Arondight45_StateControl.hpp","kMaxTiltDeg = 40.0f");\n',
+                'requireText("esp32/Arondight45_StateControl.hpp","kMaxTiltDeg = 40.0f");\nconst stateControlSource=read("esp32/Arondight45_StateControl.hpp"),tiltMatch=stateControlSource.match(/kMaxTiltDeg = ([0-9.]+)f/);\nif(!tiltMatch||Math.abs(Number(tiltMatch[1])-MAX_GAME_TILT_DEG)>1e-9)fail(`JS/C++ GAME tilt envelope diverged: JS ${MAX_GAME_TILT_DEG}, C++ ${tiltMatch?.[1]}`);\nconst requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.cos(MAX_GAME_TILT_DEG*Math.PI/180);\nif(MIN_GAME_AGL_SENSOR_SLANT_RANGE_M<requiredAglSlant+GAME_AGL_SENSOR_RANGE_MARGIN_M)fail(`AGL slant range ${MIN_GAME_AGL_SENSOR_SLANT_RANGE_M} m cannot cover ${MAX_GAME_CLEARANCE_M} m at ${MAX_GAME_TILT_DEG} deg plus margin`);\n')
+          patch('tests/architecture_invariants.mjs',
+                '"NAV_AGL_RAY_MAX_M = 60"',
+                '"NAV_AGL_RAY_MAX_M = MIN_GAME_AGL_SENSOR_SLANT_RANGE_M"')
+          PY
+
+          # Remove this one-shot workflow before hygiene tests and from the product commit.
+          git rm .github/workflows/nav-startup-hardening.yml
+
+          node --check sim/control_semantics.mjs
+          node --check sim/simulator.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node --check tests/control_semantics_test.mjs
+          node --check tests/architecture_invariants.mjs
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
+          /tmp/state_control_test
+
+          git config user.name 'Arondight45 CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add sim/control_semantics.mjs sim/simulator.mjs sim/real_world_bootstrap.mjs tests/control_semantics_test.mjs tests/architecture_invariants.mjs
+          git commit -m 'Harden NAV AGL envelope and GPS startup handoff'
+          git push origin HEAD:main
