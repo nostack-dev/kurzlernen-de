@@ -60,10 +60,10 @@ async function autoWorld(locationResultPromise){
   if(error){trainingFallback(`TRAINING RANGE · GPS unavailable · ${error.message}`);return;}
   if(navigator.onLine===false){trainingFallback("TRAINING RANGE · offline · GPS permission ready");return;}
   try{
-    // activate() deliberately performs its own fresh high-accuracy fix. The
-    // startup request above exists to surface permission immediately; the
-    // second read normally reuses the granted permission without another prompt.
-    const pending=bridge.activate();syncWorldButton();await pending;syncWorldButton();
+    // The permission prompt's high-accuracy fix is the WORLD origin. Do not ask
+    // the platform for a second fix during startup; manual WORLD activation still
+    // acquires a fresh position when no startup fix is supplied.
+    const pending=bridge.activate(fix);syncWorldButton();await pending;syncWorldButton();
   }catch(error){trainingFallback(`TRAINING RANGE · WORLD unavailable · ${error?.message||error}`);}
 }
 
