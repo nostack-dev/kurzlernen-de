@@ -1,0 +1,49 @@
+name: Full-axis NAV envelope hardening
+
+on:
+  push:
+    paths:
+      - '.github/workflows/nav-envelope-v2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Harden full-axis AGL envelope
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          def one(path,old,new):
+              p=Path(path);s=p.read_text()
+              if s.count(old)!=1: raise SystemExit(f'{path}: expected one {old!r}, got {s.count(old)}')
+              p.write_text(s.replace(old,new,1))
+
+          one('sim/control_semantics.mjs',
+              'MAX_GAME_CLEARANCE_M/Math.cos(MAX_GAME_TILT_DEG*Math.PI/180)+GAME_AGL_SENSOR_RANGE_MARGIN_M',
+              'MAX_GAME_CLEARANCE_M/Math.pow(Math.cos(MAX_GAME_TILT_DEG*Math.PI/180),2)+GAME_AGL_SENSOR_RANGE_MARGIN_M')
+          one('tests/control_semantics_test.mjs',
+              'const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.cos(MAX_GAME_TILT_DEG*Math.PI/180);',
+              'const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.pow(Math.cos(MAX_GAME_TILT_DEG*Math.PI/180),2);')
+          one('tests/architecture_invariants.mjs',
+              'const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.cos(MAX_GAME_TILT_DEG*Math.PI/180);',
+              'const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.pow(Math.cos(MAX_GAME_TILT_DEG*Math.PI/180),2);')
+          PY
+          git rm .github/workflows/nav-envelope-v2.yml
+          node --check sim/control_semantics.mjs
+          node --check tests/control_semantics_test.mjs
+          node --check tests/architecture_invariants.mjs
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          git config user.name 'Arondight45 CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add sim/control_semantics.mjs tests/control_semantics_test.mjs tests/architecture_invariants.mjs
+          git commit -m 'Cover full two-axis GAME tilt in AGL sensor envelope'
+          git push origin HEAD:main
