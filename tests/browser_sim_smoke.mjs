@@ -325,9 +325,15 @@ try{
   state=await page.$eval("#fcState",e=>e.textContent||"");
   if(state!=="DISARMED")throw new Error(`local fallback calibration failed: ${JSON.stringify(await snapshot())}`);
 
-  const localArmStart=await simTime();await page.keyboard.press("Space");await waitForSimTime(localArmStart+1.1,45000);
+  // Space must arm through the same local SBUS -> FirmwareRuntime -> ArmState path.
+  // Use the authoritative FC state bit for arming completion; #fcState is a
+  // deliberately rate-limited 20 Hz presentation surface and may lag one frame.
+  const localArmStart=await simTime();await page.keyboard.press("Space");
+  await page.waitForFunction(({start,limit})=>{const d=globalThis.__arondightDiagnostics,sim=Number(d?.simTime),fc=Number(d?.fcState)||0;return Boolean(fc&1)||(Number.isFinite(sim)&&sim>=start+limit);},{timeout:15000},{start:localArmStart,limit:1.25});
+  const localArmReached=await page.evaluate(()=>({sim:Number(globalThis.__arondightDiagnostics?.simTime),fc:Number(globalThis.__arondightDiagnostics?.fcState)||0}));
+  if(!(localArmReached.fc&1)||localArmReached.sim-localArmStart>1.25)throw new Error(`local fallback ARM authority failed: start=${localArmStart} reached=${JSON.stringify(localArmReached)} snapshot=${JSON.stringify(await snapshot())}`);
+  await page.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:1500});
   state=await page.$eval("#fcState",e=>e.textContent||"");
-  if(state!=="ARMED")throw new Error(`local fallback ARM failed: ${JSON.stringify(await snapshot())}`);
 
   await page.$eval("#touchThrottle",e=>{e.value=".25";});
   const throttleStart=await simTime();await waitForSimTime(throttleStart+.1,15000);
