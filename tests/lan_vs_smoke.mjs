@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {webcrypto} from "node:crypto";
-import {LanVsSession,LanVsFinder,sameNetworkRoomKey,sameNetworkRoomKeys,proximityRoomKeys,discoveryRoomKeys,networkMaterialFromCandidate} from "../sim/lan_vs.mjs";
+import {LanVsSession,LanVsFinder,sameNetworkRoomKey,sameNetworkRoomKeys,proximityRoomKeys,gestureRoomKeys,discoveryRoomKeys,networkMaterialFromCandidate} from "../sim/lan_vs.mjs";
 
 function transportHarness(){
   const rooms=new Map();let next=1;
@@ -31,20 +31,33 @@ const legacy=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.7"),cryptoOb
 
 const geoA=await proximityRoomKeys({longitude:9.170000,latitude:47.660000,cryptoObj:webcrypto}),geoB=await proximityRoomKeys({longitude:9.170650,latitude:47.660450,cryptoObj:webcrypto}),geoFar=await proximityRoomKeys({longitude:9.30,latitude:47.80,cryptoObj:webcrypto});
 assert.ok(overlap(geoA,geoB).length>=1,"phones tens of metres apart must share at least one proximity room even at grid boundaries");assert.equal(overlap(geoA,geoFar).length,0,"distant phones must not collide in proximity rooms");
-const discovery=await discoveryRoomKeys({longitude:9.17,latitude:47.66,fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto,networkMaterialsFn:async()=>["ipv4:203.0.113.7"]});assert.ok(discovery.length>=5&&discovery.length<=8);
+
+const gestureBase=1_800_000_000_000;
+const gestureA=await gestureRoomKeys({gestureTimeMs:gestureBase+7_900,cryptoObj:webcrypto}),gestureB=await gestureRoomKeys({gestureTimeMs:gestureBase+8_100,cryptoObj:webcrypto});
+const gestureShared=overlap(gestureA,gestureB);assert.ok(gestureShared.length>=1,"FIND MATE presses across a time-bucket boundary must still share a zero-touch gesture room");assert.ok(gestureShared.every(key=>key.startsWith("tap-")));
+
+const discovery=await discoveryRoomKeys({longitude:9.17,latitude:47.66,gestureTimeMs:gestureBase,fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto,networkMaterialsFn:async()=>["ipv4:203.0.113.7"]});assert.ok(discovery.length>=7&&discovery.length<=8);assert.ok(discovery.some(key=>key.startsWith("tap-")),"every FIND MATE search must retain gesture fallback rooms");
 let geoRequests=0;
-const discoveredFromGestureGeo=await discoveryRoomKeys({fetchFn:null,cryptoObj:webcrypto,networkMaterialsFn:async()=>[],positionFn:async()=>{geoRequests++;return{coords:{longitude:9.17,latitude:47.66}};}});
-assert.equal(geoRequests,1,"FIND MATE must actively request a best-effort proximity fix when no cached GPS exists");assert.equal(discoveredFromGestureGeo.length,4);
-const discoveredNetworkOnly=await discoveryRoomKeys({fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto,networkMaterialsFn:async()=>["ipv4:203.0.113.7"],positionFn:async()=>null});
-assert.ok(discoveredNetworkOnly.length>=2,"GPS-less phone must still get automatic network discovery rooms");
+const discoveredFromGestureGeo=await discoveryRoomKeys({gestureTimeMs:gestureBase,fetchFn:null,cryptoObj:webcrypto,networkMaterialsFn:async()=>[],positionFn:async()=>{geoRequests++;return{coords:{longitude:9.17,latitude:47.66}};}});
+assert.equal(geoRequests,1,"FIND MATE must actively request a best-effort proximity fix when no cached GPS exists");assert.equal(discoveredFromGestureGeo.length,6);assert.equal(discoveredFromGestureGeo.filter(key=>key.startsWith("tap-")).length,2);
+const discoveredNetworkOnly=await discoveryRoomKeys({gestureTimeMs:gestureBase,fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto,networkMaterialsFn:async()=>["ipv4:203.0.113.7"],positionFn:async()=>null});
+assert.ok(discoveredNetworkOnly.length>=4,"GPS-less phone must retain network plus zero-touch gesture discovery rooms");
+
+const isolatedA=await discoveryRoomKeys({gestureTimeMs:gestureBase+7_900,fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto,networkMaterialsFn:async()=>["ipv4:203.0.113.7"],positionFn:async()=>null});
+const isolatedB=await discoveryRoomKeys({gestureTimeMs:gestureBase+8_100,fetchFn:fakeFetch("198.51.100.44"),cryptoObj:webcrypto,networkMaterialsFn:async()=>["ipv4:198.51.100.44"],positionFn:async()=>null});
+const isolatedShared=overlap(isolatedA,isolatedB);assert.ok(isolatedShared.length>=1,"zero GPS plus completely different WAN/STUN identities must still rendezvous after near-simultaneous FIND MATE presses");assert.ok(isolatedShared.every(key=>key.startsWith("tap-")),"isolated phones must converge through gesture fallback rather than a fabricated network match");
 
 const harness=transportHarness();let aPeer=0,bPeer=0,aPose=null,bPose=null,aOrigin=null,bOrigin=null,aCombat=null,bCombat=null,aLeft=0;
 const a=new LanVsSession({...harness,onPeer:()=>aPeer++,onPose:p=>aPose=p,onOrigin:o=>aOrigin=o,onCombat:p=>aCombat=p,onLeave:()=>aLeft++}),b=new LanVsSession({...harness,onPeer:()=>bPeer++,onPose:p=>bPose=p,onOrigin:o=>bOrigin=o,onCombat:p=>bCombat=p});
 await a.start(legacy);await b.start(legacy);await sleep(10);assert.equal(aPeer,1);assert.equal(bPeer,1);assert.equal(a.setOrigin({lon:9.17,lat:47.66,alt:411}),true);assert.equal(b.setOrigin({lon:NaN,lat:47.66}),false);await sleep(90);assert.deepEqual(bOrigin,{lon:9.17,lat:47.66,alt:411});assert.equal(aOrigin,null,"GPS-less peer must not invent an origin");assert.equal(a.setPose({p:[1,2,NaN],q:[0,0,0,1]}),false);assert.equal(a.setPose({p:[1,2,3],q:[0,0,0,1],g:[9.17,47.66]}),true);assert.equal(b.setPose({p:[4,5,6],q:[0,0,.1,.99]}),true);await sleep(140);assert.deepEqual(aPose.p,[4,5,6]);assert.deepEqual(bPose.p,[1,2,3]);assert.ok(aPose.seq>=1&&bPose.seq>=1);const oldSeq=aPose.seq;await sleep(70);assert.ok(aPose.seq>oldSeq);assert.equal(a.sendCombat({type:"hit",id:"hit-1",damage:25}),true);await sleep(5);assert.deepEqual(bCombat,{type:"hit",id:"hit-1",damage:25});assert.equal(b.sendCombat({type:"state",id:"hit-1",hp:75,killed:false}),true);await sleep(5);assert.deepEqual(aCombat,{type:"state",id:"hit-1",hp:75,killed:false});b.stop();await sleep(5);assert.equal(aLeft,1);a.stop();
 
 const finderHarness=transportHarness(),shared=geoA[0];let faPeer=0,fbPeer=0,faPose=null,fbPose=null,faLeft=0;
-const fa=new LanVsFinder({...finderHarness,onPeer:()=>faPeer++,onPose:p=>faPose=p,onLeave:()=>faLeft++}),fb=new LanVsFinder({...finderHarness,onPeer:()=>fbPeer++,onPose:p=>fbPose=p});
+const fa=new LanVsFinder({...finderHarness,gestureDeferMs:5,onPeer:()=>faPeer++,onPose:p=>faPose=p,onLeave:()=>faLeft++}),fb=new LanVsFinder({...finderHarness,gestureDeferMs:5,onPeer:()=>fbPeer++,onPose:p=>fbPose=p});
 await fa.start(["net-only-a",shared,"geo-only-a"]);await fb.start(["net-only-b","geo-only-b",shared]);await sleep(20);assert.equal(faPeer,1);assert.equal(fbPeer,1);fa.setPose({p:[10,20,30],q:[0,0,0,1]});fb.setPose({p:[40,50,60],q:[0,0,0,1]});await sleep(90);assert.deepEqual(faPose?.p,[40,50,60]);assert.deepEqual(fbPose?.p,[10,20,30]);fb.stop();await sleep(5);assert.equal(faLeft,1);fa.stop();
 
+const gestureHarness=transportHarness();let gaPeer=0,gbPeer=0,gaPose=null,gbPose=null;const sharedTap=isolatedShared[0];
+const ga=new LanVsFinder({...gestureHarness,gestureDeferMs:5,onPeer:()=>gaPeer++,onPose:p=>gaPose=p}),gb=new LanVsFinder({...gestureHarness,gestureDeferMs:5,onPeer:()=>gbPeer++,onPose:p=>gbPose=p});
+const gaStart=ga.start(["net-isolated-a",sharedTap]),gbStart=gb.start(["net-isolated-b",sharedTap]);await Promise.all([gaStart,gbStart]);await sleep(25);assert.equal(gaPeer,1);assert.equal(gbPeer,1);ga.setPose({p:[7,8,9],q:[0,0,0,1]});gb.setPose({p:[1,3,5],q:[0,0,0,1]});await sleep(90);assert.deepEqual(gaPose?.p,[1,3,5]);assert.deepEqual(gbPose?.p,[7,8,9]);ga.stop();gb.stop();
+
 const dead=deadTransport(),fallback=transportHarness();let xaPeer=0,xbPeer=0;const xaTransports=[],xbTransports=[];const xa=new LanVsSession({loadTransport:dead.loadTransport,loadFallbackTransport:fallback.loadTransport,fallbackAfterMs:20,onTransport:n=>xaTransports.push(n),onPeer:()=>xaPeer++}),xb=new LanVsSession({loadTransport:dead.loadTransport,loadFallbackTransport:fallback.loadTransport,fallbackAfterMs:20,onTransport:n=>xbTransports.push(n),onPeer:()=>xbPeer++});await xa.start(legacy);await sleep(8);await xb.start(legacy);await sleep(90);assert.equal(xaPeer,1);assert.equal(xbPeer,1);assert.deepEqual(xaTransports,["Nostr","MQTT"]);assert.deepEqual(xbTransports,["Nostr","MQTT"]);xa.stop();xb.stop();
-console.log("LAN VS deterministic smoke passed: gesture proximity + IPv6/LAN/IPv4/coarse-hotspot discovery, Nostr -> MQTT fallback, pose/origin/combat");
+console.log("LAN VS deterministic smoke passed: zero-touch gesture + proximity + IPv6/LAN/IPv4/coarse-hotspot discovery, deferred fallback, Nostr -> MQTT, pose/origin/combat");
