@@ -45,6 +45,7 @@ jobs:
           clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control-clang
           /tmp/state-control-clang
           node tests/control_semantics_test.mjs
+          node tests/lan_vs_smoke.mjs
       - name: Architecture and JavaScript validation
         run: |
           set -euxo pipefail
@@ -54,11 +55,15 @@ jobs:
           node --check sim/p2p_link.mjs
           node --check sim/control_semantics.mjs
           node --check sim/control_settings.mjs
+          node --check sim/flight_logbook.mjs
+          node --check sim/lan_vs.mjs
           node --check tests/architecture_invariants.mjs
           node --check tests/control_semantics_test.mjs
           node --check tests/sil_wasm_smoke.mjs
           node --check tests/browser_sim_smoke.mjs
           node --check tests/dual_phone_smoke.mjs
+          node --check tests/lan_vs_smoke.mjs
+          node --check tests/network_logbook_browser_smoke.mjs
           node --check tools/s31_hil_bridge.mjs
           node tests/architecture_invariants.mjs
 
