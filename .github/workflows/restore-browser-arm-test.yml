@@ -25,7 +25,7 @@ jobs:
           if s.count(old)!=1: raise SystemExit(f'ARM block expected exactly once, got {s.count(old)}')
           p.write_text(s.replace(old,new,1))
           PY
-          rm .github/workflows/restore-browser-arm-test.yml
+          rm -f .github/workflows/restore-browser-arm-test.yml .github/workflows/local-arm-diagnostic-v2.yml
           node --check tests/browser_sim_smoke.mjs
           node tests/control_semantics_test.mjs
           node tests/architecture_invariants.mjs
