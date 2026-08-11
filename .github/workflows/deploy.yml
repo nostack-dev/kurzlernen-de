@@ -139,6 +139,8 @@ jobs:
           node --check sim/control_semantics.mjs
           node --check sim/control_settings.mjs
           node --check sim/solo_layout.mjs
+          node --check sim/flight_fire_fx.mjs
+          node --check sim/auto_flight_start.mjs
           node --check tests/architecture_invariants.mjs
           node --check tests/control_semantics_test.mjs
           node --check tests/sil_wasm_smoke.mjs
