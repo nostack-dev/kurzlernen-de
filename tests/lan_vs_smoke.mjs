@@ -40,6 +40,15 @@ function transportHarness(){
   return{loadTransport:async()=>({joinRoom})};
 }
 
+function deadTransport(){
+  let next=1;
+  const joinRoom=()=>{
+    const id=`dead-${next++}`;
+    return{id,onPeerJoin:null,onPeerLeave:null,onJoinError:null,makeAction:()=>({onMessage:null,send:()=>Promise.resolve()}),leave(){}};
+  };
+  return{loadTransport:async()=>({joinRoom})};
+}
+
 const calls=[];
 const fakeFetch=ip=>async url=>{calls.push(String(url));return{ok:true,json:async()=>({ip})};};
 const room=await sameNetworkRoomKey({fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto});
@@ -79,4 +88,24 @@ await new Promise(r=>setTimeout(r,70));
 assert.ok(aPose.seq>oldSeq,"pose sequence did not advance");
 b.stop();await new Promise(r=>setTimeout(r,5));assert.equal(aLeft,1);
 a.stop();
-console.log("LAN VS deterministic Trystero-0.25 two-peer smoke passed");
+
+// Real failure mode: both peers can sit in a healthy-looking primary room forever
+// while the Nostr rendezvous path is unavailable. Both must automatically abandon
+// that path and converge on the same MQTT room without user timing tricks.
+const dead=deadTransport(),fallback=transportHarness(),fallbackRoom=await manualRoomKey("FALL42",{cryptoObj:webcrypto});
+let faPeer=0,fbPeer=0,faPose=null,fbPose=null;const faTransports=[],fbTransports=[];
+const fa=new LanVsSession({loadTransport:dead.loadTransport,loadFallbackTransport:fallback.loadTransport,fallbackAfterMs:20,onTransport:name=>faTransports.push(name),onPeer:()=>faPeer++,onPose:p=>faPose=p});
+const fb=new LanVsSession({loadTransport:dead.loadTransport,loadFallbackTransport:fallback.loadTransport,fallbackAfterMs:20,onTransport:name=>fbTransports.push(name),onPeer:()=>fbPeer++,onPose:p=>fbPose=p});
+await fa.start(fallbackRoom);await new Promise(r=>setTimeout(r,8));await fb.start(fallbackRoom);
+await new Promise(r=>setTimeout(r,90));
+assert.equal(faPeer,1,"peer A did not connect after primary signaling timeout");
+assert.equal(fbPeer,1,"peer B did not connect after primary signaling timeout");
+assert.deepEqual(faTransports,["Nostr","MQTT"]);
+assert.deepEqual(fbTransports,["Nostr","MQTT"]);
+assert.equal(fa.transportName,"MQTT");assert.equal(fb.transportName,"MQTT");
+fa.setPose({p:[10,20,30],q:[0,0,0,1]});fb.setPose({p:[40,50,60],q:[0,0,0,1]});
+await new Promise(r=>setTimeout(r,90));
+assert.deepEqual(faPose?.p,[40,50,60]);assert.deepEqual(fbPose?.p,[10,20,30]);
+fa.stop();fb.stop();
+
+console.log("LAN VS deterministic Trystero-0.25 two-peer smoke passed, including automatic Nostr -> MQTT signaling fallback");
