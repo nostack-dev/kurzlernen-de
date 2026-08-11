@@ -1,0 +1,281 @@
+name: one-shot-vs-combat-final
+on:
+  push:
+    branches: ["fix/vs-signaling-fallback"]
+    paths: [".github/workflows/one-shot-vs-combat-final.yml"]
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Implement VS health kills explosion and permanent gates
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace1(path, old, new):
+              p=Path(path); s=p.read_text(); n=s.count(old)
+              assert n==1, f"{path}: expected one match, got {n}: {old[:100]!r}"
+              p.write_text(s.replace(old,new,1))
+
+          # ---- transport: separate reliable combat action ----
+          path='sim/lan_vs.mjs'
+          replace1(path,
+          'function validOrigin(origin){return Boolean(origin&&Number.isFinite(origin.lon)&&Number.isFinite(origin.lat)&&Math.abs(origin.lon)<=180&&Math.abs(origin.lat)<=90&&(!(\"alt\" in origin)||Number.isFinite(origin.alt)));}\nfunction validIpv4(value){',
+          'function validOrigin(origin){return Boolean(origin&&Number.isFinite(origin.lon)&&Number.isFinite(origin.lat)&&Math.abs(origin.lon)<=180&&Math.abs(origin.lat)<=90&&(!(\"alt\" in origin)||Number.isFinite(origin.alt)));}\nfunction validCombat(packet){\n  if(!packet||typeof packet!==\"object\"||typeof packet.type!==\"string\")return false;\n  const idOk=typeof packet.id===\"string\"&&packet.id.length>=1&&packet.id.length<=64;\n  if(packet.type===\"hit\")return idOk&&Number.isFinite(packet.damage)&&packet.damage>0&&packet.damage<=100;\n  if(packet.type===\"state\")return idOk&&Number.isFinite(packet.hp)&&packet.hp>=0&&packet.hp<=100&&typeof packet.killed===\"boolean\";\n  if(packet.type===\"respawn\")return Number.isFinite(packet.hp)&&packet.hp>=0&&packet.hp<=100;\n  return false;\n}\nfunction validIpv4(value){')
+          replace1(path,
+          'this.room=null;this.poseAction=null;this.originAction=null;this.timer=0;',
+          'this.room=null;this.poseAction=null;this.originAction=null;this.combatAction=null;this.timer=0;')
+          replace1(path,
+          'this.onPeer=options.onPeer;this.onPose=options.onPose;this.onOrigin=options.onOrigin;this.onLeave=options.onLeave;this.onError=options.onError;this.onTransport=options.onTransport;',
+          'this.onPeer=options.onPeer;this.onPose=options.onPose;this.onOrigin=options.onOrigin;this.onCombat=options.onCombat;this.onLeave=options.onLeave;this.onError=options.onError;this.onTransport=options.onTransport;')
+          replace1(path,
+          'this.room=null;this.poseAction=null;this.originAction=null;this.transportName=\"\";',
+          'this.room=null;this.poseAction=null;this.originAction=null;this.combatAction=null;this.transportName=\"\";')
+          replace1(path,
+          '    this.originAction=originAction;\n    const active=()=>generation===this.transportGeneration&&room===this.room;',
+          '    this.originAction=originAction;\n    const combatAction=room.makeAction(\"combat\");\n    if(!combatAction||typeof combatAction.send!==\"function\")throw Error(\"VS combat action unavailable\");\n    this.combatAction=combatAction;\n    const active=()=>generation===this.transportGeneration&&room===this.room;')
+          replace1(path,
+          '    originAction.onMessage=(origin,{peerId}={})=>{if(!active()||!peerId||peerId!==this.peerId||!validOrigin(origin))return;this.onOrigin?.({...origin},peerId);};\n    poseAction.onMessage=(pose,{peerId}={})=>{',
+          '    originAction.onMessage=(origin,{peerId}={})=>{if(!active()||!peerId||peerId!==this.peerId||!validOrigin(origin))return;this.onOrigin?.({...origin},peerId);};\n    combatAction.onMessage=(packet,{peerId}={})=>{if(!active()||!peerId||!validCombat(packet))return;if(!this.peerId)adoptPeer(peerId);if(peerId!==this.peerId)return;this.onCombat?.({...packet},peerId);};\n    poseAction.onMessage=(pose,{peerId}={})=>{')
+          replace1(path,
+          '  stop(){\n    clearInterval(this.timer);',
+          '  sendCombat(packet){\n    if(!validCombat(packet)||!this.peerId||!this.combatAction)return false;\n    const clean={...packet};\n    Promise.resolve(this.combatAction.send(clean,{target:this.peerId})).catch(error=>this.onError?.(error));\n    return true;\n  }\n  stop(){\n    clearInterval(this.timer);')
+          replace1(path,
+          'this.room=null;this.poseAction=null;this.originAction=null;this.peerId=null;',
+          'this.room=null;this.poseAction=null;this.originAction=null;this.combatAction=null;this.peerId=null;')
+
+          # ---- bridge: HP, mate HP, kill count, explosion, respawn ----
+          path='sim/real_world_bootstrap.mjs'
+          replace1(path,
+          'this.vsPeerLastPoseMs=-Infinity;this.vsPeerRenderMs=performance.now();this.installUi();',
+          'this.vsPeerLastPoseMs=-Infinity;this.vsPeerRenderMs=performance.now();this.vsCombatHud=null;this.vsLocalHealth=100;this.vsPeerHealth=100;this.vsKills=0;this.vsDeaths=0;this.vsCombatSeq=0;this.vsSeenHits=new Set();this.vsPendingHits=new Set();this.vsRespawnTimer=0;this.vsLocalDead=false;this.vsPeerDead=false;this.vsExplosion=null;this.vsExplosionStartedMs=-Infinity;this.installUi();')
+          old='''  installVsUi(){
+    const viewport=$("viewport");if(!viewport||$("lanVsButton"))return;const button=document.createElement("button");button.id="lanVsButton";button.type="button";button.textContent="FIND MATE";button.setAttribute("aria-label","Find nearby mate on the same network");button.style.cssText="border:1px solid #70ddff88;background:#071522e8;color:#dff7ff;font-weight:800;letter-spacing:.04em;touch-action:manipulation;white-space:nowrap";button.onclick=()=>this.toggleVs();const attach=()=>{const topbar=$("soloTopbar");if(!topbar)return false;if(button.parentNode!==topbar)topbar.appendChild(button);return true;};if(!attach()){const observer=new MutationObserver(()=>{if(attach())observer.disconnect();});observer.observe(document.documentElement,{childList:true,subtree:true});}
+  }'''
+          new='''  installVsUi(){
+    const viewport=$("viewport");if(!viewport||$("lanVsButton"))return;const button=document.createElement("button");button.id="lanVsButton";button.type="button";button.textContent="FIND MATE";button.setAttribute("aria-label","Find nearby mate on the same network");button.style.cssText="border:1px solid #70ddff88;background:#071522e8;color:#dff7ff;font-weight:800;letter-spacing:.04em;touch-action:manipulation;white-space:nowrap";button.onclick=()=>this.toggleVs();const combat=document.createElement("span");combat.id="vsCombatHud";combat.hidden=true;combat.textContent="HP 100 · MATE 100 · K 0";combat.setAttribute("aria-label","VS health and kill count");this.vsCombatHud=combat;const attach=()=>{const topbar=$("soloTopbar");if(!topbar)return false;if(button.parentNode!==topbar)topbar.appendChild(button);if(combat.parentNode!==topbar)topbar.appendChild(combat);return true;};if(!attach()){const observer=new MutationObserver(()=>{if(attach())observer.disconnect();});observer.observe(document.documentElement,{childList:true,subtree:true});}
+  }'''
+          replace1(path,old,new)
+          replace1(path,
+          'onPeer:()=>{this.vsConnected=true;if(button)button.textContent="MATE ✓";this.ensureVsPeerMesh();},onPose:pose=>this.applyVsPose(pose),onOrigin:origin=>this.acceptVsOrigin(origin,null),onLeave:()=>{',
+          'onPeer:()=>{this.vsConnected=true;if(button)button.textContent="MATE ✓";this.ensureVsPeerMesh();this.resetVsCombat(true);},onPose:pose=>this.applyVsPose(pose),onOrigin:origin=>this.acceptVsOrigin(origin,null),onCombat:packet=>this.applyVsCombat(packet),onLeave:()=>{')
+          replace1(path,
+          'this.clearVsPeerPresentation();if(mateWorld){',
+          'this.clearVsPeerPresentation();this.resetVsCombat(false);if(mateWorld){')
+          replace1(path,
+          'this.vsSession?.stop();this.vsSession=null;if(button)button.textContent="RETRY MATE";',
+          'this.vsSession?.stop();this.vsSession=null;this.resetVsCombat(false);if(button)button.textContent="RETRY MATE";')
+          replace1(path,
+          '  clearVsPeerPresentation(){\n',
+          '''  updateVsCombatHud(forceVisible=null){
+    const hud=this.vsCombatHud||$("vsCombatHud"),viewport=$("viewport");if(hud){const visible=forceVisible===null?Boolean(this.vsSession||this.vsConnected):Boolean(forceVisible);hud.hidden=!visible;hud.textContent=`HP ${this.vsLocalHealth} · MATE ${this.vsPeerHealth} · K ${this.vsKills}`;}
+    if(viewport){viewport.dataset.vsLocalHealth=String(this.vsLocalHealth);viewport.dataset.vsPeerHealth=String(this.vsPeerHealth);viewport.dataset.vsKills=String(this.vsKills);viewport.dataset.vsDeaths=String(this.vsDeaths);}
+  }
+  resetVsCombat(active=false){
+    clearTimeout(this.vsRespawnTimer);this.vsRespawnTimer=0;this.vsLocalHealth=100;this.vsPeerHealth=100;this.vsKills=0;this.vsDeaths=0;this.vsCombatSeq=0;this.vsSeenHits.clear();this.vsPendingHits.clear();this.vsLocalDead=false;this.vsPeerDead=false;if(this.vsExplosion)this.vsExplosion.visible=false;this.updateVsCombatHud(active);
+  }
+  rememberVsHit(id){this.vsSeenHits.add(id);while(this.vsSeenHits.size>128)this.vsSeenHits.delete(this.vsSeenHits.values().next().value);}
+  registerVsHit(hit){
+    if(!this.vsConnected||this.vsPeerDead||!this.vsSession||!this.vsPeerMesh?.visible||!hit?.object)return false;let peer=false;for(let node=hit.object;node;node=node.parent){if(node===this.vsPeerMesh||node.userData?.vsPeer){peer=true;break;}}if(!peer)return false;
+    const id=`h-${Date.now().toString(36)}-${(++this.vsCombatSeq).toString(36)}`;if(!this.vsSession.sendCombat({type:"hit",id,damage:25}))return false;this.vsPendingHits.add(id);while(this.vsPendingHits.size>64)this.vsPendingHits.delete(this.vsPendingHits.values().next().value);return true;
+  }
+  applyVsCombat(packet){
+    if(!packet||!this.vsSession)return;
+    if(packet.type==="hit"){
+      if(this.vsLocalDead||this.vsSeenHits.has(packet.id))return;this.rememberVsHit(packet.id);const damage=clamp(Math.round(Number(packet.damage)||0),1,100);this.vsLocalHealth=Math.max(0,this.vsLocalHealth-damage);const killed=this.vsLocalHealth===0;if(killed){this.vsLocalDead=true;this.vsDeaths++;}this.updateVsCombatHud(true);this.vsSession.sendCombat({type:"state",id:packet.id,hp:this.vsLocalHealth,killed});
+      if(killed){clearTimeout(this.vsRespawnTimer);this.vsRespawnTimer=setTimeout(()=>{if(!this.vsSession)return;this.vsLocalDead=false;this.vsLocalHealth=100;this.updateVsCombatHud(true);this.vsSession.sendCombat({type:"respawn",hp:100});},2200);}return;
+    }
+    if(packet.type==="state"){
+      if(!this.vsPendingHits.delete(packet.id))return;if(this.vsPeerDead&&!packet.killed)return;this.vsPeerHealth=clamp(Math.round(Number(packet.hp)||0),0,100);if(packet.killed&&!this.vsPeerDead){this.vsPeerDead=true;this.vsKills++;this.vsPendingHits.clear();this.explodeVsPeer();}this.updateVsCombatHud(true);return;
+    }
+    if(packet.type==="respawn"){this.vsPeerHealth=clamp(Math.round(Number(packet.hp)||100),0,100);this.vsPeerDead=false;this.updateVsCombatHud(true);}
+  }
+  ensureVsExplosion(){
+    if(this.vsExplosion||!this.threeScene)return this.vsExplosion;const group=new THREE.Group(),geometry=new THREE.SphereGeometry(.055,7,5);for(let i=0;i<12;i++){const material=new THREE.MeshBasicMaterial({color:i%3===0?0xffe47a:i%3===1?0xff8a32:0xff3c22,transparent:true,opacity:1,depthWrite:false,blending:THREE.AdditiveBlending});const mesh=new THREE.Mesh(geometry,material),a=i*Math.PI*2/12,z=((i%5)-2)*.035,r=.10+(i%4)*.028;mesh.position.set(Math.cos(a)*r,Math.sin(a)*r,z);mesh.userData.flightFireIgnore=true;group.add(mesh);}group.visible=false;group.renderOrder=12;this.threeScene.add(group);this.vsExplosion=group;return group;
+  }
+  explodeVsPeer(){const group=this.ensureVsExplosion();if(!group||!this.vsPeerMesh)return;group.position.copy(this.vsPeerMesh.position);group.scale.setScalar(1);for(const child of group.children)if(child.material)child.material.opacity=1;group.visible=true;this.vsExplosionStartedMs=performance.now();this.vsPeerMesh.visible=false;}
+  updateVsExplosion(){const group=this.vsExplosion;if(!group?.visible)return;const t=(performance.now()-this.vsExplosionStartedMs)/720;if(t>=1){group.visible=false;return;}group.scale.setScalar(.7+4.2*t);group.rotation.z=t*1.3;for(const child of group.children)if(child.material)child.material.opacity=Math.max(0,1-t);}
+  clearVsPeerPresentation(){
+''')
+          replace1(path,
+          '  updateVsPeerRender(){\n    if(!this.vsPeerMesh||!this.vsPeerTargetPosition||!this.vsPeerTargetQuaternion)return;',
+          '  updateVsPeerRender(){\n    this.updateVsExplosion();if(!this.vsPeerMesh||!this.vsPeerTargetPosition||!this.vsPeerTargetQuaternion)return;if(this.vsPeerDead){this.vsPeerMesh.visible=false;return;}')
+          replace1(path,
+          'group.visible=false;group.renderOrder=5;this.threeScene.add(group);this.vsPeerMesh=group;',
+          'group.userData.vsPeer=true;group.visible=false;group.renderOrder=5;this.threeScene.add(group);this.vsPeerMesh=group;')
+          old='''  stopVs(){this.vsStarting=false;const mateWorld=this.vsWorldFromMate;this.vsSession?.stop();this.vsSession=null;this.vsConnected=false;this.vsSharedOrigin=null;this.vsSharedWorldAttempted=false;this.vsWorldFromMate=false;this.clearVsPeerPresentation();if(mateWorld){if(this.active)this.deactivate();this.originLon=null;this.originLat=null;}const b=$("lanVsButton");if(b)b.textContent="FIND MATE";}'''
+          new='''  stopVs(){this.vsStarting=false;const mateWorld=this.vsWorldFromMate;this.vsSession?.stop();this.vsSession=null;this.vsConnected=false;this.vsSharedOrigin=null;this.vsSharedWorldAttempted=false;this.vsWorldFromMate=false;this.clearVsPeerPresentation();this.resetVsCombat(false);if(mateWorld){if(this.active)this.deactivate();this.originLon=null;this.originLat=null;}const b=$("lanVsButton");if(b)b.textContent="FIND MATE";}'''
+          replace1(path,old,new)
+
+          # ---- gun raycast: only a visible peer can be hit; no decal frozen in space on moving peer ----
+          path='sim/flight_fire_fx.mjs'
+          replace1(path,
+          '  function hiddenTrainingObject(object){if(!worldBridge?.active)return false;for(let node=object;node;node=node.parent)if(worldBridge.trainingObjects?.has?.(node))return true;return false;}\n',
+          '  function hiddenTrainingObject(object){if(!worldBridge?.active)return false;for(let node=object;node;node=node.parent)if(worldBridge.trainingObjects?.has?.(node))return true;return false;}\n  function visibleInHierarchy(object){for(let node=object;node;node=node.parent)if(node.visible===false)return false;return true;}\n')
+          replace1(path,
+          'scene.traverse(object=>{if(object.isMesh&&object.visible&&!object.userData?.arondightAirframe&&!object.userData?.flightFireDecal&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});',
+          'scene.traverse(object=>{if(object.isMesh&&visibleInHierarchy(object)&&!object.userData?.arondightAirframe&&!object.userData?.flightFireDecal&&!object.userData?.flightFireIgnore&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});')
+          replace1(path,
+          '    if(hit)addThreeDecal(hit);else{const worldHit=worldBridge?.addVisualShotImpact?.(aim.x,aim.y,aim.rect,raycaster.ray);if(worldHit)addThreeDecal(worldHit);}\n    screenImpact(aim.x,aim.y);shotSound();viewport.dataset.fireShots=',
+          '    const vsHit=Boolean(hit&&worldBridge?.registerVsHit?.(hit));if(hit&&!vsHit)addThreeDecal(hit);else if(!hit){const worldHit=worldBridge?.addVisualShotImpact?.(aim.x,aim.y,aim.rect,raycaster.ray);if(worldHit)addThreeDecal(worldHit);}if(vsHit)viewport.dataset.fireVsHits=String((Number(viewport.dataset.fireVsHits)||0)+1);\n    screenImpact(aim.x,aim.y);shotSound();viewport.dataset.fireShots=')
+
+          # ---- compact HUD styling ----
+          path='sim/solo_layout.mjs'
+          replace1(path,
+          '    body.solo-flight #soloTopbar #soloCamera,body.solo-flight #soloTopbar .phone-settings-button,body.solo-flight #soloTopbar #lanVsButton{display:inline-flex!important;flex:0 0 auto;min-width:58px;min-height:28px;align-items:center;justify-content:center}\n',
+          '    body.solo-flight #soloTopbar #soloCamera,body.solo-flight #soloTopbar .phone-settings-button,body.solo-flight #soloTopbar #lanVsButton{display:inline-flex!important;flex:0 0 auto;min-width:58px;min-height:28px;align-items:center;justify-content:center}\n    body.solo-flight #soloTopbar #vsCombatHud{display:inline-flex;align-items:center;justify-content:center;min-width:112px;font-size:10px;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}\n    body.solo-flight #soloTopbar #vsCombatHud[hidden]{display:none!important}\n')
+          replace1(path,
+          '      body.solo-flight #soloTopbar #soloCamera,body.solo-flight #soloTopbar .phone-settings-button,body.solo-flight #soloTopbar #lanVsButton{min-width:52px;min-height:24px}\n',
+          '      body.solo-flight #soloTopbar #soloCamera,body.solo-flight #soloTopbar .phone-settings-button,body.solo-flight #soloTopbar #lanVsButton{min-width:52px;min-height:24px}\n      body.solo-flight #soloTopbar #vsCombatHud{min-width:100px;font-size:9px;padding-left:5px;padding-right:5px}\n')
+
+          # ---- deterministic transport tests include combat both ways ----
+          path='tests/lan_vs_smoke.mjs'
+          replace1(path,
+          'let aPeer=0,bPeer=0,aPose=null,bPose=null,aOrigin=null,bOrigin=null,aLeft=0;\nconst a=new LanVsSession({...harness,onPeer:()=>aPeer++,onPose:p=>aPose=p,onOrigin:o=>aOrigin=o,onLeave:()=>aLeft++});\nconst b=new LanVsSession({...harness,onPeer:()=>bPeer++,onPose:p=>bPose=p,onOrigin:o=>bOrigin=o});',
+          'let aPeer=0,bPeer=0,aPose=null,bPose=null,aOrigin=null,bOrigin=null,aCombat=null,bCombat=null,aLeft=0;\nconst a=new LanVsSession({...harness,onPeer:()=>aPeer++,onPose:p=>aPose=p,onOrigin:o=>aOrigin=o,onCombat:p=>aCombat=p,onLeave:()=>aLeft++});\nconst b=new LanVsSession({...harness,onPeer:()=>bPeer++,onPose:p=>bPose=p,onOrigin:o=>bOrigin=o,onCombat:p=>bCombat=p});')
+          replace1(path,
+          'assert.ok(aPose.seq>oldSeq,"pose sequence did not advance");\nb.stop();',
+          'assert.ok(aPose.seq>oldSeq,"pose sequence did not advance");\nassert.equal(a.sendCombat({type:"hit",id:"hit-1",damage:25}),true);await new Promise(r=>setTimeout(r,5));assert.deepEqual(bCombat,{type:"hit",id:"hit-1",damage:25});\nassert.equal(b.sendCombat({type:"state",id:"hit-1",hp:75,killed:false}),true);await new Promise(r=>setTimeout(r,5));assert.deepEqual(aCombat,{type:"state",id:"hit-1",hp:75,killed:false});\nassert.equal(a.sendCombat({type:"hit",id:"",damage:25}),false);assert.equal(a.sendCombat({type:"hit",id:"bad",damage:101}),false);\nassert.equal(b.sendCombat({type:"respawn",hp:100}),true);await new Promise(r=>setTimeout(r,5));assert.deepEqual(aCombat,{type:"respawn",hp:100});\nb.stop();')
+          replace1(path,
+          'console.log("LAN VS deterministic smoke passed: automatic same-NAT room, no pair code, and Nostr -> MQTT signaling fallback");',
+          'console.log("LAN VS deterministic smoke passed: automatic same-NAT room, Nostr -> MQTT fallback, pose/origin and reliable combat actions");')
+
+          # ---- permanent architecture contract ----
+          path='tests/architecture_invariants.mjs'
+          replace1(path,
+          'requireText("sim/lan_vs.mjs","room.makeAction(\\\"origin\\\")","VS must exchange shared origin independently from pose");',
+          'requireText("sim/lan_vs.mjs","room.makeAction(\\\"origin\\\")","VS must exchange shared origin independently from pose");\nrequireText("sim/lan_vs.mjs","room.makeAction(\\\"combat\\\")","VS combat must use a separate P2P action from pose/origin");\nrequireText("sim/real_world_bootstrap.mjs","registerVsHit(hit)","peer hit detection must stay in the VS presentation/game layer");\nrequireText("sim/real_world_bootstrap.mjs","this.vsLocalHealth=100","VS must track explicit player health");\nrequireText("sim/real_world_bootstrap.mjs","this.vsKills++","VS must count victim-authoritative kills");\nrequireText("sim/real_world_bootstrap.mjs","explodeVsPeer()","VS kill must trigger peer explosion presentation");\nrequireText("tests/vs_combat_browser_smoke.mjs","duplicate hit changed health twice","browser gate must cover combat dedupe and kill presentation");\nfor(const fcPath of ["esp32/Arondight45_DroneFC_Core.hpp","esp32/Arondight45_StateControl.hpp","esp32/Arondight45_FirmwareRuntime.hpp","sim/Arondight45_DroneFC_SIL_WASM.cpp"])forbidText(fcPath,"vsCombat","VS combat must never enter shared FC/physics authority");')
+
+          # ---- layout gate: combat HUD belongs to topbar and starts hidden ----
+          path='tests/solo_layout_smoke.mjs'
+          replace1(path,
+          'topbar:rect("#soloTopbar"),vs:rect("#lanVsButton"),vsParent:document.querySelector("#lanVsButton")?.parentElement?.id||"",left:rect("#soloLeft")',
+          'topbar:rect("#soloTopbar"),vs:rect("#lanVsButton"),vsParent:document.querySelector("#lanVsButton")?.parentElement?.id||"",vsCombatParent:document.querySelector("#vsCombatHud")?.parentElement?.id||"",vsCombatHidden:Boolean(document.querySelector("#vsCombatHud")?.hidden),left:rect("#soloLeft")')
+          replace1(path,
+          'if(g.vsParent!=="soloTopbar")throw new Error(`${viewport.name}: FIND MATE is not in the topbar: ${JSON.stringify({parent:g.vsParent,vs:g.vs,topbar:g.topbar})}`);',
+          'if(g.vsParent!=="soloTopbar")throw new Error(`${viewport.name}: FIND MATE is not in the topbar: ${JSON.stringify({parent:g.vsParent,vs:g.vs,topbar:g.topbar})}`);\n    if(g.vsCombatParent!=="soloTopbar"||!g.vsCombatHidden)throw new Error(`${viewport.name}: VS combat HUD lifecycle/layout invalid: ${JSON.stringify({parent:g.vsCombatParent,hidden:g.vsCombatHidden})}`);')
+
+          # ---- browser-level combat test ----
+          Path('tests/vs_combat_browser_smoke.mjs').write_text(r'''import puppeteer from "puppeteer-core";
+
+const base=process.argv[2]||"http://127.0.0.1:4174";
+const executablePath=process.env.CHROME_BIN;
+if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
+const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
+const page=await browser.newPage();
+try{
+  await page.setViewport({width:844,height:390,deviceScaleFactor:1});
+  await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
+  await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
+  await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&globalThis.__arondightRealWorld?.threeScene,{timeout:10000});
+  const result=await page.evaluate(()=>{
+    const bridge=globalThis.__arondightRealWorld,viewport=document.querySelector("#viewport"),sent=[];
+    bridge.vsConnected=true;bridge.vsSession={sendCombat(packet){sent.push(JSON.parse(JSON.stringify(packet)));return true;},stop(){}};bridge.resetVsCombat(true);bridge.ensureVsPeerMesh();
+    if(!bridge.vsPeerMesh?.children?.length)throw new Error("peer mesh missing");bridge.vsPeerMesh.visible=true;bridge.vsPeerLastPoseMs=performance.now();
+    const hitOk=bridge.registerVsHit({object:bridge.vsPeerMesh.children[0]}),shot=sent.find(p=>p.type==="hit");if(!hitOk||!shot)throw new Error("local peer hit was not emitted");
+    bridge.applyVsCombat({type:"state",id:shot.id,hp:0,killed:true});
+    const killed={kills:bridge.vsKills,peerHp:bridge.vsPeerHealth,peerDead:bridge.vsPeerDead,explosion:Boolean(bridge.vsExplosion?.visible),peerVisible:bridge.vsPeerMesh.visible,hud:document.querySelector("#vsCombatHud")?.textContent||""};
+    bridge.applyVsCombat({type:"hit",id:"incoming-1",damage:25});const hpAfterFirst=bridge.vsLocalHealth;bridge.applyVsCombat({type:"hit",id:"incoming-1",damage:25});const hpAfterDuplicate=bridge.vsLocalHealth;
+    const state=sent.find(p=>p.type==="state"&&p.id==="incoming-1");bridge.applyVsCombat({type:"respawn",hp:100});
+    const respawn={peerHp:bridge.vsPeerHealth,peerDead:bridge.vsPeerDead,hud:document.querySelector("#vsCombatHud")?.textContent||"",dataset:{hp:viewport.dataset.vsLocalHealth,mate:viewport.dataset.vsPeerHealth,kills:viewport.dataset.vsKills}};
+    bridge.stopVs();return{hitOk,shot,killed,hpAfterFirst,hpAfterDuplicate,state,respawn};
+  });
+  if(result.shot.damage!==25)throw new Error(`unexpected hit damage: ${JSON.stringify(result)}`);
+  if(result.killed.kills!==1||result.killed.peerHp!==0||!result.killed.peerDead||!result.killed.explosion||result.killed.peerVisible)throw new Error(`kill/explosion state failed: ${JSON.stringify(result.killed)}`);
+  if(result.hpAfterFirst!==75)throw new Error(`player health did not take damage: ${JSON.stringify(result)}`);
+  if(result.hpAfterDuplicate!==75)throw new Error(`duplicate hit changed health twice: ${JSON.stringify(result)}`);
+  if(result.state?.hp!==75||result.state?.killed!==false)throw new Error(`victim-authoritative health acknowledgement missing: ${JSON.stringify(result.state)}`);
+  if(result.respawn.peerHp!==100||result.respawn.peerDead||result.respawn.dataset.kills!=="1"||!result.respawn.hud.includes("K 1"))throw new Error(`respawn/killcount HUD failed: ${JSON.stringify(result.respawn)}`);
+  console.log("VS combat browser smoke passed: 100 HP, 25 damage, dedupe, explosion, respawn and kill count.");
+}finally{await browser.close();}
+''')
+
+          # ---- production deploy permanently runs combat browser gate ----
+          path='.github/workflows/deploy.yml'
+          replace1(path,
+          '          CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174\n          CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs',
+          '          CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174\n          CHROME_BIN="$CHROME_BIN" node tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174\n          CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs')
+          replace1(path,
+          '          node --check tests/solo_layout_smoke.mjs\n          node --check tests/real_world_ui_smoke.mjs',
+          '          node --check tests/solo_layout_smoke.mjs\n          node --check tests/vs_combat_browser_smoke.mjs\n          node --check tests/real_world_ui_smoke.mjs')
+          PY
+          node --check sim/lan_vs.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/flight_fire_fx.mjs
+          node --check sim/solo_layout.mjs
+          node --check tests/lan_vs_smoke.mjs
+          node --check tests/vs_combat_browser_smoke.mjs
+          node tests/lan_vs_smoke.mjs
+          node tests/architecture_invariants.mjs
+      - name: Build exact production browser runtime
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
+            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
+              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' \
+              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
+              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
+              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
+              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
+              -o generated/flight_core.mjs
+          BUILD_DIR=/tmp/arondight45-vs-combat-build
+          rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.1 @trystero-p2p/mqtt@0.25.1
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('drone_simulator.html');html=p.read_text();marker='<script type="module" src="./sim/real_world_bootstrap.mjs"></script>';assert marker in html
+          bundle=Path('/tmp/arondight45-simulator.bundle.mjs').read_text().replace('</script','<\\/script')
+          p.write_text(html.replace(marker,'<script type="module">\n'+bundle+'\n</script>'))
+          PY
+      - name: Production-equivalent layout and combat browser gates
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/vs-combat-http.log 2>&1 & PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174
+      - name: Real two-browser MQTT combat transport gate
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          mkdir -p /tmp/vs-combat-live
+          cat >/tmp/vs-combat-live/entry.mjs <<'JS'
+          import {LanVsSession,sameNetworkRoomKey} from '/workspace/sim/lan_vs.mjs';
+          import * as mqtt from '@trystero-p2p/mqtt';
+          globalThis.VS={networkKey:()=>sameNetworkRoomKey(),async start(suffix){const state={peer:false,combat:null,left:false};const base=await sameNetworkRoomKey();const session=new LanVsSession({loadTransport:async()=>mqtt,loadFallbackTransport:null,onPeer:()=>state.peer=true,onCombat:p=>state.combat=p,onLeave:()=>state.left=true});await session.start(`${base}-${suffix}`);globalThis.__session=session;globalThis.__state=state;return base;},combat:p=>globalThis.__session.sendCombat(p),state:()=>globalThis.__state,stop:()=>globalThis.__session?.stop()};
+          JS
+          sed -i "s#/workspace#$GITHUB_WORKSPACE#" /tmp/vs-combat-live/entry.mjs
+          "$GITHUB_WORKSPACE/node_modules/.bin/esbuild" /tmp/vs-combat-live/entry.mjs --bundle --format=iife --platform=browser --target=es2022 --outfile=/tmp/vs-combat-live/app.js
+          printf '<!doctype html><meta charset="utf-8"><script src="app.js"></script>\n' >/tmp/vs-combat-live/index.html
+          cat >/tmp/vs-combat-live/test.mjs <<'JS'
+          import puppeteer from 'puppeteer-core';
+          const exe=process.env.CHROME_BIN,base='http://127.0.0.1:4188',suffix=`combat-${process.env.GITHUB_RUN_ID}`;const launch=()=>puppeteer.launch({headless:true,executablePath:exe,args:['--no-sandbox','--disable-dev-shm-usage']});const a=await launch(),b=await launch();const wait=async(page,predicate,ms=20000)=>{const end=Date.now()+ms;while(Date.now()<end){const s=await page.evaluate(()=>VS.state());if(predicate(s))return s;await new Promise(r=>setTimeout(r,100));}throw Error('timeout');};
+          try{const pa=await a.newPage(),pb=await b.newPage();await Promise.all([pa.goto(base),pb.goto(base)]);const [ka,kb]=await Promise.all([pa.evaluate(()=>VS.networkKey()),pb.evaluate(()=>VS.networkKey())]);if(ka!==kb)throw Error(`network keys differ ${ka} ${kb}`);await Promise.all([pa.evaluate(s=>VS.start(s),suffix),pb.evaluate(s=>VS.start(s),suffix)]);await Promise.all([wait(pa,s=>s.peer),wait(pb,s=>s.peer)]);const sent=await pa.evaluate(()=>VS.combat({type:'hit',id:'live-hit',damage:25}));if(!sent)throw Error('combat send rejected');const rx=await wait(pb,s=>s.combat?.id==='live-hit');if(rx.combat.damage!==25)throw Error('combat payload corrupted');await pb.evaluate(()=>VS.combat({type:'state',id:'live-hit',hp:75,killed:false}));const ack=await wait(pa,s=>s.combat?.type==='state');if(ack.combat.hp!==75)throw Error('combat ack corrupted');console.log('LIVE VS same-network -> MQTT -> WebRTC combat PASS',JSON.stringify({room:ka,hit:rx.combat,ack:ack.combat}));}finally{await a.close();await b.close();}
+          JS
+          cd /tmp/vs-combat-live
+          python3 -m http.server 4188 --bind 127.0.0.1 >/tmp/vs-combat-live-http.log 2>&1 & PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" GITHUB_RUN_ID="$GITHUB_RUN_ID" node test.mjs
+      - name: Commit combat implementation
+        run: |
+          set -euxo pipefail
+          git checkout -- drone_simulator.html
+          rm -rf generated
+          rm -f node_modules
+          git config user.name 'Arondight45 CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add sim/lan_vs.mjs sim/real_world_bootstrap.mjs sim/flight_fire_fx.mjs sim/solo_layout.mjs tests/lan_vs_smoke.mjs tests/architecture_invariants.mjs tests/solo_layout_smoke.mjs tests/vs_combat_browser_smoke.mjs .github/workflows/deploy.yml
+          git commit -m 'Add VS health explosions respawn and kill count'
+          git push
