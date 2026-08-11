@@ -114,15 +114,15 @@ class RealWorldBridge{
   async toggleVs(){
     if(this.vsSession){this.stopVs();return;}
     const button=$("lanVsButton"),status=$("lanVsStatus");if(button)button.textContent="FINDING MATE…";if(status){status.style.display="block";status.textContent="Nearby VS matchmaking…";}
-    const lat=Number(this.lastLocation?.coords?.latitude??this.originLat),lon=Number(this.lastLocation?.coords?.longitude??this.originLon);const roomId=nearbyRoomKey(lat,lon);
+    let lat=Number(this.lastLocation?.coords?.latitude??this.originLat),lon=Number(this.lastLocation?.coords?.longitude??this.originLon);if(!Number.isFinite(lat)||!Number.isFinite(lon)){try{this.lastLocation=await geolocate();lat=Number(this.lastLocation.coords.latitude);lon=Number(this.lastLocation.coords.longitude);}catch{if(button)button.textContent="FIND MATE · VS";if(status)status.textContent="GPS is needed to find a nearby mate";return;}}const roomId=nearbyRoomKey(lat,lon);
     const session=new LanVsSession({onPeer:()=>{this.vsConnected=true;if(button)button.textContent="VS · CONNECTED";if(status)status.textContent="Mate found · direct P2P";this.ensureVsPeerMesh();},onPose:pose=>this.applyVsPose(pose),onLeave:()=>{this.vsConnected=false;if(button)button.textContent="FINDING MATE…";if(status)status.textContent="Mate left · searching…";if(this.vsPeerMesh)this.vsPeerMesh.visible=false;},onError:error=>{if(button)button.textContent="FIND MATE · VS";if(status)status.textContent=`VS unavailable · ${error?.message||error}`;}});this.vsSession=session;try{await session.start(roomId);}catch{if(this.vsSession===session)this.vsSession=null;}
   }
   stopVs(){this.vsSession?.stop();this.vsSession=null;this.vsConnected=false;if(this.vsPeerMesh)this.vsPeerMesh.visible=false;const b=$("lanVsButton"),s=$("lanVsStatus");if(b)b.textContent="FIND MATE · VS";if(s)s.style.display="none";}
   ensureVsPeerMesh(){
     if(this.vsPeerMesh||!this.threeScene)return;const group=new THREE.Group();const mat=new THREE.MeshStandardMaterial({color:0x36e6ff,roughness:.35,metalness:.35});const body=new THREE.Mesh(new THREE.BoxGeometry(.22,.34,.07),mat);group.add(body);for(const [x,y] of [[-.19,-.19],[.19,-.19],[-.19,.19],[.19,.19]]){const arm=new THREE.Mesh(new THREE.BoxGeometry(.025,.26,.025),mat);arm.position.set(x*.5,y*.5,0);arm.rotation.z=(x*y>0?1:-1)*Math.PI/4;group.add(arm);}group.visible=false;group.renderOrder=5;this.threeScene.add(group);this.vsPeerMesh=group;
   }
-  applyVsPose(pose){if(!pose||!Array.isArray(pose.p)||pose.p.length<3)return;this.ensureVsPeerMesh();if(!this.vsPeerMesh)return;const [x,y,z]=pose.p.map(Number);if(![x,y,z].every(Number.isFinite))return;this.vsPeerMesh.position.set(x,y,z);const q=pose.q;if(Array.isArray(q)&&q.length===4&&q.every(Number.isFinite))this.vsPeerMesh.quaternion.set(q[0],q[1],q[2],q[3]);this.vsPeerMesh.visible=true;}
-  updateVsPose(){if(!this.vsSession||!this.airframe)return;const p=this.airframe.position,q=this.airframe.quaternion;if(!p||!q)return;this.vsSession.setPose({p:[p.x,p.y,p.z],q:[q.x,q.y,q.z,q.w],t:performance.now()});}
+  applyVsPose(pose){if(!pose||!Array.isArray(pose.p)||pose.p.length<3)return;this.ensureVsPeerMesh();if(!this.vsPeerMesh)return;let [x,y,z]=pose.p.map(Number);if(Array.isArray(pose.g)&&pose.g.length===2&&Number.isFinite(this.originLon)&&Number.isFinite(this.originLat)){const local=lngLatToMeters(this.originLon,this.originLat,Number(pose.g[0]),Number(pose.g[1]));x=local[0];y=local[1];}if(![x,y,z].every(Number.isFinite))return;this.vsPeerMesh.position.set(x,y,z);const q=pose.q;if(Array.isArray(q)&&q.length===4&&q.every(Number.isFinite))this.vsPeerMesh.quaternion.set(q[0],q[1],q[2],q[3]);this.vsPeerMesh.visible=true;}
+  updateVsPose(){if(!this.vsSession||!this.airframe)return;const p=this.airframe.position,q=this.airframe.quaternion;if(!p||!q)return;const pose={p:[p.x,p.y,p.z],q:[q.x,q.y,q.z,q.w],t:performance.now()};if(this.active&&Number.isFinite(this.originLon)&&Number.isFinite(this.originLat))pose.g=metersToLngLat(this.originLon,this.originLat,p.x,p.y);this.vsSession.setPose(pose);}
   installLookHud(){
     const viewport=$("viewport");if(!viewport||this.lookHud)return;
     const hud=document.createElement("div");hud.id="worldLookHud";hud.setAttribute("aria-label","North-up WORLD minimap and 360 degree camera control");hud.innerHTML='<div class="world-look-title"><span>MINIMAP · N↑</span><span data-world-look-readout>SNAP</span></div><div class="world-look-stage"><canvas class="world-mini-canvas" width="196" height="172" aria-label="North-up WORLD mini map"></canvas><div class="world-look-plane"></div><div class="world-look-drone"><i class="world-look-nose"></i></div></div><b class="world-look-cardinal world-look-n">N</b><b class="world-look-cardinal world-look-e">E</b><b class="world-look-cardinal world-look-s">S</b><b class="world-look-cardinal world-look-w">W</b>';
@@ -299,7 +299,7 @@ class RealWorldBridge{
     try{renderer.render(scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);camera.updateMatrixWorld();}
   }
   renderFrame(renderer,scene,camera){
-    this.attachThree(renderer,scene,camera);
+    this.attachThree(renderer,scene,camera);this.updateVsPose();
     if(!this.active)return false;
     this.renderReal(scene,camera);
     return true;
