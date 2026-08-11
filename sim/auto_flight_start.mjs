@@ -9,13 +9,21 @@ function requestStartupLocation(){
   ));
 }
 
-// Start the browser permission request immediately, before the simulator/WASM
-// bootstrap finishes. It never blocks the local simulator from becoming usable.
+// Surface the browser GPS permission immediately. Flight startup never waits for
+// this promise, so denied GPS or an offline network cannot block local SIM.
 const startupLocation=requestStartupLocation();
 
-await import("./real_world_bootstrap.mjs");
+async function waitForBridge(timeoutMs=30000){
+  const started=performance.now();
+  while(performance.now()-started<timeoutMs){
+    const bridge=globalThis.__arondightRealWorld;
+    if(bridge&&$("camFpv")&&$("camSolo"))return bridge;
+    await new Promise(resolve=>setTimeout(resolve,20));
+  }
+  throw Error("Simulator/WORLD bridge did not become ready");
+}
 
-const bridge=globalThis.__arondightRealWorld;
+const bridge=await waitForBridge();
 
 function syncWorldButton(){
   const button=$("soloWorld");
@@ -36,11 +44,10 @@ function launchDefaultFlight(){
 
 function discardFailedWorldMap(){
   try{bridge?.map?.remove?.();}catch{}
-  if(bridge){bridge.map=null;bridge.geoContainer?.remove?.();bridge.geoContainer=null;}
+  bridge.map=null;bridge.geoContainer?.remove?.();bridge.geoContainer=null;
 }
 
 function trainingFallback(message){
-  if(!bridge)return;
   bridge.deactivate();
   discardFailedWorldMap();
   bridge.status(message,"warn");
@@ -48,7 +55,6 @@ function trainingFallback(message){
 }
 
 async function autoWorld(locationResultPromise){
-  if(!bridge)return;
   const {fix,error}=await locationResultPromise;
   if(fix)bridge.lastLocation=fix;
   if(error){trainingFallback(`TRAINING RANGE · GPS unavailable · ${error.message}`);return;}
