@@ -1,8 +1,12 @@
 const APP_ID="arondight45-kurzlernen-vs-v3";
 const SEND_MS=50;
-const FALLBACK_AFTER_MS=2200;
-const DEFAULT_PRIMARY_LOADER=()=>import("trystero");
-const DEFAULT_FALLBACK_LOADER=()=>import("@trystero-p2p/mqtt");
+const RELAY_REDUNDANCY=3;
+const JOIN_DIAGNOSTIC_MS=12000;
+const DEFAULT_TRANSPORTS=[
+  {name:"Nostr",load:()=>import("trystero")},
+  {name:"MQTT",load:()=>import("@trystero-p2p/mqtt")},
+  {name:"Torrent",load:()=>import("@trystero-p2p/torrent")}
+];
 const DISCOVERY_MAX_ROOMS=8;
 const PROXIMITY_CELL_M=800;
 const GESTURE_BUCKET_MS=8000;
@@ -15,6 +19,7 @@ const STUN_ICE_SERVERS=[
   {urls:"stun:stun.l.google.com:19302"}
 ];
 const NETWORK_IPV4_URL="https://api4.ipify.org?format=json";
+export const VS_NETWORK_EVENT="arondight45:vs-network";
 
 function finiteArray(value,length){return Array.isArray(value)&&value.length===length&&value.every(Number.isFinite);}
 function validPose(pose){return Boolean(pose&&finiteArray(pose.p,3)&&finiteArray(pose.q,4)&&(!pose.g||finiteArray(pose.g,2)));}
@@ -61,6 +66,55 @@ function candidateRecord(candidate){
   if(!type||!address){const raw=String(candidate.candidate||candidate||"").trim(),parts=raw.split(/\s+/),typ=parts.indexOf("typ");if(typ>4){type=type||String(parts[typ+1]||"").toLowerCase();address=address||String(parts[4]||"").trim();}}
   return type&&address?{type,address}:null;
 }
+function errorMessage(error){
+  const source=error?.error||error;
+  return String(source?.message||source||"unknown error");
+}
+function eventPayload(stage,detail={}){return{at:new Date().toISOString(),stage:String(stage||"unknown"),...detail};}
+function emitNetworkEvent(stage,detail={}){
+  const payload=eventPayload(stage,detail);
+  try{if(typeof globalThis.dispatchEvent==="function"&&typeof globalThis.CustomEvent==="function")globalThis.dispatchEvent(new CustomEvent(VS_NETWORK_EVENT,{detail:payload}));}catch{}
+  return payload;
+}
+function networkSocketState(value){
+  if(!value)return"missing";
+  const state=Number(value.readyState);
+  return state===0?"connecting":state===1?"open":state===2?"closing":state===3?"closed":String(state);
+}
+function relaySnapshot(getRelaySockets){
+  try{
+    const sockets=typeof getRelaySockets==="function"?getRelaySockets():null;
+    if(!sockets||typeof sockets!=="object")return[];
+    return Object.entries(sockets).map(([url,socket])=>({url,state:networkSocketState(socket)}));
+  }catch(error){return[{url:"relay-diagnostics",state:`error:${errorMessage(error)}`}];}
+}
+function candidateSummary(record){
+  if(!record)return null;
+  return{candidateType:String(record.candidateType||record.type||""),protocol:String(record.protocol||""),address:String(record.address||record.ip||""),port:Number(record.port)||0,networkType:String(record.networkType||""),relayProtocol:String(record.relayProtocol||"")};
+}
+function statsRecords(report){
+  const records=[];
+  try{report?.forEach?.(value=>records.push(value));}catch{}
+  if(!records.length&&report&&typeof report[Symbol.iterator]==="function")try{for(const [,value] of report)records.push(value);}catch{}
+  return records;
+}
+async function peerNetworkSnapshot(pc){
+  const out={connectionState:String(pc?.connectionState||""),iceConnectionState:String(pc?.iceConnectionState||""),iceGatheringState:String(pc?.iceGatheringState||""),signalingState:String(pc?.signalingState||"")};
+  if(!pc||typeof pc.getStats!=="function")return out;
+  try{
+    const records=statsRecords(await pc.getStats()),byId=new Map(records.map(record=>[record.id,record]));
+    let pair=null;
+    const transport=records.find(record=>record.type==="transport"&&record.selectedCandidatePairId);
+    if(transport)pair=byId.get(transport.selectedCandidatePairId)||null;
+    if(!pair)pair=records.find(record=>record.type==="candidate-pair"&&record.state==="succeeded"&&record.nominated)||records.find(record=>record.type==="candidate-pair"&&record.state==="succeeded")||null;
+    if(pair){
+      const local=byId.get(pair.localCandidateId),remote=byId.get(pair.remoteCandidateId);
+      out.selectedPair={local:candidateSummary(local),remote:candidateSummary(remote),currentRoundTripTime:Number(pair.currentRoundTripTime)||0,availableOutgoingBitrate:Number(pair.availableOutgoingBitrate)||0};
+    }
+  }catch(error){out.statsError=errorMessage(error);}
+  return out;
+}
+
 export function networkMaterialFromCandidate(candidate){
   const record=candidateRecord(candidate);if(!record)return null;const {type,address}=record;
   if(validIpv4(address)){if(type==="srflx")return `ipv4:${address}`;if(type==="host"&&privateIpv4(address))return `lan4p24:${ipv4Subnet24(address)}`;return null;}
@@ -69,230 +123,193 @@ export function networkMaterialFromCandidate(candidate){
 function addExpandedNetworkMaterial(target,material){
   if(typeof material!=="string"||!material)return;
   target.add(material);
-  if(material.startsWith("ipv4:")){
-    const address=material.slice(5),prefix=ipv4Subnet24(address);
-    if(prefix)target.add(`ipv4p24:${prefix}`);
-  }
+  if(material.startsWith("ipv4:")){const address=material.slice(5),prefix=ipv4Subnet24(address);if(prefix)target.add(`ipv4p24:${prefix}`);}
 }
 async function webRtcNetworkMaterials({RTCPeerConnectionCtor=globalThis.RTCPeerConnection}={}){
-  if(typeof RTCPeerConnectionCtor!=="function")return[];let pc=null,timer=0;
+  if(typeof RTCPeerConnectionCtor!=="function"){emitNetworkEvent("discovery-webrtc-unavailable");return[];}
+  let pc=null,timer=0;
   try{
     pc=new RTCPeerConnectionCtor({iceServers:STUN_ICE_SERVERS,iceCandidatePoolSize:2});pc.createDataChannel("vs-discovery");
-    return await new Promise((resolve,reject)=>{const materials=new Set();let settled=false;const finish=()=>{if(settled)return;settled=true;clearTimeout(timer);resolve([...materials].sort());};timer=setTimeout(finish,3600);pc.onicecandidate=event=>{if(!event.candidate){finish();return;}const material=networkMaterialFromCandidate(event.candidate);if(material)addExpandedNetworkMaterial(materials,material);};Promise.resolve(pc.createOffer()).then(offer=>pc.setLocalDescription(offer)).catch(reject);});
-  }catch{return[];}finally{clearTimeout(timer);try{pc?.close?.();}catch{}}
+    return await new Promise((resolve,reject)=>{
+      const materials=new Set();let settled=false;
+      const finish=()=>{if(settled)return;settled=true;clearTimeout(timer);const list=[...materials].sort();emitNetworkEvent("discovery-ice-complete",{materials:list,iceGatheringState:String(pc?.iceGatheringState||"")});resolve(list);};
+      timer=setTimeout(finish,3600);
+      pc.onicecandidate=event=>{
+        if(!event.candidate){finish();return;}
+        const record=candidateRecord(event.candidate),material=networkMaterialFromCandidate(event.candidate);
+        emitNetworkEvent("discovery-ice-candidate",{candidateType:record?.type||"",address:record?.address||"",material:material||""});
+        if(material)addExpandedNetworkMaterial(materials,material);
+      };
+      Promise.resolve(pc.createOffer()).then(offer=>pc.setLocalDescription(offer)).catch(reject);
+    });
+  }catch(error){emitNetworkEvent("discovery-ice-error",{error:errorMessage(error)});return[];}finally{clearTimeout(timer);try{pc?.close?.();}catch{}}
 }
 function normalizePosition(value){
   const source=value?.coords||value||{},longitude=Number(source.longitude),latitude=Number(source.latitude);
   return Number.isFinite(longitude)&&Number.isFinite(latitude)&&Math.abs(longitude)<=180&&Math.abs(latitude)<=85?{longitude,latitude}:null;
 }
 async function browserPosition({geolocation=globalThis.navigator?.geolocation}={}){
-  if(!geolocation||typeof geolocation.getCurrentPosition!=="function")return null;
+  if(!geolocation||typeof geolocation.getCurrentPosition!=="function"){emitNetworkEvent("discovery-geo-unavailable");return null;}
   return await new Promise(resolve=>{
-    let settled=false;const finish=value=>{if(settled)return;settled=true;resolve(normalizePosition(value));};
-    try{geolocation.getCurrentPosition(finish,()=>finish(null),{enableHighAccuracy:false,timeout:GEO_DISCOVERY_TIMEOUT_MS,maximumAge:GEO_DISCOVERY_MAX_AGE_MS});}catch{finish(null);}
+    let settled=false;const finish=(value,error="")=>{if(settled)return;settled=true;const normalized=normalizePosition(value);emitNetworkEvent(normalized?"discovery-geo-ready":"discovery-geo-missing",{error:String(error||"")});resolve(normalized);};
+    try{geolocation.getCurrentPosition(value=>finish(value),error=>finish(null,error?.message||error),{enableHighAccuracy:false,timeout:GEO_DISCOVERY_TIMEOUT_MS,maximumAge:GEO_DISCOVERY_MAX_AGE_MS});}catch(error){finish(null,errorMessage(error));}
   });
 }
 
 export class LanVsSession{
   constructor(options={}){
     const customPrimary=Object.prototype.hasOwnProperty.call(options,"loadTransport");
-    this.room=null;this.poseAction=null;this.originAction=null;this.combatAction=null;this.timer=0;this.fallbackTimer=0;this.peerId=null;this.roomId="";this.transportGeneration=0;this.transportName="";this.switchingFallback=false;
-    this.onPeer=options.onPeer;this.onPose=options.onPose;this.onOrigin=options.onOrigin;this.onCombat=options.onCombat;this.onLeave=options.onLeave;this.onError=options.onError;this.onTransport=options.onTransport;
+    this.room=null;this.poseAction=null;this.originAction=null;this.combatAction=null;this.timer=0;this.joinTimer=0;this.peerId=null;this.roomId="";this.transportGeneration=0;
+    this.onPeer=options.onPeer;this.onPose=options.onPose;this.onOrigin=options.onOrigin;this.onCombat=options.onCombat;this.onLeave=options.onLeave;this.onError=options.onError;this.onTransport=options.onTransport;this.onDiagnostic=options.onDiagnostic;
     this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;this.originBusy=false;
-    this.loadTransport=options.loadTransport||DEFAULT_PRIMARY_LOADER;
-    this.loadFallbackTransport=Object.prototype.hasOwnProperty.call(options,"loadFallbackTransport")?options.loadFallbackTransport:(customPrimary?null:DEFAULT_FALLBACK_LOADER);
-    this.fallbackAfterMs=Number.isFinite(options.fallbackAfterMs)?Math.max(0,Number(options.fallbackAfterMs)):FALLBACK_AFTER_MS;
+    this.loadTransport=options.loadTransport||DEFAULT_TRANSPORTS[0].load;
+    this.transportName=String(options.transportName||(customPrimary?"Custom":"Nostr"));
+    this.relayRedundancy=Number.isFinite(options.relayRedundancy)?Math.max(1,Math.floor(options.relayRedundancy)):RELAY_REDUNDANCY;
+    this.joinDiagnosticMs=Number.isFinite(options.joinDiagnosticMs)?Math.max(0,Number(options.joinDiagnosticMs)):JOIN_DIAGNOSTIC_MS;
+    this.getRelaySockets=null;
   }
+  diag(stage,detail={}){const payload=emitNetworkEvent(stage,{transport:this.transportName,roomId:this.roomId,...detail});this.onDiagnostic?.(payload);return payload;}
   async start(roomId){
-    if(this.room||this.switchingFallback)return;
+    if(this.room)return;
     if(typeof roomId!=="string"||!roomId)throw Error("VS room id required");
     this.roomId=roomId;
     if(!this.timer)this.timer=setInterval(()=>{this.flushOrigin();this.flushPose();},SEND_MS);
+    this.diag("transport-start",{relayRedundancy:this.relayRedundancy});this.onTransport?.(this.transportName);
     try{
-      await this.openTransport(this.loadTransport,"Nostr");
-      this.armFallback();
+      await this.openTransport();
+      clearTimeout(this.joinTimer);this.joinTimer=0;
+      if(this.joinDiagnosticMs)this.joinTimer=setTimeout(()=>{if(!this.peerId)this.diag("peer-not-found-yet",{relays:relaySnapshot(this.getRelaySockets)});},this.joinDiagnosticMs);
     }catch(error){
-      if(this.loadFallbackTransport){
-        await this.switchToFallback(error);
-      }else{
-        this.stop();this.onError?.(error);throw error;
-      }
+      this.diag("transport-error",{error:errorMessage(error),relays:relaySnapshot(this.getRelaySockets)});
+      this.stop(false);this.onError?.(error);throw error;
     }
   }
-  armFallback(){
-    clearTimeout(this.fallbackTimer);this.fallbackTimer=0;
-    if(!this.loadFallbackTransport||this.peerId||this.transportName!=="Nostr")return;
-    this.fallbackTimer=setTimeout(()=>{if(!this.peerId)this.switchToFallback();},this.fallbackAfterMs);
-  }
-  async switchToFallback(primaryError=null){
-    if(this.switchingFallback||this.peerId||!this.loadFallbackTransport||!this.roomId)return;
-    this.switchingFallback=true;clearTimeout(this.fallbackTimer);this.fallbackTimer=0;
-    const oldRoom=this.room;++this.transportGeneration;this.room=null;this.poseAction=null;this.originAction=null;this.combatAction=null;this.transportName="";
-    try{oldRoom?.leave?.();}catch{}
-    try{
-      await this.openTransport(this.loadFallbackTransport,"MQTT");
-    }catch(error){
-      this.onError?.(error instanceof Error?error:Error(String(error||primaryError||"VS signaling unavailable")));
-    }finally{this.switchingFallback=false;}
-  }
-  async openTransport(loader,name){
-    if(typeof loader!=="function")throw Error("VS transport unavailable");
-    const generation=++this.transportGeneration;
-    this.onTransport?.(name);
-    const {joinRoom}=await loader();
+  async openTransport(){
+    if(typeof this.loadTransport!=="function")throw Error("VS transport unavailable");
+    const generation=++this.transportGeneration,{joinRoom,getRelaySockets}=await this.loadTransport();
     if(generation!==this.transportGeneration)return;
-    if(typeof joinRoom!=="function")throw Error(`${name} VS transport unavailable`);
-    const room=joinRoom({appId:APP_ID},this.roomId);
+    if(typeof joinRoom!=="function")throw Error(`${this.transportName} VS transport unavailable`);
+    this.getRelaySockets=typeof getRelaySockets==="function"?getRelaySockets:null;
+    let room=null;
+    const active=()=>generation===this.transportGeneration&&room&&room===this.room;
+    const onJoinError=details=>{
+      if(!active())return;
+      const error=details?.error instanceof Error?details.error:Error(errorMessage(details));
+      this.diag("join-error",{peerId:String(details?.peerId||""),error:errorMessage(error),relays:relaySnapshot(this.getRelaySockets)});
+      this.onError?.(error);
+    };
+    room=joinRoom({appId:APP_ID,relayConfig:{redundancy:this.relayRedundancy}},this.roomId,{onJoinError});
     if(generation!==this.transportGeneration){try{room?.leave?.();}catch{}return;}
-    this.room=room;this.transportName=name;
-    const poseAction=room.makeAction("pose");
-    if(!poseAction||typeof poseAction.send!=="function")throw Error("VS pose action unavailable");
-    this.poseAction=poseAction;
-    const originAction=room.makeAction("origin");
-    if(!originAction||typeof originAction.send!=="function")throw Error("VS origin action unavailable");
-    this.originAction=originAction;
-    const combatAction=room.makeAction("combat");
-    if(!combatAction||typeof combatAction.send!=="function")throw Error("VS combat action unavailable");
-    this.combatAction=combatAction;
-    const active=()=>generation===this.transportGeneration&&room===this.room;
+    this.room=room;
+    const poseAction=room.makeAction("pose");if(!poseAction||typeof poseAction.send!=="function")throw Error("VS pose action unavailable");this.poseAction=poseAction;
+    const originAction=room.makeAction("origin");if(!originAction||typeof originAction.send!=="function")throw Error("VS origin action unavailable");this.originAction=originAction;
+    const combatAction=room.makeAction("combat");if(!combatAction||typeof combatAction.send!=="function")throw Error("VS combat action unavailable");this.combatAction=combatAction;
+    this.diag("transport-ready",{relays:relaySnapshot(this.getRelaySockets)});
     const adoptPeer=peerId=>{
       if(!active()||!peerId||this.peerId)return;
-      this.peerId=peerId;this.lastRxSeq=0;this.originDirty=Boolean(this.pendingOrigin);clearTimeout(this.fallbackTimer);this.fallbackTimer=0;this.onPeer?.(peerId);
+      this.peerId=peerId;this.lastRxSeq=0;this.originDirty=Boolean(this.pendingOrigin);clearTimeout(this.joinTimer);this.joinTimer=0;
+      this.diag("peer-join",{peerId});this.observePeerNetwork(peerId,room);this.onPeer?.(peerId);
     };
     originAction.onMessage=(origin,{peerId}={})=>{if(!active()||!peerId||peerId!==this.peerId||!validOrigin(origin))return;this.onOrigin?.({...origin},peerId);};
     combatAction.onMessage=(packet,{peerId}={})=>{if(!active()||!peerId||!validCombat(packet))return;if(!this.peerId)adoptPeer(peerId);if(peerId!==this.peerId)return;this.onCombat?.({...packet},peerId);};
     poseAction.onMessage=(pose,{peerId}={})=>{
-      if(!active()||!peerId||!validPose(pose))return;
-      if(!this.peerId)adoptPeer(peerId);
-      if(peerId!==this.peerId)return;
-      const seq=Number(pose.seq)||0;
-      if(seq&&seq<=this.lastRxSeq)return;
-      if(seq)this.lastRxSeq=seq;
-      this.onPose?.(pose,peerId);
+      if(!active()||!peerId||!validPose(pose))return;if(!this.peerId)adoptPeer(peerId);if(peerId!==this.peerId)return;
+      const seq=Number(pose.seq)||0;if(seq&&seq<=this.lastRxSeq)return;if(seq)this.lastRxSeq=seq;this.onPose?.(pose,peerId);
     };
     room.onPeerJoin=peerId=>adoptPeer(peerId);
-    room.onPeerLeave=peerId=>{
-      if(!active()||peerId!==this.peerId)return;
-      this.peerId=null;this.lastRxSeq=0;this.onLeave?.(peerId);
-    };
-    room.onJoinError=error=>{
-      if(!active())return;
-      const normalized=error instanceof Error?error:Error(String(error||"VS peer connection failed"));
-      if(name==="Nostr"&&this.loadFallbackTransport&&!this.peerId)this.switchToFallback(normalized);
-      else this.onError?.(normalized);
-    };
+    room.onPeerLeave=peerId=>{if(!active()||peerId!==this.peerId)return;this.diag("peer-leave",{peerId});this.peerId=null;this.lastRxSeq=0;this.onLeave?.(peerId);};
+  }
+  observePeerNetwork(peerId,room){
+    let pc=null;try{const peers=room.getPeers?.();pc=peers?.[peerId]||peers?.get?.(peerId)||null;}catch{}
+    const emit=()=>peerNetworkSnapshot(pc).then(snapshot=>{if(peerId===this.peerId)this.diag("peer-network",{peerId,...snapshot});}).catch(()=>{});
+    emit();setTimeout(emit,800);
+    for(const name of ["connectionstatechange","iceconnectionstatechange","icegatheringstatechange","signalingstatechange"])try{pc?.addEventListener?.(name,emit);}catch{}
+    try{Promise.resolve(room.ping?.(peerId)).then(rtt=>{if(peerId===this.peerId&&Number.isFinite(rtt))this.diag("peer-rtt",{peerId,rttMs:+Number(rtt).toFixed(2)});}).catch(()=>{});}catch{}
   }
   flushOrigin(){
     if(this.originBusy||!this.peerId||!this.pendingOrigin||!this.originDirty||!this.originAction)return;
     const packet={...this.pendingOrigin};this.originBusy=true;
-    Promise.resolve(this.originAction.send(packet,{target:this.peerId}))
-      .then(()=>{this.originDirty=false;})
-      .catch(error=>this.onError?.(error))
-      .finally(()=>{this.originBusy=false;});
+    Promise.resolve(this.originAction.send(packet,{target:this.peerId})).then(()=>{this.originDirty=false;}).catch(error=>{this.diag("send-origin-error",{error:errorMessage(error)});this.onError?.(error);}).finally(()=>{this.originBusy=false;});
   }
   flushPose(){
     if(this.sendBusy||!this.peerId||!this.pendingPose||!this.poseAction)return;
-    const packet={...this.pendingPose,seq:++this.seq};
-    this.sendBusy=true;
-    Promise.resolve(this.poseAction.send(packet,{target:this.peerId}))
-      .catch(error=>this.onError?.(error))
-      .finally(()=>{this.sendBusy=false;});
+    const packet={...this.pendingPose,seq:++this.seq};this.sendBusy=true;
+    Promise.resolve(this.poseAction.send(packet,{target:this.peerId})).catch(error=>{this.diag("send-pose-error",{error:errorMessage(error)});this.onError?.(error);}).finally(()=>{this.sendBusy=false;});
   }
   setOrigin(origin){
     if(!validOrigin(origin))return false;
-    const next={lon:Number(origin.lon),lat:Number(origin.lat),...(("alt" in origin)?{alt:Number(origin.alt)}:{})};
-    const old=this.pendingOrigin;
-    if(!old||old.lon!==next.lon||old.lat!==next.lat||old.alt!==next.alt){this.pendingOrigin=next;this.originDirty=true;}
-    return true;
+    const next={lon:Number(origin.lon),lat:Number(origin.lat),...(("alt" in origin)?{alt:Number(origin.alt)}:{})},old=this.pendingOrigin;
+    if(!old||old.lon!==next.lon||old.lat!==next.lat||old.alt!==next.alt){this.pendingOrigin=next;this.originDirty=true;}return true;
   }
-  setPose(pose){
-    if(!validPose(pose))return false;
-    this.pendingPose={...pose,p:[...pose.p],q:[...pose.q],...(pose.g?{g:[...pose.g]}:{})};
-    return true;
-  }
+  setPose(pose){if(!validPose(pose))return false;this.pendingPose={...pose,p:[...pose.p],q:[...pose.q],...(pose.g?{g:[...pose.g]}:{})};return true;}
   sendCombat(packet){
     if(!validCombat(packet)||!this.peerId||!this.combatAction)return false;
-    Promise.resolve(this.combatAction.send({...packet},{target:this.peerId})).catch(error=>this.onError?.(error));
-    return true;
+    Promise.resolve(this.combatAction.send({...packet},{target:this.peerId})).catch(error=>{this.diag("send-combat-error",{error:errorMessage(error)});this.onError?.(error);});return true;
   }
-  stop(){
-    clearInterval(this.timer);clearTimeout(this.fallbackTimer);this.timer=0;this.fallbackTimer=0;++this.transportGeneration;try{this.room?.leave?.();}catch{}this.room=null;this.poseAction=null;this.originAction=null;this.combatAction=null;this.peerId=null;this.roomId="";this.transportName="";this.switchingFallback=false;this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;this.originBusy=false;
+  stop(log=true){
+    clearInterval(this.timer);clearTimeout(this.joinTimer);this.timer=0;this.joinTimer=0;
+    const hadRoom=Boolean(this.room),peerId=this.peerId;++this.transportGeneration;try{this.room?.leave?.();}catch{}
+    this.room=null;this.poseAction=null;this.originAction=null;this.combatAction=null;this.peerId=null;this.getRelaySockets=null;this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;this.originBusy=false;
+    if(log&&hadRoom)this.diag("transport-stop",{peerId:String(peerId||"")});this.roomId="";
   }
 }
 
 export class LanVsFinder{
-  constructor(options={}){this.options=options;this.children=[];this.active=null;this.roomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren=new Set();this.gestureDeferMs=Number.isFinite(options.gestureDeferMs)?Math.max(0,Number(options.gestureDeferMs)):GESTURE_DEFER_MS;}
-  makeChild(roomId){
+  constructor(options={}){
+    this.options=options;this.children=[];this.active=null;this.roomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren=new Set();this.gestureDeferMs=Number.isFinite(options.gestureDeferMs)?Math.max(0,Number(options.gestureDeferMs)):GESTURE_DEFER_MS;
+    if(Array.isArray(options.transportStrategies)&&options.transportStrategies.length)this.transportStrategies=options.transportStrategies;
+    else if(typeof options.loadTransport==="function")this.transportStrategies=[{name:String(options.transportName||"Custom"),load:options.loadTransport}];
+    else this.transportStrategies=DEFAULT_TRANSPORTS;
+  }
+  makeChild(roomId,strategy){
     let child=null;const opts=this.options;
     child=new LanVsSession({
-      ...(Object.prototype.hasOwnProperty.call(opts,"loadTransport")?{loadTransport:opts.loadTransport}:{}),
-      ...(Object.prototype.hasOwnProperty.call(opts,"loadFallbackTransport")?{loadFallbackTransport:opts.loadFallbackTransport}:{}),
-      ...(Number.isFinite(opts.fallbackAfterMs)?{fallbackAfterMs:opts.fallbackAfterMs}:{}),
-      onTransport:name=>{if(!this.active||this.active===child)opts.onTransport?.(name,roomId);},
-      onPeer:peerId=>this.adopt(child,peerId,roomId),
-      onPose:(pose,peerId)=>{if(this.active===child)opts.onPose?.(pose,peerId);},
-      onOrigin:(origin,peerId)=>{if(this.active===child)opts.onOrigin?.(origin,peerId);},
-      onCombat:(packet,peerId)=>{if(this.active===child)opts.onCombat?.(packet,peerId);},
-      onLeave:peerId=>{if(this.active===child)opts.onLeave?.(peerId);},
+      loadTransport:strategy.load,transportName:strategy.name,
+      ...(Number.isFinite(opts.relayRedundancy)?{relayRedundancy:opts.relayRedundancy}:{}),...(Number.isFinite(opts.joinDiagnosticMs)?{joinDiagnosticMs:opts.joinDiagnosticMs}:{}),
+      onTransport:name=>{if(!this.active||this.active===child)opts.onTransport?.(name,roomId);},onDiagnostic:event=>opts.onDiagnostic?.(event,roomId,strategy.name),onPeer:peerId=>this.adopt(child,peerId,roomId,strategy.name),
+      onPose:(pose,peerId)=>{if(this.active===child)opts.onPose?.(pose,peerId);},onOrigin:(origin,peerId)=>{if(this.active===child)opts.onOrigin?.(origin,peerId);},onCombat:(packet,peerId)=>{if(this.active===child)opts.onCombat?.(packet,peerId);},onLeave:peerId=>{if(this.active===child)opts.onLeave?.(peerId);},
       onError:error=>{if(this.active===child)opts.onError?.(error);else{this.failedChildren.add(child);if(!this.active&&this.children.length&&this.failedChildren.size>=this.children.length)opts.onError?.(error);}}
     });
     if(this.pendingPose)child.setPose(this.pendingPose);if(this.pendingOrigin)child.setOrigin(this.pendingOrigin);return child;
   }
-  adopt(child,peerId,roomId){
-    if(this.active&&this.active!==child){child.stop();return;}
-    if(!this.active){this.active=child;for(const other of this.children)if(other!==child)other.stop();this.children=[child];this.failedChildren.clear();}
-    this.options.onPeer?.(peerId,roomId);
+  adopt(child,peerId,roomId,transportName){
+    if(this.active&&this.active!==child){child.stop(false);return;}
+    if(!this.active){this.active=child;for(const other of this.children)if(other!==child)other.stop(false);this.children=[child];this.failedChildren.clear();emitNetworkEvent("finder-selected",{roomId,transport:transportName,peerId});}
+    this.options.onPeer?.(peerId,roomId,transportName);
   }
   async start(roomIds){
-    if(this.started)return;
-    this.started=true;
-    const ids=[...new Set((Array.isArray(roomIds)?roomIds:[roomIds]).filter(id=>typeof id==="string"&&id))].slice(0,DISCOVERY_MAX_ROOMS);
-    if(!ids.length){this.started=false;throw Error("VS discovery produced no room candidates");}
+    if(this.started)return;this.started=true;
+    const ids=[...new Set((Array.isArray(roomIds)?roomIds:[roomIds]).filter(id=>typeof id==="string"&&id))].slice(0,DISCOVERY_MAX_ROOMS);if(!ids.length){this.started=false;throw Error("VS discovery produced no room candidates");}
     this.roomIds=ids;
-    const entries=ids.map(id=>({id,child:this.makeChild(id)}));
-    this.children=entries.map(entry=>entry.child);
-    const trusted=entries.filter(entry=>!entry.id.startsWith("tap-")),gesture=entries.filter(entry=>entry.id.startsWith("tap-"));
-    const results=[];
-    const startEntries=async list=>{if(!list.length)return[];return Promise.allSettled(list.map(entry=>entry.child.start(entry.id)));};
+    const makeEntries=list=>list.flatMap(id=>this.transportStrategies.map(strategy=>({id,strategy,child:this.makeChild(id,strategy)}))),trustedIds=ids.filter(id=>!id.startsWith("tap-")),gestureIds=ids.filter(id=>id.startsWith("tap-")),trusted=makeEntries(trustedIds),gesture=makeEntries(gestureIds),entries=[...trusted,...gesture];this.children=entries.map(entry=>entry.child);
+    emitNetworkEvent("finder-start",{roomCount:ids.length,transportNames:this.transportStrategies.map(item=>item.name),trustedRooms:trustedIds.length,gestureRooms:gestureIds.length});
+    const results=[],startEntries=async list=>{if(!list.length)return[];return Promise.allSettled(list.map(entry=>entry.child.start(entry.id)));};
     results.push(...await startEntries(trusted));
-    if(!this.active&&gesture.length){
-      await new Promise(resolve=>setTimeout(resolve,this.gestureDeferMs));
-      if(this.started&&!this.active)results.push(...await startEntries(gesture));
-    }
-    if(!this.active&&this.started&&results.length&&results.every(result=>result.status==="rejected")){
-      const reason=results.find(result=>result.status==="rejected")?.reason||Error("VS signaling unavailable");this.stop();throw reason;
-    }
+    if(!this.active&&gesture.length){await new Promise(resolve=>setTimeout(resolve,this.gestureDeferMs));if(this.started&&!this.active)results.push(...await startEntries(gesture));}
+    if(!this.active&&this.started&&results.length&&results.every(result=>result.status==="rejected")){const reason=results.find(result=>result.status==="rejected")?.reason||Error("VS signaling unavailable");this.stop();throw reason;}
   }
   setOrigin(origin){if(!validOrigin(origin))return false;this.pendingOrigin={...origin};for(const child of this.active?[this.active]:this.children)child.setOrigin(origin);return true;}
   setPose(pose){if(!validPose(pose))return false;this.pendingPose={...pose,p:[...pose.p],q:[...pose.q],...(pose.g?{g:[...pose.g]}:{})};for(const child of this.active?[this.active]:this.children)child.setPose(pose);return true;}
   sendCombat(packet){return this.active?.sendCombat(packet)||false;}
-  stop(){for(const child of this.children)child.stop();this.children=[];this.active=null;this.roomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren.clear();}
+  stop(){for(const child of this.children)child.stop(false);this.children=[];this.active=null;this.roomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren.clear();emitNetworkEvent("finder-stop");}
 }
 
 async function hashRoomMaterial(material,cryptoObj){
   if(!cryptoObj?.subtle)throw Error("Secure room hashing unavailable");
-  const bytes=new TextEncoder().encode(material);
-  const digest=new Uint8Array(await cryptoObj.subtle.digest("SHA-256",bytes));
-  return [...digest.slice(0,12)].map(v=>v.toString(16).padStart(2,"0")).join("");
+  const bytes=new TextEncoder().encode(material),digest=new Uint8Array(await cryptoObj.subtle.digest("SHA-256",bytes));return [...digest.slice(0,12)].map(v=>v.toString(16).padStart(2,"0")).join("");
 }
-
 export async function gestureRoomKeys({gestureTimeMs=Date.now(),cryptoObj=globalThis.crypto}={}){
-  const time=Number(gestureTimeMs);if(!Number.isFinite(time)||time<0)return[];
-  const bucket=Math.floor(time/GESTURE_BUCKET_MS),keys=[];
-  for(const slot of [bucket,bucket-1]){
-    const key=await hashRoomMaterial(`arondight45-vs-discovery-v6:gesture:${GESTURE_BUCKET_MS}:${slot}`,cryptoObj);keys.push(`tap-${key}`);
-  }
-  return [...new Set(keys)];
+  const time=Number(gestureTimeMs);if(!Number.isFinite(time)||time<0)return[];const bucket=Math.floor(time/GESTURE_BUCKET_MS),keys=[];
+  for(const slot of [bucket,bucket-1]){const key=await hashRoomMaterial(`arondight45-vs-discovery-v6:gesture:${GESTURE_BUCKET_MS}:${slot}`,cryptoObj);keys.push(`tap-${key}`);}return [...new Set(keys)];
 }
-
 export async function sameNetworkRoomKeys({fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto,networkMaterialsFn=webRtcNetworkMaterials}={}){
   const materials=new Set();let lastError=null;
-  try{for(const material of await networkMaterialsFn?.()||[])addExpandedNetworkMaterial(materials,material);}catch(error){lastError=error;}
+  try{for(const material of await networkMaterialsFn?.()||[])addExpandedNetworkMaterial(materials,material);}catch(error){lastError=error;emitNetworkEvent("discovery-network-material-error",{error:errorMessage(error)});}
   if(typeof fetchFn==="function"){
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),3500);
-    try{const response=await fetchFn(NETWORK_IPV4_URL,{cache:"no-store",signal:controller.signal});if(!response?.ok)throw Error(`Network lookup failed (${response?.status||0})`);const data=await response.json(),address=String(data?.ip||"").trim();if(!validIpv4(address))throw Error("Network lookup returned invalid IPv4 address");addExpandedNetworkMaterial(materials,`ipv4:${address}`);}catch(error){lastError=error;}finally{clearTimeout(timeout);}
+    try{const response=await fetchFn(NETWORK_IPV4_URL,{cache:"no-store",signal:controller.signal});if(!response?.ok)throw Error(`Network lookup failed (${response?.status||0})`);const data=await response.json(),address=String(data?.ip||"").trim();if(!validIpv4(address))throw Error("Network lookup returned invalid IPv4 address");emitNetworkEvent("discovery-public-ip",{address});addExpandedNetworkMaterial(materials,`ipv4:${address}`);}catch(error){lastError=error;emitNetworkEvent("discovery-public-ip-error",{error:errorMessage(error)});}finally{clearTimeout(timeout);}
   }
-  if(!materials.size)throw lastError||Error("Could not determine shared network identity");const keys=[];for(const material of [...materials].sort()){const key=await hashRoomMaterial(`arondight45-vs-discovery-v5:${material}`,cryptoObj);keys.push(`net-${key}`);}return [...new Set(keys)];
+  if(!materials.size)throw lastError||Error("Could not determine shared network identity");const sorted=[...materials].sort();emitNetworkEvent("discovery-network-materials",{materials:sorted});const keys=[];for(const material of sorted){const key=await hashRoomMaterial(`arondight45-vs-discovery-v5:${material}`,cryptoObj);keys.push(`net-${key}`);}return [...new Set(keys)];
 }
 export async function sameNetworkRoomKey(options={}){const keys=await sameNetworkRoomKeys(options);return keys[0];}
 export async function proximityRoomKeys({longitude,latitude,cryptoObj=globalThis.crypto}={}){
@@ -300,16 +317,7 @@ export async function proximityRoomKeys({longitude,latitude,cryptoObj=globalThis
   for(let i=0;i<shifts.length;i++){const [sx,sy]=shifts[i],ix=Math.floor((x+sx)/PROXIMITY_CELL_M),iy=Math.floor((y+sy)/PROXIMITY_CELL_M),key=await hashRoomMaterial(`arondight45-vs-discovery-v5:geo:${PROXIMITY_CELL_M}:${i}:${ix}:${iy}`,cryptoObj);keys.push(`net-${key}`);}return [...new Set(keys)];
 }
 export async function discoveryRoomKeys({longitude,latitude,fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto,networkMaterialsFn=webRtcNetworkMaterials,positionFn=browserPosition,gestureTimeMs=Date.now()}={}){
-  const gesturePromise=gestureRoomKeys({gestureTimeMs,cryptoObj});
-  let position=normalizePosition({longitude,latitude});
-  if(!position&&typeof positionFn==="function"){
-    try{position=normalizePosition(await positionFn());}catch{}
-  }
-  const [gesture,geo,network]=await Promise.all([
-    gesturePromise,
-    position?proximityRoomKeys({...position,cryptoObj}):Promise.resolve([]),
-    sameNetworkRoomKeys({fetchFn,cryptoObj,networkMaterialsFn}).catch(()=>[])
-  ]);
-  const trusted=[...new Set([...geo,...network])].slice(0,Math.max(0,DISCOVERY_MAX_ROOMS-gesture.length));
-  const keys=[...trusted,...gesture];if(!keys.length)throw Error("No automatic proximity/network/gesture discovery path available");return [...new Set(keys)].slice(0,DISCOVERY_MAX_ROOMS);
+  const gesturePromise=gestureRoomKeys({gestureTimeMs,cryptoObj});let position=normalizePosition({longitude,latitude});if(!position&&typeof positionFn==="function")try{position=normalizePosition(await positionFn());}catch(error){emitNetworkEvent("discovery-geo-error",{error:errorMessage(error)});}
+  const [gesture,geo,network]=await Promise.all([gesturePromise,position?proximityRoomKeys({...position,cryptoObj}):Promise.resolve([]),sameNetworkRoomKeys({fetchFn,cryptoObj,networkMaterialsFn}).catch(()=>[])]);
+  const trusted=[...new Set([...network.slice(0,3),...geo.slice(0,3)])].slice(0,Math.max(0,DISCOVERY_MAX_ROOMS-gesture.length)),keys=[...trusted,...gesture];if(!keys.length)throw Error("No automatic proximity/network/gesture discovery path available");const unique=[...new Set(keys)].slice(0,DISCOVERY_MAX_ROOMS);emitNetworkEvent("discovery-plan",{roomIds:unique,networkRooms:network.length,geoRooms:geo.length,gestureRooms:gesture.length});return unique;
 }
