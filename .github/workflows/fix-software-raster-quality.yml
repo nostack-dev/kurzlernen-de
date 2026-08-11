@@ -1,0 +1,56 @@
+name: One-shot software raster quality fix
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-software-raster-quality.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Cap software raster quality without starving presentation
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/simulator.mjs');s=p.read_text()
+          replacements=[
+            ('presentationNativePixelRatio=Math.min(devicePixelRatio||1,PRESENTATION_PIXEL_RATIO_MAX);let presentationPixelRatio=presentationSoftwareRaster?Math.min(presentationNativePixelRatio,PRESENTATION_PIXEL_RATIO_MIN):presentationNativePixelRatio;',
+             'presentationNativePixelRatio=Math.min(devicePixelRatio||1,PRESENTATION_PIXEL_RATIO_MAX),presentationQualityCeiling=presentationSoftwareRaster?Math.min(presentationNativePixelRatio,PRESENTATION_PIXEL_RATIO_MIN):presentationNativePixelRatio;let presentationPixelRatio=presentationQualityCeiling;'),
+            ('if(cadence<PRESENTATION_CADENCE_CRITICAL){target=Math.min(presentationNativePixelRatio,PRESENTATION_PIXEL_RATIO_MIN);presentationQualityGoodWindows=0;}',
+             'if(cadence<PRESENTATION_CADENCE_CRITICAL){target=Math.min(presentationQualityCeiling,PRESENTATION_PIXEL_RATIO_MIN);presentationQualityGoodWindows=0;}'),
+            ('else if(cadence<PRESENTATION_CADENCE_CONSTRAINED){target=Math.min(presentationNativePixelRatio,.80);presentationQualityGoodWindows=0;}',
+             'else if(cadence<PRESENTATION_CADENCE_CONSTRAINED){target=Math.min(presentationQualityCeiling,.80);presentationQualityGoodWindows=0;}'),
+            ('else if(cadence>PRESENTATION_CADENCE_RECOVER&&presentationPixelRatio<presentationNativePixelRatio){',
+             'else if(cadence>PRESENTATION_CADENCE_RECOVER&&presentationPixelRatio<presentationQualityCeiling){'),
+            ('if(++presentationQualityGoodWindows>=PRESENTATION_RECOVERY_WINDOWS){target=Math.min(presentationNativePixelRatio,presentationPixelRatio+.20);presentationQualityGoodWindows=0;}',
+             'if(++presentationQualityGoodWindows>=PRESENTATION_RECOVERY_WINDOWS){target=Math.min(presentationQualityCeiling,presentationPixelRatio+.20);presentationQualityGoodWindows=0;}'),
+          ]
+          for old,new in replacements:
+            n=s.count(old)
+            if n!=1: raise SystemExit(f'simulator quality marker expected once, got {n}: {old[:100]}')
+            s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('tests/architecture_invariants.mjs');s=p.read_text()
+          old='requireText("sim/simulator.mjs","presentationSoftwareRaster");'
+          new='requireText("sim/simulator.mjs","presentationSoftwareRaster");\nrequireText("sim/simulator.mjs","presentationQualityCeiling=presentationSoftwareRaster?Math.min(presentationNativePixelRatio,PRESENTATION_PIXEL_RATIO_MIN):presentationNativePixelRatio");\nrequireText("sim/simulator.mjs","presentationPixelRatio<presentationQualityCeiling");'
+          if s.count(old)!=1: raise SystemExit(f'architecture software raster marker expected once, got {s.count(old)}')
+          p.write_text(s.replace(old,new,1))
+          PY
+          rm .github/workflows/fix-software-raster-quality.yml
+          node --check sim/simulator.mjs
+          node --check tests/architecture_invariants.mjs
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          git diff --check
+          git config user.name 'Arondight45 CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Keep software raster presentation responsive'
+          git push origin HEAD:main
