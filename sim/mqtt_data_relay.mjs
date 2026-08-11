@@ -1,9 +1,10 @@
 import mqtt from "mqtt";
 
 const BROKERS=[
-  "wss://test.mosquitto.org:8081/mqtt",
-  "wss://broker.emqx.io:8084/mqtt",
-  "wss://public:public@public.cloud.shiftr.io"
+  {url:"wss://public.cloud.shiftr.io",username:"public",password:"public"},
+  {url:"wss://broker.emqx.io:8084/mqtt"},
+  {url:"wss://test.mosquitto.org:8081/mqtt"},
+  {url:"wss://broker.hivemq.com:8884/mqtt"}
 ];
 const PROTOCOL_VERSION=2;
 const HELLO_MS=1000;
@@ -12,7 +13,7 @@ const CONNECT_ERROR_MS=10000;
 const MAX_PACKET_BYTES=32768;
 const MAX_SEEN=1024;
 const roomsByTopic=new Map();
-const brokerStates=new Map(BROKERS.map(url=>[url,{readyState:0,error:""}]));
+const brokerStates=new Map(BROKERS.map(({url})=>[url,{readyState:0,error:""}]));
 let clients=null;
 
 function clean(value){return String(value||"").replace(/[^a-zA-Z0-9_.-]/g,"_").slice(0,128);}
@@ -24,7 +25,7 @@ function parsePayload(payload){
 }
 function packetQos(packet){return packet?.kind==="sealed"&&packet?.fast?0:1;}
 function statusObject(url){return brokerStates.get(url)||{readyState:3,error:"missing"};}
-export function getRelaySockets(){return Object.fromEntries(BROKERS.map(url=>[url,{...statusObject(url)}]));}
+export function getRelaySockets(){return Object.fromEntries(BROKERS.map(({url})=>[url,{...statusObject(url)}]));}
 function bytesToBase64(bytes){let raw="";for(let i=0;i<bytes.length;i++)raw+=String.fromCharCode(bytes[i]);return btoa(raw);}
 function base64ToBytes(value){const raw=atob(String(value||"")),out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out;}
 async function generateIdentity(){
@@ -46,9 +47,9 @@ async function openSealed(key,iv,box){
 
 function ensureClients(){
   if(clients)return clients;
-  clients=BROKERS.map((url,index)=>{
-    const state=statusObject(url);
-    const client=mqtt.connect(url,{clientId:`a45relay-${randomId().slice(0,20)}-${index}`,clean:true,reconnectPeriod:1000,connectTimeout:5000,keepalive:20,protocolVersion:4,resubscribe:true});
+  clients=BROKERS.map((broker,index)=>{
+    const {url,username,password}=broker,state=statusObject(url);
+    const client=mqtt.connect(url,{clientId:`a45relay-${randomId().slice(0,20)}-${index}`,clean:true,reconnectPeriod:1000,connectTimeout:7000,keepalive:20,protocolVersion:4,resubscribe:true,...(username?{username,password}: {})});
     client.on("connect",()=>{
       state.readyState=1;state.error="";
       for(const [topic,set] of roomsByTopic)client.subscribe(topic,{qos:1},error=>{if(error){state.error=String(error?.message||error);return;}for(const room of set)room._announce();});
