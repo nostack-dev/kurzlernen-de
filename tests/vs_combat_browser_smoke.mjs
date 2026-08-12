@@ -9,7 +9,7 @@ try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
-  await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&globalThis.__arondightRealWorld?.threeScene,{timeout:10000});
+  await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&globalThis.__arondightRealWorld?.threeScene&&globalThis.__arondightRealWorld?.threeCamera,{timeout:10000});
   const result=await page.evaluate(async()=>{
     const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     const bridge=globalThis.__arondightRealWorld,viewport=document.querySelector("#viewport"),sent=[];
