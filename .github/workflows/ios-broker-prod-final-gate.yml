@@ -1,0 +1,50 @@
+name: iOS broker production gate
+on:
+  push:
+    branches: ["fix/ios-broker-prod-final"]
+permissions:
+  contents: write
+jobs:
+  validate:
+    if: ${{ !contains(github.event.head_commit.message, '[ios-broker-prod-final]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/ios-broker-prod-final
+      - name: Patch and deterministic tests
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/lan_vs.mjs');s=p.read_text()
+          old='''const DEFAULT_TRANSPORTS=[\n  {name:"Nostr",load:()=>import("trystero")},\n  {name:"Torrent",load:()=>import("@trystero-p2p/torrent")},\n  {name:"MQTT",load:()=>import("@trystero-p2p/mqtt")},\n  {name:"Broker",load:()=>import("./mqtt_data_relay.mjs")}\n];'''
+          new='''const DEFAULT_TRANSPORTS=[\n  {name:"Broker",load:()=>import("./mqtt_data_relay.mjs")},\n  {name:"Nostr",load:()=>import("trystero")},\n  {name:"MQTT",load:()=>import("@trystero-p2p/mqtt")},\n  {name:"Torrent",load:()=>import("@trystero-p2p/torrent")}\n];'''
+          assert old in s;s=s.replace(old,new,1).replace('const FINDER_STAGE_MS=6500;','const FINDER_STAGE_MS=12000;',1);p.write_text(s)
+          p=Path('sim/mqtt_data_relay.mjs');s=p.read_text();old='''      resubscribe:true,\n      ...options''';new='''      resubscribe:true,\n      forceNativeWebSocket:true,\n      ...options''';assert old in s;p.write_text(s.replace(old,new,1))
+          p=Path('tests/staged_vs_smoke.mjs');s=p.read_text();marker='const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));';addition=marker+'\nconst defaults=new LanVsFinder();assert.equal(defaults.transportStrategies[0]?.name,"Broker");assert.ok(defaults.stageMs>=10000);';assert marker in s and 'const defaults=new LanVsFinder()' not in s;p.write_text(s.replace(marker,addition,1))
+          PY
+          node --check sim/lan_vs.mjs
+          node --check sim/mqtt_data_relay.mjs
+          node tests/architecture_invariants.mjs
+          node tests/lan_vs_smoke.mjs
+          node tests/staged_vs_smoke.mjs
+      - name: Real encrypted broker A-B
+        run: |
+          set -euxo pipefail
+          TMP=/tmp/a45-broker-final;rm -rf "$TMP" node_modules generated;mkdir -p "$TMP" generated;cd "$TMP"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund mqtt@5.15.2 esbuild@0.25.8 puppeteer-core@24.16.0
+          ln -s "$TMP/node_modules" "$GITHUB_WORKSPACE/node_modules";cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/mqtt_data_relay.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=generated/mqtt_data_relay_probe.mjs
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)";test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/a45-broker-final.log 2>&1 & HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -rf "$GITHUB_WORKSPACE/node_modules" "$GITHUB_WORKSPACE/generated"' EXIT
+          sleep 1;CHROME_BIN="$CHROME_BIN" node tests/mqtt_data_relay_browser_smoke.mjs http://127.0.0.1:4174
+      - name: Commit validated fix
+        run: |
+          set -euxo pipefail;cd "$GITHUB_WORKSPACE"
+          git config user.name 'github-actions[bot]';git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/lan_vs.mjs sim/mqtt_data_relay.mjs tests/staged_vs_smoke.mjs
+          git commit -m 'Prioritize native Safari broker path [ios-broker-prod-final]'
+          git push origin HEAD:fix/ios-broker-prod-final
