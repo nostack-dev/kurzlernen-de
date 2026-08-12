@@ -19,12 +19,25 @@ jobs:
           node --check tests/staged_vs_smoke.mjs
           node tests/architecture_invariants.mjs
           node tests/lan_vs_smoke.mjs
+      - name: Build exact shared controller WASM
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
+            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
+              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' \
+              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
+              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
+              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
+              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
+              -o generated/flight_core.mjs
+          node --check generated/flight_core.mjs
       - name: Bundle exact simulator and real Nostr E2EE relay
         run: |
           set -euxo pipefail
           BUILD=/tmp/a45-rebased-gate
           rm -rf "$BUILD"
-          mkdir -p "$BUILD" generated
+          mkdir -p "$BUILD"
           cd "$BUILD"
           npm init -y >/dev/null
           npm install --ignore-scripts --no-audit --no-fund \
