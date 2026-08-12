@@ -1,3 +1,5 @@
+import {installVsCombatPresentation} from "./vs_combat_presentation.mjs";
+
 let installed=false;
 
 export function installSoloFlightLayout(){
@@ -44,4 +46,5 @@ export function installSoloFlightLayout(){
     }
   `;
   document.head.appendChild(style);
+  installVsCombatPresentation();
 }
