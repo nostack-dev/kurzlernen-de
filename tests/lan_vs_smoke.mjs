@@ -51,3 +51,5 @@ const fa=new LanVsFinder({transportStrategies:strategies,gestureDeferMs:0,joinDi
 await fa.start(["net-only-a",shared]);await fb.start(["net-only-b",shared]);await sleep(20);assert.equal(faPeer,1);assert.equal(fbPeer,1);assert.equal(faTransport,fbTransport,"first successful parallel signaling strategy must converge on both peers");assert.equal(fa.children.length,1,"losing room/transport sessions must be closed after peer selection");assert.equal(fb.children.length,1);fa.setPose({p:[10,20,30],q:[0,0,0,1]});fb.setPose({p:[40,50,60],q:[0,0,0,1]});await sleep(90);assert.deepEqual(faPose?.p,[40,50,60]);assert.deepEqual(fbPose?.p,[10,20,30]);fb.stop();await sleep(5);assert.equal(faLeft,1);fa.stop();
 
 console.log("LAN VS deterministic smoke passed: Trystero 0.25 callback API, parallel signaling, 0-GPS rendezvous, network diagnostics, pose/origin/combat");
+
+await import("./staged_vs_smoke.mjs");
