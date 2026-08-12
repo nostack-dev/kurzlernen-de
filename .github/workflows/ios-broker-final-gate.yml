@@ -1,0 +1,116 @@
+name: Final iOS broker validation gate
+
+on:
+  push:
+    branches: ["fix/ios-broker-final"]
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: ${{ !contains(github.event.head_commit.message, '[ios-broker-final]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/ios-broker-final
+
+      - name: Patch recoverable Safari broker path
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          relay=Path('sim/mqtt_data_relay.mjs')
+          s=relay.read_text()
+          old='''      protocolVersion:4,\n      resubscribe:true,\n      ...options'''
+          new='''      protocolVersion:4,\n      resubscribe:true,\n      forceNativeWebSocket:true,\n      ...options'''
+          assert old in s and 'forceNativeWebSocket:true' not in s
+          relay.write_text(s.replace(old,new,1))
+
+          lan=Path('sim/lan_vs.mjs')
+          s=lan.read_text()
+          old='''      onError:error=>{if(this.active===child)opts.onError?.(error);else{this.failedChildren.add(child);if(!this.active&&this.children.length&&this.failedChildren.size>=this.children.length)opts.onError?.(error);}}'''
+          new='''      onError:error=>{if(this.active===child)opts.onError?.(error);else opts.onDiagnostic?.(emitNetworkEvent("candidate-error",{roomId,transport:strategy.name,error:errorMessage(error)}),roomId,strategy.name);}'''
+          assert old in s
+          lan.write_text(s.replace(old,new,1))
+
+          test=Path('tests/lan_vs_smoke.mjs')
+          s=test.read_text()
+          marker='''const failing=failingTransport();let joinError="";const broken=new LanVsSession({loadTransport:failing.loadTransport,transportName:"Fail",joinDiagnosticMs:0,onError:error=>joinError=error.message});await broken.start("net-fail");failing.trigger();await sleep(0);assert.equal(joinError,"ICE failed","real WebRTC join failures must escape WAITING and surface to the UI/logbook");broken.stop();'''
+          addition=marker+'''\n\nconst transient=failingTransport();let transientFinderErrors=0;const recoveringFinder=new LanVsFinder({transportStrategies:[{name:"Transient",load:transient.loadTransport}],gestureDeferMs:0,joinDiagnosticMs:0,onError:()=>transientFinderErrors++});await recoveringFinder.start(["net-transient"]);transient.trigger();await sleep(0);assert.equal(transientFinderErrors,0,"candidate join errors must not become terminal while the finder can still reconnect");recoveringFinder.stop();'''
+          assert marker in s and 'transientFinderErrors' not in s
+          test.write_text(s.replace(marker,addition,1))
+          PY
+          node --check sim/mqtt_data_relay.mjs
+          node --check sim/lan_vs.mjs
+          node --check tests/lan_vs_smoke.mjs
+          node tests/architecture_invariants.mjs
+          node tests/lan_vs_smoke.mjs
+          grep -Fq 'forceNativeWebSocket:true' sim/mqtt_data_relay.mjs
+          grep -Fq 'candidate join errors must not become terminal' tests/lan_vs_smoke.mjs
+
+      - name: Chromium encrypted tap-room A-B relay
+        shell: bash
+        run: |
+          set -euxo pipefail
+          TMP=/tmp/a45-final-chrome
+          rm -rf "$TMP" node_modules generated
+          mkdir -p "$TMP" generated
+          cd "$TMP"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund mqtt@5.15.2 esbuild@0.25.8 puppeteer-core@24.16.0
+          ln -s "$TMP/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/mqtt_data_relay.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=generated/mqtt_data_relay_probe.mjs
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/a45-final-chrome.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -rf "$GITHUB_WORKSPACE/node_modules" "$GITHUB_WORKSPACE/generated"' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/mqtt_data_relay_browser_smoke.mjs http://127.0.0.1:4174
+
+      - name: WebKit encrypted tap-room A-B relay
+        shell: bash
+        run: |
+          set -euxo pipefail
+          TMP=/tmp/a45-final-webkit
+          rm -rf "$TMP" node_modules generated
+          mkdir -p "$TMP" generated
+          cd "$TMP"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund playwright@1.54.2 mqtt@5.15.2 esbuild@0.25.8
+          npx playwright install --with-deps webkit
+          ln -s "$TMP/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/mqtt_data_relay.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=generated/mqtt_data_relay_probe.mjs
+          python3 -m http.server 4175 --bind 127.0.0.1 >/tmp/a45-final-webkit.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -rf "$GITHUB_WORKSPACE/node_modules" "$GITHUB_WORKSPACE/generated"' EXIT
+          sleep 1
+          cat > "$TMP/relay.mjs" <<'EOF'
+          import {webkit} from 'playwright'
+          const browser=await webkit.launch({headless:true})
+          const roomId=`tap-webkit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`
+          const a=await browser.newPage(),b=await browser.newPage()
+          async function setup(page,label){await page.goto('http://127.0.0.1:4175/tests/mqtt_relay_probe.html');await page.evaluate(async({roomId,label})=>{const mod=await import('/generated/mqtt_data_relay_probe.mjs');const s=globalThis.__r={label,peer:'',messages:[],error:'',mod};const room=mod.joinRoom({appId:'a45-webkit-final'},roomId,{onJoinError:d=>s.error=String(d?.error?.message||d?.error||'')});const action=room.makeAction('probe');action.onMessage=(data,{peerId}={})=>s.messages.push({data,peerId});room.onPeerJoin=id=>s.peer=id;s.room=room;s.action=action},{roomId,label})}
+          const snap=p=>p.evaluate(()=>({peer:globalThis.__r?.peer||'',messages:globalThis.__r?.messages||[],error:globalThis.__r?.error||'',sockets:globalThis.__r?.mod?.getRelaySockets?.()||{}}))
+          const sleep=ms=>new Promise(r=>setTimeout(r,ms))
+          try{await Promise.all([setup(a,'a'),setup(b,'b')]);let A,B;const deadline=Date.now()+30000;while(Date.now()<deadline){[A,B]=await Promise.all([snap(a),snap(b)]);if(A.peer&&B.peer)break;await sleep(400)}if(!A?.peer||!B?.peer)throw Error(`WebKit peers missing A=${JSON.stringify(A)} B=${JSON.stringify(B)}`);await a.evaluate(()=>globalThis.__r.action.send({from:'webkit-a'},{target:globalThis.__r.peer}));await sleep(1500);B=await snap(b);if(!B.messages.some(x=>x.data?.from==='webkit-a'))throw Error(`WebKit A->B missing ${JSON.stringify(B)}`);for(const x of [await snap(a),B]){if(x.error)throw Error(`WebKit relay error ${x.error}`);if(x.sockets['wss://public.cloud.shiftr.io']?.readyState!==1)throw Error(`WebKit Shiftr 443 not open ${JSON.stringify(x.sockets)}`)}console.log('WebKit encrypted WSS443 A-B relay passed')}finally{await Promise.allSettled([a.evaluate(()=>globalThis.__r?.room?.leave?.()),b.evaluate(()=>globalThis.__r?.room?.leave?.())]);await browser.close()}
+          EOF
+          cd "$TMP"
+          node relay.mjs
+
+      - name: Commit validated final fix
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd "$GITHUB_WORKSPACE"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/mqtt_data_relay.mjs sim/lan_vs.mjs tests/lan_vs_smoke.mjs
+          git commit -m 'Make iOS broker fallback recoverable and native WebSocket [ios-broker-final]'
+          git push origin HEAD:fix/ios-broker-final
