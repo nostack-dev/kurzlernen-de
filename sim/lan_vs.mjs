@@ -269,7 +269,7 @@ export class LanVsFinder{
       ...(Number.isFinite(opts.relayRedundancy)?{relayRedundancy:opts.relayRedundancy}:{}),...(Number.isFinite(opts.joinDiagnosticMs)?{joinDiagnosticMs:opts.joinDiagnosticMs}:{}),
       onTransport:name=>{if(!this.active||this.active===child)opts.onTransport?.(name,roomId);},onDiagnostic:event=>opts.onDiagnostic?.(event,roomId,strategy.name),onPeer:peerId=>this.adopt(child,peerId,roomId,strategy.name),
       onPose:(pose,peerId)=>{if(this.active===child)opts.onPose?.(pose,peerId);},onOrigin:(origin,peerId)=>{if(this.active===child)opts.onOrigin?.(origin,peerId);},onCombat:(packet,peerId)=>{if(this.active===child)opts.onCombat?.(packet,peerId);},onLeave:peerId=>{if(this.active===child)opts.onLeave?.(peerId);},
-      onError:error=>{if(this.active===child)opts.onError?.(error);else{this.failedChildren.add(child);if(!this.active&&this.children.length&&this.failedChildren.size>=this.children.length)opts.onError?.(error);}}
+      onError:error=>{if(this.active===child)opts.onError?.(error);else opts.onDiagnostic?.(emitNetworkEvent("candidate-error",{roomId,transport:strategy.name,error:errorMessage(error)}),roomId,strategy.name);}
     });
     if(this.pendingPose)child.setPose(this.pendingPose);if(this.pendingOrigin)child.setOrigin(this.pendingOrigin);return child;
   }
