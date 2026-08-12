@@ -1,0 +1,36 @@
+name: iOS MQTT broker current-prod gate
+
+on:
+  push:
+    branches: ["fix/ios-mqtt-broker-prod-final"]
+
+jobs:
+  broker-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run real two-browser broker relay
+        run: |
+          set -euxo pipefail
+          node --check sim/mqtt_data_relay.mjs
+          grep -q 'function mqttClientId' sim/mqtt_data_relay.mjs
+          grep -q 'hivemq-8884' sim/mqtt_data_relay.mjs
+          BUILD_DIR=/tmp/a45-broker-gate
+          rm -rf "$BUILD_DIR"
+          mkdir -p "$BUILD_DIR" generated
+          cd "$BUILD_DIR"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund mqtt@5.15.2 esbuild@0.25.8 puppeteer-core@24.16.0
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/mqtt_data_relay.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=generated/mqtt_data_relay_probe.mjs
+          node --check generated/mqtt_data_relay_probe.mjs
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/a45-broker-http.log 2>&1 &
+          HTTP_PID=$!
+          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; rm -rf generated; }
+          trap cleanup EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/mqtt_data_relay_browser_smoke.mjs http://127.0.0.1:4174
