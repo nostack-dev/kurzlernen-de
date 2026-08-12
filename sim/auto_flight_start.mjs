@@ -1,3 +1,5 @@
+import {installVsCombatPresentation} from "./vs_combat_presentation.mjs";
+
 const $=id=>document.getElementById(id);
 
 function requestStartupLocation(){
@@ -26,6 +28,7 @@ async function waitForBridge(timeoutMs=30000){
 }
 
 const bridge=await waitForBridge();
+installVsCombatPresentation(bridge);
 
 function markWorldStartup(source){const viewport=$("viewport");if(viewport)viewport.dataset.autoWorldLocationSource=source;}
 
