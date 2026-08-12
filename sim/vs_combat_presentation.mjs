@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 const RESPAWN_MS=2200;
 const STALE_PEER_MS=1400;
+const PRESENTATION_MS=1000/30;
 let installed=false;
 let audioContext=null;
 let marker=null;
@@ -93,7 +94,6 @@ function updateRespawnHud(currentBridge,now){
 function tick(){
   const currentBridge=bridge(),now=performance.now();
   if(currentBridge){enhancePeerVisual(currentBridge);const localDead=Boolean(currentBridge.vsLocalDead),peerDead=Boolean(currentBridge.vsPeerDead);if(localDead&&!previousLocalDead){localDeathAt=now;playExplosion(true);flashExplosion(true);}if(peerDead&&!previousPeerDead){peerDeathAt=now;playExplosion(false);flashExplosion(false);}if(!localDead)localDeathAt=-Infinity;if(!peerDead)peerDeathAt=-Infinity;previousLocalDead=localDead;previousPeerDead=peerDead;updateEnemyMarker(currentBridge,now);updateRespawnHud(currentBridge,now);}else{if(marker)marker.hidden=true;if(respawnHud)respawnHud.hidden=true;}
-  requestAnimationFrame(tick);
 }
 
 function attachUi(){
@@ -121,5 +121,5 @@ export function installVsCombatPresentation(){
   `;document.head.appendChild(style);
   if(!attachUi()){const observer=new MutationObserver(()=>{if(attachUi())observer.disconnect();});observer.observe(document.documentElement,{childList:true,subtree:true});}
   document.addEventListener("pointerdown",primeAudio,{passive:true});document.addEventListener("touchstart",primeAudio,{passive:true});
-  requestAnimationFrame(tick);
+  tick();setInterval(tick,PRESENTATION_MS);
 }
