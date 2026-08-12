@@ -1,0 +1,55 @@
+name: Integrate Nostr data relay
+
+on:
+  push:
+    branches:
+      - fix/nostr-data-relay
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: "${{ !contains(github.event.head_commit.message, '[nostr-integrated]') }}"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/nostr-data-relay
+      - name: Integrate Nostr relay into staged VS
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/lan_vs.mjs');s=p.read_text()
+          if '{name:"NostrRelay"' not in s:
+              s=s.replace('{name:"Nostr",load:()=>import("trystero")},\n  {name:"Torrent"','{name:"Nostr",load:()=>import("trystero")},\n  {name:"NostrRelay",load:()=>import("./nostr_data_relay.mjs")},\n  {name:"Torrent"',1)
+          s=s.replace('if(!this.timer)this.timer=setInterval(()=>{this.flushOrigin();this.flushPose();},SEND_MS);','if(!this.timer)this.timer=setInterval(()=>{this.flushOrigin();this.flushPose();},this.transportName==="NostrRelay"?100:SEND_MS);',1)
+          s=s.replace('const directRtc=this.transportName!=="Broker";','const directRtc=!["Broker","NostrRelay"].includes(this.transportName);',1)
+          old='''      if(!results.every(result=>result.status==="rejected")){\n        const reason=await this.waitStage(epoch);\n        if(this.active||!this.started||epoch!==this.stageEpoch)return;\n        emitNetworkEvent("finder-stage-end",{stage:index+1,transport:strategy.name,reason,errors:this.stageErrors.map(error=>errorMessage(error)).slice(-4)});\n      }else emitNetworkEvent("finder-stage-end",{stage:index+1,transport:strategy.name,reason:"start-failed",errors:results.filter(result=>result.status==="rejected").map(result=>errorMessage(result.reason)).slice(-4)});'''
+          new='''      const allStartRejected=results.every(result=>result.status==="rejected");\n      const allJoinFailed=this.currentStageChildren.length>0&&this.currentStageChildren.every(child=>this.failedChildren.has(child));\n      if(!allStartRejected&&!allJoinFailed){\n        const reason=await this.waitStage(epoch);\n        if(this.active||!this.started||epoch!==this.stageEpoch)return;\n        emitNetworkEvent("finder-stage-end",{stage:index+1,transport:strategy.name,reason,errors:this.stageErrors.map(error=>errorMessage(error)).slice(-4)});\n      }else emitNetworkEvent("finder-stage-end",{stage:index+1,transport:strategy.name,reason:allStartRejected?"start-failed":"all-error",errors:(this.stageErrors.length?this.stageErrors:results.filter(result=>result.status==="rejected").map(result=>result.reason)).map(error=>errorMessage(error)).slice(-4)});'''
+          assert old in s,'stage wait block missing';s=s.replace(old,new,1)
+          s=s.replace('VS peer not reachable after staged Nostr/Torrent/MQTT/Broker attempts','VS peer not reachable after staged direct/NostrRelay/Torrent/MQTT/Broker attempts',1)
+          p.write_text(s)
+
+          p=Path('sim/nostr_data_relay.mjs');s=p.read_text()
+          old='''  leave(){\n    if(this.closed)return;this.closed=true;clearInterval(this.helloTimer);clearInterval(this.heartbeatTimer);clearInterval(this.sweepTimer);clearTimeout(this.errorTimer);this._publish(this._base("bye"),false).catch(()=>{});try{this.subscription?.close?.("room leave");}catch{}rooms.delete(this);for(const {resolve} of this.pendingPings.values())resolve(NaN);this.pendingPings.clear();this.peers.clear();this.peerKeys.clear();this.peerPublicKeys.clear();this.peerSeen.clear();closePoolIfIdle();\n  }'''
+          new='''  leave(){\n    if(this.closed)return;\n    const goodbye=this._publish(this._base("bye"),false).catch(()=>{});\n    this.closed=true;clearInterval(this.helloTimer);clearInterval(this.heartbeatTimer);clearInterval(this.sweepTimer);clearTimeout(this.errorTimer);try{this.subscription?.close?.("room leave");}catch{}rooms.delete(this);for(const {resolve} of this.pendingPings.values())resolve(NaN);this.pendingPings.clear();this.peers.clear();this.peerKeys.clear();this.peerPublicKeys.clear();this.peerSeen.clear();goodbye.finally(()=>closePoolIfIdle());\n  }'''
+          assert old in s,'Nostr relay leave block missing';p.write_text(s.replace(old,new,1))
+          PY
+      - name: Deterministic VS gates
+        run: |
+          set -euxo pipefail
+          node --check sim/lan_vs.mjs
+          node --check sim/nostr_data_relay.mjs
+          node --check tests/staged_vs_smoke.mjs
+          node tests/architecture_invariants.mjs
+          node tests/lan_vs_smoke.mjs
+      - name: Commit validated integration
+        run: |
+          set -euxo pipefail
+          git add sim/lan_vs.mjs sim/nostr_data_relay.mjs tests/staged_vs_smoke.mjs tests/nostr_data_relay_browser_smoke.mjs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Add Nostr E2EE data fallback after ICE failure [nostr-integrated]"
+          git push origin HEAD:fix/nostr-data-relay
