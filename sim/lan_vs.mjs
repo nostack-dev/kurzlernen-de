@@ -86,7 +86,7 @@ function relaySnapshot(getRelaySockets){
   try{
     const sockets=typeof getRelaySockets==="function"?getRelaySockets():null;
     if(!sockets||typeof sockets!=="object")return[];
-    return Object.entries(sockets).map(([url,socket])=>({url,state:networkSocketState(socket)}));
+    return Object.entries(sockets).map(([url,socket])=>({url,state:networkSocketState(socket),error:String(socket?.error||"")}));
   }catch(error){return[{url:"relay-diagnostics",state:`error:${errorMessage(error)}`}];}
 }
 function candidateSummary(record){

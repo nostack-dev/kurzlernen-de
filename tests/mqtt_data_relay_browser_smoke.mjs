@@ -44,7 +44,7 @@ try{
   [stateA,stateB]=await Promise.all([snapshot(a),snapshot(b)]);
   if(!stateA.messages.some(item=>item.data?.from==="b"))throw new Error(`B→A action missing; A=${JSON.stringify(stateA)} B=${JSON.stringify(stateB)}`);
   if(!Number.isFinite(stateA.rtt)||stateA.rtt<0)throw new Error(`broker ping failed: A=${JSON.stringify(stateA)} B=${JSON.stringify(stateB)}`);
-  for(const side of [stateA,stateB]){if(side.joinError)throw new Error(`broker join error: ${side.joinError}`);if(!Object.values(side.sockets).some(socket=>socket.readyState===1))throw new Error(`no broker websocket open: ${JSON.stringify(side.sockets)}`);}
+  for(const side of [stateA,stateB]){if(side.joinError)throw new Error(`broker join error: ${side.joinError}`);if(side.sockets["wss://public.cloud.shiftr.io"]?.readyState!==1)throw new Error(`Safari WSS 443 broker not open: ${JSON.stringify(side.sockets)}`);}
   console.log(`MQTT data relay browser smoke passed: two browsers paired (${peers.join(" ↔ ")}), bidirectional encrypted action data + ping; rtt=${stateA.rtt.toFixed(1)}ms`);
 }finally{
   await Promise.allSettled([a.evaluate(()=>globalThis.__relayProbe?.room?.leave?.()),b.evaluate(()=>globalThis.__relayProbe?.room?.leave?.())]);

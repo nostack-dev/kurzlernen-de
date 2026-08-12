@@ -1,14 +1,14 @@
 import mqtt from "mqtt";
 
 const BROKERS=[
+  "wss://public.cloud.shiftr.io",
   "wss://test.mosquitto.org:8081/mqtt",
-  "wss://broker.emqx.io:8084/mqtt",
-  "wss://public:public@public.cloud.shiftr.io"
+  "wss://broker.emqx.io:8084/mqtt"
 ];
 const PROTOCOL_VERSION=2;
 const HELLO_MS=1000;
 const HEARTBEAT_MS=5000;
-const CONNECT_ERROR_MS=10000;
+const CONNECT_ERROR_MS=18000;
 const MAX_PACKET_BYTES=32768;
 const MAX_SEEN=1024;
 const roomsByTopic=new Map();
@@ -48,7 +48,8 @@ function ensureClients(){
   if(clients)return clients;
   clients=BROKERS.map((url,index)=>{
     const state=statusObject(url);
-    const client=mqtt.connect(url,{clientId:`a45relay-${randomId().slice(0,20)}-${index}`,clean:true,reconnectPeriod:1000,connectTimeout:5000,keepalive:20,protocolVersion:4,resubscribe:true});
+    const auth=url==="wss://public.cloud.shiftr.io"?{username:"public",password:"public"}:{};
+    const client=mqtt.connect(url,{...auth,forceNativeWebSocket:true,clientId:`a45-${randomId().slice(0,12)}${index}`,clean:true,reconnectPeriod:1200,connectTimeout:10000,keepalive:20,protocolVersion:4,resubscribe:true});
     client.on("connect",()=>{
       state.readyState=1;state.error="";
       for(const [topic,set] of roomsByTopic)client.subscribe(topic,{qos:1},error=>{if(error){state.error=String(error?.message||error);return;}for(const room of set)room._announce();});
