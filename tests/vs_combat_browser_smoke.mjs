@@ -13,20 +13,17 @@ try{
   const result=await page.evaluate(async()=>{
     const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     const bridge=globalThis.__arondightRealWorld,viewport=document.querySelector("#viewport"),sent=[];
-    document.body.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerType:"touch"}));
-    await sleep(120);
-    bridge.vsConnected=true;bridge.vsSession={sendCombat(packet){sent.push(JSON.parse(JSON.stringify(packet)));return true;},stop(){}};bridge.resetVsCombat(true);bridge.ensureVsPeerMesh();
-    if(!bridge.vsPeerMesh?.children?.length)throw new Error("peer mesh missing");
-    const own=bridge.airframeFor?.(bridge.threeScene)||bridge.airframe;
-    const ox=Number(own?.position?.x)||0,oy=Number(own?.position?.y)||0,oz=Number(own?.position?.z)||0;
-    bridge.vsPeerMesh.position.set(ox+10,oy,oz);bridge.vsPeerMesh.visible=true;bridge.vsPeerLastPoseMs=performance.now();
-    await sleep(120);
+    document.body.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerType:"touch"}));await sleep(120);
+    bridge.vsConnected=true;bridge.vsSession={sendCombat(packet){sent.push(JSON.parse(JSON.stringify(packet)));return true;},stop(){}};bridge.resetVsCombat(true);
+    const own=bridge.airframeFor?.(bridge.threeScene)||bridge.airframe;if(!own?.position)throw new Error("local airframe missing");const ox=own.position.x,oy=own.position.y,oz=own.position.z;
+    bridge.applyVsPose({p:[ox+10,oy,oz],q:[0,0,0,1]});await sleep(140);
+    if(!bridge.vsPeerMesh?.children?.length)throw new Error("peer mesh missing after real pose path");
     const marker=document.querySelector("#vsEnemyMarker"),firstMesh=bridge.vsPeerMesh.children.find(child=>child.isMesh),distanceM=Number(viewport.dataset.vsEnemyDistanceM),hpFill=marker?.querySelector(".vs-enemy-hp>b");
     const markerBefore={exists:Boolean(marker),hidden:Boolean(marker?.hidden),text:marker?.textContent||"",mode:viewport.dataset.vsEnemyMarker||"",distanceM,expectedDistanceM:10,hpFill:Boolean(hpFill),hpTransform:hpFill?.style?.transform||"",emissiveIntensity:Number(firstMesh?.material?.emissiveIntensity)||0,color:firstMesh?.material?.color?.getHex?.()||0,audioReady:viewport.dataset.vsExplosionAudioReady||"",audioState:viewport.dataset.vsExplosionAudioState||""};
-    const hitOk=bridge.registerVsHit({object:bridge.vsPeerMesh.children.find(child=>child.isMesh)||bridge.vsPeerMesh.children[0]}),shot=sent.find(p=>p.type==="hit");if(!hitOk||!shot)throw new Error("local peer hit was not emitted");
+    const hitOk=bridge.registerVsHit({object:firstMesh||bridge.vsPeerMesh.children[0]}),shot=sent.find(p=>p.type==="hit");if(!hitOk||!shot)throw new Error("local peer hit was not emitted");
     bridge.applyVsCombat({type:"state",id:shot.id,hp:0,killed:true});await sleep(120);
     const killed={kills:bridge.vsKills,peerHp:bridge.vsPeerHealth,peerDead:bridge.vsPeerDead,explosion:Boolean(bridge.vsExplosion?.visible),peerVisible:bridge.vsPeerMesh.visible,hud:document.querySelector("#vsCombatHud")?.textContent||"",enemyMarker:marker?.textContent||"",respawnHud:document.querySelector("#vsRespawnHud")?.textContent||"",respawnHidden:Boolean(document.querySelector("#vsRespawnHud")?.hidden),respawnState:viewport.dataset.vsRespawnState||"",soundCount:Number(viewport.dataset.vsExplosionSoundCount)||0,audioStartedCount:Number(viewport.dataset.vsExplosionAudioStartedCount)||0,audioState:viewport.dataset.vsExplosionAudioState||"",flash:Boolean(document.querySelector("#vsExplosionFlash")?.classList.contains("pulse"))};
-    bridge.applyVsCombat({type:"respawn",hp:100});await sleep(90);const peerRespawn={peerHp:bridge.vsPeerHealth,peerDead:bridge.vsPeerDead,marker:marker?.textContent||"",respawnHidden:Boolean(document.querySelector("#vsRespawnHud")?.hidden),respawnState:viewport.dataset.vsRespawnState||""};
+    bridge.applyVsCombat({type:"respawn",hp:100});bridge.applyVsPose({p:[ox+10,oy,oz],q:[0,0,0,1]});await sleep(100);const peerRespawn={peerHp:bridge.vsPeerHealth,peerDead:bridge.vsPeerDead,marker:marker?.textContent||"",respawnHidden:Boolean(document.querySelector("#vsRespawnHud")?.hidden),respawnState:viewport.dataset.vsRespawnState||""};
     bridge.applyVsCombat({type:"hit",id:"incoming-1",damage:25});const hpAfterFirst=bridge.vsLocalHealth;bridge.applyVsCombat({type:"hit",id:"incoming-1",damage:25});const hpAfterDuplicate=bridge.vsLocalHealth;const state=sent.find(p=>p.type==="state"&&p.id==="incoming-1");
     bridge.applyVsCombat({type:"hit",id:"incoming-2",damage:25});bridge.applyVsCombat({type:"hit",id:"incoming-3",damage:25});bridge.applyVsCombat({type:"hit",id:"incoming-4",damage:25});await sleep(120);
     const localDeath={hp:bridge.vsLocalHealth,dead:bridge.vsLocalDead,deaths:bridge.vsDeaths,respawnHud:document.querySelector("#vsRespawnHud")?.textContent||"",respawnHidden:Boolean(document.querySelector("#vsRespawnHud")?.hidden),respawnState:viewport.dataset.vsRespawnState||"",soundCount:Number(viewport.dataset.vsExplosionSoundCount)||0,audioStartedCount:Number(viewport.dataset.vsExplosionAudioStartedCount)||0,audioState:viewport.dataset.vsExplosionAudioState||"",flashLocal:Boolean(document.querySelector("#vsExplosionFlash")?.classList.contains("local"))};
@@ -42,11 +39,8 @@ try{
   if(!result.killed.enemyMarker.includes("ENEMY DOWN")||result.killed.respawnHidden||!result.killed.respawnHud.includes("ENEMY DESTROYED")||!result.killed.respawnHud.includes("RESPAWN")||result.killed.respawnState!=="enemy")throw new Error(`enemy respawn indication missing: ${JSON.stringify(result.killed)}`);
   if(result.killed.soundCount<1||result.killed.audioStartedCount<1||result.killed.audioState!=="running"||!result.killed.flash)throw new Error(`enemy explosion audio/visual feedback missing: ${JSON.stringify(result.killed)}`);
   if(result.peerRespawn.peerHp!==100||result.peerRespawn.peerDead||!result.peerRespawn.marker.includes("ENEMY")||!result.peerRespawn.respawnHidden||result.peerRespawn.respawnState!=="none")throw new Error(`enemy respawn presentation did not clear on authoritative respawn packet: ${JSON.stringify(result.peerRespawn)}`);
-  if(result.hpAfterFirst!==75)throw new Error(`player health did not take damage: ${JSON.stringify(result)}`);
-  if(result.hpAfterDuplicate!==75)throw new Error(`duplicate hit changed health twice: ${JSON.stringify(result)}`);
-  if(result.state?.hp!==75||result.state?.killed!==false)throw new Error(`victim-authoritative health acknowledgement missing: ${JSON.stringify(result.state)}`);
+  if(result.hpAfterFirst!==75)throw new Error(`player health did not take damage: ${JSON.stringify(result)}`);if(result.hpAfterDuplicate!==75)throw new Error(`duplicate hit changed health twice: ${JSON.stringify(result)}`);if(result.state?.hp!==75||result.state?.killed!==false)throw new Error(`victim-authoritative health acknowledgement missing: ${JSON.stringify(result.state)}`);
   if(result.localDeath.hp!==0||!result.localDeath.dead||result.localDeath.deaths!==1||result.localDeath.respawnHidden||result.localDeath.respawnState!=="local"||!result.localDeath.respawnHud.includes("DESTROYED")||!result.localDeath.respawnHud.includes("RESPAWN"))throw new Error(`local respawn countdown missing: ${JSON.stringify(result.localDeath)}`);
-  if(result.localDeath.soundCount<2||result.localDeath.audioStartedCount<2||result.localDeath.audioState!=="running"||!result.localDeath.flashLocal)throw new Error(`local destruction audio/visual feedback missing: ${JSON.stringify(result.localDeath)}`);
-  if(result.dataset.kills!=="1"||result.dataset.deaths!=="1")throw new Error(`combat score dataset failed: ${JSON.stringify(result.dataset)}`);
-  console.log("VS combat browser smoke passed: drone-to-drone range, enemy HP/marker/contrast, real AudioContext start, reusable explosion buffer, 100 HP, dedupe, kill and packet-authoritative respawn indications.");
+  if(result.localDeath.soundCount<2||result.localDeath.audioStartedCount<2||result.localDeath.audioState!=="running"||!result.localDeath.flashLocal)throw new Error(`local destruction audio/visual feedback missing: ${JSON.stringify(result.localDeath)}`);if(result.dataset.kills!=="1"||result.dataset.deaths!=="1")throw new Error(`combat score dataset failed: ${JSON.stringify(result.dataset)}`);
+  console.log("VS combat browser smoke passed: real pose path, drone-to-drone range, enemy HP/marker/contrast, real AudioContext start, reusable explosion buffer, 100 HP, dedupe, kill and packet-authoritative respawn indications.");
 }finally{await browser.close();}
