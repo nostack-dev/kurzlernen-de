@@ -1,0 +1,46 @@
+name: Rebased Nostr VS gate
+
+on:
+  push:
+    branches:
+      - fix/nostr-data-relay-rebased
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Deterministic architecture and VS tests
+        run: |
+          set -euxo pipefail
+          node --check sim/lan_vs.mjs
+          node --check sim/nostr_data_relay.mjs
+          node --check tests/nostr_data_relay_browser_smoke.mjs
+          node --check tests/staged_vs_smoke.mjs
+          node tests/architecture_invariants.mjs
+          node tests/lan_vs_smoke.mjs
+      - name: Bundle exact simulator and real Nostr E2EE relay
+        run: |
+          set -euxo pipefail
+          BUILD=/tmp/a45-rebased-gate
+          rm -rf "$BUILD"
+          mkdir -p "$BUILD" generated
+          cd "$BUILD"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund \
+            three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 mqtt@5.15.2 nostr-tools@2.24.1 \
+            qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.3 @trystero-p2p/mqtt@0.25.3 @trystero-p2p/torrent@0.25.3
+          ln -s "$BUILD/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/a45-simulator.mjs
+          ./node_modules/.bin/esbuild sim/nostr_data_relay.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=generated/nostr_data_relay_probe.mjs
+          node --check /tmp/a45-simulator.mjs
+          node --check generated/nostr_data_relay_probe.mjs
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/a45-nostr-http.log 2>&1 &
+          HTTP_PID=$!
+          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; rm -rf generated; }
+          trap cleanup EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/nostr_data_relay_browser_smoke.mjs http://127.0.0.1:4174
