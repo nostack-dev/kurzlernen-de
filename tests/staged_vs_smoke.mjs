@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import {LanVsFinder} from "../sim/lan_vs.mjs";
 
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-const defaults=new LanVsFinder();assert.equal(defaults.transportStrategies[0]?.name,"Broker");assert.ok(defaults.stageMs>=10000);
 const opened=[];
 function harness(name,{connect=false,fail=false}={}){
   return async()=>({
@@ -15,19 +15,25 @@ function harness(name,{connect=false,fail=false}={}){
     },getRelaySockets:()=>({})
   });
 }
+
+const source=readFileSync(new URL("../sim/lan_vs.mjs",import.meta.url),"utf8");
+assert.ok(source.indexOf('{name:"Nostr"')<source.indexOf('{name:"NostrRelay"'),"direct Nostr must precede Nostr data relay");
+assert.ok(source.indexOf('{name:"NostrRelay"')<source.indexOf('{name:"MQTT"'),"Nostr data relay must precede MQTT/broker fallbacks");
+
 let connected="";
-const finder=new LanVsFinder({stageMs:250,maxRoomsPerStage:3,transportStrategies:[{name:"Nostr",load:harness("Nostr",{fail:true})},{name:"Torrent",load:harness("Torrent",{connect:true})},{name:"MQTT",load:harness("MQTT")},{name:"Broker",load:harness("Broker")}],onPeer:(_peer,_room,transport)=>connected=transport});
+const finder=new LanVsFinder({stageMs:250,maxRoomsPerStage:3,transportStrategies:[{name:"Nostr",load:harness("Nostr",{fail:true})},{name:"NostrRelay",load:harness("NostrRelay",{connect:true})},{name:"Torrent",load:harness("Torrent")},{name:"MQTT",load:harness("MQTT")},{name:"Broker",load:harness("Broker")}],onPeer:(_peer,_room,transport)=>connected=transport});
 await finder.start(["net-exact","net-secondary","net-third","tap-current","tap-previous","net-extra"]);
 await sleep(400);
-assert.equal(connected,"Torrent","second staged transport must take over after first transport fails");
+assert.equal(connected,"NostrRelay","Nostr data relay must take over immediately after direct ICE fails");
 assert.ok(opened.length<=6,`staged finder opened too many sessions before connection: ${opened.length}`);
 const firstStage=opened.filter(x=>x.name==="Nostr");
 assert.equal(firstStage.length,3,"mobile stage must cap simultaneous rooms at three");
 assert.deepEqual(firstStage.map(x=>x.roomId),["tap-current","tap-previous","net-exact"],"gesture rooms plus first trusted network room must be first");
-for(const item of opened.filter(x=>x.name!=="Broker")){
+for(const item of opened.filter(x=>!["Broker","NostrRelay"].includes(x.name))){
   assert.equal(item.config.trickleIce,true,`${item.name} must force trickle ICE`);
   assert.equal(item.config.rtcConfig?.iceTransportPolicy,"all",`${item.name} must explicitly keep direct ICE paths enabled`);
   assert.ok(Array.isArray(item.config.rtcConfig?.iceServers)&&item.config.rtcConfig.iceServers.length>=2,`${item.name} must explicitly carry STUN config`);
 }
+for(const item of opened.filter(x=>["Broker","NostrRelay"].includes(x.name)))assert.equal(item.config.rtcConfig,undefined,`${item.name} must bypass WebRTC ICE entirely`);
 finder.stop();
-console.log("Staged VS smoke passed: <=3 concurrent sessions, gesture+LAN priority, sequential transports, explicit ICE");
+console.log("Staged VS smoke passed: <=3 concurrent sessions, direct ICE then Nostr E2EE relay, no MQTT requirement");
