@@ -4,6 +4,7 @@ const RELAY_REDUNDANCY=3;
 const JOIN_DIAGNOSTIC_MS=12000;
 const DEFAULT_TRANSPORTS=[
   {name:"Nostr",load:()=>import("trystero")},
+  {name:"NostrRelay",load:()=>import("./nostr_data_relay.mjs")},
   {name:"Torrent",load:()=>import("@trystero-p2p/torrent")},
   {name:"MQTT",load:()=>import("@trystero-p2p/mqtt")},
   {name:"Broker",load:()=>import("./mqtt_data_relay.mjs")}
@@ -176,7 +177,7 @@ export class LanVsSession{
     if(this.room)return;
     if(typeof roomId!=="string"||!roomId)throw Error("VS room id required");
     this.roomId=roomId;
-    if(!this.timer)this.timer=setInterval(()=>{this.flushOrigin();this.flushPose();},SEND_MS);
+    if(!this.timer)this.timer=setInterval(()=>{this.flushOrigin();this.flushPose();},this.transportName==="NostrRelay"?100:SEND_MS);
     this.diag("transport-start",{relayRedundancy:this.relayRedundancy});this.onTransport?.(this.transportName);
     try{
       await this.openTransport();
@@ -201,7 +202,7 @@ export class LanVsSession{
       this.diag("join-error",{peerId:String(details?.peerId||""),error:errorMessage(error),relays:relaySnapshot(this.getRelaySockets)});
       this.onError?.(error);
     };
-    const directRtc=this.transportName!=="Broker";
+    const directRtc=!["Broker","NostrRelay"].includes(this.transportName);
     const roomConfig={appId:APP_ID,relayConfig:{redundancy:this.relayRedundancy},...(directRtc?{trickleIce:true,rtcConfig:{iceServers:STUN_ICE_SERVERS,iceTransportPolicy:"all",iceCandidatePoolSize:1,bundlePolicy:"max-bundle"}}:{})};
     this.diag("ice-config",{directRtc,trickleIce:directRtc,iceServers:directRtc?STUN_ICE_SERVERS.map(server=>server.urls):[]});
     room=joinRoom(roomConfig,this.roomId,{onJoinError});
@@ -320,16 +321,18 @@ export class LanVsFinder{
       const results=await Promise.allSettled(children.map((child,i)=>child.start(rooms[i])));
       for(const result of results)if(result.status==="rejected")lastError=result.reason;
       if(this.active||!this.started||epoch!==this.stageEpoch)return;
-      if(!results.every(result=>result.status==="rejected")){
+      const allStartRejected=results.every(result=>result.status==="rejected");
+      const allJoinFailed=this.currentStageChildren.length>0&&this.currentStageChildren.every(child=>this.failedChildren.has(child));
+      if(!allStartRejected&&!allJoinFailed){
         const reason=await this.waitStage(epoch);
         if(this.active||!this.started||epoch!==this.stageEpoch)return;
         emitNetworkEvent("finder-stage-end",{stage:index+1,transport:strategy.name,reason,errors:this.stageErrors.map(error=>errorMessage(error)).slice(-4)});
-      }else emitNetworkEvent("finder-stage-end",{stage:index+1,transport:strategy.name,reason:"start-failed",errors:results.filter(result=>result.status==="rejected").map(result=>errorMessage(result.reason)).slice(-4)});
+      }else emitNetworkEvent("finder-stage-end",{stage:index+1,transport:strategy.name,reason:allStartRejected?"start-failed":"all-error",errors:(this.stageErrors.length?this.stageErrors:results.filter(result=>result.status==="rejected").map(result=>result.reason)).map(error=>errorMessage(error)).slice(-4)});
       for(const child of children)child.stop(false);this.children=[];this.currentStageChildren=[];
       if(this.stageErrors.length)lastError=this.stageErrors[this.stageErrors.length-1];
     }
     if(this.started&&epoch===this.stageEpoch&&!this.active){
-      const error=lastError instanceof Error?lastError:Error("VS peer not reachable after staged Nostr/Torrent/MQTT/Broker attempts");
+      const error=lastError instanceof Error?lastError:Error("VS peer not reachable after staged direct/NostrRelay/Torrent/MQTT/Broker attempts");
       emitNetworkEvent("finder-exhausted",{error:errorMessage(error),roomIds:this.stageRoomIds,transportNames:this.transportStrategies.map(item=>item.name)});
       this.options.onError?.(error);
     }

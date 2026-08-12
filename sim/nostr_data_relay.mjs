@@ -117,7 +117,9 @@ class NostrRelayRoom{
     const nonce=packetId();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{this.pendingPings.delete(nonce);reject(Error("Nostr VS relay ping timeout"));},4000);this.pendingPings.set(nonce,{started:performance.now(),resolve:value=>{clearTimeout(timer);resolve(value);}});this._publish({...this._base("ping",peerId),nonce},false).catch(error=>{clearTimeout(timer);this.pendingPings.delete(nonce);reject(error);});});
   }
   leave(){
-    if(this.closed)return;this.closed=true;clearInterval(this.helloTimer);clearInterval(this.heartbeatTimer);clearInterval(this.sweepTimer);clearTimeout(this.errorTimer);this._publish(this._base("bye"),false).catch(()=>{});try{this.subscription?.close?.("room leave");}catch{}rooms.delete(this);for(const {resolve} of this.pendingPings.values())resolve(NaN);this.pendingPings.clear();this.peers.clear();this.peerKeys.clear();this.peerPublicKeys.clear();this.peerSeen.clear();closePoolIfIdle();
+    if(this.closed)return;
+    const goodbye=this._publish(this._base("bye"),false).catch(()=>{});
+    this.closed=true;clearInterval(this.helloTimer);clearInterval(this.heartbeatTimer);clearInterval(this.sweepTimer);clearTimeout(this.errorTimer);try{this.subscription?.close?.("room leave");}catch{}rooms.delete(this);for(const {resolve} of this.pendingPings.values())resolve(NaN);this.pendingPings.clear();this.peers.clear();this.peerKeys.clear();this.peerPublicKeys.clear();this.peerSeen.clear();goodbye.finally(()=>closePoolIfIdle());
   }
 }
 
