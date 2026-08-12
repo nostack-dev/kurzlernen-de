@@ -77,6 +77,7 @@ function ensureClients(){
       keepalive:15,
       protocolVersion:4,
       resubscribe:true,
+      forceNativeWebSocket:true,
       ...options
     };
     let client;

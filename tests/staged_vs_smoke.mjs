@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {LanVsFinder} from "../sim/lan_vs.mjs";
 
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const defaults=new LanVsFinder();assert.equal(defaults.transportStrategies[0]?.name,"Broker");assert.ok(defaults.stageMs>=10000);
 const opened=[];
 function harness(name,{connect=false,fail=false}={}){
   return async()=>({
