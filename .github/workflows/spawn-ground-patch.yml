@@ -1,0 +1,77 @@
+name: One-shot spawn ground clipping fix
+
+on:
+  push:
+    branches: ["fix/spawn-ground-clipping"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/spawn-ground-clipping
+          fetch-depth: 0
+
+      - name: Patch physical spawn support geometry
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          sim = Path('sim/simulator.mjs')
+          s = sim.read_text()
+
+          old = 'const QUERY_RANGEFINDER = 4n;\n'
+          new = '''const QUERY_RANGEFINDER = 4n;\nconst AIRFRAME_BODY_HALF_Z_M = .022;\nconst AIRFRAME_LANDING_SKID_RADIUS_M = .004;\nconst AIRFRAME_LANDING_SKID_Z_M = -.024;\nconst AIRFRAME_GROUND_SUPPORT_M = -AIRFRAME_LANDING_SKID_Z_M + AIRFRAME_LANDING_SKID_RADIUS_M;\nconst AIRFRAME_SPAWN_SEPARATION_M = .002;\nconst AIRFRAME_SPAWN_Z_M = AIRFRAME_GROUND_SUPPORT_M + AIRFRAME_SPAWN_SEPARATION_M;\n'''
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+
+          old = 'const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;const initialZ=Number.isFinite(initial?.z)?initial.z:.024;bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(.024,initialZ)];'
+          new = 'const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;const initialZ=Number.isFinite(initial?.z)?initial.z:AIRFRAME_SPAWN_Z_M;bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(AIRFRAME_SPAWN_Z_M,initialZ)];'
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+
+          old = 'b3.b3CreateBoxShape(this.body,shapeDef,.055,.045,.022);\n    const arm=p.span/(2*Math.sqrt(2));this.motorPos=[[-arm,-arm,0],[-arm,arm,0],[arm,arm,0],[arm,-arm,0]];\n    for(const position of this.motorPos){b3.b3CreateCapsuleShape(this.body,shapeDef,{center1:[0,0,0],center2:position,radius:.008});b3.b3CreateSphereShape(this.body,shapeDef,{center:position,radius:.018});}'
+          new = '''b3.b3CreateBoxShape(this.body,shapeDef,.055,.045,AIRFRAME_BODY_HALF_Z_M);\n    const arm=p.span/(2*Math.sqrt(2));this.motorPos=[[-arm,-arm,0],[-arm,arm,0],[arm,arm,0],[arm,-arm,0]];\n    for(const position of this.motorPos){b3.b3CreateCapsuleShape(this.body,shapeDef,{center1:[0,0,0],center2:position,radius:.008});b3.b3CreateSphereShape(this.body,shapeDef,{center:position,radius:.018});}\n    this.skidHalfLength=Math.min(.045,Math.max(.03,p.span*.18));\n    for(const y of [-.035,.035])b3.b3CreateCapsuleShape(this.body,shapeDef,{center1:[-this.skidHalfLength,y,AIRFRAME_LANDING_SKID_Z_M],center2:[this.skidHalfLength,y,AIRFRAME_LANDING_SKID_Z_M],radius:AIRFRAME_LANDING_SKID_RADIUS_M});'''
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+
+          old = 'const frameMaterial=new THREE.MeshStandardMaterial({color:0x6f8399,emissive:0x10273b,emissiveIntensity:.18,metalness:.30,roughness:.38}),bodyMaterial=new THREE.MeshStandardMaterial({color:0x26394e,emissive:0x0d2235,emissiveIntensity:.20,metalness:.42,roughness:.30});'
+          new = 'const frameMaterial=new THREE.MeshStandardMaterial({color:0x6f8399,emissive:0x10273b,emissiveIntensity:.18,metalness:.30,roughness:.38}),bodyMaterial=new THREE.MeshStandardMaterial({color:0x26394e,emissive:0x0d2235,emissiveIntensity:.20,metalness:.42,roughness:.30}),skidMaterial=new THREE.MeshStandardMaterial({color:0x1b2938,emissive:0x07121d,emissiveIntensity:.12,metalness:.18,roughness:.62});'
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+
+          old = '    const nose=new THREE.Mesh(new THREE.ConeGeometry(.018,.06,16),new THREE.MeshStandardMaterial({color:0xff4f65,emissive:0x66121f,emissiveIntensity:.35}));nose.rotation.z=-Math.PI/2;nose.position.x=-.075;this.group.add(nose);'
+          new = '''    for(const y of [-.035,.035]){\n      const skid=new THREE.Mesh(new THREE.CylinderGeometry(AIRFRAME_LANDING_SKID_RADIUS_M,AIRFRAME_LANDING_SKID_RADIUS_M,this.skidHalfLength*2,12),skidMaterial);skid.rotation.z=Math.PI/2;skid.position.set(0,y,AIRFRAME_LANDING_SKID_Z_M);skid.castShadow=true;this.group.add(skid);\n      for(const x of [-this.skidHalfLength,this.skidHalfLength]){const foot=new THREE.Mesh(new THREE.SphereGeometry(AIRFRAME_LANDING_SKID_RADIUS_M,10,8),skidMaterial);foot.position.set(x,y,AIRFRAME_LANDING_SKID_Z_M);foot.castShadow=true;this.group.add(foot);}\n    }\n    const nose=new THREE.Mesh(new THREE.ConeGeometry(.018,.06,16),new THREE.MeshStandardMaterial({color:0xff4f65,emissive:0x66121f,emissiveIntensity:.35}));nose.rotation.z=-Math.PI/2;nose.position.x=-.075;this.group.add(nose);'''
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+          sim.write_text(s)
+
+          inv = Path('tests/architecture_invariants.mjs')
+          a = inv.read_text()
+          marker = 'const fpvDistance=fpvTargetDistanceMeters(47,844,50,20);\n'
+          insert = '''requireText("sim/simulator.mjs","const AIRFRAME_GROUND_SUPPORT_M = -AIRFRAME_LANDING_SKID_Z_M + AIRFRAME_LANDING_SKID_RADIUS_M;","spawn support must be derived from physical landing geometry");\nrequireText("sim/simulator.mjs","Math.max(AIRFRAME_SPAWN_Z_M,initialZ)","spawn must begin above landing support instead of inside terrain contact slop");\nrequireText("sim/simulator.mjs","center1:[-this.skidHalfLength,y,AIRFRAME_LANDING_SKID_Z_M]","landing skids must exist in Box3D collision geometry");\nrequireText("sim/simulator.mjs","new THREE.CylinderGeometry(AIRFRAME_LANDING_SKID_RADIUS_M,AIRFRAME_LANDING_SKID_RADIUS_M,this.skidHalfLength*2,12)","landing skids must also exist in visible geometry");\nforbidText("sim/simulator.mjs","Math.max(.024,initialZ)","legacy 2 mm spawn reserve can visually penetrate terrain during solver contact");\n'''
+          assert a.count(marker) == 1
+          a = a.replace(marker, insert + marker, 1)
+          inv.write_text(a)
+          PY
+
+          node --check sim/simulator.mjs
+          node --check tests/architecture_invariants.mjs
+          node tests/architecture_invariants.mjs
+          grep -q 'AIRFRAME_SPAWN_Z_M' sim/simulator.mjs
+          grep -q 'AIRFRAME_LANDING_SKID_Z_M' sim/simulator.mjs
+
+      - name: Commit product fix and remove one-shot workflow
+        run: |
+          set -euxo pipefail
+          rm .github/workflows/spawn-ground-patch.yml
+          git config user.name "Arondight45 CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add sim/simulator.mjs tests/architecture_invariants.mjs .github/workflows/spawn-ground-patch.yml
+          git commit -m "Fix ground clipping with physical landing support"
+          git push origin HEAD:fix/spawn-ground-clipping
