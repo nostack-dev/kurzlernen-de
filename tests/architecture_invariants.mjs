@@ -8,6 +8,11 @@ const fail=message=>{throw new Error(`ARCHITECTURE INVARIANT FAILED: ${message}`
 const requireText=(path,text,message=`${path} must contain ${JSON.stringify(text)}`)=>{if(!read(path).includes(text))fail(message);};
 const forbidText=(path,text,message=`${path} must not contain ${JSON.stringify(text)}`)=>{if(read(path).includes(text))fail(message);};
 const walk=(root,accept)=>{const out=[];for(const name of readdirSync(root)){const path=join(root,name),stat=statSync(path);if(stat.isDirectory())out.push(...walk(path,accept));else if(accept(path))out.push(path);}return out;};
+requireText("sim/simulator.mjs","const AIRFRAME_GROUND_SUPPORT_M = -AIRFRAME_LANDING_SKID_Z_M + AIRFRAME_LANDING_SKID_RADIUS_M;","spawn support must be derived from physical landing geometry");
+requireText("sim/simulator.mjs","Math.max(AIRFRAME_SPAWN_Z_M,initialZ)","spawn must begin above landing support instead of inside terrain contact slop");
+requireText("sim/simulator.mjs","center1:[-this.skidHalfLength,y,AIRFRAME_LANDING_SKID_Z_M]","landing skids must exist in Box3D collision geometry");
+requireText("sim/simulator.mjs","new THREE.CylinderGeometry(AIRFRAME_LANDING_SKID_RADIUS_M,AIRFRAME_LANDING_SKID_RADIUS_M,this.skidHalfLength*2,12)","landing skids must also exist in visible geometry");
+forbidText("sim/simulator.mjs","Math.max(.024,initialZ)","legacy 2 mm spawn reserve can visually penetrate terrain during solver contact");
 const fpvDistance=fpvTargetDistanceMeters(47,844,50,20);
 if(!(fpvDistance>20&&fpvDistance<200))fail(`WORLD FPV target distance out of physical viewport scale: ${fpvDistance}`);
 const fpvA=forwardTarget({x:0,y:0,z:5},{x:Math.sqrt(1-.019**2),y:0,z:-.019},fpvDistance),fpvB=forwardTarget({x:0,y:0,z:5},{x:Math.sqrt(1-.021**2),y:0,z:-.021},fpvDistance);
