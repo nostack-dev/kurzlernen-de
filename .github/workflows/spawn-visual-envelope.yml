@@ -1,0 +1,94 @@
+name: One-shot visual spawn envelope fix
+
+on:
+  push:
+    branches: ["fix/spawn-visual-envelope"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/spawn-visual-envelope
+          fetch-depth: 0
+
+      - name: Patch render geometry onto stable collision envelope
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          sim=Path('sim/simulator.mjs'); s=sim.read_text()
+          old='''const AIRFRAME_BODY_HALF_Z_M = .022;\nconst AIRFRAME_LANDING_SKID_RADIUS_M = .004;\nconst AIRFRAME_LANDING_SKID_Z_M = -.024;\nconst AIRFRAME_GROUND_SUPPORT_M = -AIRFRAME_LANDING_SKID_Z_M + AIRFRAME_LANDING_SKID_RADIUS_M;\nconst AIRFRAME_SPAWN_SEPARATION_M = .002;\nconst AIRFRAME_SPAWN_Z_M = AIRFRAME_GROUND_SUPPORT_M + AIRFRAME_SPAWN_SEPARATION_M;'''
+          new='''const AIRFRAME_COLLISION_HALF_Z_M = .022;\nconst AIRFRAME_VISUAL_BODY_CENTER_Z_M = .006;\nconst AIRFRAME_LANDING_SKID_RADIUS_M = .004;\nconst AIRFRAME_LANDING_SKID_Z_M = -AIRFRAME_COLLISION_HALF_Z_M + AIRFRAME_LANDING_SKID_RADIUS_M;\nconst AIRFRAME_GROUND_SUPPORT_M = AIRFRAME_COLLISION_HALF_Z_M;\nconst AIRFRAME_SPAWN_SEPARATION_M = .002;\nconst AIRFRAME_SPAWN_Z_M = AIRFRAME_GROUND_SUPPORT_M + AIRFRAME_SPAWN_SEPARATION_M;'''
+          assert s.count(old)==1; s=s.replace(old,new,1)
+          s=s.replace('b3.b3CreateBoxShape(this.body,shapeDef,.055,.045,AIRFRAME_BODY_HALF_Z_M);','b3.b3CreateBoxShape(this.body,shapeDef,.055,.045,AIRFRAME_COLLISION_HALF_Z_M);',1)
+          old='''    this.skidHalfLength=Math.min(.045,Math.max(.03,p.span*.18));\n    for(const y of [-.035,.035])b3.b3CreateCapsuleShape(this.body,shapeDef,{center1:[-this.skidHalfLength,y,AIRFRAME_LANDING_SKID_Z_M],center2:[this.skidHalfLength,y,AIRFRAME_LANDING_SKID_Z_M],radius:AIRFRAME_LANDING_SKID_RADIUS_M});'''
+          new='''    this.skidHalfLength=Math.min(.045,Math.max(.03,p.span*.18));'''
+          assert s.count(old)==1; s=s.replace(old,new,1)
+          old='const center=new THREE.Mesh(new THREE.BoxGeometry(.11,.09,.044),bodyMaterial);center.castShadow=true;this.group.add(center);'
+          new='const center=new THREE.Mesh(new THREE.BoxGeometry(.11,.09,.044),bodyMaterial);center.position.z=AIRFRAME_VISUAL_BODY_CENTER_Z_M;center.castShadow=true;this.group.add(center);'
+          assert s.count(old)==1; s=s.replace(old,new,1)
+          sim.write_text(s)
+
+          inv=Path('tests/architecture_invariants.mjs'); a=inv.read_text()
+          old='''requireText("sim/simulator.mjs","const AIRFRAME_GROUND_SUPPORT_M = -AIRFRAME_LANDING_SKID_Z_M + AIRFRAME_LANDING_SKID_RADIUS_M;","spawn support must be derived from physical landing geometry");\nrequireText("sim/simulator.mjs","Math.max(AIRFRAME_SPAWN_Z_M,initialZ)","spawn must begin above landing support instead of inside terrain contact slop");\nrequireText("sim/simulator.mjs","center1:[-this.skidHalfLength,y,AIRFRAME_LANDING_SKID_Z_M]","landing skids must exist in Box3D collision geometry");\nrequireText("sim/simulator.mjs","new THREE.CylinderGeometry(AIRFRAME_LANDING_SKID_RADIUS_M,AIRFRAME_LANDING_SKID_RADIUS_M,this.skidHalfLength*2,12)","landing skids must also exist in visible geometry");\nforbidText("sim/simulator.mjs","Math.max(.024,initialZ)","legacy 2 mm spawn reserve can visually penetrate terrain during solver contact");'''
+          new='''requireText("sim/simulator.mjs","const AIRFRAME_GROUND_SUPPORT_M = AIRFRAME_COLLISION_HALF_Z_M;","spawn support must be derived from the stable Box3D collision envelope");\nrequireText("sim/simulator.mjs","Math.max(AIRFRAME_SPAWN_Z_M,initialZ)","spawn must derive from collision support instead of an unexplained literal");\nrequireText("sim/simulator.mjs","const AIRFRAME_LANDING_SKID_Z_M = -AIRFRAME_COLLISION_HALF_Z_M + AIRFRAME_LANDING_SKID_RADIUS_M;","visible skid bottom must align exactly with the physical support plane");\nrequireText("sim/simulator.mjs","center.position.z=AIRFRAME_VISUAL_BODY_CENTER_Z_M","visible fuselage must sit above the landing support rather than intersect terrain contact slop");\nrequireText("sim/simulator.mjs","new THREE.CylinderGeometry(AIRFRAME_LANDING_SKID_RADIUS_M,AIRFRAME_LANDING_SKID_RADIUS_M,this.skidHalfLength*2,12)","landing skids must exist in visible geometry");\nforbidText("sim/simulator.mjs","center1:[-this.skidHalfLength,y,AIRFRAME_LANDING_SKID_Z_M]","visual anti-clipping must not alter the proven flight contact dynamics with extra skid colliders");'''
+          assert a.count(old)==1; a=a.replace(old,new,1); inv.write_text(a)
+          PY
+          node --check sim/simulator.mjs
+          node tests/architecture_invariants.mjs
+
+      - name: Build and verify reset calibration remains stable
+        run: |
+          set -euxo pipefail
+          mkdir -p generated /tmp/spawn-build
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
+            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
+              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
+              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
+              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
+              -o generated/flight_core.mjs
+          cd /tmp/spawn-build
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 mqtt@5.15.2 nostr-tools@2.24.1 qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.3 @trystero-p2p/mqtt@0.25.3 @trystero-p2p/torrent@0.25.3
+          ln -s /tmp/spawn-build/node_modules "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/spawn.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('drone_simulator.html'); h=p.read_text(); marker='<script type="module" src="./sim/real_world_bootstrap.mjs"></script>'; assert marker in h
+          b=Path('/tmp/spawn.bundle.mjs').read_text().replace('</script','<\\/script'); p.write_text(h.replace(marker,'<script type="module">\n'+b+'\n</script>'))
+          PY
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/spawn-static.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; rm -rf generated' EXIT
+          sleep 1
+          CHROME_BIN="$(command -v google-chrome || command -v chromium)" node - <<'JS'
+          import puppeteer from 'puppeteer-core';
+          const browser=await puppeteer.launch({headless:true,executablePath:process.env.CHROME_BIN,args:['--no-sandbox','--disable-dev-shm-usage','--enable-webgl','--ignore-gpu-blocklist','--use-gl=angle','--use-angle=swiftshader','--disable-background-timer-throttling','--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding']});
+          try{
+            const page=await browser.newPage();await page.setViewport({width:844,height:390,deviceScaleFactor:1});
+            await page.goto('http://127.0.0.1:4174/drone_simulator.html',{waitUntil:'load',timeout:30000});
+            await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('SIM ready'),{timeout:30000});
+            await page.waitForFunction(()=>document.body.classList.contains('solo-flight'),{timeout:5000});
+            await page.waitForFunction(()=>Number(globalThis.__arondightDiagnostics?.simTime)>=2.2,{timeout:60000});
+            await page.waitForFunction(()=>document.querySelector('#fcState')?.textContent==='DISARMED',{timeout:5000});
+            const snapshot=await page.evaluate(()=>({alt:parseFloat(document.querySelector('#altitude')?.textContent||'99'),agl:document.querySelector('#soloRangeStatus')?.textContent||'',state:document.querySelector('#fcState')?.textContent||''}));
+            if(!(snapshot.alt>=0.015&&snapshot.alt<0.04))throw new Error('stable support altitude unexpected: '+JSON.stringify(snapshot));
+            console.log('Spawn/reset calibration gate passed:',snapshot);
+          } finally {await browser.close();}
+          JS
+
+      - name: Commit product fix and remove one-shot workflow
+        run: |
+          set -euxo pipefail
+          rm .github/workflows/spawn-visual-envelope.yml
+          git config user.name "Arondight45 CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add sim/simulator.mjs tests/architecture_invariants.mjs .github/workflows/spawn-visual-envelope.yml
+          git commit -m "Align visible landing geometry with stable collision support"
+          git push origin HEAD:fix/spawn-visual-envelope
