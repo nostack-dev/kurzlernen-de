@@ -1,4 +1,5 @@
 import {installVsCombatPresentation} from "./vs_combat_presentation.mjs";
+import {installInitialAirframeGroundPose} from "./start_pose_guard.mjs";
 
 let installed=false;
 
@@ -46,5 +47,6 @@ export function installSoloFlightLayout(){
     }
   `;
   document.head.appendChild(style);
+  installInitialAirframeGroundPose();
   installVsCombatPresentation();
 }
