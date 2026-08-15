@@ -10,9 +10,11 @@ import {loadCameraSettings,mountCameraSettings} from "./camera_settings.mjs";
 import {HybridMotorSound} from "./motor_sound.mjs";
 import {FlightLogbook} from "./flight_logbook.mjs";
 import {installFlightFireFx} from "./flight_fire_fx.mjs";
+import {partitionCalibrationLog,evaluatePhysicsValidation,validationSummary,PHYSICS_VALIDATION_SCHEMA} from "./physics_validation.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
+const MOTOR_YAW_SIGN=Object.freeze([-1,1,-1,1]);
 const INPUT_MAGIC = 0x314c4948;
 const OUTPUT_MAGIC = 0x314f4c48;
 const INPUT_BYTES = 80;
@@ -42,7 +44,11 @@ const SIM_MAX_CATCHUP_MS = 50;
 // Keep work per slice bounded, but retain short scheduler stalls as wall-clock debt.
 // Otherwise a >50 ms rAF/OS stall silently deletes real time and the digital twin
 // runs permanently slow even when the CPU has enough capacity to catch up.
-const SIM_MAX_BACKLOG_MS = 250;
+// Foreground renderer/fullscreen stalls are not allowed to erase physical time.
+// Two seconds covers long mobile compositor stalls while keeping a genuinely
+// suspended tab from attempting an unbounded catch-up on resume. Any overflow
+// is reported as a timing discontinuity and invalidates real-time evidence.
+const SIM_MAX_BACKLOG_MS = 2000;
 const SIM_MAX_STEPS_PER_SLICE = Math.ceil(SIM_MAX_CATCHUP_MS / SIM_FIXED_STEP_MS);
 const SIM_WORK_SLICE_MS = 6;
 const SIM_AUX_INTERVAL_S = .01;
@@ -52,7 +58,9 @@ const SIM_AUX_INTERVAL_S = .01;
 const PRESENTATION_HUD_INTERVAL_MS = 75;
 const PRESENTATION_AUDIO_INTERVAL_MS = 50;
 const PRESENTATION_SHADOW_INTERVAL_MS = 250;
-const PRESENTATION_MAX_DRAW_GAP_MS = 50;
+// Keep the deadline below three 60 Hz refresh intervals so floating-point
+// boundary jitter cannot turn a 50 ms budget into a fourth-frame (66.7 ms) draw.
+const PRESENTATION_MAX_DRAW_GAP_MS = 48;
 const PRESENTATION_SOFT_BACKLOG_MS = 1.5;
 const PRESENTATION_CONSTRAINED_BACKLOG_MS = 4;
 const PRESENTATION_HARD_BACKLOG_MS = 8;
@@ -60,6 +68,7 @@ const PRESENTATION_SKIP_DRAW_BACKLOG_MS = 12;
 const PRESENTATION_SHADOW_BACKLOG_MS = 3;
 const PRESENTATION_PIXEL_RATIO_MAX = 1.25;
 const PRESENTATION_PIXEL_RATIO_MIN = .60;
+const PRESENTATION_SOFTWARE_PIXEL_RATIO = .30;
 const PRESENTATION_QUALITY_WINDOW_MS = 250;
 const PRESENTATION_CADENCE_CRITICAL = .86;
 const PRESENTATION_CADENCE_CONSTRAINED = .93;
@@ -70,6 +79,7 @@ const yieldToBrowser=(()=>{
   channel.port1.onmessage=()=>queue.shift()?.();
   return()=>new Promise(resolve=>{queue.push(resolve);channel.port2.postMessage(0);});
 })();
+const waitForSimulationDeadline=accumulatorMs=>new Promise(resolve=>setTimeout(resolve,Math.max(0,SIM_FIXED_STEP_MS-accumulatorMs)));
 const COLLISION_TERRAIN = 1n;
 const COLLISION_AIRFRAME = 2n;
 const QUERY_RANGEFINDER = 4n;
@@ -89,7 +99,7 @@ const scale = (a,s) => [a[0]*s,a[1]*s,a[2]*s];
 const cross = (a,b) => [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 
 const ui = Object.fromEntries([
-  "modeInfo","connect","run","reset","status","tMode","tController","fcState","simTime","altitude","velocity","attitude","motors","rpm","battery","current","processing","rtt","speed","armSwitch","throttle","logFile","fit","fitProgress","fitStatus","logSamples","touchRoll","touchPitch","touchYaw","touchThrottle","touchArm","exportLog","inputSource","remoteConnect","remoteStatus","controllerLink","pairDialog","remoteOffer","remoteAnswer","acceptOffer","copyAnswer","shareAnswer","pairStatus","closePair","offerVideo","offerCanvas","answerQr"
+  "modeInfo","connect","run","reset","status","tMode","tController","fcState","simTime","altitude","velocity","attitude","motors","rpm","battery","current","processing","rtt","speed","armSwitch","throttle","logFile","fit","fitProgress","fitStatus","modelValidationStatus","logSamples","touchRoll","touchPitch","touchYaw","touchThrottle","touchArm","exportLog","inputSource","remoteConnect","remoteStatus","controllerLink","pairDialog","remoteOffer","remoteAnswer","acceptOffer","copyAnswer","shareAnswer","pairStatus","closePair","offerVideo","offerCanvas","answerQr"
 ].map(id => [id,$(id)]));
 
 function crc32(bytes, length=bytes.byteLength) {
@@ -120,17 +130,14 @@ function encodeNavigationWire(sequence,measurement){
   view.setUint16(18,crc16Ccitt(bytes,18),true);return bytes;
 }
 
-function parseOutput(bytes) {
+function parseOutput(bytes,target=null) {
   const d = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (bytes.byteLength !== OUTPUT_BYTES || d.getUint32(0,true) !== OUTPUT_MAGIC) throw Error("Invalid HLO1 response");
   if (crc32(bytes,28) !== d.getUint32(28,true)) throw Error("HLO1 CRC mismatch");
-  return {
-    sequence:d.getUint32(4,true),
-    motors:[d.getUint16(8,true),d.getUint16(10,true),d.getUint16(12,true),d.getUint16(14,true)],
-    attitude:[d.getInt16(16,true)/100,d.getInt16(18,true)/100,d.getInt16(20,true)/100],
-    state:d.getUint16(22,true),
-    processingUs:d.getUint32(24,true)
-  };
+  const output=target||{sequence:0,motors:[0,0,0,0],attitude:[0,0,0],state:0,processingUs:0};
+  output.sequence=d.getUint32(4,true);output.motors[0]=d.getUint16(8,true);output.motors[1]=d.getUint16(10,true);output.motors[2]=d.getUint16(12,true);output.motors[3]=d.getUint16(14,true);
+  output.attitude[0]=d.getInt16(16,true)/100;output.attitude[1]=d.getInt16(18,true)/100;output.attitude[2]=d.getInt16(20,true)/100;
+  output.state=d.getUint16(22,true);output.processingUs=d.getUint32(24,true);return output;
 }
 
 function encodeSbus(channels) {
@@ -149,8 +156,9 @@ function encodeSbus(channels) {
   return packet;
 }
 
+const controllerInputPacket=new Uint8Array(INPUT_BYTES),controllerInputView=new DataView(controllerInputPacket.buffer);
 function makeInput(sequence,imu,sbus,flags,dtUs=1000,navigationFrame=null,missedSamples=0) {
-  const bytes=new Uint8Array(INPUT_BYTES),view=new DataView(bytes.buffer);
+  const bytes=controllerInputPacket,view=controllerInputView;bytes.fill(0);
   view.setUint32(0,INPUT_MAGIC,true);view.setUint32(4,sequence,true);view.setUint32(8,dtUs,true);
   view.setUint16(12,clamp(missedSamples|0,0,65535),true);view.setUint16(14,flags,true);
   bytes.set(imu,16);if(sbus)bytes.set(sbus,30);if(navigationFrame)bytes.set(navigationFrame,55);
@@ -158,7 +166,7 @@ function makeInput(sequence,imu,sbus,flags,dtUs=1000,navigationFrame=null,missed
 }
 
 class WasmBackend {
-  constructor(){this.module=null;this.inPtr=0;this.outPtr=0;this.ready=false;}
+  constructor(){this.module=null;this.inPtr=0;this.outPtr=0;this.ready=false;this.output={sequence:0,motors:[0,0,0,0],attitude:[0,0,0],state:0,processingUs:0};}
   async connect(){
     this.module = await createCore();
     if (this.module._fc_input_size() !== INPUT_BYTES || this.module._fc_output_size() !== OUTPUT_BYTES) throw Error("WASM HIL protocol size mismatch");
@@ -174,7 +182,7 @@ class WasmBackend {
     if(!this.ready) throw Error("WASM flight core not ready");
     this.module.HEAPU8.set(packet,this.inPtr);
     this.module._fc_process();
-    return parseOutput(this.module.HEAPU8.subarray(this.outPtr,this.outPtr+OUTPUT_BYTES));
+    return parseOutput(this.module.HEAPU8.subarray(this.outPtr,this.outPtr+OUTPUT_BYTES),this.output);
   }
   async exchange(packet){return this.exchangeSync(packet);}
   label(){return "raw sensor wire → shared fc::FirmwareRuntime → shared fc::StateRuntime → fc::Runtime / WASM";}
@@ -368,7 +376,7 @@ class PhysicsModel {
     this.skidHalfLength=Math.min(.045,Math.max(.03,p.span*.18));
     const mass=b3.b3Body_GetMassData(this.body);mass.mass=p.mass;mass.center=[0,0,-.006];mass.inertia={cx:[p.Ixx,0,0],cy:[0,p.Iyy,0],cz:[0,0,p.Izz]};b3.b3Body_SetMassData(this.body,mass);
     if(initial?.vx!=null && b3.b3Body_SetLinearVelocity)b3.b3Body_SetLinearVelocity(this.body,[initial.vx||0,initial.vy||0,initial.vz||0]);
-    this.motorOmega=[0,0,0,0];this.motorCurrent=[0,0,0,0];this.motorTorque=[0,0,0,0];this.propTorque=[0,0,0,0];this.motorPower=[0,0,0,0];this.batterySoc=1;this.batteryVoltage=16.8;this.batteryCurrent=0;this.worldAcceleration=[0,0,0];this.prevOmegaBody=[0,0,0];
+    this.motorOmega=[0,0,0,0];this.motorCurrent=[0,0,0,0];this.motorTorque=[0,0,0,0];this.propTorque=[0,0,0,0];this.motorPower=[0,0,0,0];this.batterySoc=1;this.batteryVoltage=16.8;this.batteryCurrent=0;this.worldAcceleration=[0,0,0];this.prevOmegaBody=[0,0,0];this.imuBytes=new Uint8Array(14);this.imuView=new DataView(this.imuBytes.buffer);this.motorBackEmf=60/(2*Math.PI*p.kv);this.propDiameter4=p.propD**4;this.propDiameter5=p.propD**5;this.cdA=[.035*p.dragScale,.035*p.dragScale,.07*p.dragScale];
     if(this.graphics)this.buildGraphics();
   }
   buildGraphics(){
@@ -410,14 +418,13 @@ class PhysicsModel {
     const omegaBody=this.localVector(this.angular()),alpha=scale(sub(omegaBody,this.prevOmegaBody),1/dt);this.prevOmegaBody=omegaBody.slice();
     const specific=this.localVector(sub(this.worldAcceleration,[0,0,-G])),sensorOffset=[0,0,.008],accel=add(specific,add(cross(alpha,sensorOffset),cross(omegaBody,cross(omegaBody,sensorOffset)))),gyro=scale(omegaBody,180/Math.PI);
     for(let i=0;i<3;i++){accel[i]+=this.noise.accBias[i]*G+this.noise.gaussian()*.0025*G;gyro[i]+=this.noise.gyroBias[i]+this.noise.gaussian()*.035;}
-    const raw=new Uint8Array(14),view=new DataView(raw.buffer),sat=x=>clamp(Math.round(x),-32767,32767);
+    const raw=this.imuBytes,view=this.imuView,sat=x=>clamp(Math.round(x),-32767,32767);
     view.setInt16(0,0,false);view.setInt16(2,sat(accel[0]/G*2048),false);view.setInt16(4,sat(accel[1]/G*2048),false);view.setInt16(6,sat(accel[2]/G*2048),false);view.setInt16(8,sat(gyro[0]*16.4),false);view.setInt16(10,sat(gyro[1]*16.4),false);view.setInt16(12,sat(gyro[2]*16.4),false);
     return raw;
   }
   batteryOcv(){const s=this.batterySoc;return 13.2+3.6*clamp(s,0,1)+.15*Math.tanh((s-.12)*18);}
   applyForces(pulses,dt=DT){
-    const p=this.p,yawSign=[-1,1,-1,1],diameter=p.propD,backEmf=60/(2*Math.PI*p.kv),torqueConstant=backEmf,ocv=this.batteryOcv();
-    const currents=[0,0,0,0];let total=0;
+    const p=this.p,yawSign=MOTOR_YAW_SIGN,diameter=p.propD,backEmf=this.motorBackEmf,torqueConstant=backEmf,ocv=this.batteryOcv(),currents=this.motorCurrent;let total=0;
     for(let pass=0;pass<2;pass++){
       total=0;
       for(let i=0;i<4;i++){
@@ -429,19 +436,19 @@ class PhysicsModel {
       }
       this.batteryVoltage=clamp(ocv-total*p.batteryR,10,16.8);
     }
-    this.batteryCurrent=total;this.motorCurrent=currents.slice();
+    this.batteryCurrent=total;
     this.batterySoc=clamp(this.batterySoc-total*dt/(p.capacity*3600),0,1);
     const localVelocity=this.localVector(this.linear()),altitude=Math.max(.001,this.position()[2]);
     for(let i=0;i<4;i++){
-      const revolutions=this.motorOmega[i]/(2*Math.PI),propTorque=p.Cq*p.rho*revolutions*revolutions*diameter**5,motorTorque=torqueConstant*currents[i];
+      const revolutions=this.motorOmega[i]/(2*Math.PI),propTorque=p.Cq*p.rho*revolutions*revolutions*this.propDiameter5,motorTorque=torqueConstant*currents[i];
       this.motorTorque[i]=motorTorque;this.propTorque[i]=propTorque;this.motorPower[i]=Math.max(0,motorTorque*this.motorOmega[i]);
       this.motorOmega[i]=Math.max(0,this.motorOmega[i]+(motorTorque-propTorque-1.5e-7*this.motorOmega[i])*dt/p.J);
-      const n=this.motorOmega[i]/(2*Math.PI);let thrust=p.Ct*p.rho*n*n*diameter**4;
+      const n=this.motorOmega[i]/(2*Math.PI);let thrust=p.Ct*p.rho*n*n*this.propDiameter4;
       const advance=localVelocity[2]/Math.max(1,n*diameter);thrust*=clamp(1-.12*advance,.55,1.25);thrust*=1+p.groundEffect*Math.exp(-altitude/Math.max(.02,.75*diameter));
       b3.b3Body_ApplyForce(this.body,this.worldVector([0,0,thrust]),this.worldPoint(this.motorPos[i]),true);
       b3.b3Body_ApplyTorque(this.body,this.worldVector([0,0,yawSign[i]*motorTorque]),true);
     }
-    const relative=this.localVector(sub(this.linear(),p.wind)),cdA=[.035,.035,.07].map(x=>x*p.dragScale),drag=relative.map((v,i)=>-.5*p.rho*cdA[i]*v*Math.abs(v));b3.b3Body_ApplyForceToCenter(this.body,this.worldVector(drag),true);
+    const relative=this.localVector(sub(this.linear(),p.wind)),cdA=this.cdA,drag=relative.map((v,i)=>-.5*p.rho*cdA[i]*v*Math.abs(v));b3.b3Body_ApplyForceToCenter(this.body,this.worldVector(drag),true);
     const omega=this.localVector(this.angular()),angularDrag=omega.map(v=>-.0012*v*Math.abs(v));b3.b3Body_ApplyTorque(this.body,this.worldVector(angularDrag),true);
   }
   step(pulses,dt=DT){
@@ -471,7 +478,7 @@ function daylightSky(){
 }
 const scene=new THREE.Scene();scene.background=daylightSky();scene.fog=new THREE.Fog(0xd7e8f2,90,700);
 const camera=new THREE.PerspectiveCamera(52,1,.01,1500);camera.up.set(0,0,1);camera.position.set(1.65,0,.8);
-const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});const presentationGl=renderer.getContext(),presentationRendererInfo=presentationGl.getExtension("WEBGL_debug_renderer_info"),presentationRendererName=String(presentationGl.getParameter(presentationRendererInfo?.UNMASKED_RENDERER_WEBGL||presentationGl.RENDERER)||"");const presentationSoftwareRaster=/(swiftshader|llvmpipe|software raster|software renderer)/i.test(presentationRendererName),presentationNativePixelRatio=Math.min(devicePixelRatio||1,PRESENTATION_PIXEL_RATIO_MAX),presentationQualityCeiling=presentationSoftwareRaster?Math.min(presentationNativePixelRatio,PRESENTATION_PIXEL_RATIO_MIN):presentationNativePixelRatio;let presentationPixelRatio=presentationQualityCeiling;renderer.setPixelRatio(presentationPixelRatio);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.BasicShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;$("viewport").appendChild(renderer.domElement);globalThis.__arondightRealWorld?.attachThree?.(renderer,scene,camera);
+const renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:"high-performance"});const presentationGl=renderer.getContext(),presentationRendererInfo=presentationGl.getExtension("WEBGL_debug_renderer_info"),presentationRendererName=String(presentationGl.getParameter(presentationRendererInfo?.UNMASKED_RENDERER_WEBGL||presentationGl.RENDERER)||"");const presentationSoftwareRaster=/(swiftshader|llvmpipe|software raster|software renderer)/i.test(presentationRendererName),presentationNativePixelRatio=Math.min(devicePixelRatio||1,PRESENTATION_PIXEL_RATIO_MAX),presentationQualityCeiling=presentationSoftwareRaster?Math.min(presentationNativePixelRatio,PRESENTATION_SOFTWARE_PIXEL_RATIO):presentationNativePixelRatio;let presentationPixelRatio=presentationQualityCeiling;renderer.setPixelRatio(presentationPixelRatio);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=presentationSoftwareRaster?THREE.NoToneMapping:THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=!presentationSoftwareRaster;renderer.shadowMap.type=THREE.BasicShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=!presentationSoftwareRaster;$("viewport").appendChild(renderer.domElement);globalThis.__arondightRealWorld?.attachThree?.(renderer,scene,camera);
 scene.add(new THREE.HemisphereLight(0xf8fcff,0x7f946d,2.0));const sun=new THREE.DirectionalLight(0xfff7e8,2.6);sun.position.set(-4,-6,10);sun.castShadow=true;scene.add(sun);
 const grid=new THREE.GridHelper(TERRAIN_SIZE,120,0x6b7d89,0xa7b6bd);grid.rotation.x=Math.PI/2;grid.position.z=.002;scene.add(grid);
 let debugGridEnabled=false;try{debugGridEnabled=localStorage.getItem(DEBUG_GRID_STORAGE)==="1";}catch{}
@@ -640,7 +647,7 @@ installFlightFireFx({viewport:$("viewport"),scene,camera,worldBridge:globalThis.
 const flightSelectionBlocked=target=>target instanceof Element&&Boolean(target.closest("dialog,input,textarea,select,option"));for(const type of ["selectstart","contextmenu","dragstart"])document.addEventListener(type,event=>{if(soloMode&&event.target instanceof Element&&event.target.closest("#viewport")&&!flightSelectionBlocked(event.target))event.preventDefault();},{passive:false});
 let pendingDisarmReason=null;
 async function enterSolo(){
-  soloMode=true;soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
+  soloMode=true;resetPresentationTiming();soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
   try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}
   try{await screen.orientation?.lock?.("landscape");}catch{}
   if(mode==="sim"&&backend&&!running)startRun();
@@ -658,7 +665,7 @@ document.addEventListener("fullscreenchange",()=>{if(!soloMode)return;const view
 let mode="sim",backend=null,running=false,runEpoch=0,sequence=1,simTime=0,resetFlag=true;
 let latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};
 let wallStart=performance.now(),simStart=0,replayIndex=0;
-const keys=new Set();let localArm=false,localThrottle=0,arm=false,throttle=0,realLog=[],sessionLog=[];let inputSource="remote",effectiveInput=neutralControls(),lastRemoteTelemetry=0,remoteAutoStarted=false;const remoteLink=new ViewPeerLink();const offerScanner=new QrScanner(ui.offerVideo,ui.offerCanvas);
+const keys=new Set();let localArm=false,localThrottle=0,arm=false,throttle=0,realLog=[],sessionLog=[],physicsValidationReport=null;let inputSource="remote",effectiveInput=neutralControls(),lastRemoteTelemetry=0,remoteAutoStarted=false;const remoteLink=new ViewPeerLink();const offerScanner=new QrScanner(ui.offerVideo,ui.offerCanvas);
 
 function setStatus(text,cls=""){ui.status.textContent=text;ui.status.className="statusline "+cls;}
 function modeDescription(){
@@ -733,18 +740,22 @@ async function loop(epoch){
   let schedulerWallMs=performance.now(),accumulatorMs=0,auxAccumulatorS=0;
   while(running&&epoch===runEpoch){
     if(mode==="replay"){simulationBacklogMs=0;await replayStep();schedulerWallMs=performance.now();continue;}
-    const now=performance.now(),elapsedMs=clamp(now-schedulerWallMs,0,SIM_MAX_BACKLOG_MS);schedulerWallMs=now;
-    accumulatorMs=Math.min(accumulatorMs+elapsedMs,SIM_MAX_BACKLOG_MS);simulationBacklogMs=accumulatorMs;
-    if(accumulatorMs<SIM_FIXED_STEP_MS){await new Promise(requestAnimationFrame);continue;}
+    const now=performance.now(),elapsedMs=Math.max(0,now-schedulerWallMs);schedulerWallMs=now;
+    const pendingMs=accumulatorMs+elapsedMs;
+    if(pendingMs>SIM_MAX_BACKLOG_MS)simulationTimingDiscontinuityMs+=pendingMs-SIM_MAX_BACKLOG_MS;
+    accumulatorMs=Math.min(pendingMs,SIM_MAX_BACKLOG_MS);simulationBacklogMs=accumulatorMs;
+    if(accumulatorMs<SIM_FIXED_STEP_MS){await waitForSimulationDeadline(accumulatorMs);continue;}
     const sliceStart=performance.now(),due=Math.min(Math.floor(accumulatorMs/SIM_FIXED_STEP_MS),SIM_MAX_STEPS_PER_SLICE),wasmFastPath=mode==="sim"&&backend instanceof WasmBackend;
     for(let i=0;i<due&&running&&epoch===runEpoch;i++){
       latest=wasmFastPath?controllerStepSync():await controllerStep();physics.step(latest.motors,DT);simTime+=DT;auxAccumulatorS+=DT;accumulatorMs-=SIM_FIXED_STEP_MS;
       if(auxAccumulatorS+1e-12>=SIM_AUX_INTERVAL_S){auxAccumulatorS-=SIM_AUX_INTERVAL_S;raceTrack.update(physics.position(),simTime,Boolean(latest.state&STATE_ARMED));recordSession();}
       if(performance.now()-sliceStart>=SIM_WORK_SLICE_MS)break;
     }
-    const afterWork=performance.now(),workElapsedMs=clamp(afterWork-schedulerWallMs,0,SIM_MAX_BACKLOG_MS);schedulerWallMs=afterWork;
-    accumulatorMs=Math.min(accumulatorMs+workElapsedMs,SIM_MAX_BACKLOG_MS);simulationBacklogMs=accumulatorMs;
-    if(accumulatorMs>=SIM_FIXED_STEP_MS)await yieldToBrowser();else await new Promise(requestAnimationFrame);
+    const afterWork=performance.now(),workElapsedMs=Math.max(0,afterWork-schedulerWallMs);schedulerWallMs=afterWork;
+    const afterWorkPendingMs=accumulatorMs+workElapsedMs;
+    if(afterWorkPendingMs>SIM_MAX_BACKLOG_MS)simulationTimingDiscontinuityMs+=afterWorkPendingMs-SIM_MAX_BACKLOG_MS;
+    accumulatorMs=Math.min(afterWorkPendingMs,SIM_MAX_BACKLOG_MS);simulationBacklogMs=accumulatorMs;
+    if(accumulatorMs>=SIM_FIXED_STEP_MS)await yieldToBrowser();else await waitForSimulationDeadline(accumulatorMs);
   }
 }
 
@@ -758,12 +769,32 @@ async function replayStep(){
 
 function currentFcStateText(){const fcState=latest.state,fault=fcState>>8&255;return fcState&STATE_FAULT?`FAULT ${fault}`:fcState&STATE_CALIBRATING?"CALIBRATING":fcState&STATE_ARMED?"ARMED":"DISARMED";}
 let lastPresentationHudMs=-Infinity,lastPresentationAudioMs=-Infinity,lastPresentationDrawMs=-Infinity,lastPresentationShadowMs=-Infinity,presentationDraws=0,lastPresentationQualityWallMs=performance.now(),lastPresentationQualitySimS=simTime,presentationQualityGoodWindows=0;
+let simulationTimingDiscontinuityMs=0;
+const PRESENTATION_TIMING_WINDOW=180,presentationFrameIntervalsMs=new Float64Array(PRESENTATION_TIMING_WINDOW);
+let presentationFrameIntervalIndex=0,presentationFrameIntervalCount=0;
+function recordPresentationFrame(now){
+  if(Number.isFinite(lastPresentationDrawMs)){
+    presentationFrameIntervalsMs[presentationFrameIntervalIndex]=Math.max(0,now-lastPresentationDrawMs);
+    presentationFrameIntervalIndex=(presentationFrameIntervalIndex+1)%PRESENTATION_TIMING_WINDOW;
+    presentationFrameIntervalCount=Math.min(PRESENTATION_TIMING_WINDOW,presentationFrameIntervalCount+1);
+  }
+}
+function presentationTimingSnapshot(){
+  const values=Array.from(presentationFrameIntervalsMs.slice(0,presentationFrameIntervalCount)).sort((a,b)=>a-b);
+  const percentile=p=>values.length?values[Math.min(values.length-1,Math.floor((values.length-1)*p))]:0;
+  return Object.freeze({samples:values.length,p50Ms:percentile(.50),p95Ms:percentile(.95),maxMs:values.at(-1)||0});
+}
+function resetPresentationTiming(){presentationFrameIntervalIndex=0;presentationFrameIntervalCount=0;presentationFrameIntervalsMs.fill(0);lastPresentationDrawMs=-Infinity;}
 const simulatorDiagnostics={};
 Object.defineProperties(simulatorDiagnostics,{
   simTime:{get:()=>simTime,enumerable:true},
   simulationBacklogMs:{get:()=>simulationBacklogMs,enumerable:true},
   presentationDraws:{get:()=>presentationDraws,enumerable:true},
   presentationPixelRatio:{get:()=>presentationPixelRatio,enumerable:true},
+  presentationSoftwareRaster:{get:()=>presentationSoftwareRaster,enumerable:true},
+  presentationTiming:{get:()=>presentationTimingSnapshot(),enumerable:true},
+  simulationTimingDiscontinuityMs:{get:()=>simulationTimingDiscontinuityMs,enumerable:true},
+  physicsValidation:{get:()=>physicsValidationReport,enumerable:true},
   fcState:{get:()=>latest.state,enumerable:true},
   runEpoch:{get:()=>runEpoch,enumerable:true},
 });
@@ -805,11 +836,14 @@ function render(){
   const minDrawInterval=backlog>=PRESENTATION_HARD_BACKLOG_MS?PRESENTATION_MAX_DRAW_GAP_MS:
     backlog>=PRESENTATION_CONSTRAINED_BACKLOG_MS?33:
     backlog>=PRESENTATION_SOFT_BACKLOG_MS?22:0;
-  const softwareRasterDrawInterval=presentationSoftwareRaster?60:0;
+  // Software rasterizers already run at the 0.30 backbuffer floor with shadows
+  // disabled. Do not add a second, visibly jerky frame-rate cap on top of rAF.
+  const softwareRasterDrawInterval=0;
   const effectiveDrawInterval=Math.max(minDrawInterval,softwareRasterDrawInterval);
   const forceDraw=sinceDraw>=PRESENTATION_MAX_DRAW_GAP_MS;
   const drawDue=forceDraw||(backlog<PRESENTATION_SKIP_DRAW_BACKLOG_MS&&sinceDraw>=effectiveDrawInterval);
   if(drawDue){
+    recordPresentationFrame(renderNow);
     lastPresentationDrawMs=renderNow;
     physics.render();
     updateCamera();
@@ -825,17 +859,45 @@ function render(){
 }
 render();
 
-function parseCsv(text){const lines=text.trim().split(/\r?\n/).filter(Boolean);if(lines.length<2)return[];const headers=lines[0].split(",").map(x=>x.trim());return lines.slice(1).map(line=>{const cols=line.split(","),row={};headers.forEach((header,i)=>{const value=Number(cols[i]);row[header]=Number.isFinite(value)?value:cols[i]?.trim();});return row;});}
+function parseCsv(text){const lines=text.trim().split(/\r?\n/).filter(Boolean);if(lines.length<2)return[];const headers=lines[0].split(",").map(x=>x.trim());return lines.slice(1).map(line=>{const cols=line.split(","),row={};headers.forEach((header,i)=>{const raw=cols[i]?.trim();if(raw===""||raw===undefined){row[header]=null;return;}const value=Number(raw);row[header]=Number.isFinite(value)?value:raw;});return row;});}
 function normalizeLog(rows){
   const aliases={time:["time_s","time","t","timestamp_s"],m1:["motor1_us","m1_us","m1"],m2:["motor2_us","m2_us","m2"],m3:["motor3_us","m3_us","m3"],m4:["motor4_us","m4_us","m4"]};
-  const pick=(row,keys)=>{for(const key of keys)if(Number.isFinite(+row[key]))return+row[key];return NaN;};
-  const normalized=rows.map((row,index)=>({time_s:pick(row,aliases.time),motor1_us:pick(row,aliases.m1),motor2_us:pick(row,aliases.m2),motor3_us:pick(row,aliases.m3),motor4_us:pick(row,aliases.m4),x:+row.x,y:+row.y,z:+row.z,vx:+row.vx,vy:+row.vy,vz:+row.vz,roll_deg:+row.roll_deg,pitch_deg:+row.pitch_deg,yaw_deg:+row.yaw_deg,battery_v:+row.battery_v,current_a:+row.current_a,_i:index})).filter(row=>Number.isFinite(row.time_s)&&[row.motor1_us,row.motor2_us,row.motor3_us,row.motor4_us].every(Number.isFinite)).sort((a,b)=>a.time_s-b.time_s);
+  const pick=(row,keys)=>{for(const key of keys){const raw=row[key];if(raw===null||raw===undefined||String(raw).trim()==="")continue;const value=Number(raw);if(Number.isFinite(value))return value;}return NaN;};
+  const optional=(row,key)=>row[key]===null||row[key]===undefined||String(row[key]).trim()===""?NaN:Number(row[key]);
+  const normalized=rows.map((row,index)=>({time_s:pick(row,aliases.time),motor1_us:pick(row,aliases.m1),motor2_us:pick(row,aliases.m2),motor3_us:pick(row,aliases.m3),motor4_us:pick(row,aliases.m4),x:optional(row,"x"),y:optional(row,"y"),z:optional(row,"z"),vx:optional(row,"vx"),vy:optional(row,"vy"),vz:optional(row,"vz"),roll_deg:optional(row,"roll_deg"),pitch_deg:optional(row,"pitch_deg"),yaw_deg:optional(row,"yaw_deg"),battery_v:optional(row,"battery_v"),current_a:optional(row,"current_a"),_i:index})).filter(row=>Number.isFinite(row.time_s)&&[row.motor1_us,row.motor2_us,row.motor3_us,row.motor4_us].every(Number.isFinite)).sort((a,b)=>a.time_s-b.time_s);
   return normalized.filter((row,index)=>index===0||row.time_s>normalized[index-1].time_s);
+}
+const FITTED_PHYSICS_STORAGE="arondight45FittedPhysicsV3";
+const LEGACY_FITTED_PHYSICS_STORAGE="arondight45FittedPhysicsV2";
+const FITTED_PARAMETER_KEYS=["Ct","Cq","J","dragScale","batteryR","R"];
+const PHYSICS_PARAMETER_INPUT_IDS=["mass","span","propD","kv","resistance","rotorJ","ct","cq","capacity","batteryR","ixx","iyy","izz","rho","dragScale","groundEffect","windX","windY","failedMotor"];
+const fittedParameters=params=>Object.fromEntries(FITTED_PARAMETER_KEYS.map(key=>[key,params[key]]));
+function applyFittedParameters(parameters){
+  if(!parameters||typeof parameters!=="object")return;
+  if(Number.isFinite(parameters.Ct))$("ct").value=parameters.Ct;
+  if(Number.isFinite(parameters.Cq))$("cq").value=parameters.Cq;
+  if(Number.isFinite(parameters.J))$("rotorJ").value=parameters.J;
+  if(Number.isFinite(parameters.dragScale))$("dragScale").value=parameters.dragScale;
+  if(Number.isFinite(parameters.batteryR))$("batteryR").value=parameters.batteryR;
+  if(Number.isFinite(parameters.R))$("resistance").value=parameters.R;
+}
+function setPhysicsValidation(report=null,reason="no independent real-flight holdout evidence"){
+  physicsValidationReport=report?.schema===PHYSICS_VALIDATION_SCHEMA?report:null;
+  if(!ui.modelValidationStatus)return;
+  ui.modelValidationStatus.textContent=physicsValidationReport?validationSummary(physicsValidationReport):`UNVALIDATED · ${reason}`;
+  ui.modelValidationStatus.dataset.validation=physicsValidationReport?.passed?"validated":"unvalidated";
+  ui.modelValidationStatus.className=`statusline ${physicsValidationReport?.passed?"good":"bad"}`;
+}
+function downsampleLog(samples,maximum){
+  if(samples.length<=maximum)return samples.slice();
+  const stride=Math.ceil((samples.length-1)/(maximum-1)),selected=samples.filter((_,index)=>index%stride===0);
+  if(selected.at(-1)!==samples.at(-1))selected.push(samples.at(-1));
+  return selected;
 }
 async function loadLog(file){
   const text=await file.text();let rows;
   if(file.name.toLowerCase().endsWith(".json")){const parsed=JSON.parse(text);rows=Array.isArray(parsed)?parsed:(parsed.samples||parsed.data||[]);}else rows=parseCsv(text);
-  realLog=normalizeLog(rows);ui.logSamples.textContent=realLog.length;ui.fit.disabled=realLog.length<3;ui.fitStatus.textContent=realLog.length?`${realLog.length} real samples loaded.`:"No usable samples. Need time + 4 motor outputs.";replayIndex=0;if(mode==="replay"&&realLog.length){resetSimulation(realLog[0]);ui.run.disabled=false;}
+  realLog=normalizeLog(rows);const targetFields=["x","y","z","vx","vy","vz","roll_deg","pitch_deg","yaw_deg","battery_v","current_a"],hasTargets=realLog.some(sample=>targetFields.some(field=>Number.isFinite(sample[field])));ui.logSamples.textContent=realLog.length;ui.fit.disabled=realLog.length<4||!hasTargets;ui.fitStatus.textContent=!realLog.length?"No usable samples. Need time + 4 motor outputs.":!hasTargets?`${realLog.length} replay samples loaded · fitting disabled because measured target fields are absent.`:`${realLog.length} real samples loaded · fit 70% / holdout 30%.`;replayIndex=0;if(mode==="replay"&&realLog.length){resetSimulation(realLog[0]);ui.run.disabled=false;}
 }
 function downloadJson(name,data){const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),anchor=document.createElement("a");anchor.href=url;anchor.download=name;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function exportSession(){
@@ -843,13 +905,13 @@ function exportSession(){
     setStatus("Disarm before exporting a full flight log during P2P control.","warn");
     return;
   }
-  downloadJson(`arondight45-${mode}-${new Date().toISOString().replace(/[:.]/g,"-")}.json`,{schema:"arondight45-flight-log-v1",mode,samples:sessionLog,physics:defaultParams()});
+  downloadJson(`arondight45-${mode}-${new Date().toISOString().replace(/[:.]/g,"-")}.json`,{schema:"arondight45-flight-log-v1",mode,samples:sessionLog,physics:defaultParams(),physicsValidation:physicsValidationReport,realtimeEvidence:{timingDiscontinuityMs:simulationTimingDiscontinuityMs,presentation:presentationTimingSnapshot()}});
 }
 
 function angleDiff(a,b){let difference=(a-b)%360;if(difference>180)difference-=360;if(difference<-180)difference+=360;return difference;}
 function addResidual(accumulator,simulated,measured,scaleValue,weight=1){if(Number.isFinite(measured)){const e=(simulated-measured)/scaleValue;accumulator.error+=e*e*weight;accumulator.weight+=weight;}}
-async function objective(testParams,samples){
-  const model=new PhysicsModel(testParams);model.reset(testParams,samples[0]);const residual={error:0,weight:0};
+async function objective(testParams,samples,{collect=false}={}){
+  const model=new PhysicsModel(testParams);model.reset(testParams,samples[0]);const residual={error:0,weight:0},comparisons=[];
   for(let i=1;i<samples.length;i++){
     const previous=samples[i-1],current=samples[i],duration=current.time_s-previous.time_s;if(!(duration>0))continue;
     const motors=[previous.motor1_us,previous.motor2_us,previous.motor3_us,previous.motor4_us];const state=integrateDuration(model,motors,duration);
@@ -859,15 +921,17 @@ async function objective(testParams,samples){
     if(Number.isFinite(current.pitch_deg)){const e=angleDiff(state.attitude[1],current.pitch_deg)/25;residual.error+=e*e;residual.weight++;}
     if(Number.isFinite(current.yaw_deg)){const e=angleDiff(state.attitude[2],current.yaw_deg)/40;residual.error+=e*e;residual.weight++;}
     addResidual(residual,state.battery_v,current.battery_v,1.5,.5);addResidual(residual,state.current_a,current.current_a,20,.35);
+    if(collect)comparisons.push({measured:current,simulated:{...state,roll_deg:state.attitude[0],pitch_deg:state.attitude[1],yaw_deg:state.attitude[2]}});
   }
   b3.b3DestroyWorld(model.world);
-  return residual.weight?Math.sqrt(residual.error/residual.weight):Infinity;
+  return{nrmse:residual.weight?Math.sqrt(residual.error/residual.weight):Infinity,comparisons};
 }
 async function fitPhysics(){
-  if(realLog.length<3)return;
-  ui.fit.disabled=true;ui.fitStatus.textContent="Fitting motor / prop / drag / battery parameters against the real trajectory…";
-  const stride=Math.max(1,Math.floor(realLog.length/800)),samples=realLog.filter((_,index)=>index%stride===0);
-  let p=defaultParams(),best=await objective(p,samples);
+  if(realLog.length<4)return;
+  ui.fit.disabled=true;ui.fitStatus.textContent="Fitting on the first 70% · final 30% remains unseen for holdout validation…";
+  const partition=partitionCalibrationLog(realLog),trainingSamples=downsampleLog(partition.training,560),holdoutSamples=downsampleLog(partition.holdout,320);
+  let p=defaultParams(),best=(await objective(p,trainingSamples)).nrmse;
+  if(!Number.isFinite(best))throw Error("Log has motor pulses but no usable measured trajectory/electrical target fields");
   const variables=[
     {k:"Ct",step:.14,min:.03,max:.25},{k:"Cq",step:.16,min:.003,max:.04},{k:"J",step:.20,min:2e-6,max:8e-5},{k:"dragScale",step:.22,min:.2,max:4},{k:"batteryR",step:.18,min:.005,max:.2},{k:"R",step:.16,min:.02,max:.3}
   ];
@@ -876,20 +940,26 @@ async function fitPhysics(){
     for(const variable of variables){
       for(const direction of [-1,1]){
         const candidate={...p,wind:[...p.wind]};candidate[variable.k]=clamp(p[variable.k]*(1+direction*variable.step/(1+pass*.65)),variable.min,variable.max);
-        const score=await objective(candidate,samples);if(score<best){best=score;p=candidate;}
-        done++;ui.fitProgress.style.width=`${100*done/total}%`;ui.fitStatus.textContent=`normalized RMSE ${best.toFixed(4)} · testing ${variable.k}`;await new Promise(requestAnimationFrame);
+        const score=(await objective(candidate,trainingSamples)).nrmse;if(score<best){best=score;p=candidate;}
+        done++;ui.fitProgress.style.width=`${100*done/total}%`;ui.fitStatus.textContent=`normalized training RMSE ${best.toFixed(4)} · testing ${variable.k}`;await new Promise(requestAnimationFrame);
       }
     }
   }
   $("ct").value=p.Ct.toFixed(6);$("cq").value=p.Cq.toFixed(6);$("rotorJ").value=p.J.toFixed(8);$("dragScale").value=p.dragScale.toFixed(4);$("batteryR").value=p.batteryR.toFixed(6);$("resistance").value=p.R.toFixed(6);
-  localStorage.setItem("arondight45FittedPhysicsV2",JSON.stringify({Ct:p.Ct,Cq:p.Cq,J:p.J,dragScale:p.dragScale,batteryR:p.batteryR,R:p.R,rmse:best}));ui.fitStatus.textContent=`Fit complete · normalized RMSE ${best.toFixed(4)}. Parameters applied.`;ui.fit.disabled=false;resetSimulation(mode==="replay"?realLog[0]:null);
+  const trainingEvaluation=await objective(p,trainingSamples,{collect:true}),holdoutEvaluation=await objective(p,holdoutSamples,{collect:true});
+  const report=evaluatePhysicsValidation({allSamples:realLog,trainingSamples:partition.training,holdoutSamples:partition.holdout,comparisons:holdoutEvaluation.comparisons,trainNrmse:trainingEvaluation.nrmse,holdoutNrmse:holdoutEvaluation.nrmse});
+  report.split={trainingEndIndex:partition.splitIndex,holdoutStartIndex:partition.splitIndex,sharedInitialConditionOnly:true};report.parameters=fittedParameters(p);
+  setPhysicsValidation(report);
+  try{localStorage.setItem(FITTED_PHYSICS_STORAGE,JSON.stringify({schema:"arondight45-fitted-physics-v3",parameters:fittedParameters(p),validation:report}));}catch{}
+  ui.fitStatus.textContent=report.passed?`Fit + holdout pass · training ${trainingEvaluation.nrmse.toFixed(4)} · holdout ${holdoutEvaluation.nrmse.toFixed(4)}.`:`Fit applied but UNVALIDATED · ${report.reasons[0]}`;
+  ui.fit.disabled=false;resetSimulation(mode==="replay"?realLog[0]:null);
 }
 
 $("modeSim").onclick=()=>switchMode("sim");$("modeHil").onclick=()=>switchMode("hil");$("modeReplay").onclick=()=>switchMode("replay");
 ui.connect.onclick=async()=>{if(mode==="sim")return switchMode("sim");if(mode!=="hil")return;try{backend=new HardwareBackend();setStatus("Connecting physical S31…");await backend.connect();ui.tController.textContent=backend.label();ui.tController.className="good";setStatus(`HIL ready: ${backend.label()}.`,"good");ui.run.disabled=false;}catch(error){backend=null;ui.tController.textContent="connection failed";ui.tController.className="bad";setStatus(error.message,"bad");}};
 function startRun(){
   if(running)return true;if(mode!=="replay"&&!backend)return false;if(mode==="replay"&&!realLog.length)return false;
-  running=true;const epoch=++runEpoch;ui.run.textContent="Pause";wallStart=performance.now();simStart=simTime;loop(epoch).catch(error=>{if(epoch!==runEpoch)return;running=false;ui.run.textContent="Start";setStatus(error.message,"bad");});return true;
+  running=true;simulationTimingDiscontinuityMs=0;resetPresentationTiming();const epoch=++runEpoch;ui.run.textContent="Pause";wallStart=performance.now();simStart=simTime;loop(epoch).catch(error=>{if(epoch!==runEpoch)return;running=false;ui.run.textContent="Start";setStatus(error.message,"bad");});return true;
 }
 function stopRun(){running=false;++runEpoch;ui.run.textContent="Start";}
 ui.run.onclick=()=>{if(running)stopRun();else startRun();};
@@ -941,5 +1011,12 @@ ui.closePair.onclick=async()=>{await offerScanner.stop();ui.pairDialog.close();}
 ui.inputSource.onchange=()=>{inputSource=ui.inputSource.value;localArm=false;localThrottle=0;arm=false;throttle=0;updateRemoteUI();};
 inputSource=ui.inputSource.value;updateRemoteUI();setInterval(updateRemoteUI,250);
 
-const fitted=localStorage.getItem("arondight45FittedPhysicsV2");if(fitted)try{const p=JSON.parse(fitted);if(p.Ct)$("ct").value=p.Ct;if(p.Cq)$("cq").value=p.Cq;if(p.J)$("rotorJ").value=p.J;if(p.dragScale)$("dragScale").value=p.dragScale;if(p.batteryR)$("batteryR").value=p.batteryR;if(p.R)$("resistance").value=p.R;}catch{}
+setPhysicsValidation();
+let restoredFittedPhysics=false;
+try{
+  const stored=localStorage.getItem(FITTED_PHYSICS_STORAGE);
+  if(stored){const parsed=JSON.parse(stored);if(parsed?.schema==="arondight45-fitted-physics-v3"){applyFittedParameters(parsed.parameters);setPhysicsValidation(parsed.validation);restoredFittedPhysics=true;}}
+  if(!restoredFittedPhysics){const legacy=localStorage.getItem(LEGACY_FITTED_PHYSICS_STORAGE);if(legacy){applyFittedParameters(JSON.parse(legacy));setPhysicsValidation(null,"legacy fit restored; rerun against a chronological holdout");}}
+}catch{setPhysicsValidation(null,"stored fit could not be verified");}
+for(const id of PHYSICS_PARAMETER_INPUT_IDS)$(id)?.addEventListener("input",()=>setPhysicsValidation(null,"physical/environment parameter changed after validation"));
 await switchMode("sim");
