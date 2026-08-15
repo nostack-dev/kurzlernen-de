@@ -19,6 +19,22 @@ on:
       - "drone_controller.html"
       - ".github/workflows/s31-hil.yml"
       - ".github/workflows/deploy.yml"
+  pull_request:
+    paths:
+      - "esp32/Arondight45_DroneFC_Core.hpp"
+      - "esp32/Arondight45_StateControl.hpp"
+      - "esp32/Arondight45_HardwareSensors.hpp"
+      - "esp32/Arondight45_FirmwareRuntime.hpp"
+      - "esp32/Arondight45_HIL_Protocol.hpp"
+      - "esp32/Arondight45_DroneFC_S31.cpp"
+      - "esp32/Arondight45_DroneFC_HIL_S31.cpp"
+      - "sim/**"
+      - "tests/**"
+      - "tools/s31_hil_bridge.mjs"
+      - "drone_simulator.html"
+      - "drone_controller.html"
+      - ".github/workflows/s31-hil.yml"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 permissions:
