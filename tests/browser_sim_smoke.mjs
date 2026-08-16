@@ -74,9 +74,11 @@ try{
     canvasCount:document.querySelectorAll("canvas").length,
     mode:document.querySelector("#tMode")?.textContent||"",
     scripts:[...document.scripts].filter(s=>s.src).map(s=>s.src),
+    modelValidation:document.querySelector("#modelValidationStatus")?.dataset.validation||"",
+    modelValidationText:document.querySelector("#modelValidationStatus")?.textContent||"",
   }));
   if(boot.title!=="Arondight45 Drone Digital Twin"||!boot.status.includes("SIM ready")||
-     !boot.controller.includes("shared fc::StateRuntime → fc::Runtime / WASM")||boot.canvasCount<1||boot.mode!=="SIM")
+     !boot.controller.includes("shared fc::StateRuntime → fc::Runtime / WASM")||boot.canvasCount<1||boot.mode!=="SIM"||boot.modelValidation!=="unvalidated"||!boot.modelValidationText.includes("UNVALIDATED"))
     throw new Error(`boot mismatch: ${JSON.stringify(boot)}`);
   const remoteScripts=boot.scripts.filter(src=>{const u=new URL(src);return u.hostname!=="127.0.0.1"&&u.hostname!=="localhost";});
   if(remoteScripts.length||externalRequests.length)throw new Error(`self-contained fallback made external requests: scripts=${JSON.stringify(remoteScripts)} requests=${JSON.stringify(externalRequests)}`);
@@ -108,14 +110,26 @@ try{
   await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
   await wait(700); // exclude layout/solo-transition startup from the steady-state clock proof
   const cadenceStart=await page.evaluate(()=>{const d=globalThis.__arondightDiagnostics;return{wall:performance.now(),sim:Number(d?.simTime),draws:Number(d?.presentationDraws||0),uiSim:parseFloat(document.querySelector("#simTime")?.textContent||"0")};});
-  await wait(2500);
-  const cadenceEnd=await page.evaluate(()=>{const d=globalThis.__arondightDiagnostics;return{wall:performance.now(),sim:Number(d?.simTime),draws:Number(d?.presentationDraws||0),backlog:Number(d?.simulationBacklogMs||0),pixelRatio:Number(d?.presentationPixelRatio||0),uiSim:parseFloat(document.querySelector("#simTime")?.textContent||"0")};});
+  await wait(4000);
+  const cadenceEnd=await page.evaluate(()=>{const d=globalThis.__arondightDiagnostics;return{wall:performance.now(),sim:Number(d?.simTime),draws:Number(d?.presentationDraws||0),backlog:Number(d?.simulationBacklogMs||0),pixelRatio:Number(d?.presentationPixelRatio||0),software:Boolean(d?.presentationSoftwareRaster),timing:d?.presentationTiming,discontinuity:Number(d?.simulationTimingDiscontinuityMs||0),uiSim:parseFloat(document.querySelector("#simTime")?.textContent||"0")};});
   if(!Number.isFinite(cadenceStart.sim)||!Number.isFinite(cadenceEnd.sim))throw new Error("authoritative simulator clock diagnostic unavailable");
-  const cadenceRatio=(cadenceEnd.sim-cadenceStart.sim)/Math.max(.001,(cadenceEnd.wall-cadenceStart.wall)/1000),presentationDraws=cadenceEnd.draws-cadenceStart.draws,uiClockLag=Math.abs(cadenceEnd.sim-cadenceEnd.uiSim);
-  console.log(`Realtime fixed-step cadence: ${cadenceRatio.toFixed(3)}x · presentation draws ${presentationDraws} · pixel ratio ${cadenceEnd.pixelRatio.toFixed(2)} · backlog ${cadenceEnd.backlog.toFixed(2)} ms · HUD lag ${uiClockLag.toFixed(3)} s`);
-  if(!(cadenceRatio>.90&&cadenceRatio<1.10))throw new Error(`fixed-step simulation is not tracking wall time closely enough: ${cadenceRatio.toFixed(3)}x`);
-  if(presentationDraws<35)throw new Error(`flight-first presentation starved visual output: only ${presentationDraws} draws in 2.5s`);
+  const cadenceWindowS=Math.max(.001,(cadenceEnd.wall-cadenceStart.wall)/1000),cadenceRatio=(cadenceEnd.sim-cadenceStart.sim)/cadenceWindowS,presentationDraws=cadenceEnd.draws-cadenceStart.draws,presentationFps=presentationDraws/cadenceWindowS,uiClockLag=Math.abs(cadenceEnd.sim-cadenceEnd.uiSim);
+  console.log(`Realtime fixed-step cadence: ${cadenceRatio.toFixed(3)}x · presentation ${presentationFps.toFixed(1)} fps · p50 ${Number(cadenceEnd.timing?.p50Ms||0).toFixed(1)} ms · pixel ratio ${cadenceEnd.pixelRatio.toFixed(2)} · backlog ${cadenceEnd.backlog.toFixed(2)} ms · HUD lag ${uiClockLag.toFixed(3)} s`);
+  if(!(cadenceRatio>.97&&cadenceRatio<1.03))throw new Error(`fixed-step simulation is not tracking wall time closely enough: ${cadenceRatio.toFixed(3)}x`);
+  // SwiftShader is an intentionally non-production fallback and can be paused
+  // externally by the headless runner. Its anti-jank gate is median pacing plus
+  // absence of the old source-level cap; real hardware WebGL still gates 45 fps.
+  const minimumPresentationFps=cadenceEnd.software?6:45;
+  if(presentationFps<minimumPresentationFps)throw new Error(`presentation pacing too slow for ${cadenceEnd.software?"software":"hardware"} WebGL: ${presentationFps.toFixed(1)} fps`);
+  if(cadenceEnd.timing?.samples>=20&&cadenceEnd.timing.p50Ms>(cadenceEnd.software?55:30))throw new Error(`median presentation interval is visibly jerky: ${cadenceEnd.timing.p50Ms.toFixed(1)} ms`);
+  if(cadenceEnd.discontinuity!==0)throw new Error(`scheduler silently lost ${cadenceEnd.discontinuity.toFixed(2)} ms of wall time`);
   if(!(uiClockLag<.12))throw new Error(`20 Hz HUD fell too far behind authoritative simulation clock: ${uiClockLag.toFixed(3)} s`);
+  const stallStart=await page.evaluate(()=>({wall:performance.now(),sim:Number(globalThis.__arondightDiagnostics?.simTime)}));
+  await page.evaluate(()=>{const until=performance.now()+400;while(performance.now()<until){};});
+  await wait(1000);
+  const stallEnd=await page.evaluate(()=>({wall:performance.now(),sim:Number(globalThis.__arondightDiagnostics?.simTime),drop:Number(globalThis.__arondightDiagnostics?.simulationTimingDiscontinuityMs||0),backlog:Number(globalThis.__arondightDiagnostics?.simulationBacklogMs||0)}));
+  const stallCadence=(stallEnd.sim-stallStart.sim)/Math.max(.001,(stallEnd.wall-stallStart.wall)/1000);
+  if(stallCadence<.95||stallEnd.drop!==0||stallEnd.backlog>8)throw new Error(`400 ms compositor stall erased physical time instead of catching up: cadence=${stallCadence.toFixed(3)} drop=${stallEnd.drop.toFixed(2)} backlog=${stallEnd.backlog.toFixed(2)}`);
   const soloUi=await page.evaluate(()=>({
     hud:!document.querySelector("#soloHud")?.hidden,
     reset:!!document.querySelector("#soloReset"),

@@ -34,6 +34,8 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil_test
           /tmp/sil_test
           node tests/control_semantics_test.mjs
+          node tests/physics_validation_test.mjs
+          node tests/s31_digital_twin_audit_test.mjs
           node tests/architecture_invariants.mjs
           node tests/lan_vs_smoke.mjs
 
@@ -157,12 +159,15 @@ jobs:
           node --check sim/solo_layout.mjs
           node --check sim/flight_fire_fx.mjs
           node --check sim/flight_logbook.mjs
+          node --check sim/physics_validation.mjs
           node --check sim/auto_flight_start.mjs
           node --check sim/lan_vs.mjs
           node --check sim/mqtt_data_relay.mjs
           node --check sim/nostr_data_relay.mjs
           node --check tests/architecture_invariants.mjs
           node --check tests/control_semantics_test.mjs
+          node --check tests/physics_validation_test.mjs
+          node --check tests/s31_digital_twin_audit_test.mjs
           node --check tests/sil_wasm_smoke.mjs
           node --check tests/browser_sim_smoke.mjs
           node --check tests/dual_phone_smoke.mjs

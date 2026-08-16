@@ -19,6 +19,22 @@ on:
       - "drone_controller.html"
       - ".github/workflows/s31-hil.yml"
       - ".github/workflows/deploy.yml"
+  pull_request:
+    paths:
+      - "esp32/Arondight45_DroneFC_Core.hpp"
+      - "esp32/Arondight45_StateControl.hpp"
+      - "esp32/Arondight45_HardwareSensors.hpp"
+      - "esp32/Arondight45_FirmwareRuntime.hpp"
+      - "esp32/Arondight45_HIL_Protocol.hpp"
+      - "esp32/Arondight45_DroneFC_S31.cpp"
+      - "esp32/Arondight45_DroneFC_HIL_S31.cpp"
+      - "sim/**"
+      - "tests/**"
+      - "tools/s31_hil_bridge.mjs"
+      - "drone_simulator.html"
+      - "drone_controller.html"
+      - ".github/workflows/s31-hil.yml"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 permissions:
@@ -45,6 +61,8 @@ jobs:
           clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control-clang
           /tmp/state-control-clang
           node tests/control_semantics_test.mjs
+          node tests/physics_validation_test.mjs
+          node tests/s31_digital_twin_audit_test.mjs
           node tests/lan_vs_smoke.mjs
       - name: Architecture and JavaScript validation
         run: |
@@ -56,9 +74,12 @@ jobs:
           node --check sim/control_semantics.mjs
           node --check sim/control_settings.mjs
           node --check sim/flight_logbook.mjs
+          node --check sim/physics_validation.mjs
           node --check sim/lan_vs.mjs
           node --check tests/architecture_invariants.mjs
           node --check tests/control_semantics_test.mjs
+          node --check tests/physics_validation_test.mjs
+          node --check tests/s31_digital_twin_audit_test.mjs
           node --check tests/sil_wasm_smoke.mjs
           node --check tests/browser_sim_smoke.mjs
           node --check tests/dual_phone_smoke.mjs
