@@ -53,6 +53,9 @@ try{
     if(g.right.left-g.kill.right<20)throw new Error(`${viewport.name}: center actions crowd right stick: ${JSON.stringify({kill:g.kill,right:g.right})}`);
     for(const key of ["left","right","clearance","arm","kill"]){const r=g[key];if(r.left<-1||r.right>g.width+1||r.top<-1||r.bottom>g.height+1)throw new Error(`${viewport.name}: ${key} escapes viewport: ${JSON.stringify(r)}`);}
 
+    const disabledActionOpacity=await page.$eval("#soloArm",e=>{e.disabled=true;return Number(getComputedStyle(e).opacity);});
+    if(disabledActionOpacity<.99)throw new Error(`${viewport.name}: CALIBRATING/disabled ARM action is visually dimmed: ${disabledActionOpacity}`);
+
     // Validate the ARM attention affordance independent of calibration timing.
     const armCue=await page.evaluate(()=>{
       const e=document.querySelector("#soloArm");
