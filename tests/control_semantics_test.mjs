@@ -132,6 +132,16 @@ const move=normalizedPointer(element,{type:"pointermove",pointerId:1,clientX:90,
 near(move.x,0);near(move.y,0,1e-6,"relative drag should move by half radius, not jump absolute");
 endPointerDrag(element,1);
 
+const rotatedElement={
+  ...element,
+  closest:()=>({dataset:{soloOrientation:"css-landscape"}}),
+};
+const rotatedDown=normalizedPointer(rotatedElement,{type:"pointerdown",pointerId:2,clientX:90,clientY:90});
+near(rotatedDown.x,0);near(rotatedDown.y,.5);
+const rotatedMove=normalizedPointer(rotatedElement,{type:"pointermove",pointerId:2,clientX:127.8,clientY:90});
+near(rotatedMove.x,0);near(rotatedMove.y,0,1e-6,"clockwise landscape fallback must map screen-right drag to local stick-up");
+endPointerDrag(rotatedElement,2);
+
 const tenPxRaw=phoneAxis(10/(180*.42),10);
 assert.ok(tenPxRaw>.035,"10 px max-fine movement must cross production roll/pitch deadband");
 near(phoneAxis(1,10),1,1e-12,"right full stick authority");

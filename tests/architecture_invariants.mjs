@@ -155,6 +155,13 @@ requireText("sim/simulator.mjs","debugGrid:{get:()=>debugGridEnabled,set:setDebu
 requireText("sim/control_settings.mjs","DEBUG GRIDLINES");
 requireText("sim/real_world_bootstrap.mjs","if(child.isGridHelper){child.visible=this.gridEnabled;continue;}");
 forbidText("sim/simulator.mjs",'fullscreenchange",()=>{if(soloMode&&!document.fullscreenElement&&document.fullscreenEnabled)exitSolo()');
+forbidText("sim/simulator.mjs","ROTATE PHONE TO LANDSCAPE","portrait must use the always-landscape viewport instead of a blocking instruction");
+forbidText("sim/simulator.mjs",'id="soloRotate"',"portrait blocker DOM must not return");
+requireText("sim/simulator.mjs",'viewport.dataset.orientationPolicy="landscape"');
+requireText("sim/simulator.mjs",'transform:rotate(90deg)!important');
+requireText("sim/control_semantics.mjs",'soloOrientation==="css-landscape"',"rotated viewport must preserve physical stick axes");
+requireText("drone_simulator.html",'<link rel="manifest" href="./drone_simulator.webmanifest">');
+requireText("drone_simulator.webmanifest",'"orientation": "landscape"');
 requireText("sim/simulator.mjs","viewport.dataset.presentationDraws");
 requireText("sim/simulator.mjs",'Object.defineProperty(globalThis,"__arondightDiagnostics"');
 requireText("sim/simulator.mjs","simTime:{get:()=>simTime");
@@ -195,8 +202,12 @@ requireText("sim/control_settings.mjs","openfreemap-osm-3d");
 requireText("sim/control_settings.mjs","No account, API key, billing setup, backend or proxy is required.");
 requireText("sim/control_settings.mjs","WORLD GRID");
 requireText("sim/control_settings.mjs","KEEP 360° LOOK ORIENTATION");
-forbidText("sim/control_settings.mjs","MINIMAP FOLLOWS 360° CAMERA","minimap must stay north-up in every camera mode");
-for(const marker of ["MINIMAP · N↑","worldMinimapMode=\"north\"","calculateCameraOptionsFromTo","worldMapEyeElevation","setCameraFovDeg","toggleMinimapExpanded"])requireText("sim/real_world_bootstrap.mjs",marker);
+requireText("sim/control_settings.mjs","LOCK MINIMAP AXIS TO VERTICAL");
+requireText("sim/control_settings.mjs","data-world-minimap-axis-lock");
+forbidText("sim/control_settings.mjs","MINIMAP FOLLOWS 360° CAMERA","obsolete minimap-follow setting must not return");
+for(const marker of ["MINIMAP · N↑ · TOP","WORLD_MINIMAP_AXIS_LOCK_STORAGE","worldMinimapProjection=\"topdown\"","worldMinimapPitch=\"0.00\"","worldMinimapRoll=\"0.00\"","worldMinimapHeightMode=\"flat-footprints\"","setMinimapAxisLocked","calculateCameraOptionsFromTo","worldMapEyeElevation","setCameraFovDeg","toggleMinimapExpanded"])requireText("sim/real_world_bootstrap.mjs",marker);
+for(const forbidden of ["rotateX(","world-look-plane",'worldMinimapProjection=expanded?"topdown":"perspective"',"*(expanded?1:.60)"])
+  forbidText("sim/real_world_bootstrap.mjs",forbidden,`minimap must be strictly orthographic top-down: ${forbidden}`);
 
 for(const path of ["sim/simulator.mjs","sim/controller.mjs","sim/p2p_link.mjs"])
   forbidText(path,"lookPitch",`${path} still contains the removed virtual camera-look control`);
@@ -206,6 +217,14 @@ for(const marker of ["class HybridMotorSound","model.motorOmega","model.motorTor
 requireText("sim/simulator.mjs",'import {HybridMotorSound} from "./motor_sound.mjs";');
 requireText("sim/simulator.mjs",'import {FlightLogbook} from "./flight_logbook.mjs";');
 requireText("sim/simulator.mjs",'import {installFlightFireFx} from "./flight_fire_fx.mjs";');
+requireText("sim/simulator.mjs",'import {findXboxGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";');
+for(const marker of ["LB+RB FIRE","data-control-source=\"xbox\"","pollXboxGamepad(renderNow)","setGamepadLook?.(sample.aim","setGamepadFire(sample.fire"])
+  requireText("sim/simulator.mjs",marker);
+for(const marker of ["RIGHT_SHOULDER:5","LEFT_TRIGGER:6","RIGHT_TRIGGER:7","heightAxis:","fire:aim&&rightShoulder"])
+  requireText("sim/xbox_gamepad.mjs",marker);
+requireText("tests/xbox_gamepad_test.mjs","LB + RB must fire");
+requireText(".github/workflows/deploy.yml","node tests/xbox_gamepad_test.mjs");
+requireText(".github/workflows/deploy.yml","node tests/xbox_gamepad_browser_smoke.mjs");
 for(const marker of ["FLIGHT_LOGBOOK_KEY","EXPORT JSON","maxForwardMps","maxRightMps"])requireText("sim/flight_logbook.mjs",marker);
 for(const marker of ["installFlightFireFx","THREE.Raycaster","addVisualShotImpact","SHOT_INTERVAL_MS","DECAL_POOL_SIZE=32","touch-action:none"])requireText("sim/flight_fire_fx.mjs",marker);
 for(const dirty of ["applyForces(","b3Body_ApplyForce","motorOmega","fc::Runtime","StateController"])forbidText("sim/flight_fire_fx.mjs",dirty,`presentation-only fire FX gained flight authority: ${dirty}`);
