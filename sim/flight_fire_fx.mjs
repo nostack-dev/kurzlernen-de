@@ -5,7 +5,7 @@ const DECAL_POOL_SIZE=32;
 const SCREEN_IMPACT_POOL_SIZE=8;
 const BLOCKED_SELECTOR="#soloTopbar,#soloRaceHud,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud,dialog,button,input,select,textarea,a,label";
 
-export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEnabled=()=>document.body.classList.contains("solo-flight")}={}){
+export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEnabled=()=>document.body.classList.contains("solo-flight"),isPointerEnabled=()=>true}={}){
   if(!viewport||!scene||!camera)throw Error("flight fire FX requires viewport, scene and camera");
   if(viewport.dataset.fireFxInstalled==="1")return null;
   viewport.dataset.fireFxInstalled="1";
@@ -16,10 +16,14 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     #viewport{touch-action:none;overscroll-behavior:none}
     .flight-fire-impact{position:absolute;z-index:11;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;border:1px solid #fff7c2;background:radial-gradient(circle,#fff9be 0 16%,#ffbf55 22%,#ff6d35aa 42%,transparent 68%);box-shadow:0 0 12px #ffb14a;pointer-events:none;display:none}
     .flight-fire-impact.active{display:block;animation:flightImpactFade .48s ease-out forwards}
+    .xbox-crosshair{display:none;position:absolute;z-index:12;width:34px;height:34px;margin:-17px 0 0 -17px;border:2px solid #dffaff;border-radius:50%;pointer-events:none;filter:drop-shadow(0 0 5px #47cfff);box-shadow:inset 0 0 0 7px #07152277}
+    .xbox-crosshair:before,.xbox-crosshair:after{content:"";position:absolute;left:50%;top:50%;background:#ff6f7f;transform:translate(-50%,-50%)}.xbox-crosshair:before{width:44px;height:2px}.xbox-crosshair:after{width:2px;height:44px}
+    .xbox-crosshair.active{display:block}
     @keyframes flightImpactFade{from{opacity:1;transform:scale(.65)}to{opacity:0;transform:scale(1.55)}}
   `;document.head.appendChild(style);
 
   const screenImpacts=Array.from({length:SCREEN_IMPACT_POOL_SIZE},()=>{const el=document.createElement("i");el.className="flight-fire-impact";el.addEventListener("animationend",()=>el.classList.remove("active"));viewport.appendChild(el);return el;});
+  const gamepadCrosshair=document.createElement("i");gamepadCrosshair.className="xbox-crosshair";gamepadCrosshair.setAttribute("aria-hidden","true");viewport.appendChild(gamepadCrosshair);
   let screenImpactCursor=0;
   const raycaster=new THREE.Raycaster(),pointerNdc=new THREE.Vector2(),candidates=[],intersections=[],hitNormal=new THREE.Vector3(),decalForward=new THREE.Vector3(0,0,1);
   const decalGeometry=new THREE.CircleGeometry(.022,12),decalMaterial=new THREE.MeshBasicMaterial({color:0x171717,transparent:true,opacity:.94,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,side:THREE.DoubleSide});
@@ -41,23 +45,33 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     const mesh=decalPool[decalCursor++%decalPool.length];mesh.position.copy(hit.point).addScaledVector(hitNormal,.0035);mesh.quaternion.setFromUnitVectors(decalForward,hitNormal);mesh.rotateZ((decalWrites*2.399963229728653)%6.283185307179586);mesh.scale.setScalar(.88+(decalWrites%5)*.055);mesh.userData.flightFireWorld=Boolean(hasWorldNormal);mesh.visible=true;decalWrites++;viewport.dataset.fireDecalWrites=String(decalWrites);return true;
   }
   function aimPoint(){
-    const rect=viewport.getBoundingClientRect(),clientX=active?.clientX??rect.left+rect.width/2,clientY=active?.clientY??rect.top+rect.height/2;
-    return{x:Math.max(0,Math.min(rect.width,clientX-rect.left)),y:Math.max(0,Math.min(rect.height,clientY-rect.top)),rect};
+    const screenRect=viewport.getBoundingClientRect(),rect={left:0,top:0,width:Math.max(1,viewport.clientWidth),height:Math.max(1,viewport.clientHeight)};
+    if(active?.source==="gamepad")return{x:Math.max(0,Math.min(rect.width,active.x)),y:Math.max(0,Math.min(rect.height,active.y)),rect};
+    const clientX=active?.clientX??screenRect.left+screenRect.width/2,clientY=active?.clientY??screenRect.top+screenRect.height/2,rotated=viewport.dataset.soloOrientation==="css-landscape";
+    const x=rotated?clientY-screenRect.top:clientX-screenRect.left,y=rotated?screenRect.right-clientX:clientY-screenRect.top;
+    return{x:Math.max(0,Math.min(rect.width,x)),y:Math.max(0,Math.min(rect.height,y)),rect};
   }
   function fire(now){
     if(!active||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint();pointerNdc.set(aim.x/aim.rect.width*2-1,-(aim.y/aim.rect.height)*2+1);raycaster.setFromCamera(pointerNdc,camera);
     candidates.length=0;scene.traverse(object=>{if(object.isMesh&&visibleInHierarchy(object)&&!object.userData?.arondightAirframe&&!object.userData?.flightFireDecal&&!object.userData?.flightFireIgnore&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});intersections.length=0;raycaster.intersectObjects(candidates,false,intersections);const hit=intersections[0];
     const vsHit=Boolean(hit&&worldBridge?.registerVsHit?.(hit));if(hit&&!vsHit)addThreeDecal(hit);else if(!hit){const worldHit=worldBridge?.addVisualShotImpact?.(aim.x,aim.y,aim.rect,raycaster.ray);if(worldHit)addThreeDecal(worldHit);}if(vsHit)viewport.dataset.fireVsHits=String((Number(viewport.dataset.fireVsHits)||0)+1);
-    screenImpact(aim.x,aim.y);shotSound();viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);viewport.dataset.fireAimX=aim.x.toFixed(2);viewport.dataset.fireAimY=aim.y.toFixed(2);return true;
+    screenImpact(aim.x,aim.y);shotSound();viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);viewport.dataset.fireAimX=aim.x.toFixed(2);viewport.dataset.fireAimY=aim.y.toFixed(2);viewport.dataset.fireInputSource=active.source||"pointer";return true;
   }
   function scheduleFire(){
     if(!active||fireTimer)return;const tick=()=>{fireTimer=0;if(!active)return;const now=performance.now();fire(now);fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));};fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));
   }
-  function move(event){if(!active||event.pointerId!==active.id)return;active.clientX=event.clientX;active.clientY=event.clientY;fire(performance.now());scheduleFire();event.preventDefault();}
-  function stop(event){if(!active||(event?.pointerId!=null&&event.pointerId!==active.id))return;const id=active.id;active=null;if(fireTimer){clearTimeout(fireTimer);fireTimer=0;}try{viewport.releasePointerCapture?.(id);}catch{}event?.preventDefault();}
+  function move(event){if(!active||active.source==="gamepad"||event.pointerId!==active.id)return;active.clientX=event.clientX;active.clientY=event.clientY;fire(performance.now());scheduleFire();event.preventDefault();}
+  function stop(event){if(!active||(event?.pointerId!=null&&event.pointerId!==active.id))return;const id=active.id;active=null;if(fireTimer){clearTimeout(fireTimer);fireTimer=0;}viewport.dataset.fireInputSource="none";try{viewport.releasePointerCapture?.(id);}catch{}event?.preventDefault();}
+  function setGamepadAim(enabled,x=viewport.clientWidth/2,y=viewport.clientHeight/2){const activeAim=Boolean(enabled&&isEnabled());gamepadCrosshair.classList.toggle("active",activeAim);gamepadCrosshair.style.left=`${Math.max(0,Math.min(viewport.clientWidth,Number(x)||0))}px`;gamepadCrosshair.style.top=`${Math.max(0,Math.min(viewport.clientHeight,Number(y)||0))}px`;viewport.dataset.gamepadAim=activeAim?"1":"0";}
+  function setGamepadFire(pressed,x=viewport.clientWidth/2,y=viewport.clientHeight/2){
+    if(!pressed||!isEnabled()){if(active?.source==="gamepad")stop();return false;}
+    if(active&&active.source!=="gamepad")return false;
+    if(!active){active={id:"xbox",source:"gamepad",x,y};ensureAudio();nextShotAt=0;}else{active.x=x;active.y=y;}
+    fire(performance.now());scheduleFire();return true;
+  }
   viewport.addEventListener("pointerdown",event=>{
-    if(!isEnabled()||event.button!==0||blocked(event.target)||active)return;active={id:event.pointerId,clientX:event.clientX,clientY:event.clientY};try{viewport.setPointerCapture?.(event.pointerId);}catch{}ensureAudio();nextShotAt=0;fire(performance.now());scheduleFire();event.preventDefault();
+    if(!isEnabled()||!isPointerEnabled()||event.button!==0||blocked(event.target)||active)return;active={id:event.pointerId,source:"pointer",clientX:event.clientX,clientY:event.clientY};try{viewport.setPointerCapture?.(event.pointerId);}catch{}ensureAudio();nextShotAt=0;fire(performance.now());scheduleFire();event.preventDefault();
   },{passive:false});
   viewport.addEventListener("pointermove",move,{passive:false});viewport.addEventListener("pointerup",stop,{passive:false});viewport.addEventListener("pointercancel",stop,{passive:false});
-  return{stop,get decalPoolSize(){return decalPool.length;},get decalWrites(){return decalWrites;},dispose(){stop();for(const mesh of decalPool){mesh.parent?.remove(mesh);mesh.visible=false;}decalGeometry.dispose();decalMaterial.dispose();for(const el of screenImpacts)el.remove();style.remove();try{audioCtx?.close();}catch{}}};
+  return{stop,setGamepadAim,setGamepadFire,get decalPoolSize(){return decalPool.length;},get decalWrites(){return decalWrites;},dispose(){stop();gamepadCrosshair.remove();for(const mesh of decalPool){mesh.parent?.remove(mesh);mesh.visible=false;}decalGeometry.dispose();decalMaterial.dispose();for(const el of screenImpacts)el.remove();style.remove();try{audioCtx?.close();}catch{}}};
 }

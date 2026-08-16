@@ -11,6 +11,7 @@ import {HybridMotorSound} from "./motor_sound.mjs";
 import {FlightLogbook} from "./flight_logbook.mjs";
 import {installFlightFireFx} from "./flight_fire_fx.mjs";
 import {partitionCalibrationLog,evaluatePhysicsValidation,validationSummary,PHYSICS_VALIDATION_SCHEMA} from "./physics_validation.mjs";
+import {findXboxGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -490,7 +491,15 @@ const cameraHud=document.createElement("div");cameraHud.id="cameraModes";cameraH
 Object.assign(cameraHud.style,{position:"absolute",zIndex:"4",top:"12px",left:"50%",transform:"translateX(-50%)",display:"flex",gap:"6px",padding:"5px",borderRadius:"10px",background:"rgba(20,31,45,.72)",border:"1px solid rgba(255,255,255,.28)",backdropFilter:"blur(8px)",boxShadow:"0 5px 18px rgba(0,0,0,.18)"});
 for(const button of cameraHud.querySelectorAll("button"))Object.assign(button.style,{minWidth:"76px",padding:"7px 10px",borderRadius:"7px",border:"1px solid rgba(255,255,255,.3)",background:"rgba(17,29,43,.82)",color:"#fff",font:"700 12px system-ui,-apple-system,sans-serif",letterSpacing:".04em"});
 $("viewport").appendChild(cameraHud);
-function resize(){const bounds=$("viewport").getBoundingClientRect();renderer.setSize(bounds.width,bounds.height,false);camera.aspect=bounds.width/Math.max(1,bounds.height);camera.updateProjectionMatrix();}addEventListener("resize",resize);resize();
+function syncSoloPresentationOrientation(){
+  const viewport=$("viewport"),solo=document.body.classList.contains("solo-flight");
+  if(!solo){delete viewport.dataset.soloOrientation;delete viewport.dataset.orientationPolicy;return false;}
+  const cssLandscape=globalThis.matchMedia?.("(orientation: portrait)")?.matches===true;
+  viewport.dataset.orientationPolicy="landscape";
+  viewport.dataset.soloOrientation=cssLandscape?"css-landscape":"native-landscape";
+  return cssLandscape;
+}
+function resize(){const viewport=$("viewport");syncSoloPresentationOrientation();const width=Math.max(1,viewport.clientWidth),height=Math.max(1,viewport.clientHeight);renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();}addEventListener("resize",resize);const viewportResizeObserver=globalThis.ResizeObserver?new ResizeObserver(resize):null;viewportResizeObserver?.observe($("viewport"));resize();
 
 let physics=new PhysicsModel(defaultParams(),{graphics:true,scene});
 const motorSound=new HybridMotorSound($("viewport"));
@@ -557,38 +566,39 @@ $("camFollow").onclick=()=>setCameraMode("follow");$("camFpv").onclick=()=>setCa
 
 const soloHud=document.createElement("div");soloHud.id="soloHud";soloHud.hidden=true;
 soloHud.innerHTML=`
-  <div id="soloTopbar"><button id="soloExit" type="button">EXIT</button><button id="soloReset" type="button">RESET SIM</button><span id="soloState">DISARMED</span><span id="soloAlt">0.0 m</span><button id="soloCamera" type="button">FOLLOW</button></div>
+  <div id="soloTopbar"><button id="soloExit" type="button">EXIT</button><button id="soloReset" type="button">RESET SIM</button><span id="soloState">DISARMED</span><span id="soloAlt">0.0 m</span><span id="soloGamepadStatus" hidden>XBOX</span><button id="soloCamera" type="button">FOLLOW</button></div>
   <div id="soloRaceHud"><span id="soloLap">READY · 3 LAPS</span><strong id="soloRaceTime">00:00.000</strong><span id="soloGate">NEXT · START / FINISH</span><span id="soloBest">BEST —</span></div>
-  <div id="soloRotate">ROTATE PHONE TO LANDSCAPE</div>
   <div id="soloLeft" class="solo-stick"><div class="solo-ring"></div><div class="solo-knob"></div><span>FWD / STRAFE</span></div>
   <div id="soloClearance"><small>ALT TARGET</small><strong id="soloClearanceValue">1.2 m</strong><div id="soloHeightPad" class="solo-height-pad" aria-label="Climb or descend altitude target"><span class="solo-height-up">CLIMB</span><div class="solo-height-track"></div><div id="soloHeightKnob" class="solo-height-knob"></div><span class="solo-height-hold">HOLD</span><span class="solo-height-down">DESCEND</span></div><span id="soloRangeStatus">AGL —</span></div>
   <div id="soloRight" class="solo-stick"><div class="solo-ring"></div><div class="solo-knob"></div><span>TURN / PITCH</span></div>
   <button id="soloArm" class="solo-action arm-start-cta" type="button">ARM</button>
-  <button id="soloKill" class="solo-action" type="button">KILL</button>`;
+  <button id="soloKill" class="solo-action" type="button">KILL</button>
+  <div id="soloGamepadHelp" hidden>LS MOVE · RS TURN/PITCH · LT/RT ALT −/+ · LB+RS AIM · LB+RB FIRE · A ARM · B KILL · X CAM</div>`;
 $("viewport").appendChild(soloHud);
 const soloStyle=document.createElement("style");soloStyle.textContent=`
   body.solo-flight{overflow:hidden!important;background:#000!important;-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-tap-highlight-color:transparent!important}
   body.solo-flight #viewport,body.solo-flight #viewport *{-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-tap-highlight-color:transparent!important}
   body.solo-flight dialog input,body.solo-flight dialog textarea{-webkit-user-select:text!important;user-select:text!important;-webkit-touch-callout:default!important}
   body.solo-flight .panel,body.solo-flight .telemetry{display:none!important}
-  body.solo-flight #viewport{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;min-height:0!important;max-height:none!important;margin:0!important;z-index:50!important}
-  body.solo-flight #cameraModes{top:max(8px,env(safe-area-inset-top))!important;left:50%!important}
+  body.solo-flight #viewport{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;min-height:0!important;max-height:none!important;margin:0!important;z-index:50!important;overflow:hidden!important;transform:none!important;transform-origin:0 0!important;--solo-safe-top:env(safe-area-inset-top,0px);--solo-safe-right:env(safe-area-inset-right,0px);--solo-safe-bottom:env(safe-area-inset-bottom,0px);--solo-safe-left:env(safe-area-inset-left,0px)}
+  body.solo-flight #cameraModes{top:max(8px,var(--solo-safe-top))!important;left:50%!important}
   #soloHud{position:absolute;inset:0;z-index:8;pointer-events:none;font-family:system-ui,-apple-system,sans-serif;color:#fff;touch-action:none;user-select:none;-webkit-user-select:none}
   #soloHud[hidden]{display:none!important}
-  #soloTopbar{position:absolute;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));display:flex;gap:8px;align-items:center;justify-content:flex-start;pointer-events:auto}
+  #soloTopbar{position:absolute;top:max(8px,var(--solo-safe-top));left:max(8px,var(--solo-safe-left));right:max(8px,var(--solo-safe-right));display:flex;gap:8px;align-items:center;justify-content:flex-start;pointer-events:auto}
   #soloTopbar span,#soloTopbar button{border:1px solid #ffffff55;background:#112033cc;color:#fff;border-radius:9px;padding:7px 10px;font-weight:800;font-size:12px;backdrop-filter:blur(8px)}
   #soloTopbar #soloExit{background:#6b2330dd} #soloTopbar #soloReset{background:#9a5b18dd} #soloTopbar #soloCamera{margin-left:auto;background:#174f70dd}
-  #soloRaceHud{position:absolute;top:max(52px,calc(env(safe-area-inset-top) + 44px));left:50%;transform:translateX(-50%);display:grid;grid-template-columns:auto auto;gap:3px 12px;align-items:center;min-width:290px;padding:7px 12px;border:1px solid #ffffff55;border-radius:10px;background:#112033c7;backdrop-filter:blur(8px);box-shadow:0 5px 18px #0004;text-align:center;pointer-events:none}
+  #soloTopbar #soloGamepadStatus{background:#17694fdd;border-color:#7ff0c5;color:#eafff7;white-space:nowrap}
+  #soloRaceHud{position:absolute;top:max(52px,calc(var(--solo-safe-top) + 44px));left:50%;transform:translateX(-50%);display:grid;grid-template-columns:auto auto;gap:3px 12px;align-items:center;min-width:290px;padding:7px 12px;border:1px solid #ffffff55;border-radius:10px;background:#112033c7;backdrop-filter:blur(8px);box-shadow:0 5px 18px #0004;text-align:center;pointer-events:none}
   #soloRaceHud span{font-size:10px;font-weight:850;letter-spacing:.06em;white-space:nowrap} #soloRaceTime{font-size:19px;line-height:1;font-variant-numeric:tabular-nums;color:#fff}
-  .solo-stick{position:absolute;width:min(34vw,230px);aspect-ratio:1;bottom:max(18px,env(safe-area-inset-bottom));pointer-events:auto;touch-action:none;border-radius:50%}
-  #soloLeft{left:max(16px,env(safe-area-inset-left))} #soloRight{right:max(16px,env(safe-area-inset-right))}
+  .solo-stick{position:absolute;width:min(34vw,230px);aspect-ratio:1;bottom:max(18px,var(--solo-safe-bottom));pointer-events:auto;touch-action:none;border-radius:50%}
+  #soloLeft{left:max(16px,var(--solo-safe-left))} #soloRight{right:max(16px,var(--solo-safe-right))}
   .solo-ring{position:absolute;inset:0;border-radius:50%;border:2px solid #ffffff66;background:#0b18265c;box-shadow:inset 0 0 45px #0005,0 6px 22px #0005}
   .solo-knob{position:absolute;left:50%;top:50%;width:31%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:#f3f7ffcc;border:2px solid #fff;box-shadow:0 3px 14px #0008}
   .solo-stick span{position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);font-size:10px;font-weight:800;letter-spacing:.08em;text-shadow:0 2px 5px #000;white-space:nowrap}
-  #soloClearance{position:absolute;left:50%;bottom:max(96px,calc(env(safe-area-inset-bottom) + 80px));transform:translateX(-50%);width:66px;height:176px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:8px 5px;border:1px solid #ffffff55;border-radius:13px;background:#0b1826c9;backdrop-filter:blur(8px);pointer-events:auto;box-shadow:0 6px 22px #0005}
+  #soloClearance{position:absolute;left:50%;bottom:max(96px,calc(var(--solo-safe-bottom) + 80px));transform:translateX(-50%);width:66px;height:176px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:8px 5px;border:1px solid #ffffff55;border-radius:13px;background:#0b1826c9;backdrop-filter:blur(8px);pointer-events:auto;box-shadow:0 6px 22px #0005}
   #soloClearance small{font-size:8px;font-weight:850;line-height:1.05;text-align:center;letter-spacing:.06em}#soloClearance strong{font:900 13px ui-monospace,SFMono-Regular,Menlo,monospace;color:#6be4b0;white-space:nowrap}#soloClearance span{font-size:8px;font-weight:850;color:#ffd06d;white-space:nowrap}
   .solo-height-pad{position:relative;height:98px;width:50px;touch-action:none;border-radius:10px;background:linear-gradient(180deg,#174f70aa 0%,#102236bb 46%,#102236bb 54%,#70402aaa 100%);border:1px solid #ffffff33;overflow:hidden}.solo-height-track{position:absolute;left:50%;top:14px;bottom:14px;width:3px;transform:translateX(-50%);background:#ffffff35;border-radius:4px}.solo-height-knob{position:absolute;left:50%;top:50%;width:28px;height:20px;transform:translate(-50%,-50%);border-radius:999px;background:#effaff;border:2px solid #8fe8ff;box-shadow:0 2px 10px #0009;pointer-events:none}.solo-height-up,.solo-height-hold,.solo-height-down{position:absolute!important;left:50%!important;transform:translateX(-50%)!important;font:800 6px/1 system-ui,-apple-system,sans-serif!important;letter-spacing:.04em!important;color:#d9f4ff!important;pointer-events:none!important}.solo-height-up{top:4px!important}.solo-height-hold{top:50%!important;transform:translate(-50%,-50%)!important;color:#7ff0c5!important}.solo-height-down{bottom:4px!important;color:#ffc29b!important}
-  .solo-action{position:absolute;bottom:max(34px,calc(env(safe-area-inset-bottom) + 18px));pointer-events:auto;border-radius:999px!important;width:86px;height:52px;font-weight:900!important;color:#fff!important;border:2px solid #ffffff55!important;backdrop-filter:blur(8px)}
+  .solo-action{position:absolute;bottom:max(34px,calc(var(--solo-safe-bottom) + 18px));pointer-events:auto;border-radius:999px!important;width:86px;height:52px;font-weight:900!important;color:#fff!important;border:2px solid #ffffff55!important;backdrop-filter:blur(8px)}
   @keyframes startSimPulse{0%,100%{box-shadow:0 0 0 0 #63e7b833,0 0 10px #32d89a44}50%{box-shadow:0 0 0 5px #63e7b822,0 0 26px #32d89a99}}
   @keyframes armStartPulse{0%,100%{box-shadow:0 0 0 0 #63e7b844,0 0 12px #32d89a55}50%{box-shadow:0 0 0 6px #63e7b822,0 0 30px #32d89aaa}}
   #camSolo.start-sim-cta{background:#17694f!important;border-color:#63e7b8!important;color:#fff!important;animation:startSimPulse 1.55s ease-in-out infinite;transition:filter .14s ease,background .14s ease,border-color .14s ease,box-shadow .14s ease}
@@ -598,8 +608,14 @@ const soloStyle=document.createElement("style");soloStyle.textContent=`
   body.solo-flight #soloArm:not(:disabled):hover,body.solo-flight #soloArm:not(:disabled):focus-visible{background:#218865!important;border-color:#c2ffea!important;filter:brightness(1.16);box-shadow:0 0 0 4px #63e7b833,0 0 32px #32d89acc!important;outline:none}
   body.solo-flight #soloArm.arming,body.solo-flight #soloArm.armed{animation:none!important}
   #soloKill{left:50%;transform:translateX(5%);background:#8b2436e6!important}
-  #soloRotate{display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:#07101aee;font-size:18px;font-weight:900;letter-spacing:.08em;text-align:center;padding:30px;pointer-events:none}
-  @media(orientation:portrait){body.solo-flight #soloRotate{display:flex}.solo-stick,.solo-action{opacity:.18}}
+  #soloGamepadHelp{position:absolute;left:50%;bottom:max(10px,var(--solo-safe-bottom));transform:translateX(-50%);max-width:94%;padding:6px 10px;border:1px solid #70ddff66;border-radius:999px;background:#071522dd;color:#dff7ff;font:800 9px/1.1 system-ui,-apple-system,sans-serif;letter-spacing:.04em;white-space:nowrap;pointer-events:none}
+  body.solo-flight #viewport[data-control-source="xbox"] .solo-stick,body.solo-flight #viewport[data-control-source="xbox"] #soloClearance,body.solo-flight #viewport[data-control-source="xbox"] .solo-action{display:none!important}
+  /* iOS ignores Screen Orientation lock in normal browser tabs. Rotate the complete
+     simulator as a deterministic fallback so the flight UI is always landscape. */
+  @media(orientation:portrait){
+    body.solo-flight #viewport{inset:0 auto auto 100vw!important;width:100dvh!important;height:100vw!important;transform:rotate(90deg)!important;--solo-safe-top:env(safe-area-inset-right,0px);--solo-safe-right:env(safe-area-inset-bottom,0px);--solo-safe-bottom:env(safe-area-inset-left,0px);--solo-safe-left:env(safe-area-inset-top,0px)}
+    body.solo-flight dialog[open]{transform:rotate(90deg);transform-origin:50% 50%}
+  }
   @media(max-height:430px){.solo-stick{width:min(30vw,180px)}.solo-action{width:76px;height:46px}}
 `;
 document.head.appendChild(soloStyle);
@@ -615,7 +631,7 @@ function renderSoloHeightControl(){
   const rate=clearanceRateMps(soloHeightAxis);soloHeightPad.dataset.rateMps=rate.toFixed(2);$("soloClearance").dataset.targetAglM=soloGroundClearance.toFixed(2);
 }
 function setSoloHeightAxis(value){soloHeightAxis=clamp(Number(value)||0,-1,1);renderSoloHeightControl();}
-function applySoloHeightPointer(event){const r=soloHeightPad.getBoundingClientRect(),cy=r.top+r.height/2,span=Math.max(1,r.height*.40);setSoloHeightAxis((cy-event.clientY)/span);event.preventDefault();}
+function applySoloHeightPointer(event){const r=soloHeightPad.getBoundingClientRect(),rotated=$("viewport").dataset.soloOrientation==="css-landscape";const center=rotated?r.left+r.width/2:r.top+r.height/2,span=Math.max(1,(rotated?r.width:r.height)*.40),position=rotated?event.clientX:event.clientY;setSoloHeightAxis((rotated?position-center:center-position)/span);event.preventDefault();}
 soloHeightPad.addEventListener("pointerdown",event=>{if(soloHeightPointer!==null)return;soloHeightPointer=event.pointerId;soloHeightPad.setPointerCapture?.(soloHeightPointer);applySoloHeightPointer(event);});
 soloHeightPad.addEventListener("pointermove",event=>{if(event.pointerId===soloHeightPointer)applySoloHeightPointer(event);});
 const releaseSoloHeight=event=>{if(soloHeightPointer===null||(event?.pointerId!=null&&event.pointerId!==soloHeightPointer))return;const released=soloHeightPointer;soloHeightPointer=null;setSoloHeightAxis(0);try{soloHeightPad.releasePointerCapture?.(released);}catch{}event?.preventDefault();};
@@ -643,24 +659,41 @@ const soloSettingsMount=mountPhoneControlSettings({
 });
 mountCameraSettings({dialog:soloSettingsMount.dialog,onChange:applyCameraSettings});
 const flightLogbook=new FlightLogbook({parent:$("soloTopbar")});globalThis.__arondightFlightLogbook=flightLogbook;
-installFlightFireFx({viewport:$("viewport"),scene,camera,worldBridge:globalThis.__arondightRealWorld,isEnabled:()=>soloMode});
+const flightFireFx=installFlightFireFx({viewport:$("viewport"),scene,camera,worldBridge:globalThis.__arondightRealWorld,isEnabled:()=>soloMode,isPointerEnabled:()=>$("viewport").dataset.controlSource!=="xbox"});
 const flightSelectionBlocked=target=>target instanceof Element&&Boolean(target.closest("dialog,input,textarea,select,option"));for(const type of ["selectstart","contextmenu","dragstart"])document.addEventListener(type,event=>{if(soloMode&&event.target instanceof Element&&event.target.closest("#viewport")&&!flightSelectionBlocked(event.target))event.preventDefault();},{passive:false});
 let pendingDisarmReason=null;
+let xboxGamepadActive=false,xboxPrevious=null,xboxLastPollMs=performance.now();
+function neutralizeSoloMotion(){const keepArm=soloControls.arm;soloControls=neutralSoloControls();soloControls.arm=keepArm;setSoloHeightAxis(0);updateSoloSticks();}
+function toggleSoloArm(){if(soloControls.arm){soloControls.arm=false;return;}if((latest.state&STATE_NAVIGATION_VALID)&&sharedArmReady(currentFcStateText(),soloControls,true,phoneSettings))soloControls.arm=true;}
+function killSolo(){pendingDisarmReason="KILL_SWITCH";setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();arm=false;throttle=0;}
+function cycleSoloCamera(){const next=cameraMode==="follow"?"third":cameraMode==="third"?"fpv":"follow";setCameraMode(next);$("soloCamera").textContent=cameraMode.toUpperCase();}
+function deactivateXboxGamepad(){
+  if(!xboxGamepadActive)return;neutralizeSoloMotion();xboxGamepadActive=false;xboxPrevious=null;flightFireFx?.setGamepadFire(false);flightFireFx?.setGamepadAim(false);globalThis.__arondightRealWorld?.setGamepadLook?.(false);const viewport=$("viewport");viewport.dataset.controlSource="touch";viewport.dataset.gamepadConnected="0";viewport.dataset.gamepadAim="0";viewport.dataset.gamepadFire="0";viewport.dataset.gamepadHeightAxis="0.000";$("soloGamepadStatus").hidden=true;$("soloGamepadHelp").hidden=true;
+}
+function pollXboxGamepad(now){
+  if(!soloMode){deactivateXboxGamepad();return;}
+  let pad=null;try{pad=findXboxGamepad(navigator.getGamepads?.());}catch{}const sample=sampleXboxGamepad(pad);if(!sample){deactivateXboxGamepad();return;}
+  const justActivated=!xboxGamepadActive,dt=justActivated?0:clamp((now-xboxLastPollMs)/1000,0,.05);xboxLastPollMs=now;xboxGamepadActive=true;const viewport=$("viewport");viewport.dataset.controlSource="xbox";viewport.dataset.gamepadConnected="1";viewport.dataset.gamepadId=sample.id;$("soloGamepadStatus").hidden=false;$("soloGamepadHelp").hidden=false;
+  applyGameStick(soloControls,"left",sample.left,phoneSettings);if(sample.aim){soloControls.yaw=0;soloControls.bodyPitch=0;}else applyGameStick(soloControls,"right",sample.right,phoneSettings);soloHeightAxis=clamp(sample.heightAxis,-1,1);globalThis.__arondightRealWorld?.setGamepadLook?.(sample.aim,sample.right.x,sample.right.y,dt);
+  const aimX=viewport.clientWidth/2,aimY=viewport.clientHeight/2;flightFireFx?.setGamepadAim(sample.aim,aimX,aimY);flightFireFx?.setGamepadFire(sample.fire,aimX,aimY);viewport.dataset.gamepadAim=sample.aim?"1":"0";viewport.dataset.gamepadFire=sample.fire?"1":"0";viewport.dataset.gamepadHeightAxis=sample.heightAxis.toFixed(3);viewport.dataset.gamepadLeft=`${sample.left.x.toFixed(3)},${sample.left.y.toFixed(3)}`;viewport.dataset.gamepadRight=`${sample.right.x.toFixed(3)},${sample.right.y.toFixed(3)}`;const statusText=sample.aim?"XBOX · AIM":`XBOX · ALT ${soloGroundClearance.toFixed(1)} m`;if($("soloGamepadStatus").textContent!==statusText)$("soloGamepadStatus").textContent=statusText;
+  if(!justActivated&&sample.arm&&!xboxPrevious?.arm)toggleSoloArm();if(!justActivated&&sample.kill&&!xboxPrevious?.kill)killSolo();if(!justActivated&&sample.camera&&!xboxPrevious?.camera)cycleSoloCamera();xboxPrevious={arm:sample.arm,kill:sample.kill,camera:sample.camera};
+}
 async function enterSolo(){
-  soloMode=true;resetPresentationTiming();soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
+  soloMode=true;resetPresentationTiming();soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;$("viewport").dataset.controlSource="touch";inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
   try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}
   try{await screen.orientation?.lock?.("landscape");}catch{}
+  resize();
   if(mode==="sim"&&backend&&!running)startRun();
 }
 async function exitSolo(){
-  pendingDisarmReason="SOLO_EXIT";setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();localArm=false;arm=false;localThrottle=0;inputSource=soloPreviousInputSource;ui.inputSource.value=inputSource;soloMode=false;soloHud.hidden=true;raceTrack.setVisible(false);document.body.classList.remove("solo-flight");try{screen.orientation?.unlock?.();}catch{}try{if(document.fullscreenElement)await document.exitFullscreen();}catch{}updateRemoteUI();resize();
+  pendingDisarmReason="SOLO_EXIT";deactivateXboxGamepad();setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();localArm=false;arm=false;localThrottle=0;inputSource=soloPreviousInputSource;ui.inputSource.value=inputSource;soloMode=false;soloHud.hidden=true;raceTrack.setVisible(false);document.body.classList.remove("solo-flight");try{screen.orientation?.unlock?.();}catch{}try{if(document.fullscreenElement)await document.exitFullscreen();}catch{}updateRemoteUI();resize();
 }
 $("camSolo").onclick=enterSolo;$("soloExit").onclick=exitSolo;
 function resetSoloSimulation(){flightLogbook.finish("SIM_RESET");const restart=mode==="sim"&&Boolean(backend);stopRun();remoteAutoStarted=false;resetSimulation(mode==="replay"&&realLog.length?realLog[0]:null);if(restart)startRun();}
 $("soloReset").onclick=resetSoloSimulation;
-$("soloArm").onclick=()=>{if(soloControls.arm){soloControls.arm=false;return;}if((latest.state&STATE_NAVIGATION_VALID)&&sharedArmReady(currentFcStateText(),soloControls,true,phoneSettings))soloControls.arm=true;};
-$("soloKill").onclick=()=>{pendingDisarmReason="KILL_SWITCH";setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();arm=false;throttle=0;};
-$("soloCamera").onclick=()=>{const next=cameraMode==="follow"?"third":cameraMode==="third"?"fpv":"follow";setCameraMode(next);$("soloCamera").textContent=cameraMode.toUpperCase();};
+$("soloArm").onclick=toggleSoloArm;
+$("soloKill").onclick=killSolo;
+$("soloCamera").onclick=cycleSoloCamera;
 document.addEventListener("fullscreenchange",()=>{if(!soloMode)return;const viewport=$("viewport");if(viewport)viewport.dataset.soloFullscreen=document.fullscreenElement?"1":"0";resize();});
 let mode="sim",backend=null,running=false,runEpoch=0,sequence=1,simTime=0,resetFlag=true;
 let latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};
@@ -817,7 +850,7 @@ function updatePresentationQuality(now){
 }
 function render(){
   requestAnimationFrame(render);
-  const renderNow=performance.now(),fcState=latest.state;updatePresentationQuality(renderNow);
+  const renderNow=performance.now(),fcState=latest.state;pollXboxGamepad(renderNow);updatePresentationQuality(renderNow);
   motorSound.syncFcState(fcState,arm);
   if(renderNow-lastPresentationAudioMs>=PRESENTATION_AUDIO_INTERVAL_MS){
     lastPresentationAudioMs=renderNow;
@@ -854,7 +887,11 @@ function render(){
     presentationDraws++;
     const viewport=$("viewport");
     if(viewport){viewport.dataset.presentationDraws=String(presentationDraws);viewport.dataset.presentationBacklogMs=backlog.toFixed(2);}
-    if(!globalThis.__arondightRealWorld?.renderFrame?.(renderer,scene,camera))renderer.render(scene,camera);
+    const worldBridge=globalThis.__arondightRealWorld;
+    // WORLD applies free-look inside renderReal(). Training has no render adapter,
+    // so apply the same camera-only Xbox/free-look transform before its normal draw.
+    if(!worldBridge?.active)worldBridge?.applyLookCamera?.(scene,camera);
+    if(!worldBridge?.renderFrame?.(renderer,scene,camera))renderer.render(scene,camera);
   }
 }
 render();

@@ -7,15 +7,17 @@ const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-s
 const page=await browser.newPage();
 
 try{
-  for(const viewport of [{width:844,height:390,name:"landscape"},{width:844,height:300,name:"safari-bars"}]){
+  for(const viewport of [{width:844,height:390,name:"landscape"},{width:844,height:300,name:"safari-bars"},{width:390,height:844,name:"iphone-portrait"}]){
     await page.setViewport({width:viewport.width,height:viewport.height,deviceScaleFactor:1});
     await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
     await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
     await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
     const g=await page.evaluate(()=>{
-      const rect=selector=>{const e=document.querySelector(selector),r=e?.getBoundingClientRect();return r?{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}:null;};
+      const viewport=document.querySelector("#viewport"),viewportRect=viewport.getBoundingClientRect(),orientation=viewport.dataset.soloOrientation||"";
+      const physicalRect=selector=>{const e=document.querySelector(selector),r=e?.getBoundingClientRect();return r?{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}:null;};
+      const rect=selector=>{const r=physicalRect(selector);if(!r)return null;if(orientation==="css-landscape"){const left=r.top-viewportRect.top,top=viewportRect.right-r.right,right=r.bottom-viewportRect.top,bottom=viewportRect.right-r.left;return{left,top,right,bottom,width:right-left,height:bottom-top};}const left=r.left-viewportRect.left,top=r.top-viewportRect.top,right=r.right-viewportRect.left,bottom=r.bottom-viewportRect.top;return{left,top,right,bottom,width:right-left,height:bottom-top};};
       return{
-        width:innerWidth,height:innerHeight,
+        width:viewport.clientWidth,height:viewport.clientHeight,screenWidth:innerWidth,screenHeight:innerHeight,orientation,viewportPhysical:physicalRect("#viewport"),
         cameraDisplay:getComputedStyle(document.querySelector("#cameraModes")).display,
         panelDisplay:getComputedStyle(document.querySelector(".panel")).display,
         telemetryDisplay:getComputedStyle(document.querySelector(".telemetry")).display,
@@ -24,9 +26,17 @@ try{
         autoStart:document.querySelector("#viewport")?.dataset.autoFlightStart||"",
         soloCamera:document.querySelector("#soloCamera")?.textContent?.trim()||"",
         topbar:rect("#soloTopbar"),vs:rect("#lanVsButton"),vsParent:document.querySelector("#lanVsButton")?.parentElement?.id||"",vsCombatParent:document.querySelector("#vsCombatHud")?.parentElement?.id||"",vsCombatHidden:Boolean(document.querySelector("#vsCombatHud")?.hidden),left:rect("#soloLeft"),right:rect("#soloRight"),clearance:rect("#soloClearance"),arm:rect("#soloArm"),kill:rect("#soloKill"),
+        leftPhysical:physicalRect("#soloLeft"),heightPadPhysical:physicalRect("#soloHeightPad"),rotateBlocker:Boolean(document.querySelector("#soloRotate")),leftOpacity:Number(getComputedStyle(document.querySelector("#soloLeft")).opacity),armOpacity:Number(getComputedStyle(document.querySelector("#soloArm")).opacity),orientationPolicy:viewport.dataset.orientationPolicy||"",
         armCueClass:document.querySelector("#soloArm")?.className||"",armLabel:document.querySelector("#soloArm")?.textContent?.trim()||""
       };
     });
+    const portrait=viewport.height>viewport.width;
+    if(g.orientationPolicy!=="landscape"||g.rotateBlocker)throw new Error(`${viewport.name}: landscape policy/blocker contract failed: ${JSON.stringify({policy:g.orientationPolicy,blocker:g.rotateBlocker})}`);
+    if(portrait){
+      if(g.orientation!=="css-landscape"||g.width!==viewport.height||g.height!==viewport.width)throw new Error(`${viewport.name}: portrait did not become a logical landscape viewport: ${JSON.stringify({orientation:g.orientation,width:g.width,height:g.height})}`);
+      const r=g.viewportPhysical;if(Math.abs(r.left)>1||Math.abs(r.top)>1||Math.abs(r.right-g.screenWidth)>1||Math.abs(r.bottom-g.screenHeight)>1)throw new Error(`${viewport.name}: rotated simulator does not cover screen: ${JSON.stringify({screen:[g.screenWidth,g.screenHeight],viewport:r})}`);
+      if(g.leftOpacity<.99||g.armOpacity<.99)throw new Error(`${viewport.name}: flight controls were dimmed by portrait mode: ${JSON.stringify({left:g.leftOpacity,arm:g.armOpacity})}`);
+    }else if(g.orientation!=="native-landscape")throw new Error(`${viewport.name}: native landscape policy was not detected: ${g.orientation}`);
     if(g.cameraMode!=="fpv"||g.autoStart!=="fpv"||g.soloCamera!=="FPV")throw new Error(`${viewport.name}: direct FPV startup failed: ${JSON.stringify({cameraMode:g.cameraMode,autoStart:g.autoStart,soloCamera:g.soloCamera})}`);
     if(g.panelDisplay!=="none"||g.telemetryDisplay!=="none"||g.cameraDisplay!=="none")throw new Error(`${viewport.name}: main menu leaked into direct flight startup: ${JSON.stringify({panel:g.panelDisplay,telemetry:g.telemetryDisplay,camera:g.cameraDisplay})}`);
     if(g.raceDisplay!=="none")throw new Error(`${viewport.name}: lap/time HUD still blocks the flight image: ${g.raceDisplay}`);
@@ -60,6 +70,18 @@ try{
     });
     if(!armHoverContract)throw new Error(`${viewport.name}: ARM hover/focus CSS contract missing`);
 
+    if(portrait){
+      const stick=g.leftPhysical,cx=(stick.left+stick.right)/2,cy=(stick.top+stick.bottom)/2;
+      await page.mouse.move(cx,cy);await page.mouse.down();await page.mouse.move(cx,cy+stick.height*.25,{steps:3});
+      const stickAxes=await page.$eval("#soloLeft .solo-knob",e=>({left:parseFloat(e.style.left),top:parseFloat(e.style.top)}));
+      await page.mouse.up();
+      if(!(stickAxes.left>60&&Math.abs(stickAxes.top-50)<2))throw new Error(`${viewport.name}: rotated pointer axes are wrong: ${JSON.stringify(stickAxes)}`);
+      const pad=g.heightPadPhysical,px=(pad.left+pad.right)/2,py=(pad.top+pad.bottom)/2;
+      await page.mouse.move(px,py);await page.mouse.down();await page.mouse.move(px+pad.width*.30,py,{steps:3});
+      const climbRate=await page.$eval("#soloHeightPad",e=>Number(e.dataset.rateMps));await page.mouse.up();
+      if(!(climbRate>0))throw new Error(`${viewport.name}: rotated altitude control does not command CLIMB: ${climbRate}`);
+    }
+
     await page.click("#soloExit");
     await page.waitForFunction(()=>!document.body.classList.contains("solo-flight"),{timeout:5000});
     const exited=await page.evaluate(()=>({
@@ -69,6 +91,6 @@ try{
       soloHidden:document.querySelector("#soloHud")?.hidden,
     }));
     if(exited.panel==="none"||exited.telemetry==="none"||exited.camera==="none"||exited.soloHidden!==true)throw new Error(`${viewport.name}: EXIT did not restore the main menu: ${JSON.stringify(exited)}`);
-    console.log(`Solo layout ${viewport.name} passed: direct FPV flight startup, clear race-free HUD, and EXIT-only menu reveal.`);
+    console.log(`Solo layout ${viewport.name} passed: always-landscape FPV startup, clear race-free HUD, mapped controls, and EXIT-only menu reveal.`);
   }
 }finally{await browser.close();}
