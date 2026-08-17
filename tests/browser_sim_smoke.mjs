@@ -336,7 +336,10 @@ try{
 
   await page.evaluate(()=>document.querySelector("#soloExit")?.click());
   await page.waitForFunction(()=>!document.body.classList.contains("solo-flight"),{timeout:5000});
-  await page.click("#reset");await page.setViewport({width:1280,height:900,deviceScaleFactor:1});
+  const mainResetEpochBefore=await page.evaluate(()=>Number(globalThis.__arondightDiagnostics?.runEpoch)||0);
+  await page.click("#reset");
+  await page.waitForFunction(epoch=>{const d=globalThis.__arondightDiagnostics;return Number(d?.runEpoch)>epoch&&Number(d?.simTime)<.05;},{timeout:5000},mainResetEpochBefore);
+  await page.setViewport({width:1280,height:900,deviceScaleFactor:1});
   await page.select("#inputSource","local");
   await page.$eval("#inputSource",e=>e.dispatchEvent(new Event("change",{bubbles:true})));
   await page.click("#run");await waitForSimTime(2.2,60000);
@@ -346,7 +349,7 @@ try{
   // Space must arm through the same local SBUS -> FirmwareRuntime -> ArmState path.
   // Use the authoritative FC state bit for arming completion; #fcState is a
   // deliberately rate-limited 20 Hz presentation surface and may lag one frame.
-  const localArmStart=await simTime();await page.keyboard.press("Space");
+  const localArmStart=await page.evaluate(()=>Number(globalThis.__arondightDiagnostics?.simTime));await page.keyboard.press("Space");
   await page.waitForFunction(({start,limit})=>{const d=globalThis.__arondightDiagnostics,sim=Number(d?.simTime),fc=Number(d?.fcState)||0;return Boolean(fc&1)||(Number.isFinite(sim)&&sim>=start+limit);},{timeout:15000},{start:localArmStart,limit:1.25});
   const localArmReached=await page.evaluate(()=>({sim:Number(globalThis.__arondightDiagnostics?.simTime),fc:Number(globalThis.__arondightDiagnostics?.fcState)||0}));
   if(!(localArmReached.fc&1)||localArmReached.sim-localArmStart>1.25)throw new Error(`local fallback ARM authority failed: start=${localArmStart} reached=${JSON.stringify(localArmReached)} snapshot=${JSON.stringify(await snapshot())}`);
