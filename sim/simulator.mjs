@@ -16,6 +16,7 @@ import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabiliz
 import {renderPlatformProfile,quantizedViewportSize,viewportSizeChanged} from "./render_stability.mjs";
 import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies} from "./world_building_collision_physics.mjs";
 import {Box3dColliderDebugDraw} from "./box3d_collider_debug.mjs";
+import {addPropellerSweepColliders} from "./airframe_collision_envelope.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -381,6 +382,7 @@ class PhysicsModel {
     const shapeDef=b3.b3DefaultShapeDef();shapeDef.density=100;shapeDef.baseMaterial.friction=.65;shapeDef.baseMaterial.restitution=.08;shapeDef.filter={categoryBits:COLLISION_AIRFRAME,maskBits:COLLISION_TERRAIN,groupIndex:0};b3.b3CreateBoxShape(this.body,shapeDef,.055,.045,AIRFRAME_COLLISION_HALF_Z_M);
     const arm=p.span/(2*Math.sqrt(2));this.motorPos=[[-arm,-arm,0],[-arm,arm,0],[arm,arm,0],[arm,-arm,0]];
     for(const position of this.motorPos){b3.b3CreateCapsuleShape(this.body,shapeDef,{center1:[0,0,0],center2:position,radius:.008});b3.b3CreateSphereShape(this.body,shapeDef,{center:position,radius:.018});}
+    addPropellerSweepColliders(b3,this.body,shapeDef,this.motorPos,p.propD);
     this.skidHalfLength=Math.min(.045,Math.max(.03,p.span*.18));
     const mass=b3.b3Body_GetMassData(this.body);mass.mass=p.mass;mass.center=[0,0,-.006];mass.inertia={cx:[p.Ixx,0,0],cy:[0,p.Iyy,0],cz:[0,0,p.Izz]};b3.b3Body_SetMassData(this.body,mass);
     if(initial?.vx!=null && b3.b3Body_SetLinearVelocity)b3.b3Body_SetLinearVelocity(this.body,[initial.vx||0,initial.vy||0,initial.vz||0]);
@@ -945,7 +947,7 @@ function render(){
     const presentationDt=Number.isFinite(lastPresentationDrawMs)?clamp(sinceDraw/1000,0,.1):1/60,presentationAlpha=running&&mode!=="replay"?clamp(backlog/SIM_FIXED_STEP_MS,0,1):1;
     recordPresentationFrame(renderNow);
     lastPresentationDrawMs=renderNow;
-    const presentationPose=physics.presentationPose(presentationAlpha);box3dColliderDebugDraw.syncAirframe(physics.motorPos,AIRFRAME_COLLISION_HALF_Z_M);box3dColliderDebugDraw.syncWorld(physics.worldBuildingCollisionState,physics.worldBuildingCollisionRevision);box3dColliderDebugDraw.updateAirframe(presentationPose);const box3dDebugViewport=$("viewport");if(box3dDebugViewport&&box3dColliderDebugEnabled)box3dDebugViewport.dataset.box3dColliderDebugPrisms=String(box3dColliderDebugDraw.activePrismCount);physics.render(presentationPose,presentationDt);updateCamera(presentationPose,renderNow);
+    const presentationPose=physics.presentationPose(presentationAlpha);box3dColliderDebugDraw.syncAirframe(physics.motorPos,AIRFRAME_COLLISION_HALF_Z_M,physics.p.propD);box3dColliderDebugDraw.syncWorld(physics.worldBuildingCollisionState,physics.worldBuildingCollisionRevision);box3dColliderDebugDraw.updateAirframe(presentationPose);const box3dDebugViewport=$("viewport");if(box3dDebugViewport&&box3dColliderDebugEnabled)box3dDebugViewport.dataset.box3dColliderDebugPrisms=String(box3dColliderDebugDraw.activePrismCount);physics.render(presentationPose,presentationDt);updateCamera(presentationPose,renderNow);
     if(renderer.shadowMap.enabled&&renderNow-lastPresentationShadowMs>=PRESENTATION_SHADOW_INTERVAL_MS&&backlog<PRESENTATION_SHADOW_BACKLOG_MS){
       lastPresentationShadowMs=renderNow;
       renderer.shadowMap.needsUpdate=true;
