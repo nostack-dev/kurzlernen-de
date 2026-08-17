@@ -1,0 +1,57 @@
+name: Apply propeller collision envelope integration
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Apply propeller collision envelope integration'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Wire visible propeller envelope into Box3D and release gate
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          sim=Path('sim/simulator.mjs')
+          text=sim.read_text()
+          old='import {Box3dColliderDebugDraw} from "./box3d_collider_debug.mjs";'
+          new=old+'\nimport {addPropellerSweepColliders} from "./airframe_collision_envelope.mjs";'
+          assert old in text and 'airframe_collision_envelope.mjs' not in text
+          text=text.replace(old,new,1)
+
+          old='for(const position of this.motorPos){b3.b3CreateCapsuleShape(this.body,shapeDef,{center1:[0,0,0],center2:position,radius:.008});b3.b3CreateSphereShape(this.body,shapeDef,{center:position,radius:.018});}\n    this.skidHalfLength='
+          new='for(const position of this.motorPos){b3.b3CreateCapsuleShape(this.body,shapeDef,{center1:[0,0,0],center2:position,radius:.008});b3.b3CreateSphereShape(this.body,shapeDef,{center:position,radius:.018});}\n    addPropellerSweepColliders(b3,this.body,shapeDef,this.motorPos,p.propD);\n    this.skidHalfLength='
+          assert old in text
+          text=text.replace(old,new,1)
+
+          old='box3dColliderDebugDraw.syncAirframe(physics.motorPos,AIRFRAME_COLLISION_HALF_Z_M);'
+          new='box3dColliderDebugDraw.syncAirframe(physics.motorPos,AIRFRAME_COLLISION_HALF_Z_M,physics.p.propD);'
+          assert old in text
+          text=text.replace(old,new,1)
+          sim.write_text(text)
+
+          deploy=Path('.github/workflows/deploy.yml')
+          text=deploy.read_text()
+          old='          node tests/world_building_collision_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs\n'
+          new=old+'          node tests/airframe_collision_envelope_test.mjs\n          grep -q \'addPropellerSweepColliders(b3,this.body,shapeDef,this.motorPos,p.propD)\' sim/simulator.mjs\n'
+          assert old in text and 'tests/airframe_collision_envelope_test.mjs' not in text
+          deploy.write_text(text.replace(old,new,1))
+          PY
+          node tests/airframe_collision_envelope_test.mjs
+          node --check sim/airframe_collision_envelope.mjs
+          node --check sim/box3d_collider_debug.mjs
+          node --check sim/simulator.mjs
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add sim/simulator.mjs .github/workflows/deploy.yml
+          git commit -m "Match Box3D collider to visible propeller sweep"
+          git push
