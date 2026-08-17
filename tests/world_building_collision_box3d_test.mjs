@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
 import {resolve} from "node:path";
-import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies} from "../sim/world_building_collision_physics.mjs";
+import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,findClearBuildingLaunchPoint} from "../sim/world_building_collision_physics.mjs";
 
 const modulePath=process.argv[2];
 if(!modulePath)throw new Error("usage: node tests/world_building_collision_box3d_test.mjs <box3d.inline.mjs>");
@@ -18,6 +18,11 @@ const snapshot={hash:"fixture",footprintCount:2,prisms:[
   {buildingKey:"launch-house",base:0,top:3,points:[[.5,-.5],[1.5,-.5],[1.5,.5],[.5,.5]]},
   {buildingKey:"house",base:0,top:2,points:[[2,-1],[3,-1],[3,1],[2,1]]},
 ]};
+
+const safeLaunch=findClearBuildingLaunchPoint(snapshot,{clearanceM:.20});
+assert.ok(Math.hypot(...safeLaunch)>.70,`indoor launch was not moved outside the footprint: ${safeLaunch}`);
+assert.ok(safeLaunch[1]<-.65,`nearest deterministic clear launch should leave through the closest lower wall: ${safeLaunch}`);
+
 const buildings=createWorldBuildingCollisionBodies(b3,world,snapshot,{categoryBits:1n,maskBits:6n});
 assert.equal(buildings.shapeCount,1);assert.equal(buildings.prismCount,3);assert.equal(buildings.skippedLaunchPrisms,2);assert.equal(buildings.skippedLaunchBuildings,1);assert.ok(buildings.body&&b3.b3Body_IsValid(buildings.body));
 
@@ -43,4 +48,4 @@ destroyWorldBuildingCollisionBodies(b3,buildings);assert.equal(b3.b3Body_IsValid
 const clear=makeProbe({position:[1.5,0,1]}),clearPosition=advance(clear);assert.ok(clearPosition[0]>3.5,`destroyed house collider still blocks: ${clearPosition}`);b3.b3DestroyBody(clear);
 b3.b3DestroyWorld(world);
 
-console.log("WORLD Box3D building collision passed: full launch-building exclusion, lateral seam escape, roof ray, unrelated wall contact and collider teardown use real box3d.js 3D shapes.");
+console.log("WORLD Box3D building collision passed: nearest clear launch, full launch-building exclusion, lateral seam escape, roof ray, unrelated wall contact and collider teardown use real box3d.js 3D shapes.");
