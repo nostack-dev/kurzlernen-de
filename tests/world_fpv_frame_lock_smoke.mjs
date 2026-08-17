@@ -93,7 +93,7 @@ try{
     if(locked.updates<38)throw new Error(`${mode} is not frame-locked to presentation frames: ${JSON.stringify(result)}`);
     if(locked.p95EyeM>.08||locked.p95Pixel>.8||locked.p95BearingDeg>.08)throw new Error(`${mode} camera registration exceeds sub-pixel/sub-decimeter budget: ${JSON.stringify(result)}`);
     const expectedSync=mode==="fpv"?"rigid-eye-target":"stabilized-eye-target";if(locked.syncMode!==expectedSync)throw new Error(`${mode} reports wrong camera sync mode: ${JSON.stringify(result)}`);
-    if(!(halfRate.p95EyeM>locked.p95EyeM+.18&&halfRate.p95Pixel>locked.p95Pixel+1.2))throw new Error(`${mode} quantitative probe cannot distinguish frame-lock from half-rate jitter: ${JSON.stringify(result)}`);
+    if(!(halfRate.p95EyeM>locked.p95EyeM+.18&&halfRate.p95BearingDeg>locked.p95BearingDeg+.04))throw new Error(`${mode} scale-independent probe cannot distinguish frame-lock from half-rate jitter: ${JSON.stringify(result)}`);
     if(screenLocked.samples<150||screenLocked.p95ScreenPx>1)throw new Error(`${mode} MapLibre/THREE screen-space registration exceeds 1px p95: ${JSON.stringify(result)}`);
     if(!(screenHalfRate.p95ScreenPx>screenLocked.p95ScreenPx+1))throw new Error(`${mode} screen-space probe cannot distinguish frame-lock from half-rate jitter: ${JSON.stringify(result)}`);
   }
