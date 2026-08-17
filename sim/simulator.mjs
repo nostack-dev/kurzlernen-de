@@ -945,7 +945,7 @@ function render(){
     const presentationDt=Number.isFinite(lastPresentationDrawMs)?clamp(sinceDraw/1000,0,.1):1/60,presentationAlpha=running&&mode!=="replay"?clamp(backlog/SIM_FIXED_STEP_MS,0,1):1;
     recordPresentationFrame(renderNow);
     lastPresentationDrawMs=renderNow;
-    const presentationPose=physics.presentationPose(presentationAlpha);physics.render(presentationPose,presentationDt);box3dColliderDebugDraw.syncAirframe(physics.motorPos,AIRFRAME_COLLISION_HALF_Z_M);box3dColliderDebugDraw.syncWorld(physics.worldBuildingCollisionState,physics.worldBuildingCollisionRevision);box3dColliderDebugDraw.updateAirframe(presentationPose);const box3dDebugViewport=$("viewport");if(box3dDebugViewport&&box3dColliderDebugEnabled)box3dDebugViewport.dataset.box3dColliderDebugPrisms=String(box3dColliderDebugDraw.activePrismCount);updateCamera(presentationPose,renderNow);
+    const presentationPose=physics.presentationPose(presentationAlpha);box3dColliderDebugDraw.syncAirframe(physics.motorPos,AIRFRAME_COLLISION_HALF_Z_M);box3dColliderDebugDraw.syncWorld(physics.worldBuildingCollisionState,physics.worldBuildingCollisionRevision);box3dColliderDebugDraw.updateAirframe(presentationPose);const box3dDebugViewport=$("viewport");if(box3dDebugViewport&&box3dColliderDebugEnabled)box3dDebugViewport.dataset.box3dColliderDebugPrisms=String(box3dColliderDebugDraw.activePrismCount);physics.render(presentationPose,presentationDt);updateCamera(presentationPose,renderNow);
     if(renderer.shadowMap.enabled&&renderNow-lastPresentationShadowMs>=PRESENTATION_SHADOW_INTERVAL_MS&&backlog<PRESENTATION_SHADOW_BACKLOG_MS){
       lastPresentationShadowMs=renderNow;
       renderer.shadowMap.needsUpdate=true;
