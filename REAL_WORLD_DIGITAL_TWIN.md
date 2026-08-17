@@ -2,9 +2,9 @@
 
 The browser simulator has two world modes: **TRAINING RANGE** and **REAL WORLD · MY LOCATION**.
 
-REAL WORLD is deliberately static/serverless. A user gesture requests high-accuracy browser geolocation, the WGS84 latitude/longitude becomes the horizontal origin of the existing local east/north/up metre frame, and the browser loads the map directly from **OpenFreeMap** using **OpenStreetMap / OpenMapTiles** data. There is no account, API key, billing setup, application backend, proxy, or repository secret.
+REAL WORLD is deliberately static/serverless. A user gesture requests high-accuracy browser geolocation, the WGS84 latitude/longitude becomes the horizontal origin of the existing local east/north/up metre frame, and the browser loads **Esri World Imagery** aerial/satellite pixels plus **OpenFreeMap / OpenStreetMap / OpenMapTiles** vector context. There is no account, API key, billing setup, application backend, proxy, or repository secret.
 
-The real-world renderer uses MapLibre GL JS with the OpenFreeMap Liberty style. The OpenMapTiles `building` layer is extruded from `render_height` and `render_min_height` when those OSM-derived values exist. This gives a simple 3D city/world context without changing the aircraft model.
+The real-world renderer uses MapLibre GL JS with the OpenFreeMap Liberty style. A public World Imagery raster source is inserted above the flat land-use polygons, while OSM transportation lines and the OpenMapTiles `building` layer remain as a lightweight hybrid overlay. Buildings are extruded from `render_height` and `render_min_height` when those OSM-derived values exist. The imagery layer is ON by default and can be disabled in Settings, with the original OSM vector rendering remaining as fallback.
 
 The aircraft is rendered through the simulator's **existing THREE flight renderer and existing flight camera**. REAL WORLD does not create a second THREE WebGL renderer and does not hook the renderer prototype. Each simulator render frame explicitly gives the current renderer, scene and camera to the geospatial adapter; when WORLD is active, that same transparent flight canvas is composited over MapLibre. FOLLOW, THIRD and FPV therefore remain the simulator's normal camera modes rather than separate map-camera modes.
 
@@ -12,7 +12,7 @@ Flight truth remains unchanged: the exact shared firmware runtime still consumes
 
 Map geometry is **visual/geospatial context, not collision truth**. No building or map polygon is silently turned into a physics collider. The existing local collision/rangefinder world remains authoritative until a separately verified collision/elevation source is introduced. Likewise, OpenFreeMap vector data is not treated as a terrain-elevation measurement; local `z=0` remains the simulator launch plane.
 
-Training mode performs no external map request. REAL WORLD fetches OpenFreeMap tiles only after the user explicitly chooses WORLD / USE MY GPS LOCATION.
+Training mode performs no external map request. REAL WORLD fetches OpenFreeMap vector tiles and Esri imagery tiles only after the user explicitly chooses WORLD / USE MY GPS LOCATION.
 
 ## WORLD flight envelope and mobile visual budget
 
@@ -30,7 +30,7 @@ The shared GAME horizontal speed command defaults to **10 m/s (36 km/h)** and is
 
 WORLD settings include a **WORLD GRID** toggle, default ON. It reuses the simulator's existing local metric THREE grid as a render-only depth/scale cue above the geospatial map; it never becomes collision or navigation truth.
 
-The top-right **MINI 3D · 360°** view is built from already-loaded MapLibre/OpenMapTiles vector features and one lightweight 2D canvas. It does not create a second MapLibre instance, WebGL renderer, tile stream or network request. Water, vegetation, roads and buildings use the same semantic colors as the main WORLD view; buildings are given a lightweight height projection for depth. **MINIMAP FOLLOWS 360° CAMERA** defaults ON; OFF keeps the mini-map north-up. Feature queries are capped at 1 Hz (2 s in critical performance mode), drawing at 8 Hz (4 Hz critical), and at most 80 cached features are retained.
+The top-right minimap stays strictly orthographic and top-down. It uses one lightweight 2D canvas, a bounded 48-tile imagery cache and the same World Imagery XYZ scheme as the main map; it does not create a second MapLibre or WebGL renderer. Cached OSM roads, water and flat building footprints are drawn as low-opacity orientation overlays instead of hiding the aerial pixels behind solid-color blocks. The minimap axis is north-up by default outside fullscreen, feature queries are capped at 1 Hz (2 s in critical mode), drawing at 8 Hz (4 Hz critical), and at most 80 vector features are retained.
 
 ## Human altitude command and render performance
 
@@ -38,11 +38,11 @@ The in-flight altitude UI is a spring-centred **CLIMB / HOLD / DESCEND** target-
 
 The NAV range twin now permits the configured 60 m slant ray all the way through `groundRange`, so a 50 m AGL command remains measurable at the controller's 25° tilt envelope instead of being accidentally clipped by the former internal 50 m ray clamp. The NAV1 wire format remains unchanged.
 
-WORLD rendering has a flight-first performance governor. The flight/FC/physics cadence is never reduced by it. Map camera refresh begins at 30 Hz and may drop to 20 or 15 Hz, and the flight overlay may drop to 1.0 device-independent pixel ratio, when measured visual frame rate is under pressure. It recovers only after sustained headroom. No building/flight geometry is silently substituted and no physical state is changed. Expensive label/icon symbol layers and backdrop blur are removed in WORLD; the map uses a one-time semantic palette (blue water, green vegetation, amber roads, light buildings) plus a compact legend for human scene parsing.
+WORLD rendering has a flight-first performance governor. The flight/FC/physics cadence is never reduced by it. Map camera refresh begins at 30 Hz and may drop to 20 or 15 Hz, and the flight overlay may drop to 1.0 device-independent pixel ratio, when measured visual frame rate is under pressure. It recovers only after sustained headroom. No building/flight geometry is silently substituted and no physical state is changed. Expensive label/icon symbol layers and backdrop blur are removed in WORLD; asynchronous raster tiles are composited beneath the thin OSM road/building overlay and never block the 1 kHz authority loop.
 
 Altitude target slew is clocked by the control transport rather than rendering: 100 Hz SBUS sampling in one-phone SIM and the 20 ms P2P control publisher on the remote controller. Dropped visual frames therefore cannot change the intended height-control law.
 
-Release CI also measures simulator-time versus browser wall-time at runtime, so display-refresh regressions cannot silently halve flight speed again. WORLD GRID is exercised both OFF and ON with persistence, and the semantic water/vegetation/road/building palette is locked by the browser release gate.
+Release CI also measures simulator-time versus browser wall-time at runtime, so display-refresh regressions cannot silently halve flight speed again. WORLD GRID and aerial imagery are each exercised OFF and ON with persistence; the browser gate requires the imagery layer and the independent top-down minimap imagery cache without granting either one physics authority.
 
 
 ### Free look versus physical camera truth

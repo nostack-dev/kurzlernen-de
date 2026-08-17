@@ -191,7 +191,7 @@ forbidText("sim/simulator.mjs","(sequence&7)===0", "simulator fixed-step cadence
 // WGS84 horizontal origin; local x/y/z remain east/north/up SI metres.
 // OpenFreeMap/OpenStreetMap are visual context only and never gain motor,
 // controller or rigid-body authority.
-for(const marker of ["navigator.geolocation.getCurrentPosition","enableHighAccuracy:true","tiles.openfreemap.org/styles/liberty","new MapLibreMap","metersToLngLat","source-layer\":\"building","render_height","render_min_height",'await import("./simulator.mjs")'])
+for(const marker of ["navigator.geolocation.getCurrentPosition","enableHighAccuracy:true","tiles.openfreemap.org/styles/liberty","new MapLibreMap","metersToLngLat","source-layer\":\"building","render_height","render_min_height","WORLD_IMAGERY_TILE_URL","services.arcgisonline.com/ArcGIS/rest/services/World_Imagery","addWorldImagery","drawMinimapImagery","WORLD_MINIMAP_IMAGERY_CACHE_SIZE",'await import("./simulator.mjs")'])
   requireText("sim/real_world_bootstrap.mjs",marker);
 for(const dirty of ["Box3DFactory","PhysicsModel","applyForces(","motorOmega","motorTorque","propTorque","fc::Runtime","StateController","b3Body_ApplyForce","b3World_Step","new MapLibreMap({container:this.minimap"])
   forbidText("sim/real_world_bootstrap.mjs",dirty,`real-world render adapter duplicated flight physics/control: ${dirty}`);
@@ -200,12 +200,14 @@ for(const path of ["sim/real_world_bootstrap.mjs","sim/control_settings.mjs","te
     forbidText(path,dirty,`${path} still contains removed map-provider dependency: ${dirty}`);
 requireText("sim/control_settings.mjs","openfreemap-osm-3d");
 requireText("sim/control_settings.mjs","No account, API key, billing setup, backend or proxy is required.");
+requireText(".github/workflows/deploy.yml","services.arcgisonline.com/ArcGIS/rest/services/World_Imagery");
 requireText("sim/control_settings.mjs","WORLD GRID");
+requireText("sim/control_settings.mjs","REAL AERIAL / SATELLITE MAP");
 requireText("sim/control_settings.mjs","KEEP 360° LOOK ORIENTATION");
 requireText("sim/control_settings.mjs","LOCK MINIMAP AXIS TO VERTICAL");
 requireText("sim/control_settings.mjs","data-world-minimap-axis-lock");
 forbidText("sim/control_settings.mjs","MINIMAP FOLLOWS 360° CAMERA","obsolete minimap-follow setting must not return");
-for(const marker of ["MINIMAP · N↑ · TOP","WORLD_MINIMAP_AXIS_LOCK_STORAGE","worldMinimapProjection=\"topdown\"","worldMinimapPitch=\"0.00\"","worldMinimapRoll=\"0.00\"","worldMinimapHeightMode=\"flat-footprints\"","setMinimapAxisLocked","calculateCameraOptionsFromTo","worldMapEyeElevation","setCameraFovDeg","toggleMinimapExpanded"])requireText("sim/real_world_bootstrap.mjs",marker);
+for(const marker of ["MINIMAP · N↑ · TOP","WORLD_MINIMAP_AXIS_LOCK_STORAGE","WORLD_IMAGERY_STORAGE","worldMinimapProjection=\"topdown\"","worldMinimapPitch=\"0.00\"","worldMinimapRoll=\"0.00\"","worldMinimapHeightMode=\"flat-footprints\"","setMinimapAxisLocked","setImageryEnabled","calculateCameraOptionsFromTo","worldMapEyeElevation","setCameraFovDeg","toggleMinimapExpanded"])requireText("sim/real_world_bootstrap.mjs",marker);
 for(const forbidden of ["rotateX(","world-look-plane",'worldMinimapProjection=expanded?"topdown":"perspective"',"*(expanded?1:.60)"])
   forbidText("sim/real_world_bootstrap.mjs",forbidden,`minimap must be strictly orthographic top-down: ${forbidden}`);
 
