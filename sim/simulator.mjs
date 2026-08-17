@@ -14,7 +14,7 @@ import {partitionCalibrationLog,evaluatePhysicsValidation,validationSummary,PHYS
 import {findXboxGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";
 import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";
 import {renderPlatformProfile,quantizedViewportSize,viewportSizeChanged} from "./render_stability.mjs";
-import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies} from "./world_building_collision_physics.mjs";
+import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,resolveBox3dCameraPath} from "./world_building_collision_physics.mjs";
 import {Box3dColliderDebugDraw} from "./box3d_collider_debug.mjs";
 import {addPropellerSweepColliders} from "./airframe_collision_envelope.mjs";
 
@@ -90,6 +90,7 @@ const waitForSimulationDeadline=accumulatorMs=>new Promise(resolve=>setTimeout(r
 const COLLISION_TERRAIN = 1n;
 const COLLISION_AIRFRAME = 2n;
 const QUERY_RANGEFINDER = 4n;
+const QUERY_CAMERA = 8n;
 const AIRFRAME_COLLISION_HALF_Z_M = .022;
 const AIRFRAME_VISUAL_BODY_CENTER_Z_M = .006;
 const AIRFRAME_LANDING_SKID_RADIUS_M = .004;
@@ -377,7 +378,7 @@ class PhysicsModel {
     this.p={...p,wind:[...p.wind]};
     if(this.world){this.worldBuildingCollisionState=null;b3.b3DestroyWorld(this.world);}
     const worldDef=b3.b3DefaultWorldDef();worldDef.gravity=[0,0,-G];worldDef.enableSleep=false;worldDef.enableContinuous=true;this.world=b3.b3CreateWorld(worldDef);
-    const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(this.world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER,groupIndex:0};b3.b3CreateBoxShape(ground,groundShape,TERRAIN_HALF,TERRAIN_HALF,.05);
+    const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(this.world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,groupIndex:0};b3.b3CreateBoxShape(ground,groundShape,TERRAIN_HALF,TERRAIN_HALF,.05);
     const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;const initialZ=Number.isFinite(initial?.z)?initial.z:AIRFRAME_SPAWN_Z_M;bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(AIRFRAME_SPAWN_Z_M,initialZ)];bodyDef.rotation=initial?[...eulerToQuat(initial.roll_deg||0,initial.pitch_deg||0,initial.yaw_deg||0)]:[0,0,0,1];bodyDef.linearDamping=.002;bodyDef.angularDamping=.002;bodyDef.enableSleep=false;this.body=b3.b3CreateBody(this.world,bodyDef);
     const shapeDef=b3.b3DefaultShapeDef();shapeDef.density=100;shapeDef.baseMaterial.friction=.65;shapeDef.baseMaterial.restitution=.08;shapeDef.filter={categoryBits:COLLISION_AIRFRAME,maskBits:COLLISION_TERRAIN,groupIndex:0};b3.b3CreateBoxShape(this.body,shapeDef,.055,.045,AIRFRAME_COLLISION_HALF_Z_M);
     const arm=p.span/(2*Math.sqrt(2));this.motorPos=[[-arm,-arm,0],[-arm,arm,0],[arm,arm,0],[arm,-arm,0]];
@@ -396,7 +397,7 @@ class PhysicsModel {
     }
   }
   setWorldBuildingCollisions(value){const snapshot=normalizeBuildingCollisionSnapshot(value);if(snapshot.hash===this.worldBuildingCollisionSnapshot.hash&&snapshot.prismCount===this.worldBuildingCollisionSnapshot.prismCount)return false;this.worldBuildingCollisionSnapshot=snapshot;this.rebuildWorldBuildingCollisions();return true;}
-  rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER});this.worldBuildingCollisionRevision++;}
+  rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA});this.worldBuildingCollisionRevision++;}
   buildGraphics(){
     if(this.group)this.scene.remove(this.group);
     this.group=new THREE.Group();this.group.userData.arondightAirframe=true;this.scene.add(this.group);this.rotors=[];
@@ -452,6 +453,7 @@ class PhysicsModel {
     const slant=fraction*range,agl=slant*verticalProjection;
     return{valid:slant>=.001&&slant<=range&&Number.isFinite(agl),slant,agl,verticalProjection};
   }
+  resolveCameraPath(anchor,desired){return resolveBox3dCameraPath(b3,this.world,anchor,desired,{queryCategoryBits:QUERY_CAMERA,terrainCategoryBits:COLLISION_TERRAIN,clearanceM:.08});}
   imuRaw(dt=DT){
     this.noise.stepBias(dt);
     const omegaBody=this.localVector(this.angular()),alpha=scale(sub(omegaBody,this.prevOmegaBody),1/dt);this.prevOmegaBody=omegaBody.slice();
@@ -552,6 +554,7 @@ function resize(){if(presentationResizeQueued)return;presentationResizeQueued=tr
 addEventListener("resize",resize,{passive:true});addEventListener("orientationchange",resize,{passive:true});globalThis.visualViewport?.addEventListener?.("resize",resize,{passive:true});const viewportResizeObserver=globalThis.ResizeObserver?new ResizeObserver(resize):null;viewportResizeObserver?.observe($("viewport"));commitPresentationResize();
 
 let physics=new PhysicsModel(defaultParams(),{graphics:true,scene});
+globalThis.__arondightRealWorld?.attachCameraCollisionResolver?.((anchor,desired)=>physics.resolveCameraPath(anchor,desired));
 const box3dColliderDebugDraw=new Box3dColliderDebugDraw(scene);
 let box3dColliderDebugEnabled=false;try{box3dColliderDebugEnabled=localStorage.getItem(BOX3D_COLLIDER_DEBUG_STORAGE)==="1";}catch{}
 function setBox3dColliderDebugEnabled(enabled){

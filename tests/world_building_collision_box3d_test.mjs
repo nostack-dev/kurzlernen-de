@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
 import {resolve} from "node:path";
-import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,findClearBuildingLaunchPoint} from "../sim/world_building_collision_physics.mjs";
+import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,findClearBuildingLaunchPoint,resolveBox3dCameraPath} from "../sim/world_building_collision_physics.mjs";
 
 const modulePath=process.argv[2];
 if(!modulePath)throw new Error("usage: node tests/world_building_collision_box3d_test.mjs <box3d.inline.mjs>");
@@ -13,7 +13,7 @@ const world=b3.b3CreateWorld(worldDef);
 
 // Stable GAME AGL datum: the flat launch/terrain plane remains visible to the
 // rangefinder even when an OSM building is physically present above it.
-const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.filter={categoryBits:1n,maskBits:6n,groupIndex:0};b3.b3CreateBoxShape(ground,groundShape,10,10,.05);
+const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.filter={categoryBits:1n,maskBits:14n,groupIndex:0};b3.b3CreateBoxShape(ground,groundShape,10,10,.05);
 
 const snapshot={hash:"fixture",footprintCount:2,prisms:[
   // A concave/triangulated source building can produce several convex prisms.
@@ -28,7 +28,7 @@ const safeLaunch=findClearBuildingLaunchPoint(snapshot,{clearanceM:.20});
 assert.ok(Math.hypot(...safeLaunch)>.70,`indoor launch was not moved outside the footprint: ${safeLaunch}`);
 assert.ok(safeLaunch[1]<-.65,`nearest deterministic clear launch should leave through the closest lower wall: ${safeLaunch}`);
 
-const buildings=createWorldBuildingCollisionBodies(b3,world,snapshot,{categoryBits:1n,maskBits:6n,rangefinderCategoryBits:4n});
+const buildings=createWorldBuildingCollisionBodies(b3,world,snapshot,{categoryBits:1n,maskBits:14n,rangefinderCategoryBits:4n});
 assert.equal(buildings.shapeCount,1);assert.equal(buildings.prismCount,3);assert.equal(buildings.skippedLaunchPrisms,2);assert.equal(buildings.skippedLaunchBuildings,1);assert.equal(buildings.activePrisms.length,1);assert.equal(buildings.activePrisms[0].buildingKey,"house");assert.ok(buildings.body&&b3.b3Body_IsValid(buildings.body));
 
 // Regression: OSM roofs/walls remain airframe colliders but must not become the
@@ -37,6 +37,12 @@ assert.equal(buildings.shapeCount,1);assert.equal(buildings.prismCount,3);assert
 const rayFilter=b3.b3DefaultQueryFilter();rayFilter.categoryBits=4n;rayFilter.maskBits=1n;
 const aglGround=b3.b3World_CastRayClosest(world,[2.5,0,5],[0,0,-6],rayFilter);
 assert.equal(aglGround.hit,true);assert.ok(Math.abs(5-6*aglGround.fraction)<.03,`building roof contaminated GAME AGL: point=${aglGround.point} fraction=${aglGround.fraction}`);assert.ok(aglGround.normal[2]>.98);
+
+const wallCamera=resolveBox3dCameraPath(b3,world,[1.5,0,1],[3.5,0,1],{queryCategoryBits:8n,terrainCategoryBits:1n,clearanceM:.08});
+assert.equal(wallCamera.collided,true);assert.ok(wallCamera.position[0]>1.5&&wallCamera.position[0]<1.95,`camera crossed building wall: ${JSON.stringify(wallCamera)}`);
+const groundCamera=resolveBox3dCameraPath(b3,world,[0,0,1],[0,0,-1],{queryCategoryBits:8n,terrainCategoryBits:1n,clearanceM:.08});
+assert.equal(groundCamera.collided,true);assert.ok(groundCamera.position[2]>=.075,`camera clipped ground: ${JSON.stringify(groundCamera)}`);
+const clearCamera=resolveBox3dCameraPath(b3,world,[0,0,1],[0,0,2],{queryCategoryBits:8n,terrainCategoryBits:1n,clearanceM:.08});assert.equal(clearCamera.collided,false);assert.deepEqual(clearCamera.position,[0,0,2]);
 
 function makeProbe({position=[0,0,1],velocity=[8,0,0]}={}){
   const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;bodyDef.position=position;bodyDef.enableSleep=false;bodyDef.isBullet=true;
@@ -54,4 +60,4 @@ destroyWorldBuildingCollisionBodies(b3,buildings);assert.equal(b3.b3Body_IsValid
 const clear=makeProbe({position:[1.5,0,1]}),clearPosition=advance(clear);assert.ok(clearPosition[0]>3.5,`destroyed house collider still blocks: ${clearPosition}`);b3.b3DestroyBody(clear);
 b3.b3DestroyWorld(world);
 
-console.log("WORLD Box3D building collision passed: nearest clear launch, full launch-building exclusion, lateral seam escape, stable ground-only GAME AGL, unrelated wall contact and collider teardown use real box3d.js 3D shapes.");
+console.log("WORLD Box3D building collision passed: nearest clear launch, full launch-building exclusion, lateral seam escape, stable ground-only GAME AGL, camera ground/wall occlusion, unrelated wall contact and collider teardown use real box3d.js 3D shapes.");

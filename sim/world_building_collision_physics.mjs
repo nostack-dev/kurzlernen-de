@@ -81,4 +81,12 @@ export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=
   if(!shapeCount){b3.b3DestroyBody(body);return{body:null,shapeCount:0,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze([]),...snapshot};}return{body,shapeCount,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze(activePrisms.slice()),...snapshot};
 }
 
+export function resolveBox3dCameraPath(b3,world,anchor,desired,{queryCategoryBits=8n,terrainCategoryBits=1n,clearanceM=.08}={}){
+  const from=Array.isArray(anchor)?anchor.map(Number):[],to=Array.isArray(desired)?desired.map(Number):[];if(from.length!==3||to.length!==3||![...from,...to].every(Number.isFinite))return{position:to.length===3?to:[0,0,0],collided:false,fraction:1,hitDistanceM:0};
+  const delta=[to[0]-from[0],to[1]-from[1],to[2]-from[2]],distance=Math.hypot(...delta);if(!world||distance<1e-6)return{position:[...to],collided:false,fraction:1,hitDistanceM:distance};
+  const filter=b3.b3DefaultQueryFilter();filter.categoryBits=BigInt(queryCategoryBits);filter.maskBits=BigInt(terrainCategoryBits);const hit=b3.b3World_CastRayClosest(world,from,delta,filter),fraction=Number(hit?.fraction);
+  if(!hit?.hit||!Number.isFinite(fraction)||fraction<0||fraction>1)return{position:[...to],collided:false,fraction:1,hitDistanceM:distance};
+  const hitDistance=Math.max(0,Math.min(distance,fraction*distance)),safeDistance=Math.max(0,hitDistance-Math.max(.01,Number(clearanceM)||.08)),scale=safeDistance/distance;return{position:[from[0]+delta[0]*scale,from[1]+delta[1]*scale,from[2]+delta[2]*scale],collided:true,fraction,hitDistanceM:hitDistance};
+}
+
 export function destroyWorldBuildingCollisionBodies(b3,state){if(state?.body&&b3.b3Body_IsValid(state.body))b3.b3DestroyBody(state.body);}
