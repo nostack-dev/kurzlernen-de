@@ -14,7 +14,7 @@ try{
     const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     const bridge=globalThis.__arondightRealWorld,viewport=document.querySelector("#viewport"),sent=[];
     document.body.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerType:"touch"}));await sleep(120);
-    bridge.vsConnected=true;bridge.vsSession={sendCombat(packet){sent.push(JSON.parse(JSON.stringify(packet)));return true;},stop(){}};bridge.resetVsCombat(true);
+    bridge.vsConnected=true;bridge.vsSession={setOrigin(){return true;},setPose(){return true;},sendCombat(packet){sent.push(JSON.parse(JSON.stringify(packet)));return true;},stop(){}};bridge.resetVsCombat(true);
     const own=bridge.airframeFor?.(bridge.threeScene)||bridge.airframe;if(!own?.position)throw new Error("local airframe missing");const ox=own.position.x,oy=own.position.y,oz=own.position.z;
     bridge.applyVsPose({p:[ox+10,oy,oz],q:[0,0,0,1]});await sleep(140);
     if(!bridge.vsPeerMesh?.children?.length)throw new Error("peer mesh missing after real pose path");

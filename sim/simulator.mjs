@@ -13,6 +13,7 @@ import {installFlightFireFx} from "./flight_fire_fx.mjs";
 import {partitionCalibrationLog,evaluatePhysicsValidation,validationSummary,PHYSICS_VALIDATION_SCHEMA} from "./physics_validation.mjs";
 import {findXboxGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";
 import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";
+import {renderPlatformProfile,quantizedViewportSize,viewportSizeChanged} from "./render_stability.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -511,7 +512,12 @@ function daylightSky(){
 }
 const scene=new THREE.Scene();scene.background=daylightSky();scene.fog=new THREE.Fog(0xd7e8f2,90,700);
 const camera=new THREE.PerspectiveCamera(52,1,.01,1500);camera.up.set(0,0,1);camera.position.set(1.65,0,.8);
-const renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:"high-performance"});const presentationGl=renderer.getContext(),presentationRendererInfo=presentationGl.getExtension("WEBGL_debug_renderer_info"),presentationRendererName=String(presentationGl.getParameter(presentationRendererInfo?.UNMASKED_RENDERER_WEBGL||presentationGl.RENDERER)||"");const presentationSoftwareRaster=/(swiftshader|llvmpipe|software raster|software renderer)/i.test(presentationRendererName),presentationNativePixelRatio=Math.min(devicePixelRatio||1,PRESENTATION_PIXEL_RATIO_MAX),presentationQualityCeiling=presentationSoftwareRaster?Math.min(presentationNativePixelRatio,PRESENTATION_SOFTWARE_PIXEL_RATIO):presentationNativePixelRatio;let presentationPixelRatio=presentationQualityCeiling;renderer.setPixelRatio(presentationPixelRatio);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=presentationSoftwareRaster?THREE.NoToneMapping:THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=!presentationSoftwareRaster;renderer.shadowMap.type=THREE.BasicShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=!presentationSoftwareRaster;$("viewport").appendChild(renderer.domElement);globalThis.__arondightRealWorld?.attachThree?.(renderer,scene,camera);
+const initialRenderProfile=renderPlatformProfile({userAgent:navigator.userAgent,devicePixelRatio});
+const renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:initialRenderProfile.stableBackbuffer?"default":"high-performance",desynchronized:false,preserveDrawingBuffer:false});
+const presentationGl=renderer.getContext(),presentationRendererInfo=presentationGl.getExtension("WEBGL_debug_renderer_info"),presentationRendererName=String(presentationGl.getParameter(presentationRendererInfo?.UNMASKED_RENDERER_WEBGL||presentationGl.RENDERER)||"");
+const presentationRenderProfile=renderPlatformProfile({userAgent:navigator.userAgent,devicePixelRatio,rendererName:presentationRendererName}),presentationSoftwareRaster=presentationRenderProfile.software,presentationStableBackbuffer=presentationRenderProfile.stableBackbuffer,presentationNativePixelRatio=Math.min(presentationRenderProfile.pixelRatioCeiling,PRESENTATION_PIXEL_RATIO_MAX),presentationQualityCeiling=presentationSoftwareRaster?Math.min(presentationNativePixelRatio,PRESENTATION_SOFTWARE_PIXEL_RATIO):presentationNativePixelRatio;
+let presentationPixelRatio=presentationQualityCeiling;renderer.setPixelRatio(presentationPixelRatio);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=presentationSoftwareRaster?THREE.NoToneMapping:THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=!presentationSoftwareRaster;renderer.shadowMap.type=THREE.BasicShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=!presentationSoftwareRaster;
+const presentationViewport=$("viewport");presentationViewport.appendChild(renderer.domElement);presentationViewport.dataset.renderPlatform=presentationRenderProfile.android?"android-stable":"standard";presentationViewport.dataset.presentationStableBackbuffer=presentationStableBackbuffer?"1":"0";presentationViewport.dataset.presentationCanvasDesynchronized="0";document.documentElement.classList.toggle("android-stable-webgl",presentationStableBackbuffer);globalThis.__arondightRealWorld?.attachThree?.(renderer,scene,camera);
 scene.add(new THREE.HemisphereLight(0xf8fcff,0x7f946d,2.0));const sun=new THREE.DirectionalLight(0xfff7e8,2.6);sun.position.set(-4,-6,10);sun.castShadow=true;scene.add(sun);
 const grid=new THREE.GridHelper(TERRAIN_SIZE,120,0x6b7d89,0xa7b6bd);grid.rotation.x=Math.PI/2;grid.position.z=.002;scene.add(grid);
 let debugGridEnabled=false;try{debugGridEnabled=localStorage.getItem(DEBUG_GRID_STORAGE)==="1";}catch{}
@@ -531,7 +537,12 @@ function syncSoloPresentationOrientation(){
   viewport.dataset.soloOrientation=cssLandscape?"css-landscape":"native-landscape";
   return cssLandscape;
 }
-function resize(){const viewport=$("viewport");syncSoloPresentationOrientation();const width=Math.max(1,viewport.clientWidth),height=Math.max(1,viewport.clientHeight);renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();}addEventListener("resize",resize);const viewportResizeObserver=globalThis.ResizeObserver?new ResizeObserver(resize):null;viewportResizeObserver?.observe($("viewport"));resize();
+let presentationViewportSize=null,presentationResizeQueued=false,presentationBackbufferResizes=0;
+function commitPresentationResize(){
+  const viewport=$("viewport");syncSoloPresentationOrientation();const next=quantizedViewportSize(viewport.clientWidth,viewport.clientHeight);if(!viewportSizeChanged(presentationViewportSize,next))return false;presentationViewportSize=next;renderer.setSize(next.width,next.height,false);camera.aspect=next.width/next.height;camera.updateProjectionMatrix();presentationBackbufferResizes++;viewport.dataset.presentationBackbufferSize=`${next.width}x${next.height}`;viewport.dataset.presentationBackbufferResizes=String(presentationBackbufferResizes);return true;
+}
+function resize(){if(presentationResizeQueued)return;presentationResizeQueued=true;requestAnimationFrame(()=>{presentationResizeQueued=false;commitPresentationResize();});}
+addEventListener("resize",resize,{passive:true});addEventListener("orientationchange",resize,{passive:true});globalThis.visualViewport?.addEventListener?.("resize",resize,{passive:true});const viewportResizeObserver=globalThis.ResizeObserver?new ResizeObserver(resize):null;viewportResizeObserver?.observe($("viewport"));commitPresentationResize();
 
 let physics=new PhysicsModel(defaultParams(),{graphics:true,scene});
 const motorSound=new HybridMotorSound($("viewport"));
@@ -607,6 +618,7 @@ const soloStyle=document.createElement("style");soloStyle.textContent=`
   body.solo-flight dialog input,body.solo-flight dialog textarea{-webkit-user-select:text!important;user-select:text!important;-webkit-touch-callout:default!important}
   body.solo-flight .panel,body.solo-flight .telemetry{display:none!important}
   body.solo-flight #viewport{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;min-height:0!important;max-height:none!important;margin:0!important;z-index:50!important;overflow:hidden!important;transform:none!important;transform-origin:0 0!important;--solo-safe-top:env(safe-area-inset-top,0px);--solo-safe-right:env(safe-area-inset-right,0px);--solo-safe-bottom:env(safe-area-inset-bottom,0px);--solo-safe-left:env(safe-area-inset-left,0px)}
+  html.android-stable-webgl body.solo-flight #viewport{height:100svh!important}
   body.solo-flight #cameraModes{top:max(8px,var(--solo-safe-top))!important;left:50%!important}
   #soloHud{position:absolute;inset:0;z-index:8;pointer-events:none;font-family:system-ui,-apple-system,sans-serif;color:#fff;touch-action:none;user-select:none;-webkit-user-select:none}
   #soloHud[hidden]{display:none!important}
@@ -641,6 +653,7 @@ const soloStyle=document.createElement("style");soloStyle.textContent=`
      simulator as a deterministic fallback so the flight UI is always landscape. */
   @media(orientation:portrait){
     body.solo-flight #viewport{inset:0 auto auto 100vw!important;width:100dvh!important;height:100vw!important;transform:rotate(90deg)!important;--solo-safe-top:env(safe-area-inset-right,0px);--solo-safe-right:env(safe-area-inset-bottom,0px);--solo-safe-bottom:env(safe-area-inset-left,0px);--solo-safe-left:env(safe-area-inset-top,0px)}
+    html.android-stable-webgl body.solo-flight #viewport{width:100svh!important;height:100vw!important}
     body.solo-flight dialog[open]{transform:rotate(90deg);transform-origin:50% 50%}
   }
   @media(max-height:430px){.solo-stick{width:min(30vw,180px)}.solo-action{width:76px;height:46px}}
@@ -857,6 +870,9 @@ Object.defineProperties(simulatorDiagnostics,{
   presentationDraws:{get:()=>presentationDraws,enumerable:true},
   presentationPixelRatio:{get:()=>presentationPixelRatio,enumerable:true},
   presentationSoftwareRaster:{get:()=>presentationSoftwareRaster,enumerable:true},
+  presentationStableBackbuffer:{get:()=>presentationStableBackbuffer,enumerable:true},
+  presentationBackbufferResizes:{get:()=>presentationBackbufferResizes,enumerable:true},
+  presentationRenderPlatform:{get:()=>presentationRenderProfile.android?"android-stable":"standard",enumerable:true},
   presentationTiming:{get:()=>presentationTimingSnapshot(),enumerable:true},
   simulationTimingDiscontinuityMs:{get:()=>simulationTimingDiscontinuityMs,enumerable:true},
   physicsValidation:{get:()=>physicsValidationReport,enumerable:true},
@@ -867,7 +883,7 @@ Object.freeze(simulatorDiagnostics);
 Object.defineProperty(globalThis,"__arondightDiagnostics",{value:simulatorDiagnostics,writable:false,configurable:false});
 function updatePresentationQuality(now){
   const worldActive=$("viewport")?.dataset.worldMode==="real";
-  if(!running||mode!=="sim"||worldActive){lastPresentationQualityWallMs=now;lastPresentationQualitySimS=simTime;presentationQualityGoodWindows=0;return;}
+  if(!running||mode!=="sim"||worldActive||presentationStableBackbuffer){lastPresentationQualityWallMs=now;lastPresentationQualitySimS=simTime;presentationQualityGoodWindows=0;const viewport=$("viewport");if(viewport){viewport.dataset.presentationPixelRatio=presentationPixelRatio.toFixed(2);if(presentationStableBackbuffer)viewport.dataset.presentationQualityMode="fixed-backbuffer";}return;}
   const elapsedMs=now-lastPresentationQualityWallMs;if(elapsedMs<PRESENTATION_QUALITY_WINDOW_MS)return;
   const simElapsedS=simTime-lastPresentationQualitySimS,cadence=simElapsedS/Math.max(.001,elapsedMs/1000);
   lastPresentationQualityWallMs=now;lastPresentationQualitySimS=simTime;

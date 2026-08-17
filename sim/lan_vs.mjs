@@ -1,5 +1,5 @@
 const APP_ID="arondight45-kurzlernen-vs-v3";
-const SEND_MS=50;
+const SEND_MS=33;
 const RELAY_REDUNDANCY=3;
 const JOIN_DIAGNOSTIC_MS=12000;
 const DEFAULT_TRANSPORTS=[
@@ -26,7 +26,7 @@ const NETWORK_IPV4_URL="https://api4.ipify.org?format=json";
 export const VS_NETWORK_EVENT="arondight45:vs-network";
 
 function finiteArray(value,length){return Array.isArray(value)&&value.length===length&&value.every(Number.isFinite);}
-function validPose(pose){return Boolean(pose&&finiteArray(pose.p,3)&&finiteArray(pose.q,4)&&(!pose.g||finiteArray(pose.g,2)));}
+function validPose(pose){return Boolean(pose&&finiteArray(pose.p,3)&&finiteArray(pose.q,4)&&(!pose.v||finiteArray(pose.v,3))&&(!pose.g||finiteArray(pose.g,2))&&(!("t" in pose)||Number.isFinite(pose.t))&&(!("f" in pose)||typeof pose.f==="string"&&pose.f.length<=96));}
 function validOrigin(origin){return Boolean(origin&&Number.isFinite(origin.lon)&&Number.isFinite(origin.lat)&&Math.abs(origin.lon)<=180&&Math.abs(origin.lat)<=90&&(!("alt" in origin)||Number.isFinite(origin.alt)));}
 function validCombat(packet){
   if(!packet||typeof packet!=="object"||typeof packet.type!=="string")return false;
@@ -248,7 +248,7 @@ export class LanVsSession{
     const next={lon:Number(origin.lon),lat:Number(origin.lat),...(("alt" in origin)?{alt:Number(origin.alt)}:{})},old=this.pendingOrigin;
     if(!old||old.lon!==next.lon||old.lat!==next.lat||old.alt!==next.alt){this.pendingOrigin=next;this.originDirty=true;}return true;
   }
-  setPose(pose){if(!validPose(pose))return false;this.pendingPose={...pose,p:[...pose.p],q:[...pose.q],...(pose.g?{g:[...pose.g]}:{})};return true;}
+  setPose(pose){if(!validPose(pose))return false;this.pendingPose={...pose,p:[...pose.p],q:[...pose.q],...(pose.v?{v:[...pose.v]}:{}),...(pose.g?{g:[...pose.g]}:{})};return true;}
   sendCombat(packet){
     if(!validCombat(packet)||!this.peerId||!this.combatAction)return false;
     Promise.resolve(this.combatAction.send({...packet},{target:this.peerId})).catch(error=>{this.diag("send-combat-error",{error:errorMessage(error)});this.onError?.(error);});return true;
@@ -349,7 +349,7 @@ export class LanVsFinder{
     await Promise.resolve();
   }
   setOrigin(origin){if(!validOrigin(origin))return false;this.pendingOrigin={...origin};for(const child of this.active?[this.active]:this.children)child.setOrigin(origin);return true;}
-  setPose(pose){if(!validPose(pose))return false;this.pendingPose={...pose,p:[...pose.p],q:[...pose.q],...(pose.g?{g:[...pose.g]}:{})};for(const child of this.active?[this.active]:this.children)child.setPose(pose);return true;}
+  setPose(pose){if(!validPose(pose))return false;this.pendingPose={...pose,p:[...pose.p],q:[...pose.q],...(pose.v?{v:[...pose.v]}:{}),...(pose.g?{g:[...pose.g]}:{})};for(const child of this.active?[this.active]:this.children)child.setPose(pose);return true;}
   sendCombat(packet){return this.active?.sendCombat(packet)||false;}
   stop(){
     this.started=false;++this.stageEpoch;this.wakeStage("stop");clearTimeout(this.stageTimer);this.stageTimer=0;

@@ -36,6 +36,8 @@ jobs:
           node tests/control_semantics_test.mjs
           node tests/xbox_gamepad_test.mjs
           node tests/camera_stabilization_test.mjs
+          node tests/render_stability_test.mjs
+          node tests/vs_pose_sync_test.mjs
           node tests/physics_validation_test.mjs
           node tests/s31_digital_twin_audit_test.mjs
           node tests/architecture_invariants.mjs
@@ -145,6 +147,7 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/nostr_data_relay_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/network_logbook_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
@@ -160,6 +163,8 @@ jobs:
           node --check sim/real_world_bootstrap.mjs
           node --check sim/simulator.mjs
           node --check sim/camera_stabilization.mjs
+          node --check sim/render_stability.mjs
+          node --check sim/vs_pose_sync.mjs
           node --check sim/controller.mjs
           node --check sim/p2p_link.mjs
           node --check sim/qr_pairing.mjs
@@ -176,6 +181,8 @@ jobs:
           node --check sim/nostr_data_relay.mjs
           node --check tests/architecture_invariants.mjs
           node --check tests/camera_stabilization_test.mjs
+          node --check tests/render_stability_test.mjs
+          node --check tests/vs_pose_sync_test.mjs
           node --check tests/control_semantics_test.mjs
           node --check tests/physics_validation_test.mjs
           node --check tests/s31_digital_twin_audit_test.mjs
@@ -185,6 +192,7 @@ jobs:
           node --check tests/solo_layout_smoke.mjs
           node --check tests/xbox_gamepad_test.mjs
           node --check tests/xbox_gamepad_browser_smoke.mjs
+          node --check tests/android_render_browser_smoke.mjs
           node --check tests/vs_combat_browser_smoke.mjs
           node --check tests/network_logbook_browser_smoke.mjs
           node --check tests/mqtt_data_relay_browser_smoke.mjs
