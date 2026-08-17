@@ -22,18 +22,28 @@ export function normalizeBuildingCollisionSnapshot(value,{maxPrisms=512,maxVerti
 }
 
 export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=1n,maskBits=6n,launchExclusionPoint=DEFAULT_LAUNCH_EXCLUSION_POINT}={}){
-  const snapshot=normalizeBuildingCollisionSnapshot(value);if(!world||!snapshot.prisms.length)return{body:null,shapeCount:0,skippedLaunchPrisms:0,...snapshot};
+  const snapshot=normalizeBuildingCollisionSnapshot(value);if(!world||!snapshot.prisms.length)return{body:null,shapeCount:0,skippedLaunchPrisms:0,skippedLaunchBuildings:0,...snapshot};
+  // Concave/holed OSM buildings are decomposed into several convex prisms. If the
+  // launch point lands in any one of those prisms, the whole source building must
+  // be excluded. Skipping only the containing triangle creates an invisible solid
+  // seam at its neighbour: lateral strafe then chatters against that seam and can
+  // appear to stop responding even though the stick/FC command is still valid.
+  const launchExcludedBuildingKeys=new Set();
+  for(const prism of snapshot.prisms){
+    if(!overlapsLaunchVolume(prism,launchExclusionPoint))continue;
+    const key=String(prism.buildingKey||"");if(key)launchExcludedBuildingKeys.add(key);
+  }
   const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_staticBody;bodyDef.position=[0,0,0];const body=b3.b3CreateBody(world,bodyDef),shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.68;shapeDef.baseMaterial.restitution=.025;
   shapeDef.filter={categoryBits,maskBits,groupIndex:0};let shapeCount=0,skippedLaunchPrisms=0;
   for(const prism of snapshot.prisms){
-    // OSM footprints are solid prisms. If GPS/world origin is already inside one
-    // at launch height, creating it would spawn the dynamic airframe in a solid.
-    // Treat that containing footprint as untrusted map context for this session;
-    // all other nearby buildings remain collidable.
-    if(overlapsLaunchVolume(prism,launchExclusionPoint)){skippedLaunchPrisms++;continue;}
+    const key=String(prism.buildingKey||"");
+    const skipWholeBuilding=key&&launchExcludedBuildingKeys.has(key);
+    const skipUnkeyedPrism=!key&&overlapsLaunchVolume(prism,launchExclusionPoint);
+    if(skipWholeBuilding||skipUnkeyedPrism){skippedLaunchPrisms++;continue;}
     const vertices=[];for(const height of [prism.base,prism.top])for(const point of prism.points)vertices.push(point[0],point[1],height);const hull=b3.b3CreateHull(vertices);if(!hull)continue;try{b3.b3CreateHullShape(body,shapeDef,hull);shapeCount++;}finally{b3.b3DestroyHull(hull);}
   }
-  if(!shapeCount){b3.b3DestroyBody(body);return{body:null,shapeCount:0,skippedLaunchPrisms,...snapshot};}return{body,shapeCount,skippedLaunchPrisms,...snapshot};
+  const skippedLaunchBuildings=launchExcludedBuildingKeys.size;
+  if(!shapeCount){b3.b3DestroyBody(body);return{body:null,shapeCount:0,skippedLaunchPrisms,skippedLaunchBuildings,...snapshot};}return{body,shapeCount,skippedLaunchPrisms,skippedLaunchBuildings,...snapshot};
 }
 
 export function destroyWorldBuildingCollisionBodies(b3,state){if(state?.body&&b3.b3Body_IsValid(state.body))b3.b3DestroyBody(state.body);}
