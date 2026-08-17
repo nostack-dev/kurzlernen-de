@@ -106,11 +106,13 @@ try{
   });
   if(Math.abs(eyeHeights.low.eye-5)>.01||Math.abs(eyeHeights.high.eye-50)>.01||eyeHeights.low.sync!=="rigid-eye-target"||eyeHeights.high.sync!=="rigid-eye-target"||eyeHeights.high.eye-eyeHeights.low.eye<44.9)throw new Error(`FPV eye altitude not preserved: ${JSON.stringify(eyeHeights)}`);
 
-  const fpvCadence=await page.evaluate(()=>{
-    const b=globalThis.__arondightRealWorld,c=b.threeCamera,v=document.querySelector("#viewport"),saved={p:c.position.clone(),q:c.quaternion.clone(),u:c.up.clone(),mode:v.dataset.cameraMode,worldMode:v.dataset.worldCameraMode};
-    v.dataset.cameraMode="fpv";v.dataset.worldCameraMode="fpv";c.position.set(12,-7,18);c.quaternion.set(0,0,0,1);c.up.set(0,1,0);b.lastMapSyncMs=-Infinity;const before=b.mapUpdates;b.syncMapCamera(c);const first=b.mapUpdates;for(let i=0;i<20;i++)b.syncMapCamera(c);const burst=b.mapUpdates;c.position.copy(saved.p);c.quaternion.copy(saved.q);c.up.copy(saved.u);v.dataset.cameraMode=saved.mode;if(saved.worldMode===undefined)delete v.dataset.worldCameraMode;else v.dataset.worldCameraMode=saved.worldMode;b.lastMapSyncMs=-Infinity;return{before,first,burst,mapFrameMs:b.mapFrameMs};
+  const cameraCadence=await page.evaluate(()=>{
+    const b=globalThis.__arondightRealWorld,c=b.threeCamera,v=document.querySelector("#viewport"),saved={p:c.position.clone(),q:c.quaternion.clone(),u:c.up.clone(),mode:v.dataset.cameraMode,worldMode:v.dataset.worldCameraMode,lastSerial:b.lastMapSyncFrameSerial};
+    c.position.set(12,-7,18);c.quaternion.set(0,0,0,1);c.up.set(0,1,0);const modes={};let serial=400;
+    for(const mode of ["fpv","follow","third"]){v.dataset.cameraMode=mode;v.dataset.worldCameraMode=mode;b.lastMapSyncMs=-Infinity;b.lastMapSyncFrameSerial=-1;const before=b.mapUpdates;b.syncMapCamera(c,serial);const first=b.mapUpdates;for(let i=0;i<20;i++)b.syncMapCamera(c,serial);const duplicate=b.mapUpdates;b.syncMapCamera(c,++serial);const next=b.mapUpdates;modes[mode]={before,first,duplicate,next,sync:v.dataset.worldMapSyncMode};serial+=100;}
+    c.position.copy(saved.p);c.quaternion.copy(saved.q);c.up.copy(saved.u);v.dataset.cameraMode=saved.mode;if(saved.worldMode===undefined)delete v.dataset.worldCameraMode;else v.dataset.worldCameraMode=saved.worldMode;b.lastMapSyncMs=-Infinity;b.lastMapSyncFrameSerial=saved.lastSerial;return{modes,fpsCap:v.dataset.worldMapFpsCap};
   });
-  if(fpvCadence.first!==fpvCadence.before+1||fpvCadence.burst!==fpvCadence.first||fpvCadence.mapFrameMs<30)throw new Error(`FPV MapLibre cadence regression: ${JSON.stringify(fpvCadence)}`);
+  for(const [mode,cadence] of Object.entries(cameraCadence.modes)){const expected=mode==="fpv"?"rigid-eye-target":"stabilized-eye-target";if(cadence.first!==cadence.before+1||cadence.duplicate!==cadence.first||cadence.next!==cadence.first+1||cadence.sync!==expected)throw new Error(`${mode} MapLibre presentation-frame cadence regression: ${JSON.stringify(cameraCadence)}`);}if(cameraCadence.fpsCap!=="presentation")throw new Error(`WORLD map is not locked to the presentation clock: ${JSON.stringify(cameraCadence)}`);
 
   for(const expected of ["fpv","follow","third"]){
     await page.waitForFunction(mode=>document.querySelector("#viewport")?.dataset.cameraMode===mode,{timeout:3000},expected);

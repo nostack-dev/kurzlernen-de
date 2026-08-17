@@ -28,6 +28,7 @@ export const DEFAULT_PHONE_SETTINGS=Object.freeze({
   invertLeftHorizontal:false,
   invertRightHorizontal:false,
   invertRightVertical:true,
+  xboxControllerEnabled:true,
   defaultHoverAgl:1.2,
   maxHorizontalSpeedKmh:DEFAULT_GAME_HORIZONTAL_SPEED_KMH,
 });
@@ -65,6 +66,7 @@ export function normalizePhoneSettings(settings={}){
     invertLeftHorizontal:Boolean(settings.invertLeftHorizontal),
     invertRightHorizontal:Boolean(settings.invertRightHorizontal),
     invertRightVertical:Boolean(settings.invertRightVertical),
+    xboxControllerEnabled:settings.xboxControllerEnabled===undefined?DEFAULT_PHONE_SETTINGS.xboxControllerEnabled:Boolean(settings.xboxControllerEnabled),
     defaultHoverAgl:Math.round(clampControl(Number(settings.defaultHoverAgl??DEFAULT_PHONE_SETTINGS.defaultHoverAgl),MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M)*10)/10,
     maxHorizontalSpeedKmh:Math.round(clampControl(Number(settings.maxHorizontalSpeedKmh??DEFAULT_PHONE_SETTINGS.maxHorizontalSpeedKmh),MIN_GAME_HORIZONTAL_SPEED_KMH,MAX_GAME_HORIZONTAL_SPEED_KMH)),
   };

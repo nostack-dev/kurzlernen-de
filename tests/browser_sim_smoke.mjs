@@ -158,6 +158,7 @@ try{
     invertLeft:document.querySelector('.phone-settings-dialog [data-invert-left-horizontal]')?.checked,
     invertX:document.querySelector('.phone-settings-dialog [data-invert-right-horizontal]')?.checked,
     invertY:document.querySelector('.phone-settings-dialog [data-invert-right-vertical]')?.checked,
+    xbox:document.querySelector('.phone-settings-dialog [data-xbox-controller]')?.checked,
     rightLockLabel:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.parentElement?.textContent||"",
     hover:document.querySelector('.phone-settings-dialog [data-slider="hover"]')?.value,
     hoverMax:document.querySelector('.phone-settings-dialog [data-slider="hover"]')?.max,
@@ -169,7 +170,7 @@ try{
     v3:localStorage.getItem("arondight45PhoneControlSettingsV3"),
     v4:localStorage.getItem("arondight45PhoneControlSettingsV4"),
   }));
-  if(defaults.left!=="10"||defaults.right!=="10"||defaults.debugGrid!==false||defaults.debugGridRuntime!=="0"||defaults.hover!=="1.2"||defaults.hoverMax!=="50"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
+  if(defaults.left!=="10"||defaults.right!=="10"||defaults.debugGrid!==false||defaults.debugGridRuntime!=="0"||defaults.hover!=="1.2"||defaults.hoverMax!=="50"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.xbox!==true||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
     throw new Error(`clean V5 requested defaults/settings labels wrong: ${JSON.stringify(defaults)}`);
   if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null||defaults.v4!==null)
     throw new Error(`obsolete phone settings V1-V4 not wiped: ${JSON.stringify(defaults)}`);
@@ -242,16 +243,16 @@ try{
   const audioDrive=await page.$eval("#viewport",e=>({source:e.dataset.motorAudioSource,hz:Number(e.dataset.motorAudioHz),power:Number(e.dataset.motorAudioPowerW),gain:Number(e.dataset.motorAudioGain),context:e.dataset.motorAudioContextState,armEvent:e.dataset.motorAudioArmEvent,escTones:Number(e.dataset.motorAudioEscToneCount)||0}));
   if(audioDrive.source!=="motorOmega+motorTorque+propTorque+tipSpeed:hybridBladeMotor"||!(audioDrive.hz>20)||!(audioDrive.power>0)||!(audioDrive.gain>0)||audioDrive.context!=="running"||audioDrive.armEvent!=="armed"||audioDrive.escTones<escToneStart+4)throw new Error(`physics/ESC audio runtime failed: ${JSON.stringify(audioDrive)}`);
   await page.$eval("#camFpv",e=>e.click());
-  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.cameraMode==="fpv"&&Number(v.dataset.cameraFov)===101&&Number(v.dataset.cameraTiltDeg)===18;},{timeout:5000});
-  const fpvOptics=await page.$eval("#viewport",e=>({fov:Number(e.dataset.cameraFov),tilt:Number(e.dataset.cameraTiltDeg)}));
-  if(fpvOptics.fov!==101||fpvOptics.tilt!==18)throw new Error(`FPV optics settings not applied: ${JSON.stringify(fpvOptics)}`);
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.cameraMode==="fpv"&&Number(v.dataset.cameraFov)===101&&Number(v.dataset.cameraTiltDeg)===18&&v.dataset.cameraRigMode==="rigid-airframe";},{timeout:5000});
+  const fpvOptics=await page.$eval("#viewport",e=>({fov:Number(e.dataset.cameraFov),tilt:Number(e.dataset.cameraTiltDeg),rig:e.dataset.cameraRigMode,lag:Number(e.dataset.cameraRigLagM),interpolation:Number(e.dataset.presentationPoseInterpolation)}));
+  if(fpvOptics.fov!==101||fpvOptics.tilt!==18||fpvOptics.rig!=="rigid-airframe"||fpvOptics.lag!==0||!(fpvOptics.interpolation>=0&&fpvOptics.interpolation<=1))throw new Error(`FPV optics/presentation pose not applied: ${JSON.stringify(fpvOptics)}`);
   await page.$eval("#camThird",e=>e.click());
-  await page.waitForFunction(()=>{const v=document.querySelector("#viewport"),d=Number(v?.dataset.cameraDistanceM);return v?.dataset.cameraMode==="third"&&d>3.45&&d<3.75;},{timeout:5000});
-  const thirdDistance=await page.$eval("#viewport",e=>Number(e.dataset.cameraDistanceM));
-  if(!(thirdDistance>3.45&&thirdDistance<3.75))throw new Error(`third-person camera distance not applied: ${thirdDistance}`);
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport"),d=Number(v?.dataset.cameraDistanceM),lag=Number(v?.dataset.cameraRigLagM);return v?.dataset.cameraMode==="third"&&v.dataset.cameraRigMode==="stabilized-inertial-anchor"&&d>3.35&&d<3.90&&lag>=0&&lag<=.261;},{timeout:5000});
+  const thirdRig=await page.$eval("#viewport",e=>({distance:Number(e.dataset.cameraDistanceM),mode:e.dataset.cameraRigMode,lag:Number(e.dataset.cameraRigLagM),anchor:e.dataset.cameraRigAnchor}));
+  if(!(thirdRig.distance>3.35&&thirdRig.distance<3.90)||thirdRig.mode!=="stabilized-inertial-anchor"||!(thirdRig.lag>=0&&thirdRig.lag<=.261)||!thirdRig.anchor)throw new Error(`third-person stabilized camera not applied: ${JSON.stringify(thirdRig)}`);
 
   await page.$eval("#camFollow",e=>e.click());
-  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.cameraMode==="follow",{timeout:5000});
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport"),lag=Number(v?.dataset.cameraRigLagM);return v?.dataset.cameraMode==="follow"&&v.dataset.cameraRigMode==="stabilized-inertial-anchor"&&lag>=0&&lag<=.181;},{timeout:5000});
 
   const heightPad=await stickGeometry("#soloHeightPad"),heightX=heightPad.x+heightPad.width/2,heightY=heightPad.y+heightPad.height/2,heightSpan=heightPad.height*.40;
   const heightTargetBefore=await page.$eval("#soloClearance",e=>Number(e.dataset.targetAglM));

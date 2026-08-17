@@ -35,6 +35,7 @@ jobs:
           /tmp/sil_test
           node tests/control_semantics_test.mjs
           node tests/xbox_gamepad_test.mjs
+          node tests/camera_stabilization_test.mjs
           node tests/physics_validation_test.mjs
           node tests/s31_digital_twin_audit_test.mjs
           node tests/architecture_invariants.mjs
@@ -108,6 +109,9 @@ jobs:
           grep -q 'tiles.openfreemap.org/styles/liberty' drone_simulator.html
           grep -q 'services.arcgisonline.com/ArcGIS/rest/services/World_Imagery' drone_simulator.html
           grep -q 'REAL AERIAL / SATELLITE MAP' drone_simulator.html
+          grep -q 'stabilized-inertial-anchor' drone_simulator.html
+          grep -q 'stabilized-eye-target' drone_simulator.html
+          grep -q 'presentationPoseInterpolation' drone_simulator.html
           grep -q 'OpenFreeMap' drone_simulator.html
           grep -q 'render_height' drone_simulator.html
           grep -q 'navigator.geolocation' drone_simulator.html
@@ -155,6 +159,7 @@ jobs:
           set -euxo pipefail
           node --check sim/real_world_bootstrap.mjs
           node --check sim/simulator.mjs
+          node --check sim/camera_stabilization.mjs
           node --check sim/controller.mjs
           node --check sim/p2p_link.mjs
           node --check sim/qr_pairing.mjs
@@ -170,6 +175,7 @@ jobs:
           node --check sim/mqtt_data_relay.mjs
           node --check sim/nostr_data_relay.mjs
           node --check tests/architecture_invariants.mjs
+          node --check tests/camera_stabilization_test.mjs
           node --check tests/control_semantics_test.mjs
           node --check tests/physics_validation_test.mjs
           node --check tests/s31_digital_twin_audit_test.mjs

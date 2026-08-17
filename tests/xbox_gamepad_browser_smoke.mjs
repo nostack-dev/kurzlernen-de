@@ -35,6 +35,17 @@ try{
   const active=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill"),status:document.querySelector("#soloGamepadStatus").hidden,help:document.querySelector("#soloGamepadHelp").hidden,helpText:document.querySelector("#soloGamepadHelp").textContent};});
   if(active.source!=="xbox"||active.connected!=="1"||active.left!=="none"||active.right!=="none"||active.height!=="none"||active.arm!=="none"||active.kill!=="none"||active.status||active.help||!active.helpText.includes("LB+RB FIRE"))throw new Error(`Xbox did not replace touch flight controls: ${JSON.stringify(active)}`);
 
+  // Settings owns an explicit persistent override. OFF must restore touch even
+  // while this same physical controller remains connected; ON hands back safely.
+  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});
+  const toggleDefault=await page.$eval('.phone-settings-dialog [data-xbox-controller]',input=>input.checked);if(toggleDefault!==true)throw new Error(`Xbox settings toggle is not ON by default: ${toggleDefault}`);
+  await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
+  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.controlSource==="touch",{timeout:3000});
+  const disabled=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display,stored=JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}");return{source:v.dataset.controlSource,enabled:v.dataset.gamepadEnabled,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),stored:stored.xboxControllerEnabled,padStillConnected:Boolean(navigator.getGamepads?.()[0]?.connected)};});
+  if(disabled.source!=="touch"||disabled.enabled!=="0"||disabled.connected!=="0"||disabled.left==="none"||disabled.right==="none"||disabled.height==="none"||disabled.stored!==false||!disabled.padStillConnected)throw new Error(`Xbox OFF did not restore touch with controller connected: ${JSON.stringify(disabled)}`);
+  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="xbox"&&v.dataset.gamepadEnabled==="1";},{timeout:3000});
+
   // Standard Gamepad indices: LT=6 and RT=7. Triggers alter only the altitude
   // target; specifically, RT must never inherit the fire action.
   await setButton(6,.85);
@@ -78,5 +89,5 @@ try{
   const disconnected=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,connected:v.dataset.gamepadConnected,height:Number(v.dataset.gamepadHeightAxis||0),left:display("#soloLeft"),right:display("#soloRight"),clearance:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill")};});
   if(disconnected.source!=="touch"||disconnected.connected!=="0"||disconnected.height!==0||disconnected.left==="none"||disconnected.right==="none"||disconnected.clearance==="none"||disconnected.arm==="none"||disconnected.kill==="none")throw new Error(`Xbox disconnect did not safely restore neutral touch controls: ${JSON.stringify(disconnected)}`);
 
-  console.log("Xbox browser E2E passed: touch replacement, LT down, RT up-only, LB+RS free-look/crosshair, and LB+RB right-shoulder fire.");
+  console.log("Xbox browser E2E passed: persistent Settings ON/OFF, touch replacement, LT down, RT up-only, LB+RS free-look/crosshair, and LB+RB right-shoulder fire.");
 }finally{await browser.close();}

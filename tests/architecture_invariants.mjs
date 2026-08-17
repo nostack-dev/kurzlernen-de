@@ -220,8 +220,11 @@ requireText("sim/simulator.mjs",'import {HybridMotorSound} from "./motor_sound.m
 requireText("sim/simulator.mjs",'import {FlightLogbook} from "./flight_logbook.mjs";');
 requireText("sim/simulator.mjs",'import {installFlightFireFx} from "./flight_fire_fx.mjs";');
 requireText("sim/simulator.mjs",'import {findXboxGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";');
-for(const marker of ["LB+RB FIRE","data-control-source=\"xbox\"","pollXboxGamepad(renderNow)","setGamepadLook?.(sample.aim","setGamepadFire(sample.fire"])
+for(const marker of ["LB+RB FIRE","data-control-source=\"xbox\"","pollXboxGamepad(renderNow)","setGamepadLook?.(sample.aim","setGamepadFire(sample.fire","xboxControllerToggle:true","phoneSettings.xboxControllerEnabled!==false"])
   requireText("sim/simulator.mjs",marker);
+for(const marker of ["XBOX CONTROLLER","data-xbox-controller","xboxControllerEnabled:xboxControllerInput?xboxControllerInput.checked:settings.xboxControllerEnabled"])
+  requireText("sim/control_settings.mjs",marker);
+requireText("sim/control_semantics.mjs","xboxControllerEnabled:true");
 for(const marker of ["RIGHT_SHOULDER:5","LEFT_TRIGGER:6","RIGHT_TRIGGER:7","heightAxis:","fire:aim&&rightShoulder"])
   requireText("sim/xbox_gamepad.mjs",marker);
 requireText("tests/xbox_gamepad_test.mjs","LB + RB must fire");
@@ -279,7 +282,17 @@ requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_M=50.0");
 requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_RATE_MPS=5.0");
 requireText("sim/control_semantics.mjs","stepGroundClearanceTarget");
 requireText("esp32/Arondight45_StateControl.hpp","kStateMaxClearanceM = 50.00f");
-for(const marker of ["WORLD_MAP_FRAME_MS=1000/30","WORLD_MAP_FRAME_MS_CONSTRAINED=1000/20","WORLD_MAP_FRAME_MS_CRITICAL=1000/15","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_MAP_SOFTWARE_PIXEL_RATIO=.50","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\"sky-color\":\"#071b2e\"","WORLD_MAP_MAX_PITCH=120","fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)","setVerticalFieldOfView(verticalFov)","worldMapEyeElevation","worldMapUpdates","worldFlightFps","setPerfMode(mode)","applyFlightPalette()","crossSourceCollisions:false","angularDistanceDeg","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","WORLD_MINIMAP_QUERY_MS=1000","queryRenderedFeatures(undefined,{layers:this.minimapLayerIds})","world-mini-canvas","worldMinimapMode","installLookHud()","installFreeLookSurface()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","if(child.isGridHelper){child.visible=this.gridEnabled;continue;}"])requireText("sim/real_world_bootstrap.mjs",marker);
+for(const marker of ["WORLD_MAP_DIRECT_DEDUP_MS=8","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_MAP_SOFTWARE_PIXEL_RATIO=.50","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\"sky-color\":\"#071b2e\"","WORLD_MAP_MAX_PITCH=120","fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)","setVerticalFieldOfView(verticalFov)","presentationFrameSerial","lastMapSyncFrameSerial","frameSerial===this.lastMapSyncFrameSerial","worldMapFpsCap=\"presentation\"","worldMapEyeElevation","worldMapUpdates","worldFlightFps","setPerfMode(mode)","applyFlightPalette()","crossSourceCollisions:false","stabilized-eye-target","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","WORLD_MINIMAP_QUERY_MS=1000","queryRenderedFeatures(undefined,{layers:this.minimapLayerIds})","world-mini-canvas","worldMinimapMode","installLookHud()","installFreeLookSurface()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","if(child.isGridHelper){child.visible=this.gridEnabled;continue;}"])requireText("sim/real_world_bootstrap.mjs",marker);
+for(const forbidden of ["WORLD_MAP_FRAME_MS","WORLD_MAP_FRAME_MS_CONSTRAINED","WORLD_MAP_FRAME_MS_CRITICAL","WORLD_MAP_CENTER_EPS_M","WORLD_MAP_ZOOM_EPS","WORLD_MAP_ANGLE_EPS_DEG","angularDistanceDeg","budgeted-ground-target","lastFpvSyncFrameSerial","mapFrameMs"])
+  forbidText("sim/real_world_bootstrap.mjs",forbidden,`WORLD camera registration must be presentation-frame exact: ${forbidden}`);
+const worldSource=read("sim/real_world_bootstrap.mjs"),worldSyncStart=worldSource.indexOf("syncMapCamera(camera,frameSerial=null)"),worldSyncEnd=worldSource.indexOf("renderReal(scene,camera)",worldSyncStart),worldSyncSource=worldSource.slice(worldSyncStart,worldSyncEnd);
+if(worldSyncStart<0||worldSyncEnd<=worldSyncStart)fail("cannot isolate WORLD camera synchronization boundary");
+if((worldSyncSource.match(/calculateCameraOptionsFromTo/g)||[]).length!==2)fail("WORLD camera must use one exact eye/target MapLibre solve for every camera mode");
+forbidText("sim/real_world_bootstrap.mjs","}else if(!forceMode&&now-this.lastMapSyncMs<this.mapFrameMs)return;","external cameras must not run on a slower map clock");
+for(const marker of ['import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";',"capturePresentationStep()","capturePresentationCurrent()","presentationPose(alpha=1)","stabilized-inertial-anchor","presentationPoseInterpolation","physics.render(presentationPose,presentationDt);updateCamera(presentationPose,renderNow)"])
+  requireText("sim/simulator.mjs",marker);
+for(const forbidden of ["camera.position.lerp(desired","cameraFollowInitialized","followHeading","thirdHeading"])
+  forbidText("sim/simulator.mjs",forbidden,`external camera reintroduced split-frame smoothing: ${forbidden}`);
 for(const marker of ["TorusGeometry(.15","worldHaloBack","worldHeadingCue","showWorldMarker=worldActive&&cameraMode!==\"fpv\""])requireText("sim/simulator.mjs",marker);
 for(const marker of ['if(mode==="fpv"){const dir=','camera.lookAt(camera.position.clone().addScaledVector(dir,4));return;'])requireText("sim/real_world_bootstrap.mjs",marker);
 requireText("sim/controller.mjs","let groundClearance=phoneSettings.defaultHoverAgl");
