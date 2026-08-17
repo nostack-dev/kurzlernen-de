@@ -12,6 +12,10 @@ try{
     await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
     await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
     await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
+    // SOLO sets the body class before the queued presentation-resize commit.
+    // Wait for that commit instead of sampling the previous/empty viewport
+    // policy during rapid same-page reloads (notably the Safari-bars fixture).
+    await page.waitForFunction(()=>{const viewport=document.querySelector("#viewport");return viewport?.dataset.orientationPolicy==="landscape"&&Boolean(viewport.dataset.soloOrientation);},{timeout:5000});
     const g=await page.evaluate(()=>{
       const viewport=document.querySelector("#viewport"),viewportRect=viewport.getBoundingClientRect(),orientation=viewport.dataset.soloOrientation||"";
       const physicalRect=selector=>{const e=document.querySelector(selector),r=e?.getBoundingClientRect();return r?{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}:null;};
