@@ -1,0 +1,25 @@
+name: One-off Box3D collider debug draw
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Patch
+        run: python3 tools/oneoff_box3d_debugdraw_patch.py
+      - name: Commit
+        run: |
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git rm .github/workflows/oneoff-box3d-debugdraw.yml tools/oneoff_box3d_debugdraw_patch.py
+          git add sim/box3d_collider_debug.mjs sim/control_settings.mjs sim/simulator.mjs sim/world_building_collision_physics.mjs tests/world_building_collision_box3d_test.mjs tests/world_building_collision_browser_smoke.mjs
+          git commit -m "Add opt-in Box3D collider debug draw"
+          git push origin HEAD:main
