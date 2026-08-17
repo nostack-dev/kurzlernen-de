@@ -1,0 +1,32 @@
+name: One-off FPV startup race fix
+on:
+  push:
+    branches: ["main"]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.repository == 'nostack-dev/kurzlernen-de'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Patch startup wait
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/browser_sim_smoke.mjs')
+          s=p.read_text()
+          old='await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});'
+          new='await page.waitForFunction(()=>{const viewport=document.querySelector("#viewport");return document.body.classList.contains("solo-flight")&&viewport?.dataset.cameraMode==="fpv"&&viewport.dataset.fpvCameraUpOffsetM==="0.060";},{timeout:5000});'
+          if old not in s: raise SystemExit('startup wait marker missing')
+          p.write_text(s.replace(old,new,1))
+          PY
+          node --check tests/browser_sim_smoke.mjs
+          git rm .github/workflows/oneoff-fix-fpv-startup-race.yml
+      - name: Commit
+        run: |
+          git config user.name "Christian Heinrich Hohlfeld"
+          git config user.email "chris.hohlfeld@gmail.com"
+          git add tests/browser_sim_smoke.mjs
+          git commit -m "Wait for first FPV camera frame in browser gate"
+          git push origin HEAD:main
