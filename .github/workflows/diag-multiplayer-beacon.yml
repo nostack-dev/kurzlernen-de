@@ -28,6 +28,7 @@ jobs:
           ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
           cd "$GITHUB_WORKSPACE"
           ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
+          ./node_modules/.bin/esbuild sim/nostr_data_relay.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=generated/nostr_data_relay_probe.mjs
           python3 - <<'PY'
           from pathlib import Path
           p=Path('drone_simulator.html')
@@ -36,19 +37,34 @@ jobs:
           bundle=Path('/tmp/arondight45-simulator.bundle.mjs').read_text().replace('</script','<\\/script')
           p.write_text(html.replace(marker,'<script type="module">\n'+bundle+'\n</script>'))
           PY
-      - name: Run focused beacon browser test with diagnostics
+      - name: Identify exact early browser failure
         run: |
-          set +e
+          set -u
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/static.log 2>&1 &
           HTTP_PID=$!
           sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174 > /tmp/vs.log 2>&1
-          STATUS=$?
+          fail=0
+          run_test(){
+            NAME="$1"; shift
+            OUT="/tmp/${NAME}.log"
+            set +e
+            CHROME_BIN="$CHROME_BIN" node "$@" >"$OUT" 2>&1
+            STATUS=$?
+            set -e
+            cat "$OUT"
+            if [ "$STATUS" -ne 0 ]; then
+              MSG="$(tail -c 4000 "$OUT" | tr '\n' ' ' | sed 's/%/%25/g;s/\r/%0D/g')"
+              echo "::error file=$2,line=1,title=$NAME::$MSG"
+              fail=$STATUS
+              return "$STATUS"
+            fi
+          }
+          set -e
+          run_test nostr tests/nostr_data_relay_browser_smoke.mjs http://127.0.0.1:4174 || true
+          if [ "$fail" -eq 0 ]; then run_test solo tests/solo_layout_smoke.mjs http://127.0.0.1:4174 || true; fi
+          if [ "$fail" -eq 0 ]; then run_test xbox tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174 || true; fi
+          if [ "$fail" -eq 0 ]; then run_test android tests/android_render_browser_smoke.mjs http://127.0.0.1:4174 || true; fi
+          if [ "$fail" -eq 0 ]; then run_test vs tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174 || true; fi
           kill "$HTTP_PID" 2>/dev/null || true
-          cat /tmp/vs.log
-          if [ "$STATUS" -ne 0 ]; then
-            MSG="$(tail -c 4000 /tmp/vs.log | tr '\n' ' ' | sed 's/%/%25/g;s/\r/%0D/g')"
-            echo "::error file=tests/vs_combat_browser_smoke.mjs,line=1::$MSG"
-          fi
-          exit "$STATUS"
+          exit "$fail"
