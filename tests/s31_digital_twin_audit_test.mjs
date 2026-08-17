@@ -32,7 +32,8 @@ assert.doesNotMatch(sil,/mcpwm_|spi_device_|uart_read_bytes/,"WASM SIL must not 
 assert.match(simulator,/simulationTimingDiscontinuityMs/);
 assert.match(simulator,/partitionCalibrationLog\(realLog\)/);
 assert.match(html,/data-validation="unvalidated"/);
-assert.match(world,/map geometry is never silently treated as collision truth/);
+assert.match(world,/buildingFootprintsFromFeatures/);assert.match(world,/buildingCollisionPrismsFromFootprints/);assert.match(world,/worldBuildingCollisionStatus/);
 assert.match(audit,/does \*\*not\*\* yet have a 1:1 ESP32-S31 or real-airframe twin/);
+assert.match(audit,/bounded static Box3D prisms/);assert.match(audit,/not surveyed\/validated world truth/);assert.match(audit,/Flat local `z=0`/);
 
-console.log("S31 audit passed: shared controller/wire twin proven; MCU timing, plant and terrain remain explicitly unvalidated");
+console.log("S31 audit passed: shared controller/wire twin and bounded OSM building collisions are implemented; MCU timing, plant, terrain and surveyed world accuracy remain explicitly unvalidated");

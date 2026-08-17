@@ -189,14 +189,24 @@ requireText("sim/simulator.mjs","auxAccumulatorS+=DT");
 requireText("sim/simulator.mjs","(seq%20)===0");
 forbidText("sim/simulator.mjs","(sequence&7)===0", "simulator fixed-step cadence must not be display-Hz divided");
 
-// REAL WORLD is a geospatial/render adapter only. Browser GPS establishes the
-// WGS84 horizontal origin; local x/y/z remain east/north/up SI metres.
-// OpenFreeMap/OpenStreetMap are visual context only and never gain motor,
-// controller or rigid-body authority.
+// REAL WORLD establishes a WGS84 horizontal origin while local x/y/z remain
+// east/north/up SI metres. The bridge emits neutral, bounded OSM convex-prism
+// snapshots; PhysicsModel alone owns their static Box3D shapes. Map data never
+// gains motor/controller authority.
 for(const marker of ["navigator.geolocation.getCurrentPosition","enableHighAccuracy:true","tiles.openfreemap.org/styles/liberty","new MapLibreMap","metersToLngLat","source-layer\":\"building","render_height","render_min_height","WORLD_IMAGERY_TILE_URL","services.arcgisonline.com/ArcGIS/rest/services/World_Imagery","addWorldImagery","drawMinimapImagery","WORLD_MINIMAP_IMAGERY_CACHE_SIZE",'await import("./simulator.mjs")'])
   requireText("sim/real_world_bootstrap.mjs",marker);
 for(const dirty of ["Box3DFactory","PhysicsModel","applyForces(","motorOmega","motorTorque","propTorque","fc::Runtime","StateController","b3Body_ApplyForce","b3World_Step","new MapLibreMap({container:this.minimap"])
   forbidText("sim/real_world_bootstrap.mjs",dirty,`real-world render adapter duplicated flight physics/control: ${dirty}`);
+for(const marker of ["WORLD_BUILDING_COLLISION_RADIUS_M=220","WORLD_BUILDING_COLLISION_MAX_FOOTPRINTS=192","WORLD_BUILDING_COLLISION_MAX_VERTICES=64","WORLD_BUILDING_COLLISION_MAX_CONVEX_VERTICES=24","WORLD_BUILDING_COLLISION_MAX_PRISMS=512","geometry?.type===\"Polygon\"","geometry?.type===\"MultiPolygon\"","canonicalRingKey","holes","render_min_height","render_height"])
+  requireText("sim/world_building_collisions.mjs",marker);
+for(const marker of ["createWorldBuildingCollisionBodies","b3CreateHull","b3CreateHullShape","b3DestroyHull","b3DestroyBody","categoryBits=1n","maskBits=6n"])
+  requireText("sim/world_building_collision_physics.mjs",marker);
+for(const marker of ["attachBuildingCollisionSink","querySourceFeatures","buildingFootprintsFromFeatures","buildingCollisionPrismsFromFootprints","worldBuildingCollisionStatus","clearBuildingCollisions()"])
+  requireText("sim/real_world_bootstrap.mjs",marker);
+for(const marker of ["setWorldBuildingCollisions","rebuildWorldBuildingCollisions","createWorldBuildingCollisionBodies","worldBuildingCollisionPrisms"])
+  requireText("sim/simulator.mjs",marker);
+requireText(".github/workflows/deploy.yml","world_building_collision_box3d_test.mjs");
+requireText(".github/workflows/deploy.yml","world_building_collision_browser_smoke.mjs");
 for(const path of ["sim/real_world_bootstrap.mjs","sim/control_settings.mjs","tests/real_world_ui_smoke.mjs","REAL_WORLD_DIGITAL_TWIN.md"])
   for(const dirty of ["Google"+" Maps","google"+"apis.com","Google"+"Tiles","Ces"+"ium","AI"+"za"])
     forbidText(path,dirty,`${path} still contains removed map-provider dependency: ${dirty}`);
@@ -392,7 +402,7 @@ requireText("sim/lan_vs.mjs","...(pose.v?{v:[...pose.v]}:{})","pose velocity mus
 for(const marker of ["order-independent canonical WORLD frame","90 ms jitter-buffer interpolation with velocity compensation","100 ms bounded extrapolation"])requireText("tests/vs_pose_sync_test.mjs",marker);
 forbidText("tests/lan_vs_smoke.mjs","p:[4,5,6],q:[0,0,.1,.99],g:","GPS-less regression peer must not carry geolocation");
 requireText("sim/real_world_bootstrap.mjs","if(fromMate){this.originLon=null;this.originLat=null;this.vsWorldFromMate=false;}","failed mate-WORLD activation must roll back borrowed geospatial origin");
-console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, radial configurable GAME velocity envelope, geospatial WGS84/ENU render adapter only, direct WebRTC control and HIL-only bridge.");
+console.log("Architecture invariants passed: raw hardware boundary, one C++ motor authority, radial configurable GAME velocity envelope, bounded OSM-to-Box3D collision adapter, direct WebRTC control and HIL-only bridge.");
 forbidText("sim/controller.mjs","requestAnimationFrame(stepHeightTarget)","height target semantics must not depend on visual FPS");
 forbidText("sim/simulator.mjs","stepSoloHeightTarget(renderNow)","solo height target semantics must not depend on visual FPS");
 requireText("tests/browser_sim_smoke.mjs","fixed-step simulation is not tracking wall time");

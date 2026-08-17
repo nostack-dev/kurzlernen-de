@@ -14,6 +14,7 @@ import {partitionCalibrationLog,evaluatePhysicsValidation,validationSummary,PHYS
 import {findXboxGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";
 import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";
 import {renderPlatformProfile,quantizedViewportSize,viewportSizeChanged} from "./render_stability.mjs";
+import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies} from "./world_building_collision_physics.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -366,12 +367,12 @@ function eulerToQuat(r,p,y){
 }
 
 class PhysicsModel {
-  constructor(params,{graphics=false,scene=null}={}){this.graphics=graphics;this.scene=scene;this.noise=new Noise();this.world=null;this.body=null;this.group=null;this.rotors=[];this.renderPreviousPosition=[0,0,0];this.renderCurrentPosition=[0,0,0];this.renderPreviousRotation=[0,0,0,1];this.renderCurrentRotation=[0,0,0,1];this.renderPreviousVelocity=[0,0,0];this.renderCurrentVelocity=[0,0,0];this.renderPosition=new THREE.Vector3();this.renderRotation=new THREE.Quaternion();this.renderVelocity=new THREE.Vector3();this.renderCurrentQuaternion=new THREE.Quaternion();this.presentationPoseCache={position:this.renderPosition,quaternion:this.renderRotation,velocity:this.renderVelocity};this.reset(params);}
+  constructor(params,{graphics=false,scene=null}={}){this.graphics=graphics;this.scene=scene;this.noise=new Noise();this.world=null;this.body=null;this.group=null;this.rotors=[];this.worldBuildingCollisionSnapshot=normalizeBuildingCollisionSnapshot(null);this.worldBuildingCollisionState=null;this.worldBuildingCollisionRevision=0;this.renderPreviousPosition=[0,0,0];this.renderCurrentPosition=[0,0,0];this.renderPreviousRotation=[0,0,0,1];this.renderCurrentRotation=[0,0,0,1];this.renderPreviousVelocity=[0,0,0];this.renderCurrentVelocity=[0,0,0];this.renderPosition=new THREE.Vector3();this.renderRotation=new THREE.Quaternion();this.renderVelocity=new THREE.Vector3();this.renderCurrentQuaternion=new THREE.Quaternion();this.presentationPoseCache={position:this.renderPosition,quaternion:this.renderRotation,velocity:this.renderVelocity};this.reset(params);}
   reset(p,initial=null){
     validateParams(p);
     this.noise=new Noise();
     this.p={...p,wind:[...p.wind]};
-    if(this.world)b3.b3DestroyWorld(this.world);
+    if(this.world){this.worldBuildingCollisionState=null;b3.b3DestroyWorld(this.world);}
     const worldDef=b3.b3DefaultWorldDef();worldDef.gravity=[0,0,-G];worldDef.enableSleep=false;worldDef.enableContinuous=true;this.world=b3.b3CreateWorld(worldDef);
     const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(this.world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER,groupIndex:0};b3.b3CreateBoxShape(ground,groundShape,TERRAIN_HALF,TERRAIN_HALF,.05);
     const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;const initialZ=Number.isFinite(initial?.z)?initial.z:AIRFRAME_SPAWN_Z_M;bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(AIRFRAME_SPAWN_Z_M,initialZ)];bodyDef.rotation=initial?[...eulerToQuat(initial.roll_deg||0,initial.pitch_deg||0,initial.yaw_deg||0)]:[0,0,0,1];bodyDef.linearDamping=.002;bodyDef.angularDamping=.002;bodyDef.enableSleep=false;this.body=b3.b3CreateBody(this.world,bodyDef);
@@ -381,7 +382,7 @@ class PhysicsModel {
     this.skidHalfLength=Math.min(.045,Math.max(.03,p.span*.18));
     const mass=b3.b3Body_GetMassData(this.body);mass.mass=p.mass;mass.center=[0,0,-.006];mass.inertia={cx:[p.Ixx,0,0],cy:[0,p.Iyy,0],cz:[0,0,p.Izz]};b3.b3Body_SetMassData(this.body,mass);
     if(initial?.vx!=null && b3.b3Body_SetLinearVelocity)b3.b3Body_SetLinearVelocity(this.body,[initial.vx||0,initial.vy||0,initial.vz||0]);
-    this.motorOmega=[0,0,0,0];this.motorCurrent=[0,0,0,0];this.motorTorque=[0,0,0,0];this.propTorque=[0,0,0,0];this.motorPower=[0,0,0,0];this.batterySoc=1;this.batteryVoltage=16.8;this.batteryCurrent=0;this.worldAcceleration=[0,0,0];this.prevOmegaBody=[0,0,0];this.imuBytes=new Uint8Array(14);this.imuView=new DataView(this.imuBytes.buffer);this.motorBackEmf=60/(2*Math.PI*p.kv);this.propDiameter4=p.propD**4;this.propDiameter5=p.propD**5;this.cdA=[.035*p.dragScale,.035*p.dragScale,.07*p.dragScale];this.syncPresentationSnapshots();
+    this.motorOmega=[0,0,0,0];this.motorCurrent=[0,0,0,0];this.motorTorque=[0,0,0,0];this.propTorque=[0,0,0,0];this.motorPower=[0,0,0,0];this.batterySoc=1;this.batteryVoltage=16.8;this.batteryCurrent=0;this.worldAcceleration=[0,0,0];this.prevOmegaBody=[0,0,0];this.imuBytes=new Uint8Array(14);this.imuView=new DataView(this.imuBytes.buffer);this.motorBackEmf=60/(2*Math.PI*p.kv);this.propDiameter4=p.propD**4;this.propDiameter5=p.propD**5;this.cdA=[.035*p.dragScale,.035*p.dragScale,.07*p.dragScale];this.rebuildWorldBuildingCollisions();this.syncPresentationSnapshots();
     if(this.graphics){
       this.buildGraphics();
       // A freshly constructed Object3D starts at z=0. Synchronize it with the
@@ -390,6 +391,8 @@ class PhysicsModel {
       this.render(this.presentationPose(1),0);
     }
   }
+  setWorldBuildingCollisions(value){const snapshot=normalizeBuildingCollisionSnapshot(value);if(snapshot.hash===this.worldBuildingCollisionSnapshot.hash&&snapshot.prismCount===this.worldBuildingCollisionSnapshot.prismCount)return false;this.worldBuildingCollisionSnapshot=snapshot;this.rebuildWorldBuildingCollisions();return true;}
+  rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER});this.worldBuildingCollisionRevision++;}
   buildGraphics(){
     if(this.group)this.scene.remove(this.group);
     this.group=new THREE.Group();this.group.userData.arondightAirframe=true;this.scene.add(this.group);this.rotors=[];
@@ -545,6 +548,7 @@ function resize(){if(presentationResizeQueued)return;presentationResizeQueued=tr
 addEventListener("resize",resize,{passive:true});addEventListener("orientationchange",resize,{passive:true});globalThis.visualViewport?.addEventListener?.("resize",resize,{passive:true});const viewportResizeObserver=globalThis.ResizeObserver?new ResizeObserver(resize):null;viewportResizeObserver?.observe($("viewport"));commitPresentationResize();
 
 let physics=new PhysicsModel(defaultParams(),{graphics:true,scene});
+globalThis.__arondightRealWorld?.attachBuildingCollisionSink?.(snapshot=>physics.setWorldBuildingCollisions(snapshot));
 const motorSound=new HybridMotorSound($("viewport"));
 function updateSoundButton(){const button=$("soundToggle");if(button)button.textContent=motorSound.enabled?(motorSound.isRunning()?"SOUND ON":"SOUND TAP"):"SOUND OFF";}
 $("soundToggle").onclick=async()=>{if(!motorSound.enabled||!motorSound.isRunning()){motorSound.setEnabled(true);await motorSound.unlock();}else motorSound.setEnabled(false);updateSoundButton();};
@@ -876,6 +880,9 @@ Object.defineProperties(simulatorDiagnostics,{
   presentationTiming:{get:()=>presentationTimingSnapshot(),enumerable:true},
   simulationTimingDiscontinuityMs:{get:()=>simulationTimingDiscontinuityMs,enumerable:true},
   physicsValidation:{get:()=>physicsValidationReport,enumerable:true},
+  worldBuildingCollisionFootprints:{get:()=>physics.worldBuildingCollisionSnapshot.footprintCount,enumerable:true},
+  worldBuildingCollisionPrisms:{get:()=>physics.worldBuildingCollisionState?.shapeCount||0,enumerable:true},
+  worldBuildingCollisionRevision:{get:()=>physics.worldBuildingCollisionRevision,enumerable:true},
   fcState:{get:()=>latest.state,enumerable:true},
   runEpoch:{get:()=>runEpoch,enumerable:true},
 });

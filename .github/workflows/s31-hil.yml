@@ -65,6 +65,7 @@ jobs:
           node tests/render_stability_test.mjs
           node tests/vs_pose_sync_test.mjs
           node tests/physics_validation_test.mjs
+          node tests/world_building_collisions_test.mjs
           node tests/s31_digital_twin_audit_test.mjs
           node tests/lan_vs_smoke.mjs
       - name: Architecture and JavaScript validation
@@ -72,6 +73,8 @@ jobs:
           set -euxo pipefail
           node --check sim/real_world_bootstrap.mjs
           node --check sim/simulator.mjs
+          node --check sim/world_building_collisions.mjs
+          node --check sim/world_building_collision_physics.mjs
           node --check sim/controller.mjs
           node --check sim/p2p_link.mjs
           node --check sim/control_semantics.mjs
@@ -96,6 +99,9 @@ jobs:
           node --check tests/dual_phone_smoke.mjs
           node --check tests/lan_vs_smoke.mjs
           node --check tests/network_logbook_browser_smoke.mjs
+          node --check tests/world_building_collisions_test.mjs
+          node --check tests/world_building_collision_box3d_test.mjs
+          node --check tests/world_building_collision_browser_smoke.mjs
           node --check tools/s31_hil_bridge.mjs
           node tests/architecture_invariants.mjs
 

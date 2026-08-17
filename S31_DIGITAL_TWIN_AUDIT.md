@@ -24,8 +24,8 @@ The official [ESP32-S31 datasheet](https://documentation.espressif.com/esp32-s31
 | Motor/ESC/prop | Lumped Kv/R/J, constant Ct/Cq and simple advance/ground-effect terms | Unvalidated plant model |
 | Battery | OCV + scalar internal resistance + charge integration | Unvalidated electrical/thermal model |
 | Airframe | Box3D rigid body with configured mass/inertia and simple quadratic drag | Unvalidated aerodynamic/structural model |
-| REAL WORLD map | WGS84 origin and OpenStreetMap/OpenFreeMap visual context | Visual/geospatial context only |
-| Terrain/building physics | Flat local `z=0` collider; map buildings are not colliders or elevation measurements | Not twinned |
+| REAL WORLD map | WGS84 origin, aerial imagery and OpenStreetMap/OpenFreeMap context | Geospatial adapter, source accuracy unvalidated |
+| Terrain/building physics | Flat local `z=0`; nearby loaded OSM footprints/heights become bounded static Box3D prisms with roof range hits | Implemented approximation; not surveyed/validated world truth |
 
 ## S31-specific review
 
@@ -55,6 +55,6 @@ Do not add more guessed coefficients and call that “more real.” Measure the 
 4. IMU bias/noise/allan variance, axis alignment, temperature drift, vibration spectrum, filters and end-to-end latency.
 5. Timestamped flight logs containing all four motor pulses, position, velocity, attitude, battery voltage and current across hover, collective steps, roll/pitch/yaw excitation and the intended 10–25 m/s envelope.
 6. Identify parameters on the first 70% of each ordered log and pass the untouched final 30% against `sim/physics_validation.mjs` physical-unit gates. Repeat on independent flights, payloads, batteries, wind and temperature. A single split is the minimum gate, not final certification.
-7. Add a verified terrain/elevation/collision source before treating REAL WORLD buildings or ground height as physics truth.
+7. Validate OSM building footprints/heights against surveyed structures and add verified terrain elevation/material data before treating REAL WORLD collision or ground height as physical world truth.
 
 Until those measurements exist, the correct UI state is `UNVALIDATED`. `HOLDOUT VALIDATED` means only that the current parameter set passed the recorded acceptance limits inside the measured flight envelope; it is not a universal or exact-physics claim.
