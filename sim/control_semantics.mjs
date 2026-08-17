@@ -28,7 +28,7 @@ export const DEFAULT_PHONE_SETTINGS=Object.freeze({
   invertLeftHorizontal:false,
   invertRightHorizontal:false,
   invertRightVertical:true,
-  xboxControllerEnabled:true,
+  xboxControllerEnabled:false,
   defaultHoverAgl:1.2,
   maxHorizontalSpeedKmh:DEFAULT_GAME_HORIZONTAL_SPEED_KMH,
 });

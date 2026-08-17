@@ -13,6 +13,8 @@ requireText("sim/simulator.mjs","Math.max(AIRFRAME_SPAWN_Z_M,initialZ)","spawn m
 requireText("sim/simulator.mjs","const AIRFRAME_LANDING_SKID_Z_M = -AIRFRAME_COLLISION_HALF_Z_M + AIRFRAME_LANDING_SKID_RADIUS_M;","visible skid bottom must align exactly with the physical support plane");
 requireText("sim/simulator.mjs","center.position.z=AIRFRAME_VISUAL_BODY_CENTER_Z_M","visible fuselage must sit above the landing support rather than intersect terrain contact slop");
 requireText("sim/simulator.mjs","new THREE.CylinderGeometry(AIRFRAME_LANDING_SKID_RADIUS_M,AIRFRAME_LANDING_SKID_RADIUS_M,this.skidHalfLength*2,12)","landing skids must exist in visible geometry");
+requireText("sim/simulator.mjs","this.buildGraphics();\n      // A freshly constructed Object3D starts at z=0.","visible airframe must be synchronized to the Box3D spawn before its first compositor frame");
+requireText("sim/simulator.mjs","this.render(this.presentationPose(1),0);","every rebuilt visible airframe must immediately receive its physical spawn pose");
 forbidText("sim/simulator.mjs","center1:[-this.skidHalfLength,y,AIRFRAME_LANDING_SKID_Z_M]","visual anti-clipping must not alter the proven flight contact dynamics with extra skid colliders");
 const fpvDistance=fpvTargetDistanceMeters(47,844,50,20);
 if(!(fpvDistance>20&&fpvDistance<200))fail(`WORLD FPV target distance out of physical viewport scale: ${fpvDistance}`);
@@ -220,11 +222,11 @@ requireText("sim/simulator.mjs",'import {HybridMotorSound} from "./motor_sound.m
 requireText("sim/simulator.mjs",'import {FlightLogbook} from "./flight_logbook.mjs";');
 requireText("sim/simulator.mjs",'import {installFlightFireFx} from "./flight_fire_fx.mjs";');
 requireText("sim/simulator.mjs",'import {findXboxGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";');
-for(const marker of ["LB+RB FIRE","data-control-source=\"xbox\"","pollXboxGamepad(renderNow)","setGamepadLook?.(sample.aim","setGamepadFire(sample.fire","xboxControllerToggle:true","phoneSettings.xboxControllerEnabled!==false"])
+for(const marker of ["LB+RB FIRE","data-control-source=\"xbox\"","data-gamepad-enabled=\"1\"","pollXboxGamepad(renderNow)","setGamepadLook?.(sample.aim","setGamepadFire(sample.fire","xboxControllerToggle:true","phoneSettings.xboxControllerEnabled===true","deactivateXboxGamepad(true)"])
   requireText("sim/simulator.mjs",marker);
 for(const marker of ["XBOX CONTROLLER","data-xbox-controller","xboxControllerEnabled:xboxControllerInput?xboxControllerInput.checked:settings.xboxControllerEnabled"])
   requireText("sim/control_settings.mjs",marker);
-requireText("sim/control_semantics.mjs","xboxControllerEnabled:true");
+requireText("sim/control_semantics.mjs","xboxControllerEnabled:false");
 for(const marker of ["RIGHT_SHOULDER:5","LEFT_TRIGGER:6","RIGHT_TRIGGER:7","heightAxis:","fire:aim&&rightShoulder"])
   requireText("sim/xbox_gamepad.mjs",marker);
 requireText("tests/xbox_gamepad_test.mjs","LB + RB must fire");
@@ -237,6 +239,7 @@ for(const marker of ["kStateNavigationDegraded","navigation_velocity_valid","nav
 for(const marker of ["kNavigationVelocityValid","kNavigationAglValid","kNavigationSplitValidity"])requireText("esp32/Arondight45_HardwareSensors.hpp",marker);
 requireText("sim/simulator.mjs",'const motorSound=new HybridMotorSound($("viewport"));');
 for(const marker of ["loadCameraSettings","mountCameraSettings","cameraSettings.fpvTiltDeg","cameraSettings.fpvFovDeg","cameraSettings.thirdDistanceM","camera.position.distanceTo(position)"])requireText("sim/simulator.mjs",marker);
+for(const marker of ["const FPV_CAMERA_FORWARD_OFFSET_M = .095;","const FPV_CAMERA_UP_OFFSET_M = .060;","fpvCameraUpOffsetM=FPV_CAMERA_UP_OFFSET_M.toFixed(3)"])requireText("sim/simulator.mjs",marker);
 for(const marker of ["FPV VERTICAL TILT","VIEW FOV","THIRD PERSON DISTANCE","arondight45CameraSettingsV1"])requireText("sim/camera_settings.mjs",marker);
 requireText("sim/motor_sound.mjs",'this.viewport.dataset.motorAudioSource="motorOmega+motorTorque+propTorque+tipSpeed:hybridBladeMotor"');
 for(const marker of ["bladeSource","motorSource","washNoise","tipSpeed","playbackRate.setTargetAtTime"])requireText("sim/motor_sound.mjs",marker);

@@ -89,9 +89,12 @@ try{
     tilt:document.querySelector("#viewport")?.dataset.fpvTiltDeg||"",
     auto:document.querySelector("#viewport")?.dataset.autoFlightStart||"",
     soloCamera:document.querySelector("#soloCamera")?.textContent?.trim()||"",
+    fpvCameraUp:Number(document.querySelector("#viewport")?.dataset.fpvCameraUpOffsetM),
+    initialGroundPose:document.querySelector("#viewport")?.dataset.initialAirframeGroundPose||"",
+    initialVisualBottom:Number(document.querySelector("#viewport")?.dataset.initialAirframeVisualBottomM),
     panel:getComputedStyle(document.querySelector(".panel")).display,
   }));
-  if(cameraBoot.mode!=="fpv"||cameraBoot.fpv!=="1"||cameraBoot.tilt!=="-15"||cameraBoot.auto!=="fpv"||cameraBoot.soloCamera!=="FPV"||cameraBoot.panel!=="none")
+  if(cameraBoot.mode!=="fpv"||cameraBoot.fpv!=="1"||cameraBoot.tilt!=="-15"||cameraBoot.auto!=="fpv"||cameraBoot.soloCamera!=="FPV"||cameraBoot.fpvCameraUp!==.060||cameraBoot.initialGroundPose!=="1"||cameraBoot.initialVisualBottom<0||cameraBoot.panel!=="none")
     throw new Error(`direct FPV startup failed: ${JSON.stringify(cameraBoot)}`);
 
   // Re-enter once through the now-hidden main UI path so the legacy-settings
@@ -170,7 +173,7 @@ try{
     v3:localStorage.getItem("arondight45PhoneControlSettingsV3"),
     v4:localStorage.getItem("arondight45PhoneControlSettingsV4"),
   }));
-  if(defaults.left!=="10"||defaults.right!=="10"||defaults.debugGrid!==false||defaults.debugGridRuntime!=="0"||defaults.hover!=="1.2"||defaults.hoverMax!=="50"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.xbox!==true||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
+  if(defaults.left!=="10"||defaults.right!=="10"||defaults.debugGrid!==false||defaults.debugGridRuntime!=="0"||defaults.hover!=="1.2"||defaults.hoverMax!=="50"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.xbox!==false||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
     throw new Error(`clean V5 requested defaults/settings labels wrong: ${JSON.stringify(defaults)}`);
   if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null||defaults.v4!==null)
     throw new Error(`obsolete phone settings V1-V4 not wiped: ${JSON.stringify(defaults)}`);

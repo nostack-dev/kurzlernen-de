@@ -23,7 +23,7 @@ assert.equal(DEFAULT_PHONE_SETTINGS.lockRightHorizontal,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.invertLeftHorizontal,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.invertRightHorizontal,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.invertRightVertical,true);
-assert.equal(DEFAULT_PHONE_SETTINGS.xboxControllerEnabled,true);
+assert.equal(DEFAULT_PHONE_SETTINGS.xboxControllerEnabled,false);
 assert.equal(DEFAULT_PHONE_SETTINGS.defaultHoverAgl,1.2);
 assert.equal(DEFAULT_PHONE_SETTINGS.maxHorizontalSpeedKmh,36);
 assert.equal(MIN_GAME_HORIZONTAL_SPEED_KMH,5);assert.equal(MAX_GAME_HORIZONTAL_SPEED_KMH,90);assert.equal(DEFAULT_GAME_HORIZONTAL_SPEED_KMH,36);
@@ -31,7 +31,7 @@ near(gameHorizontalSpeedScale(36),.4,1e-12,"36 km/h must map to 40% of the 90 km
 near(gameHorizontalSpeedScale(90),1,1e-12,"90 km/h must retain full FC translation authority");
 for(const value of [0,.02,.1,.25,.5,.75,1])near(gameStateStickMagnitude(inverseGameStateStickMagnitude(value)),value,2e-8,"GAME FC transfer inverse");
 assert.equal(normalizePhoneSettings({maxHorizontalSpeedKmh:999}).maxHorizontalSpeedKmh,90);assert.equal(normalizePhoneSettings({maxHorizontalSpeedKmh:-5}).maxHorizontalSpeedKmh,5);
-assert.equal(normalizePhoneSettings({}).xboxControllerEnabled,true);assert.equal(normalizePhoneSettings({xboxControllerEnabled:false}).xboxControllerEnabled,false);
+assert.equal(normalizePhoneSettings({}).xboxControllerEnabled,false);assert.equal(normalizePhoneSettings({xboxControllerEnabled:true}).xboxControllerEnabled,true);
 assert.equal(MIN_GAME_CLEARANCE_M,.5);assert.equal(MAX_GAME_CLEARANCE_M,50);
 assert.equal(MAX_GAME_TILT_DEG,40);assert.equal(GAME_AGL_SENSOR_RANGE_MARGIN_M,10);
 const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.pow(Math.cos(MAX_GAME_TILT_DEG*Math.PI/180),2);

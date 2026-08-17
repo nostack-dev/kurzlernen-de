@@ -30,16 +30,23 @@ try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
-  await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.controlSource==="xbox",{timeout:7000});
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return document.body.classList.contains("solo-flight")&&v?.dataset.controlSource==="touch"&&v.dataset.gamepadEnabled==="0";},{timeout:7000});
 
-  const active=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill"),status:document.querySelector("#soloGamepadStatus").hidden,help:document.querySelector("#soloGamepadHelp").hidden,helpText:document.querySelector("#soloGamepadHelp").textContent};});
-  if(active.source!=="xbox"||active.connected!=="1"||active.left!=="none"||active.right!=="none"||active.height!=="none"||active.arm!=="none"||active.kill!=="none"||active.status||active.help||!active.helpText.includes("LB+RB FIRE"))throw new Error(`Xbox did not replace touch flight controls: ${JSON.stringify(active)}`);
+  const defaultOff=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,enabled:v.dataset.gamepadEnabled,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill"),padConnected:Boolean(navigator.getGamepads?.()[0]?.connected)};});
+  if(defaultOff.source!=="touch"||defaultOff.enabled!=="0"||defaultOff.connected!=="0"||defaultOff.left==="none"||defaultOff.right==="none"||defaultOff.height==="none"||defaultOff.arm==="none"||defaultOff.kill==="none"||!defaultOff.padConnected)throw new Error(`Xbox was not safely OFF by default: ${JSON.stringify(defaultOff)}`);
 
-  // Settings owns an explicit persistent override. OFF must restore touch even
-  // while this same physical controller remains connected; ON hands back safely.
+  // Settings owns an explicit persistent override. A physically connected pad
+  // remains ignored until the user switches Xbox mode ON.
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});
-  const toggleDefault=await page.$eval('.phone-settings-dialog [data-xbox-controller]',input=>input.checked);if(toggleDefault!==true)throw new Error(`Xbox settings toggle is not ON by default: ${toggleDefault}`);
+  const toggleDefault=await page.$eval('.phone-settings-dialog [data-xbox-controller]',input=>input.checked);if(toggleDefault!==false)throw new Error(`Xbox settings toggle is not OFF by default: ${toggleDefault}`);
   await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="xbox"&&v.dataset.gamepadEnabled==="1"&&v.dataset.gamepadConnected==="1";},{timeout:3000});
+  const active=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill"),status:document.querySelector("#soloGamepadStatus").hidden,help:document.querySelector("#soloGamepadHelp").hidden,helpText:document.querySelector("#soloGamepadHelp").textContent};});
+  if(active.source!=="xbox"||active.connected!=="1"||active.left!=="none"||active.right!=="none"||active.height!=="none"||active.arm!=="none"||active.kill!=="none"||active.status||active.help||!active.helpText.includes("LB+RB FIRE"))throw new Error(`Xbox ON did not remove every touch flight control: ${JSON.stringify(active)}`);
+
+  // OFF restores touch even while the same physical controller stays connected;
+  // turning ON again hands control back without a reload.
+  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.controlSource==="touch",{timeout:3000});
   const disabled=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display,stored=JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}");return{source:v.dataset.controlSource,enabled:v.dataset.gamepadEnabled,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),stored:stored.xboxControllerEnabled,padStillConnected:Boolean(navigator.getGamepads?.()[0]?.connected)};});
   if(disabled.source!=="touch"||disabled.enabled!=="0"||disabled.connected!=="0"||disabled.left==="none"||disabled.right==="none"||disabled.height==="none"||disabled.stored!==false||!disabled.padStillConnected)throw new Error(`Xbox OFF did not restore touch with controller connected: ${JSON.stringify(disabled)}`);
@@ -85,9 +92,11 @@ try{
   await setButton(5,0);await setButton(4,0);await page.evaluate(()=>{globalThis.__xboxTest.setAxis(2,0);globalThis.__xboxTest.setAxis(3,0);});
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.gamepadFire==="0"&&getComputedStyle(document.querySelector(".xbox-crosshair")).display==="none",{timeout:3000});
   await page.evaluate(()=>globalThis.__xboxTest.disconnect());
-  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.controlSource==="touch",{timeout:3000});
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="xbox"&&v.dataset.gamepadConnected==="0";},{timeout:3000});
   const disconnected=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,connected:v.dataset.gamepadConnected,height:Number(v.dataset.gamepadHeightAxis||0),left:display("#soloLeft"),right:display("#soloRight"),clearance:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill")};});
-  if(disconnected.source!=="touch"||disconnected.connected!=="0"||disconnected.height!==0||disconnected.left==="none"||disconnected.right==="none"||disconnected.clearance==="none"||disconnected.arm==="none"||disconnected.kill==="none")throw new Error(`Xbox disconnect did not safely restore neutral touch controls: ${JSON.stringify(disconnected)}`);
+  if(disconnected.source!=="xbox"||disconnected.connected!=="0"||disconnected.height!==0||disconnected.left!=="none"||disconnected.right!=="none"||disconnected.clearance!=="none"||disconnected.arm!=="none"||disconnected.kill!=="none")throw new Error(`Xbox ON exposed touch controls while the selected pad reconnected: ${JSON.stringify(disconnected)}`);
+  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="touch"&&v.dataset.gamepadEnabled==="0"&&getComputedStyle(document.querySelector("#soloLeft")).display!=="none";},{timeout:3000});
 
-  console.log("Xbox browser E2E passed: persistent Settings ON/OFF, touch replacement, LT down, RT up-only, LB+RS free-look/crosshair, and LB+RB right-shoulder fire.");
+  console.log("Xbox browser E2E passed: default OFF, explicit persistent ON/OFF, zero touch HUD while ON/reconnecting, LT down, RT up-only, LB+RS free-look/crosshair, and LB+RB right-shoulder fire.");
 }finally{await browser.close();}
