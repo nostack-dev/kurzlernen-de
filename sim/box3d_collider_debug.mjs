@@ -4,6 +4,7 @@ const AIRFRAME_COLOR=0xff5a6f;
 const BUILDING_COLOR=0x58e7ff;
 const GROUND_COLOR=0xffd166;
 const DEBUG_RENDER_ORDER=1900;
+const PROPELLER_SWEEP_HALF_THICKNESS_M=.002;
 
 function lineMaterial(color,opacity=.95){
   return new THREE.LineBasicMaterial({color,transparent:true,opacity,depthTest:false,depthWrite:false,toneMapped:false});
@@ -38,6 +39,11 @@ function addCapsule(group,start,end,radius,color=AIRFRAME_COLOR){
   }
   addSphere(group,start,radius,color);addSphere(group,end,radius,color);
 }
+function addPropellerSweep(group,point,diameter,color=AIRFRAME_COLOR){
+  const radius=Number(diameter)/2;if(!(radius>.018))return;
+  const sweep=wireObject(new THREE.CylinderGeometry(radius,radius,PROPELLER_SWEEP_HALF_THICKNESS_M*2,24,1,true),color,.72);
+  sweep.rotation.x=Math.PI/2;sweep.position.set(...point);sweep.name="BOX3D_PROPELLER_SWEEP";group.add(sweep);
+}
 function prismEdgePositions(prisms){
   const positions=[];
   for(const prism of Array.isArray(prisms)?prisms:[]){
@@ -67,10 +73,10 @@ export class Box3dColliderDebugDraw{
     const active=Array.isArray(state?.activePrisms)?state.activePrisms:[],positions=prismEdgePositions(active);this.activePrismCount=active.length;
     if(positions.length){const lines=lineSegments(positions,BUILDING_COLOR,.98);lines.name="BOX3D_BUILDING_COLLIDERS";this.staticRoot.add(lines);}return true;
   }
-  syncAirframe(motorPositions,airframeHalfZ=.022){
-    if(!this.enabled)return false;const motors=(Array.isArray(motorPositions)?motorPositions:[]).map(point=>point.map(Number)),halfZ=Number(airframeHalfZ)||.022,key=JSON.stringify([halfZ,motors]);if(key===this.airframeKey)return false;this.airframeKey=key;disposeChildren(this.airframeRoot);
+  syncAirframe(motorPositions,airframeHalfZ=.022,propellerDiameter=0){
+    if(!this.enabled)return false;const motors=(Array.isArray(motorPositions)?motorPositions:[]).map(point=>point.map(Number)),halfZ=Number(airframeHalfZ)||.022,propD=Math.max(0,Number(propellerDiameter)||0),key=JSON.stringify([halfZ,propD,motors]);if(key===this.airframeKey)return false;this.airframeKey=key;disposeChildren(this.airframeRoot);
     const body=wireObject(new THREE.BoxGeometry(.11,.09,halfZ*2),AIRFRAME_COLOR,1);body.name="BOX3D_AIRFRAME_BODY";this.airframeRoot.add(body);
-    for(const motor of motors){if(motor.length<3||motor.some(value=>!Number.isFinite(value)))continue;addCapsule(this.airframeRoot,[0,0,0],motor,.008);addSphere(this.airframeRoot,motor,.018);}
+    for(const motor of motors){if(motor.length<3||motor.some(value=>!Number.isFinite(value)))continue;addCapsule(this.airframeRoot,[0,0,0],motor,.008);addSphere(this.airframeRoot,motor,.018);addPropellerSweep(this.airframeRoot,motor,propD);}
     return true;
   }
   updateAirframe(pose){
