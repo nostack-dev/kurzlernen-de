@@ -15,6 +15,7 @@ import {findXboxGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";
 import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";
 import {renderPlatformProfile,quantizedViewportSize,viewportSizeChanged} from "./render_stability.mjs";
 import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies} from "./world_building_collision_physics.mjs";
+import {Box3dColliderDebugDraw} from "./box3d_collider_debug.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -42,6 +43,7 @@ const NAV_SPLIT_VALIDITY = 1 << 15;
 const TERRAIN_SIZE = 20000;
 const TERRAIN_HALF = TERRAIN_SIZE / 2;
 const DEBUG_GRID_STORAGE = "arondight45DebugGridlinesV1";
+const BOX3D_COLLIDER_DEBUG_STORAGE = "arondight45Box3dColliderDebugV1";
 const NAV_AGL_RAY_MAX_M = MIN_GAME_AGL_SENSOR_SLANT_RANGE_M;
 const SIM_FIXED_STEP_MS = DT * 1000;
 const SIM_MAX_CATCHUP_MS = 50;
@@ -548,6 +550,12 @@ function resize(){if(presentationResizeQueued)return;presentationResizeQueued=tr
 addEventListener("resize",resize,{passive:true});addEventListener("orientationchange",resize,{passive:true});globalThis.visualViewport?.addEventListener?.("resize",resize,{passive:true});const viewportResizeObserver=globalThis.ResizeObserver?new ResizeObserver(resize):null;viewportResizeObserver?.observe($("viewport"));commitPresentationResize();
 
 let physics=new PhysicsModel(defaultParams(),{graphics:true,scene});
+const box3dColliderDebugDraw=new Box3dColliderDebugDraw(scene);
+let box3dColliderDebugEnabled=false;try{box3dColliderDebugEnabled=localStorage.getItem(BOX3D_COLLIDER_DEBUG_STORAGE)==="1";}catch{}
+function setBox3dColliderDebugEnabled(enabled){
+  box3dColliderDebugEnabled=Boolean(enabled);box3dColliderDebugDraw.setEnabled(box3dColliderDebugEnabled);const viewport=$("viewport");if(viewport){viewport.dataset.box3dColliderDebugDraw=box3dColliderDebugEnabled?"1":"0";viewport.dataset.box3dColliderDebugPrisms=box3dColliderDebugEnabled?String(box3dColliderDebugDraw.activePrismCount):"0";}try{localStorage.setItem(BOX3D_COLLIDER_DEBUG_STORAGE,box3dColliderDebugEnabled?"1":"0");}catch{}return box3dColliderDebugEnabled;
+}
+setBox3dColliderDebugEnabled(box3dColliderDebugEnabled);
 globalThis.__arondightRealWorld?.attachBuildingCollisionSink?.(snapshot=>physics.setWorldBuildingCollisions(snapshot));
 const motorSound=new HybridMotorSound($("viewport"));
 function updateSoundButton(){const button=$("soundToggle");if(button)button.textContent=motorSound.enabled?(motorSound.isRunning()?"SOUND ON":"SOUND TAP"):"SOUND OFF";}
@@ -700,6 +708,7 @@ const soloSettingsMount=mountPhoneControlSettings({
   buttonText:"SETTINGS",
   xboxControllerToggle:true,
   debugGrid:{get:()=>debugGridEnabled,set:setDebugGridEnabled,defaultValue:false},
+  box3dColliderDebug:{get:()=>box3dColliderDebugEnabled,set:setBox3dColliderDebugEnabled,defaultValue:false},
   onChange:next=>{const xboxChanged=phoneSettings.xboxControllerEnabled!==next.xboxControllerEnabled;phoneSettings=next;const keepArm=soloControls.arm;if(!keepArm)soloGroundClearance=next.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();soloControls.arm=keepArm;updateSoloSticks();arm=keepArm;throttle=0;if(xboxChanged)setXboxControlPreference(next.xboxControllerEnabled);},
 });
 mountCameraSettings({dialog:soloSettingsMount.dialog,onChange:applyCameraSettings});
@@ -883,6 +892,8 @@ Object.defineProperties(simulatorDiagnostics,{
   worldBuildingCollisionFootprints:{get:()=>physics.worldBuildingCollisionSnapshot.footprintCount,enumerable:true},
   worldBuildingCollisionPrisms:{get:()=>physics.worldBuildingCollisionState?.shapeCount||0,enumerable:true},
   worldBuildingCollisionRevision:{get:()=>physics.worldBuildingCollisionRevision,enumerable:true},
+  box3dColliderDebugEnabled:{get:()=>box3dColliderDebugEnabled,enumerable:true},
+  box3dColliderDebugPrisms:{get:()=>box3dColliderDebugEnabled?box3dColliderDebugDraw.activePrismCount:0,enumerable:true},
   fcState:{get:()=>latest.state,enumerable:true},
   runEpoch:{get:()=>runEpoch,enumerable:true},
 });
@@ -934,7 +945,7 @@ function render(){
     const presentationDt=Number.isFinite(lastPresentationDrawMs)?clamp(sinceDraw/1000,0,.1):1/60,presentationAlpha=running&&mode!=="replay"?clamp(backlog/SIM_FIXED_STEP_MS,0,1):1;
     recordPresentationFrame(renderNow);
     lastPresentationDrawMs=renderNow;
-    const presentationPose=physics.presentationPose(presentationAlpha);physics.render(presentationPose,presentationDt);updateCamera(presentationPose,renderNow);
+    const presentationPose=physics.presentationPose(presentationAlpha);physics.render(presentationPose,presentationDt);box3dColliderDebugDraw.syncAirframe(physics.motorPos,AIRFRAME_COLLISION_HALF_Z_M);box3dColliderDebugDraw.syncWorld(physics.worldBuildingCollisionState,physics.worldBuildingCollisionRevision);box3dColliderDebugDraw.updateAirframe(presentationPose);const box3dDebugViewport=$("viewport");if(box3dDebugViewport&&box3dColliderDebugEnabled)box3dDebugViewport.dataset.box3dColliderDebugPrisms=String(box3dColliderDebugDraw.activePrismCount);updateCamera(presentationPose,renderNow);
     if(renderer.shadowMap.enabled&&renderNow-lastPresentationShadowMs>=PRESENTATION_SHADOW_INTERVAL_MS&&backlog<PRESENTATION_SHADOW_BACKLOG_MS){
       lastPresentationShadowMs=renderNow;
       renderer.shadowMap.needsUpdate=true;

@@ -29,7 +29,7 @@ assert.ok(Math.hypot(...safeLaunch)>.70,`indoor launch was not moved outside the
 assert.ok(safeLaunch[1]<-.65,`nearest deterministic clear launch should leave through the closest lower wall: ${safeLaunch}`);
 
 const buildings=createWorldBuildingCollisionBodies(b3,world,snapshot,{categoryBits:1n,maskBits:6n,rangefinderCategoryBits:4n});
-assert.equal(buildings.shapeCount,1);assert.equal(buildings.prismCount,3);assert.equal(buildings.skippedLaunchPrisms,2);assert.equal(buildings.skippedLaunchBuildings,1);assert.ok(buildings.body&&b3.b3Body_IsValid(buildings.body));
+assert.equal(buildings.shapeCount,1);assert.equal(buildings.prismCount,3);assert.equal(buildings.skippedLaunchPrisms,2);assert.equal(buildings.skippedLaunchBuildings,1);assert.equal(buildings.activePrisms.length,1);assert.equal(buildings.activePrisms[0].buildingKey,"house");assert.ok(buildings.body&&b3.b3Body_IsValid(buildings.body));
 
 // Regression: OSM roofs/walls remain airframe colliders but must not become the
 // altitude controller's AGL datum. A downward NAV query through the 2 m roof must
