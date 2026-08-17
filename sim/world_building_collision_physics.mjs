@@ -49,7 +49,7 @@ export function findClearBuildingLaunchPoint(value,{point=DEFAULT_LAUNCH_EXCLUSI
   return origin;
 }
 
-export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=1n,maskBits=6n,launchExclusionPoint=DEFAULT_LAUNCH_EXCLUSION_POINT}={}){
+export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=1n,maskBits=6n,rangefinderCategoryBits=4n,launchExclusionPoint=DEFAULT_LAUNCH_EXCLUSION_POINT}={}){
   const snapshot=normalizeBuildingCollisionSnapshot(value);if(!world||!snapshot.prisms.length)return{body:null,shapeCount:0,skippedLaunchPrisms:0,skippedLaunchBuildings:0,...snapshot};
   // Concave/holed OSM buildings are decomposed into several convex prisms. If the
   // launch point lands in any one of those prisms, the whole source building must
@@ -62,7 +62,14 @@ export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=
     const key=String(prism.buildingKey||"");if(key)launchExcludedBuildingKeys.add(key);
   }
   const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_staticBody;bodyDef.position=[0,0,0];const body=b3.b3CreateBody(world,bodyDef),shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.68;shapeDef.baseMaterial.restitution=.025;
-  shapeDef.filter={categoryBits,maskBits,groupIndex:0};let shapeCount=0,skippedLaunchPrisms=0;
+  // Buildings are physical airframe obstacles, not the GAME altitude datum. The
+  // downward NAV ray must keep measuring the stable launch/terrain plane; letting
+  // it hit OSM roofs makes AGL jump by an entire building height at each roof edge
+  // and feeds that discontinuity straight into the vertical controller while the
+  // pilot is translating. Preserve airframe collision but exclude the rangefinder
+  // query category from every building shape.
+  const collisionMask=BigInt(maskBits)&~BigInt(rangefinderCategoryBits);
+  shapeDef.filter={categoryBits:BigInt(categoryBits),maskBits:collisionMask,groupIndex:0};let shapeCount=0,skippedLaunchPrisms=0;
   for(const prism of snapshot.prisms){
     const key=String(prism.buildingKey||"");
     const skipWholeBuilding=key&&launchExcludedBuildingKeys.has(key);
