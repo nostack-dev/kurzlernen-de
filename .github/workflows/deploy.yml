@@ -106,6 +106,8 @@ jobs:
           grep -q 'soloWorld' drone_simulator.html
           grep -q 'USE MY GPS LOCATION' drone_simulator.html
           grep -q 'tiles.openfreemap.org/styles/liberty' drone_simulator.html
+          grep -q 'services.arcgisonline.com/ArcGIS/rest/services/World_Imagery' drone_simulator.html
+          grep -q 'REAL AERIAL / SATELLITE MAP' drone_simulator.html
           grep -q 'OpenFreeMap' drone_simulator.html
           grep -q 'render_height' drone_simulator.html
           grep -q 'navigator.geolocation' drone_simulator.html

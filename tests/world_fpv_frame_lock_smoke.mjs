@@ -12,6 +12,8 @@ for(const marker of ["WORLD_FPV_DIRECT_DEDUP_MS","presentationFrameSerial","last
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
 const page=await browser.newPage();
 const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
+const WORLD_IMAGERY_PREFIX="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/";
+const fixtureTile=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
 const fixtureStyle={version:8,name:"Arondight45 FPV frame-lock fixture",sources:{},layers:[{id:"background",type:"background",paint:{"background-color":"#243440"}}]};
 await browser.defaultBrowserContext().overridePermissions(base,["geolocation"]);
 await page.setGeolocation({latitude:39.569600,longitude:2.650200,accuracy:4});
@@ -20,6 +22,7 @@ page.on("request",request=>{
   const url=request.url(),parsed=new URL(url);
   if(["data:","blob:","about:"].includes(parsed.protocol)||["127.0.0.1","localhost"].includes(parsed.hostname)){request.continue();return;}
   if(url.startsWith(OPENFREEMAP_STYLE)){request.respond({status:200,contentType:"application/json",headers:{"access-control-allow-origin":"*","cache-control":"no-store"},body:JSON.stringify(fixtureStyle)});return;}
+  if(url.startsWith(WORLD_IMAGERY_PREFIX)){request.respond({status:200,contentType:"image/png",headers:{"access-control-allow-origin":"*","cache-control":"public,max-age=3600"},body:fixtureTile});return;}
   request.abort();
 });
 
@@ -28,7 +31,7 @@ try{
   await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
   await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});
-  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap"&&globalThis.__arondightRealWorld?.map;},{timeout:20000});
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-imagery"&&globalThis.__arondightRealWorld?.map;},{timeout:20000});
 
   const result=await page.evaluate(async()=>{
     const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),camera=b.threeCamera.clone();

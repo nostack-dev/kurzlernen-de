@@ -17,6 +17,8 @@ for(const marker of ["worldBridge?.addVisualShotImpact","if(worldHit)addThreeDec
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
 const page=await browser.newPage();
 const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
+const WORLD_IMAGERY_PREFIX="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/";
+const fixtureTile=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
 const fixtureStyle={version:8,name:"WORLD shot geometry fixture",sources:{},layers:[{id:"background",type:"background",paint:{"background-color":"#243440"}}]};
 await browser.defaultBrowserContext().overridePermissions(base,["geolocation"]);
 await page.setGeolocation({latitude:39.569600,longitude:2.650200,accuracy:4});
@@ -25,6 +27,7 @@ page.on("request",request=>{
   const url=request.url(),parsed=new URL(url);
   if(["data:","blob:","about:"].includes(parsed.protocol)||["127.0.0.1","localhost"].includes(parsed.hostname)){request.continue();return;}
   if(url.startsWith(OPENFREEMAP_STYLE)){request.respond({status:200,contentType:"application/json",headers:{"access-control-allow-origin":"*","cache-control":"no-store"},body:JSON.stringify(fixtureStyle)});return;}
+  if(url.startsWith(WORLD_IMAGERY_PREFIX)){request.respond({status:200,contentType:"image/png",headers:{"access-control-allow-origin":"*","cache-control":"public,max-age=3600"},body:fixtureTile});return;}
   request.abort();
 });
 
