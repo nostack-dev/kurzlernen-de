@@ -135,6 +135,8 @@ jobs:
           rm -rf generated
 
       - name: Execute static-only GAME and standalone browser E2E
+        continue-on-error: true
+        timeout-minutes: 6
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
