@@ -29,14 +29,14 @@ function isConvexRing(ring){let sign=0;for(let index=0;index<ring.length;index++
 export function buildingFootprintsFromFeatures(features,{project=(x,y)=>[x,y],center=[0,0],radiusM=WORLD_BUILDING_COLLISION_RADIUS_M,maxFootprints=WORLD_BUILDING_COLLISION_MAX_FOOTPRINTS,maxVertices=WORLD_BUILDING_COLLISION_MAX_VERTICES}={}){
   const candidates=new Map(),cx=Number(center?.[0])||0,cy=Number(center?.[1])||0,radius=Math.max(5,Number(radiusM)||WORLD_BUILDING_COLLISION_RADIUS_M),limit=Math.max(1,Math.floor(Number(maxFootprints)||WORLD_BUILDING_COLLISION_MAX_FOOTPRINTS)),vertexLimit=Math.max(3,Math.floor(Number(maxVertices)||WORLD_BUILDING_COLLISION_MAX_VERTICES));
   for(const feature of Array.isArray(features)?features:[]){
-    const properties=feature?.properties||{},top=clamp(Number(properties.render_height??properties.height??8)||8,.5,300),base=clamp(Number(properties.render_min_height??properties.min_height??0)||0,0,Math.max(0,top-.1)),featureId=stableFeatureId(feature);
+    const properties=feature?.properties||{},levels=Number(properties.levels??properties["building:levels"]),minLevels=Number(properties.min_level??properties["building:min_level"]),top=clamp(Number(properties.render_height??properties.height??(Number.isFinite(levels)?levels*3:8))||8,.5,300),base=clamp(Number(properties.render_min_height??properties.min_height??(Number.isFinite(minLevels)?minLevels*3:0))||0,0,Math.max(0,top-.1)),featureId=stableFeatureId(feature);
     geometryPolygons(feature?.geometry).forEach((polygon,polygonIndex)=>{
       if(!Array.isArray(polygon)||!polygon.length)return;const outer=normalizeRing(polygon[0],project,vertexLimit);if(!outer)return;const holes=polygon.slice(1).map(ring=>normalizeRing(ring,project,vertexLimit)).filter(Boolean),centerPoint=centroid(outer),distance=Math.hypot(centerPoint[0]-cx,centerPoint[1]-cy);if(distance>radius)return;
       // Vector sources may return the same OSM feature from neighbouring tiles.
       // Exact repeats are deduplicated, while differently clipped fragments of
       // one OSM id remain present so a building cannot lose half its collider at
       // a tile boundary.
-      const geometryKey=[canonicalRingKey(outer),...holes.map(canonicalRingKey).sort()].join("|"),key=featureId?`${featureId}:${geometryKey}`:`geometry:${geometryKey}`,area=Math.abs(signedArea(outer))-holes.reduce((sum,hole)=>sum+Math.abs(signedArea(hole)),0);if(area<=.08)return;const candidate={key,outer,holes,base,top,center:centerPoint,distance,area};const previous=candidates.get(key);if(!previous||candidate.area>previous.area)candidates.set(key,candidate);
+      const geometryKey=[canonicalRingKey(outer),...holes.map(canonicalRingKey).sort()].join("|"),key=featureId?`${featureId}:${geometryKey}`:`geometry:${geometryKey}`,area=Math.abs(signedArea(outer))-holes.reduce((sum,hole)=>sum+Math.abs(signedArea(hole)),0);if(area<=.08)return;const candidate={key,outer,holes,base,top,center:centerPoint,distance,area,properties:Object.freeze({...properties})};const previous=candidates.get(key);if(!previous||candidate.area>previous.area)candidates.set(key,candidate);
     });
   }
   return[...candidates.values()].sort((a,b)=>(a.distance-b.distance)||(a.key<b.key?-1:a.key>b.key?1:0)).slice(0,limit);

@@ -36,12 +36,17 @@ on:
       - ".github/workflows/s31-hil.yml"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Deploy static site"]
+    types: [completed]
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   host-tests:
+    if: github.event_name != 'workflow_run'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -106,6 +111,7 @@ jobs:
           node tests/architecture_invariants.mjs
 
   esp-idf-build:
+    if: github.event_name != 'workflow_run'
     runs-on: ubuntu-latest
     container: espressif/idf@sha256:68085df693b34bacfd69984ae05bb1e3b475ea3d4684943cfeed5a39954850e7
     steps:
@@ -163,3 +169,19 @@ jobs:
           cd /tmp/arondight45-hil
           python "$IDF_PATH/tools/idf.py" --preview set-target esp32s31
           python "$IDF_PATH/tools/idf.py" --preview build
+
+  report-pages:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const conclusion = String(run.conclusion || 'unknown').toUpperCase();
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 35,
+              body: `PAGES_DEPLOY_${conclusion} sha=${run.head_sha} run=${run.id}`
+            });
