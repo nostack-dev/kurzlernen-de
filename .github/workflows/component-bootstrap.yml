@@ -40,7 +40,7 @@ jobs:
           script=script.replace("return n*(3.3+.9*s+.0375*Math.tanh((s-.12)*18));","return n*Math.min(4.2,3.2625+.9*s+.0375*Math.tanh((s-.12)*18));")
           script=script.replace('static constexpr float kAglToVerticalSpeed = 8.00f;','static constexpr float kAglToVerticalSpeed = 2.00f;')
           script=script.replace('CHECK(controller.debug().target_vz_mps > 11.9f);\\n    CHECK(controller.debug().vertical_accel_mps2 > 47.9f);\\n    CHECK(climb_throttle > 0.90f);','CHECK(controller.debug().target_vz_mps > 2.9f);\\n    CHECK(controller.debug().vertical_accel_mps2 > 11.9f);\\n    CHECK(climb_throttle > 0.58f && climb_throttle < 0.65f);')
-          browser_patch=r'''python3 - <<'PY_BROWSER'
+          browser_patch=r"""python3 - <<'PY_BROWSER'
           from pathlib import Path
           p=Path('tests/game_speed_envelope_smoke.mjs')
           s=p.read_text()
@@ -51,7 +51,7 @@ jobs:
           PY_BROWSER
           node --check tests/game_speed_envelope_smoke.mjs
           git checkout -- .github/workflows/deploy.yml
-          '''
+          """
           needle="git config user.name 'github-actions[bot]'"
           if needle not in script: raise SystemExit('git commit marker missing from component patch')
           script=script.replace(needle,browser_patch+needle,1)
