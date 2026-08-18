@@ -3,9 +3,9 @@ import * as THREE from "three";
 const SHOT_INTERVAL_MS=92;
 const DECAL_POOL_SIZE=32;
 const SCREEN_IMPACT_POOL_SIZE=8;
-const TOUCH_DOUBLE_TAP_MS=330;
-const TOUCH_DOUBLE_TAP_PX=36;
-const TOUCH_HOLD_FIRE_MS=115;
+const TOUCH_DOUBLE_TAP_MS=380;
+const TOUCH_DOUBLE_TAP_PX=56;
+const TOUCH_HOLD_FIRE_MS=500;
 const BLOCKED_SELECTOR="#soloTopbar,#soloRaceHud,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud,dialog,button,input,select,textarea,a,label";
 
 export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEnabled=()=>document.body.classList.contains("solo-flight"),isPointerEnabled=()=>true}={}){
