@@ -1,0 +1,27 @@
+name: Report Pages deploy
+
+on:
+  workflow_run:
+    workflows: ["Deploy static site"]
+    types: [completed]
+
+permissions:
+  issues: write
+
+jobs:
+  report:
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const conclusion = String(run.conclusion || 'unknown').toUpperCase();
+            const body = `PAGES_DEPLOY_${conclusion} sha=${run.head_sha} run=${run.id}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 35,
+              body
+            });
