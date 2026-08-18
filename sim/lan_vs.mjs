@@ -34,6 +34,7 @@ function validCombat(packet){
   if(packet.type==="hit")return idOk&&Number.isFinite(packet.damage)&&packet.damage>0&&packet.damage<=100;
   if(packet.type==="state")return idOk&&Number.isFinite(packet.hp)&&packet.hp>=0&&packet.hp<=100&&typeof packet.killed==="boolean";
   if(packet.type==="respawn")return Number.isFinite(packet.hp)&&packet.hp>=0&&packet.hp<=100;
+  if(packet.type==="beacon")return idOk&&finiteArray(packet.p,3)&&(!("f" in packet)||typeof packet.f==="string"&&packet.f.length<=96);
   return false;
 }
 function validIpv4(value){

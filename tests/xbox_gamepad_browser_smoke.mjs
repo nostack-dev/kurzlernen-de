@@ -42,7 +42,7 @@ try{
   await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="xbox"&&v.dataset.gamepadEnabled==="1"&&v.dataset.gamepadConnected==="1";},{timeout:3000});
   const active=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill"),status:document.querySelector("#soloGamepadStatus").hidden,help:document.querySelector("#soloGamepadHelp").hidden,helpText:document.querySelector("#soloGamepadHelp").textContent};});
-  if(active.source!=="xbox"||active.connected!=="1"||active.left!=="none"||active.right!=="none"||active.height!=="none"||active.arm!=="none"||active.kill!=="none"||active.status||active.help||!active.helpText.includes("LB+RB FIRE"))throw new Error(`Xbox ON did not remove every touch flight control: ${JSON.stringify(active)}`);
+  if(active.source!=="xbox"||active.connected!=="1"||active.left!=="none"||active.right!=="none"||active.height!=="none"||active.arm!=="none"||active.kill!=="none"||active.status||active.help||!active.helpText.includes("LB+RB FIRE")||!active.helpText.includes("Y TARGET"))throw new Error(`Xbox ON did not remove every touch flight control or expose target mapping: ${JSON.stringify(active)}`);
 
   // OFF restores touch even while the same physical controller stays connected;
   // turning ON again hands control back without a reload.
@@ -52,6 +52,18 @@ try{
   if(disabled.source!=="touch"||disabled.enabled!=="0"||disabled.connected!=="0"||disabled.left==="none"||disabled.right==="none"||disabled.height==="none"||disabled.stored!==false||!disabled.padStillConnected)throw new Error(`Xbox OFF did not restore touch with controller connected: ${JSON.stringify(disabled)}`);
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="xbox"&&v.dataset.gamepadEnabled==="1";},{timeout:3000});
+
+  // Multiplayer target: Xbox Y (standard button 3) sets the same shared beacon
+  // at the screen/crosshair center and must not fire. Touch double-tap remains
+  // available as a beacon gesture even while Xbox owns the flight controls.
+  const xboxBeacon=await page.evaluate(()=>{const bridge=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),sent=[];bridge.vsConnected=true;bridge.vsSession={setOrigin(){return true;},setPose(){return true;},sendCombat(packet){sent.push(JSON.parse(JSON.stringify(packet)));return true;},stop(){}};bridge.resetVsCombat(true);globalThis.__xboxBeaconSent=sent;return{shots:Number(v.dataset.fireShots||0)};});
+  await setButton(3,1);await page.waitForFunction(()=>Number(document.querySelector("#viewport")?.dataset.gamepadBeaconCount||0)>0,{timeout:3000});await setButton(3,0);await pause(120);
+  const yTarget=await page.evaluate(()=>{const v=document.querySelector("#viewport"),sent=globalThis.__xboxBeaconSent||[];return{shots:Number(v.dataset.fireShots||0),beacon:sent.find(packet=>packet.type==="beacon")||null,source:v.dataset.vsBeaconSource||"",count:Number(v.dataset.gamepadBeaconCount||0)};});
+  if(yTarget.shots!==xboxBeacon.shots||yTarget.beacon?.type!=="beacon"||!Array.isArray(yTarget.beacon?.p)||yTarget.beacon.p.length!==3||yTarget.source!=="you"||yTarget.count<1)throw new Error(`Xbox Y target did not set a zero-shot shared beacon: ${JSON.stringify({xboxBeacon,yTarget})}`);
+  const touchBeaconBefore=await page.evaluate(()=>{const v=document.querySelector("#viewport");return{shots:Number(v.dataset.fireShots||0),sets:Number(v.dataset.vsBeaconSetCount||0)};});
+  await page.evaluate(async()=>{const v=document.querySelector("#viewport"),r=v.getBoundingClientRect(),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),tap=async(x,y,id)=>{v.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:id,pointerType:"touch",clientX:x,clientY:y,button:0}));await sleep(120);v.dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:id,pointerType:"touch",clientX:x,clientY:y,button:0}));};const x=r.left+r.width*.5,y=r.top+r.height*.78;await tap(x,y,81);await sleep(90);await tap(x+10,y+8,82);});await pause(180);
+  const touchTarget=await page.evaluate(()=>{const v=document.querySelector("#viewport");return{shots:Number(v.dataset.fireShots||0),sets:Number(v.dataset.vsBeaconSetCount||0)};});
+  if(touchTarget.shots!==touchBeaconBefore.shots||touchTarget.sets<=touchBeaconBefore.sets)throw new Error(`Touch double-tap beacon was dead in Xbox mode: ${JSON.stringify({touchBeaconBefore,touchTarget})}`);
 
   // Standard Gamepad indices: LT=6 and RT=7. Triggers alter only the altitude
   // target; specifically, RT must never inherit the fire action.
@@ -98,5 +110,5 @@ try{
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="touch"&&v.dataset.gamepadEnabled==="0"&&getComputedStyle(document.querySelector("#soloLeft")).display!=="none";},{timeout:3000});
 
-  console.log("Xbox browser E2E passed: default OFF, explicit persistent ON/OFF, zero touch HUD while ON/reconnecting, LT down, RT up-only, LB+RS free-look/crosshair, and LB+RB right-shoulder fire.");
+  console.log("Xbox browser E2E passed: default OFF, explicit persistent ON/OFF, zero touch HUD while ON/reconnecting, LT down, RT up-only, LB+RS free-look/crosshair, and LB+RB right-shoulder fire, Y shared target, and touch double-tap target while Xbox is active.");
 }finally{await browser.close();}

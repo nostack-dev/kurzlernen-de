@@ -1,8 +1,13 @@
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 
+// External cameras are presentation-frame locked. The old inertial translation
+// filter deliberately allowed 18–26 cm of camera-anchor lag, which made the
+// already-current aircraft visibly pull through FOLLOW/THIRD. Keep the exported
+// profile surface for diagnostics/tests, but make translational lag an invariant:
+// zero metres in every external mode.
 export const EXTERNAL_CAMERA_PROFILES=Object.freeze({
-  follow:Object.freeze({positionRate:4.8,velocityRate:7.0,headingRate:7.5,maxLagM:.18,teleportM:6}),
-  third:Object.freeze({positionRate:6.5,velocityRate:8.5,headingRate:10.0,maxLagM:.26,teleportM:6}),
+  follow:Object.freeze({maxLagM:0}),
+  third:Object.freeze({maxLagM:0}),
 });
 
 export function dampingAlpha(ratePerSecond,dtSeconds){
@@ -32,20 +37,18 @@ export class StabilizedExternalCameraRig{
     if(!finite3(position))throw new Error("camera rig position must be finite");
     copy3(this.anchor,position);copy3(this.velocity,finite3(velocity)?velocity:[0,0,0]);normalizeHorizontal3(this.heading,heading);this.mode=mode;this.initialized=true;return this;
   }
-  update({position,velocity=[0,0,0],heading=[-1,0,0],mode="follow",dt=1/60}){
+  update({position,velocity=[0,0,0],heading=[-1,0,0],mode="follow"}){
     if(!finite3(position))throw new Error("camera rig position must be finite");
-    const profile=this.profiles[mode]||this.profiles.follow,sourceVelocity=finite3(velocity)?velocity:[0,0,0];
-    const distance=Math.hypot(position[0]-this.anchor[0],position[1]-this.anchor[1],position[2]-this.anchor[2]);
-    if(!this.initialized||this.mode!==mode||distance>profile.teleportM)return this.reset({position,velocity:sourceVelocity,heading,mode}).state();
-    const step=clamp(dt,0,.1),velocityAlpha=dampingAlpha(profile.velocityRate,step),positionAlpha=dampingAlpha(profile.positionRate,step),headingAlpha=dampingAlpha(profile.headingRate,step);
-    for(let i=0;i<3;i++){
-      this.velocity[i]+=(sourceVelocity[i]-this.velocity[i])*velocityAlpha;
-      this.anchor[i]+=this.velocity[i]*step;
-      this.anchor[i]+=(position[i]-this.anchor[i])*positionAlpha;
-    }
-    const lag=[position[0]-this.anchor[0],position[1]-this.anchor[1],position[2]-this.anchor[2]],lagLength=Math.hypot(...lag);
-    if(lagLength>profile.maxLagM){const excess=(lagLength-profile.maxLagM)/lagLength;for(let i=0;i<3;i++)this.anchor[i]+=lag[i]*excess;}
-    const targetHeading=[0,0,0];normalizeHorizontal3(targetHeading,heading,this.heading);const currentYaw=Math.atan2(this.heading[1],this.heading[0]),targetYaw=Math.atan2(targetHeading[1],targetHeading[0]),yawDelta=Math.atan2(Math.sin(targetYaw-currentYaw),Math.cos(targetYaw-currentYaw)),nextYaw=currentYaw+yawDelta*headingAlpha;this.heading[0]=Math.cos(nextYaw);this.heading[1]=Math.sin(nextYaw);this.heading[2]=0;
+    const sourceVelocity=finite3(velocity)?velocity:[0,0,0];
+    if(!this.initialized||this.mode!==mode)return this.reset({position,velocity:sourceVelocity,heading,mode}).state();
+
+    // This is the critical invariant: FOLLOW and THIRD use the exact same
+    // interpolated presentation translation as the visible aircraft on this
+    // frame. No extra chase-camera spring, prediction or bounded positional lag.
+    copy3(this.anchor,position);
+    copy3(this.velocity,sourceVelocity);
+    normalizeHorizontal3(this.heading,heading,this.heading);
+    this.mode=mode;
     return this.state();
   }
   state(){return{anchor:this.anchor,velocity:this.velocity,heading:this.heading,mode:this.mode};}

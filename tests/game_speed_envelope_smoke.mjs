@@ -95,6 +95,32 @@ try{
   await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});
 
   await setSpeed(36);
+
+  // Vertical plant-authority release gate. This drives the actual spring-centred
+  // height pad through SBUS -> shared WASM FC -> battery/motor/prop model -> Box3D.
+  // The former 2 m/s software climb/descent ceiling cannot pass this test.
+  await resetAndArm();
+  const heightPad=await page.$eval("#soloHeightPad",e=>{const b=e.getBoundingClientRect();return{x:b.left+b.width/2,center:b.top+b.height/2,top:b.top+3,bottom:b.bottom-3};});
+  const climbStart=await simTime();
+  await page.mouse.move(heightPad.x,heightPad.center);await page.mouse.down();await page.mouse.move(heightPad.x,heightPad.top,{steps:4});
+  await waitSim(climbStart+1.45,90000);await page.mouse.up();
+  let verticalMotion=(await flightSamples()).map(bodyMotion).filter(x=>x.time>=climbStart&&x.time<=climbStart+1.50);
+  const maxClimb=Math.max(...verticalMotion.map(x=>x.vertical));
+  const climbFast=verticalMotion.find(x=>x.vertical>=3.2);
+  if(!(maxClimb>=3.5))throw new Error(`physical vertical climb remains artificially weak: peak ${maxClimb.toFixed(2)} m/s`);
+  if(!climbFast||climbFast.time-climbStart>1.35)throw new Error(`physical climb acceleration too slow: t(3.2m/s)=${climbFast?(climbFast.time-climbStart).toFixed(3):"never"} s`);
+  await settle();
+  const descendStart=await simTime();
+  await page.mouse.move(heightPad.x,heightPad.center);await page.mouse.down();await page.mouse.move(heightPad.x,heightPad.bottom,{steps:4});
+  await waitSim(descendStart+1.20,90000);await page.mouse.up();
+  verticalMotion=(await flightSamples()).map(bodyMotion).filter(x=>x.time>=descendStart&&x.time<=descendStart+1.25);
+  const minDescend=Math.min(...verticalMotion.map(x=>x.vertical));
+  const descendFast=verticalMotion.find(x=>x.vertical<=-3.2);
+  if(!(minDescend<=-3.5))throw new Error(`physical vertical descent remains artificially weak: peak ${minDescend.toFixed(2)} m/s`);
+  if(!descendFast||descendFast.time-descendStart>1.10)throw new Error(`physical descent acceleration too slow: t(-3.2m/s)=${descendFast?(descendFast.time-descendStart).toFixed(3):"never"} s`);
+  console.log(`GAME physical vertical authority passed: climb ${maxClimb.toFixed(2)} m/s, t3.2 ${(climbFast.time-climbStart).toFixed(3)} s; descent ${minDescend.toFixed(2)} m/s, t-3.2 ${(descendFast.time-descendStart).toFixed(3)} s.`);
+  await settle();
+
   const defaultResults=[];
   for(const direction of directions){
     defaultResults.push(await runDirection(direction,{label:"36 km/h",targetMps:10.0,minSteadyMps:9.70,maxSteadyMps:10.30,holdS:8.0,t90LimitS:3.0}));
