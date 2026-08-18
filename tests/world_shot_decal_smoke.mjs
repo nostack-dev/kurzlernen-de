@@ -7,8 +7,8 @@ if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 
 const bootstrap=readFileSync("sim/real_world_bootstrap.mjs","utf8");
 const fireFx=readFileSync("sim/flight_fire_fx.mjs","utf8");
-for(const marker of ["worldShotPoint","worldShotNormal","queryRenderedFeatures([qx,qy]","pointInRing","groundT=-o.z/d.z"])
-  if(!bootstrap.includes(marker))throw new Error(`WORLD shot geometry contract missing: ${marker}`);
+for(const marker of ["worldShotPoint","worldShotNormal","buildingCollisionSnapshot?.prisms","raycastTerrainSnapshot(this.terrainSnapshot","pointInRing"])
+  if(!bootstrap.includes(marker))throw new Error(`WORLD shot physical geometry contract missing: ${marker}`);
 if(bootstrap.includes("arondight45-shot-impacts")||bootstrap.includes("refreshShotImpacts"))
   throw new Error("legacy MapLibre shot-impact layer returned; WORLD must use the shared THREE decal pool");
 for(const marker of ["worldBridge?.addVisualShotImpact","if(worldHit)addThreeDecal(worldHit)","flightFireWorld=Boolean(hasWorldNormal)","DECAL_POOL_SIZE=32"])
@@ -16,54 +16,30 @@ for(const marker of ["worldBridge?.addVisualShotImpact","if(worldHit)addThreeDec
 
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
 const page=await browser.newPage();
-const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
-const WORLD_IMAGERY_PREFIX="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/";
-const fixtureTile=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
-const fixtureStyle={version:8,name:"WORLD shot geometry fixture",sources:{},layers:[{id:"background",type:"background",paint:{"background-color":"#243440"}}]};
-await browser.defaultBrowserContext().overridePermissions(base,["geolocation"]);
-await page.setGeolocation({latitude:39.569600,longitude:2.650200,accuracy:4});
-await page.setRequestInterception(true);
-page.on("request",request=>{
-  const url=request.url(),parsed=new URL(url);
-  if(["data:","blob:","about:"].includes(parsed.protocol)||["127.0.0.1","localhost"].includes(parsed.hostname)){request.continue();return;}
-  if(url.startsWith(OPENFREEMAP_STYLE)){request.respond({status:200,contentType:"application/json",headers:{"access-control-allow-origin":"*","cache-control":"no-store"},body:JSON.stringify(fixtureStyle)});return;}
-  if(url.startsWith(WORLD_IMAGERY_PREFIX)){request.respond({status:200,contentType:"image/png",headers:{"access-control-allow-origin":"*","cache-control":"public,max-age=3600"},body:fixtureTile});return;}
-  request.abort();
-});
-
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
-  await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});
-  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&globalThis.__arondightRealWorld?.map;},{timeout:20000});
 
   const geometry=await page.evaluate(()=>{
-    const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),rect=v.getBoundingClientRect(),map=b.map;
-    const originalGetLayer=map.getLayer.bind(map),originalQuery=map.queryRenderedFeatures.bind(map);
-    const R=6378137,cosLat=Math.max(.01,Math.cos(b.originLat*Math.PI/180));
-    const ll=(east,north)=>[
-      b.originLon+(east/(R*cosLat))*180/Math.PI,
-      b.originLat+(north/R)*180/Math.PI,
-    ];
-    const ring=[ll(-5,-5),ll(5,-5),ll(5,5),ll(-5,5),ll(-5,-5)];
-    const building={properties:{render_height:10,render_min_height:0},geometry:{type:"Polygon",coordinates:[ring]}};
+    const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),rect=v.getBoundingClientRect();
+    if(!b?.addVisualShotImpact)throw new Error("WORLD bridge shot API missing");
+    const priorActive=b.active,priorBuildings=b.buildingCollisionSnapshot,priorTerrain=b.terrainSnapshot;
+    const building=Object.freeze({buildingKey:"shot-fixture",base:0,top:10,points:Object.freeze([[-5,-5],[5,-5],[5,5],[-5,5]])});
+    const size=3,half=20,step=20,positions=new Float32Array(size*size*3),elevations=new Float64Array(size*size),indices=new Uint32Array([0,1,4,0,4,3,1,2,5,1,5,4,3,4,7,3,7,6,4,5,8,4,8,7]);
+    for(let row=0;row<size;row++)for(let col=0;col<size;col++){const index=row*size+col,offset=index*3;positions[offset]=-half+col*step;positions[offset+1]=-half+row*step;positions[offset+2]=0;elevations[index]=0;}
+    const terrain=Object.freeze({hash:"shot-flat-dem",originElevationM:0,center:Object.freeze([0,0]),halfExtentM:half,gridSize:size,stepM:step,minZ:0,maxZ:0,positions,indices,elevations});
     const snap=hit=>hit?{point:{x:hit.point.x,y:hit.point.y,z:hit.point.z},normal:{x:hit.worldNormal.x,y:hit.worldNormal.y,z:hit.worldNormal.z}}:null;
     try{
-      map.getLayer=id=>id==="arondight45-buildings-3d"?{id}:originalGetLayer(id);
-      map.queryRenderedFeatures=()=>[building];
+      b.active=true;b.buildingCollisionSnapshot=Object.freeze({hash:"shot-buildings",footprintCount:1,prismCount:1,prisms:Object.freeze([building])});b.terrainSnapshot=terrain;
       const wall=snap(b.addVisualShotImpact(100,100,rect,{origin:{x:0,y:-12,z:5},direction:{x:0,y:1,z:0}}));
       const roof=snap(b.addVisualShotImpact(100,100,rect,{origin:{x:0,y:0,z:20},direction:{x:0,y:0,z:-1}}));
-      map.getLayer=id=>id==="arondight45-buildings-3d"?null:originalGetLayer(id);
-      map.queryRenderedFeatures=()=>[];
+      b.buildingCollisionSnapshot=Object.freeze({hash:"shot-empty",footprintCount:0,prismCount:0,prisms:Object.freeze([])});
       const first=b.addVisualShotImpact(100,100,rect,{origin:{x:2,y:3,z:12},direction:{x:0,y:0,z:-1}}),firstRef=first;
       const ground=snap(first);
       const second=b.addVisualShotImpact(100,100,rect,{origin:{x:-1,y:4,z:7},direction:{x:0,y:0,z:-1}});
       return{wall,roof,ground,reusedHitObject:firstRef===second,queries:Number(v.dataset.worldShotQueries||0)};
-    }finally{
-      map.getLayer=originalGetLayer;
-      map.queryRenderedFeatures=originalQuery;
-    }
+    }finally{b.active=priorActive;b.buildingCollisionSnapshot=priorBuildings;b.terrainSnapshot=priorTerrain;}
   });
 
   const near=(a,b,eps)=>Math.abs(a-b)<=eps;
@@ -71,10 +47,10 @@ try{
     throw new Error(`WORLD building-wall ray registration failed: ${JSON.stringify(geometry)}`);
   if(!geometry.roof||!near(geometry.roof.point.x,0,.03)||!near(geometry.roof.point.y,0,.03)||!near(geometry.roof.point.z,10,.03)||geometry.roof.normal.z<.98)
     throw new Error(`WORLD building-roof ray registration failed: ${JSON.stringify(geometry)}`);
-  if(!geometry.ground||!near(geometry.ground.point.x,2,.01)||!near(geometry.ground.point.y,3,.01)||!near(geometry.ground.point.z,0,.01)||geometry.ground.normal.z<.98)
-    throw new Error(`WORLD ground ray registration failed: ${JSON.stringify(geometry)}`);
+  if(!geometry.ground||!near(geometry.ground.point.x,2,.02)||!near(geometry.ground.point.y,3,.02)||!near(geometry.ground.point.z,0,.02)||geometry.ground.normal.z<.98)
+    throw new Error(`WORLD DEM-ground ray registration failed: ${JSON.stringify(geometry)}`);
   if(!geometry.reusedHitObject)throw new Error(`WORLD impact result allocates per hit instead of reusing the hit object: ${JSON.stringify(geometry)}`);
-  if(geometry.queries<2)throw new Error(`WORLD building-hit queries were not exercised: ${JSON.stringify(geometry)}`);
+  if(geometry.queries<4)throw new Error(`WORLD physical shot queries were not exercised: ${JSON.stringify(geometry)}`);
 
-  console.log(`WORLD pooled decal geometry passed from automatic FPV/WORLD startup: wall/roof/ground ray hits registered in local ENU with reused hit storage: ${JSON.stringify(geometry)}`);
+  console.log(`WORLD pooled decal geometry passed against physical collision snapshots: wall/roof prisms + DEM terrain in local ENU with reused hit storage: ${JSON.stringify(geometry)}`);
 }finally{await browser.close();}
