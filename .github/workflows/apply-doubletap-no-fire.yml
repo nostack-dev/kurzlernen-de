@@ -1,0 +1,60 @@
+name: Apply no-fire double tap beacon
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Wire no-fire double tap beacon gate'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch beacon gesture and regression gate
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path=Path('sim/vs_combat_presentation.mjs')
+          text=path.read_text()
+          old='function handleBeaconPointerUp(event){if(!bridge()?.vsConnected)return;'
+          new='function handleBeaconPointerUp(event){if(viewport()?.dataset.fireTouchGestureArbiter==="1")return;if(!bridge()?.vsConnected)return;'
+          assert old in text
+          text=text.replace(old,new,1)
+          marker='function updateBeaconPresentation(currentBridge,now){'
+          handler='function handleBeaconFireDoubleTap(event){if(!bridge()?.vsConnected)return;const detail=event?.detail||{};const clientX=Number(detail.clientX),clientY=Number(detail.clientY);if(!Number.isFinite(clientX)||!Number.isFinite(clientY))return;setSharedBeaconFromPointer({clientX,clientY,pointerType:String(detail.pointerType||"touch")});}\n'
+          assert marker in text and 'handleBeaconFireDoubleTap' not in text
+          text=text.replace(marker,handler+marker,1)
+          old='if(view.dataset.vsBeaconTapInstalled!=="1"){view.dataset.vsBeaconTapInstalled="1";view.addEventListener("pointerup",handleBeaconPointerUp,{passive:true});}'
+          new='if(view.dataset.vsBeaconTapInstalled!=="1"){view.dataset.vsBeaconTapInstalled="1";view.addEventListener("flightfiredoubletap",handleBeaconFireDoubleTap);view.addEventListener("pointerup",handleBeaconPointerUp,{passive:true});}'
+          assert old in text
+          text=text.replace(old,new,1)
+          path.write_text(text)
+
+          path=Path('tests/vs_combat_browser_smoke.mjs')
+          text=path.read_text()
+          old='''const rect=viewport.getBoundingClientRect(),tapX=rect.left+rect.width*.5,tapY=rect.top+rect.height*.82;viewport.dispatchEvent(new PointerEvent("pointerup",{bubbles:true,pointerType:"touch",clientX:tapX,clientY:tapY}));await sleep(80);viewport.dispatchEvent(new PointerEvent("pointerup",{bubbles:true,pointerType:"touch",clientX:tapX+2,clientY:tapY+2}));await sleep(140);const localBeaconPacket=sent.find(p=>p.type==="beacon"),beaconMarker=document.querySelector("#vsBeaconMarker"),localBeacon={packet:localBeaconPacket||null,hidden:Boolean(beaconMarker?.hidden),text:beaconMarker?.textContent||"",source:viewport.dataset.vsBeaconSource||"",distance:Number(viewport.dataset.vsBeaconDistanceM),setCount:Number(viewport.dataset.vsBeaconSetCount||0)};'''
+          new='''const rect=viewport.getBoundingClientRect(),tapX=rect.left+rect.width*.5,tapY=rect.top+rect.height*.82,fireBeforeBeacon=Number(viewport.dataset.fireShots)||0;const touchTap=async(x,y,id)=>{viewport.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerType:"touch",pointerId:id,button:0,clientX:x,clientY:y}));await sleep(42);viewport.dispatchEvent(new PointerEvent("pointerup",{bubbles:true,pointerType:"touch",pointerId:id,button:0,clientX:x,clientY:y}));};await touchTap(tapX,tapY,51);await sleep(80);await touchTap(tapX+2,tapY+2,52);await sleep(420);const localBeaconPacket=sent.find(p=>p.type==="beacon"),beaconMarker=document.querySelector("#vsBeaconMarker"),localBeacon={packet:localBeaconPacket||null,hidden:Boolean(beaconMarker?.hidden),text:beaconMarker?.textContent||"",source:viewport.dataset.vsBeaconSource||"",distance:Number(viewport.dataset.vsBeaconDistanceM),setCount:Number(viewport.dataset.vsBeaconSetCount||0),fireDelta:(Number(viewport.dataset.fireShots)||0)-fireBeforeBeacon,suppressed:Number(viewport.dataset.fireDoubleTapSuppressed)||0};'''
+          assert old in text
+          text=text.replace(old,new,1)
+          old='''if(result.localBeacon.packet?.type!=="beacon"||!Array.isArray(result.localBeacon.packet?.p)||result.localBeacon.packet.p.length!==3||result.localBeacon.hidden||!result.localBeacon.text.includes("TARGET")||result.localBeacon.source!=="you"||result.localBeacon.setCount<1||!Number.isFinite(result.localBeacon.distance))throw new Error(`double-tap shared beacon failed: ${JSON.stringify(result.localBeacon)}`);'''
+          new='''if(result.localBeacon.packet?.type!=="beacon"||!Array.isArray(result.localBeacon.packet?.p)||result.localBeacon.packet.p.length!==3||result.localBeacon.hidden||!result.localBeacon.text.includes("TARGET")||result.localBeacon.source!=="you"||result.localBeacon.setCount<1||!Number.isFinite(result.localBeacon.distance)||result.localBeacon.fireDelta!==0||result.localBeacon.suppressed<1)throw new Error(`double-tap shared beacon fired or failed: ${JSON.stringify(result.localBeacon)}`);'''
+          assert old in text
+          text=text.replace(old,new,1)
+          text=text.replace('double-tap shared target beacon,','zero-shot double-tap shared target beacon,',1)
+          path.write_text(text)
+          PY
+          node --check sim/flight_fire_fx.mjs
+          node --check sim/vs_combat_presentation.mjs
+          node --check tests/vs_combat_browser_smoke.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/vs_combat_presentation.mjs tests/vs_combat_browser_smoke.mjs
+          git commit -m 'Make multiplayer beacon double tap zero-shot'
+          git push origin HEAD:main
