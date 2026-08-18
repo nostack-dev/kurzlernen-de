@@ -17,6 +17,8 @@ import {renderPlatformProfile,quantizedViewportSize,viewportSizeChanged} from ".
 import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,resolveBox3dCameraPath} from "./world_building_collision_physics.mjs";
 import {Box3dColliderDebugDraw} from "./box3d_collider_debug.mjs";
 import {addPropellerSweepColliders} from "./airframe_collision_envelope.mjs";
+import {deriveQuadMassProperties} from "./component_mass_model.mjs";
+import {batteryOcvVoltage,batteryVoltageUnderLoad,scaleCurrentsToPackLimit,solveStaticPropulsionAuthority,MOTOR_BEARING_DRAG_NM_PER_RAD_S} from "./propulsion_authority.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -327,31 +329,30 @@ class SimSbusReceiver {
 
 const b3 = await Box3DFactory();
 
-function defaultParams(){return {
-  mass:+$("mass").value,
-  span:+$("span").value/1000,
-  propD:+$("propD").value*.0254,
-  kv:+$("kv").value,
-  R:+$("resistance").value,
-  J:+$("rotorJ").value,
-  Ct:+$("ct").value,
-  Cq:+$("cq").value,
-  capacity:+$("capacity").value,
-  batteryR:+$("batteryR").value,
-  Ixx:+$("ixx").value,
-  Iyy:+$("iyy").value,
-  Izz:+$("izz").value,
-  rho:+$("rho").value,
-  dragScale:+$("dragScale").value,
-  groundEffect:+$("groundEffect").value,
-  wind:[+$("windX").value,+$("windY").value,0],
-  failed:+$("failedMotor").value,
-  imuValid:$("imuValid").value==="1"
-};}
+function componentMassInputs(span,propD){
+  return deriveQuadMassProperties({
+    spanM:span,propDiameterM:propD,
+    massesKg:{frame:+$("frameMassG").value/1000,motorEach:+$("motorMassG").value/1000,propEach:+$("propMassG").value/1000,battery:+$("batteryMassG").value/1000,esc:+$("escMassG").value/1000,fcRx:+$("fcRxMassG").value/1000,cameraVtx:+$("cameraVtxMassG").value/1000,wiringHardware:+$("wiringHardwareMassG").value/1000},
+    placementM:{batteryX:+$("batteryXmm").value/1000,batteryZ:+$("batteryZmm").value/1000,cameraX:+$("cameraXmm").value/1000,cameraZ:+$("cameraZmm").value/1000},
+  });
+}
+function syncDerivedPhysicsReadouts(massProperties,authority){
+  $("mass").value=massProperties.massKg.toFixed(3);$("ixx").value=massProperties.Ixx.toFixed(6);$("iyy").value=massProperties.Iyy.toFixed(6);$("izz").value=massProperties.Izz.toFixed(6);
+  const comMm=massProperties.centerM.map(value=>(value*1000).toFixed(1));$("componentMassSummary").textContent=`DERIVED · ${(massProperties.massKg*1000).toFixed(0)} g · CoM ${comMm.join(" / ")} mm · I ${massProperties.Ixx.toFixed(6)} / ${massProperties.Iyy.toFixed(6)} / ${massProperties.Izz.toFixed(6)} kg·m²`;
+  $("physicalAuthority").textContent=`PLANT AUTHORITY · static ${authority.totalThrustN.toFixed(1)} N · T/W ${authority.thrustToWeight.toFixed(2)}× · ${authority.totalCurrentA.toFixed(0)} A @ ${authority.voltageV.toFixed(2)} V · ideal az ${authority.idealVerticalAccelerationMps2.toFixed(1)} m/s²`;
+  const viewport=$("viewport");if(viewport){viewport.dataset.componentMassKg=massProperties.massKg.toFixed(6);viewport.dataset.componentComM=massProperties.centerM.map(value=>value.toFixed(6)).join(",");viewport.dataset.componentInertiaKgM2=[massProperties.Ixx,massProperties.Iyy,massProperties.Izz].map(value=>value.toFixed(8)).join(",");viewport.dataset.staticThrustN=authority.totalThrustN.toFixed(4);viewport.dataset.staticTwr=authority.thrustToWeight.toFixed(4);viewport.dataset.staticCurrentA=authority.totalCurrentA.toFixed(3);}
+}
+function defaultParams(){
+  const span=+$("span").value/1000,propD=+$("propD").value*.0254,massProperties=componentMassInputs(span,propD);
+  const params={mass:massProperties.massKg,massCenter:[...massProperties.centerM],inertiaTensor:massProperties.inertiaTensorKgM2.map(row=>[...row]),span,propD,kv:+$("kv").value,R:+$("resistance").value,J:+$("rotorJ").value,Ct:+$("ct").value,Cq:+$("cq").value,capacity:+$("capacity").value,batteryR:+$("batteryR").value,batteryCells:+$("batteryCells").value,batteryMaxCurrentA:+$("batteryMaxCurrentA").value,motorCurrentLimitA:+$("motorCurrentLimitA").value,escCurrentLimitA:+$("escCurrentLimitA").value,Ixx:massProperties.Ixx,Iyy:massProperties.Iyy,Izz:massProperties.Izz,rho:+$("rho").value,dragScale:+$("dragScale").value,groundEffect:+$("groundEffect").value,wind:[+$("windX").value,+$("windY").value,0],failed:+$("failedMotor").value,imuValid:$("imuValid").value==="1"};
+  params.staticAuthority=solveStaticPropulsionAuthority(params);syncDerivedPhysicsReadouts(massProperties,params.staticAuthority);return params;
+}
 
 function validateParams(p){
   for(const[k,v]of Object.entries(p))if(typeof v==="number"&&!Number.isFinite(v))throw Error(`Invalid physical parameter ${k}`);
-  for(const k of ["mass","span","propD","kv","R","J","Ct","Cq","capacity","batteryR","Ixx","Iyy","Izz","rho","dragScale"])if(!(p[k]>0))throw Error(`${k} must be positive`);
+  for(const k of ["mass","span","propD","kv","R","J","Ct","Cq","capacity","batteryR","batteryCells","batteryMaxCurrentA","motorCurrentLimitA","escCurrentLimitA","Ixx","Iyy","Izz","rho","dragScale"])if(!(p[k]>0))throw Error(`${k} must be positive`);
+  if(!Array.isArray(p.massCenter)||p.massCenter.length!==3||!p.massCenter.every(Number.isFinite))throw Error("Derived center of mass invalid");
+  if(!Array.isArray(p.inertiaTensor)||p.inertiaTensor.length!==3||p.inertiaTensor.some(row=>!Array.isArray(row)||row.length!==3||!row.every(Number.isFinite)))throw Error("Derived inertia tensor invalid");
   if(!(p.groundEffect>=0))throw Error("groundEffect must be non-negative");
   if(p.Ixx+p.Iyy<=p.Izz||p.Ixx+p.Izz<=p.Iyy||p.Iyy+p.Izz<=p.Ixx)throw Error("Inertia tensor violates rigid-body triangle inequalities");
 }
@@ -385,9 +386,9 @@ class PhysicsModel {
     for(const position of this.motorPos){b3.b3CreateCapsuleShape(this.body,shapeDef,{center1:[0,0,0],center2:position,radius:.008});b3.b3CreateSphereShape(this.body,shapeDef,{center:position,radius:.018});}
     addPropellerSweepColliders(b3,this.body,shapeDef,this.motorPos,p.propD);
     this.skidHalfLength=Math.min(.045,Math.max(.03,p.span*.18));
-    const mass=b3.b3Body_GetMassData(this.body);mass.mass=p.mass;mass.center=[0,0,-.006];mass.inertia={cx:[p.Ixx,0,0],cy:[0,p.Iyy,0],cz:[0,0,p.Izz]};b3.b3Body_SetMassData(this.body,mass);
+    const mass=b3.b3Body_GetMassData(this.body);mass.mass=p.mass;mass.center=[...p.massCenter];const I=p.inertiaTensor;mass.inertia={cx:[I[0][0],I[1][0],I[2][0]],cy:[I[0][1],I[1][1],I[2][1]],cz:[I[0][2],I[1][2],I[2][2]]};b3.b3Body_SetMassData(this.body,mass);
     if(initial?.vx!=null && b3.b3Body_SetLinearVelocity)b3.b3Body_SetLinearVelocity(this.body,[initial.vx||0,initial.vy||0,initial.vz||0]);
-    this.motorOmega=[0,0,0,0];this.motorCurrent=[0,0,0,0];this.motorTorque=[0,0,0,0];this.propTorque=[0,0,0,0];this.motorPower=[0,0,0,0];this.batterySoc=1;this.batteryVoltage=16.8;this.batteryCurrent=0;this.worldAcceleration=[0,0,0];this.prevOmegaBody=[0,0,0];this.imuBytes=new Uint8Array(14);this.imuView=new DataView(this.imuBytes.buffer);this.motorBackEmf=60/(2*Math.PI*p.kv);this.propDiameter4=p.propD**4;this.propDiameter5=p.propD**5;this.cdA=[.035*p.dragScale,.035*p.dragScale,.07*p.dragScale];this.rebuildWorldBuildingCollisions();this.syncPresentationSnapshots();
+    this.motorOmega=[0,0,0,0];this.motorCurrent=[0,0,0,0];this.motorTorque=[0,0,0,0];this.propTorque=[0,0,0,0];this.motorPower=[0,0,0,0];this.batterySoc=1;this.batteryVoltage=4.2*p.batteryCells;this.batteryCurrent=0;this.worldAcceleration=[0,0,0];this.prevOmegaBody=[0,0,0];this.imuBytes=new Uint8Array(14);this.imuView=new DataView(this.imuBytes.buffer);this.motorBackEmf=60/(2*Math.PI*p.kv);this.propDiameter4=p.propD**4;this.propDiameter5=p.propD**5;this.cdA=[.035*p.dragScale,.035*p.dragScale,.07*p.dragScale];this.rebuildWorldBuildingCollisions();this.syncPresentationSnapshots();
     if(this.graphics){
       this.buildGraphics();
       // A freshly constructed Object3D starts at z=0. Synchronize it with the
@@ -463,7 +464,7 @@ class PhysicsModel {
     view.setInt16(0,0,false);view.setInt16(2,sat(accel[0]/G*2048),false);view.setInt16(4,sat(accel[1]/G*2048),false);view.setInt16(6,sat(accel[2]/G*2048),false);view.setInt16(8,sat(gyro[0]*16.4),false);view.setInt16(10,sat(gyro[1]*16.4),false);view.setInt16(12,sat(gyro[2]*16.4),false);
     return raw;
   }
-  batteryOcv(){const s=this.batterySoc;return 13.2+3.6*clamp(s,0,1)+.15*Math.tanh((s-.12)*18);}
+  batteryOcv(){return batteryOcvVoltage(this.batterySoc,this.p.batteryCells);}
   applyForces(pulses,dt=DT){
     const p=this.p,yawSign=MOTOR_YAW_SIGN,diameter=p.propD,backEmf=this.motorBackEmf,torqueConstant=backEmf,ocv=this.batteryOcv(),currents=this.motorCurrent;let total=0;
     for(let pass=0;pass<2;pass++){
@@ -472,10 +473,11 @@ class PhysicsModel {
         let command=clamp((pulses[i]-1000)/1000,0,1);
         if(i===p.failed)command=0;
         const volts=command*(pass?this.batteryVoltage:ocv);
-        currents[i]=clamp((volts-backEmf*this.motorOmega[i])/p.R,0,45);
+        currents[i]=clamp((volts-backEmf*this.motorOmega[i])/p.R,0,Math.min(p.motorCurrentLimitA,p.escCurrentLimitA));
         total+=currents[i];
       }
-      this.batteryVoltage=clamp(ocv-total*p.batteryR,10,16.8);
+      total=scaleCurrentsToPackLimit(currents,p.batteryMaxCurrentA);
+      this.batteryVoltage=batteryVoltageUnderLoad(ocv,total,p.batteryR,p.batteryCells);
     }
     this.batteryCurrent=total;
     this.batterySoc=clamp(this.batterySoc-total*dt/(p.capacity*3600),0,1);
@@ -483,7 +485,7 @@ class PhysicsModel {
     for(let i=0;i<4;i++){
       const revolutions=this.motorOmega[i]/(2*Math.PI),propTorque=p.Cq*p.rho*revolutions*revolutions*this.propDiameter5,motorTorque=torqueConstant*currents[i];
       this.motorTorque[i]=motorTorque;this.propTorque[i]=propTorque;this.motorPower[i]=Math.max(0,motorTorque*this.motorOmega[i]);
-      this.motorOmega[i]=Math.max(0,this.motorOmega[i]+(motorTorque-propTorque-1.5e-7*this.motorOmega[i])*dt/p.J);
+      this.motorOmega[i]=Math.max(0,this.motorOmega[i]+(motorTorque-propTorque-MOTOR_BEARING_DRAG_NM_PER_RAD_S*this.motorOmega[i])*dt/p.J);
       const n=this.motorOmega[i]/(2*Math.PI);let thrust=p.Ct*p.rho*n*n*this.propDiameter4;
       const advance=localVelocity[2]/Math.max(1,n*diameter);thrust*=clamp(1-.12*advance,.55,1.25);thrust*=1+p.groundEffect*Math.exp(-altitude/Math.max(.02,.75*diameter));
       b3.b3Body_ApplyForce(this.body,this.worldVector([0,0,thrust]),this.worldPoint(this.motorPos[i]),true);
@@ -978,7 +980,7 @@ function normalizeLog(rows){
 const FITTED_PHYSICS_STORAGE="arondight45FittedPhysicsV3";
 const LEGACY_FITTED_PHYSICS_STORAGE="arondight45FittedPhysicsV2";
 const FITTED_PARAMETER_KEYS=["Ct","Cq","J","dragScale","batteryR","R"];
-const PHYSICS_PARAMETER_INPUT_IDS=["mass","span","propD","kv","resistance","rotorJ","ct","cq","capacity","batteryR","ixx","iyy","izz","rho","dragScale","groundEffect","windX","windY","failedMotor"];
+const PHYSICS_PARAMETER_INPUT_IDS=["span","propD","kv","resistance","motorCurrentLimitA","escCurrentLimitA","rotorJ","ct","cq","batteryCells","capacity","batteryR","batteryMaxCurrentA","rho","dragScale","groundEffect","frameMassG","motorMassG","propMassG","batteryMassG","escMassG","fcRxMassG","cameraVtxMassG","wiringHardwareMassG","batteryXmm","batteryZmm","cameraXmm","cameraZmm","windX","windY","failedMotor"];
 const fittedParameters=params=>Object.fromEntries(FITTED_PARAMETER_KEYS.map(key=>[key,params[key]]));
 function applyFittedParameters(parameters){
   if(!parameters||typeof parameters!=="object")return;
@@ -1126,5 +1128,5 @@ try{
   if(stored){const parsed=JSON.parse(stored);if(parsed?.schema==="arondight45-fitted-physics-v3"){applyFittedParameters(parsed.parameters);setPhysicsValidation(parsed.validation);restoredFittedPhysics=true;}}
   if(!restoredFittedPhysics){const legacy=localStorage.getItem(LEGACY_FITTED_PHYSICS_STORAGE);if(legacy){applyFittedParameters(JSON.parse(legacy));setPhysicsValidation(null,"legacy fit restored; rerun against a chronological holdout");}}
 }catch{setPhysicsValidation(null,"stored fit could not be verified");}
-for(const id of PHYSICS_PARAMETER_INPUT_IDS)$(id)?.addEventListener("input",()=>setPhysicsValidation(null,"physical/environment parameter changed after validation"));
+for(const id of PHYSICS_PARAMETER_INPUT_IDS)$(id)?.addEventListener("input",()=>{setPhysicsValidation(null,"physical/environment parameter changed after validation");try{defaultParams();}catch{}});
 await switchMode("sim");
