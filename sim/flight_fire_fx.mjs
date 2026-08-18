@@ -3,6 +3,9 @@ import * as THREE from "three";
 const SHOT_INTERVAL_MS=92;
 const DECAL_POOL_SIZE=32;
 const SCREEN_IMPACT_POOL_SIZE=8;
+const TOUCH_DOUBLE_TAP_MS=330;
+const TOUCH_DOUBLE_TAP_PX=36;
+const TOUCH_HOLD_FIRE_MS=115;
 const BLOCKED_SELECTOR="#soloTopbar,#soloRaceHud,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud,dialog,button,input,select,textarea,a,label";
 
 export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEnabled=()=>document.body.classList.contains("solo-flight"),isPointerEnabled=()=>true}={}){
@@ -11,6 +14,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   viewport.dataset.fireFxInstalled="1";
   viewport.dataset.fireDecalPoolSize=String(DECAL_POOL_SIZE);
   viewport.dataset.fireDecalWrites="0";
+  viewport.dataset.fireTouchGestureArbiter="1";
 
   const style=document.createElement("style");style.textContent=`
     #viewport{touch-action:none;overscroll-behavior:none}
@@ -28,9 +32,10 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   const raycaster=new THREE.Raycaster(),pointerNdc=new THREE.Vector2(),candidates=[],intersections=[],hitNormal=new THREE.Vector3(),decalForward=new THREE.Vector3(0,0,1);
   const decalGeometry=new THREE.CircleGeometry(.022,12),decalMaterial=new THREE.MeshBasicMaterial({color:0x171717,transparent:true,opacity:.94,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,side:THREE.DoubleSide});
   const decalPool=Array.from({length:DECAL_POOL_SIZE},()=>{const mesh=new THREE.Mesh(decalGeometry,decalMaterial);mesh.visible=false;mesh.renderOrder=8;mesh.userData.flightFireDecal=true;mesh.userData.flightFireWorld=false;scene.add(mesh);return mesh;});
-  let decalCursor=0,decalWrites=0,active=null,nextShotAt=0,fireTimer=0,audioCtx=null,noiseBuffer=null;
+  let decalCursor=0,decalWrites=0,active=null,nextShotAt=0,fireTimer=0,audioCtx=null,noiseBuffer=null,touchHoldTimer=0,pendingTap=null,pendingTapTimer=0;
 
   function blocked(target){return target instanceof Element&&Boolean(target.closest(BLOCKED_SELECTOR));}
+  function multiplayerDoubleTapEnabled(){return Boolean(globalThis.__arondightRealWorld?.vsConnected);}
   function hiddenTrainingObject(object){if(!worldBridge?.active)return false;for(let node=object;node;node=node.parent)if(worldBridge.trainingObjects?.has?.(node))return true;return false;}
   function visibleInHierarchy(object){for(let node=object;node;node=node.parent)if(node.visible===false)return false;return true;}
   function ensureAudio(){
@@ -44,24 +49,32 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     if(!hit?.point)return false;const hasWorldNormal=hit.worldNormal&&Number.isFinite(hit.worldNormal.x)&&Number.isFinite(hit.worldNormal.y)&&Number.isFinite(hit.worldNormal.z);if(hasWorldNormal)hitNormal.copy(hit.worldNormal).normalize();else{if(!hit?.face?.normal||!hit.object)return false;hitNormal.copy(hit.face.normal).transformDirection(hit.object.matrixWorld).normalize();}
     const mesh=decalPool[decalCursor++%decalPool.length];mesh.position.copy(hit.point).addScaledVector(hitNormal,.0035);mesh.quaternion.setFromUnitVectors(decalForward,hitNormal);mesh.rotateZ((decalWrites*2.399963229728653)%6.283185307179586);mesh.scale.setScalar(.88+(decalWrites%5)*.055);mesh.userData.flightFireWorld=Boolean(hasWorldNormal);mesh.visible=true;decalWrites++;viewport.dataset.fireDecalWrites=String(decalWrites);return true;
   }
-  function aimPoint(){
+  function aimPoint(state=active){
     const screenRect=viewport.getBoundingClientRect(),rect={left:0,top:0,width:Math.max(1,viewport.clientWidth),height:Math.max(1,viewport.clientHeight)};
-    if(active?.source==="gamepad")return{x:Math.max(0,Math.min(rect.width,active.x)),y:Math.max(0,Math.min(rect.height,active.y)),rect};
-    const clientX=active?.clientX??screenRect.left+screenRect.width/2,clientY=active?.clientY??screenRect.top+screenRect.height/2,rotated=viewport.dataset.soloOrientation==="css-landscape";
+    if(state?.source==="gamepad")return{x:Math.max(0,Math.min(rect.width,state.x)),y:Math.max(0,Math.min(rect.height,state.y)),rect};
+    const clientX=state?.clientX??screenRect.left+screenRect.width/2,clientY=state?.clientY??screenRect.top+screenRect.height/2,rotated=viewport.dataset.soloOrientation==="css-landscape";
     const x=rotated?clientY-screenRect.top:clientX-screenRect.left,y=rotated?screenRect.right-clientX:clientY-screenRect.top;
     return{x:Math.max(0,Math.min(rect.width,x)),y:Math.max(0,Math.min(rect.height,y)),rect};
   }
-  function fire(now){
-    if(!active||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint();pointerNdc.set(aim.x/aim.rect.width*2-1,-(aim.y/aim.rect.height)*2+1);raycaster.setFromCamera(pointerNdc,camera);
+  function fire(now,state=active){
+    if(!state||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint(state);pointerNdc.set(aim.x/aim.rect.width*2-1,-(aim.y/aim.rect.height)*2+1);raycaster.setFromCamera(pointerNdc,camera);
     candidates.length=0;scene.traverse(object=>{if(object.isMesh&&visibleInHierarchy(object)&&!object.userData?.arondightAirframe&&!object.userData?.flightFireDecal&&!object.userData?.flightFireIgnore&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});intersections.length=0;raycaster.intersectObjects(candidates,false,intersections);const hit=intersections[0];
     const vsHit=Boolean(hit&&worldBridge?.registerVsHit?.(hit));if(hit&&!vsHit)addThreeDecal(hit);else if(!hit){const worldHit=worldBridge?.addVisualShotImpact?.(aim.x,aim.y,aim.rect,raycaster.ray);if(worldHit)addThreeDecal(worldHit);}if(vsHit)viewport.dataset.fireVsHits=String((Number(viewport.dataset.fireVsHits)||0)+1);
-    screenImpact(aim.x,aim.y);shotSound();viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);viewport.dataset.fireAimX=aim.x.toFixed(2);viewport.dataset.fireAimY=aim.y.toFixed(2);viewport.dataset.fireInputSource=active.source||"pointer";return true;
+    screenImpact(aim.x,aim.y);shotSound();viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);viewport.dataset.fireAimX=aim.x.toFixed(2);viewport.dataset.fireAimY=aim.y.toFixed(2);viewport.dataset.fireInputSource=state.source||"pointer";return true;
   }
   function scheduleFire(){
     if(!active||fireTimer)return;const tick=()=>{fireTimer=0;if(!active)return;const now=performance.now();fire(now);fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));};fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));
   }
-  function move(event){if(!active||active.source==="gamepad"||event.pointerId!==active.id)return;active.clientX=event.clientX;active.clientY=event.clientY;fire(performance.now());scheduleFire();event.preventDefault();}
-  function stop(event){if(!active||(event?.pointerId!=null&&event.pointerId!==active.id))return;const id=active.id;active=null;if(fireTimer){clearTimeout(fireTimer);fireTimer=0;}viewport.dataset.fireInputSource="none";try{viewport.releasePointerCapture?.(id);}catch{}event?.preventDefault();}
+  function cancelPendingTap(){if(pendingTapTimer){clearTimeout(pendingTapTimer);pendingTapTimer=0;}pendingTap=null;}
+  function firePendingTap(){if(!pendingTap)return false;const tap=pendingTap;cancelPendingTap();const previousNext=nextShotAt;nextShotAt=0;const fired=fire(performance.now(),{id:"tap",source:"pointer",clientX:tap.clientX,clientY:tap.clientY});nextShotAt=Math.max(nextShotAt,previousNext);return fired;}
+  function armPendingTap(tap){cancelPendingTap();pendingTap=tap;pendingTapTimer=setTimeout(()=>{pendingTapTimer=0;if(!pendingTap)return;const shot=pendingTap;pendingTap=null;const previousNext=nextShotAt;nextShotAt=0;fire(performance.now(),{id:"tap",source:"pointer",clientX:shot.clientX,clientY:shot.clientY});nextShotAt=Math.max(nextShotAt,previousNext);},TOUCH_DOUBLE_TAP_MS+8);}
+  function emitDoubleTap(event){viewport.dataset.fireDoubleTapSuppressed=String((Number(viewport.dataset.fireDoubleTapSuppressed)||0)+1);viewport.dispatchEvent(new CustomEvent("flightfiredoubletap",{detail:{clientX:Number(event.clientX),clientY:Number(event.clientY),pointerType:String(event.pointerType||"touch")}}));}
+  function move(event){if(!active||active.source==="gamepad"||event.pointerId!==active.id)return;active.clientX=event.clientX;active.clientY=event.clientY;if(!active.touchGesture||active.holdFired){fire(performance.now());scheduleFire();}event.preventDefault();}
+  function stop(event){
+    if(!active||(event?.pointerId!=null&&event.pointerId!==active.id))return;const state=active,id=state.id;active=null;if(touchHoldTimer){clearTimeout(touchHoldTimer);touchHoldTimer=0;}if(fireTimer){clearTimeout(fireTimer);fireTimer=0;}viewport.dataset.fireInputSource="none";try{viewport.releasePointerCapture?.(id);}catch{}
+    if(state.touchGesture&&!state.holdFired&&event){const now=performance.now(),tap={clientX:Number(event.clientX),clientY:Number(event.clientY),at:now};if(pendingTap){const dt=now-pendingTap.at,distance=Math.hypot(tap.clientX-pendingTap.clientX,tap.clientY-pendingTap.clientY);if(dt>0&&dt<=TOUCH_DOUBLE_TAP_MS&&distance<=TOUCH_DOUBLE_TAP_PX){cancelPendingTap();emitDoubleTap(event);event.preventDefault();return;}firePendingTap();}armPendingTap(tap);}
+    event?.preventDefault();
+  }
   function setGamepadAim(enabled,x=viewport.clientWidth/2,y=viewport.clientHeight/2){const activeAim=Boolean(enabled&&isEnabled());gamepadCrosshair.classList.toggle("active",activeAim);gamepadCrosshair.style.left=`${Math.max(0,Math.min(viewport.clientWidth,Number(x)||0))}px`;gamepadCrosshair.style.top=`${Math.max(0,Math.min(viewport.clientHeight,Number(y)||0))}px`;viewport.dataset.gamepadAim=activeAim?"1":"0";}
   function setGamepadFire(pressed,x=viewport.clientWidth/2,y=viewport.clientHeight/2){
     if(!pressed||!isEnabled()){if(active?.source==="gamepad")stop();return false;}
@@ -70,8 +83,12 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     fire(performance.now());scheduleFire();return true;
   }
   viewport.addEventListener("pointerdown",event=>{
-    if(!isEnabled()||!isPointerEnabled()||event.button!==0||blocked(event.target)||active)return;active={id:event.pointerId,source:"pointer",clientX:event.clientX,clientY:event.clientY};try{viewport.setPointerCapture?.(event.pointerId);}catch{}ensureAudio();nextShotAt=0;fire(performance.now());scheduleFire();event.preventDefault();
+    if(!isEnabled()||!isPointerEnabled()||event.button!==0||blocked(event.target)||active)return;
+    const touchGesture=event.pointerType==="touch"&&multiplayerDoubleTapEnabled();
+    if(touchGesture&&pendingTap){const dt=performance.now()-pendingTap.at,distance=Math.hypot(Number(event.clientX)-pendingTap.clientX,Number(event.clientY)-pendingTap.clientY);if(dt>TOUCH_DOUBLE_TAP_MS||distance>TOUCH_DOUBLE_TAP_PX)firePendingTap();}
+    active={id:event.pointerId,source:"pointer",clientX:event.clientX,clientY:event.clientY,touchGesture,holdFired:false};try{viewport.setPointerCapture?.(event.pointerId);}catch{}ensureAudio();nextShotAt=0;
+    if(touchGesture){touchHoldTimer=setTimeout(()=>{touchHoldTimer=0;if(!active||active.id!==event.pointerId||!active.touchGesture)return;if(pendingTap)firePendingTap();active.holdFired=true;nextShotAt=0;fire(performance.now());scheduleFire();},TOUCH_HOLD_FIRE_MS);}else{fire(performance.now());scheduleFire();}event.preventDefault();
   },{passive:false});
   viewport.addEventListener("pointermove",move,{passive:false});viewport.addEventListener("pointerup",stop,{passive:false});viewport.addEventListener("pointercancel",stop,{passive:false});
-  return{stop,setGamepadAim,setGamepadFire,get decalPoolSize(){return decalPool.length;},get decalWrites(){return decalWrites;},dispose(){stop();gamepadCrosshair.remove();for(const mesh of decalPool){mesh.parent?.remove(mesh);mesh.visible=false;}decalGeometry.dispose();decalMaterial.dispose();for(const el of screenImpacts)el.remove();style.remove();try{audioCtx?.close();}catch{}}};
+  return{stop,setGamepadAim,setGamepadFire,get decalPoolSize(){return decalPool.length;},get decalWrites(){return decalWrites;},dispose(){stop();cancelPendingTap();if(touchHoldTimer)clearTimeout(touchHoldTimer);gamepadCrosshair.remove();for(const mesh of decalPool){mesh.parent?.remove(mesh);mesh.visible=false;}decalGeometry.dispose();decalMaterial.dispose();for(const el of screenImpacts)el.remove();style.remove();try{audioCtx?.close();}catch{}}};
 }
