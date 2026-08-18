@@ -1,0 +1,65 @@
+name: Debug WORLD terrain V2
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  bootstrap:
+    if: github.event.issue.title == 'DEBUG_WORLD_TERRAIN_V2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Extract and execute the V2 integration step
+        id: run
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          lines=Path('.github/workflows/apply-world-terrain-integration.yml').read_text().splitlines()
+          anchor=next(i for i,l in enumerate(lines) if l.strip()=='- name: Patch, verify and publish')
+          run_i=next(i for i in range(anchor+1,len(lines)) if lines[i].strip()=='run: |')
+          body=[]
+          for line in lines[run_i+1:]:
+              if line.startswith('          '): body.append(line[10:])
+              elif not line.strip(): body.append('')
+              else: break
+          if not body: raise SystemExit('V2 run body extraction returned empty')
+          Path('/tmp/world-v2.sh').write_text('\n'.join(body)+'\n')
+          print('extracted',len(body),'lines')
+          PY
+          bash -n /tmp/world-v2.sh > /tmp/world-v2.log 2>&1
+          syntax=$?
+          if [ "$syntax" -ne 0 ]; then
+            echo "BASH_SYNTAX_FAILED=$syntax" >> /tmp/world-v2.log
+            cat /tmp/world-v2.log
+            echo "result=syntax" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo 'BASH_SYNTAX_OK' | tee /tmp/world-v2.log
+          bash -x /tmp/world-v2.sh 2>&1 | tee -a /tmp/world-v2.log
+          status=${PIPESTATUS[0]}
+          echo "result=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+      - name: Report deterministic result
+        if: always()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs=require('fs');
+            let text='';try{text=fs.readFileSync('/tmp/world-v2.log','utf8')}catch(e){text='NO_LOG: '+e.message}
+            text=text.slice(-15000);
+            const branch=await github.rest.repos.getBranch({owner:context.repo.owner,repo:context.repo.repo,branch:'main'});
+            await github.rest.issues.createComment({owner:context.repo.owner,repo:context.repo.repo,issue_number:context.issue.number,body:`WORLD_V2_BOOTSTRAP_RESULT head=${branch.data.commit.sha}\n\n\`\`\`text\n${text}\n\`\`\``});
+      - name: Fail job if integration failed
+        if: steps.run.outcome != 'success'
+        run: exit 1
