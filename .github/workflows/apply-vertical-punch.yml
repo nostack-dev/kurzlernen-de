@@ -1,0 +1,66 @@
+name: Apply vertical punch fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Patch aggressive vertical response'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch shared FC vertical envelope and regression gates
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('esp32/Arondight45_StateControl.hpp')
+          s=p.read_text()
+          replacements={
+            'static constexpr float kAglToVerticalSpeed = 1.30f;':'static constexpr float kAglToVerticalSpeed = 2.00f;',
+            'static constexpr float kMaxVerticalSpeedMps = 2.0f;':'static constexpr float kMaxVerticalSpeedMps = 7.0f;',
+            'static constexpr float kVerticalVelocityGain = 2.0f;':'static constexpr float kVerticalVelocityGain = 2.4f;',
+            'static constexpr float kMaxVerticalAccelerationMps2 = 4.0f;':'static constexpr float kMaxVerticalAccelerationMps2 = 8.0f;',
+            'static constexpr float kMinSpecificUpMps2 = 4.0f;':'static constexpr float kMinSpecificUpMps2 = 1.8f;',
+            'static constexpr float kMaxSpecificUpMps2 = 14.0f;':'static constexpr float kMaxSpecificUpMps2 = 18.0f;',
+          }
+          for old,new in replacements.items():
+            assert old in s, old
+            s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('tests/state_control_test.cpp')
+          s=p.read_text()
+          old='''    CHECK(controller.debug().vertical_accel_mps2 > 3.0f);\n    CHECK(climb_throttle > 0.43f && climb_throttle < 0.50f);'''
+          new='''    CHECK(controller.debug().target_vz_mps > 2.9f);\n    CHECK(controller.debug().vertical_accel_mps2 > 7.1f);\n    CHECK(climb_throttle > 0.52f && climb_throttle < 0.55f);'''
+          assert old in s
+          s=s.replace(old,new,1)
+          marker='''    CHECK(descend_throttle < climb_throttle);\n    CHECK(descend_throttle >= 0.0f);\n'''
+          block='''    CHECK(descend_throttle < climb_throttle);\n    CHECK(descend_throttle >= 0.0f);\n\n    // GAME vertical authority must be quad-like, not the old camera-drone 2 m/s / 4 m/s^2 cap.\n    controller.reset();\n    auto high_clearance = base_rc(true);\n    high_clearance.ch[fc::kStateClearanceChannel] = 1811;\n    nav = {{0.0f, 0.0f, 0.0f}, 0.5f, true};\n    cmd = controller.run(high_clearance, nav, 0.0f, true, 0.001f);\n    CHECK(controller.debug().target_vz_mps > 6.9f);\n    CHECK(controller.debug().vertical_accel_mps2 > 7.9f);\n    CHECK(cmd.throttle > 0.55f && cmd.throttle < 0.65f);\n\n    controller.reset();\n    auto low_clearance = base_rc(true);\n    low_clearance.ch[fc::kStateClearanceChannel] = 172;\n    nav = {{0.0f, 0.0f, 0.0f}, 15.0f, true};\n    cmd = controller.run(low_clearance, nav, 0.0f, true, 0.001f);\n    CHECK(controller.debug().target_vz_mps < -6.9f);\n    CHECK(controller.debug().vertical_accel_mps2 < -7.9f);\n    CHECK(cmd.throttle > 0.11f && cmd.throttle < 0.17f);\n'''
+          assert marker in s
+          s=s.replace(marker,block,1)
+          p.write_text(s)
+
+          p=Path('tests/game_speed_envelope_smoke.mjs')
+          s=p.read_text()
+          marker='''  await setSpeed(36);\n  const defaultResults=[];'''
+          block='''  await setSpeed(36);\n\n  // Physical vertical punch gate. This drives the real GAME height control through\n  // the browser, shared WASM FC and Box3D plant. The former 2 m/s vertical cap can\n  // never pass this gate. The 5 m/s target slew remains unchanged; the FC now has\n  // enough speed/acceleration headroom to track it aggressively and brake cleanly.\n  await resetAndArm();\n  const heightPad=await page.$eval("#soloHeightPad",e=>{const b=e.getBoundingClientRect();return{x:b.left+b.width/2,center:b.top+b.height/2,top:b.top+3,bottom:b.bottom-3};});\n  const climbStart=await simTime();\n  await page.mouse.move(heightPad.x,heightPad.center);await page.mouse.down();await page.mouse.move(heightPad.x,heightPad.top,{steps:3});\n  await waitSim(climbStart+1.45,90000);await page.mouse.up();\n  let verticalMotion=(await flightSamples()).map(bodyMotion).filter(x=>x.time>=climbStart&&x.time<=climbStart+1.5);\n  const maxClimb=Math.max(...verticalMotion.map(x=>x.vertical));\n  const climb35=verticalMotion.find(x=>x.vertical>=3.5);\n  if(!(maxClimb>=4.0))throw new Error(`vertical climb punch too weak: peak ${maxClimb.toFixed(2)} m/s; old 2 m/s cap must be impossible`);\n  if(!climb35||climb35.time-climbStart>1.25)throw new Error(`vertical climb acceleration too slow: t(3.5m/s)=${climb35? (climb35.time-climbStart).toFixed(3):"never"} s`);\n  await settle();\n  const descendStart=await simTime();\n  await page.mouse.move(heightPad.x,heightPad.center);await page.mouse.down();await page.mouse.move(heightPad.x,heightPad.bottom,{steps:3});\n  await waitSim(descendStart+1.45,90000);await page.mouse.up();\n  verticalMotion=(await flightSamples()).map(bodyMotion).filter(x=>x.time>=descendStart&&x.time<=descendStart+1.5);\n  const minDescend=Math.min(...verticalMotion.map(x=>x.vertical));\n  const descend35=verticalMotion.find(x=>x.vertical<=-3.5);\n  if(!(minDescend<=-4.0))throw new Error(`vertical descent punch too weak: peak ${minDescend.toFixed(2)} m/s; old -2 m/s cap must be impossible`);\n  if(!descend35||descend35.time-descendStart>1.25)throw new Error(`vertical descent acceleration too slow: t(-3.5m/s)=${descend35? (descend35.time-descendStart).toFixed(3):"never"} s`);\n  console.log(`GAME vertical punch passed: climb peak ${maxClimb.toFixed(2)} m/s, t3.5 ${(climb35.time-climbStart).toFixed(3)} s; descent peak ${minDescend.toFixed(2)} m/s, t-3.5 ${(descend35.time-descendStart).toFixed(3)} s.`);\n\n  const defaultResults=[];'''
+          assert marker in s
+          s=s.replace(marker,block,1)
+          p.write_text(s)
+          PY
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
+          /tmp/state_control_test
+          node --check tests/game_speed_envelope_smoke.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add esp32/Arondight45_StateControl.hpp tests/state_control_test.cpp tests/game_speed_envelope_smoke.mjs
+          git commit -m 'Make GAME vertical response quad-fast'
+          git push origin HEAD:main
