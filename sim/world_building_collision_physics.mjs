@@ -81,7 +81,7 @@ export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=
   // the compound data and its hulls alive for the lifetime of the shape; rebuilding
   // hundreds of global static proxies whenever OSM tiles change defeats Box3D's
   // temporal coherence and makes CCD/ray queries traverse a much larger top-level tree.
-  const hulls=[],children=[],activePrisms=[];let skippedLaunchPrisms=0;
+  const hulls=[],children=[],activePrisms=[];let skippedLaunchPrisms=0,compound=null,body=null;
   try{
     for(const prism of snapshot.prisms){
       const key=String(prism.buildingKey||""),skipWholeBuilding=key&&launchExcludedBuildingKeys.has(key),skipUnkeyedPrism=!key&&overlapsLaunchVolume(prism,launchExclusionPoint);
@@ -91,8 +91,8 @@ export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=
     const skippedLaunchBuildings=launchExcludedBuildingKeys.size;
     if(!children.length)return{body:null,compound:null,hulls:Object.freeze([]),shapeCount:0,broadphaseShapeCount:0,compoundChildCount:0,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze([]),...snapshot};
 
-    const compound=b3.b3CreateCompound({hulls:children});if(!compound){for(const hull of hulls)b3.b3DestroyHull(hull);return{body:null,compound:null,hulls:Object.freeze([]),shapeCount:0,broadphaseShapeCount:0,compoundChildCount:0,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze([]),...snapshot};}
-    const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_staticBody;bodyDef.position=[0,0,0];const body=b3.b3CreateBody(world,bodyDef),shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.68;shapeDef.baseMaterial.restitution=.025;
+    compound=b3.b3CreateCompound({hulls:children});if(!compound){for(const hull of hulls)b3.b3DestroyHull(hull);return{body:null,compound:null,hulls:Object.freeze([]),shapeCount:0,broadphaseShapeCount:0,compoundChildCount:0,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze([]),...snapshot};}
+    const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_staticBody;bodyDef.position=[0,0,0];body=b3.b3CreateBody(world,bodyDef);const shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.68;shapeDef.baseMaterial.restitution=.025;
     // Buildings are physical airframe obstacles, not the GAME altitude datum. The
     // downward NAV ray must keep measuring the stable launch/terrain plane; letting
     // it hit OSM roofs makes AGL jump by an entire building height at each roof edge.
@@ -100,8 +100,7 @@ export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=
     b3.b3CreateCompoundShape(body,shapeDef,compound);
     return{body,compound,hulls:Object.freeze(hulls.slice()),shapeCount:activePrisms.length,broadphaseShapeCount:1,compoundChildCount:activePrisms.length,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze(activePrisms.slice()),...snapshot};
   }catch(error){
-    // If creation failed before ownership was returned, release all temporary hulls.
-    for(const hull of hulls)try{b3.b3DestroyHull(hull);}catch{}throw error;
+    destroyCompoundResources(b3,{body,compound,hulls});throw error;
   }
 }
 
