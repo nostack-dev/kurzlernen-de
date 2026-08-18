@@ -61,7 +61,8 @@ page.on("request",request=>{
   request.abort();
 });
 
-const waitWorld=()=>page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-mapterhorn-dem"&&v?.dataset.worldTerrainStatus==="box3d-active"&&v?.dataset.worldImageryLayer==="ready"&&Number(v?.dataset.worldMinimapImageryTiles||0)>0&&Number(v?.dataset.worldThreeFrames||0)>=1&&Number(v?.dataset.presentationDraws||0)>=10;},{timeout:35000});
+// Startup readiness is data/physics state, not CI GPU throughput. Frame cadence is covered by the dedicated Android/render gates.
+const waitWorld=()=>page.waitForFunction(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-mapterhorn-dem"&&v?.dataset.worldTerrainStatus==="box3d-active"&&v?.dataset.worldImageryLayer==="ready"&&Number(v?.dataset.worldMinimapImageryTiles||0)>0&&Boolean(b?.active)&&!b?.loading&&Boolean(b?.map)&&Boolean(b?.threeRenderer);},{timeout:35000});
 
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
