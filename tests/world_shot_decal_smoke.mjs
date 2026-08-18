@@ -53,8 +53,7 @@ try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
-  await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});
-  await page.waitForFunction(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return v?.dataset.worldMode==="real"&&v?.dataset.worldTerrainStatus==="box3d-active"&&b?.map&&b?.terrainSnapshot;},{timeout:30000});
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return document.body.classList.contains("solo-flight")&&v?.dataset.cameraMode==="fpv"&&v?.dataset.autoWorldLocationSource==="startup-gps"&&v?.dataset.worldMode==="real"&&v?.dataset.worldTerrainStatus==="box3d-active"&&b?.active===true&&b?.loading===false&&b?.map&&b?.terrainSnapshot&&b?.threeRenderer&&Number(v.dataset.worldThreeFrames||0)>=1&&Number(v.dataset.presentationDraws||0)>=10;},{timeout:30000});
 
   const geometry=await page.evaluate(()=>{
     const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),rect=v.getBoundingClientRect();
