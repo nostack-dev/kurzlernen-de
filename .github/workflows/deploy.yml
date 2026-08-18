@@ -40,9 +40,22 @@ jobs:
           node tests/vs_pose_sync_test.mjs
           node tests/physics_validation_test.mjs
           node tests/world_building_collisions_test.mjs
+          node tests/airframe_collision_envelope_test.mjs
+          node tests/component_mass_model_test.mjs
+          node tests/propulsion_authority_test.mjs
           node tests/s31_digital_twin_audit_test.mjs
           node tests/architecture_invariants.mjs
           node tests/lan_vs_smoke.mjs
+          test ! -e sim/world_terrain.mjs
+          test ! -e sim/world_terrain_physics.mjs
+          test ! -e sim/world_dem_sampler.mjs
+          ! grep -q 'WorldDemSampler' sim/real_world_bootstrap.mjs
+          ! grep -q 'attachTerrainCollisionSink' sim/simulator.mjs
+          ! grep -q 'setWorldTerrain' sim/simulator.mjs
+          grep -q 'deriveQuadMassProperties' sim/simulator.mjs
+          grep -q 'addPropellerSweepColliders' sim/simulator.mjs
+          grep -q 'scaleCurrentsToPackLimit' sim/simulator.mjs
+          grep -q 'resolveBox3dCameraPath' sim/simulator.mjs
 
       - name: Build exact shared controller runtime to WebAssembly
         run: |
@@ -119,6 +132,9 @@ jobs:
           grep -q 'OpenFreeMap' drone_simulator.html
           grep -q 'render_height' drone_simulator.html
           grep -q 'worldBuildingCollisionPrisms' drone_simulator.html
+          grep -q 'componentMassSummary' drone_simulator.html
+          grep -q 'physicalAuthority' drone_simulator.html
+          grep -q 'batteryMaxCurrentA' drone_simulator.html
           grep -q 'navigator.geolocation' drone_simulator.html
           grep -q 'RTCPeerConnection' drone_simulator.html
           grep -q 'RTCPeerConnection' drone_controller.html
@@ -170,6 +186,10 @@ jobs:
           node --check sim/simulator.mjs
           node --check sim/world_building_collisions.mjs
           node --check sim/world_building_collision_physics.mjs
+          node --check sim/airframe_collision_envelope.mjs
+          node --check sim/component_mass_model.mjs
+          node --check sim/propulsion_authority.mjs
+          node --check sim/box3d_collider_debug.mjs
           node --check sim/camera_stabilization.mjs
           node --check sim/render_stability.mjs
           node --check sim/vs_pose_sync.mjs
@@ -188,6 +208,9 @@ jobs:
           node --check sim/mqtt_data_relay.mjs
           node --check sim/nostr_data_relay.mjs
           node --check tests/architecture_invariants.mjs
+          node --check tests/airframe_collision_envelope_test.mjs
+          node --check tests/component_mass_model_test.mjs
+          node --check tests/propulsion_authority_test.mjs
           node --check tests/camera_stabilization_test.mjs
           node --check tests/render_stability_test.mjs
           node --check tests/vs_pose_sync_test.mjs
