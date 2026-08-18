@@ -55,5 +55,6 @@ export function sampleXboxGamepad(gamepad){
     arm:buttonValue(gamepad,XBOX_STANDARD_BUTTON.A)>.5,
     kill:buttonValue(gamepad,XBOX_STANDARD_BUTTON.B)>.5,
     camera:buttonValue(gamepad,XBOX_STANDARD_BUTTON.X)>.5,
+    target:buttonValue(gamepad,XBOX_STANDARD_BUTTON.Y)>.5,
   });
 }
