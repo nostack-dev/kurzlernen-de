@@ -1,3 +1,5 @@
+import {COLLISION_TERRAIN,BUILDING_MASK,QUERY_CAMERA} from './collision_filter_matrix.mjs';
+
 const finitePoint=point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite);
 const DEFAULT_LAUNCH_EXCLUSION_POINT=Object.freeze([0,0]);
 const LAUNCH_AIRFRAME_CENTER_Z_M=.024;
@@ -10,10 +12,6 @@ function pointInPolygon(point,ring){
     const ax=a[0],ay=a[1],bx=b[0],by=b[1],cross=(ay>y)!==(by>y)&&x<(bx-ax)*(y-ay)/((by-ay)||1e-12)+ax;if(cross)inside=!inside;
   }
   return inside;
-}
-function overlapsLaunchVolume(prism,point=DEFAULT_LAUNCH_EXCLUSION_POINT){
-  if(!pointInPolygon(point,prism?.points))return false;const base=Number(prism?.base),top=Number(prism?.top);if(!Number.isFinite(base)||!Number.isFinite(top))return false;
-  return base<=LAUNCH_AIRFRAME_CENTER_Z_M+LAUNCH_AIRFRAME_HALF_Z_M&&top>=LAUNCH_AIRFRAME_CENTER_Z_M-LAUNCH_AIRFRAME_HALF_Z_M;
 }
 function launchHeightOverlaps(prism){
   const base=Number(prism?.base),top=Number(prism?.top);return Number.isFinite(base)&&Number.isFinite(top)&&base<=LAUNCH_AIRFRAME_CENTER_Z_M+LAUNCH_AIRFRAME_HALF_Z_M&&top>=LAUNCH_AIRFRAME_CENTER_Z_M-LAUNCH_AIRFRAME_HALF_Z_M;
@@ -49,39 +47,18 @@ export function findClearBuildingLaunchPoint(value,{point=DEFAULT_LAUNCH_EXCLUSI
   return origin;
 }
 
-export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=1n,maskBits=6n,rangefinderCategoryBits=4n,launchExclusionPoint=DEFAULT_LAUNCH_EXCLUSION_POINT}={}){
+export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=COLLISION_TERRAIN,maskBits=BUILDING_MASK}={}){
   const snapshot=normalizeBuildingCollisionSnapshot(value);if(!world||!snapshot.prisms.length)return{body:null,shapeCount:0,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze([]),...snapshot};
-  // Concave/holed OSM buildings are decomposed into several convex prisms. If the
-  // launch point lands in any one of those prisms, the whole source building must
-  // be excluded. Skipping only the containing triangle creates an invisible solid
-  // seam at its neighbour: lateral strafe then chatters against that seam and can
-  // appear to stop responding even though the stick/FC command is still valid.
-  const launchExcludedBuildingKeys=new Set();
+  // Never punch a launch hole through WORLD geometry. Initial spawn and combat
+  // respawn are solved against the same physical terrain/building world instead.
+  const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_staticBody;bodyDef.position=[0,0,0];const body=b3.b3CreateBody(world,bodyDef),shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.68;shapeDef.baseMaterial.restitution=.025;shapeDef.filter={categoryBits:BigInt(categoryBits),maskBits:BigInt(maskBits),groupIndex:0};let shapeCount=0;const activePrisms=[];
   for(const prism of snapshot.prisms){
-    if(!overlapsLaunchVolume(prism,launchExclusionPoint))continue;
-    const key=String(prism.buildingKey||"");if(key)launchExcludedBuildingKeys.add(key);
-  }
-  const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_staticBody;bodyDef.position=[0,0,0];const body=b3.b3CreateBody(world,bodyDef),shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.68;shapeDef.baseMaterial.restitution=.025;
-  // Buildings are physical airframe obstacles, not the GAME altitude datum. The
-  // downward NAV ray must keep measuring the stable launch/terrain plane; letting
-  // it hit OSM roofs makes AGL jump by an entire building height at each roof edge
-  // and feeds that discontinuity straight into the vertical controller while the
-  // pilot is translating. Preserve airframe collision but exclude the rangefinder
-  // query category from every building shape.
-  const collisionMask=BigInt(maskBits)&~BigInt(rangefinderCategoryBits);
-  shapeDef.filter={categoryBits:BigInt(categoryBits),maskBits:collisionMask,groupIndex:0};let shapeCount=0,skippedLaunchPrisms=0;const activePrisms=[];
-  for(const prism of snapshot.prisms){
-    const key=String(prism.buildingKey||"");
-    const skipWholeBuilding=key&&launchExcludedBuildingKeys.has(key);
-    const skipUnkeyedPrism=!key&&overlapsLaunchVolume(prism,launchExclusionPoint);
-    if(skipWholeBuilding||skipUnkeyedPrism){skippedLaunchPrisms++;continue;}
     const vertices=[];for(const height of [prism.base,prism.top])for(const point of prism.points)vertices.push(point[0],point[1],height);const hull=b3.b3CreateHull(vertices);if(!hull)continue;try{b3.b3CreateHullShape(body,shapeDef,hull);shapeCount++;activePrisms.push(prism);}finally{b3.b3DestroyHull(hull);}
   }
-  const skippedLaunchBuildings=launchExcludedBuildingKeys.size;
-  if(!shapeCount){b3.b3DestroyBody(body);return{body:null,shapeCount:0,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze([]),...snapshot};}return{body,shapeCount,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze(activePrisms.slice()),...snapshot};
+  if(!shapeCount){b3.b3DestroyBody(body);return{body:null,shapeCount:0,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze([]),...snapshot};}return{body,shapeCount,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze(activePrisms.slice()),...snapshot};
 }
 
-export function resolveBox3dCameraPath(b3,world,anchor,desired,{queryCategoryBits=8n,terrainCategoryBits=1n,clearanceM=.08}={}){
+export function resolveBox3dCameraPath(b3,world,anchor,desired,{queryCategoryBits=QUERY_CAMERA,terrainCategoryBits=COLLISION_TERRAIN,clearanceM=.08}={}){
   const from=Array.isArray(anchor)?anchor.map(Number):[],to=Array.isArray(desired)?desired.map(Number):[];if(from.length!==3||to.length!==3||![...from,...to].every(Number.isFinite))return{position:to.length===3?to:[0,0,0],collided:false,fraction:1,hitDistanceM:0};
   const delta=[to[0]-from[0],to[1]-from[1],to[2]-from[2]],distance=Math.hypot(...delta);if(!world||distance<1e-6)return{position:[...to],collided:false,fraction:1,hitDistanceM:distance};
   const filter=b3.b3DefaultQueryFilter();filter.categoryBits=BigInt(queryCategoryBits);filter.maskBits=BigInt(terrainCategoryBits);const hit=b3.b3World_CastRayClosest(world,from,delta,filter),fraction=Number(hit?.fraction);
