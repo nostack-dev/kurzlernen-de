@@ -25,6 +25,11 @@ buttons[XBOX_STANDARD_BUTTON.RIGHT_TRIGGER]={pressed:true,value:1};
 sample=sampleXboxGamepad(pad);
 assert.ok(sample.heightAxis>.34,"RT must remain height up even while RB is the fire button");
 
+buttons[XBOX_STANDARD_BUTTON.Y]={pressed:true,value:1};
+sample=sampleXboxGamepad(pad);
+assert.equal(sample.target,true,"Y must expose multiplayer target/beacon action");
+buttons[XBOX_STANDARD_BUTTON.Y]={pressed:false,value:0};
+
 pad.connected=false;
 assert.equal(sampleXboxGamepad(pad),null);
-console.log("Xbox mapping passed: touch handoff, LT/RT altitude, LB free-look modifier, and LB+RB fire contract.");
+console.log("Xbox mapping passed: touch handoff, LT/RT altitude, LB free-look modifier, and LB+RB fire and Y target contract.");

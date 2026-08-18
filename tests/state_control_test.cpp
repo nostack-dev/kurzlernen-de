@@ -79,8 +79,9 @@ int main() {
     rc = base_rc(true);
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
     const float climb_throttle = cmd.throttle;
-    CHECK(controller.debug().vertical_accel_mps2 > 3.0f);
-    CHECK(climb_throttle > 0.43f && climb_throttle < 0.50f);
+    CHECK(controller.debug().target_vz_mps > 2.9f);
+    CHECK(controller.debug().vertical_accel_mps2 > 11.9f);
+    CHECK(climb_throttle > 0.58f && climb_throttle < 0.65f);
 
     nav.agl_m = 3.5f;
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
@@ -88,6 +89,14 @@ int main() {
     CHECK(controller.debug().vertical_accel_mps2 < -3.0f);
     CHECK(descend_throttle < climb_throttle);
     CHECK(descend_throttle >= 0.0f);
+
+    // Vertical controller ceilings are deliberately above nominal plant authority.
+    // Full-clearance error must be able to saturate the physical motor path rather
+    // than an old 2 m/s / 4 m/s^2 camera-drone software envelope.
+    controller.reset();
+    auto high_clearance = base_rc(true);high_clearance.ch[fc::kStateClearanceChannel] = 1811;
+    nav = {{0.0f,0.0f,0.0f},0.5f,true};cmd=controller.run(high_clearance,nav,0.0f,true,0.001f);
+    CHECK(controller.debug().target_vz_mps > 29.9f);CHECK(controller.debug().vertical_accel_mps2 > 49.9f);CHECK(cmd.throttle > 0.99f);
 
     controller.reset();
     rc = base_rc(true);

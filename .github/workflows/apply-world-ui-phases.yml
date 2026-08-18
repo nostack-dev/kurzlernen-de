@@ -1,0 +1,110 @@
+name: Verify phased WORLD UI browser gate
+
+on:
+  push:
+    branches: ["fix/world-ui-phased-ci"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Apply completed-startup + phase-only test refactor
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/real_world_ui_smoke_impl.mjs')
+          s=p.read_text()
+          old_wait='const waitWorld=()=>page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-mapterhorn-dem"&&v?.dataset.worldTerrainStatus==="box3d-active"&&v?.dataset.worldImageryLayer==="ready"&&Number(v?.dataset.worldThreeFrames||0)>=1&&Number(v?.dataset.presentationDraws||0)>=10;},{timeout:35000});'
+          new_wait='const waitWorld=()=>page.waitForFunction(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return document.body.classList.contains("solo-flight")&&v?.dataset.cameraMode==="fpv"&&v?.dataset.autoWorldLocationSource==="startup-gps"&&v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-mapterhorn-dem"&&v?.dataset.worldTerrainStatus==="box3d-active"&&v?.dataset.worldImageryLayer==="ready"&&b?.active===true&&b?.loading===false&&b?.map&&b?.terrainSnapshot&&b?.threeRenderer&&Number(v?.dataset.worldThreeFrames||0)>=1&&Number(v?.dataset.presentationDraws||0)>=10;},{timeout:45000});'
+          if old_wait in s:s=s.replace(old_wait,new_wait,1)
+          elif new_wait not in s:raise SystemExit('WORLD readiness anchor missing')
+          if 'const phase=process.env.ARONDIGHT_WORLD_UI_PHASE||"all";' not in s:
+              s=s.replace(new_wait,new_wait+'\nconst phase=process.env.ARONDIGHT_WORLD_UI_PHASE||"all";',1)
+              start='  await waitWorld();\n  const startup=await page.evaluate('
+              assert start in s
+              s=s.replace(start,'  await waitWorld();\n  if(phase==="core"||phase==="all"){\n  const startup=await page.evaluate(',1)
+              nav='  for(const expected of ["fpv","follow","third"]){'
+              assert nav in s
+              s=s.replace(nav,'  }\n  if(phase==="nav"||phase==="all"){\n'+nav,1)
+              fire='  // Touch coordinate is the aim coordinate. Drag moves that coordinate 1:1 while\n'
+              assert fire in s
+              s=s.replace(fire,'  }\n  if(phase==="fire"||phase==="all"){\n'+fire,1)
+              final='  console.log(`REAL WORLD E2E passed: automatic FPV/Solo + GPS WORLD startup with mandatory DEM/Box3D terrain, aerial/satellite imagery in flight view + strict orthographic top-down minimap, persisted imagery/axis/grid settings, exact FPV camera registration, 5-90 km/h GAME speed, 1:1 touch-coordinate firing, and one recycled 32-mesh THREE decal pool across WORLD/TRAINING.`);'
+              assert final in s
+              s=s.replace(final,'  }\n  console.log(`REAL WORLD E2E ${phase} phase passed.`);',1)
+          p.write_text(s)
+
+          w=Path('tests/real_world_ui_smoke.mjs');x=w.read_text()
+          old='try{\n  await import("./real_world_ui_smoke_impl.mjs");\n}finally{\n  Buffer.from=originalBufferFrom;\n}'
+          if old in x:
+              new='try{\n  const requested=process.env.ARONDIGHT_WORLD_UI_PHASE;\n  const phases=requested?[requested]:["core","nav","fire"];\n  for(const phase of phases){process.env.ARONDIGHT_WORLD_UI_PHASE=phase;await import(`./real_world_ui_smoke_impl.mjs?phase=${phase}&run=${Date.now()}`);}\n  if(!requested)delete process.env.ARONDIGHT_WORLD_UI_PHASE;\n}finally{\n  Buffer.from=originalBufferFrom;\n}'
+              x=x.replace(old,new,1);w.write_text(x)
+          elif 'const phases=requested?[requested]:["core","nav","fire"]' not in x:raise SystemExit('wrapper import anchor missing')
+          PY
+          node --check tests/real_world_ui_smoke.mjs
+          node --check tests/real_world_ui_smoke_impl.mjs
+          git diff --check
+      - name: Build exact bundled simulator
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
+            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
+              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' \
+              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
+              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
+              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
+              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
+              -o generated/flight_core.mjs
+          BUILD_DIR=/tmp/arondight-world-ui-phases
+          rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 mqtt@5.15.2 nostr-tools@2.24.1 qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.3 @trystero-p2p/mqtt@0.25.3 @trystero-p2p/torrent@0.25.3
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('drone_simulator.html');html=p.read_text();marker='<script type="module" src="./sim/real_world_bootstrap.mjs"></script>';assert marker in html
+          bundle=Path('/tmp/arondight45-simulator.bundle.mjs').read_text().replace('</script','<\\/script')
+          p.write_text(html.replace(marker,'<script type="module">\n'+bundle+'\n</script>'))
+          PY
+      - name: Start static server
+        run: |
+          nohup python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/world-ui-phases.log 2>&1 &
+          echo $! >/tmp/world-ui-http.pid
+          sleep 1
+      - name: WORLD core phase
+        run: timeout 150s env CHROME_BIN="$(command -v google-chrome)" ARONDIGHT_WORLD_UI_PHASE=core node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
+      - name: WORLD minimap/camera phase
+        run: timeout 150s env CHROME_BIN="$(command -v google-chrome)" ARONDIGHT_WORLD_UI_PHASE=nav node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
+      - name: WORLD fire/logbook phase
+        run: timeout 150s env CHROME_BIN="$(command -v google-chrome)" ARONDIGHT_WORLD_UI_PHASE=fire node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
+      - name: Commit verified phase refactor
+        if: github.event_name == 'push'
+        run: |
+          set -euxo pipefail
+          git checkout -- drone_simulator.html 2>/dev/null || true
+          rm -rf generated
+          rm -f node_modules
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/real_world_ui_smoke.mjs tests/real_world_ui_smoke_impl.mjs
+          git diff --cached --check
+          if ! git diff --cached --quiet; then git commit -m "Stabilize WORLD UI gate after completed GPS startup"; git push origin HEAD:fix/world-ui-phased-ci; fi
+      - name: Cleanup
+        if: always()
+        run: |
+          kill "$(cat /tmp/world-ui-http.pid 2>/dev/null)" 2>/dev/null || true
+          rm -f node_modules
+          rm -rf generated
+          git checkout -- drone_simulator.html 2>/dev/null || true

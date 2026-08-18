@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import {COLLISION_TERRAIN,COLLISION_AIRFRAME,QUERY_RANGEFINDER,QUERY_CAMERA,QUERY_SPAWN,AIRFRAME_MASK,TERRAIN_MASK,BUILDING_MASK,COLLISION_FILTER_MATRIX,collisionFilterSummary} from '../sim/collision_filter_matrix.mjs';
+
+const bits=[COLLISION_TERRAIN,COLLISION_AIRFRAME,QUERY_RANGEFINDER,QUERY_CAMERA,QUERY_SPAWN];
+assert.equal(new Set(bits.map(String)).size,bits.length,'collision/query bits must be unique');
+for(const bit of bits)assert.equal(bit&(bit-1n),0n,`bit ${bit} is not a power of two`);
+assert.equal(TERRAIN_MASK,30n);
+assert.equal(BUILDING_MASK,26n);
+assert.equal(AIRFRAME_MASK,1n);
+assert.ok(TERRAIN_MASK&COLLISION_AIRFRAME);
+assert.ok(TERRAIN_MASK&QUERY_RANGEFINDER);
+assert.ok(TERRAIN_MASK&QUERY_CAMERA);
+assert.ok(TERRAIN_MASK&QUERY_SPAWN);
+assert.ok(BUILDING_MASK&COLLISION_AIRFRAME);
+assert.ok(BUILDING_MASK&QUERY_CAMERA);
+assert.ok(BUILDING_MASK&QUERY_SPAWN);
+assert.equal(BUILDING_MASK&QUERY_RANGEFINDER,0n,'buildings must never become GAME AGL');
+assert.notEqual(QUERY_SPAWN,QUERY_CAMERA);
+assert.notEqual(QUERY_SPAWN,QUERY_RANGEFINDER);
+
+const pair=(a,b)=>Boolean((a.maskBits&b.categoryBits)&&(b.maskBits&a.categoryBits));
+assert.equal(pair(COLLISION_FILTER_MATRIX.airframe,COLLISION_FILTER_MATRIX.terrain),true);
+assert.equal(pair(COLLISION_FILTER_MATRIX.airframe,COLLISION_FILTER_MATRIX.building),true);
+assert.equal(pair(COLLISION_FILTER_MATRIX.rangefinder,COLLISION_FILTER_MATRIX.terrain),true);
+assert.equal(pair(COLLISION_FILTER_MATRIX.rangefinder,COLLISION_FILTER_MATRIX.building),false);
+assert.equal(pair(COLLISION_FILTER_MATRIX.camera,COLLISION_FILTER_MATRIX.terrain),true);
+assert.equal(pair(COLLISION_FILTER_MATRIX.camera,COLLISION_FILTER_MATRIX.building),true);
+assert.equal(pair(COLLISION_FILTER_MATRIX.spawn,COLLISION_FILTER_MATRIX.terrain),true);
+assert.equal(pair(COLLISION_FILTER_MATRIX.spawn,COLLISION_FILTER_MATRIX.building),true);
+assert.deepEqual(collisionFilterSummary(),{terrain:30,building:26,airframe:1,rangefinder:4,camera:8,spawn:16});
+console.log('Box3D collision filter matrix passed: terrain=30, buildings=26, AGL excludes buildings, camera/spawn include them.');
