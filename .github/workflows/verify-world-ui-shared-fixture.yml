@@ -16,13 +16,16 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Apply asserted test-only patch
+      - name: Apply asserted WORLD startup patches
         run: |
           set -euxo pipefail
           python3 tools/patch_world_ui_shared_fixture.py
+          python3 tools/patch_world_activation_tile_stability.py
           node --check tests/real_world_ui_smoke.mjs
+          node --check sim/real_world_bootstrap.mjs
           grep -Fq 'installDeterministicWorldFixture(page' tests/real_world_ui_smoke.mjs
           ! grep -Fq 'const demTile=Buffer.from(' tests/real_world_ui_smoke.mjs
+          grep -Fq 'if(this.loading)return false;' sim/real_world_bootstrap.mjs
 
       - name: Install browser build dependencies
         run: |
@@ -68,13 +71,13 @@ jobs:
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
 
-      - name: Commit verified test blob to branch
+      - name: Commit verified runtime and test blobs to branch
         run: |
           set -euxo pipefail
           rm -f node_modules
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests/real_world_ui_smoke.mjs
+          git add sim/real_world_bootstrap.mjs tests/real_world_ui_smoke.mjs
           git diff --cached --quiet && exit 0
-          git commit -m "Use shared deterministic WORLD fixture in UI gate"
+          git commit -m "Stabilize WORLD physical startup before map tracking"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
