@@ -23,7 +23,10 @@ try{
     const bridge=globalThis.__arondightRealWorld,map=bridge.map,viewport=document.querySelector("#viewport"),diagnostics=globalThis.__arondightDiagnostics;
     const radius=6378137,cosLat=Math.max(.01,Math.cos(bridge.originLat*Math.PI/180)),ll=(east,north)=>[bridge.originLon+east/radius/cosLat*180/Math.PI,bridge.originLat+north/radius*180/Math.PI];
     const ring=[ll(8,-2),ll(12,-2),ll(12,2),ll(8,2),ll(8,-2)],feature={id:987654,properties:{render_height:9,render_min_height:1},geometry:{type:"Polygon",coordinates:[ring]}},courtyard={id:987655,properties:{render_height:12},geometry:{type:"Polygon",coordinates:[[ll(20,-5),ll(30,-5),ll(30,5),ll(20,5),ll(20,-5)],[ll(22,-3),ll(22,3),ll(28,3),ll(28,-3),ll(22,-3)]]}};
-    const originalSourceId=bridge.buildingSourceId,original=map.querySourceFeatures?.bind(map);bridge.buildingSourceId="fixture-buildings";map.querySourceFeatures=()=>[feature,courtyard];bridge.buildingCollisionDirty=true;const changed=bridge.syncBuildingCollisions(true);map.querySourceFeatures=original;bridge.buildingSourceId=originalSourceId;
+    // Keep an intentionally nonexistent source id after the one-shot synthetic
+    // query. Background WORLD syncs then stay in "waiting" instead of replacing
+    // the installed fixture colliders with an empty vector-source snapshot.
+    const original=map.querySourceFeatures?.bind(map);bridge.buildingSourceId="fixture-buildings";map.querySourceFeatures=()=>[feature,courtyard];bridge.buildingCollisionDirty=true;const changed=bridge.syncBuildingCollisions(true);map.querySourceFeatures=original;
     return{changed,status:viewport.dataset.worldBuildingCollisionStatus,terrain:viewport.dataset.worldTerrainStatus,footprints:Number(viewport.dataset.worldBuildingCollisionFootprints),prisms:Number(viewport.dataset.worldBuildingCollisionPrisms),physicsPrisms:Number(diagnostics.worldBuildingCollisionPrisms),revision:Number(diagnostics.worldBuildingCollisionRevision)};
   });
   if(!installed.changed||installed.terrain!=="box3d-active"||installed.status!=="box3d-active"||installed.footprints!==2||installed.prisms!==9||installed.physicsPrisms!==9)throw new Error(`OSM + DEM → bridge → Box3D installation failed: ${JSON.stringify(installed)}`);
