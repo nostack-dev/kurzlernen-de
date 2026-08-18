@@ -68,6 +68,8 @@ requireText("sim/simulator.mjs","deriveQuadMassProperties");
 requireText("sim/simulator.mjs","mass.center=[...p.massCenter]");
 requireText("sim/simulator.mjs","scaleCurrentsToPackLimit(currents,p.batteryMaxCurrentA)");
 forbidText("sim/simulator.mjs","mass.center=[0,0,-.006]","center of mass must come from component BOM");
+requireText("sim/simulator.mjs","horizontalSpeed=Math.hypot(relative[0],relative[1])","horizontal drag must use total body-plane airspeed");
+forbidText("sim/simulator.mjs","drag=relative.map((v,i)=>-.5*p.rho*cdA[i]*v*Math.abs(v))","separable x/y quadratic drag makes diagonal flight artificially low-drag");
 requireText("esp32/Arondight45_StateControl.hpp","kHorizontalIntegralLimitMps2 = 7.0f");
 forbidText("esp32/Arondight45_DroneFC_Core.hpp","cmd.roll * 32.0f", "inner attitude range must not silently cap GAME at the MANUAL 32-degree envelope");
 requireText("esp32/Arondight45_StateControl.hpp","shaped_magnitude = shape(magnitude, 0.035f, 0.25f)");

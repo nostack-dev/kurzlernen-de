@@ -491,7 +491,7 @@ class PhysicsModel {
       b3.b3Body_ApplyForce(this.body,this.worldVector([0,0,thrust]),this.worldPoint(this.motorPos[i]),true);
       b3.b3Body_ApplyTorque(this.body,this.worldVector([0,0,yawSign[i]*motorTorque]),true);
     }
-    const relative=this.localVector(sub(this.linear(),p.wind)),cdA=this.cdA,drag=relative.map((v,i)=>-.5*p.rho*cdA[i]*v*Math.abs(v));b3.b3Body_ApplyForceToCenter(this.body,this.worldVector(drag),true);
+    const relative=this.localVector(sub(this.linear(),p.wind)),cdA=this.cdA,horizontalSpeed=Math.hypot(relative[0],relative[1]),drag=[-.5*p.rho*cdA[0]*relative[0]*horizontalSpeed,-.5*p.rho*cdA[1]*relative[1]*horizontalSpeed,-.5*p.rho*cdA[2]*relative[2]*Math.abs(relative[2])];b3.b3Body_ApplyForceToCenter(this.body,this.worldVector(drag),true);
     const omega=this.localVector(this.angular()),angularDrag=omega.map(v=>-.0012*v*Math.abs(v));b3.b3Body_ApplyTorque(this.body,this.worldVector(angularDrag),true);
   }
   step(pulses,dt=DT){
