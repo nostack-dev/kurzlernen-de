@@ -36,13 +36,17 @@ for(const marker of ["#086a9d","#ffd34f","#dbe4e9","AERIAL","ROADS","3D BUILDING
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
 const page=await browser.newPage();
 const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
+const VECTOR_HOST="tiles.openfreemap.org";
+const DEM_HOST="tiles.mapterhorn.com";
 const WORLD_IMAGERY_PREFIX="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/";
-const LIVE_PROVIDER_HOSTS=new Set(["tiles.openfreemap.org","tiles.mapterhorn.com"]);
 const fixtureTile=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
+const vectorTile=Buffer.from("1a0f0a086275696c64696e672880207802","hex");
+const demTile=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAAG4ElEQVR42u3WMQEAMAyAMKTX+Wqi33LEABdNPQDgL4kAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAGAAhAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAADAAIgAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAGAAhAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAADAAIgAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAGAAhAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAADAAIgAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAGAAhAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAADAAIgAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAGAAhAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAADAAIgAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAGAAhAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAHcWtddZxTTuf5gAAAAASUVORK5CYII=","base64");
 const providerRequests=[];
 const imageryRequests=[];
 const external=[];
-const allowedWorldProviderUrl=url=>{try{const parsed=new URL(url);return url.startsWith(WORLD_IMAGERY_PREFIX)||LIVE_PROVIDER_HOSTS.has(parsed.hostname);}catch{return false;}};
+const fixtureStyle={version:8,name:"Arondight45 deterministic WORLD fixture",sources:{"fixture-vector":{type:"vector",tiles:["https://tiles.openfreemap.org/ci/{z}/{x}/{y}.pbf"],minzoom:0,maxzoom:14}},layers:[{id:"background",type:"background",paint:{"background-color":"#243440"}}]};
+const allowedWorldProviderUrl=url=>{try{const parsed=new URL(url);return url.startsWith(WORLD_IMAGERY_PREFIX)||parsed.hostname===VECTOR_HOST||parsed.hostname===DEM_HOST;}catch{return false;}};
 await browser.defaultBrowserContext().overridePermissions(base,["geolocation"]);
 await page.setGeolocation({latitude:39.569600,longitude:2.650200,accuracy:4});
 await page.setRequestInterception(true);
@@ -50,8 +54,9 @@ page.on("request",request=>{
   const url=request.url(),parsed=new URL(url);
   if(["data:","blob:","about:"].includes(parsed.protocol)||["127.0.0.1","localhost"].includes(parsed.hostname)){request.continue();return;}
   external.push(url);
-  if(url.startsWith(OPENFREEMAP_STYLE)){providerRequests.push(url);request.continue();return;}
-  if(LIVE_PROVIDER_HOSTS.has(parsed.hostname)){request.continue();return;}
+  if(url.startsWith(OPENFREEMAP_STYLE)){providerRequests.push(url);request.respond({status:200,contentType:"application/json",headers:{"access-control-allow-origin":"*","cache-control":"no-store"},body:JSON.stringify(fixtureStyle)});return;}
+  if(parsed.hostname===VECTOR_HOST&&parsed.pathname.endsWith(".pbf")){request.respond({status:200,contentType:"application/x-protobuf",headers:{"access-control-allow-origin":"*","cache-control":"no-store"},body:vectorTile});return;}
+  if(parsed.hostname===DEM_HOST){request.respond({status:200,contentType:"image/png",headers:{"access-control-allow-origin":"*","cache-control":"no-store"},body:demTile});return;}
   if(url.startsWith(WORLD_IMAGERY_PREFIX)){imageryRequests.push(url);request.respond({status:200,contentType:"image/png",headers:{"access-control-allow-origin":"*","cache-control":"public,max-age=3600"},body:fixtureTile});return;}
   request.abort();
 });
@@ -165,5 +170,5 @@ try{
 
   const log=await page.evaluate(()=>{const l=globalThis.__arondightFlightLogbook;l.clear();l.observe({simTime:1,armed:true,x:0,y:0,z:2,vx:0,vy:0,vz:0,yawDeg:0,speed:0,agl:2,aglValid:true,batteryV:16.7,worldMode:"real"});l.observe({simTime:3,armed:true,x:2,y:0,z:2,vx:-1,vy:0,vz:0,yawDeg:0,speed:1,agl:2,aglValid:true,batteryV:16.4,worldMode:"real"});l.observe({simTime:4,armed:false,disarmReason:"TEST_END",x:2,y:0,z:2,vx:0,vy:0,vz:0,yawDeg:0,speed:0,agl:2,aglValid:true,batteryV:16.3,worldMode:"real"});const snap=l.snapshot();return{count:snap.entries.length,entry:snap.entries[0],stored:JSON.parse(localStorage.getItem("arondight45FlightLogbookV1")||"[]").length};});if(log.count!==1||log.stored!==1||log.entry.endReason!=="TEST_END"||log.entry.distanceM<1.9||log.entry.maxForwardMps<.9)throw new Error(`flight logbook session failed: ${JSON.stringify(log)}`);
 
-  console.log(`REAL WORLD E2E passed: automatic FPV/Solo + GPS WORLD startup with mandatory real DEM/Box3D terrain, real aerial/satellite imagery in flight view + strict orthographic top-down minimap, persisted imagery/axis/grid settings, exact FPV camera registration, 5-90 km/h GAME speed, 1:1 touch-coordinate firing, and one recycled 32-mesh THREE decal pool across WORLD/TRAINING.`);
+  console.log(`REAL WORLD E2E passed: automatic FPV/Solo + GPS WORLD startup with mandatory DEM/Box3D terrain, aerial/satellite imagery in flight view + strict orthographic top-down minimap, persisted imagery/axis/grid settings, exact FPV camera registration, 5-90 km/h GAME speed, 1:1 touch-coordinate firing, and one recycled 32-mesh THREE decal pool across WORLD/TRAINING.`);
 }finally{await browser.close();}
