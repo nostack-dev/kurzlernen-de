@@ -28,11 +28,13 @@ jobs:
           lines=Path('.github/workflows/apply-world-terrain-integration.yml').read_text().splitlines()
           anchor=next(i for i,l in enumerate(lines) if l.strip()=='- name: Patch, verify and publish')
           run_i=next(i for i in range(anchor+1,len(lines)) if lines[i].strip()=='run: |')
+          end=next(i for i in range(run_i+1,len(lines)) if lines[i].strip()=='- name: Report success')
           body=[]
-          for line in lines[run_i+1:]:
+          for line in lines[run_i+1:end]:
               if line.startswith('          '): body.append(line[10:])
+              elif line.startswith('        '): body.append(line[8:])
               elif not line.strip(): body.append('')
-              else: break
+              else: body.append(line)
           if not body: raise SystemExit('V2 run body extraction returned empty')
           Path('/tmp/world-v2.sh').write_text('\n'.join(body)+'\n')
           print('extracted',len(body),'lines')
