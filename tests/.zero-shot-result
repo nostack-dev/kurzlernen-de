@@ -1,0 +1,53 @@
+EXIT=0
++ mkdir -p generated
++ docker run --rm -v /home/runner/work/kurzlernen-de/kurzlernen-de:/src -w /src emscripten/emsdk:4.0.10 em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT=web -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 -s 'EXPORTED_RUNTIME_METHODS=["HEAPU8"]' -s 'EXPORTED_FUNCTIONS=["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' -o generated/flight_core.mjs
+Unable to find image 'emscripten/emsdk:4.0.10' locally
+4.0.10: Pulling from emscripten/emsdk
+89dc6ea4eae2: Pulling fs layer
+382b3187089b: Pulling fs layer
+a00ac683e10e: Pulling fs layer
+ecc648ae4b9b: Pulling fs layer
+70dfeae2c9b3: Pulling fs layer
+ecc648ae4b9b: Waiting
+70dfeae2c9b3: Waiting
+a00ac683e10e: Verifying Checksum
+a00ac683e10e: Download complete
+89dc6ea4eae2: Verifying Checksum
+89dc6ea4eae2: Download complete
+70dfeae2c9b3: Verifying Checksum
+70dfeae2c9b3: Download complete
+ecc648ae4b9b: Verifying Checksum
+ecc648ae4b9b: Download complete
+382b3187089b: Verifying Checksum
+382b3187089b: Download complete
+89dc6ea4eae2: Pull complete
+382b3187089b: Pull complete
+a00ac683e10e: Pull complete
+ecc648ae4b9b: Pull complete
+70dfeae2c9b3: Pull complete
+Digest: sha256:90b757eb11fa9a0e3ce4d2d9f76d932a56018e4accc37b5a28b2783751e60eb7
+Status: Downloaded newer image for emscripten/emsdk:4.0.10
++ BUILD_DIR=/tmp/arondight45-web-build
++ mkdir -p /tmp/arondight45-web-build
++ cd /tmp/arondight45-web-build
++ npm init -y
++ npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 mqtt@5.15.2 nostr-tools@2.24.1 qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.3 @trystero-p2p/mqtt@0.25.3 @trystero-p2p/torrent@0.25.3
+
+added 161 packages in 8s
++ ln -s /tmp/arondight45-web-build/node_modules /home/runner/work/kurzlernen-de/kurzlernen-de/node_modules
++ cd /home/runner/work/kurzlernen-de/kurzlernen-de
++ ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
+
+  ../../../../../tmp/arondight45-simulator.bundle.mjs  3.7mb ⚠️
+
+⚡ Done in 179ms
++ python3 -
+++ command -v google-chrome
++ CHROME_BIN=/usr/bin/google-chrome
++ HTTP_PID=2640
++ sleep 1
++ python3 -m http.server 4174 --bind 127.0.0.1
++ CHROME_BIN=/usr/bin/google-chrome
++ node tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174
+VS combat browser smoke passed: real pose path, drone-to-drone range, enemy HP/marker/contrast, 4.5x fight visibility, zero-shot double-tap shared target beacon, connected stale-pose mesh+tracker hold, real AudioContext start, reusable explosion buffer, 100 HP, dedupe, kill and packet-authoritative respawn indications.
++ kill 2640
