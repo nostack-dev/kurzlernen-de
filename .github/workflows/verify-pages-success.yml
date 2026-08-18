@@ -21,12 +21,11 @@ jobs:
             const sha = run.head_sha;
             const conclusion = String(run.conclusion || 'unknown').toUpperCase();
             const title = `PAGES_DEPLOY_${conclusion} ${sha}`;
-            const existing = await github.rest.issues.listForRepo({owner: context.repo.owner, repo: context.repo.repo, state: 'all', labels: 'pages-deploy-verifier', per_page: 100});
+            const existing = await github.rest.issues.listForRepo({owner: context.repo.owner, repo: context.repo.repo, state: 'all', per_page: 100});
             if (existing.data.some(issue => issue.title === title)) return;
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title,
-              body: `Deploy static site completed with conclusion ${run.conclusion} for ${sha}. Workflow run: ${run.id}`,
-              labels: ['pages-deploy-verifier']
+              body: `Deploy static site completed with conclusion ${run.conclusion} for ${sha}. Workflow run: ${run.id}`
             });
