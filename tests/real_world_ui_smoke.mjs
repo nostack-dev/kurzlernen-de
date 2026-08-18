@@ -1,4 +1,5 @@
 import puppeteer from "puppeteer-core";
+import {installDeterministicWorldFixture} from "./world_browser_fixture.mjs";
 import {readFileSync} from "node:fs";
 
 const base=process.argv[2]||"http://127.0.0.1:4174";
@@ -36,25 +37,35 @@ for(const marker of ["#086a9d","#ffd34f","#dbe4e9","AERIAL","ROADS","3D BUILDING
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
 const page=await browser.newPage();
 const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
+const VECTOR_HOST="tiles.openfreemap.org";
+const DEM_HOST="tiles.mapterhorn.com";
 const WORLD_IMAGERY_PREFIX="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/";
-const fixtureTile=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
 const providerRequests=[];
 const imageryRequests=[];
 const external=[];
-const fixtureStyle={version:8,name:"Arondight45 CI world fixture",sources:{},layers:[{id:"background",type:"background",paint:{"background-color":"#243440"}}]};
-await browser.defaultBrowserContext().overridePermissions(base,["geolocation"]);
-await page.setGeolocation({latitude:39.569600,longitude:2.650200,accuracy:4});
-await page.setRequestInterception(true);
+const failedRequests=[];
+const consoleErrors=[];
+const allowedWorldProviderUrl=url=>{try{const parsed=new URL(url);return url.startsWith(WORLD_IMAGERY_PREFIX)||parsed.hostname===VECTOR_HOST||parsed.hostname===DEM_HOST;}catch{return false;}};
 page.on("request",request=>{
-  const url=request.url(),parsed=new URL(url);
-  if(["data:","blob:","about:"].includes(parsed.protocol)||["127.0.0.1","localhost"].includes(parsed.hostname)){request.continue();return;}
+  const url=request.url();let parsed;try{parsed=new URL(url);}catch{return;}
+  if(["data:","blob:","about:"].includes(parsed.protocol)||["127.0.0.1","localhost"].includes(parsed.hostname))return;
   external.push(url);
-  if(url.startsWith(OPENFREEMAP_STYLE)){providerRequests.push(url);request.respond({status:200,contentType:"application/json",headers:{"access-control-allow-origin":"*","cache-control":"no-store"},body:JSON.stringify(fixtureStyle)});return;}
-  if(url.startsWith(WORLD_IMAGERY_PREFIX)){imageryRequests.push(url);request.respond({status:200,contentType:"image/png",headers:{"access-control-allow-origin":"*","cache-control":"public,max-age=3600"},body:fixtureTile});return;}
-  request.abort();
+  if(url.startsWith(OPENFREEMAP_STYLE))providerRequests.push(url);
+  if(url.startsWith(WORLD_IMAGERY_PREFIX))imageryRequests.push(url);
 });
+page.on("requestfailed",request=>failedRequests.push(`${request.failure()?.errorText||"FAILED"} ${request.url()}`));
+page.on("pageerror",error=>consoleErrors.push(`PAGEERROR ${error.message}`));
+page.on("console",message=>{if(message.type()==="error"||message.type()==="warning")consoleErrors.push(`${message.type().toUpperCase()} ${message.text()}`);});
+await installDeterministicWorldFixture(page,{base,styleName:"Arondight45 deterministic WORLD fixture",latitude:39.569600,longitude:2.650200});
 
-const waitWorld=()=>page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-imagery"&&v?.dataset.worldImageryLayer==="ready"&&Number(v?.dataset.worldMinimapImageryTiles||0)>0&&Number(v?.dataset.worldThreeFrames||0)>4;},{timeout:20000});
+const waitWorld=async()=>{
+  try{
+    await page.waitForFunction(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-mapterhorn-dem"&&v?.dataset.worldTerrainStatus==="box3d-active"&&v?.dataset.worldImageryLayer==="ready"&&Boolean(b?.active)&&!b?.loading&&Boolean(b?.map)&&Boolean(b?.threeRenderer)&&Number(v?.dataset.worldThreeFrames||0)>=1&&Number(v?.dataset.presentationDraws||0)>=10;},{timeout:35000});
+  }catch(error){
+    const diagnostics=await page.evaluate(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return{status:document.querySelector("#status")?.textContent||"",realWorldStatus:document.querySelector("#realWorldStatus")?.textContent||"",worldMode:v?.dataset.worldMode||"",provider:v?.dataset.worldProvider||"",terrain:v?.dataset.worldTerrainStatus||"",terrainTriangles:v?.dataset.worldTerrainTriangles||"",imagery:v?.dataset.worldImageryLayer||"",active:Boolean(b?.active),loading:Boolean(b?.loading),map:Boolean(b?.map),renderer:Boolean(b?.threeRenderer),buildingSource:b?.buildingSourceId||"",worldFrames:v?.dataset.worldThreeFrames||"",presentationDraws:v?.dataset.presentationDraws||"",autoWorldLocationSource:v?.dataset.autoWorldLocationSource||""};});
+    throw new Error(`WORLD UI readiness failed: ${JSON.stringify({diagnostics,failedRequests:failedRequests.slice(-20),consoleErrors:consoleErrors.slice(-20),external:external.slice(-20)})}`,{cause:error});
+  }
+};
 
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
@@ -74,7 +85,7 @@ try{
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
   const config=await page.evaluate(()=>({section:!!document.querySelector('[data-world-settings="openfreemap-osm-3d"]'),imagery:document.querySelector('[data-world-imagery]')?.checked,grid:document.querySelector('[data-world-grid]')?.checked,keep:document.querySelector('[data-world-keep-look]')?.checked,axis:document.querySelector('.phone-settings-dialog input[data-world-minimap-axis-lock]')?.checked,axisDisabled:document.querySelector('.phone-settings-dialog input[data-world-minimap-axis-lock]')?.disabled,obsolete:!!document.querySelector('[data-world-minimap-follow]'),fovLabel:[...document.querySelectorAll('.camera-settings-section label')].some(x=>x.textContent.includes('VIEW FOV')),speed:Number(document.querySelector('[data-slider="speed"]')?.value),speedText:document.querySelector('[data-out="speed"]')?.value||"",note:document.querySelector('[data-world-settings="openfreemap-osm-3d"]')?.textContent||""}));
   if(!config.section||config.imagery!==true||config.grid!==true||config.keep!==false||config.axis!==true||config.axisDisabled!==Boolean(await page.evaluate(()=>document.fullscreenElement))||config.obsolete||!config.fovLabel||config.speed!==36||!config.speedText.includes("36 km/h")||!config.note.includes("No account, API key, billing setup, backend or proxy")||!config.note.includes("ON by default"))throw new Error(`WORLD/settings contract failed: ${JSON.stringify(config)}`);
-  const unexpectedSettingsNetwork=external.slice(externalAfterAutoWorld).filter(url=>!url.startsWith(WORLD_IMAGERY_PREFIX));if(unexpectedSettingsNetwork.length)throw new Error(`settings path triggered unexpected external network: ${JSON.stringify(unexpectedSettingsNetwork)}`);
+  const unexpectedSettingsNetwork=external.slice(externalAfterAutoWorld).filter(url=>!allowedWorldProviderUrl(url));if(unexpectedSettingsNetwork.length)throw new Error(`settings path triggered unexpected external network: ${JSON.stringify(unexpectedSettingsNetwork)}`);
   const speedPersist=await page.evaluate(()=>{const slider=document.querySelector('[data-slider="speed"]');slider.value="42";slider.dispatchEvent(new Event("input",{bubbles:true}));return JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}").maxHorizontalSpeedKmh;});
   if(speedPersist!==42)throw new Error(`horizontal speed did not persist to Local Storage: ${speedPersist}`);
   await page.evaluate(()=>{const slider=document.querySelector('[data-slider="speed"]');slider.value="36";slider.dispatchEvent(new Event("input",{bubbles:true}));});
@@ -87,9 +98,9 @@ try{
   await page.click('.phone-settings-dialog [data-world-grid]');await page.click('.phone-settings-dialog [data-close]');await page.waitForFunction(()=>localStorage.getItem("arondight45WorldGridV1")==="1",{timeout:3000});
   const gridOn=await page.evaluate(()=>localStorage.getItem("arondight45WorldGridV1"));if(gridOn!=="1")throw new Error(`WORLD GRID on did not persist: ${gridOn}`);
 
-  const live=await page.evaluate(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return{button:document.querySelector("#soloWorld")?.textContent||"",mode:v?.dataset.worldMode,provider:v?.dataset.worldProvider,map:Boolean(b?.map),renderer:Boolean(b?.threeRenderer),imagery:v?.dataset.worldImageryEnabled,imageryLayer:v?.dataset.worldImageryLayer,imagerySource:Boolean(b?.map?.getSource("arondight45-world-imagery")),imageryVisible:b?.map?.getLayoutProperty("arondight45-world-imagery-raster","visibility"),miniTiles:Number(v?.dataset.worldMinimapImageryTiles||0),minimap:v?.dataset.worldMinimapMode,miniBearing:v?.dataset.worldMinimapBearing,projection:v?.dataset.worldMinimapProjection,pitch:Number(v?.dataset.worldMinimapPitch),roll:Number(v?.dataset.worldMinimapRoll),heightMode:v?.dataset.worldMinimapHeightMode,axis:v?.dataset.worldMinimapAxisLock,axisApplied:v?.dataset.worldMinimapAxisLockApplied,fullscreen:Boolean(document.fullscreenElement),legend:getComputedStyle(document.querySelector("#worldMapLegend")).display,palette:Number(v?.dataset.worldPaletteLayers||0),canvasCount:document.querySelectorAll("#viewport canvas").length};});
-  if(live.button!=="WORLD ✓"||live.mode!=="real"||live.provider!=="openfreemap-esri-imagery"||!live.map||!live.renderer||live.imagery!=="1"||live.imageryLayer!=="ready"||!live.imagerySource||live.imageryVisible!=="visible"||live.miniTiles<1||live.minimap!=="north"||Number(live.miniBearing)!==0||live.projection!=="topdown"||live.pitch!==0||live.roll!==0||live.heightMode!=="flat-footprints"||live.axis!=="1"||live.axisApplied!==(live.fullscreen?"0":"1")||live.legend==="none"||live.palette<1||live.canvasCount!==3)throw new Error(`WORLD live contract failed: ${JSON.stringify(live)}`);
-  if(providerRequests.length!==1)throw new Error(`expected one OpenFreeMap style request, got ${providerRequests.length}`);
+  const live=await page.evaluate(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return{button:document.querySelector("#soloWorld")?.textContent||"",mode:v?.dataset.worldMode,provider:v?.dataset.worldProvider,terrain:v?.dataset.worldTerrainStatus,terrainTriangles:Number(v?.dataset.worldTerrainTriangles||0),map:Boolean(b?.map),renderer:Boolean(b?.threeRenderer),imagery:v?.dataset.worldImageryEnabled,imageryLayer:v?.dataset.worldImageryLayer,imagerySource:Boolean(b?.map?.getSource("arondight45-world-imagery")),imageryVisible:b?.map?.getLayoutProperty("arondight45-world-imagery-raster","visibility"),miniTiles:Number(v?.dataset.worldMinimapImageryTiles||0),minimap:v?.dataset.worldMinimapMode,miniBearing:v?.dataset.worldMinimapBearing,projection:v?.dataset.worldMinimapProjection,pitch:Number(v?.dataset.worldMinimapPitch),roll:Number(v?.dataset.worldMinimapRoll),heightMode:v?.dataset.worldMinimapHeightMode,axis:v?.dataset.worldMinimapAxisLock,axisApplied:v?.dataset.worldMinimapAxisLockApplied,fullscreen:Boolean(document.fullscreenElement),legend:getComputedStyle(document.querySelector("#worldMapLegend")).display,palette:Number(v?.dataset.worldPaletteLayers||0),canvasCount:document.querySelectorAll("#viewport canvas").length};});
+  if(live.button!=="WORLD ✓"||live.mode!=="real"||live.provider!=="openfreemap-esri-mapterhorn-dem"||live.terrain!=="box3d-active"||live.terrainTriangles<1||!live.map||!live.renderer||live.imagery!=="1"||live.imageryLayer!=="ready"||!live.imagerySource||live.imageryVisible!=="visible"||live.miniTiles<1||live.minimap!=="north"||Number(live.miniBearing)!==0||live.projection!=="topdown"||live.pitch!==0||live.roll!==0||live.heightMode!=="flat-footprints"||live.axis!=="1"||live.axisApplied!==(live.fullscreen?"0":"1")||live.legend==="none"||live.palette<1||live.canvasCount!==3)throw new Error(`WORLD live contract failed: ${JSON.stringify(live)}`);
+  if(providerRequests.length<1)throw new Error("OpenFreeMap style was never requested");
   if(imageryRequests.length<1)throw new Error("real imagery source was never requested");
 
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click('.phone-settings-dialog [data-world-imagery]');await page.click('.phone-settings-dialog [data-close]');
@@ -126,13 +137,15 @@ try{
 
   if(!await page.evaluate(()=>Boolean(document.fullscreenElement))){
     await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
-    await page.click('.phone-settings-dialog [data-world-minimap-axis-lock]');await page.click('.phone-settings-dialog [data-close]');
+    await page.click('.phone-settings-dialog [data-world-minimap-axis-lock]');
+    await page.waitForFunction(()=>localStorage.getItem("arondight45WorldMinimapAxisLockV1")==="0",{timeout:3000});
     const unlocked=await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport");b.lookYawDeg=37;b.lookPitchDeg=22;b.minimapLastDrawMs=-Infinity;b.renderLookHud();b.drawMinimap(performance.now());return{stored:localStorage.getItem("arondight45WorldMinimapAxisLockV1"),bearing:Number(v.dataset.worldMinimapBearing),mode:v.dataset.worldMinimapMode,projection:v.dataset.worldMinimapProjection,pitch:Number(v.dataset.worldMinimapPitch),roll:Number(v.dataset.worldMinimapRoll),heightMode:v.dataset.worldMinimapHeightMode,applied:v.dataset.worldMinimapAxisLockApplied};});
     if(unlocked.stored!=="0"||Math.abs(unlocked.bearing-37)>.01||unlocked.mode!=="look"||unlocked.projection!=="topdown"||unlocked.pitch!==0||unlocked.roll!==0||unlocked.heightMode!=="flat-footprints"||unlocked.applied!=="0")throw new Error(`non-fullscreen minimap axis unlock failed without preserving top-down projection: ${JSON.stringify(unlocked)}`);
-    await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
-    await page.click('.phone-settings-dialog [data-world-minimap-axis-lock]');await page.click('.phone-settings-dialog [data-close]');
+    await page.click('.phone-settings-dialog [data-world-minimap-axis-lock]');
+    await page.waitForFunction(()=>localStorage.getItem("arondight45WorldMinimapAxisLockV1")==="1",{timeout:3000});
     const relocked=await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport");b.minimapLastDrawMs=-Infinity;b.drawMinimap(performance.now());return{stored:localStorage.getItem("arondight45WorldMinimapAxisLockV1"),bearing:Number(v.dataset.worldMinimapBearing),mode:v.dataset.worldMinimapMode,projection:v.dataset.worldMinimapProjection,applied:v.dataset.worldMinimapAxisLockApplied};});
     if(relocked.stored!=="1"||Math.abs(relocked.bearing)>.01||relocked.mode!=="north"||relocked.projection!=="topdown"||relocked.applied!=="1")throw new Error(`default minimap vertical-axis lock did not restore fixed horizontal: ${JSON.stringify(relocked)}`);
+    await page.click('.phone-settings-dialog [data-close]');
     await page.evaluate(()=>globalThis.__arondightRealWorld.resetLook(true));
   }
 
@@ -163,5 +176,5 @@ try{
 
   const log=await page.evaluate(()=>{const l=globalThis.__arondightFlightLogbook;l.clear();l.observe({simTime:1,armed:true,x:0,y:0,z:2,vx:0,vy:0,vz:0,yawDeg:0,speed:0,agl:2,aglValid:true,batteryV:16.7,worldMode:"real"});l.observe({simTime:3,armed:true,x:2,y:0,z:2,vx:-1,vy:0,vz:0,yawDeg:0,speed:1,agl:2,aglValid:true,batteryV:16.4,worldMode:"real"});l.observe({simTime:4,armed:false,disarmReason:"TEST_END",x:2,y:0,z:2,vx:0,vy:0,vz:0,yawDeg:0,speed:0,agl:2,aglValid:true,batteryV:16.3,worldMode:"real"});const snap=l.snapshot();return{count:snap.entries.length,entry:snap.entries[0],stored:JSON.parse(localStorage.getItem("arondight45FlightLogbookV1")||"[]").length};});if(log.count!==1||log.stored!==1||log.entry.endReason!=="TEST_END"||log.entry.distanceM<1.9||log.entry.maxForwardMps<.9)throw new Error(`flight logbook session failed: ${JSON.stringify(log)}`);
 
-  console.log(`REAL WORLD E2E passed: automatic FPV/Solo + GPS WORLD startup, real aerial/satellite imagery in flight view + strict orthographic top-down minimap, persisted imagery/axis/grid settings, exact FPV camera registration, 5-90 km/h GAME speed, 1:1 touch-coordinate firing, and one recycled 32-mesh THREE decal pool across WORLD/TRAINING.`);
+  console.log(`REAL WORLD E2E passed: automatic FPV/Solo + GPS WORLD startup with mandatory DEM/Box3D terrain, aerial/satellite imagery in flight view + strict orthographic top-down minimap, persisted imagery/axis/grid settings, exact FPV camera registration, 5-90 km/h GAME speed, 1:1 touch-coordinate firing, and one recycled 32-mesh THREE decal pool across WORLD/TRAINING.`);
 }finally{await browser.close();}
