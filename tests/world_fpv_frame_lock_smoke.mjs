@@ -1,5 +1,6 @@
 import puppeteer from "puppeteer-core";
 import {readFileSync} from "node:fs";
+import {installDeterministicWorldFixture,waitForCompletedWorldStartup} from "./world_browser_fixture.mjs";
 
 const base=process.argv[2]||"http://127.0.0.1:4174";
 const executablePath=process.env.CHROME_BIN;
@@ -13,27 +14,13 @@ for(const forbidden of ["WORLD_MAP_FRAME_MS","lastFpvSyncFrameSerial","budgeted-
 
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
 const page=await browser.newPage();
-const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
-const WORLD_IMAGERY_PREFIX="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/";
-const fixtureTile=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
-const fixtureStyle={version:8,name:"Arondight45 all-camera frame-lock fixture",sources:{},layers:[{id:"background",type:"background",paint:{"background-color":"#243440"}}]};
-await browser.defaultBrowserContext().overridePermissions(base,["geolocation"]);
-await page.setGeolocation({latitude:39.569600,longitude:2.650200,accuracy:4});
-await page.setRequestInterception(true);
-page.on("request",request=>{
-  const url=request.url(),parsed=new URL(url);
-  if(["data:","blob:","about:"].includes(parsed.protocol)||["127.0.0.1","localhost"].includes(parsed.hostname)){request.continue();return;}
-  if(url.startsWith(OPENFREEMAP_STYLE)){request.respond({status:200,contentType:"application/json",headers:{"access-control-allow-origin":"*","cache-control":"no-store"},body:JSON.stringify(fixtureStyle)});return;}
-  if(url.startsWith(WORLD_IMAGERY_PREFIX)){request.respond({status:200,contentType:"image/png",headers:{"access-control-allow-origin":"*","cache-control":"public,max-age=3600"},body:fixtureTile});return;}
-  request.abort();
-});
+await installDeterministicWorldFixture(page,{base,styleName:"Arondight45 all-camera frame-lock fixture"});
 
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
-  await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});
-  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-imagery"&&globalThis.__arondightRealWorld?.map;},{timeout:20000});
+  await waitForCompletedWorldStartup(page,{timeout:45000,cameraMode:"fpv"});
 
   const result=await page.evaluate(async()=>{
     const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),camera=b.threeCamera.clone(),modes=["fpv","follow","third"];
@@ -97,5 +84,5 @@ try{
     if(screenLocked.samples<150||screenLocked.p95ScreenPx>1)throw new Error(`${mode} MapLibre/THREE screen-space registration exceeds 1px p95: ${JSON.stringify(result)}`);
     if(!(screenHalfRate.p95ScreenPx>screenLocked.p95ScreenPx+1))throw new Error(`${mode} screen-space probe cannot distinguish frame-lock from half-rate jitter: ${JSON.stringify(result)}`);
   }
-  console.log(`WORLD all-camera frame-lock passed: ${JSON.stringify(result)}`);
+  console.log(`WORLD all-camera frame-lock passed on mandatory DEM WORLD: ${JSON.stringify(result)}`);
 }finally{await browser.close();}

@@ -66,7 +66,7 @@ try{
   await page.setViewport({width:1280,height:900,deviceScaleFactor:1});
   await page.goto(url,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
-  await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});
+  await page.waitForFunction(()=>{const viewport=document.querySelector("#viewport");return document.body.classList.contains("solo-flight")&&viewport?.dataset.cameraMode==="fpv"&&viewport.dataset.fpvCameraUpOffsetM==="0.060";},{timeout:5000});
 
   const boot=await page.evaluate(()=>({
     title:document.title,status:document.querySelector("#status")?.textContent||"",

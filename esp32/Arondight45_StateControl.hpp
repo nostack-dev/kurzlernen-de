@@ -324,12 +324,12 @@ private:
     static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
     static constexpr float kMaxHorizontalAccelerationMps2 = 7.5f;
 
-    static constexpr float kAglToVerticalSpeed = 1.30f;
-    static constexpr float kMaxVerticalSpeedMps = 2.0f;
-    static constexpr float kVerticalVelocityGain = 2.0f;
-    static constexpr float kMaxVerticalAccelerationMps2 = 4.0f;
-    static constexpr float kMinSpecificUpMps2 = 4.0f;
-    static constexpr float kMaxSpecificUpMps2 = 14.0f;
+    static constexpr float kAglToVerticalSpeed = 2.00f;
+    static constexpr float kMaxVerticalSpeedMps = 30.0f;
+    static constexpr float kVerticalVelocityGain = 4.0f;
+    static constexpr float kMaxVerticalAccelerationMps2 = 50.0f;
+    static constexpr float kMinSpecificUpMps2 = 0.5f;
+    static constexpr float kMaxSpecificUpMps2 = 60.0f;
 
     static constexpr float kEscCommandOffset =
         static_cast<float>(kEscIdleUs - kEscMinUs) / static_cast<float>(kEscMaxUs - kEscMinUs);
@@ -342,7 +342,7 @@ private:
     static constexpr float kMinHoverTrim = 0.25f;
     static constexpr float kMaxHoverTrim = 0.65f;
     static constexpr float kMinFlightThrottle = 0.08f;
-    static constexpr float kMaxFlightThrottle = 0.85f;
+    static constexpr float kMaxFlightThrottle = 1.00f;
 
     void reset_horizontal_state() {
         acceleration_estimator_valid_ = false;

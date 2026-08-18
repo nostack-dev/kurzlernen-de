@@ -1,4 +1,7 @@
+import {findClearBuildingLaunchPoint} from "./world_building_collision_physics.mjs";
+
 const $=id=>document.getElementById(id);
+const EARTH_RADIUS_M=6378137;
 
 function requestStartupLocation(){
   if(!navigator.geolocation)return Promise.resolve({fix:null,error:Error("Geolocation is not available in this browser")});
@@ -58,6 +61,52 @@ function trainingFallback(message){
   markWorldStartup("sim-fallback");
   syncWorldButton();
 }
+
+function offsetLngLat(originLon,originLat,eastM,northM){
+  const latRad=originLat*Math.PI/180;
+  return[
+    originLon+(eastM/(EARTH_RADIUS_M*Math.max(.01,Math.cos(latRad))))*180/Math.PI,
+    originLat+(northM/EARTH_RADIUS_M)*180/Math.PI,
+  ];
+}
+
+async function snapWorldLaunchOutsideBuildings(timeoutMs=7000){
+  const viewport=$("viewport");if(!bridge.active||bridge.vsWorldFromMate||bridge.vsSession||bridge.vsStarting)return false;
+  const started=performance.now();
+  while(bridge.active&&performance.now()-started<timeoutMs){
+    const airframe=bridge.airframeFor?.(bridge.threeScene),position=airframe?.position;
+    if(position&&(Math.hypot(Number(position.x)||0,Number(position.y)||0)>.35||(Number(position.z)||0)>.20)){
+      if(viewport)viewport.dataset.worldLaunchSnap="skipped-airborne";return false;
+    }
+    bridge.syncBuildingCollisions?.(true);
+    const snapshot=bridge.buildingCollisionSnapshot;
+    if(snapshot?.prismCount>0){
+      const safe=findClearBuildingLaunchPoint(snapshot,{point:[0,0],clearanceM:.75,maxSearchM:80}),east=Number(safe?.[0])||0,north=Number(safe?.[1])||0,offset=Math.hypot(east,north);
+      if(offset<.01){if(viewport){viewport.dataset.worldLaunchSnap="clear";viewport.dataset.worldLaunchOffsetM="0.00";}return true;}
+      const oldLon=Number(bridge.originLon),oldLat=Number(bridge.originLat);if(!Number.isFinite(oldLon)||!Number.isFinite(oldLat))return false;
+      const[newLon,newLat]=offsetLngLat(oldLon,oldLat,east,north);
+      bridge.originLon=newLon;bridge.originLat=newLat;bridge.lastMapSyncMs=-Infinity;bridge.lastMapView=null;bridge.lastMapSyncFrameSerial=-1;bridge.lastViewportSize="";bridge.buildingCollisionLastCenter=[Infinity,Infinity];
+      bridge.clearBuildingCollisions?.();bridge.map?.jumpTo?.({center:[newLon,newLat]});bridge.buildingCollisionDirty=true;bridge.syncBuildingCollisions?.(true);
+      if(viewport){viewport.dataset.worldLaunchSnap="safe";viewport.dataset.worldLaunchOffsetM=offset.toFixed(2);viewport.dataset.worldGpsLatitude=String(oldLat);viewport.dataset.worldGpsLongitude=String(oldLon);viewport.dataset.worldLatitude=String(newLat);viewport.dataset.worldLongitude=String(newLon);}
+      bridge.status?.(`REAL WORLD LIVE · SAFE LAUNCH ${offset.toFixed(1)} m FROM GPS · outside building footprint`,"good");return true;
+    }
+    if(viewport?.dataset.worldBuildingCollisionStatus==="no-nearby-buildings"){viewport.dataset.worldLaunchSnap="clear";viewport.dataset.worldLaunchOffsetM="0.00";return true;}
+    await new Promise(resolve=>setTimeout(resolve,100));
+  }
+  if(viewport)viewport.dataset.worldLaunchSnap="tiles-timeout";return false;
+}
+
+// WORLD may be activated automatically at startup or manually later. Wrap the
+// existing bridge entry point once so every local-GPS activation gets the same
+// launch rule: while still on the ground at local (0,0), move the geospatial
+// origin to the nearest point with real building clearance. Physics remains at
+// the exact local spawn pose; the map/collision frame is rebased around it.
+const activateWorld=bridge.activate.bind(bridge);
+bridge.activate=async(...args)=>{
+  const sharedOrigin=Boolean(args[0]?.vsSharedOrigin),result=await activateWorld(...args);
+  if(!sharedOrigin)await snapWorldLaunchOutsideBuildings();
+  return result;
+};
 
 async function autoWorld(locationResultPromise){
   const {fix,error}=await locationResultPromise;

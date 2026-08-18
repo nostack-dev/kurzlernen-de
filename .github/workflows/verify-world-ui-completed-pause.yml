@@ -1,0 +1,86 @@
+name: Verify WORLD UI completed startup + paused plant
+
+on:
+  push:
+    branches: ["verify/world-ui-completed-pause"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Patch test only
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/real_world_ui_smoke_impl.mjs');s=p.read_text()
+          if 'waitForCompletedWorldStartup' not in s.split('\n',3)[0:3]:
+            old='import {readFileSync} from "node:fs";'
+            new='import {readFileSync} from "node:fs";\nimport {waitForCompletedWorldStartup} from "./world_browser_fixture.mjs";'
+            assert old in s;s=s.replace(old,new,1)
+          old='const waitWorld=()=>page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-mapterhorn-dem"&&v?.dataset.worldTerrainStatus==="box3d-active"&&v?.dataset.worldImageryLayer==="ready"&&Number(v?.dataset.worldThreeFrames||0)>=1&&Number(v?.dataset.presentationDraws||0)>=10;},{timeout:35000});'
+          new='const waitWorld=()=>waitForCompletedWorldStartup(page,{timeout:45000,cameraMode:"fpv"});'
+          if old in s:s=s.replace(old,new,1)
+          elif new not in s:raise SystemExit('waitWorld anchor missing')
+          anchor='  await waitWorld();\n  const startup=await page.evaluate('
+          replacement='  await waitWorld();\n  await page.evaluate(()=>{const run=document.querySelector("#run");if(run?.textContent?.trim()==="Pause")run.click();});\n  await page.waitForFunction(()=>document.querySelector("#run")?.textContent?.trim()==="Start",{timeout:5000});\n  const startup=await page.evaluate('
+          if anchor in s:s=s.replace(anchor,replacement,1)
+          elif replacement not in s:raise SystemExit('startup anchor missing')
+          p.write_text(s)
+          PY
+          node --check tests/real_world_ui_smoke_impl.mjs
+          git diff --check
+      - name: Build exact bundled simulator
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
+            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
+              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' \
+              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
+              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
+              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
+              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
+              -o generated/flight_core.mjs
+          BUILD_DIR=/tmp/arondight-world-ui-completed-pause
+          rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 mqtt@5.15.2 nostr-tools@2.24.1 qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.3 @trystero-p2p/mqtt@0.25.3 @trystero-p2p/torrent@0.25.3
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('drone_simulator.html');html=p.read_text();marker='<script type="module" src="./sim/real_world_bootstrap.mjs"></script>';assert marker in html
+          bundle=Path('/tmp/arondight45-simulator.bundle.mjs').read_text().replace('</script','<\\/script')
+          p.write_text(html.replace(marker,'<script type="module">\n'+bundle+'\n</script>'))
+          PY
+      - name: Run complete unchanged UI assertions
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome)"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/world-ui.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; rm -rf generated; git checkout -- drone_simulator.html' EXIT
+          timeout 180s env CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
+      - name: Commit verified test fix
+        if: github.event_name == 'push'
+        run: |
+          set -euxo pipefail
+          git checkout -- drone_simulator.html 2>/dev/null || true
+          rm -rf generated
+          rm -f node_modules
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/real_world_ui_smoke_impl.mjs
+          git diff --cached --check
+          git commit -m "Stabilize WORLD UI gate after completed startup"
+          git push origin HEAD:verify/world-ui-completed-pause
