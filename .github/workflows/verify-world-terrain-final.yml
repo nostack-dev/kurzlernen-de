@@ -1,0 +1,79 @@
+name: Verify final WORLD terrain
+
+on:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify terrain, building and spawn cores
+        run: |
+          set -euxo pipefail
+          node tests/world_dem_sampler_test.mjs
+          node tests/world_terrain_test.mjs
+          node tests/world_building_style_test.mjs
+          node tests/safe_spawn_test.mjs
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
+          /tmp/state_control_test
+      - name: Install browser/physics dependencies
+        run: |
+          set -euxo pipefail
+          BUILD_DIR=/tmp/arondight-world-final
+          mkdir -p "$BUILD_DIR"
+          cd "$BUILD_DIR"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund \
+            three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 mqtt@5.15.2 nostr-tools@2.24.1 \
+            qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.3 @trystero-p2p/mqtt@0.25.3 @trystero-p2p/torrent@0.25.3
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
+      - name: Verify real Box3D terrain and safe spawn
+        run: |
+          set -euxo pipefail
+          node tests/world_terrain_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
+          node tests/safe_spawn_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
+      - name: Build exact shared WASM flight core
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
+            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
+              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' \
+              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
+              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
+              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
+              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
+              -o generated/flight_core.mjs
+          node --check generated/flight_core.mjs
+      - name: Bundle exact current simulator
+        run: |
+          set -euxo pipefail
+          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight-world.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('drone_simulator.html');html=p.read_text();marker='<script type="module" src="./sim/real_world_bootstrap.mjs"></script>';assert marker in html
+          bundle=Path('/tmp/arondight-world.bundle.mjs').read_text().replace('</script','<\\/script')
+          p.write_text(html.replace(marker,'<script type="module">\n'+bundle+'\n</script>'))
+          PY
+      - name: Run VS combat on fresh browser first
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/world-final-http.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174
+      - name: Run real Zermatt WORLD browser gate
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4175 --bind 127.0.0.1 >/tmp/world-zermatt-http.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/world_real_terrain_browser_smoke.mjs http://127.0.0.1:4175/drone_simulator.html

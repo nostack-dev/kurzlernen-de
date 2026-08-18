@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {batteryOcvVoltage,batteryVoltageUnderLoad,scaleCurrentsToPackLimit,solveStaticPropulsionAuthority} from '../sim/propulsion_authority.mjs';
+const base={mass:.72,kv:2300,R:.080,Ct:.105,Cq:.012,rho:1.225,propD:.127,batteryCells:4,batteryR:.055,batteryMaxCurrentA:180,motorCurrentLimitA:45,escCurrentLimitA:45};
+assert.ok(Math.abs(batteryOcvVoltage(1,4)-16.8)<.02);assert.ok(batteryVoltageUnderLoad(16.8,100,.055,4)<16.8);
+const currents=[60,40,20,10];const total=scaleCurrentsToPackLimit(currents,100);assert.equal(total,100);assert.ok(Math.abs(currents.reduce((a,b)=>a+b,0)-100)<1e-9);
+const authority=solveStaticPropulsionAuthority(base);assert.ok(authority.voltageV<16.8&&authority.voltageV>=12);assert.ok(authority.totalCurrentA<=180.0001);assert.ok(authority.totalThrustN>base.mass*9.80665);assert.ok(authority.thrustToWeight>1);
+const heavy=solveStaticPropulsionAuthority({...base,mass:1.1});assert.ok(heavy.totalThrustN===authority.totalThrustN);assert.ok(heavy.idealVerticalAccelerationMps2<authority.idealVerticalAccelerationMps2);
+const weakPack=solveStaticPropulsionAuthority({...base,batteryMaxCurrentA:70});assert.ok(weakPack.totalCurrentA<=70.0001);assert.ok(weakPack.totalThrustN<authority.totalThrustN);
+const highR=solveStaticPropulsionAuthority({...base,batteryR:.11});assert.ok(highR.voltageV<authority.voltageV);assert.ok(highR.totalThrustN<authority.totalThrustN);
+console.log(`Propulsion authority passed: ${authority.totalThrustN.toFixed(2)} N, T/W ${authority.thrustToWeight.toFixed(2)}, ${authority.totalCurrentA.toFixed(1)} A @ ${authority.voltageV.toFixed(2)} V.`);
