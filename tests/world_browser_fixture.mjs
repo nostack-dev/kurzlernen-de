@@ -35,3 +35,34 @@ export async function installDeterministicWorldFixture(page,{base,styleName="Aro
     request.abort();
   });
 }
+
+async function worldStartupDiagnostics(page){
+  return page.evaluate(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return{status:document.querySelector("#status")?.textContent||"",realWorldStatus:document.querySelector("#realWorldStatus")?.textContent||"",bodyClass:document.body.className,cameraMode:v?.dataset.cameraMode||"",autoWorldLocationSource:v?.dataset.autoWorldLocationSource||"",worldMode:v?.dataset.worldMode||"",worldProvider:v?.dataset.worldProvider||"",terrainStatus:v?.dataset.worldTerrainStatus||"",terrainTriangles:v?.dataset.worldTerrainTriangles||"",terrainSource:v?.dataset.worldTerrainSource||"",buildingStatus:v?.dataset.worldBuildingCollisionStatus||"",map:Boolean(b?.map),mapLoaded:Boolean(b?.map?.loaded?.()),active:Boolean(b?.active),loading:Boolean(b?.loading),terrainSnapshot:Boolean(b?.terrainSnapshot),renderer:Boolean(b?.threeRenderer),origin:[b?.originLon,b?.originLat],originElevation:b?.terrainOriginElevationM,worldFrames:Number(v?.dataset.worldThreeFrames||0),presentationDraws:Number(v?.dataset.presentationDraws||0),presentationCadence:v?.dataset.presentationCadence||"",presentationQuality:v?.dataset.presentationQualityMode||""};});
+}
+
+// A WORLD browser gate is allowed to exercise product behavior only after the
+// asynchronous GPS -> DEM -> Box3D -> MapLibre/THREE activation has completed.
+// Centralizing this predicate prevents individual tests from accepting an
+// intermediate worldMode/terrain state whose map or renderer can still vanish.
+export async function waitForCompletedWorldStartup(page,{timeout=45000,cameraMode=null,minWorldFrames=1,minPresentationDraws=10}={}){
+  const expected={cameraMode,minWorldFrames,minPresentationDraws};
+  try{
+    await page.waitForFunction(({cameraMode,minWorldFrames,minPresentationDraws})=>{
+      const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;
+      return document.body.classList.contains("solo-flight")
+        &&(!cameraMode||v?.dataset.cameraMode===cameraMode)
+        &&v?.dataset.autoWorldLocationSource==="startup-gps"
+        &&v?.dataset.worldMode==="real"
+        &&v?.dataset.worldProvider==="openfreemap-esri-mapterhorn-dem"
+        &&v?.dataset.worldTerrainStatus==="box3d-active"
+        &&b?.active===true&&b?.loading===false
+        &&Boolean(b?.map)&&Boolean(b?.terrainSnapshot)&&Boolean(b?.threeRenderer)
+        &&Number(v?.dataset.worldThreeFrames||0)>=minWorldFrames
+        &&Number(v?.dataset.presentationDraws||0)>=minPresentationDraws;
+    },{timeout},expected);
+  }catch(error){
+    const diagnostics=await worldStartupDiagnostics(page);
+    throw new Error(`WORLD completed-startup timeout: ${JSON.stringify({expected,diagnostics})}`,{cause:error});
+  }
+  return worldStartupDiagnostics(page);
+}

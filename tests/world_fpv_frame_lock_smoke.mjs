@@ -1,6 +1,6 @@
 import puppeteer from "puppeteer-core";
 import {readFileSync} from "node:fs";
-import {installDeterministicWorldFixture} from "./world_browser_fixture.mjs";
+import {installDeterministicWorldFixture,waitForCompletedWorldStartup} from "./world_browser_fixture.mjs";
 
 const base=process.argv[2]||"http://127.0.0.1:4174";
 const executablePath=process.env.CHROME_BIN;
@@ -20,8 +20,7 @@ try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
-  await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});
-  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-mapterhorn-dem"&&v?.dataset.worldTerrainStatus==="box3d-active"&&globalThis.__arondightRealWorld?.map;},{timeout:30000});
+  await waitForCompletedWorldStartup(page,{timeout:45000,cameraMode:"fpv"});
 
   const result=await page.evaluate(async()=>{
     const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),camera=b.threeCamera.clone(),modes=["fpv","follow","third"];

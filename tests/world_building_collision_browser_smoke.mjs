@@ -1,6 +1,6 @@
 import puppeteer from "puppeteer-core";
 import {readFileSync} from "node:fs";
-import {installDeterministicWorldFixture} from "./world_browser_fixture.mjs";
+import {installDeterministicWorldFixture,waitForCompletedWorldStartup} from "./world_browser_fixture.mjs";
 
 const base=process.argv[2]||"http://127.0.0.1:4174";
 const executablePath=process.env.CHROME_BIN;
@@ -18,14 +18,11 @@ await installDeterministicWorldFixture(page,{base,styleName:"WORLD collision fix
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
-  await page.waitForFunction(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return v?.dataset.worldMode==="real"&&v?.dataset.worldTerrainStatus==="box3d-active"&&b?.map&&b?.terrainSnapshot;},{timeout:30000});
+  await waitForCompletedWorldStartup(page,{timeout:45000});
   const installed=await page.evaluate(()=>{
     const bridge=globalThis.__arondightRealWorld,map=bridge.map,viewport=document.querySelector("#viewport"),diagnostics=globalThis.__arondightDiagnostics;
     const radius=6378137,cosLat=Math.max(.01,Math.cos(bridge.originLat*Math.PI/180)),ll=(east,north)=>[bridge.originLon+east/radius/cosLat*180/Math.PI,bridge.originLat+north/radius*180/Math.PI];
     const ring=[ll(8,-2),ll(12,-2),ll(12,2),ll(8,2),ll(8,-2)],feature={id:987654,properties:{render_height:9,render_min_height:1},geometry:{type:"Polygon",coordinates:[ring]}},courtyard={id:987655,properties:{render_height:12},geometry:{type:"Polygon",coordinates:[[ll(20,-5),ll(30,-5),ll(30,5),ll(20,5),ll(20,-5)],[ll(22,-3),ll(22,3),ll(28,3),ll(28,-3),ll(22,-3)]]}};
-    // Keep an intentionally nonexistent source id after the one-shot synthetic
-    // query. Background WORLD syncs then stay in "waiting" instead of replacing
-    // the installed fixture colliders with an empty vector-source snapshot.
     const original=map.querySourceFeatures?.bind(map);bridge.buildingSourceId="fixture-buildings";map.querySourceFeatures=()=>[feature,courtyard];bridge.buildingCollisionDirty=true;const changed=bridge.syncBuildingCollisions(true);map.querySourceFeatures=original;
     return{changed,status:viewport.dataset.worldBuildingCollisionStatus,terrain:viewport.dataset.worldTerrainStatus,footprints:Number(viewport.dataset.worldBuildingCollisionFootprints),prisms:Number(viewport.dataset.worldBuildingCollisionPrisms),physicsPrisms:Number(diagnostics.worldBuildingCollisionPrisms),revision:Number(diagnostics.worldBuildingCollisionRevision)};
   });
