@@ -1,0 +1,39 @@
+name: Verify component physics live
+
+on:
+  pull_request:
+
+jobs:
+  verify-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify PR base is final production physics
+        run: |
+          set -euxo pipefail
+          grep -q 'deriveQuadMassProperties' sim/simulator.mjs
+          grep -q 'horizontalSpeed=Math.hypot(relative\[0\],relative\[1\])' sim/simulator.mjs
+          grep -q 'kMaxVerticalSpeedMps = 30.0f' esp32/Arondight45_StateControl.hpp
+          grep -q 'kMaxVerticalAccelerationMps2 = 50.0f' esp32/Arondight45_StateControl.hpp
+          node tests/architecture_invariants.mjs
+      - name: Confirm deployed Pages contains final component-derived release
+        run: |
+          set -euxo pipefail
+          for i in $(seq 1 90); do
+            URL="https://kurzlernen.de/drone_simulator.html?physics_release=6d117630-$i-$(date +%s)"
+            if curl -fsSL --connect-timeout 10 --max-time 30 -H 'Cache-Control: no-cache' "$URL" -o /tmp/live.html; then
+              if grep -q 'Physical airframe model · component derived' /tmp/live.html \
+                 && grep -q 'Battery current max A' /tmp/live.html \
+                 && grep -q 'Component bill of mass / placement' /tmp/live.html \
+                 && grep -q 'PLANT AUTHORITY' /tmp/live.html \
+                 && ! grep -q 'src="./sim/real_world_bootstrap.mjs"' /tmp/live.html; then
+                echo 'LIVE_COMPONENT_PHYSICS_OK'
+                wc -c /tmp/live.html
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo 'Final component-derived Pages fingerprint did not appear' >&2
+          exit 1
