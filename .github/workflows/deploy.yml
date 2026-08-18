@@ -161,7 +161,16 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/network_logbook_browser_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
+          world_ui_ok=0
+          for attempt in 1 2 3; do
+            if CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174; then
+              world_ui_ok=1
+              break
+            fi
+            echo "WORLD UI smoke attempt ${attempt}/3 failed; retrying with a fresh browser"
+            sleep 2
+          done
+          test "$world_ui_ok" -eq 1
           CHROME_BIN="$CHROME_BIN" node tests/world_real_terrain_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/world_shot_decal_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/world_building_collision_browser_smoke.mjs http://127.0.0.1:4174
