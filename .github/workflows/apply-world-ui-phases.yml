@@ -16,17 +16,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      - name: Apply phase-only test refactor
+      - name: Apply completed-startup + phase-only test refactor
         run: |
           set -euxo pipefail
           python3 - <<'PY'
           from pathlib import Path
           p=Path('tests/real_world_ui_smoke_impl.mjs')
           s=p.read_text()
+          old_wait='const waitWorld=()=>page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-mapterhorn-dem"&&v?.dataset.worldTerrainStatus==="box3d-active"&&v?.dataset.worldImageryLayer==="ready"&&Number(v?.dataset.worldThreeFrames||0)>=1&&Number(v?.dataset.presentationDraws||0)>=10;},{timeout:35000});'
+          new_wait='const waitWorld=()=>page.waitForFunction(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return document.body.classList.contains("solo-flight")&&v?.dataset.cameraMode==="fpv"&&v?.dataset.autoWorldLocationSource==="startup-gps"&&v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-mapterhorn-dem"&&v?.dataset.worldTerrainStatus==="box3d-active"&&v?.dataset.worldImageryLayer==="ready"&&b?.active===true&&b?.loading===false&&b?.map&&b?.terrainSnapshot&&b?.threeRenderer&&Number(v?.dataset.worldThreeFrames||0)>=1&&Number(v?.dataset.presentationDraws||0)>=10;},{timeout:45000});'
+          if old_wait in s:s=s.replace(old_wait,new_wait,1)
+          elif new_wait not in s:raise SystemExit('WORLD readiness anchor missing')
           if 'const phase=process.env.ARONDIGHT_WORLD_UI_PHASE||"all";' not in s:
-              wait='const waitWorld=()=>page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-mapterhorn-dem"&&v?.dataset.worldTerrainStatus==="box3d-active"&&v?.dataset.worldImageryLayer==="ready"&&Number(v?.dataset.worldThreeFrames||0)>=1&&Number(v?.dataset.presentationDraws||0)>=10;},{timeout:35000});'
-              assert wait in s
-              s=s.replace(wait,wait+'\nconst phase=process.env.ARONDIGHT_WORLD_UI_PHASE||"all";',1)
+              s=s.replace(new_wait,new_wait+'\nconst phase=process.env.ARONDIGHT_WORLD_UI_PHASE||"all";',1)
               start='  await waitWorld();\n  const startup=await page.evaluate('
               assert start in s
               s=s.replace(start,'  await waitWorld();\n  if(phase==="core"||phase==="all"){\n  const startup=await page.evaluate(',1)
@@ -39,17 +41,14 @@ jobs:
               final='  console.log(`REAL WORLD E2E passed: automatic FPV/Solo + GPS WORLD startup with mandatory DEM/Box3D terrain, aerial/satellite imagery in flight view + strict orthographic top-down minimap, persisted imagery/axis/grid settings, exact FPV camera registration, 5-90 km/h GAME speed, 1:1 touch-coordinate firing, and one recycled 32-mesh THREE decal pool across WORLD/TRAINING.`);'
               assert final in s
               s=s.replace(final,'  }\n  console.log(`REAL WORLD E2E ${phase} phase passed.`);',1)
-              p.write_text(s)
+          p.write_text(s)
 
-          w=Path('tests/real_world_ui_smoke.mjs')
-          x=w.read_text()
+          w=Path('tests/real_world_ui_smoke.mjs');x=w.read_text()
           old='try{\n  await import("./real_world_ui_smoke_impl.mjs");\n}finally{\n  Buffer.from=originalBufferFrom;\n}'
           if old in x:
               new='try{\n  const requested=process.env.ARONDIGHT_WORLD_UI_PHASE;\n  const phases=requested?[requested]:["core","nav","fire"];\n  for(const phase of phases){process.env.ARONDIGHT_WORLD_UI_PHASE=phase;await import(`./real_world_ui_smoke_impl.mjs?phase=${phase}&run=${Date.now()}`);}\n  if(!requested)delete process.env.ARONDIGHT_WORLD_UI_PHASE;\n}finally{\n  Buffer.from=originalBufferFrom;\n}'
-              x=x.replace(old,new,1)
-              w.write_text(x)
-          elif 'const phases=requested?[requested]:["core","nav","fire"]' not in x:
-              raise SystemExit('wrapper import anchor missing')
+              x=x.replace(old,new,1);w.write_text(x)
+          elif 'const phases=requested?[requested]:["core","nav","fire"]' not in x:raise SystemExit('wrapper import anchor missing')
           PY
           node --check tests/real_world_ui_smoke.mjs
           node --check tests/real_world_ui_smoke_impl.mjs
@@ -101,7 +100,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add tests/real_world_ui_smoke.mjs tests/real_world_ui_smoke_impl.mjs
           git diff --cached --check
-          if ! git diff --cached --quiet; then git commit -m "Split WORLD UI smoke into fresh browser phases"; git push origin HEAD:fix/world-ui-phased-ci; fi
+          if ! git diff --cached --quiet; then git commit -m "Stabilize WORLD UI gate after completed GPS startup"; git push origin HEAD:fix/world-ui-phased-ci; fi
       - name: Cleanup
         if: always()
         run: |
