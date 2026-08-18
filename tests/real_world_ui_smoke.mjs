@@ -1,4 +1,5 @@
 import puppeteer from "puppeteer-core";
+import {installDeterministicWorldFixture} from "./world_browser_fixture.mjs";
 import {readFileSync} from "node:fs";
 
 const base=process.argv[2]||"http://127.0.0.1:4174";
@@ -39,29 +40,32 @@ const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
 const VECTOR_HOST="tiles.openfreemap.org";
 const DEM_HOST="tiles.mapterhorn.com";
 const WORLD_IMAGERY_PREFIX="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/";
-const fixtureTile=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
-const vectorTile=Buffer.from("1a0f0a086275696c64696e672880207802","hex");
-const demTile=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAAG4ElEQVR42u3WMQEAMAyAMKTX+Wqi33LEABdNPQDgL4kAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAGAAhAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAADAAIgAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAGAAhAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAADAAIgAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAGAAhAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAADAAIgAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAAGAAAAADAAAYAADAAAAABgAAMAAAgAEAAAwAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAAMAAAAAGAAAwAACAAQAADAAAYAAAAAMAABgAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAAYAADAAAGAAhAAAAwAAGAAAwAAAAAYAADAAAIABAAAMAABgAAAAAwAAGAAAwAAAAHcWtddZxTTuf5gAAAAASUVORK5CYII=","base64");
 const providerRequests=[];
 const imageryRequests=[];
 const external=[];
-const fixtureStyle={version:8,name:"Arondight45 deterministic WORLD fixture",sources:{"fixture-vector":{type:"vector",tiles:["https://tiles.openfreemap.org/ci/{z}/{x}/{y}.pbf"],minzoom:0,maxzoom:14}},layers:[{id:"background",type:"background",paint:{"background-color":"#243440"}}]};
+const failedRequests=[];
+const consoleErrors=[];
 const allowedWorldProviderUrl=url=>{try{const parsed=new URL(url);return url.startsWith(WORLD_IMAGERY_PREFIX)||parsed.hostname===VECTOR_HOST||parsed.hostname===DEM_HOST;}catch{return false;}};
-await browser.defaultBrowserContext().overridePermissions(base,["geolocation"]);
-await page.setGeolocation({latitude:39.569600,longitude:2.650200,accuracy:4});
-await page.setRequestInterception(true);
 page.on("request",request=>{
-  const url=request.url(),parsed=new URL(url);
-  if(["data:","blob:","about:"].includes(parsed.protocol)||["127.0.0.1","localhost"].includes(parsed.hostname)){request.continue();return;}
+  const url=request.url();let parsed;try{parsed=new URL(url);}catch{return;}
+  if(["data:","blob:","about:"].includes(parsed.protocol)||["127.0.0.1","localhost"].includes(parsed.hostname))return;
   external.push(url);
-  if(url.startsWith(OPENFREEMAP_STYLE)){providerRequests.push(url);request.respond({status:200,contentType:"application/json",headers:{"access-control-allow-origin":"*","cache-control":"no-store"},body:JSON.stringify(fixtureStyle)});return;}
-  if(parsed.hostname===VECTOR_HOST&&parsed.pathname.endsWith(".pbf")){request.respond({status:200,contentType:"application/x-protobuf",headers:{"access-control-allow-origin":"*","cache-control":"no-store"},body:vectorTile});return;}
-  if(parsed.hostname===DEM_HOST){request.respond({status:200,contentType:"image/png",headers:{"access-control-allow-origin":"*","cache-control":"no-store"},body:demTile});return;}
-  if(url.startsWith(WORLD_IMAGERY_PREFIX)){imageryRequests.push(url);request.respond({status:200,contentType:"image/png",headers:{"access-control-allow-origin":"*","cache-control":"public,max-age=3600"},body:fixtureTile});return;}
-  request.abort();
+  if(url.startsWith(OPENFREEMAP_STYLE))providerRequests.push(url);
+  if(url.startsWith(WORLD_IMAGERY_PREFIX))imageryRequests.push(url);
 });
+page.on("requestfailed",request=>failedRequests.push(`${request.failure()?.errorText||"FAILED"} ${request.url()}`));
+page.on("pageerror",error=>consoleErrors.push(`PAGEERROR ${error.message}`));
+page.on("console",message=>{if(message.type()==="error"||message.type()==="warning")consoleErrors.push(`${message.type().toUpperCase()} ${message.text()}`);});
+await installDeterministicWorldFixture(page,{base,styleName:"Arondight45 deterministic WORLD fixture",latitude:39.569600,longitude:2.650200});
 
-const waitWorld=()=>page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-mapterhorn-dem"&&v?.dataset.worldTerrainStatus==="box3d-active"&&v?.dataset.worldImageryLayer==="ready"&&Number(v?.dataset.worldThreeFrames||0)>=1&&Number(v?.dataset.presentationDraws||0)>=10;},{timeout:35000});
+const waitWorld=async()=>{
+  try{
+    await page.waitForFunction(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-mapterhorn-dem"&&v?.dataset.worldTerrainStatus==="box3d-active"&&v?.dataset.worldImageryLayer==="ready"&&Boolean(b?.active)&&!b?.loading&&Boolean(b?.map)&&Boolean(b?.threeRenderer)&&Number(v?.dataset.worldThreeFrames||0)>=1&&Number(v?.dataset.presentationDraws||0)>=10;},{timeout:35000});
+  }catch(error){
+    const diagnostics=await page.evaluate(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return{status:document.querySelector("#status")?.textContent||"",realWorldStatus:document.querySelector("#realWorldStatus")?.textContent||"",worldMode:v?.dataset.worldMode||"",provider:v?.dataset.worldProvider||"",terrain:v?.dataset.worldTerrainStatus||"",terrainTriangles:v?.dataset.worldTerrainTriangles||"",imagery:v?.dataset.worldImageryLayer||"",active:Boolean(b?.active),loading:Boolean(b?.loading),map:Boolean(b?.map),renderer:Boolean(b?.threeRenderer),buildingSource:b?.buildingSourceId||"",worldFrames:v?.dataset.worldThreeFrames||"",presentationDraws:v?.dataset.presentationDraws||"",autoWorldLocationSource:v?.dataset.autoWorldLocationSource||""};});
+    throw new Error(`WORLD UI readiness failed: ${JSON.stringify({diagnostics,failedRequests:failedRequests.slice(-20),consoleErrors:consoleErrors.slice(-20),external:external.slice(-20)})}`,{cause:error});
+  }
+};
 
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
