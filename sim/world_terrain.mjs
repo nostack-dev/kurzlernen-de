@@ -1,4 +1,4 @@
-const finite=value=>Number.isFinite(Number(value));
+const finite=value=>value!==null&&value!==undefined&&value!==''&&Number.isFinite(Number(value));
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
 export const WORLD_TERRAIN_HALF_EXTENT_M=240;
@@ -13,7 +13,7 @@ export function buildTerrainSnapshot({originElevationM,center=[0,0],halfExtentM=
   if(!finite(origin)||typeof sampleMsl!=='function')return null;
   const step=2*half/(size-1),positions=new Float32Array(size*size*3),elevations=new Float64Array(size*size);let minZ=Infinity,maxZ=-Infinity;
   for(let row=0;row<size;row++)for(let col=0;col<size;col++){
-    const x=cx-half+col*step,y=cy-half+row*step,msl=Number(sampleMsl(x,y));if(!finite(msl))return null;const z=msl-origin,index=row*size+col,offset=index*3;elevations[index]=z;positions[offset]=x;positions[offset+1]=y;positions[offset+2]=z;minZ=Math.min(minZ,z);maxZ=Math.max(maxZ,z);
+    const x=cx-half+col*step,y=cy-half+row*step,msl=sampleMsl(x,y);if(!finite(msl))return null;const z=Number(msl)-origin,index=row*size+col,offset=index*3;elevations[index]=z;positions[offset]=x;positions[offset+1]=y;positions[offset+2]=z;minZ=Math.min(minZ,z);maxZ=Math.max(maxZ,z);
   }
   const indices=new Uint32Array((size-1)*(size-1)*6);let k=0;
   for(let row=0;row<size-1;row++)for(let col=0;col<size-1;col++){
