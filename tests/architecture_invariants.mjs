@@ -61,6 +61,15 @@ if(!tiltMatch||Math.abs(Number(tiltMatch[1])-MAX_GAME_TILT_DEG)>1e-9)fail(`JS/C+
 const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.pow(Math.cos(MAX_GAME_TILT_DEG*Math.PI/180),2);
 if(MIN_GAME_AGL_SENSOR_SLANT_RANGE_M<requiredAglSlant+GAME_AGL_SENSOR_RANGE_MARGIN_M)fail(`AGL slant range ${MIN_GAME_AGL_SENSOR_SLANT_RANGE_M} m cannot cover ${MAX_GAME_CLEARANCE_M} m at ${MAX_GAME_TILT_DEG} deg plus margin`);
 requireText("esp32/Arondight45_StateControl.hpp","kMaxHorizontalAccelerationMps2 = 7.5f");
+requireText("esp32/Arondight45_StateControl.hpp","kMaxVerticalSpeedMps = 30.0f");
+requireText("esp32/Arondight45_StateControl.hpp","kMaxVerticalAccelerationMps2 = 50.0f");
+requireText("esp32/Arondight45_StateControl.hpp","kMaxFlightThrottle = 1.00f");
+requireText("sim/simulator.mjs","deriveQuadMassProperties");
+requireText("sim/simulator.mjs","mass.center=[...p.massCenter]");
+requireText("sim/simulator.mjs","scaleCurrentsToPackLimit(currents,p.batteryMaxCurrentA)");
+forbidText("sim/simulator.mjs","mass.center=[0,0,-.006]","center of mass must come from component BOM");
+requireText("sim/simulator.mjs","horizontalSpeed=Math.hypot(relative[0],relative[1])","horizontal drag must use total body-plane airspeed");
+forbidText("sim/simulator.mjs","drag=relative.map((v,i)=>-.5*p.rho*cdA[i]*v*Math.abs(v))","separable x/y quadratic drag makes diagonal flight artificially low-drag");
 requireText("esp32/Arondight45_StateControl.hpp","kHorizontalIntegralLimitMps2 = 7.0f");
 forbidText("esp32/Arondight45_DroneFC_Core.hpp","cmd.roll * 32.0f", "inner attitude range must not silently cap GAME at the MANUAL 32-degree envelope");
 requireText("esp32/Arondight45_StateControl.hpp","shaped_magnitude = shape(magnitude, 0.035f, 0.25f)");

@@ -1,0 +1,62 @@
+name: Verify Box3D collision matrix
+
+on:
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Apply asserted simulator patch
+        run: |
+          set -euxo pipefail
+          python3 tools/patch_collision_filter_matrix.py
+          node --check sim/simulator.mjs
+          node --check sim/collision_filter_matrix.mjs
+          node --check sim/world_building_collision_physics.mjs
+          node --check sim/world_terrain_physics.mjs
+
+      - name: Install Box3D verification dependency
+        run: |
+          set -euxo pipefail
+          BUILD_DIR=/tmp/arondight-matrix-verify
+          rm -rf "$BUILD_DIR"
+          mkdir -p "$BUILD_DIR"
+          cd "$BUILD_DIR"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund box3d.js@0.1.1
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
+
+      - name: Prove collision filter behavior
+        run: |
+          set -euxo pipefail
+          node tests/collision_filter_matrix_test.mjs
+          node tests/world_building_collisions_test.mjs
+          node tests/world_building_collision_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
+          node tests/safe_spawn_test.mjs
+          node tests/safe_spawn_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
+          node tests/world_terrain_test.mjs
+          node tests/world_terrain_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
+
+      - name: Commit verified simulator patch to branch
+        run: |
+          set -euxo pipefail
+          rm -f node_modules
+          if git diff --quiet -- sim/simulator.mjs; then
+            echo "simulator already contains verified matrix patch"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sim/simulator.mjs
+          git commit -m "Apply verified Box3D collision filter matrix"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}

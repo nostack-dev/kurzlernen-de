@@ -31,6 +31,14 @@ try{
     return{changed,status:viewport.dataset.worldBuildingCollisionStatus,footprints:Number(viewport.dataset.worldBuildingCollisionFootprints),prisms:Number(viewport.dataset.worldBuildingCollisionPrisms),physicsPrisms:Number(diagnostics.worldBuildingCollisionPrisms),revision:Number(diagnostics.worldBuildingCollisionRevision)};
   });
   if(!installed.changed||installed.status!=="box3d-active"||installed.footprints!==2||installed.prisms!==9||installed.physicsPrisms!==9)throw new Error(`OSM → bridge → Box3D installation failed: ${JSON.stringify(installed)}`);
+  const debugDefault=await page.evaluate(()=>({enabled:globalThis.__arondightDiagnostics.box3dColliderDebugEnabled,prisms:globalThis.__arondightDiagnostics.box3dColliderDebugPrisms,dataset:document.querySelector("#viewport")?.dataset.box3dColliderDebugDraw,toggle:document.querySelector("[data-box3d-collider-debug]")?.checked,stored:localStorage.getItem("arondight45Box3dColliderDebugV1")}));
+  if(debugDefault.enabled!==false||debugDefault.prisms!==0||debugDefault.dataset!=="0"||debugDefault.toggle!==false||debugDefault.stored!=="0")throw new Error(`Box3D collider debug draw is not default OFF: ${JSON.stringify(debugDefault)}`);
+  await page.evaluate(()=>{const toggle=document.querySelector("[data-box3d-collider-debug]");if(!toggle)throw new Error("Box3D collider debug toggle missing");toggle.checked=true;toggle.dispatchEvent(new Event("change",{bubbles:true}));});
+  await page.waitForFunction(()=>globalThis.__arondightDiagnostics.box3dColliderDebugEnabled===true&&globalThis.__arondightDiagnostics.box3dColliderDebugPrisms===9&&document.querySelector("#viewport")?.dataset.box3dColliderDebugDraw==="1",{timeout:5000});
+  const debugOn=await page.evaluate(()=>({enabled:globalThis.__arondightDiagnostics.box3dColliderDebugEnabled,prisms:globalThis.__arondightDiagnostics.box3dColliderDebugPrisms,stored:localStorage.getItem("arondight45Box3dColliderDebugV1")}));
+  if(!debugOn.enabled||debugOn.prisms!==9||debugOn.stored!=="1")throw new Error(`Box3D collider debug draw did not expose active collision prisms: ${JSON.stringify(debugOn)}`);
+  await page.evaluate(()=>{const toggle=document.querySelector("[data-box3d-collider-debug]");toggle.checked=false;toggle.dispatchEvent(new Event("change",{bubbles:true}));});
+  await page.waitForFunction(()=>globalThis.__arondightDiagnostics.box3dColliderDebugEnabled===false&&document.querySelector("#viewport")?.dataset.box3dColliderDebugDraw==="0",{timeout:5000});
 
   await page.click("#soloReset");await page.waitForFunction(previous=>globalThis.__arondightDiagnostics.worldBuildingCollisionRevision>previous&&globalThis.__arondightDiagnostics.worldBuildingCollisionPrisms===9,{timeout:5000},installed.revision);
   const afterReset=await page.evaluate(()=>({prisms:Number(globalThis.__arondightDiagnostics.worldBuildingCollisionPrisms),revision:Number(globalThis.__arondightDiagnostics.worldBuildingCollisionRevision)}));
