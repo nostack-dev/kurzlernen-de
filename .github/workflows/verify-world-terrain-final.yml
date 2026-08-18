@@ -57,7 +57,7 @@ jobs:
           bundle=Path('/tmp/arondight-world.bundle.mjs').read_text().replace('</script','<\\/script')
           p.write_text(html.replace(marker,'<script type="module">\n'+bundle+'\n</script>'))
           PY
-      - name: Run real WORLD and combat browser gates
+      - name: Run VS combat on fresh browser first
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
@@ -66,5 +66,14 @@ jobs:
           HTTP_PID=$!
           trap 'kill "$HTTP_PID" 2>/dev/null || true' EXIT
           sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/world_real_terrain_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+      - name: Run real Zermatt WORLD browser gate
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4175 --bind 127.0.0.1 >/tmp/world-zermatt-http.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/world_real_terrain_browser_smoke.mjs http://127.0.0.1:4175/drone_simulator.html
