@@ -27,12 +27,11 @@ jobs:
           old='''const relative=this.localVector(sub(this.linear(),p.wind)),cdA=this.cdA,drag=relative.map((v,i)=>-.5*p.rho*cdA[i]*v*Math.abs(v));'''
           new='''const relative=this.localVector(sub(this.linear(),p.wind)),cdA=this.cdA,horizontalSpeed=Math.hypot(relative[0],relative[1]),drag=[-.5*p.rho*cdA[0]*relative[0]*horizontalSpeed,-.5*p.rho*cdA[1]*relative[1]*horizontalSpeed,-.5*p.rho*cdA[2]*relative[2]*Math.abs(relative[2])];'''
           assert old in s, 'verified old separable drag formula not found'
-          s=s.replace(old,new,1)
-          p.write_text(s)
+          p.write_text(s.replace(old,new,1))
 
           p=Path('tests/architecture_invariants.mjs')
           s=p.read_text()
-          marker='''requireText("sim/simulator.mjs","physics.step(latest.motors");'''
+          marker='''forbidText("sim/simulator.mjs","mass.center=[0,0,-.006]","center of mass must come from component BOM");'''
           insert=marker+'''\nrequireText("sim/simulator.mjs","horizontalSpeed=Math.hypot(relative[0],relative[1])","horizontal drag must use total body-plane airspeed");\nforbidText("sim/simulator.mjs","drag=relative.map((v,i)=>-.5*p.rho*cdA[i]*v*Math.abs(v))","separable x/y quadratic drag makes diagonal flight artificially low-drag");'''
           assert marker in s, 'architecture insertion marker missing'
           p.write_text(s.replace(marker,insert,1))
