@@ -41,6 +41,8 @@ jobs:
           script='\n'.join(out)+'\n'
           script=script.replace('assert.equal(base.components.length,16)','assert.equal(base.components.length,17)')
           script=script.replace("return n*(3.3+.9*s+.0375*Math.tanh((s-.12)*18));","return n*Math.min(4.2,3.2625+.9*s+.0375*Math.tanh((s-.12)*18));")
+          script=script.replace('static constexpr float kAglToVerticalSpeed = 8.00f;','static constexpr float kAglToVerticalSpeed = 2.00f;')
+          script=script.replace('CHECK(controller.debug().target_vz_mps > 11.9f);\\n    CHECK(controller.debug().vertical_accel_mps2 > 47.9f);\\n    CHECK(climb_throttle > 0.90f);','CHECK(controller.debug().target_vz_mps > 2.9f);\\n    CHECK(controller.debug().vertical_accel_mps2 > 11.9f);\\n    CHECK(climb_throttle > 0.58f && climb_throttle < 0.65f);')
           Path('/tmp/component-patch.sh').write_text(script)
           PY
           bash -n /tmp/component-patch.sh
