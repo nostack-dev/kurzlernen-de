@@ -66,7 +66,7 @@ jobs:
           HTTP_PID=$!
           trap 'kill "$HTTP_PID" 2>/dev/null || true' EXIT
           sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174
       - name: Run real Zermatt WORLD browser gate
         run: |
           set -euxo pipefail
