@@ -1,0 +1,31 @@
+name: Verify Pages deploy success
+
+on:
+  workflow_run:
+    workflows: ["Deploy static site"]
+    types: [completed]
+
+permissions:
+  issues: write
+
+jobs:
+  report:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record successful Pages deploy
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const sha = context.payload.workflow_run.head_sha;
+            const runId = context.payload.workflow_run.id;
+            const title = `PAGES_DEPLOY_OK ${sha}`;
+            const existing = await github.rest.issues.listForRepo({owner: context.repo.owner, repo: context.repo.repo, state: 'all', labels: 'pages-deploy-verifier', per_page: 100});
+            if (existing.data.some(issue => issue.title === title)) return;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `Deploy static site completed successfully for ${sha}. Workflow run: ${runId}`,
+              labels: ['pages-deploy-verifier']
+            });
