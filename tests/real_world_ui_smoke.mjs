@@ -63,6 +63,15 @@ page.on("request",request=>{
 
 const waitWorld=()=>page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-mapterhorn-dem"&&v?.dataset.worldTerrainStatus==="box3d-active"&&v?.dataset.worldImageryLayer==="ready"&&Number(v?.dataset.worldMinimapImageryTiles||0)>0&&Number(v?.dataset.worldThreeFrames||0)>=1&&Number(v?.dataset.presentationDraws||0)>=10;},{timeout:35000});
 
+const openSettings=async()=>{
+  await page.evaluate(()=>{
+    const button=document.querySelector("#soloTopbar .phone-settings-button");
+    if(!(button instanceof HTMLButtonElement))throw new Error("settings button missing");
+    button.click();
+  });
+  await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
+};
+
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
@@ -78,7 +87,7 @@ try{
   if(mobileUx.touchAction!=="none")throw new Error(`flight viewport can still hand drag-fire to browser gestures: ${JSON.stringify(mobileUx)}`);
   if(!mobileUx.logbook||mobileUx.aimUi||mobileUx.decalPool!==32)throw new Error(`solo logbook/direct-fire/decal-pool UI contract failed: ${JSON.stringify(mobileUx)}`);
 
-  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
+  await openSettings();
   const config=await page.evaluate(()=>({section:!!document.querySelector('[data-world-settings="openfreemap-osm-3d"]'),imagery:document.querySelector('[data-world-imagery]')?.checked,grid:document.querySelector('[data-world-grid]')?.checked,keep:document.querySelector('[data-world-keep-look]')?.checked,axis:document.querySelector('.phone-settings-dialog input[data-world-minimap-axis-lock]')?.checked,axisDisabled:document.querySelector('.phone-settings-dialog input[data-world-minimap-axis-lock]')?.disabled,obsolete:!!document.querySelector('[data-world-minimap-follow]'),fovLabel:[...document.querySelectorAll('.camera-settings-section label')].some(x=>x.textContent.includes('VIEW FOV')),speed:Number(document.querySelector('[data-slider="speed"]')?.value),speedText:document.querySelector('[data-out="speed"]')?.value||"",note:document.querySelector('[data-world-settings="openfreemap-osm-3d"]')?.textContent||""}));
   if(!config.section||config.imagery!==true||config.grid!==true||config.keep!==false||config.axis!==true||config.axisDisabled!==Boolean(await page.evaluate(()=>document.fullscreenElement))||config.obsolete||!config.fovLabel||config.speed!==36||!config.speedText.includes("36 km/h")||!config.note.includes("No account, API key, billing setup, backend or proxy")||!config.note.includes("ON by default"))throw new Error(`WORLD/settings contract failed: ${JSON.stringify(config)}`);
   const unexpectedSettingsNetwork=external.slice(externalAfterAutoWorld).filter(url=>!allowedWorldProviderUrl(url));if(unexpectedSettingsNetwork.length)throw new Error(`settings path triggered unexpected external network: ${JSON.stringify(unexpectedSettingsNetwork)}`);
@@ -87,10 +96,10 @@ try{
   await page.evaluate(()=>{const slider=document.querySelector('[data-slider="speed"]');slider.value="36";slider.dispatchEvent(new Event("input",{bubbles:true}));});
   await page.click('.phone-settings-dialog [data-close]');
 
-  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
+  await openSettings();
   await page.click('.phone-settings-dialog [data-world-grid]');await page.click('.phone-settings-dialog [data-close]');await page.waitForFunction(()=>localStorage.getItem("arondight45WorldGridV1")==="0",{timeout:3000});
   const gridOff=await page.evaluate(()=>localStorage.getItem("arondight45WorldGridV1"));if(gridOff!=="0")throw new Error(`WORLD GRID off did not persist: ${gridOff}`);
-  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
+  await openSettings();
   await page.click('.phone-settings-dialog [data-world-grid]');await page.click('.phone-settings-dialog [data-close]');await page.waitForFunction(()=>localStorage.getItem("arondight45WorldGridV1")==="1",{timeout:3000});
   const gridOn=await page.evaluate(()=>localStorage.getItem("arondight45WorldGridV1"));if(gridOn!=="1")throw new Error(`WORLD GRID on did not persist: ${gridOn}`);
 
@@ -99,10 +108,10 @@ try{
   if(providerRequests.length<1)throw new Error("OpenFreeMap style was never requested");
   if(imageryRequests.length<1)throw new Error("real imagery source was never requested");
 
-  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click('.phone-settings-dialog [data-world-imagery]');await page.click('.phone-settings-dialog [data-close]');
+  await openSettings();await page.click('.phone-settings-dialog [data-world-imagery]');await page.click('.phone-settings-dialog [data-close]');
   const imageryOff=await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport");b.minimapLastDrawMs=-Infinity;b.drawMinimap(performance.now());return{stored:localStorage.getItem("arondight45WorldImageryV1"),enabled:v.dataset.worldImageryEnabled,visible:b.map.getLayoutProperty("arondight45-world-imagery-raster","visibility"),miniTiles:Number(v.dataset.worldMinimapImageryTiles||0)};});
   if(imageryOff.stored!=="0"||imageryOff.enabled!=="0"||imageryOff.visible!=="none"||imageryOff.miniTiles!==0)throw new Error(`imagery OFF did not apply to map + minimap: ${JSON.stringify(imageryOff)}`);
-  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await page.click('.phone-settings-dialog [data-world-imagery]');await page.click('.phone-settings-dialog [data-close]');
+  await openSettings();await page.click('.phone-settings-dialog [data-world-imagery]');await page.click('.phone-settings-dialog [data-close]');
   const imageryOn=await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport");b.minimapLastDrawMs=-Infinity;b.drawMinimap(performance.now());return{stored:localStorage.getItem("arondight45WorldImageryV1"),enabled:v.dataset.worldImageryEnabled,visible:b.map.getLayoutProperty("arondight45-world-imagery-raster","visibility"),miniTiles:Number(v.dataset.worldMinimapImageryTiles||0)};});
   if(imageryOn.stored!=="1"||imageryOn.enabled!=="1"||imageryOn.visible!=="visible"||imageryOn.miniTiles<1)throw new Error(`imagery ON did not restore map + minimap: ${JSON.stringify(imageryOn)}`);
 
@@ -132,11 +141,11 @@ try{
   }
 
   if(!await page.evaluate(()=>Boolean(document.fullscreenElement))){
-    await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
+    await openSettings();
     await page.click('.phone-settings-dialog [data-world-minimap-axis-lock]');await page.click('.phone-settings-dialog [data-close]');
     const unlocked=await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport");b.lookYawDeg=37;b.lookPitchDeg=22;b.minimapLastDrawMs=-Infinity;b.renderLookHud();b.drawMinimap(performance.now());return{stored:localStorage.getItem("arondight45WorldMinimapAxisLockV1"),bearing:Number(v.dataset.worldMinimapBearing),mode:v.dataset.worldMinimapMode,projection:v.dataset.worldMinimapProjection,pitch:Number(v.dataset.worldMinimapPitch),roll:Number(v.dataset.worldMinimapRoll),heightMode:v.dataset.worldMinimapHeightMode,applied:v.dataset.worldMinimapAxisLockApplied};});
     if(unlocked.stored!=="0"||Math.abs(unlocked.bearing-37)>.01||unlocked.mode!=="look"||unlocked.projection!=="topdown"||unlocked.pitch!==0||unlocked.roll!==0||unlocked.heightMode!=="flat-footprints"||unlocked.applied!=="0")throw new Error(`non-fullscreen minimap axis unlock failed without preserving top-down projection: ${JSON.stringify(unlocked)}`);
-    await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
+    await openSettings();
     await page.click('.phone-settings-dialog [data-world-minimap-axis-lock]');await page.click('.phone-settings-dialog [data-close]');
     const relocked=await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport");b.minimapLastDrawMs=-Infinity;b.drawMinimap(performance.now());return{stored:localStorage.getItem("arondight45WorldMinimapAxisLockV1"),bearing:Number(v.dataset.worldMinimapBearing),mode:v.dataset.worldMinimapMode,projection:v.dataset.worldMinimapProjection,applied:v.dataset.worldMinimapAxisLockApplied};});
     if(relocked.stored!=="1"||Math.abs(relocked.bearing)>.01||relocked.mode!=="north"||relocked.projection!=="topdown"||relocked.applied!=="1")throw new Error(`default minimap vertical-axis lock did not restore fixed horizontal: ${JSON.stringify(relocked)}`);
@@ -148,7 +157,7 @@ try{
     const before=JSON.parse(localStorage.getItem("arondight45CameraSettingsV1")||"{}").fpvFovDeg||105;send("pointerdown",41,cx-18,cy);send("pointerdown",42,cx+18,cy);send("pointermove",42,cx+44,cy);send("pointerup",42,cx+44,cy);send("pointerup",41,cx-18,cy);const after=JSON.parse(localStorage.getItem("arondight45CameraSettingsV1")||"{}").fpvFovDeg;return{before,after};
   });
   if(!(Number.isFinite(fov.after)&&Math.abs(fov.after-fov.before)>2))throw new Error(`minimap pinch did not update shared FOV: ${JSON.stringify(fov)}`);
-  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
+  await openSettings();
   const sliderFov=await page.$eval('[data-camera-slider="fov"]',el=>Number(el.value));if(Math.abs(sliderFov-fov.after)>.6)throw new Error(`Settings FOV is not synchronized with minimap pinch: ${sliderFov} vs ${fov.after}`);await page.click('.phone-settings-dialog [data-close]');
 
   const expandedByTouch=await page.evaluate(async()=>{const hud=document.querySelector("#worldLookHud"),r=hud.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2,send=(type,id)=>hud.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:id,pointerType:"touch",clientX:x,clientY:y,button:0}));send("pointerdown",71);send("pointerup",71);await new Promise(resolve=>setTimeout(resolve,120));send("pointerdown",72);send("pointerup",72);return hud.classList.contains("expanded");});if(!expandedByTouch)throw new Error("double-tap touch sequence did not expand minimap");
