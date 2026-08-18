@@ -35,9 +35,21 @@ jobs:
               elif line.startswith('        '): body.append(line[8:])
               elif not line.strip(): body.append('')
               else: body.append(line)
-          if not body: raise SystemExit('V2 run body extraction returned empty')
-          Path('/tmp/world-v2.sh').write_text('\n'.join(body)+'\n')
-          print('extracted',len(body),'lines')
+          normalized=[];heredoc=None
+          for line in body:
+              stripped=line.strip()
+              if heredoc:
+                  if stripped==heredoc:
+                      normalized.append(heredoc);heredoc=None
+                  else:
+                      normalized.append(line[2:] if line.startswith('  ') else line)
+                  continue
+              normalized.append(line)
+              if "<<'PY'" in line: heredoc='PY'
+              elif "<<'PY_INLINE'" in line: heredoc='PY_INLINE'
+          if heredoc: raise SystemExit(f'unclosed heredoc after normalization: {heredoc}')
+          Path('/tmp/world-v2.sh').write_text('\n'.join(normalized)+'\n')
+          print('extracted',len(normalized),'lines')
           PY
           bash -n /tmp/world-v2.sh > /tmp/world-v2.log 2>&1
           syntax=$?
