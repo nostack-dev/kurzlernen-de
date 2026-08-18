@@ -387,6 +387,10 @@ class RealWorldBridge{
       this.lastMapSyncMs=-Infinity;this.lastMapView=null;this.mapUpdates=0;this.presentationFrameSerial=0;this.lastMapSyncFrameSerial=-1;this.perfWindowStart=performance.now();this.perfFrames=0;this.perfGoodWindows=0;this.perfMode="nominal";this.worldShotQueries=0;
       const worldFlightRatio=Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO);if(Math.abs(this.threeRenderer.getPixelRatio()-worldFlightRatio)>.001)this.threeRenderer.setPixelRatio(worldFlightRatio);this.threeRenderer.shadowMap.enabled=false;
       this.threeRenderer.domElement.style.visibility="visible";this.threeRenderer.domElement.style.display="block";this.geoContainer.hidden=false;
+      // MapLibre was created while geoViewport was hidden. Give it the real
+      // viewport dimensions once, at the fixed GPS-origin camera, before
+      // requiring building-source readiness.
+      this.map.resize();
       const viewport=$("viewport");viewport.dataset.worldMode="real";viewport.dataset.worldProvider="openfreemap-esri-mapterhorn-dem";viewport.dataset.worldRenderPath="shared-three-renderer";viewport.dataset.worldLatitude=String(latitude);viewport.dataset.worldLongitude=String(longitude);viewport.dataset.worldMapFpsCap="presentation";viewport.dataset.worldMapPixelRatio=String(this.mapPixelRatio);viewport.dataset.worldFlightPixelRatio=String(Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO));viewport.dataset.worldMapUpdates="0";viewport.dataset.worldGridEnabled=this.gridEnabled?"1":"0";viewport.dataset.worldImageryEnabled=this.imageryEnabled?"1":"0";viewport.dataset.worldImageryLayer=this.map.getLayer(WORLD_IMAGERY_LAYER_ID)?"ready":"pending";viewport.dataset.worldLookKeepEnabled=this.keepLookOrientation?"1":"0";viewport.dataset.worldPerfMode=this.perfMode;viewport.dataset.worldFlightFps="0";viewport.dataset.worldMinimapQueries="0";viewport.dataset.worldMinimapImageryTiles="0";viewport.dataset.worldShotQueries="0";viewport.dataset.worldBuildingCollisionStatus="waiting-for-vector-tiles";viewport.dataset.worldBuildingCollisionFootprints="0";viewport.dataset.worldBuildingCollisionPrisms="0";this.minimapLastQueryMs=-Infinity;this.minimapLastDrawMs=-Infinity;this.minimapQueries=0;this.buildingCollisionDirty=true;this.renderLookHud();await this.syncTerrainPhysics(true);if(!this.terrainSnapshot)throw Error("REAL WORLD DEM physics unavailable");await this.waitForBuildingCollisionData();this.syncBuildingCollisions(true);const safeSpawn=this.relocateSafeSpawn({mode:"initial",around:[0,0,0],seed:1});if(!safeSpawn)throw Error("REAL WORLD has no safe ray-traced spawn near the GPS origin");this.loading=false;
       const mode=$("worldMode"),config=$("realWorldConfig");if(mode)mode.value="real";if(config)config.hidden=false;
       this.status(`REAL WORLD LIVE · ${this.imageryEnabled?"AERIAL + OSM":"OSM MAP"} · ${fromMate?"MATE GPS ORIGIN":"GPS"} ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m`,"good");try{localStorage.setItem(MODE_STORAGE,"real");}catch{}
@@ -432,6 +436,11 @@ class RealWorldBridge{
     this.attachThree(renderer,scene,camera);this.updateVsPose();
     if(!this.active)return false;
     this.syncTerrainPhysics();
+    // Keep MapLibre on the fixed GPS-origin camera until its initial vector tiles
+    // are ready. Moving the map while activation is still loading causes
+    // cancelPendingTileRequestsWhileZooming to abort the very building tile
+    // required for collision-safe initial spawn.
+    if(this.loading)return false;
     this.syncBuildingCollisions();
     this.renderReal(scene,camera);
     return true;
