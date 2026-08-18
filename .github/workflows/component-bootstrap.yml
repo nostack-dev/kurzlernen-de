@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: write
-  actions: write
   issues: write
 
 jobs:
@@ -20,8 +19,6 @@ jobs:
           fetch-depth: 0
       - name: Extract and execute verified component patch
         id: patch
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -43,41 +40,41 @@ jobs:
           script=script.replace("return n*(3.3+.9*s+.0375*Math.tanh((s-.12)*18));","return n*Math.min(4.2,3.2625+.9*s+.0375*Math.tanh((s-.12)*18));")
           script=script.replace('static constexpr float kAglToVerticalSpeed = 8.00f;','static constexpr float kAglToVerticalSpeed = 2.00f;')
           script=script.replace('CHECK(controller.debug().target_vz_mps > 11.9f);\\n    CHECK(controller.debug().vertical_accel_mps2 > 47.9f);\\n    CHECK(climb_throttle > 0.90f);','CHECK(controller.debug().target_vz_mps > 2.9f);\\n    CHECK(controller.debug().vertical_accel_mps2 > 11.9f);\\n    CHECK(climb_throttle > 0.58f && climb_throttle < 0.65f);')
+          browser_patch=r'''python3 - <<'PY_BROWSER'
+          from pathlib import Path
+          p=Path('tests/game_speed_envelope_smoke.mjs')
+          s=p.read_text()
+          marker='''  await setSpeed(36);\n  const defaultResults=[];'''
+          block='''  await setSpeed(36);\n\n  // Vertical plant-authority release gate. This drives the actual spring-centred\n  // height pad through SBUS -> shared WASM FC -> battery/motor/prop model -> Box3D.\n  // The former 2 m/s software climb/descent ceiling cannot pass this test.\n  await resetAndArm();\n  const heightPad=await page.$eval(\"#soloHeightPad\",e=>{const b=e.getBoundingClientRect();return{x:b.left+b.width/2,center:b.top+b.height/2,top:b.top+3,bottom:b.bottom-3};});\n  const climbStart=await simTime();\n  await page.mouse.move(heightPad.x,heightPad.center);await page.mouse.down();await page.mouse.move(heightPad.x,heightPad.top,{steps:4});\n  await waitSim(climbStart+1.45,90000);await page.mouse.up();\n  let verticalMotion=(await flightSamples()).map(bodyMotion).filter(x=>x.time>=climbStart&&x.time<=climbStart+1.50);\n  const maxClimb=Math.max(...verticalMotion.map(x=>x.vertical));\n  const climbFast=verticalMotion.find(x=>x.vertical>=3.2);\n  if(!(maxClimb>=3.5))throw new Error(`physical vertical climb remains artificially weak: peak ${maxClimb.toFixed(2)} m/s`);\n  if(!climbFast||climbFast.time-climbStart>1.35)throw new Error(`physical climb acceleration too slow: t(3.2m/s)=${climbFast?(climbFast.time-climbStart).toFixed(3):\"never\"} s`);\n  await settle();\n  const descendStart=await simTime();\n  await page.mouse.move(heightPad.x,heightPad.center);await page.mouse.down();await page.mouse.move(heightPad.x,heightPad.bottom,{steps:4});\n  await waitSim(descendStart+1.20,90000);await page.mouse.up();\n  verticalMotion=(await flightSamples()).map(bodyMotion).filter(x=>x.time>=descendStart&&x.time<=descendStart+1.25);\n  const minDescend=Math.min(...verticalMotion.map(x=>x.vertical));\n  const descendFast=verticalMotion.find(x=>x.vertical<=-3.2);\n  if(!(minDescend<=-3.5))throw new Error(`physical vertical descent remains artificially weak: peak ${minDescend.toFixed(2)} m/s`);\n  if(!descendFast||descendFast.time-descendStart>1.10)throw new Error(`physical descent acceleration too slow: t(-3.2m/s)=${descendFast?(descendFast.time-descendStart).toFixed(3):\"never\"} s`);\n  console.log(`GAME physical vertical authority passed: climb ${maxClimb.toFixed(2)} m/s, t3.2 ${(climbFast.time-climbStart).toFixed(3)} s; descent ${minDescend.toFixed(2)} m/s, t-3.2 ${(descendFast.time-descendStart).toFixed(3)} s.`);\n  await settle();\n\n  const defaultResults=[];'''
+          assert marker in s
+          p.write_text(s.replace(marker,block,1))
+          PY_BROWSER
+          node --check tests/game_speed_envelope_smoke.mjs
+          git checkout -- .github/workflows/deploy.yml
+          '''
+          needle="git config user.name 'github-actions[bot]'"
+          if needle not in script: raise SystemExit('git commit marker missing from component patch')
+          script=script.replace(needle,browser_patch+needle,1)
+          script=script.replace('tests/architecture_invariants.mjs .github/workflows/deploy.yml','tests/architecture_invariants.mjs tests/game_speed_envelope_smoke.mjs')
           Path('/tmp/component-patch.sh').write_text(script)
           PY
           bash -n /tmp/component-patch.sh
           if ! bash /tmp/component-patch.sh > /tmp/component-patch.log 2>&1; then
-            tail -n 160 /tmp/component-patch.log
+            tail -n 180 /tmp/component-patch.log
             exit 1
           fi
-          tail -n 120 /tmp/component-patch.log
-      - name: Clean temporary transport files
-        if: success()
-        run: |
-          set -euxo pipefail
-          git fetch origin main
-          git reset --hard origin/main
-          git rm -f .github/workflows/apply-component-derived-physics.yml .github/workflows/repair-component-patch-gate.yml .github/workflows/component-bootstrap.yml .component-repair-trigger
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Release component-derived drone physics'
-          git push origin HEAD:main
-          echo "CLEAN_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
-      - name: Dispatch normal Pages release
+          tail -n 140 /tmp/component-patch.log
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Report tested source commit
         if: success()
         uses: actions/github-script@v8
         with:
           script: |
-            await github.request('POST /repos/{owner}/{repo}/actions/workflows/deploy.yml/dispatches', {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: 'main'
-            });
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `COMPONENT_PHYSICS_PATCH_OK clean=${process.env.CLEAN_SHA} deploy_dispatched=1`
+              body: `COMPONENT_PHYSICS_SOURCE_OK source=${process.env.SOURCE_SHA}`
             });
       - name: Report patch failure
         if: failure()
@@ -85,5 +82,5 @@ jobs:
         with:
           script: |
             const fs=require('fs');
-            let log=''; try{log=fs.readFileSync('/tmp/component-patch.log','utf8').slice(-6000);}catch{}
+            let log=''; try{log=fs.readFileSync('/tmp/component-patch.log','utf8').slice(-7000);}catch{}
             await github.rest.issues.createComment({owner:context.repo.owner,repo:context.repo.repo,issue_number:context.issue.number,body:`COMPONENT_PHYSICS_PATCH_FAILED\n\n\`\`\`\n${log}\n\`\`\``});
