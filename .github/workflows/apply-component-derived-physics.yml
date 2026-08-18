@@ -1,0 +1,211 @@
+name: Apply component-derived physics
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Apply component-derived physics'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build component mass and physical authority model
+        run: |
+          set -euxo pipefail
+          cat > sim/component_mass_model.mjs <<'EOF'
+          const finite=value=>Number.isFinite(Number(value));
+          const positive=(value,name)=>{const n=Number(value);if(!(n>0))throw new Error(`${name} must be positive`);return n;};
+          const vec3=(value,name)=>{if(!Array.isArray(value)||value.length!==3||!value.every(finite))throw new Error(`${name} must be a finite vec3`);return value.map(Number);};
+          const zeroTensor=()=>[[0,0,0],[0,0,0],[0,0,0]];
+          const addTensor=(a,b)=>a.map((row,i)=>row.map((value,j)=>value+b[i][j]));
+          const boxTensor=(mass,[x,y,z])=>[[mass*(y*y+z*z)/12,0,0],[0,mass*(x*x+z*z)/12,0],[0,0,mass*(x*x+y*y)/12]];
+          const diskTensor=(mass,radius,thickness)=>[[mass*(3*radius*radius+thickness*thickness)/12,0,0],[0,mass*(3*radius*radius+thickness*thickness)/12,0],[0,0,mass*radius*radius/2]];
+          const parallelAxis=(mass,[x,y,z])=>[[mass*(y*y+z*z),-mass*x*y,-mass*x*z],[-mass*x*y,mass*(x*x+z*z),-mass*y*z],[-mass*x*z,-mass*y*z,mass*(x*x+y*y)]];
+
+          export const DEFAULT_COMPONENT_MASSES_KG=Object.freeze({
+            frame:0.180,motorEach:0.035,propEach:0.005,battery:0.200,esc:0.030,fcRx:0.020,cameraVtx:0.030,wiringHardware:0.100,
+          });
+          export const DEFAULT_COMPONENT_PLACEMENT_M=Object.freeze({batteryX:0.015,batteryZ:-0.015,cameraX:-0.065,cameraZ:0.006});
+
+          export function buildQuadComponents({spanM,propDiameterM,massesKg=DEFAULT_COMPONENT_MASSES_KG,placementM=DEFAULT_COMPONENT_PLACEMENT_M}={}){
+            const span=positive(spanM,'spanM'),propDiameter=positive(propDiameterM,'propDiameterM');
+            const masses={...DEFAULT_COMPONENT_MASSES_KG,...massesKg},placement={...DEFAULT_COMPONENT_PLACEMENT_M,...placementM};
+            for(const [key,value] of Object.entries(masses))positive(value,`massesKg.${key}`);
+            for(const [key,value] of Object.entries(placement))if(!finite(value))throw new Error(`placementM.${key} must be finite`);
+            const arm=span/(2*Math.sqrt(2)),motors=[[-arm,-arm,0],[-arm,arm,0],[arm,arm,0],[arm,-arm,0]],components=[];
+            components.push({name:'frame',massKg:masses.frame,positionM:[0,0,0],shape:{type:'box',sizeM:[span*.62,span*.48,.018]}});
+            motors.forEach((position,index)=>{
+              components.push({name:`motor${index+1}`,massKg:masses.motorEach,positionM:position,shape:{type:'box',sizeM:[.036,.036,.025]}});
+              components.push({name:`prop${index+1}`,massKg:masses.propEach,positionM:[position[0],position[1],.014],shape:{type:'disk',radiusM:propDiameter/2,thicknessM:.002}});
+              components.push({name:`armHardware${index+1}`,massKg:masses.wiringHardware/4,positionM:[position[0]/2,position[1]/2,-.002],shape:{type:'box',sizeM:[span*.245,.016,.008]}});
+            });
+            components.push({name:'battery',massKg:masses.battery,positionM:[placement.batteryX,0,placement.batteryZ],shape:{type:'box',sizeM:[.105,.035,.032]}});
+            components.push({name:'esc',massKg:masses.esc,positionM:[0,0,-.002],shape:{type:'box',sizeM:[.050,.050,.008]}});
+            components.push({name:'fcRx',massKg:masses.fcRx,positionM:[0,0,.008],shape:{type:'box',sizeM:[.040,.040,.012]}});
+            components.push({name:'cameraVtx',massKg:masses.cameraVtx,positionM:[placement.cameraX,0,placement.cameraZ],shape:{type:'box',sizeM:[.040,.030,.025]}});
+            return components;
+          }
+
+          export function deriveRigidBodyMassProperties(components){
+            if(!Array.isArray(components)||!components.length)throw new Error('components are required');
+            let massKg=0,weighted=[0,0,0];
+            for(const component of components){const mass=positive(component.massKg,`${component.name||'component'}.massKg`),position=vec3(component.positionM,`${component.name||'component'}.positionM`);massKg+=mass;for(let i=0;i<3;i++)weighted[i]+=mass*position[i];}
+            const centerM=weighted.map(value=>value/massKg);let inertia=zeroTensor();
+            for(const component of components){
+              const mass=Number(component.massKg),position=component.positionM.map(Number),offset=position.map((value,i)=>value-centerM[i]);let local;
+              if(component.shape?.type==='box'){const size=vec3(component.shape.sizeM,`${component.name}.shape.sizeM`).map((value,i)=>positive(value,`${component.name}.shape.sizeM[${i}]`));local=boxTensor(mass,size);}
+              else if(component.shape?.type==='disk'){local=diskTensor(mass,positive(component.shape.radiusM,`${component.name}.radiusM`),positive(component.shape.thicknessM,`${component.name}.thicknessM`));}
+              else throw new Error(`${component.name||'component'} has unsupported mass shape`);
+              inertia=addTensor(inertia,addTensor(local,parallelAxis(mass,offset)));
+            }
+            const [Ixx,Iyy,Izz]=[inertia[0][0],inertia[1][1],inertia[2][2]];
+            if(!(Ixx>0&&Iyy>0&&Izz>0&&Ixx+Iyy>Izz&&Ixx+Izz>Iyy&&Iyy+Izz>Ixx))throw new Error('derived inertia tensor is not physically valid');
+            const det=inertia[0][0]*(inertia[1][1]*inertia[2][2]-inertia[1][2]*inertia[2][1])-inertia[0][1]*(inertia[1][0]*inertia[2][2]-inertia[1][2]*inertia[2][0])+inertia[0][2]*(inertia[1][0]*inertia[2][1]-inertia[1][1]*inertia[2][0]);
+            if(!(det>0))throw new Error('derived inertia tensor is not positive definite');
+            return Object.freeze({massKg,centerM:Object.freeze(centerM),inertiaTensorKgM2:Object.freeze(inertia.map(row=>Object.freeze(row))),Ixx,Iyy,Izz,components:Object.freeze(components.map(component=>Object.freeze({...component})))});
+          }
+
+          export function deriveQuadMassProperties(options){return deriveRigidBodyMassProperties(buildQuadComponents(options));}
+          EOF
+
+          cat > sim/propulsion_authority.mjs <<'EOF'
+          const clamp=(value,lo,hi)=>Math.max(lo,Math.min(hi,Number(value)||0));
+          const positive=(value,name)=>{const n=Number(value);if(!(n>0))throw new Error(`${name} must be positive`);return n;};
+          export const MOTOR_BEARING_DRAG_NM_PER_RAD_S=1.5e-7;
+          export function batteryOcvVoltage(soc,cells=4){const s=clamp(soc,0,1),n=positive(cells,'batteryCells');return n*(3.3+.9*s+.0375*Math.tanh((s-.12)*18));}
+          export function batteryVoltageUnderLoad(ocv,totalCurrentA,internalResistanceOhm,cells=4){const n=positive(cells,'batteryCells'),v=Number(ocv)-Math.max(0,Number(totalCurrentA)||0)*positive(internalResistanceOhm,'batteryR');return clamp(v,3*n,4.2*n);}
+          export function scaleCurrentsToPackLimit(currents,maxPackCurrentA){const max=positive(maxPackCurrentA,'batteryMaxCurrentA'),total=currents.reduce((sum,value)=>sum+Math.max(0,Number(value)||0),0);if(total<=max||total<=1e-12)return total;const scale=max/total;for(let i=0;i<currents.length;i++)currents[i]*=scale;return max;}
+          export function solveStaticPropulsionAuthority(params){
+            const mass=positive(params.mass,'mass'),kv=positive(params.kv,'kv'),R=positive(params.R,'R'),Cq=positive(params.Cq,'Cq'),Ct=positive(params.Ct,'Ct'),rho=positive(params.rho,'rho'),D=positive(params.propD,'propD'),cells=positive(params.batteryCells,'batteryCells'),batteryR=positive(params.batteryR,'batteryR'),motorLimit=Math.min(positive(params.motorCurrentLimitA,'motorCurrentLimitA'),positive(params.escCurrentLimitA,'escCurrentLimitA')),packLimit=positive(params.batteryMaxCurrentA,'batteryMaxCurrentA');
+            const backEmf=60/(2*Math.PI*kv),torqueConstant=backEmf,ocv=batteryOcvVoltage(1,cells),propD4=D**4,propD5=D**5;
+            let voltage=ocv,omega=0,current=0,totalCurrentA=0;
+            for(let outer=0;outer<32;outer++){
+              const perMotorPackLimit=packLimit/4,currentLimit=Math.min(motorLimit,perMotorPackLimit),noLoad=Math.max(1,voltage/backEmf);let lo=0,hi=noLoad;
+              for(let i=0;i<64;i++){
+                const mid=(lo+hi)/2,n=mid/(2*Math.PI),amps=clamp((voltage-backEmf*mid)/R,0,currentLimit),motorTorque=torqueConstant*amps,loadTorque=Cq*rho*n*n*propD5+MOTOR_BEARING_DRAG_NM_PER_RAD_S*mid;
+                if(motorTorque>loadTorque)lo=mid;else hi=mid;
+              }
+              omega=(lo+hi)/2;current=clamp((voltage-backEmf*omega)/R,0,currentLimit);totalCurrentA=Math.min(packLimit,current*4);const nextVoltage=batteryVoltageUnderLoad(ocv,totalCurrentA,batteryR,cells);if(Math.abs(nextVoltage-voltage)<1e-8){voltage=nextVoltage;break;}voltage=.55*voltage+.45*nextVoltage;
+            }
+            const n=omega/(2*Math.PI),perMotorThrustN=Ct*rho*n*n*propD4,totalThrustN=4*perMotorThrustN,gravity=9.80665,thrustToWeight=totalThrustN/(mass*gravity),idealVerticalAccelerationMps2=totalThrustN/mass-gravity;
+            return Object.freeze({voltageV:voltage,totalCurrentA,motorCurrentA:current,rpm:n*60,perMotorThrustN,totalThrustN,thrustToWeight,idealVerticalAccelerationMps2});
+          }
+          EOF
+
+          cat > tests/component_mass_model_test.mjs <<'EOF'
+          import assert from 'node:assert/strict';
+          import {DEFAULT_COMPONENT_MASSES_KG,deriveQuadMassProperties} from '../sim/component_mass_model.mjs';
+          const base=deriveQuadMassProperties({spanM:.225,propDiameterM:.127});
+          const expected=DEFAULT_COMPONENT_MASSES_KG.frame+4*DEFAULT_COMPONENT_MASSES_KG.motorEach+4*DEFAULT_COMPONENT_MASSES_KG.propEach+DEFAULT_COMPONENT_MASSES_KG.battery+DEFAULT_COMPONENT_MASSES_KG.esc+DEFAULT_COMPONENT_MASSES_KG.fcRx+DEFAULT_COMPONENT_MASSES_KG.cameraVtx+DEFAULT_COMPONENT_MASSES_KG.wiringHardware;
+          assert.ok(Math.abs(base.massKg-expected)<1e-12);assert.ok(Math.abs(base.massKg-.720)<1e-12);
+          assert.equal(base.components.length,16);assert.ok(base.Ixx>0&&base.Iyy>0&&base.Izz>0);assert.ok(Math.abs(base.inertiaTensorKgM2[0][1]-base.inertiaTensorKgM2[1][0])<1e-14);assert.ok(Math.abs(base.inertiaTensorKgM2[0][2]-base.inertiaTensorKgM2[2][0])<1e-14);
+          const forwardBattery=deriveQuadMassProperties({spanM:.225,propDiameterM:.127,placementM:{batteryX:.045}});assert.ok(forwardBattery.centerM[0]>base.centerM[0]+.007,'battery placement must move CoM');assert.ok(forwardBattery.Iyy>base.Iyy,'moving battery away from CoM must increase pitch inertia');
+          const heavyMotors=deriveQuadMassProperties({spanM:.225,propDiameterM:.127,massesKg:{motorEach:.060}});assert.ok(heavyMotors.massKg>base.massKg);assert.ok(heavyMotors.Izz>base.Izz,'outer motor mass must raise yaw inertia');
+          console.log(`Component mass model passed: ${(base.massKg*1000).toFixed(0)} g, CoM ${base.centerM.map(v=>(v*1000).toFixed(2)).join('/')} mm, I ${base.Ixx.toFixed(6)}/${base.Iyy.toFixed(6)}/${base.Izz.toFixed(6)} kg m^2.`);
+          EOF
+
+          cat > tests/propulsion_authority_test.mjs <<'EOF'
+          import assert from 'node:assert/strict';
+          import {batteryOcvVoltage,batteryVoltageUnderLoad,scaleCurrentsToPackLimit,solveStaticPropulsionAuthority} from '../sim/propulsion_authority.mjs';
+          const base={mass:.72,kv:2300,R:.080,Ct:.105,Cq:.012,rho:1.225,propD:.127,batteryCells:4,batteryR:.055,batteryMaxCurrentA:180,motorCurrentLimitA:45,escCurrentLimitA:45};
+          assert.ok(Math.abs(batteryOcvVoltage(1,4)-16.8)<.02);assert.ok(batteryVoltageUnderLoad(16.8,100,.055,4)<16.8);
+          const currents=[60,40,20,10];const total=scaleCurrentsToPackLimit(currents,100);assert.equal(total,100);assert.ok(Math.abs(currents.reduce((a,b)=>a+b,0)-100)<1e-9);
+          const authority=solveStaticPropulsionAuthority(base);assert.ok(authority.voltageV<16.8&&authority.voltageV>=12);assert.ok(authority.totalCurrentA<=180.0001);assert.ok(authority.totalThrustN>base.mass*9.80665);assert.ok(authority.thrustToWeight>1);
+          const heavy=solveStaticPropulsionAuthority({...base,mass:1.1});assert.ok(heavy.totalThrustN===authority.totalThrustN);assert.ok(heavy.idealVerticalAccelerationMps2<authority.idealVerticalAccelerationMps2);
+          const weakPack=solveStaticPropulsionAuthority({...base,batteryMaxCurrentA:70});assert.ok(weakPack.totalCurrentA<=70.0001);assert.ok(weakPack.totalThrustN<authority.totalThrustN);
+          const highR=solveStaticPropulsionAuthority({...base,batteryR:.11});assert.ok(highR.voltageV<authority.voltageV);assert.ok(highR.totalThrustN<authority.totalThrustN);
+          console.log(`Propulsion authority passed: ${authority.totalThrustN.toFixed(2)} N, T/W ${authority.thrustToWeight.toFixed(2)}, ${authority.totalCurrentA.toFixed(1)} A @ ${authority.voltageV.toFixed(2)} V.`);
+          EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('drone_simulator.html');s=p.read_text()
+          old='''<div class="card"><h2>Physical airframe model</h2><div class="grid"><label>Mass kg<input id="mass" type="number" step="0.001" value="0.720"></label><label>Motor span mm<input id="span" type="number" step="1" value="225"></label><label>Prop diameter in<input id="propD" type="number" step="0.1" value="5.0"></label><label>Motor Kv rpm/V<input id="kv" type="number" step="10" value="2300"></label><label>Motor R Ω<input id="resistance" type="number" step="0.001" value="0.080"></label><label>Rotor inertia kg·m²<input id="rotorJ" type="number" step="0.000001" value="0.000011"></label><label>Prop Ct<input id="ct" type="number" step="0.001" value="0.105"></label><label>Prop Cq<input id="cq" type="number" step="0.001" value="0.012"></label><label>Battery Ah<input id="capacity" type="number" step="0.1" value="1.5"></label><label>Battery R Ω<input id="batteryR" type="number" step="0.001" value="0.055"></label><label>Ixx kg·m²<input id="ixx" type="number" step="0.0001" value="0.0042"></label><label>Iyy kg·m²<input id="iyy" type="number" step="0.0001" value="0.0048"></label><label>Izz kg·m²<input id="izz" type="number" step="0.0001" value="0.0079"></label><label>Air density<input id="rho" type="number" step="0.001" value="1.225"></label><label>Linear drag scale<input id="dragScale" type="number" step="0.01" value="0.35"></label><label>Ground effect<input id="groundEffect" type="number" step="0.05" value="0.18"></label></div><div id="modelValidationStatus" class="statusline bad" data-validation="unvalidated">UNVALIDATED · nominal coefficients; no independent real-flight holdout evidence</div><div class="help">REAL LOG fitting uses the first 70% of a measured flight for identification and reserves the final 30% as an unseen chronological holdout. The model is marked validated only when every physical-unit acceptance gate passes.</div></div>'''
+          new='''<div class="card"><h2>Physical airframe model · component derived</h2><div class="grid"><label>Derived mass kg<input id="mass" type="number" step="0.001" value="0.720" readonly></label><label>Motor span mm<input id="span" type="number" step="1" value="225"></label><label>Prop diameter in<input id="propD" type="number" step="0.1" value="5.0"></label><label>Motor Kv rpm/V<input id="kv" type="number" step="10" value="2300"></label><label>Motor R Ω<input id="resistance" type="number" step="0.001" value="0.080"></label><label>Motor current max A<input id="motorCurrentLimitA" type="number" step="1" value="45"></label><label>ESC current max A<input id="escCurrentLimitA" type="number" step="1" value="45"></label><label>Rotor inertia kg·m²<input id="rotorJ" type="number" step="0.000001" value="0.000011"></label><label>Prop Ct<input id="ct" type="number" step="0.001" value="0.105"></label><label>Prop Cq<input id="cq" type="number" step="0.001" value="0.012"></label><label>Battery cells S<input id="batteryCells" type="number" step="1" value="4"></label><label>Battery Ah<input id="capacity" type="number" step="0.1" value="1.5"></label><label>Battery R Ω<input id="batteryR" type="number" step="0.001" value="0.055"></label><label>Battery current max A<input id="batteryMaxCurrentA" type="number" step="5" value="180"></label><label>Derived Ixx kg·m²<input id="ixx" type="number" step="0.000001" value="0" readonly></label><label>Derived Iyy kg·m²<input id="iyy" type="number" step="0.000001" value="0" readonly></label><label>Derived Izz kg·m²<input id="izz" type="number" step="0.000001" value="0" readonly></label><label>Air density<input id="rho" type="number" step="0.001" value="1.225"></label><label>Linear drag scale<input id="dragScale" type="number" step="0.01" value="0.35"></label><label>Ground effect<input id="groundEffect" type="number" step="0.05" value="0.18"></label></div><details><summary>Component bill of mass / placement</summary><div class="grid"><label>Frame g<input id="frameMassG" type="number" step="1" value="180"></label><label>Each motor g<input id="motorMassG" type="number" step="1" value="35"></label><label>Each prop g<input id="propMassG" type="number" step="0.5" value="5"></label><label>Battery g<input id="batteryMassG" type="number" step="1" value="200"></label><label>ESC g<input id="escMassG" type="number" step="1" value="30"></label><label>FC + RX g<input id="fcRxMassG" type="number" step="1" value="20"></label><label>Camera + VTX g<input id="cameraVtxMassG" type="number" step="1" value="30"></label><label>Wiring + hardware g<input id="wiringHardwareMassG" type="number" step="1" value="100"></label><label>Battery X mm<input id="batteryXmm" type="number" step="1" value="15"></label><label>Battery Z mm<input id="batteryZmm" type="number" step="1" value="-15"></label><label>Camera X mm<input id="cameraXmm" type="number" step="1" value="-65"></label><label>Camera Z mm<input id="cameraZmm" type="number" step="1" value="6"></label></div><div class="help">These are explicit nominal BOM inputs, not hidden fitted mass/inertia. Replace them with measured component values; motor/prop positions derive from motor span.</div></details><div id="componentMassSummary" class="statusline"></div><div id="physicalAuthority" class="statusline"></div><div id="modelValidationStatus" class="statusline bad" data-validation="unvalidated">UNVALIDATED · nominal coefficients; no independent real-flight holdout evidence</div><div class="help">Mass, center of mass and the complete inertia tensor are derived from the component BOM. Electrical authority comes from battery sag/current limits → motor Kv/R/back-EMF → prop Ct/Cq → Box3D forces. REAL LOG fitting still reserves the final 30% as unseen holdout.</div></div>'''
+          assert old in s
+          p.write_text(s.replace(old,new,1))
+
+          p=Path('sim/simulator.mjs');s=p.read_text()
+          marker='''import {addPropellerSweepColliders} from "./airframe_collision_envelope.mjs";'''
+          replacement=marker+'''\nimport {deriveQuadMassProperties} from "./component_mass_model.mjs";\nimport {batteryOcvVoltage,batteryVoltageUnderLoad,scaleCurrentsToPackLimit,solveStaticPropulsionAuthority,MOTOR_BEARING_DRAG_NM_PER_RAD_S} from "./propulsion_authority.mjs";'''
+          assert marker in s;s=s.replace(marker,replacement,1)
+          start=s.index('function defaultParams(){return {')
+          end=s.index('\n};}\n\nfunction validateParams',start)+4
+          new_default='''function componentMassInputs(span,propD){\n  return deriveQuadMassProperties({\n    spanM:span,propDiameterM:propD,\n    massesKg:{frame:+$("frameMassG").value/1000,motorEach:+$("motorMassG").value/1000,propEach:+$("propMassG").value/1000,battery:+$("batteryMassG").value/1000,esc:+$("escMassG").value/1000,fcRx:+$("fcRxMassG").value/1000,cameraVtx:+$("cameraVtxMassG").value/1000,wiringHardware:+$("wiringHardwareMassG").value/1000},\n    placementM:{batteryX:+$("batteryXmm").value/1000,batteryZ:+$("batteryZmm").value/1000,cameraX:+$("cameraXmm").value/1000,cameraZ:+$("cameraZmm").value/1000},\n  });\n}\nfunction syncDerivedPhysicsReadouts(massProperties,authority){\n  $("mass").value=massProperties.massKg.toFixed(3);$("ixx").value=massProperties.Ixx.toFixed(6);$("iyy").value=massProperties.Iyy.toFixed(6);$("izz").value=massProperties.Izz.toFixed(6);\n  const comMm=massProperties.centerM.map(value=>(value*1000).toFixed(1));$("componentMassSummary").textContent=`DERIVED · ${(massProperties.massKg*1000).toFixed(0)} g · CoM ${comMm.join(" / ")} mm · I ${massProperties.Ixx.toFixed(6)} / ${massProperties.Iyy.toFixed(6)} / ${massProperties.Izz.toFixed(6)} kg·m²`;\n  $("physicalAuthority").textContent=`PLANT AUTHORITY · static ${authority.totalThrustN.toFixed(1)} N · T/W ${authority.thrustToWeight.toFixed(2)}× · ${authority.totalCurrentA.toFixed(0)} A @ ${authority.voltageV.toFixed(2)} V · ideal az ${authority.idealVerticalAccelerationMps2.toFixed(1)} m/s²`;\n  const viewport=$("viewport");if(viewport){viewport.dataset.componentMassKg=massProperties.massKg.toFixed(6);viewport.dataset.componentComM=massProperties.centerM.map(value=>value.toFixed(6)).join(",");viewport.dataset.componentInertiaKgM2=[massProperties.Ixx,massProperties.Iyy,massProperties.Izz].map(value=>value.toFixed(8)).join(",");viewport.dataset.staticThrustN=authority.totalThrustN.toFixed(4);viewport.dataset.staticTwr=authority.thrustToWeight.toFixed(4);viewport.dataset.staticCurrentA=authority.totalCurrentA.toFixed(3);}\n}\nfunction defaultParams(){\n  const span=+$("span").value/1000,propD=+$("propD").value*.0254,massProperties=componentMassInputs(span,propD);\n  const params={mass:massProperties.massKg,massCenter:[...massProperties.centerM],inertiaTensor:massProperties.inertiaTensorKgM2.map(row=>[...row]),span,propD,kv:+$("kv").value,R:+$("resistance").value,J:+$("rotorJ").value,Ct:+$("ct").value,Cq:+$("cq").value,capacity:+$("capacity").value,batteryR:+$("batteryR").value,batteryCells:+$("batteryCells").value,batteryMaxCurrentA:+$("batteryMaxCurrentA").value,motorCurrentLimitA:+$("motorCurrentLimitA").value,escCurrentLimitA:+$("escCurrentLimitA").value,Ixx:massProperties.Ixx,Iyy:massProperties.Iyy,Izz:massProperties.Izz,rho:+$("rho").value,dragScale:+$("dragScale").value,groundEffect:+$("groundEffect").value,wind:[+$("windX").value,+$("windY").value,0],failed:+$("failedMotor").value,imuValid:$("imuValid").value==="1"};\n  params.staticAuthority=solveStaticPropulsionAuthority(params);syncDerivedPhysicsReadouts(massProperties,params.staticAuthority);return params;\n}'''
+          s=s[:start]+new_default+s[end:]
+          old='''  for(const k of ["mass","span","propD","kv","R","J","Ct","Cq","capacity","batteryR","Ixx","Iyy","Izz","rho","dragScale"])if(!(p[k]>0))throw Error(`${k} must be positive`);'''
+          new='''  for(const k of ["mass","span","propD","kv","R","J","Ct","Cq","capacity","batteryR","batteryCells","batteryMaxCurrentA","motorCurrentLimitA","escCurrentLimitA","Ixx","Iyy","Izz","rho","dragScale"])if(!(p[k]>0))throw Error(`${k} must be positive`);\n  if(!Array.isArray(p.massCenter)||p.massCenter.length!==3||!p.massCenter.every(Number.isFinite))throw Error("Derived center of mass invalid");\n  if(!Array.isArray(p.inertiaTensor)||p.inertiaTensor.length!==3||p.inertiaTensor.some(row=>!Array.isArray(row)||row.length!==3||!row.every(Number.isFinite)))throw Error("Derived inertia tensor invalid");'''
+          assert old in s;s=s.replace(old,new,1)
+          old='''const mass=b3.b3Body_GetMassData(this.body);mass.mass=p.mass;mass.center=[0,0,-.006];mass.inertia={cx:[p.Ixx,0,0],cy:[0,p.Iyy,0],cz:[0,0,p.Izz]};b3.b3Body_SetMassData(this.body,mass);'''
+          new='''const mass=b3.b3Body_GetMassData(this.body);mass.mass=p.mass;mass.center=[...p.massCenter];const I=p.inertiaTensor;mass.inertia={cx:[I[0][0],I[1][0],I[2][0]],cy:[I[0][1],I[1][1],I[2][1]],cz:[I[0][2],I[1][2],I[2][2]]};b3.b3Body_SetMassData(this.body,mass);'''
+          assert old in s;s=s.replace(old,new,1)
+          s=s.replace('''this.batteryVoltage=16.8;this.batteryCurrent=0;''','''this.batteryVoltage=4.2*p.batteryCells;this.batteryCurrent=0;''',1)
+          old='''  batteryOcv(){const s=this.batterySoc;return 13.2+3.6*clamp(s,0,1)+.15*Math.tanh((s-.12)*18);}'''
+          new='''  batteryOcv(){return batteryOcvVoltage(this.batterySoc,this.p.batteryCells);}'''
+          assert old in s;s=s.replace(old,new,1)
+          old='''        currents[i]=clamp((volts-backEmf*this.motorOmega[i])/p.R,0,45);\n        total+=currents[i];\n      }\n      this.batteryVoltage=clamp(ocv-total*p.batteryR,10,16.8);'''
+          new='''        currents[i]=clamp((volts-backEmf*this.motorOmega[i])/p.R,0,Math.min(p.motorCurrentLimitA,p.escCurrentLimitA));\n        total+=currents[i];\n      }\n      total=scaleCurrentsToPackLimit(currents,p.batteryMaxCurrentA);\n      this.batteryVoltage=batteryVoltageUnderLoad(ocv,total,p.batteryR,p.batteryCells);'''
+          assert old in s;s=s.replace(old,new,1)
+          s=s.replace('''propTorque=p.Cq*p.rho*revolutions*revolutions*this.propDiameter5,motorTorque=torqueConstant*currents[i];''','''propTorque=p.Cq*p.rho*revolutions*revolutions*this.propDiameter5,motorTorque=torqueConstant*currents[i];''',1)
+          s=s.replace('''(motorTorque-propTorque-1.5e-7*this.motorOmega[i])*dt/p.J''','''(motorTorque-propTorque-MOTOR_BEARING_DRAG_NM_PER_RAD_S*this.motorOmega[i])*dt/p.J''',1)
+          old='''const PHYSICS_PARAMETER_INPUT_IDS=["mass","span","propD","kv","resistance","rotorJ","ct","cq","capacity","batteryR","ixx","iyy","izz","rho","dragScale","groundEffect","windX","windY","failedMotor"];'''
+          new='''const PHYSICS_PARAMETER_INPUT_IDS=["span","propD","kv","resistance","motorCurrentLimitA","escCurrentLimitA","rotorJ","ct","cq","batteryCells","capacity","batteryR","batteryMaxCurrentA","rho","dragScale","groundEffect","frameMassG","motorMassG","propMassG","batteryMassG","escMassG","fcRxMassG","cameraVtxMassG","wiringHardwareMassG","batteryXmm","batteryZmm","cameraXmm","cameraZmm","windX","windY","failedMotor"];'''
+          assert old in s;s=s.replace(old,new,1)
+          old='''for(const id of PHYSICS_PARAMETER_INPUT_IDS)$(id)?.addEventListener("input",()=>setPhysicsValidation(null,"physical/environment parameter changed after validation"));'''
+          new='''for(const id of PHYSICS_PARAMETER_INPUT_IDS)$(id)?.addEventListener("input",()=>{setPhysicsValidation(null,"physical/environment parameter changed after validation");try{defaultParams();}catch{}});'''
+          assert old in s;s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('esp32/Arondight45_StateControl.hpp');s=p.read_text()
+          replacements={
+            'static constexpr float kAglToVerticalSpeed = 1.30f;':'static constexpr float kAglToVerticalSpeed = 8.00f;',
+            'static constexpr float kMaxVerticalSpeedMps = 2.0f;':'static constexpr float kMaxVerticalSpeedMps = 30.0f;',
+            'static constexpr float kVerticalVelocityGain = 2.0f;':'static constexpr float kVerticalVelocityGain = 4.0f;',
+            'static constexpr float kMaxVerticalAccelerationMps2 = 4.0f;':'static constexpr float kMaxVerticalAccelerationMps2 = 50.0f;',
+            'static constexpr float kMinSpecificUpMps2 = 4.0f;':'static constexpr float kMinSpecificUpMps2 = 0.5f;',
+            'static constexpr float kMaxSpecificUpMps2 = 14.0f;':'static constexpr float kMaxSpecificUpMps2 = 60.0f;',
+            'static constexpr float kMaxFlightThrottle = 0.85f;':'static constexpr float kMaxFlightThrottle = 1.00f;',
+          }
+          for old,new in replacements.items():assert old in s,old;s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('tests/state_control_test.cpp');s=p.read_text()
+          s=s.replace('''    CHECK(controller.debug().vertical_accel_mps2 > 3.0f);\n    CHECK(climb_throttle > 0.43f && climb_throttle < 0.50f);''','''    CHECK(controller.debug().target_vz_mps > 11.9f);\n    CHECK(controller.debug().vertical_accel_mps2 > 47.9f);\n    CHECK(climb_throttle > 0.90f);''',1)
+          marker='''    CHECK(descend_throttle < climb_throttle);\n    CHECK(descend_throttle >= 0.0f);'''
+          block='''    CHECK(descend_throttle < climb_throttle);\n    CHECK(descend_throttle >= 0.0f);\n\n    // Vertical controller ceilings are deliberately above nominal plant authority.\n    // Full-clearance error must be able to saturate the physical motor path rather\n    // than an old 2 m/s / 4 m/s^2 camera-drone software envelope.\n    controller.reset();\n    auto high_clearance = base_rc(true);high_clearance.ch[fc::kStateClearanceChannel] = 1811;\n    nav = {{0.0f,0.0f,0.0f},0.5f,true};cmd=controller.run(high_clearance,nav,0.0f,true,0.001f);\n    CHECK(controller.debug().target_vz_mps > 29.9f);CHECK(controller.debug().vertical_accel_mps2 > 49.9f);CHECK(cmd.throttle > 0.99f);'''
+          assert marker in s;s=s.replace(marker,block,1);p.write_text(s)
+
+          p=Path('tests/architecture_invariants.mjs');s=p.read_text()
+          marker='''requireText("esp32/Arondight45_StateControl.hpp","kMaxHorizontalAccelerationMps2 = 7.5f");'''
+          extra=marker+'''\nrequireText("esp32/Arondight45_StateControl.hpp","kMaxVerticalSpeedMps = 30.0f");\nrequireText("esp32/Arondight45_StateControl.hpp","kMaxVerticalAccelerationMps2 = 50.0f");\nrequireText("esp32/Arondight45_StateControl.hpp","kMaxFlightThrottle = 1.00f");\nrequireText("sim/simulator.mjs","deriveQuadMassProperties");\nrequireText("sim/simulator.mjs","mass.center=[...p.massCenter]");\nrequireText("sim/simulator.mjs","scaleCurrentsToPackLimit(currents,p.batteryMaxCurrentA)");\nforbidText("sim/simulator.mjs","mass.center=[0,0,-.006]","center of mass must come from component BOM");'''
+          assert marker in s;s=s.replace(marker,extra,1);p.write_text(s)
+
+          p=Path('.github/workflows/deploy.yml');s=p.read_text()
+          marker='''          node tests/vs_pose_sync_test.mjs\n'''
+          insert=marker+'''          node tests/component_mass_model_test.mjs\n          node tests/propulsion_authority_test.mjs\n'''
+          assert marker in s;s=s.replace(marker,insert,1)
+          marker='''          node --check sim/control_semantics.mjs\n'''
+          insert=marker+'''          node --check sim/component_mass_model.mjs\n          node --check sim/propulsion_authority.mjs\n'''
+          assert marker in s;s=s.replace(marker,insert,1);p.write_text(s)
+          PY
+
+          node tests/component_mass_model_test.mjs
+          node tests/propulsion_authority_test.mjs
+          node --check sim/component_mass_model.mjs
+          node --check sim/propulsion_authority.mjs
+          node --check sim/simulator.mjs
+          node --check tests/architecture_invariants.mjs
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
+          /tmp/state_control_test
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/component_mass_model.mjs sim/propulsion_authority.mjs sim/simulator.mjs drone_simulator.html esp32/Arondight45_StateControl.hpp tests/component_mass_model_test.mjs tests/propulsion_authority_test.mjs tests/state_control_test.cpp tests/architecture_invariants.mjs .github/workflows/deploy.yml
+          git commit -m 'Derive airframe mass and thrust from components'
+          git push origin HEAD:main
