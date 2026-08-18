@@ -14,7 +14,11 @@ import {partitionCalibrationLog,evaluatePhysicsValidation,validationSummary,PHYS
 import {findXboxGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";
 import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";
 import {renderPlatformProfile,quantizedViewportSize,viewportSizeChanged} from "./render_stability.mjs";
-import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies} from "./world_building_collision_physics.mjs";
+import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,resolveBox3dCameraPath} from "./world_building_collision_physics.mjs";
+import {Box3dColliderDebugDraw} from "./box3d_collider_debug.mjs";
+import {addPropellerSweepColliders} from "./airframe_collision_envelope.mjs";
+import {deriveQuadMassProperties} from "./component_mass_model.mjs";
+import {batteryOcvVoltage,batteryVoltageUnderLoad,scaleCurrentsToPackLimit,solveStaticPropulsionAuthority,MOTOR_BEARING_DRAG_NM_PER_RAD_S} from "./propulsion_authority.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -42,6 +46,7 @@ const NAV_SPLIT_VALIDITY = 1 << 15;
 const TERRAIN_SIZE = 20000;
 const TERRAIN_HALF = TERRAIN_SIZE / 2;
 const DEBUG_GRID_STORAGE = "arondight45DebugGridlinesV1";
+const BOX3D_COLLIDER_DEBUG_STORAGE = "arondight45Box3dColliderDebugV1";
 const NAV_AGL_RAY_MAX_M = MIN_GAME_AGL_SENSOR_SLANT_RANGE_M;
 const SIM_FIXED_STEP_MS = DT * 1000;
 const SIM_MAX_CATCHUP_MS = 50;
@@ -87,6 +92,7 @@ const waitForSimulationDeadline=accumulatorMs=>new Promise(resolve=>setTimeout(r
 const COLLISION_TERRAIN = 1n;
 const COLLISION_AIRFRAME = 2n;
 const QUERY_RANGEFINDER = 4n;
+const QUERY_CAMERA = 8n;
 const AIRFRAME_COLLISION_HALF_Z_M = .022;
 const AIRFRAME_VISUAL_BODY_CENTER_Z_M = .006;
 const AIRFRAME_LANDING_SKID_RADIUS_M = .004;
@@ -323,31 +329,30 @@ class SimSbusReceiver {
 
 const b3 = await Box3DFactory();
 
-function defaultParams(){return {
-  mass:+$("mass").value,
-  span:+$("span").value/1000,
-  propD:+$("propD").value*.0254,
-  kv:+$("kv").value,
-  R:+$("resistance").value,
-  J:+$("rotorJ").value,
-  Ct:+$("ct").value,
-  Cq:+$("cq").value,
-  capacity:+$("capacity").value,
-  batteryR:+$("batteryR").value,
-  Ixx:+$("ixx").value,
-  Iyy:+$("iyy").value,
-  Izz:+$("izz").value,
-  rho:+$("rho").value,
-  dragScale:+$("dragScale").value,
-  groundEffect:+$("groundEffect").value,
-  wind:[+$("windX").value,+$("windY").value,0],
-  failed:+$("failedMotor").value,
-  imuValid:$("imuValid").value==="1"
-};}
+function componentMassInputs(span,propD){
+  return deriveQuadMassProperties({
+    spanM:span,propDiameterM:propD,
+    massesKg:{frame:+$("frameMassG").value/1000,motorEach:+$("motorMassG").value/1000,propEach:+$("propMassG").value/1000,battery:+$("batteryMassG").value/1000,esc:+$("escMassG").value/1000,fcRx:+$("fcRxMassG").value/1000,cameraVtx:+$("cameraVtxMassG").value/1000,wiringHardware:+$("wiringHardwareMassG").value/1000},
+    placementM:{batteryX:+$("batteryXmm").value/1000,batteryZ:+$("batteryZmm").value/1000,cameraX:+$("cameraXmm").value/1000,cameraZ:+$("cameraZmm").value/1000},
+  });
+}
+function syncDerivedPhysicsReadouts(massProperties,authority){
+  $("mass").value=massProperties.massKg.toFixed(3);$("ixx").value=massProperties.Ixx.toFixed(6);$("iyy").value=massProperties.Iyy.toFixed(6);$("izz").value=massProperties.Izz.toFixed(6);
+  const comMm=massProperties.centerM.map(value=>(value*1000).toFixed(1));$("componentMassSummary").textContent=`DERIVED · ${(massProperties.massKg*1000).toFixed(0)} g · CoM ${comMm.join(" / ")} mm · I ${massProperties.Ixx.toFixed(6)} / ${massProperties.Iyy.toFixed(6)} / ${massProperties.Izz.toFixed(6)} kg·m²`;
+  $("physicalAuthority").textContent=`PLANT AUTHORITY · static ${authority.totalThrustN.toFixed(1)} N · T/W ${authority.thrustToWeight.toFixed(2)}× · ${authority.totalCurrentA.toFixed(0)} A @ ${authority.voltageV.toFixed(2)} V · ideal az ${authority.idealVerticalAccelerationMps2.toFixed(1)} m/s²`;
+  const viewport=$("viewport");if(viewport){viewport.dataset.componentMassKg=massProperties.massKg.toFixed(6);viewport.dataset.componentComM=massProperties.centerM.map(value=>value.toFixed(6)).join(",");viewport.dataset.componentInertiaKgM2=[massProperties.Ixx,massProperties.Iyy,massProperties.Izz].map(value=>value.toFixed(8)).join(",");viewport.dataset.staticThrustN=authority.totalThrustN.toFixed(4);viewport.dataset.staticTwr=authority.thrustToWeight.toFixed(4);viewport.dataset.staticCurrentA=authority.totalCurrentA.toFixed(3);}
+}
+function defaultParams(){
+  const span=+$("span").value/1000,propD=+$("propD").value*.0254,massProperties=componentMassInputs(span,propD);
+  const params={mass:massProperties.massKg,massCenter:[...massProperties.centerM],inertiaTensor:massProperties.inertiaTensorKgM2.map(row=>[...row]),span,propD,kv:+$("kv").value,R:+$("resistance").value,J:+$("rotorJ").value,Ct:+$("ct").value,Cq:+$("cq").value,capacity:+$("capacity").value,batteryR:+$("batteryR").value,batteryCells:+$("batteryCells").value,batteryMaxCurrentA:+$("batteryMaxCurrentA").value,motorCurrentLimitA:+$("motorCurrentLimitA").value,escCurrentLimitA:+$("escCurrentLimitA").value,Ixx:massProperties.Ixx,Iyy:massProperties.Iyy,Izz:massProperties.Izz,rho:+$("rho").value,dragScale:+$("dragScale").value,groundEffect:+$("groundEffect").value,wind:[+$("windX").value,+$("windY").value,0],failed:+$("failedMotor").value,imuValid:$("imuValid").value==="1"};
+  params.staticAuthority=solveStaticPropulsionAuthority(params);syncDerivedPhysicsReadouts(massProperties,params.staticAuthority);return params;
+}
 
 function validateParams(p){
   for(const[k,v]of Object.entries(p))if(typeof v==="number"&&!Number.isFinite(v))throw Error(`Invalid physical parameter ${k}`);
-  for(const k of ["mass","span","propD","kv","R","J","Ct","Cq","capacity","batteryR","Ixx","Iyy","Izz","rho","dragScale"])if(!(p[k]>0))throw Error(`${k} must be positive`);
+  for(const k of ["mass","span","propD","kv","R","J","Ct","Cq","capacity","batteryR","batteryCells","batteryMaxCurrentA","motorCurrentLimitA","escCurrentLimitA","Ixx","Iyy","Izz","rho","dragScale"])if(!(p[k]>0))throw Error(`${k} must be positive`);
+  if(!Array.isArray(p.massCenter)||p.massCenter.length!==3||!p.massCenter.every(Number.isFinite))throw Error("Derived center of mass invalid");
+  if(!Array.isArray(p.inertiaTensor)||p.inertiaTensor.length!==3||p.inertiaTensor.some(row=>!Array.isArray(row)||row.length!==3||!row.every(Number.isFinite)))throw Error("Derived inertia tensor invalid");
   if(!(p.groundEffect>=0))throw Error("groundEffect must be non-negative");
   if(p.Ixx+p.Iyy<=p.Izz||p.Ixx+p.Izz<=p.Iyy||p.Iyy+p.Izz<=p.Ixx)throw Error("Inertia tensor violates rigid-body triangle inequalities");
 }
@@ -374,15 +379,16 @@ class PhysicsModel {
     this.p={...p,wind:[...p.wind]};
     if(this.world){this.worldBuildingCollisionState=null;b3.b3DestroyWorld(this.world);}
     const worldDef=b3.b3DefaultWorldDef();worldDef.gravity=[0,0,-G];worldDef.enableSleep=false;worldDef.enableContinuous=true;this.world=b3.b3CreateWorld(worldDef);
-    const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(this.world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER,groupIndex:0};b3.b3CreateBoxShape(ground,groundShape,TERRAIN_HALF,TERRAIN_HALF,.05);
+    const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(this.world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,groupIndex:0};b3.b3CreateBoxShape(ground,groundShape,TERRAIN_HALF,TERRAIN_HALF,.05);
     const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;const initialZ=Number.isFinite(initial?.z)?initial.z:AIRFRAME_SPAWN_Z_M;bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(AIRFRAME_SPAWN_Z_M,initialZ)];bodyDef.rotation=initial?[...eulerToQuat(initial.roll_deg||0,initial.pitch_deg||0,initial.yaw_deg||0)]:[0,0,0,1];bodyDef.linearDamping=.002;bodyDef.angularDamping=.002;bodyDef.enableSleep=false;this.body=b3.b3CreateBody(this.world,bodyDef);
     const shapeDef=b3.b3DefaultShapeDef();shapeDef.density=100;shapeDef.baseMaterial.friction=.65;shapeDef.baseMaterial.restitution=.08;shapeDef.filter={categoryBits:COLLISION_AIRFRAME,maskBits:COLLISION_TERRAIN,groupIndex:0};b3.b3CreateBoxShape(this.body,shapeDef,.055,.045,AIRFRAME_COLLISION_HALF_Z_M);
     const arm=p.span/(2*Math.sqrt(2));this.motorPos=[[-arm,-arm,0],[-arm,arm,0],[arm,arm,0],[arm,-arm,0]];
     for(const position of this.motorPos){b3.b3CreateCapsuleShape(this.body,shapeDef,{center1:[0,0,0],center2:position,radius:.008});b3.b3CreateSphereShape(this.body,shapeDef,{center:position,radius:.018});}
+    addPropellerSweepColliders(b3,this.body,shapeDef,this.motorPos,p.propD);
     this.skidHalfLength=Math.min(.045,Math.max(.03,p.span*.18));
-    const mass=b3.b3Body_GetMassData(this.body);mass.mass=p.mass;mass.center=[0,0,-.006];mass.inertia={cx:[p.Ixx,0,0],cy:[0,p.Iyy,0],cz:[0,0,p.Izz]};b3.b3Body_SetMassData(this.body,mass);
+    const mass=b3.b3Body_GetMassData(this.body);mass.mass=p.mass;mass.center=[...p.massCenter];const I=p.inertiaTensor;mass.inertia={cx:[I[0][0],I[1][0],I[2][0]],cy:[I[0][1],I[1][1],I[2][1]],cz:[I[0][2],I[1][2],I[2][2]]};b3.b3Body_SetMassData(this.body,mass);
     if(initial?.vx!=null && b3.b3Body_SetLinearVelocity)b3.b3Body_SetLinearVelocity(this.body,[initial.vx||0,initial.vy||0,initial.vz||0]);
-    this.motorOmega=[0,0,0,0];this.motorCurrent=[0,0,0,0];this.motorTorque=[0,0,0,0];this.propTorque=[0,0,0,0];this.motorPower=[0,0,0,0];this.batterySoc=1;this.batteryVoltage=16.8;this.batteryCurrent=0;this.worldAcceleration=[0,0,0];this.prevOmegaBody=[0,0,0];this.imuBytes=new Uint8Array(14);this.imuView=new DataView(this.imuBytes.buffer);this.motorBackEmf=60/(2*Math.PI*p.kv);this.propDiameter4=p.propD**4;this.propDiameter5=p.propD**5;this.cdA=[.035*p.dragScale,.035*p.dragScale,.07*p.dragScale];this.rebuildWorldBuildingCollisions();this.syncPresentationSnapshots();
+    this.motorOmega=[0,0,0,0];this.motorCurrent=[0,0,0,0];this.motorTorque=[0,0,0,0];this.propTorque=[0,0,0,0];this.motorPower=[0,0,0,0];this.batterySoc=1;this.batteryVoltage=4.2*p.batteryCells;this.batteryCurrent=0;this.worldAcceleration=[0,0,0];this.prevOmegaBody=[0,0,0];this.imuBytes=new Uint8Array(14);this.imuView=new DataView(this.imuBytes.buffer);this.motorBackEmf=60/(2*Math.PI*p.kv);this.propDiameter4=p.propD**4;this.propDiameter5=p.propD**5;this.cdA=[.035*p.dragScale,.035*p.dragScale,.07*p.dragScale];this.rebuildWorldBuildingCollisions();this.syncPresentationSnapshots();
     if(this.graphics){
       this.buildGraphics();
       // A freshly constructed Object3D starts at z=0. Synchronize it with the
@@ -392,7 +398,7 @@ class PhysicsModel {
     }
   }
   setWorldBuildingCollisions(value){const snapshot=normalizeBuildingCollisionSnapshot(value);if(snapshot.hash===this.worldBuildingCollisionSnapshot.hash&&snapshot.prismCount===this.worldBuildingCollisionSnapshot.prismCount)return false;this.worldBuildingCollisionSnapshot=snapshot;this.rebuildWorldBuildingCollisions();return true;}
-  rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER});this.worldBuildingCollisionRevision++;}
+  rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA});this.worldBuildingCollisionRevision++;}
   buildGraphics(){
     if(this.group)this.scene.remove(this.group);
     this.group=new THREE.Group();this.group.userData.arondightAirframe=true;this.scene.add(this.group);this.rotors=[];
@@ -448,6 +454,7 @@ class PhysicsModel {
     const slant=fraction*range,agl=slant*verticalProjection;
     return{valid:slant>=.001&&slant<=range&&Number.isFinite(agl),slant,agl,verticalProjection};
   }
+  resolveCameraPath(anchor,desired){return resolveBox3dCameraPath(b3,this.world,anchor,desired,{queryCategoryBits:QUERY_CAMERA,terrainCategoryBits:COLLISION_TERRAIN,clearanceM:.08});}
   imuRaw(dt=DT){
     this.noise.stepBias(dt);
     const omegaBody=this.localVector(this.angular()),alpha=scale(sub(omegaBody,this.prevOmegaBody),1/dt);this.prevOmegaBody=omegaBody.slice();
@@ -457,7 +464,7 @@ class PhysicsModel {
     view.setInt16(0,0,false);view.setInt16(2,sat(accel[0]/G*2048),false);view.setInt16(4,sat(accel[1]/G*2048),false);view.setInt16(6,sat(accel[2]/G*2048),false);view.setInt16(8,sat(gyro[0]*16.4),false);view.setInt16(10,sat(gyro[1]*16.4),false);view.setInt16(12,sat(gyro[2]*16.4),false);
     return raw;
   }
-  batteryOcv(){const s=this.batterySoc;return 13.2+3.6*clamp(s,0,1)+.15*Math.tanh((s-.12)*18);}
+  batteryOcv(){return batteryOcvVoltage(this.batterySoc,this.p.batteryCells);}
   applyForces(pulses,dt=DT){
     const p=this.p,yawSign=MOTOR_YAW_SIGN,diameter=p.propD,backEmf=this.motorBackEmf,torqueConstant=backEmf,ocv=this.batteryOcv(),currents=this.motorCurrent;let total=0;
     for(let pass=0;pass<2;pass++){
@@ -466,10 +473,11 @@ class PhysicsModel {
         let command=clamp((pulses[i]-1000)/1000,0,1);
         if(i===p.failed)command=0;
         const volts=command*(pass?this.batteryVoltage:ocv);
-        currents[i]=clamp((volts-backEmf*this.motorOmega[i])/p.R,0,45);
+        currents[i]=clamp((volts-backEmf*this.motorOmega[i])/p.R,0,Math.min(p.motorCurrentLimitA,p.escCurrentLimitA));
         total+=currents[i];
       }
-      this.batteryVoltage=clamp(ocv-total*p.batteryR,10,16.8);
+      total=scaleCurrentsToPackLimit(currents,p.batteryMaxCurrentA);
+      this.batteryVoltage=batteryVoltageUnderLoad(ocv,total,p.batteryR,p.batteryCells);
     }
     this.batteryCurrent=total;
     this.batterySoc=clamp(this.batterySoc-total*dt/(p.capacity*3600),0,1);
@@ -477,13 +485,13 @@ class PhysicsModel {
     for(let i=0;i<4;i++){
       const revolutions=this.motorOmega[i]/(2*Math.PI),propTorque=p.Cq*p.rho*revolutions*revolutions*this.propDiameter5,motorTorque=torqueConstant*currents[i];
       this.motorTorque[i]=motorTorque;this.propTorque[i]=propTorque;this.motorPower[i]=Math.max(0,motorTorque*this.motorOmega[i]);
-      this.motorOmega[i]=Math.max(0,this.motorOmega[i]+(motorTorque-propTorque-1.5e-7*this.motorOmega[i])*dt/p.J);
+      this.motorOmega[i]=Math.max(0,this.motorOmega[i]+(motorTorque-propTorque-MOTOR_BEARING_DRAG_NM_PER_RAD_S*this.motorOmega[i])*dt/p.J);
       const n=this.motorOmega[i]/(2*Math.PI);let thrust=p.Ct*p.rho*n*n*this.propDiameter4;
       const advance=localVelocity[2]/Math.max(1,n*diameter);thrust*=clamp(1-.12*advance,.55,1.25);thrust*=1+p.groundEffect*Math.exp(-altitude/Math.max(.02,.75*diameter));
       b3.b3Body_ApplyForce(this.body,this.worldVector([0,0,thrust]),this.worldPoint(this.motorPos[i]),true);
       b3.b3Body_ApplyTorque(this.body,this.worldVector([0,0,yawSign[i]*motorTorque]),true);
     }
-    const relative=this.localVector(sub(this.linear(),p.wind)),cdA=this.cdA,drag=relative.map((v,i)=>-.5*p.rho*cdA[i]*v*Math.abs(v));b3.b3Body_ApplyForceToCenter(this.body,this.worldVector(drag),true);
+    const relative=this.localVector(sub(this.linear(),p.wind)),cdA=this.cdA,horizontalSpeed=Math.hypot(relative[0],relative[1]),drag=[-.5*p.rho*cdA[0]*relative[0]*horizontalSpeed,-.5*p.rho*cdA[1]*relative[1]*horizontalSpeed,-.5*p.rho*cdA[2]*relative[2]*Math.abs(relative[2])];b3.b3Body_ApplyForceToCenter(this.body,this.worldVector(drag),true);
     const omega=this.localVector(this.angular()),angularDrag=omega.map(v=>-.0012*v*Math.abs(v));b3.b3Body_ApplyTorque(this.body,this.worldVector(angularDrag),true);
   }
   step(pulses,dt=DT){
@@ -548,6 +556,13 @@ function resize(){if(presentationResizeQueued)return;presentationResizeQueued=tr
 addEventListener("resize",resize,{passive:true});addEventListener("orientationchange",resize,{passive:true});globalThis.visualViewport?.addEventListener?.("resize",resize,{passive:true});const viewportResizeObserver=globalThis.ResizeObserver?new ResizeObserver(resize):null;viewportResizeObserver?.observe($("viewport"));commitPresentationResize();
 
 let physics=new PhysicsModel(defaultParams(),{graphics:true,scene});
+globalThis.__arondightRealWorld?.attachCameraCollisionResolver?.((anchor,desired)=>physics.resolveCameraPath(anchor,desired));
+const box3dColliderDebugDraw=new Box3dColliderDebugDraw(scene);
+let box3dColliderDebugEnabled=false;try{box3dColliderDebugEnabled=localStorage.getItem(BOX3D_COLLIDER_DEBUG_STORAGE)==="1";}catch{}
+function setBox3dColliderDebugEnabled(enabled){
+  box3dColliderDebugEnabled=Boolean(enabled);box3dColliderDebugDraw.setEnabled(box3dColliderDebugEnabled);const viewport=$("viewport");if(viewport){viewport.dataset.box3dColliderDebugDraw=box3dColliderDebugEnabled?"1":"0";viewport.dataset.box3dColliderDebugPrisms=box3dColliderDebugEnabled?String(box3dColliderDebugDraw.activePrismCount):"0";}try{localStorage.setItem(BOX3D_COLLIDER_DEBUG_STORAGE,box3dColliderDebugEnabled?"1":"0");}catch{}return box3dColliderDebugEnabled;
+}
+setBox3dColliderDebugEnabled(box3dColliderDebugEnabled);
 globalThis.__arondightRealWorld?.attachBuildingCollisionSink?.(snapshot=>physics.setWorldBuildingCollisions(snapshot));
 const motorSound=new HybridMotorSound($("viewport"));
 function updateSoundButton(){const button=$("soundToggle");if(button)button.textContent=motorSound.enabled?(motorSound.isRunning()?"SOUND ON":"SOUND TAP"):"SOUND OFF";}
@@ -614,7 +629,7 @@ soloHud.innerHTML=`
   <div id="soloRight" class="solo-stick"><div class="solo-ring"></div><div class="solo-knob"></div><span>TURN / PITCH</span></div>
   <button id="soloArm" class="solo-action arm-start-cta" type="button">ARM</button>
   <button id="soloKill" class="solo-action" type="button">KILL</button>
-  <div id="soloGamepadHelp" hidden>LS MOVE · RS TURN/PITCH · LT/RT ALT −/+ · LB+RS AIM · LB+RB FIRE · A ARM · B KILL · X CAM</div>`;
+  <div id="soloGamepadHelp" hidden>LS MOVE · RS TURN/PITCH · LT/RT ALT −/+ · LB+RS AIM · LB+RB FIRE · Y TARGET · A ARM · B KILL · X CAM</div>`;
 $("viewport").appendChild(soloHud);
 const soloStyle=document.createElement("style");soloStyle.textContent=`
   body.solo-flight{overflow:hidden!important;background:#000!important;-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-tap-highlight-color:transparent!important}
@@ -700,6 +715,7 @@ const soloSettingsMount=mountPhoneControlSettings({
   buttonText:"SETTINGS",
   xboxControllerToggle:true,
   debugGrid:{get:()=>debugGridEnabled,set:setDebugGridEnabled,defaultValue:false},
+  box3dColliderDebug:{get:()=>box3dColliderDebugEnabled,set:setBox3dColliderDebugEnabled,defaultValue:false},
   onChange:next=>{const xboxChanged=phoneSettings.xboxControllerEnabled!==next.xboxControllerEnabled;phoneSettings=next;const keepArm=soloControls.arm;if(!keepArm)soloGroundClearance=next.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();soloControls.arm=keepArm;updateSoloSticks();arm=keepArm;throttle=0;if(xboxChanged)setXboxControlPreference(next.xboxControllerEnabled);},
 });
 mountCameraSettings({dialog:soloSettingsMount.dialog,onChange:applyCameraSettings});
@@ -725,7 +741,7 @@ function pollXboxGamepad(now){
   const justActivated=!xboxGamepadActive,dt=justActivated?0:clamp((now-xboxLastPollMs)/1000,0,.05);xboxLastPollMs=now;xboxGamepadActive=true;viewport.dataset.controlSource="xbox";viewport.dataset.gamepadConnected="1";viewport.dataset.gamepadId=sample.id;$("soloGamepadStatus").hidden=false;$("soloGamepadHelp").hidden=false;
   applyGameStick(soloControls,"left",sample.left,phoneSettings);if(sample.aim){soloControls.yaw=0;soloControls.bodyPitch=0;}else applyGameStick(soloControls,"right",sample.right,phoneSettings);soloHeightAxis=clamp(sample.heightAxis,-1,1);globalThis.__arondightRealWorld?.setGamepadLook?.(sample.aim,sample.right.x,sample.right.y,dt);
   const aimX=viewport.clientWidth/2,aimY=viewport.clientHeight/2;flightFireFx?.setGamepadAim(sample.aim,aimX,aimY);flightFireFx?.setGamepadFire(sample.fire,aimX,aimY);viewport.dataset.gamepadAim=sample.aim?"1":"0";viewport.dataset.gamepadFire=sample.fire?"1":"0";viewport.dataset.gamepadHeightAxis=sample.heightAxis.toFixed(3);viewport.dataset.gamepadLeft=`${sample.left.x.toFixed(3)},${sample.left.y.toFixed(3)}`;viewport.dataset.gamepadRight=`${sample.right.x.toFixed(3)},${sample.right.y.toFixed(3)}`;const statusText=sample.aim?"XBOX · AIM":`XBOX · ALT ${soloGroundClearance.toFixed(1)} m`;if($("soloGamepadStatus").textContent!==statusText)$("soloGamepadStatus").textContent=statusText;
-  if(!justActivated&&sample.arm&&!xboxPrevious?.arm)toggleSoloArm();if(!justActivated&&sample.kill&&!xboxPrevious?.kill)killSolo();if(!justActivated&&sample.camera&&!xboxPrevious?.camera)cycleSoloCamera();xboxPrevious={arm:sample.arm,kill:sample.kill,camera:sample.camera};
+  if(!justActivated&&sample.arm&&!xboxPrevious?.arm)toggleSoloArm();if(!justActivated&&sample.kill&&!xboxPrevious?.kill)killSolo();if(!justActivated&&sample.camera&&!xboxPrevious?.camera)cycleSoloCamera();if(!justActivated&&sample.target&&!xboxPrevious?.target&&globalThis.__arondightRealWorld?.vsConnected){const rect=viewport.getBoundingClientRect();viewport.dispatchEvent(new CustomEvent("flightfiredoubletap",{detail:{clientX:rect.left+rect.width/2,clientY:rect.top+rect.height/2,pointerType:"gamepad"}}));viewport.dataset.gamepadBeaconCount=String((Number(viewport.dataset.gamepadBeaconCount)||0)+1);}xboxPrevious={arm:sample.arm,kill:sample.kill,camera:sample.camera,target:sample.target};
 }
 async function enterSolo(){
   soloMode=true;resetPresentationTiming();soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;setXboxControlPreference(phoneSettings.xboxControllerEnabled);inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
@@ -883,6 +899,8 @@ Object.defineProperties(simulatorDiagnostics,{
   worldBuildingCollisionFootprints:{get:()=>physics.worldBuildingCollisionSnapshot.footprintCount,enumerable:true},
   worldBuildingCollisionPrisms:{get:()=>physics.worldBuildingCollisionState?.shapeCount||0,enumerable:true},
   worldBuildingCollisionRevision:{get:()=>physics.worldBuildingCollisionRevision,enumerable:true},
+  box3dColliderDebugEnabled:{get:()=>box3dColliderDebugEnabled,enumerable:true},
+  box3dColliderDebugPrisms:{get:()=>box3dColliderDebugEnabled?box3dColliderDebugDraw.activePrismCount:0,enumerable:true},
   fcState:{get:()=>latest.state,enumerable:true},
   runEpoch:{get:()=>runEpoch,enumerable:true},
 });
@@ -934,7 +952,7 @@ function render(){
     const presentationDt=Number.isFinite(lastPresentationDrawMs)?clamp(sinceDraw/1000,0,.1):1/60,presentationAlpha=running&&mode!=="replay"?clamp(backlog/SIM_FIXED_STEP_MS,0,1):1;
     recordPresentationFrame(renderNow);
     lastPresentationDrawMs=renderNow;
-    const presentationPose=physics.presentationPose(presentationAlpha);physics.render(presentationPose,presentationDt);updateCamera(presentationPose,renderNow);
+    const presentationPose=physics.presentationPose(presentationAlpha);box3dColliderDebugDraw.syncAirframe(physics.motorPos,AIRFRAME_COLLISION_HALF_Z_M,physics.p.propD);box3dColliderDebugDraw.syncWorld(physics.worldBuildingCollisionState,physics.worldBuildingCollisionRevision);box3dColliderDebugDraw.updateAirframe(presentationPose);const box3dDebugViewport=$("viewport");if(box3dDebugViewport&&box3dColliderDebugEnabled)box3dDebugViewport.dataset.box3dColliderDebugPrisms=String(box3dColliderDebugDraw.activePrismCount);physics.render(presentationPose,presentationDt);updateCamera(presentationPose,renderNow);
     if(renderer.shadowMap.enabled&&renderNow-lastPresentationShadowMs>=PRESENTATION_SHADOW_INTERVAL_MS&&backlog<PRESENTATION_SHADOW_BACKLOG_MS){
       lastPresentationShadowMs=renderNow;
       renderer.shadowMap.needsUpdate=true;
@@ -962,7 +980,7 @@ function normalizeLog(rows){
 const FITTED_PHYSICS_STORAGE="arondight45FittedPhysicsV3";
 const LEGACY_FITTED_PHYSICS_STORAGE="arondight45FittedPhysicsV2";
 const FITTED_PARAMETER_KEYS=["Ct","Cq","J","dragScale","batteryR","R"];
-const PHYSICS_PARAMETER_INPUT_IDS=["mass","span","propD","kv","resistance","rotorJ","ct","cq","capacity","batteryR","ixx","iyy","izz","rho","dragScale","groundEffect","windX","windY","failedMotor"];
+const PHYSICS_PARAMETER_INPUT_IDS=["span","propD","kv","resistance","motorCurrentLimitA","escCurrentLimitA","rotorJ","ct","cq","batteryCells","capacity","batteryR","batteryMaxCurrentA","rho","dragScale","groundEffect","frameMassG","motorMassG","propMassG","batteryMassG","escMassG","fcRxMassG","cameraVtxMassG","wiringHardwareMassG","batteryXmm","batteryZmm","cameraXmm","cameraZmm","windX","windY","failedMotor"];
 const fittedParameters=params=>Object.fromEntries(FITTED_PARAMETER_KEYS.map(key=>[key,params[key]]));
 function applyFittedParameters(parameters){
   if(!parameters||typeof parameters!=="object")return;
@@ -1110,5 +1128,5 @@ try{
   if(stored){const parsed=JSON.parse(stored);if(parsed?.schema==="arondight45-fitted-physics-v3"){applyFittedParameters(parsed.parameters);setPhysicsValidation(parsed.validation);restoredFittedPhysics=true;}}
   if(!restoredFittedPhysics){const legacy=localStorage.getItem(LEGACY_FITTED_PHYSICS_STORAGE);if(legacy){applyFittedParameters(JSON.parse(legacy));setPhysicsValidation(null,"legacy fit restored; rerun against a chronological holdout");}}
 }catch{setPhysicsValidation(null,"stored fit could not be verified");}
-for(const id of PHYSICS_PARAMETER_INPUT_IDS)$(id)?.addEventListener("input",()=>setPhysicsValidation(null,"physical/environment parameter changed after validation"));
+for(const id of PHYSICS_PARAMETER_INPUT_IDS)$(id)?.addEventListener("input",()=>{setPhysicsValidation(null,"physical/environment parameter changed after validation");try{defaultParams();}catch{}});
 await switchMode("sim");
