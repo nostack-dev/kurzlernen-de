@@ -61,6 +61,15 @@ if(!tiltMatch||Math.abs(Number(tiltMatch[1])-MAX_GAME_TILT_DEG)>1e-9)fail(`JS/C+
 const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.pow(Math.cos(MAX_GAME_TILT_DEG*Math.PI/180),2);
 if(MIN_GAME_AGL_SENSOR_SLANT_RANGE_M<requiredAglSlant+GAME_AGL_SENSOR_RANGE_MARGIN_M)fail(`AGL slant range ${MIN_GAME_AGL_SENSOR_SLANT_RANGE_M} m cannot cover ${MAX_GAME_CLEARANCE_M} m at ${MAX_GAME_TILT_DEG} deg plus margin`);
 requireText("esp32/Arondight45_StateControl.hpp","kMaxHorizontalAccelerationMps2 = 7.5f");
+requireText("esp32/Arondight45_StateControl.hpp","kMaxVerticalSpeedMps = 30.0f");
+requireText("esp32/Arondight45_StateControl.hpp","kMaxVerticalAccelerationMps2 = 50.0f");
+requireText("esp32/Arondight45_StateControl.hpp","kMaxFlightThrottle = 1.00f");
+requireText("sim/simulator.mjs","deriveQuadMassProperties");
+requireText("sim/simulator.mjs","mass.center=[...p.massCenter]");
+requireText("sim/simulator.mjs","scaleCurrentsToPackLimit(currents,p.batteryMaxCurrentA)");
+forbidText("sim/simulator.mjs","mass.center=[0,0,-.006]","center of mass must come from component BOM");
+requireText("sim/simulator.mjs","horizontalSpeed=Math.hypot(relative[0],relative[1])","horizontal drag must use total body-plane airspeed");
+forbidText("sim/simulator.mjs","drag=relative.map((v,i)=>-.5*p.rho*cdA[i]*v*Math.abs(v))","separable x/y quadratic drag makes diagonal flight artificially low-drag");
 requireText("esp32/Arondight45_StateControl.hpp","kHorizontalIntegralLimitMps2 = 7.0f");
 forbidText("esp32/Arondight45_DroneFC_Core.hpp","cmd.roll * 32.0f", "inner attitude range must not silently cap GAME at the MANUAL 32-degree envelope");
 requireText("esp32/Arondight45_StateControl.hpp","shaped_magnitude = shape(magnitude, 0.035f, 0.25f)");
@@ -104,8 +113,10 @@ for(const cooked of ["nav_vx_cms","nav_vy_cms","nav_vz_cms","nav_agl_mm"])
 requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","Arondight45_HIL_Protocol.hpp");
 requireText("sim/Arondight45_DroneFC_SIL_WASM.cpp","hil::RuntimeAdapter runtime");
 
-for(const marker of ["class SimNavigationSensors","class SimSbusReceiver","encodeNavigationWire","b3World_CastRayClosest","COLLISION_TERRAIN = 1n","COLLISION_AIRFRAME = 2n","QUERY_RANGEFINDER = 4n","NAV_AGL_RAY_MAX_M = MIN_GAME_AGL_SENSOR_SLANT_RANGE_M","groundRange(NAV_AGL_RAY_MAX_M)",".05,NAV_AGL_RAY_MAX_M","FLAG_NAVIGATION_PRESENT","FLAG_SBUS_PRESENT","backend.exchange(packet","physics.step(latest.motors"])
+for(const marker of ["class SimNavigationSensors","class SimSbusReceiver","encodeNavigationWire","b3World_CastRayClosest","collision_filter_matrix.mjs","QUERY_SPAWN","TERRAIN_MASK","BUILDING_MASK","NAV_AGL_RAY_MAX_M = MIN_GAME_AGL_SENSOR_SLANT_RANGE_M","groundRange(NAV_AGL_RAY_MAX_M)",".05,NAV_AGL_RAY_MAX_M","FLAG_NAVIGATION_PRESENT","FLAG_SBUS_PRESENT","backend.exchange(packet","physics.step(latest.motors"])
   requireText("sim/simulator.mjs",marker);
+for(const marker of ["COLLISION_TERRAIN=1n","COLLISION_AIRFRAME=2n","QUERY_RANGEFINDER=4n","QUERY_CAMERA=8n","QUERY_SPAWN=16n","TERRAIN_MASK=COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA|QUERY_SPAWN","BUILDING_MASK=COLLISION_AIRFRAME|QUERY_CAMERA|QUERY_SPAWN"])
+  requireText("sim/collision_filter_matrix.mjs",marker);
 requireText("sim/simulator.mjs","view.setUint32(76,crc32(bytes,76)");
 requireText("sim/simulator.mjs","raw sensor wire → shared fc::FirmwareRuntime → shared fc::StateRuntime → fc::Runtime / WASM");
 requireText("sim/simulator.mjs","filter.maskBits=COLLISION_TERRAIN");
@@ -199,7 +210,7 @@ for(const dirty of ["Box3DFactory","PhysicsModel","applyForces(","motorOmega","m
   forbidText("sim/real_world_bootstrap.mjs",dirty,`real-world render adapter duplicated flight physics/control: ${dirty}`);
 for(const marker of ["WORLD_BUILDING_COLLISION_RADIUS_M=220","WORLD_BUILDING_COLLISION_MAX_FOOTPRINTS=192","WORLD_BUILDING_COLLISION_MAX_VERTICES=64","WORLD_BUILDING_COLLISION_MAX_CONVEX_VERTICES=24","WORLD_BUILDING_COLLISION_MAX_PRISMS=512","geometry?.type===\"Polygon\"","geometry?.type===\"MultiPolygon\"","canonicalRingKey","holes","render_min_height","render_height"])
   requireText("sim/world_building_collisions.mjs",marker);
-for(const marker of ["createWorldBuildingCollisionBodies","b3CreateHull","b3CreateHullShape","b3DestroyHull","b3DestroyBody","categoryBits=1n","maskBits=6n"])
+for(const marker of ["createWorldBuildingCollisionBodies","b3CreateHull","b3CreateHullShape","b3DestroyHull","b3DestroyBody","collision_filter_matrix.mjs","categoryBits=COLLISION_TERRAIN","maskBits=BUILDING_MASK"])
   requireText("sim/world_building_collision_physics.mjs",marker);
 for(const marker of ["attachBuildingCollisionSink","querySourceFeatures","buildingFootprintsFromFeatures","buildingCollisionPrismsFromFootprints","worldBuildingCollisionStatus","clearBuildingCollisions()"])
   requireText("sim/real_world_bootstrap.mjs",marker);
