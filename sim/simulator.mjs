@@ -22,6 +22,7 @@ import {batteryOcvVoltage,batteryVoltageUnderLoad,scaleCurrentsToPackLimit,solve
 import {normalizeTerrainSnapshot} from "./world_terrain.mjs";
 import {createWorldTerrainCollision,destroyWorldTerrainCollision} from "./world_terrain_physics.mjs";
 import {findSafeSpawn as searchSafeSpawn} from "./safe_spawn.mjs";
+import {COLLISION_TERRAIN,COLLISION_AIRFRAME,QUERY_RANGEFINDER,QUERY_CAMERA,QUERY_SPAWN,AIRFRAME_MASK,TERRAIN_MASK,BUILDING_MASK} from "./collision_filter_matrix.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -92,10 +93,6 @@ const yieldToBrowser=(()=>{
   return()=>new Promise(resolve=>{queue.push(resolve);channel.port2.postMessage(0);});
 })();
 const waitForSimulationDeadline=accumulatorMs=>new Promise(resolve=>setTimeout(resolve,Math.max(0,SIM_FIXED_STEP_MS-accumulatorMs)));
-const COLLISION_TERRAIN = 1n;
-const COLLISION_AIRFRAME = 2n;
-const QUERY_RANGEFINDER = 4n;
-const QUERY_CAMERA = 8n;
 const AIRFRAME_COLLISION_HALF_Z_M = .022;
 const AIRFRAME_VISUAL_BODY_CENTER_Z_M = .006;
 const AIRFRAME_LANDING_SKID_RADIUS_M = .004;
@@ -384,7 +381,7 @@ class PhysicsModel {
     const worldDef=b3.b3DefaultWorldDef();worldDef.gravity=[0,0,-G];worldDef.enableSleep=false;worldDef.enableContinuous=true;this.world=b3.b3CreateWorld(worldDef);
     this.rebuildWorldGround();
     const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;const initialZ=Number.isFinite(initial?.z)?initial.z:AIRFRAME_SPAWN_Z_M;bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(AIRFRAME_SPAWN_Z_M,initialZ)];bodyDef.rotation=initial?[...eulerToQuat(initial.roll_deg||0,initial.pitch_deg||0,initial.yaw_deg||0)]:[0,0,0,1];bodyDef.linearDamping=.002;bodyDef.angularDamping=.002;bodyDef.enableSleep=false;this.body=b3.b3CreateBody(this.world,bodyDef);
-    const shapeDef=b3.b3DefaultShapeDef();shapeDef.density=100;shapeDef.baseMaterial.friction=.65;shapeDef.baseMaterial.restitution=.08;shapeDef.filter={categoryBits:COLLISION_AIRFRAME,maskBits:COLLISION_TERRAIN,groupIndex:0};b3.b3CreateBoxShape(this.body,shapeDef,.055,.045,AIRFRAME_COLLISION_HALF_Z_M);
+    const shapeDef=b3.b3DefaultShapeDef();shapeDef.density=100;shapeDef.baseMaterial.friction=.65;shapeDef.baseMaterial.restitution=.08;shapeDef.filter={categoryBits:COLLISION_AIRFRAME,maskBits:AIRFRAME_MASK,groupIndex:0};b3.b3CreateBoxShape(this.body,shapeDef,.055,.045,AIRFRAME_COLLISION_HALF_Z_M);
     const arm=p.span/(2*Math.sqrt(2));this.motorPos=[[-arm,-arm,0],[-arm,arm,0],[arm,arm,0],[arm,-arm,0]];
     for(const position of this.motorPos){b3.b3CreateCapsuleShape(this.body,shapeDef,{center1:[0,0,0],center2:position,radius:.008});b3.b3CreateSphereShape(this.body,shapeDef,{center:position,radius:.018});}
     addPropellerSweepColliders(b3,this.body,shapeDef,this.motorPos,p.propD);
@@ -403,16 +400,16 @@ class PhysicsModel {
   setWorldTerrain(value){const snapshot=normalizeTerrainSnapshot(value);const oldHash=this.worldTerrainSnapshot?.hash||"",nextHash=snapshot?.hash||"";if(oldHash===nextHash)return false;this.worldTerrainSnapshot=snapshot;this.rebuildWorldGround();return true;}
   rebuildWorldGround(){
     if(!this.world)return;destroyWorldTerrainCollision(b3,this.worldTerrainCollisionState);this.worldTerrainCollisionState=null;try{if(this.flatGroundBody&&b3.b3Body_IsValid(this.flatGroundBody))b3.b3DestroyBody(this.flatGroundBody);}catch{}this.flatGroundBody=null;
-    if(this.worldTerrainSnapshot)this.worldTerrainCollisionState=createWorldTerrainCollision(b3,this.world,this.worldTerrainSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,friction:.78,restitution:.02});
-    else{const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];this.flatGroundBody=b3.b3CreateBody(this.world,groundDef);const groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,groupIndex:0};b3.b3CreateBoxShape(this.flatGroundBody,groundShape,TERRAIN_HALF,TERRAIN_HALF,.05);}
+    if(this.worldTerrainSnapshot)this.worldTerrainCollisionState=createWorldTerrainCollision(b3,this.world,this.worldTerrainSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:TERRAIN_MASK,friction:.78,restitution:.02});
+    else{const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];this.flatGroundBody=b3.b3CreateBody(this.world,groundDef);const groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:TERRAIN_MASK,groupIndex:0};b3.b3CreateBoxShape(this.flatGroundBody,groundShape,TERRAIN_HALF,TERRAIN_HALF,.05);}
     this.worldTerrainRevision++;
   }
   safeSpawnProbe(x,y){
-    if(!this.world)return null;const current=this.position?.()||[0,0,0],terrainMax=Number(this.worldTerrainSnapshot?.maxZ)||0,top=Math.max(250,terrainMax+160,Number(current[2]||0)+120),distance=Math.max(900,top+650),ray=[0,0,-distance],cast=category=>{const filter=b3.b3DefaultQueryFilter();filter.categoryBits=category;filter.maskBits=COLLISION_TERRAIN;return b3.b3World_CastRayClosest(this.world,[x,y,top],ray,filter);},terrain=cast(QUERY_RANGEFINDER),obstacle=cast(QUERY_CAMERA);if(!terrain?.hit||!obstacle?.hit)return null;const terrainZ=Number(terrain.point?.[2]),obstructionZ=Number(obstacle.point?.[2]),normalZ=Number(terrain.normal?.[2]);if(![terrainZ,obstructionZ,normalZ].every(Number.isFinite))return null;return{terrainZ,obstructionZ,normalZ};
+    if(!this.world)return null;const current=this.position?.()||[0,0,0],terrainMax=Number(this.worldTerrainSnapshot?.maxZ)||0,top=Math.max(250,terrainMax+160,Number(current[2]||0)+120),distance=Math.max(900,top+650),ray=[0,0,-distance],cast=category=>{const filter=b3.b3DefaultQueryFilter();filter.categoryBits=category;filter.maskBits=COLLISION_TERRAIN;return b3.b3World_CastRayClosest(this.world,[x,y,top],ray,filter);},terrain=cast(QUERY_RANGEFINDER),obstacle=cast(QUERY_SPAWN);if(!terrain?.hit||!obstacle?.hit)return null;const terrainZ=Number(terrain.point?.[2]),obstructionZ=Number(obstacle.point?.[2]),normalZ=Number(terrain.normal?.[2]);if(![terrainZ,obstructionZ,normalZ].every(Number.isFinite))return null;return{terrainZ,obstructionZ,normalZ};
   }
   findSafeSpawn({around=[0,0,0],mode="initial",seed=1}={}){const clearanceRadiusM=this.p.span/2+this.p.propD/2+.04;return searchSafeSpawn({around,mode,seed,clearanceRadiusM,supportM:AIRFRAME_GROUND_SUPPORT_M,separationM:.025,probe:(x,y)=>this.safeSpawnProbe(x,y)});}
   setWorldBuildingCollisions(value){const snapshot=normalizeBuildingCollisionSnapshot(value);if(snapshot.hash===this.worldBuildingCollisionSnapshot.hash&&snapshot.prismCount===this.worldBuildingCollisionSnapshot.prismCount)return false;this.worldBuildingCollisionSnapshot=snapshot;this.rebuildWorldBuildingCollisions();return true;}
-  rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA});this.worldBuildingCollisionRevision++;}
+  rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:BUILDING_MASK});this.worldBuildingCollisionRevision++;}
   buildGraphics(){
     if(this.group)this.scene.remove(this.group);
     this.group=new THREE.Group();this.group.userData.arondightAirframe=true;this.scene.add(this.group);this.rotors=[];
