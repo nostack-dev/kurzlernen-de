@@ -1,4 +1,4 @@
-name: One-shot FPV self-occlusion repair
+name: One-shot camera combat repair
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Separate camera mount, lens and optical center
+      - name: Apply camera, visual-pose and combat repair
         id: patch
         shell: bash
         run: |
@@ -29,10 +29,70 @@ jobs:
           def replace_once(path, old, new):
               p=Path(path); s=p.read_text(); n=s.count(old)
               if n != 1:
-                  raise SystemExit(f'{path}: expected exactly one match, got {n}: {old[:120]!r}')
+                  raise SystemExit(f'{path}: expected exactly one match, got {n}: {old[:160]!r}')
               p.write_text(s.replace(old,new,1))
 
+          # ------------------------------------------------------------------
+          # Presentation-only visual pose stabilizer. Physics remains untouched.
+          # ------------------------------------------------------------------
+          Path('sim/visual_pose_stabilization.mjs').write_text(r'''const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
+
+export const VISUAL_AIRFRAME_PROFILES=Object.freeze({
+  follow:Object.freeze({positionRate:12,velocityRate:8,rotationRate:10,maxLagM:.06,lagRecoveryRate:20,teleportM:4}),
+  third:Object.freeze({positionRate:10,velocityRate:7,rotationRate:8,maxLagM:.08,lagRecoveryRate:18,teleportM:4}),
+});
+
+export function visualDampingAlpha(ratePerSecond,dtSeconds){
+  const rate=Math.max(0,Number(ratePerSecond)||0),dt=clamp(dtSeconds,0,.1);
+  return rate>0&&dt>0?1-Math.exp(-rate*dt):0;
+}
+
+function finite3(value){return value?.length>=3&&value.slice(0,3).every(Number.isFinite);}
+function finite4(value){return value?.length>=4&&value.slice(0,4).every(Number.isFinite);}
+function copy3(target,source){target[0]=Number(source[0]);target[1]=Number(source[1]);target[2]=Number(source[2]);return target;}
+function normalizeQuat(target,source){
+  const x=Number(source?.[0]),y=Number(source?.[1]),z=Number(source?.[2]),w=Number(source?.[3]),length=Math.hypot(x,y,z,w);
+  if(!(length>1e-9)){target[0]=target[1]=target[2]=0;target[3]=1;return target;}
+  target[0]=x/length;target[1]=y/length;target[2]=z/length;target[3]=w/length;return target;
+}
+function slerpQuat(target,a,b,t){
+  let bx=b[0],by=b[1],bz=b[2],bw=b[3],dot=a[0]*bx+a[1]*by+a[2]*bz+a[3]*bw;
+  if(dot<0){dot=-dot;bx=-bx;by=-by;bz=-bz;bw=-bw;}
+  dot=clamp(dot,-1,1);
+  if(dot>.9995){target[0]=a[0]+(bx-a[0])*t;target[1]=a[1]+(by-a[1])*t;target[2]=a[2]+(bz-a[2])*t;target[3]=a[3]+(bw-a[3])*t;return normalizeQuat(target,target);}
+  const theta=Math.acos(dot),sinTheta=Math.sin(theta),aScale=Math.sin((1-t)*theta)/sinTheta,bScale=Math.sin(t*theta)/sinTheta;
+  target[0]=a[0]*aScale+bx*bScale;target[1]=a[1]*aScale+by*bScale;target[2]=a[2]*aScale+bz*bScale;target[3]=a[3]*aScale+bw*bScale;return normalizeQuat(target,target);
+}
+
+export class StabilizedVisualPose{
+  constructor(profiles=VISUAL_AIRFRAME_PROFILES){this.profiles=profiles;this.position=[0,0,0];this.velocity=[0,0,0];this.quaternion=[0,0,0,1];this.mode='';this.initialized=false;}
+  invalidate(){this.initialized=false;this.mode='';}
+  reset({position,velocity=[0,0,0],quaternion=[0,0,0,1],mode='follow'}){
+    if(!finite3(position)||!finite4(quaternion))throw new Error('visual pose must be finite');
+    copy3(this.position,position);copy3(this.velocity,finite3(velocity)?velocity:[0,0,0]);normalizeQuat(this.quaternion,quaternion);this.mode=mode;this.initialized=true;return this.state();
+  }
+  update({position,velocity=[0,0,0],quaternion=[0,0,0,1],mode='follow',dt=1/60}){
+    if(!finite3(position)||!finite4(quaternion))throw new Error('visual pose must be finite');
+    const profile=this.profiles[mode]||this.profiles.follow,sourceVelocity=finite3(velocity)?velocity:[0,0,0],step=clamp(dt,0,.1),distance=Math.hypot(position[0]-this.position[0],position[1]-this.position[1],position[2]-this.position[2]);
+    if(!this.initialized||this.mode!==mode||distance>profile.teleportM)return this.reset({position,velocity:sourceVelocity,quaternion,mode});
+    const velocityAlpha=visualDampingAlpha(profile.velocityRate,step),positionAlpha=visualDampingAlpha(profile.positionRate,step),rotationAlpha=visualDampingAlpha(profile.rotationRate,step);
+    for(let i=0;i<3;i++){this.velocity[i]+=(sourceVelocity[i]-this.velocity[i])*velocityAlpha;this.position[i]+=this.velocity[i]*step;this.position[i]+=(position[i]-this.position[i])*positionAlpha;}
+    const lag=[position[0]-this.position[0],position[1]-this.position[1],position[2]-this.position[2]],lagLength=Math.hypot(...lag);
+    if(lagLength>profile.maxLagM){const excess=lagLength-profile.maxLagM,recovery=visualDampingAlpha(profile.lagRecoveryRate,step),scale=excess*recovery/lagLength;for(let i=0;i<3;i++)this.position[i]+=lag[i]*scale;}
+    slerpQuat(this.quaternion,this.quaternion,quaternion,rotationAlpha);return this.state();
+  }
+  state(){return{position:this.position,velocity:this.velocity,quaternion:this.quaternion,mode:this.mode};}
+}
+''')
+
           sim='sim/simulator.mjs'
+          replace_once(sim,
+          '''import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";''',
+          '''import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";
+          import {StabilizedVisualPose,VISUAL_AIRFRAME_PROFILES} from "./visual_pose_stabilization.mjs";''')
+
+          # Separate physical mount / visible lens / optical origin. The old eye was
+          # literally inside the camera mesh, which created the black FPV circle.
           replace_once(sim,
           '''const FPV_CAMERA_FORWARD_OFFSET_M = .070;
           const FPV_CAMERA_UP_OFFSET_M = .028;''',
@@ -50,6 +110,16 @@ jobs:
               const fpvCameraLens=new THREE.Mesh(new THREE.CylinderGeometry(.010,.010,.008,18),new THREE.MeshStandardMaterial({color:0x111820,metalness:.15,roughness:.22}));fpvCameraLens.rotation.z=Math.PI/2;fpvCameraLens.position.set(-FPV_CAMERA_LENS_FORWARD_OFFSET_M,0,FPV_CAMERA_UP_OFFSET_M);fpvCameraLens.userData.arondightFpvCameraLens=true;this.group.add(fpvCameraLens);this.fpvCameraLens=fpvCameraLens;''')
 
           replace_once(sim,
+          '''const externalCameraRig=new StabilizedExternalCameraRig();
+          const cameraLookTarget=new THREE.Vector3();''',
+          '''const externalCameraRig=new StabilizedExternalCameraRig();
+          const visualAirframePoseFilter=new StabilizedVisualPose(VISUAL_AIRFRAME_PROFILES),visualAirframePosition=new THREE.Vector3(),visualAirframeQuaternion=new THREE.Quaternion(),visualAirframePose={position:visualAirframePosition,quaternion:visualAirframeQuaternion,velocity:new THREE.Vector3()};
+          const cameraLookTarget=new THREE.Vector3();
+          let fireCameraKick=0,fireCameraPhase=0;
+          function addFireCameraKick(intensity=.18){fireCameraKick=Math.min(1,fireCameraKick+clamp(Number(intensity)||0,0,.35));const viewport=$("viewport");if(viewport){viewport.dataset.fireRecoilImpulses=String((Number(viewport.dataset.fireRecoilImpulses)||0)+1);viewport.dataset.fireCameraKick=fireCameraKick.toFixed(3);}}
+          function applyFireCameraShake(dt){if(!(fireCameraKick>.0001))return;fireCameraPhase+=clamp(dt,0,.1)*52;const yaw=Math.sin(fireCameraPhase*1.31)*fireCameraKick*.0015,pitch=(-.0019+Math.sin(fireCameraPhase)*.0009)*fireCameraKick;camera.rotateY(yaw);camera.rotateX(pitch);fireCameraKick*=Math.exp(-18*clamp(dt,0,.1));const viewport=$("viewport");if(viewport)viewport.dataset.fireCameraKick=fireCameraKick.toFixed(3);}''')
+
+          replace_once(sim,
           '''  const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize();
             if(cameraMode==="fpv"){''',
           '''  const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize();
@@ -60,21 +130,122 @@ jobs:
             if(cameraMode==="fpv"){''')
 
           replace_once(sim,
-          '''viewport.dataset.fpvCameraForwardOffsetM=FPV_CAMERA_FORWARD_OFFSET_M.toFixed(3);viewport.dataset.fpvCameraUpOffsetM=FPV_CAMERA_UP_OFFSET_M.toFixed(3);''',
-          '''viewport.dataset.fpvCameraMountForwardOffsetM=FPV_CAMERA_MOUNT_FORWARD_OFFSET_M.toFixed(3);viewport.dataset.fpvCameraForwardOffsetM=FPV_CAMERA_FORWARD_OFFSET_M.toFixed(3);viewport.dataset.fpvCameraOpticalClearanceM=FPV_CAMERA_OPTICAL_CLEARANCE_M.toFixed(3);viewport.dataset.fpvCameraUpOffsetM=FPV_CAMERA_UP_OFFSET_M.toFixed(3);''')
+          '''    const viewport=$("viewport");viewport.dataset.cameraFov=String(camera.fov);viewport.dataset.cameraTiltDeg=String(cameraSettings.fpvTiltDeg);viewport.dataset.cameraDistanceM="0";viewport.dataset.cameraRigMode="rigid-airframe";viewport.dataset.cameraRigLagM="0.0000";viewport.dataset.cameraRigAnchor=[position.x,position.y,position.z].map(value=>value.toFixed(4)).join(",");viewport.dataset.fpvCameraForwardOffsetM=FPV_CAMERA_FORWARD_OFFSET_M.toFixed(3);viewport.dataset.fpvCameraUpOffsetM=FPV_CAMERA_UP_OFFSET_M.toFixed(3);
+              return;''',
+          '''    const viewport=$("viewport");viewport.dataset.cameraFov=String(camera.fov);viewport.dataset.cameraTiltDeg=String(cameraSettings.fpvTiltDeg);viewport.dataset.cameraDistanceM="0";viewport.dataset.cameraRigMode="rigid-airframe";viewport.dataset.cameraRigLagM="0.0000";viewport.dataset.cameraRigAnchor=[position.x,position.y,position.z].map(value=>value.toFixed(4)).join(",");viewport.dataset.fpvCameraMountForwardOffsetM=FPV_CAMERA_MOUNT_FORWARD_OFFSET_M.toFixed(3);viewport.dataset.fpvCameraForwardOffsetM=FPV_CAMERA_FORWARD_OFFSET_M.toFixed(3);viewport.dataset.fpvCameraOpticalClearanceM=FPV_CAMERA_OPTICAL_CLEARANCE_M.toFixed(3);viewport.dataset.fpvCameraUpOffsetM=FPV_CAMERA_UP_OFFSET_M.toFixed(3);applyFireCameraShake(dt);
+              return;''')
 
-          arch='tests/architecture_invariants.mjs'
-          replace_once(arch,
-          '''for(const marker of ["const FPV_CAMERA_FORWARD_OFFSET_M = .070;","const FPV_CAMERA_UP_OFFSET_M = .028;","fpvCameraUpOffsetM=FPV_CAMERA_UP_OFFSET_M.toFixed(3)","fpvCameraBody.userData.arondightFpvCamera=true","fpvCameraLens.userData.arondightFpvCameraLens=true"])requireText("sim/simulator.mjs",marker);''',
-          '''for(const marker of ["const FPV_CAMERA_MOUNT_FORWARD_OFFSET_M = .070;","const FPV_CAMERA_LENS_FORWARD_OFFSET_M = .093;","const FPV_CAMERA_LENS_HALF_DEPTH_M = .004;","const FPV_CAMERA_FORWARD_OFFSET_M = .101;","const FPV_CAMERA_UP_OFFSET_M = .028;","FPV_CAMERA_OPTICAL_CLEARANCE_M","fpvCameraMountForwardOffsetM=FPV_CAMERA_MOUNT_FORWARD_OFFSET_M.toFixed(3)","fpvCameraOpticalClearanceM=FPV_CAMERA_OPTICAL_CLEARANCE_M.toFixed(3)","fpvSelfCameraVisible","showFpvSelfCamera","fpvCameraBody.userData.arondightFpvCamera=true","fpvCameraLens.userData.arondightFpvCameraLens=true"])requireText("sim/simulator.mjs",marker);
-          forbidText("sim/simulator.mjs","fpvCameraBody.position.set(-FPV_CAMERA_FORWARD_OFFSET_M","FPV optical origin must not be reused as the camera-body center");''')
-          replace_once(arch,
-          '''requireText("sim/component_mass_model.mjs","cameraX:-0.070,cameraZ:0.028","camera/VTX mass placement must match the realistic forward/up mount");''',
-          '''requireText("sim/component_mass_model.mjs","cameraX:-0.070,cameraZ:0.028","camera/VTX mass placement must match the physical camera mount center");''')
-          replace_once(arch,
-          '''requireText("drone_simulator.html",'id="cameraXmm" type="number" step="1" value="-70"',"camera X default must match the optical/mass mount");''',
-          '''requireText("drone_simulator.html",'id="cameraXmm" type="number" step="1" value="-70"',"camera X default must match the physical camera/VTX mount center");''')
+          replace_once(sim,
+          '''    $("viewport").dataset.cameraFov=String(camera.fov);$("viewport").dataset.cameraTiltDeg="0";$("viewport").dataset.cameraDistanceM=String(camera.position.distanceTo(position));
+              return;''',
+          '''    $("viewport").dataset.cameraFov=String(camera.fov);$("viewport").dataset.cameraTiltDeg="0";$("viewport").dataset.cameraDistanceM=String(camera.position.distanceTo(position));applyFireCameraShake(dt);
+              return;''')
 
+          replace_once(sim,
+          '''  $("viewport").dataset.cameraFov=String(camera.fov);
+          }''',
+          '''  $("viewport").dataset.cameraFov=String(camera.fov);applyFireCameraShake(dt);
+          }''')
+
+          replace_once(sim,
+          '''const flightFireFx=installFlightFireFx({viewport:$("viewport"),scene,camera,worldBridge:globalThis.__arondightRealWorld,isEnabled:()=>soloMode,isPointerEnabled:()=>$("viewport").dataset.controlSource!=="xbox"});''',
+          '''const flightFireFx=installFlightFireFx({viewport:$("viewport"),scene,camera,worldBridge:globalThis.__arondightRealWorld,isEnabled:()=>soloMode,isPointerEnabled:()=>$("viewport").dataset.controlSource!=="xbox",onRecoil:addFireCameraKick});''')
+
+          # External views render a filtered visual pose only. The authoritative
+          # physics pose still drives FC, sensors, collisions, navigation and camera.
+          replace_once(sim,
+          '''physics.render(presentationPose,presentationDt);updateCamera(presentationPose,renderNow);''',
+          '''let airframeRenderPose=presentationPose;const visualViewport=$("viewport");
+              if(cameraMode==="fpv"){visualAirframePoseFilter.invalidate();visualAirframePosition.copy(presentationPose.position);visualAirframeQuaternion.copy(presentationPose.quaternion);visualAirframePose.velocity.copy(presentationPose.velocity);if(visualViewport){visualViewport.dataset.visualAirframeFilter="off";visualViewport.dataset.visualAirframeLagM="0.0000";}}
+              else{const visualState=visualAirframePoseFilter.update({position:[presentationPose.position.x,presentationPose.position.y,presentationPose.position.z],velocity:[presentationPose.velocity.x,presentationPose.velocity.y,presentationPose.velocity.z],quaternion:[presentationPose.quaternion.x,presentationPose.quaternion.y,presentationPose.quaternion.z,presentationPose.quaternion.w],mode:cameraMode,dt:presentationDt});visualAirframePosition.set(...visualState.position);visualAirframeQuaternion.set(...visualState.quaternion);visualAirframePose.velocity.set(...visualState.velocity);airframeRenderPose=visualAirframePose;if(visualViewport){visualViewport.dataset.visualAirframeFilter=cameraMode;visualViewport.dataset.visualAirframeLagM=Math.hypot(presentationPose.position.x-visualState.position[0],presentationPose.position.y-visualState.position[1],presentationPose.position.z-visualState.position[2]).toFixed(4);}}
+              physics.render(airframeRenderPose,presentationDt);updateCamera(presentationPose,renderNow);''')
+
+          # ------------------------------------------------------------------
+          # Fixed center fire, audio, hit-confirm and incoming damage feedback.
+          # ------------------------------------------------------------------
+          fire='sim/flight_fire_fx.mjs'
+          replace_once(fire,
+          '''export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEnabled=()=>document.body.classList.contains("solo-flight"),isPointerEnabled=()=>true}={}){''',
+          '''export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEnabled=()=>document.body.classList.contains("solo-flight"),isPointerEnabled=()=>true,onRecoil=()=>{}}={}){''')
+
+          replace_once(fire,
+          '''  viewport.dataset.fireProjectileExpired="0";''',
+          '''  viewport.dataset.fireProjectileExpired="0";
+            viewport.dataset.fireAimMode="center-fixed";
+            viewport.dataset.fireCrosshairMode="center-fixed";
+            viewport.dataset.combatDamageFx="0";
+            viewport.dataset.combatHitConfirmFx="0";''')
+
+          replace_once(fire,
+          '''    .xbox-crosshair.active{display:block}
+              @keyframes flightImpactFade{from{opacity:1;transform:scale(.65)}to{opacity:0;transform:scale(1.55)}}''',
+          '''    .xbox-crosshair.active{display:block}
+              .xbox-crosshair.hit-confirm{animation:combatHitConfirm .14s ease-out}
+              .combat-damage-vignette{position:absolute;inset:0;z-index:13;pointer-events:none;opacity:0;background:radial-gradient(circle at center,transparent 44%,#d1000012 61%,#ff16167a 100%)}
+              .combat-damage-vignette.active{animation:combatDamagePulse .34s ease-out}
+              @keyframes flightImpactFade{from{opacity:1;transform:scale(.65)}to{opacity:0;transform:scale(1.55)}}
+              @keyframes combatHitConfirm{0%{transform:scale(1)}40%{transform:scale(.76)}100%{transform:scale(1)}}
+              @keyframes combatDamagePulse{0%{opacity:.92}100%{opacity:0}}''')
+
+          replace_once(fire,
+          '''  const gamepadCrosshair=document.createElement("i");gamepadCrosshair.className="xbox-crosshair";gamepadCrosshair.setAttribute("aria-hidden","true");viewport.appendChild(gamepadCrosshair);
+            let screenImpactCursor=0;''',
+          '''  const gamepadCrosshair=document.createElement("i");gamepadCrosshair.className="xbox-crosshair";gamepadCrosshair.setAttribute("aria-hidden","true");viewport.appendChild(gamepadCrosshair);
+            const damageVignette=document.createElement("i");damageVignette.className="combat-damage-vignette";damageVignette.setAttribute("aria-hidden","true");viewport.appendChild(damageVignette);
+            let screenImpactCursor=0;''')
+
+          replace_once(fire,
+          '''  function shotSound(){
+              const ctx=ensureAudio();if(!ctx||!noiseBuffer)return;try{if(ctx.state==="suspended")ctx.resume();const src=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),gain=ctx.createGain();src.buffer=noiseBuffer;filter.type="bandpass";filter.frequency.value=1350;filter.Q.value=.7;gain.gain.setValueAtTime(.18,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.05);src.connect(filter).connect(gain).connect(ctx.destination);src.start();src.stop(ctx.currentTime+.055);}catch{}
+            }''',
+          '''  function shotSound(){
+              const ctx=ensureAudio();if(!ctx||!noiseBuffer)return;try{if(ctx.state==="suspended")ctx.resume();const t=ctx.currentTime,src=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),noiseGain=ctx.createGain(),thump=ctx.createOscillator(),thumpGain=ctx.createGain(),snap=ctx.createOscillator(),snapGain=ctx.createGain();src.buffer=noiseBuffer;filter.type="bandpass";filter.frequency.setValueAtTime(1750,t);filter.Q.value=.55;noiseGain.gain.setValueAtTime(.14,t);noiseGain.gain.exponentialRampToValueAtTime(.001,t+.052);thump.type="triangle";thump.frequency.setValueAtTime(150,t);thump.frequency.exponentialRampToValueAtTime(82,t+.055);thumpGain.gain.setValueAtTime(.075,t);thumpGain.gain.exponentialRampToValueAtTime(.001,t+.06);snap.type="square";snap.frequency.setValueAtTime(2600,t);snap.frequency.exponentialRampToValueAtTime(1150,t+.026);snapGain.gain.setValueAtTime(.025,t);snapGain.gain.exponentialRampToValueAtTime(.001,t+.03);src.connect(filter).connect(noiseGain).connect(ctx.destination);thump.connect(thumpGain).connect(ctx.destination);snap.connect(snapGain).connect(ctx.destination);src.start(t);src.stop(t+.06);thump.start(t);thump.stop(t+.065);snap.start(t);snap.stop(t+.035);}catch{}
+            }
+            function hitConfirmSound(){const ctx=ensureAudio();if(!ctx)return;try{if(ctx.state==="suspended")ctx.resume();const t=ctx.currentTime,osc=ctx.createOscillator(),gain=ctx.createGain();osc.type="sine";osc.frequency.setValueAtTime(920,t);osc.frequency.exponentialRampToValueAtTime(1480,t+.052);gain.gain.setValueAtTime(.075,t);gain.gain.exponentialRampToValueAtTime(.001,t+.07);osc.connect(gain).connect(ctx.destination);osc.start(t);osc.stop(t+.075);}catch{}}
+            function updateCrosshair(){const activeCrosshair=Boolean(isEnabled());gamepadCrosshair.classList.toggle("active",activeCrosshair);gamepadCrosshair.style.left=`${Math.max(1,viewport.clientWidth)/2}px`;gamepadCrosshair.style.top=`${Math.max(1,viewport.clientHeight)/2}px`;viewport.dataset.fireCrosshairMode="center-fixed";}
+            function damageFeedback(){damageVignette.classList.remove("active");void damageVignette.offsetWidth;damageVignette.classList.add("active");viewport.dataset.combatDamageFx=String((Number(viewport.dataset.combatDamageFx)||0)+1);}
+            function hitConfirmFeedback(){hitConfirmSound();gamepadCrosshair.classList.remove("hit-confirm");void gamepadCrosshair.offsetWidth;gamepadCrosshair.classList.add("hit-confirm");viewport.dataset.combatHitConfirmFx=String((Number(viewport.dataset.combatHitConfirmFx)||0)+1);}
+            const damageListener=()=>damageFeedback(),hitConfirmListener=()=>hitConfirmFeedback();window.addEventListener("arondight:combat-damage",damageListener);window.addEventListener("arondight:combat-hit-confirm",hitConfirmListener);''')
+
+          replace_once(fire,
+          '''  function aimPoint(){
+              const screenRect=viewport.getBoundingClientRect(),rect={left:0,top:0,width:Math.max(1,viewport.clientWidth),height:Math.max(1,viewport.clientHeight)};
+              if(active?.source==="gamepad")return{x:Math.max(0,Math.min(rect.width,active.x)),y:Math.max(0,Math.min(rect.height,active.y)),rect};
+              const clientX=active?.clientX??screenRect.left+screenRect.width/2,clientY=active?.clientY??screenRect.top+screenRect.height/2,rotated=viewport.dataset.soloOrientation==="css-landscape";
+              const x=rotated?clientY-screenRect.top:clientX-screenRect.left,y=rotated?screenRect.right-clientX:clientY-screenRect.top;
+              return{x:Math.max(0,Math.min(rect.width,x)),y:Math.max(0,Math.min(rect.height,y)),rect};
+            }''',
+          '''  function aimPoint(){const rect={left:0,top:0,width:Math.max(1,viewport.clientWidth),height:Math.max(1,viewport.clientHeight)},x=rect.width*.5,y=rect.height*.5;return{x,y,rect};}''')
+
+          replace_once(fire,
+          '''    impactFlash(impactPoint,vsHit,now);projectImpactToScreen(impactPoint);viewport.dataset.fireProjectileImpacts=String((Number(viewport.dataset.fireProjectileImpacts)||0)+1);if(vsHit)viewport.dataset.fireVsHits=String((Number(viewport.dataset.fireVsHits)||0)+1);deactivateProjectile(projectile,false);return true;''',
+          '''    impactFlash(impactPoint,vsHit,now);projectImpactToScreen(impactPoint);viewport.dataset.fireProjectileImpacts=String((Number(viewport.dataset.fireProjectileImpacts)||0)+1);if(vsHit){viewport.dataset.fireVsHits=String((Number(viewport.dataset.fireVsHits)||0)+1);window.dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{source:"projectile"}}));}deactivateProjectile(projectile,false);return true;''')
+
+          replace_once(fire,
+          '''  function updateProjectiles(now){
+              ensurePeerCombatScale();updateImpacts(now);''',
+          '''  function updateProjectiles(now){
+              updateCrosshair();ensurePeerCombatScale();updateImpacts(now);''')
+
+          replace_once(fire,
+          '''    if(!active||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint();spawnProjectile(now,aim);shotSound();viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);''',
+          '''    if(!active||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint();spawnProjectile(now,aim);shotSound();try{onRecoil(.18);}catch{}viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);''')
+
+          replace_once(fire,
+          '''  function setGamepadAim(enabled,x=viewport.clientWidth/2,y=viewport.clientHeight/2){const activeAim=Boolean(enabled&&isEnabled());gamepadCrosshair.classList.toggle("active",activeAim);gamepadCrosshair.style.left=`${Math.max(0,Math.min(viewport.clientWidth,Number(x)||0))}px`;gamepadCrosshair.style.top=`${Math.max(0,Math.min(viewport.clientHeight,Number(y)||0))}px`;viewport.dataset.gamepadAim=activeAim?"1":"0";}''',
+          '''  function setGamepadAim(enabled){const activeAim=Boolean(enabled&&isEnabled());viewport.dataset.gamepadAim=activeAim?"1":"0";updateCrosshair();}''')
+
+          replace_once(fire,
+          '''return{stop,setGamepadAim,setGamepadFire,get decalPoolSize(){return decalPool.length;},get decalWrites(){return decalWrites;},get projectilePoolSize(){return projectilePool.length;},get activeProjectiles(){return activeProjectileCount;},dispose(){stop();cancelAnimationFrame(projectileRaf);gamepadCrosshair.remove();''',
+          '''return{stop,setGamepadAim,setGamepadFire,get decalPoolSize(){return decalPool.length;},get decalWrites(){return decalWrites;},get projectilePoolSize(){return projectilePool.length;},get activeProjectiles(){return activeProjectileCount;},dispose(){stop();cancelAnimationFrame(projectileRaf);window.removeEventListener("arondight:combat-damage",damageListener);window.removeEventListener("arondight:combat-hit-confirm",hitConfirmListener);gamepadCrosshair.remove();damageVignette.remove();''')
+
+          # Incoming confirmed damage drives the red damage vignette.
+          world='sim/real_world_bootstrap.mjs'
+          replace_once(world,
+          '''this.updateVsCombatHud(true);this.vsSession.sendCombat({type:"state",id:packet.id,hp:this.vsLocalHealth,killed});''',
+          '''this.updateVsCombatHud(true);window.dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage,hp:this.vsLocalHealth,killed}}));this.vsSession.sendCombat({type:"state",id:packet.id,hp:this.vsLocalHealth,killed});''')
+
+          # FPV browser boot contract now verifies optical clearance and self-hide.
           browser='tests/browser_sim_smoke.mjs'
           replace_once(browser,
           '''    fpvCameraForward:Number(document.querySelector("#viewport")?.dataset.fpvCameraForwardOffsetM),
@@ -87,10 +258,118 @@ jobs:
           replace_once(browser,
           '''  if(cameraBoot.mode!=="fpv"||cameraBoot.fpv!=="1"||cameraBoot.tilt!=="-15"||cameraBoot.auto!=="fpv"||cameraBoot.soloCamera!=="FPV"||cameraBoot.fpvCameraForward!==.070||cameraBoot.fpvCameraUp!==.028||cameraBoot.cameraMassX!==-70||cameraBoot.cameraMassZ!==28||cameraBoot.initialGroundPose!=="1"||cameraBoot.initialVisualBottom<0||cameraBoot.panel!=="none")''',
           '''  if(cameraBoot.mode!=="fpv"||cameraBoot.fpv!=="1"||cameraBoot.tilt!=="-15"||cameraBoot.auto!=="fpv"||cameraBoot.soloCamera!=="FPV"||cameraBoot.fpvCameraMountForward!==.070||cameraBoot.fpvCameraForward!==.101||cameraBoot.fpvCameraOpticalClearance<.003||cameraBoot.fpvSelfCameraVisible!=="0"||cameraBoot.fpvCameraUp!==.028||cameraBoot.cameraMassX!==-70||cameraBoot.cameraMassZ!==28||cameraBoot.initialGroundPose!=="1"||cameraBoot.initialVisualBottom<0||cameraBoot.panel!=="none")''')
+
+          # Crosshair is now persistent; the legacy Xbox test must not expect it
+          # to disappear when LB is released.
+          xbox='tests/xbox_gamepad_browser_smoke.mjs'
+          replace_once(xbox,
+          '''  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.gamepadFire==="0"&&getComputedStyle(document.querySelector(".xbox-crosshair")).display==="none",{timeout:3000});''',
+          '''  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.gamepadFire==="0"&&document.querySelector("#viewport")?.dataset.fireCrosshairMode==="center-fixed"&&getComputedStyle(document.querySelector(".xbox-crosshair")).display!=="none",{timeout:3000});''')
+
+          arch='tests/architecture_invariants.mjs'
+          replace_once(arch,
+          '''for(const marker of ["const FPV_CAMERA_FORWARD_OFFSET_M = .070;","const FPV_CAMERA_UP_OFFSET_M = .028;","fpvCameraUpOffsetM=FPV_CAMERA_UP_OFFSET_M.toFixed(3)","fpvCameraBody.userData.arondightFpvCamera=true","fpvCameraLens.userData.arondightFpvCameraLens=true"])requireText("sim/simulator.mjs",marker);''',
+          '''for(const marker of ["const FPV_CAMERA_MOUNT_FORWARD_OFFSET_M = .070;","const FPV_CAMERA_LENS_FORWARD_OFFSET_M = .093;","const FPV_CAMERA_LENS_HALF_DEPTH_M = .004;","const FPV_CAMERA_FORWARD_OFFSET_M = .101;","const FPV_CAMERA_UP_OFFSET_M = .028;","FPV_CAMERA_OPTICAL_CLEARANCE_M","fpvCameraMountForwardOffsetM=FPV_CAMERA_MOUNT_FORWARD_OFFSET_M.toFixed(3)","fpvCameraOpticalClearanceM=FPV_CAMERA_OPTICAL_CLEARANCE_M.toFixed(3)","fpvSelfCameraVisible","showFpvSelfCamera","fpvCameraBody.userData.arondightFpvCamera=true","fpvCameraLens.userData.arondightFpvCameraLens=true"])requireText("sim/simulator.mjs",marker);
+          forbidText("sim/simulator.mjs","fpvCameraBody.position.set(-FPV_CAMERA_FORWARD_OFFSET_M","FPV optical origin must not be reused as the camera-body center");
+          for(const marker of ["StabilizedVisualPose","VISUAL_AIRFRAME_PROFILES","visualAirframePoseFilter.update","visualAirframeFilter","onRecoil:addFireCameraKick"])requireText("sim/simulator.mjs",marker);
+          for(const marker of ["fireAimMode=\"center-fixed\"","fireCrosshairMode=\"center-fixed\"","arondight:combat-hit-confirm","arondight:combat-damage","hitConfirmSound","onRecoil(.18)"])requireText("sim/flight_fire_fx.mjs",marker);
+          forbidText("sim/flight_fire_fx.mjs","return{x:Math.max(0,Math.min(rect.width,active.x))","gamepad fire must not use a movable screen aim point");''')
+          replace_once(arch,
+          '''requireText("sim/component_mass_model.mjs","cameraX:-0.070,cameraZ:0.028","camera/VTX mass placement must match the realistic forward/up mount");''',
+          '''requireText("sim/component_mass_model.mjs","cameraX:-0.070,cameraZ:0.028","camera/VTX mass placement must match the physical camera mount center");''')
+          replace_once(arch,
+          '''requireText("drone_simulator.html",'id="cameraXmm" type="number" step="1" value="-70"',"camera X default must match the optical/mass mount");''',
+          '''requireText("drone_simulator.html",'id="cameraXmm" type="number" step="1" value="-70"',"camera X default must match the physical camera/VTX mount center");''')
+          replace_once(arch,
+          '''requireText("drone_simulator.html",'id="cameraZmm" type="number" step="1" value="28"',"camera Z default must match the optical/mass mount");''',
+          '''requireText("drone_simulator.html",'id="cameraZmm" type="number" step="1" value="28"',"camera Z default must match the physical camera/VTX mount center");''')
+
+          # Unit regression: external visual pose attenuates rapid corrections while
+          # remaining bounded during sustained acceleration.
+          Path('tests/visual_pose_stabilization_test.mjs').write_text(r'''import assert from "node:assert/strict";
+          import {StabilizedVisualPose,VISUAL_AIRFRAME_PROFILES} from "../sim/visual_pose_stabilization.mjs";
+
+          const range=values=>Math.max(...values)-Math.min(...values);
+          const yawQuat=yaw=>[0,0,Math.sin(yaw/2),Math.cos(yaw/2)];
+          const quatYaw=q=>Math.atan2(2*(q[3]*q[2]),1-2*q[2]*q[2]);
+
+          for(const mode of ["follow","third"]){
+            const filter=new StabilizedVisualPose(),raw=[],filtered=[],dt=1/120,f=12,a=.03;
+            for(let i=0;i<1440;i++){const t=i*dt,x=a*Math.sin(2*Math.PI*f*t),vx=a*2*Math.PI*f*Math.cos(2*Math.PI*f*t),state=filter.update({position:[x,0,2],velocity:[vx,0,0],quaternion:[0,0,0,1],mode,dt});if(i>240){raw.push(x);filtered.push(state.position[0]);}}
+            const ratio=range(filtered)/range(raw);assert.ok(ratio<.55,`${mode} visual position passed too much 12 Hz correction: ${ratio}`);
+          }
+
+          for(const mode of ["follow","third"]){
+            const filter=new StabilizedVisualPose(),raw=[],filtered=[],dt=1/120,f=10,a=2*Math.PI/180;
+            for(let i=0;i<1440;i++){const t=i*dt,yaw=a*Math.sin(2*Math.PI*f*t),state=filter.update({position:[0,0,2],velocity:[0,0,0],quaternion:yawQuat(yaw),mode,dt});if(i>240){raw.push(yaw);filtered.push(quatYaw(state.quaternion));}}
+            const ratio=range(filtered)/range(raw);assert.ok(ratio<.35,`${mode} visual attitude passed too much 10 Hz twitch: ${ratio}`);
+          }
+
+          for(const mode of ["follow","third"]){
+            const filter=new StabilizedVisualPose(),dt=1/120,accel=8;let maxLag=0;
+            for(let i=0;i<600;i++){const t=i*dt,accelerating=t<1,x=accelerating?.5*accel*t*t:.5*accel+accel*(t-1),vx=accelerating?accel*t:accel,state=filter.update({position:[x,0,2],velocity:[vx,0,0],quaternion:[0,0,0,1],mode,dt});maxLag=Math.max(maxLag,Math.abs(x-state.position[0]));}
+            assert.ok(maxLag<VISUAL_AIRFRAME_PROFILES[mode].maxLagM+.08,`${mode} visual pose lagged sustained acceleration too far: ${maxLag}`);
+          }
+
+          const reset=new StabilizedVisualPose();reset.update({position:[0,0,1],velocity:[0,0,0],quaternion:[0,0,0,1],mode:"follow",dt:1/60});const switched=reset.update({position:[2,-1,3],velocity:[1,0,0],quaternion:yawQuat(.4),mode:"third",dt:1/60});assert.deepEqual([...switched.position],[2,-1,3],"camera-mode switch did not reset visual pose atomically");
+          console.log("Visual airframe stabilization passed: external-view translation/attitude twitch attenuated with bounded acceleration lag");
+          ''')
+
+          Path('tests/combat_center_fire_test.mjs').write_text(r'''import assert from "node:assert/strict";
+          import {readFileSync} from "node:fs";
+          const fire=readFileSync("sim/flight_fire_fx.mjs","utf8"),sim=readFileSync("sim/simulator.mjs","utf8"),world=readFileSync("sim/real_world_bootstrap.mjs","utf8");
+          for(const marker of ['fireAimMode="center-fixed"','fireCrosshairMode="center-fixed"','x=rect.width*.5,y=rect.height*.5','onRecoil(.18)','hitConfirmSound','combat-damage-vignette','arondight:combat-hit-confirm','arondight:combat-damage'])assert.ok(fire.includes(marker),`missing fixed-fire combat marker: ${marker}`);
+          assert.ok(!fire.includes('return{x:Math.max(0,Math.min(rect.width,active.x))'),"gamepad aim still controls projectile screen ray");
+          assert.ok(!fire.includes('const x=rotated?clientY-screenRect.top:clientX-screenRect.left'),"touch pointer still controls projectile screen ray");
+          for(const marker of ['onRecoil:addFireCameraKick','applyFireCameraShake(dt)','visualAirframePoseFilter.update','physics.render(airframeRenderPose,presentationDt);updateCamera(presentationPose,renderNow);'])assert.ok(sim.includes(marker),`missing simulator presentation marker: ${marker}`);
+          assert.ok(world.includes('window.dispatchEvent(new CustomEvent("arondight:combat-damage"'),"incoming VS hit does not drive damage indication");
+          console.log("Combat center-fire contract passed: fixed center ray for touch/Xbox, recoil callback, hit confirm and damage feedback");
+          ''')
+
+          Path('tests/combat_center_fire_browser_smoke.mjs').write_text(r'''import puppeteer from "puppeteer-core";
+          const input=process.argv[2]||"http://127.0.0.1:4174/drone_simulator.html",url=new URL(input,"http://127.0.0.1:4174"),baseOrigin=url.origin,cacheTag=process.env.GITHUB_SHA?`${url.search?"&":"?"}ci=${encodeURIComponent(process.env.GITHUB_SHA)}`:"",executablePath=process.env.CHROME_BIN;if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
+          const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]}),page=await browser.newPage();
+          try{
+            await page.setViewport({width:844,height:390,deviceScaleFactor:1});await page.goto(`${baseOrigin}/drone_simulator.html${cacheTag}`,{waitUntil:"load",timeout:30000});await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.fireCrosshairMode==="center-fixed",{timeout:8000});
+            const cross=await page.evaluate(()=>{const v=document.querySelector("#viewport"),c=document.querySelector(".xbox-crosshair"),r=c.getBoundingClientRect(),vr=v.getBoundingClientRect();return{display:getComputedStyle(c).display,cx:r.left+r.width/2-vr.left,cy:r.top+r.height/2-vr.top,w:v.clientWidth,h:v.clientHeight};});if(cross.display==="none"||Math.abs(cross.cx-cross.w/2)>2||Math.abs(cross.cy-cross.h/2)>2)throw new Error(`crosshair is not fixed at viewport center: ${JSON.stringify(cross)}`);
+            const before=await page.$eval("#viewport",v=>Number(v.dataset.fireShots||0));await page.evaluate(()=>{const v=document.querySelector("#viewport"),r=v.getBoundingClientRect();v.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:77,pointerType:"touch",clientX:r.left+12,clientY:r.top+17,button:0}));});await page.waitForFunction(n=>Number(document.querySelector("#viewport")?.dataset.fireShots||0)>n,{timeout:3000},before);const fired=await page.$eval("#viewport",v=>({x:Number(v.dataset.fireAimX),y:Number(v.dataset.fireAimY),w:v.clientWidth,h:v.clientHeight,mode:v.dataset.fireAimMode,recoil:Number(v.dataset.fireRecoilImpulses||0)}));if(fired.mode!=="center-fixed"||Math.abs(fired.x-fired.w/2)>.6||Math.abs(fired.y-fired.h/2)>.6||fired.recoil<1)throw new Error(`touch shot did not use fixed center ray/recoil: ${JSON.stringify(fired)}`);await page.evaluate(()=>document.querySelector("#viewport").dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:77,pointerType:"touch",button:0})));
+            await page.evaluate(()=>{dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage:25,hp:75}}));dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{source:"test"}}));});await page.waitForFunction(()=>Number(document.querySelector("#viewport")?.dataset.combatDamageFx||0)>=1&&Number(document.querySelector("#viewport")?.dataset.combatHitConfirmFx||0)>=1,{timeout:3000});
+            await page.click("#camThird");await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.visualAirframeFilter==="third",{timeout:3000});await page.click("#camFollow");await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.visualAirframeFilter==="follow",{timeout:3000});await page.click("#camFpv");await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.fpvSelfCameraVisible==="0"&&Number(v.dataset.fpvCameraOpticalClearanceM)>.003&&v.dataset.visualAirframeFilter==="off";},{timeout:3000});
+            console.log("Combat/camera browser E2E passed: fixed center fire, persistent crosshair, recoil, hit/damage FX, external visual filter and FPV self-occlusion guard.");
+          }finally{await browser.close();}
+          ''')
+
+          # Make the new contracts release-blocking locally and against live Pages.
+          deploy='.github/workflows/deploy.yml'
+          replace_once(deploy,
+          '''          node tests/camera_stabilization_test.mjs
+                    node tests/render_stability_test.mjs''',
+          '''          node tests/camera_stabilization_test.mjs
+                    node tests/visual_pose_stabilization_test.mjs
+                    node tests/combat_center_fire_test.mjs
+                    node tests/render_stability_test.mjs''')
+          replace_once(deploy,
+          '''          CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+                    CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174''',
+          '''          CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+                    CHROME_BIN="$CHROME_BIN" node tests/combat_center_fire_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+                    CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174''')
+          replace_once(deploy,
+          '''          CHROME_BIN="$CHROME_BIN" node tests/takeoff_agl_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
+                    CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs https://kurzlernen.de''',
+          '''          CHROME_BIN="$CHROME_BIN" node tests/takeoff_agl_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
+                    CHROME_BIN="$CHROME_BIN" node tests/combat_center_fire_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
+                    CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs https://kurzlernen.de''')
           PY
 
+          node --check sim/simulator.mjs
+          node --check sim/flight_fire_fx.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/visual_pose_stabilization.mjs
+          node --check tests/combat_center_fire_browser_smoke.mjs
+          node tests/visual_pose_stabilization_test.mjs
+          node tests/combat_center_fire_test.mjs
           node tests/architecture_invariants.mjs
-          CHROME_BIN=/usr/bin/google-chrome node tests/browser_sim_smoke.mjs
 
       - name: Commit product fix
         if: steps.patch.outcome == 'success'
@@ -99,8 +378,8 @@ jobs:
           set -euxo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add sim/simulator.mjs tests/architecture_invariants.mjs tests/browser_sim_smoke.mjs
-          git commit -m 'Fix FPV camera self-occlusion'
+          git add sim/simulator.mjs sim/flight_fire_fx.mjs sim/real_world_bootstrap.mjs sim/visual_pose_stabilization.mjs tests/architecture_invariants.mjs tests/browser_sim_smoke.mjs tests/xbox_gamepad_browser_smoke.mjs tests/visual_pose_stabilization_test.mjs tests/combat_center_fire_test.mjs tests/combat_center_fire_browser_smoke.mjs .github/workflows/deploy.yml
+          git commit -m 'Fix external view jitter and center-fire combat'
           git push origin HEAD:main
 
       - name: Report result
@@ -111,6 +390,6 @@ jobs:
           SOURCE_SHA: ${{ github.sha }}
         shell: bash
         run: |
-          body="FPV OPTICS FIX · source=${SOURCE_SHA} · patch=${{ steps.patch.outcome }} · job=${{ job.status }} · run=${GITHUB_RUN_ID}"
+          body="CAMERA COMBAT FIX · source=${SOURCE_SHA} · patch=${{ steps.patch.outcome }} · job=${{ job.status }} · run=${GITHUB_RUN_ID}"
           payload="$(jq -cn --arg body "$body" '{body:$body}')"
           curl -fsSL -X POST -H 'Accept: application/vnd.github+json' -H "Authorization: Bearer ${GH_TOKEN}" -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null
