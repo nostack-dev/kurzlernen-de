@@ -197,6 +197,26 @@ int main() {
     CHECK((timing_out.state & fc::kStateFault) != 0);
     CHECK(!timing_out.armed);
 
+    // A large in-flight attitude is recoverable state. With a valid RC/ARM command
+    // and a physically plausible sub-rate-limit rotation, crossing 68 degrees must
+    // keep the FC armed and all four motors active instead of forcing free fall.
+    fc::Runtime recovery_runtime;
+    now_us = 0;
+    calibrate(recovery_runtime, now_us);
+    arm_runtime(recovery_runtime, now_us);
+    fc::RuntimeOutput recovery_out{};
+    for (int i = 0; i < 450; ++i) {
+        auto rolling = stationary_input(now_us += 1000);
+        rolling.rc.ch[4] = 1811;
+        rolling.rc.ch[2] = 700;
+        rolling.raw.g.x = 200.0f;
+        recovery_out = recovery_runtime.step(rolling);
+        CHECK(recovery_out.fault == fc::kFaultNone);
+        CHECK(recovery_out.armed);
+        for (auto pulse : recovery_out.motor_us) CHECK(pulse > fc::kEscMinUs);
+    }
+    CHECK(std::fabs(static_cast<float>(recovery_out.attitude_cdeg[0]) * 0.01f) > 68.0f);
+
     // A single raw gyro spike is intentionally attenuated by the 100 Hz gyro
     // filter; a sustained physically impossible rotation must cross the 1750
     // deg/s filtered safety limit and latch kFaultRate.
