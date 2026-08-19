@@ -120,7 +120,9 @@ jobs:
           node --check /tmp/arondight45-simulator.bundle.mjs
           node --check /tmp/arondight45-controller.bundle.mjs
           python3 - <<'PY'
+          import os
           from pathlib import Path
+          sha=os.environ['GITHUB_SHA']
           builds=[
               ('drone_simulator.html','<script type="module" src="./sim/real_world_bootstrap.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),
               ('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs'),
@@ -128,12 +130,15 @@ jobs:
           for html_name,marker,bundle_name in builds:
               path=Path(html_name); html=path.read_text(); assert marker in html, f'{html_name}: source module tag missing'
               bundle=Path(bundle_name).read_text().replace('</script','<\\/script')
-              path.write_text(html.replace(marker,'<script type="module">\n'+bundle+'\n</script>'))
+              built=html.replace(marker,'<script type="module">\n'+bundle+'\n</script>')
+              path.write_text(f'<!-- ARONDIGHT45_BUILD_SHA:{sha} -->\n'+built)
           PY
           test -s drone_simulator.html
           test -s drone_controller.html
           test "$(wc -c < drone_simulator.html)" -gt 100000
           test "$(wc -c < drone_controller.html)" -gt 10000
+          grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" drone_simulator.html
+          grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" drone_controller.html
           ! grep -q 'src="./sim/real_world_bootstrap.mjs"' drone_simulator.html
           ! grep -q 'src="./sim/controller.mjs"' drone_controller.html
           grep -q 'REAL WORLD' drone_simulator.html
@@ -190,8 +195,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Blocking regression probes against deployed Pages payload
-        timeout-minutes: 6
+      - name: Blocking regression probes against exact deployed Pages payload
+        timeout-minutes: 8
         run: |
           set -euxo pipefail
           BUILD_DIR=/tmp/arondight45-live-e2e-tools
@@ -207,12 +212,13 @@ jobs:
           test -n "$CHROME_BIN"
 
           fetched=0
-          for attempt in 1 2 3 4; do
+          for attempt in $(seq 1 24); do
             if curl -fsSL --retry 2 --connect-timeout 10 --max-time 45 \
               -H 'Cache-Control: no-cache' \
               "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}-${attempt}" \
               -o "$LIVE_DIR/drone_simulator.html" \
               && test "$(wc -c < "$LIVE_DIR/drone_simulator.html")" -gt 100000 \
+              && grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" "$LIVE_DIR/drone_simulator.html" \
               && ! grep -q 'src="./sim/real_world_bootstrap.mjs"' "$LIVE_DIR/drone_simulator.html" \
               && grep -q 'REAL WORLD' "$LIVE_DIR/drone_simulator.html"; then
               fetched=1
