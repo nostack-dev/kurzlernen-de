@@ -35,12 +35,17 @@ export function decodeSignal(code,expectedType){
 }
 
 export async function waitForIceComplete(pc,timeoutMs=6500){
-  if(pc.iceGatheringState==="complete")return;
+  const hasCandidate=()=>/a=candidate:/m.test(String(pc.localDescription?.sdp||""));
+  if(pc.iceGatheringState==="complete"){
+    if(hasCandidate())return;
+    throw new Error("WebRTC ICE gathering completed without any usable candidate.");
+  }
   await new Promise((resolve,reject)=>{
-    const hasCandidate=()=>/a=candidate:/m.test(String(pc.localDescription?.sdp||""));
-    const timer=setTimeout(()=>{cleanup();if(hasCandidate())resolve();else reject(new Error("WebRTC ICE gathering timed out before any usable candidate."));},timeoutMs);
-    const check=()=>{if(pc.iceGatheringState==="complete"){cleanup();resolve();}};
+    let timer=0;
     const cleanup=()=>{clearTimeout(timer);pc.removeEventListener("icegatheringstatechange",check);};
+    const settle=(message)=>{cleanup();if(hasCandidate())resolve();else reject(new Error(message));};
+    const check=()=>{if(pc.iceGatheringState==="complete")settle("WebRTC ICE gathering completed without any usable candidate.");};
+    timer=setTimeout(()=>settle("WebRTC ICE gathering timed out before any usable candidate."),timeoutMs);
     pc.addEventListener("icegatheringstatechange",check);check();
   });
 }

@@ -338,6 +338,9 @@ requireText("sim/p2p_link.mjs","CONTROL_STALE_MS = 350");
 requireText("sim/p2p_link.mjs","SESSION_GRACE_MS = 5 * 60 * 1000");
 requireText("sim/p2p_link.mjs","telemetrySequence:(this.telemetrySequence++>>>0)");
 requireText("sim/p2p_link.mjs","newerSequence(sequence,this.lastTelemetrySequence)");
+requireText("sim/p2p_link.mjs","completed without any usable candidate");
+requireText(".github/workflows/deploy.yml","node tests/architecture_invariants.mjs");
+requireText(".github/workflows/deploy.yml","node tests/p2p_link_test.mjs");
 for(const path of ["sim/p2p_link.mjs","sim/controller.mjs"]){for(const dirty of ["WebSocket",'/control"',"/control'"])forbidText(path,dirty,`${path} contains relay transport ${dirty}`);}
 requireText("sim/simulator.mjs","new ViewPeerLink()");
 requireText("sim/controller.mjs","ControllerPeerLink");
