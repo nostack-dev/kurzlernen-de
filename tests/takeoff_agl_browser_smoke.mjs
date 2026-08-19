@@ -31,6 +31,13 @@ try{
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
   await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
   await page.waitForFunction(()=>{const b=document.querySelector("#soloArm");return b&&!b.disabled&&b.textContent.trim()==="ARM";},{timeout:20000});
+  await page.waitForFunction(()=>{
+    const fc=Number(globalThis.__arondightDiagnostics?.fcState)||0;
+    const aglText=document.querySelector("#soloAlt")?.textContent||"";
+    const rangeText=document.querySelector("#soloRangeStatus")?.textContent||"";
+    const match=aglText.match(/AGL\s+([0-9.]+)\s*m/);
+    return Boolean(fc&(1<<5))&&!Boolean(fc&(1<<7))&&Boolean(match)&&!rangeText.includes("DEGRADED")&&!rangeText.includes("LOST");
+  },{timeout:10000});
 
   const before=await read();
   if(!before.navValid||before.navDegraded||!Number.isFinite(before.agl)||before.agl<0||before.rangeText.includes("DEGRADED")||before.rangeText.includes("LOST"))
