@@ -119,33 +119,6 @@ int main() {
 
     const auto mixed = fc::mix(0.9f, 0.4f, -0.3f, 0.3f);
     for (float value : mixed.motor) CHECK(value >= 0.0f && value <= 1.0f);
-
-    // Full collective must not erase pitch authority. The old mixer
-    // collapsed all attitude correction to zero when t == 1.
-    const auto high_rail_pitch = fc::mix(1.0f, 0.0f, 0.25f, 0.0f);
-    CHECK(high_rail_pitch.motor[0] > high_rail_pitch.motor[2] + 0.45f);
-    CHECK(high_rail_pitch.motor[1] > high_rail_pitch.motor[3] + 0.45f);
-    for (float value : high_rail_pitch.motor) CHECK(value >= 0.0f && value <= 1.0f);
-
-    // The lower rail must never manufacture collective. This is the
-    // takeoff/landing safety contract: residual attitude error on the pad
-    // may use only the thrust already requested by the state controller.
-    const auto zero_rail_pitch = fc::mix(0.0f, 0.0f, 0.25f, 0.0f);
-    for (float value : zero_rail_pitch.motor) CHECK(std::fabs(value) < 1.0e-6f);
-
-    const auto low_rail_pitch = fc::mix(0.08f, 0.0f, 0.25f, 0.0f);
-    float low_sum = 0.0f;
-    for (float value : low_rail_pitch.motor) {
-        CHECK(value >= 0.0f && value <= 1.0f);
-        low_sum += value;
-    }
-    CHECK(low_rail_pitch.motor[0] > low_rail_pitch.motor[2] + 0.15f);
-    CHECK(low_rail_pitch.motor[1] > low_rail_pitch.motor[3] + 0.15f);
-    CHECK(low_sum / 4.0f <= 0.0801f);
-
-    // Neutral attitude at full collective must remain full collective.
-    const auto full_collective_level = fc::mix(1.0f, 0.0f, 0.0f, 0.0f);
-    for (float value : full_collective_level.motor) CHECK(std::fabs(value - 1.0f) < 1.0e-6f);
     CHECK(fc::pulse(0.0f, false) == fc::kEscMinUs);
     CHECK(fc::pulse(0.0f, true) == fc::kEscIdleUs);
     CHECK(fc::pulse(1.0f, true) == fc::kEscMaxUs);

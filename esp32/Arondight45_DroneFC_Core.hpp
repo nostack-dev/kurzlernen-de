@@ -307,84 +307,18 @@ struct Mix {
 
 inline Mix mix(float t, float roll, float pitch, float yaw) {
     t = clamp(t, 0.0f, 1.0f);
-
-    // Rail-aware mixer contract:
-    // - upper rail: collective may move DOWN to preserve roll/pitch;
-    // - lower rail: collective must NEVER move UP above the FC request.
-    //   Instead attitude correction is reduced into the available lower
-    //   headroom. This makes t == 0 an absolute zero-thrust command even
-    //   when the attitude loop still carries residual error on the pad.
-    std::array<float, 4> roll_pitch{{pitch - roll,
-                                      pitch + roll,
-                                      -pitch + roll,
-                                      -pitch - roll}};
-    auto bounds = [](const std::array<float, 4>& values) {
-        float lo = values[0];
-        float hi = values[0];
-        for (size_t i = 1; i < values.size(); ++i) {
-            lo = std::min(lo, values[i]);
-            hi = std::max(hi, values[i]);
-        }
-        return std::array<float, 2>{{lo, hi}};
-    };
-
-    auto rp_bounds = bounds(roll_pitch);
-    const float rp_span = rp_bounds[1] - rp_bounds[0];
-    if (rp_span > 1.0f && rp_span > 1.0e-6f) {
-        const float scale = 1.0f / rp_span;
-        for (float& value : roll_pitch) value *= scale;
+    std::array<float, 4> correction{{pitch - roll - 0.65f * yaw,
+                                      pitch + roll + 0.65f * yaw,
+                                      -pitch + roll - 0.65f * yaw,
+                                      -pitch - roll + 0.65f * yaw}};
+    float scale_factor = 1.0f;
+    for (float v : correction) {
+        if (v > 0.0f) scale_factor = std::min(scale_factor, (1.0f - t) / v);
+        else if (v < 0.0f) scale_factor = std::min(scale_factor, t / -v);
     }
-
-    const std::array<float, 4> yaw_mix{{-0.65f * yaw,
-                                         0.65f * yaw,
-                                        -0.65f * yaw,
-                                         0.65f * yaw}};
-    auto correction_for_yaw_scale = [&](float yaw_scale) {
-        std::array<float, 4> values{};
-        for (size_t i = 0; i < values.size(); ++i)
-            values[i] = roll_pitch[i] + yaw_scale * yaw_mix[i];
-        return values;
-    };
-
-    // Yaw is lower priority than roll/pitch whenever the requested
-    // differential span itself exceeds the motor window.
-    float yaw_scale = 1.0f;
-    auto correction = correction_for_yaw_scale(yaw_scale);
-    auto correction_bounds = bounds(correction);
-    if (correction_bounds[1] - correction_bounds[0] > 1.0f) {
-        float feasible = 0.0f;
-        float infeasible = 1.0f;
-        for (int i = 0; i < 16; ++i) {
-            const float candidate = 0.5f * (feasible + infeasible);
-            const auto candidate_bounds = bounds(correction_for_yaw_scale(candidate));
-            if (candidate_bounds[1] - candidate_bounds[0] <= 1.0f)
-                feasible = candidate;
-            else
-                infeasible = candidate;
-        }
-        yaw_scale = feasible;
-        correction = correction_for_yaw_scale(yaw_scale);
-        correction_bounds = bounds(correction);
-    }
-
-    // Lower rail is authoritative: never manufacture extra collective
-    // just to satisfy attitude error while sitting on / descending to
-    // the ground. Scale the differential instead.
-    if (correction_bounds[0] < -t) {
-        const float scale = t > 0.0f ? t / -correction_bounds[0] : 0.0f;
-        for (float& value : correction) value *= clamp(scale, 0.0f, 1.0f);
-        correction_bounds = bounds(correction);
-    }
-
-    // At the upper rail there is real thrust available, so translate
-    // collective downward to keep the requested attitude differential.
-    // Because the differential now fits the lower rail, this shift can
-    // never push a motor below zero.
-    const float collective = std::min(t, 1.0f - correction_bounds[1]);
-
+    scale_factor = clamp(scale_factor, 0.0f, 1.0f);
     Mix out;
-    for (size_t i = 0; i < 4; ++i)
-        out.motor[i] = clamp(collective + correction[i], 0.0f, 1.0f);
+    for (size_t i = 0; i < 4; ++i) out.motor[i] = clamp(t + scale_factor * correction[i], 0.0f, 1.0f);
     return out;
 }
 
