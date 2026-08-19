@@ -63,6 +63,8 @@ jobs:
           /tmp/state-control-clang
           node tests/control_semantics_test.mjs
           node tests/xbox_gamepad_test.mjs
+          node tests/visual_pose_stabilization_test.mjs
+          node tests/combat_center_fire_test.mjs
           node tests/render_stability_test.mjs
           node tests/vs_pose_sync_test.mjs
           node tests/physics_validation_test.mjs
