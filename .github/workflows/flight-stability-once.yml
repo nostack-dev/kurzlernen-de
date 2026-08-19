@@ -3,7 +3,6 @@ name: One-shot flight stability correction
 on:
   push:
     branches: [main]
-    paths: ['.github/flight-stability.trigger']
 
 permissions:
   contents: write
@@ -11,6 +10,7 @@ permissions:
 
 jobs:
   patch:
+    if: contains(github.event.head_commit.message, 'RUN_STABILITY_PATCH')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -108,7 +108,6 @@ for(const aggressive of ["kMaxTiltDeg = 40.0f","kMaxHorizontalAccelerationMps2 =
           for old,new in replacements.items():
               if old in s: s=s.replace(old,new)
               elif new not in s: raise SystemExit(f'{test}: neither old nor new marker found: {old!r}')
-          # At 4 m/s² the commanded attitude is intentionally smaller than before.
           s=s.replace('CHECK(cmd.pitch < -0.60f);','CHECK(cmd.pitch < -0.35f);')
           s=s.replace('CHECK(cmd.roll < -0.60f);','CHECK(cmd.roll < -0.35f);')
           p.write_text(s)
