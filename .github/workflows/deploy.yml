@@ -147,8 +147,8 @@ jobs:
           set -euxo pipefail
           find sim tests tools -type f -name '*.mjs' -print0 | xargs -0 -n1 node --check
 
-      - name: Blocking browser boot gate - direct simulator start
-        timeout-minutes: 4
+      - name: Blocking browser gates - boot, Xbox and Android
+        timeout-minutes: 6
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
@@ -159,6 +159,8 @@ jobs:
           trap cleanup EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs http://127.0.0.1:4174
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -183,27 +185,47 @@ jobs:
           payload="$(jq -cn --arg body "$body" '{body:$body}')"
           curl -fsSL -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GH_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null
 
-  browser-e2e:
+  live-e2e:
     needs: deploy
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Non-blocking browser regression probes
+      - name: Blocking regression probes against deployed Pages payload
         timeout-minutes: 6
         run: |
           set -euxo pipefail
-          BUILD_DIR=/tmp/arondight45-e2e
-          mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
+          BUILD_DIR=/tmp/arondight45-live-e2e-tools
+          LIVE_DIR=/tmp/arondight45-live-e2e
+          rm -rf "$BUILD_DIR" "$LIVE_DIR"
+          mkdir -p "$BUILD_DIR" "$LIVE_DIR"
+          cd "$BUILD_DIR"
           npm init -y >/dev/null
-          npm install --ignore-scripts --no-audit --no-fund puppeteer-core@24.16.0 esbuild@0.25.8
+          npm install --ignore-scripts --no-audit --no-fund puppeteer-core@24.16.0
           ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
           cd "$GITHUB_WORKSPACE"
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
+
+          fetched=0
+          for attempt in 1 2 3 4; do
+            if curl -fsSL --retry 2 --connect-timeout 10 --max-time 45 \
+              -H 'Cache-Control: no-cache' \
+              "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}-${attempt}" \
+              -o "$LIVE_DIR/drone_simulator.html" \
+              && test "$(wc -c < "$LIVE_DIR/drone_simulator.html")" -gt 100000 \
+              && ! grep -q 'src="./sim/real_world_bootstrap.mjs"' "$LIVE_DIR/drone_simulator.html" \
+              && grep -q 'REAL WORLD' "$LIVE_DIR/drone_simulator.html"; then
+              fetched=1
+              break
+            fi
+            sleep 5
+          done
+          test "$fetched" = 1
+
+          python3 -m http.server 4174 --bind 127.0.0.1 --directory "$LIVE_DIR" >/tmp/arondight45-live-static.log 2>&1 &
           HTTP_PID=$!
-          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules' EXIT
+          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; }
+          trap cleanup EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs http://127.0.0.1:4174
