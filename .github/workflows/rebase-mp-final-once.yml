@@ -1,0 +1,48 @@
+name: Rebase multiplayer final once
+
+on:
+  push:
+    branches: ["mp-visible-projectiles-v2"]
+    paths: [".github/workflows/rebase-mp-final-once.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: mp-visible-projectiles-v2
+          fetch-depth: 0
+      - name: Overlay reviewed multiplayer files and safe-spawn patch
+        run: |
+          set -euxo pipefail
+          git fetch origin mp-visible-projectiles:refs/remotes/origin/mp-visible-projectiles
+          for f in sim/flight_fire_fx.mjs sim/projectile_ballistics.mjs tests/staged_vs_smoke.mjs tests/world_building_collision_box3d_test.mjs tests/world_building_collision_browser_smoke.mjs; do
+            git show origin/mp-visible-projectiles:"$f" > "$f"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/simulator.mjs');s=p.read_text()
+          def one(old,new):
+              global s
+              n=s.count(old)
+              if n!=1: raise SystemExit(f'expected 1 match, got {n}: {old[:120]!r}')
+              s=s.replace(old,new,1)
+          one('import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,resolveBox3dCameraPath} from "./world_building_collision_physics.mjs";',
+              'import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,findClearBuildingLaunchPoint,resolveBox3dCameraPath} from "./world_building_collision_physics.mjs";')
+          one('    this.noise=new Noise();\n    this.p={...p,wind:[...p.wind]};',
+              '    this.noise=new Noise();\n    this.p={...p,wind:[...p.wind]};\n    this.worldBuildingLaunchResolved=false;this.worldBuildingLaunchPoint=[0,0];')
+          old='''  setWorldBuildingCollisions(value){const snapshot=normalizeBuildingCollisionSnapshot(value);if(snapshot.hash===this.worldBuildingCollisionSnapshot.hash&&snapshot.prismCount===this.worldBuildingCollisionSnapshot.prismCount)return false;this.worldBuildingCollisionSnapshot=snapshot;this.rebuildWorldBuildingCollisions();return true;}\n  rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA});this.worldBuildingCollisionRevision++;}'''
+          new='''  setWorldBuildingCollisions(value){const snapshot=normalizeBuildingCollisionSnapshot(value);if(snapshot.hash===this.worldBuildingCollisionSnapshot.hash&&snapshot.prismCount===this.worldBuildingCollisionSnapshot.prismCount)return false;this.worldBuildingCollisionSnapshot=snapshot;this.rebuildWorldBuildingCollisions();return true;}\n  resolveWorldBuildingLaunch(){\n    if(this.worldBuildingLaunchResolved||!this.body||!this.worldBuildingCollisionSnapshot.prismCount)return false;\n    const position=this.position(),velocity=this.linear(),angular=this.angular(),untouched=Math.hypot(position[0],position[1])<.14&&position[2]<=AIRFRAME_SPAWN_Z_M+.08&&norm(velocity)<.20&&norm(angular)<.80;\n    if(!untouched){this.worldBuildingLaunchResolved=true;this.worldBuildingLaunchPoint=[Infinity,Infinity];return false;}\n    const safe=findClearBuildingLaunchPoint(this.worldBuildingCollisionSnapshot,{point:[position[0],position[1]],clearanceM:.55,maxSearchM:80}),offset=Math.hypot(safe[0]-position[0],safe[1]-position[1]);\n    this.worldBuildingLaunchResolved=true;this.worldBuildingLaunchPoint=[safe[0],safe[1]];\n    const viewport=$("viewport");if(viewport){viewport.dataset.worldLaunchRelocated=offset>.01?"1":"0";viewport.dataset.worldLaunchOffsetM=offset.toFixed(3);viewport.dataset.worldLaunchX=Number(safe[0]).toFixed(3);viewport.dataset.worldLaunchY=Number(safe[1]).toFixed(3);}\n    if(offset<=.01)return false;\n    b3.b3Body_SetTransform(this.body,[safe[0],safe[1],AIRFRAME_SPAWN_Z_M],this.rotation());b3.b3Body_SetLinearVelocity(this.body,[0,0,0]);b3.b3Body_SetAngularVelocity(this.body,[0,0,0]);this.syncPresentationSnapshots();return true;\n  }\n  rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.resolveWorldBuildingLaunch();this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,launchExclusionPoint:this.worldBuildingLaunchPoint||[Infinity,Infinity]});this.worldBuildingCollisionRevision++;}'''
+          one(old,new)
+          p.write_text(s)
+          PY
+          rm .github/workflows/rebase-mp-final-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sim/simulator.mjs sim/flight_fire_fx.mjs sim/projectile_ballistics.mjs tests/staged_vs_smoke.mjs tests/world_building_collision_box3d_test.mjs tests/world_building_collision_browser_smoke.mjs .github/workflows/rebase-mp-final-once.yml
+          git commit -m "Finalize multiplayer projectiles and safe spawn on latest main"
+          git push origin HEAD:mp-visible-projectiles-v2
