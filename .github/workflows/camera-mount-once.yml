@@ -1,0 +1,92 @@
+name: One-shot realistic FPV camera mount
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/camera-mount.trigger']
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Align optical, visual and mass-model camera mount
+        id: patch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p=Path(path); s=p.read_text(); n=s.count(old)
+              if n!=1: raise SystemExit(f'{path}: expected exactly one marker, found {n}: {old[:140]!r}')
+              p.write_text(s.replace(old,new,1))
+
+          replace_once('sim/simulator.mjs',
+            'const FPV_CAMERA_FORWARD_OFFSET_M = .095;\nconst FPV_CAMERA_UP_OFFSET_M = .060;',
+            'const FPV_CAMERA_FORWARD_OFFSET_M = .070;\nconst FPV_CAMERA_UP_OFFSET_M = .028;')
+
+          replace_once('sim/simulator.mjs',
+            '    const nose=new THREE.Mesh(new THREE.ConeGeometry(.018,.06,16),new THREE.MeshStandardMaterial({color:0xff4f65,emissive:0x66121f,emissiveIntensity:.35}));nose.rotation.z=-Math.PI/2;nose.position.x=-.075;this.group.add(nose);',
+            '    const nose=new THREE.Mesh(new THREE.ConeGeometry(.018,.06,16),new THREE.MeshStandardMaterial({color:0xff4f65,emissive:0x66121f,emissiveIntensity:.35}));nose.rotation.z=-Math.PI/2;nose.position.x=-.075;this.group.add(nose);\n    const fpvCameraBody=new THREE.Mesh(new THREE.BoxGeometry(.040,.030,.025),bodyMaterial);fpvCameraBody.position.set(-FPV_CAMERA_FORWARD_OFFSET_M,0,FPV_CAMERA_UP_OFFSET_M);fpvCameraBody.userData.arondightFpvCamera=true;fpvCameraBody.castShadow=true;this.group.add(fpvCameraBody);\n    const fpvCameraLens=new THREE.Mesh(new THREE.CylinderGeometry(.010,.010,.008,18),new THREE.MeshStandardMaterial({color:0x111820,metalness:.15,roughness:.22}));fpvCameraLens.rotation.z=Math.PI/2;fpvCameraLens.position.set(-FPV_CAMERA_FORWARD_OFFSET_M-.023,0,FPV_CAMERA_UP_OFFSET_M);fpvCameraLens.userData.arondightFpvCameraLens=true;this.group.add(fpvCameraLens);')
+
+          replace_once('sim/component_mass_model.mjs',
+            'export const DEFAULT_COMPONENT_PLACEMENT_M=Object.freeze({batteryX:0.015,batteryZ:-0.015,cameraX:-0.065,cameraZ:0.006});',
+            'export const DEFAULT_COMPONENT_PLACEMENT_M=Object.freeze({batteryX:0.015,batteryZ:-0.015,cameraX:-0.070,cameraZ:0.028});')
+
+          replace_once('drone_simulator.html',
+            '<label>Camera X mm<input id="cameraXmm" type="number" step="1" value="-65"></label><label>Camera Z mm<input id="cameraZmm" type="number" step="1" value="6"></label>',
+            '<label>Camera X mm<input id="cameraXmm" type="number" step="1" value="-70"></label><label>Camera Z mm<input id="cameraZmm" type="number" step="1" value="28"></label>')
+
+          replace_once('tests/architecture_invariants.mjs',
+            'for(const marker of ["const FPV_CAMERA_FORWARD_OFFSET_M = .095;","const FPV_CAMERA_UP_OFFSET_M = .060;","fpvCameraUpOffsetM=FPV_CAMERA_UP_OFFSET_M.toFixed(3)"])requireText("sim/simulator.mjs",marker);',
+            'for(const marker of ["const FPV_CAMERA_FORWARD_OFFSET_M = .070;","const FPV_CAMERA_UP_OFFSET_M = .028;","fpvCameraUpOffsetM=FPV_CAMERA_UP_OFFSET_M.toFixed(3)","fpvCameraBody.userData.arondightFpvCamera=true","fpvCameraLens.userData.arondightFpvCameraLens=true"])requireText("sim/simulator.mjs",marker);\nrequireText("sim/component_mass_model.mjs","cameraX:-0.070,cameraZ:0.028","camera/VTX mass placement must match the realistic forward/up mount");\nrequireText("drone_simulator.html",\'id="cameraXmm" type="number" step="1" value="-70"\',"camera X default must match the optical/mass mount");\nrequireText("drone_simulator.html",\'id="cameraZmm" type="number" step="1" value="28"\',"camera Z default must match the optical/mass mount");')
+
+          replace_once('tests/browser_sim_smoke.mjs',
+            '    fpvCameraUp:Number(document.querySelector("#viewport")?.dataset.fpvCameraUpOffsetM),\n    initialGroundPose:',
+            '    fpvCameraForward:Number(document.querySelector("#viewport")?.dataset.fpvCameraForwardOffsetM),\n    fpvCameraUp:Number(document.querySelector("#viewport")?.dataset.fpvCameraUpOffsetM),\n    cameraMassX:Number(document.querySelector("#cameraXmm")?.value),\n    cameraMassZ:Number(document.querySelector("#cameraZmm")?.value),\n    initialGroundPose:')
+          replace_once('tests/browser_sim_smoke.mjs',
+            'cameraBoot.fpvCameraUp!==.060||cameraBoot.initialGroundPose!=="1"',
+            'cameraBoot.fpvCameraForward!==.070||cameraBoot.fpvCameraUp!==.028||cameraBoot.cameraMassX!==-70||cameraBoot.cameraMassZ!==28||cameraBoot.initialGroundPose!=="1"')
+          PY
+
+          node --check sim/simulator.mjs
+          node --check sim/component_mass_model.mjs
+          node --check tests/architecture_invariants.mjs
+          node --check tests/browser_sim_smoke.mjs
+          node tests/component_mass_model_test.mjs
+          node tests/architecture_invariants.mjs
+
+      - name: Commit product patch
+        if: steps.patch.outcome == 'success'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/simulator.mjs sim/component_mass_model.mjs drone_simulator.html tests/architecture_invariants.mjs tests/browser_sim_smoke.mjs
+          git commit -m 'Move FPV camera to realistic forward upper mount'
+          git push origin HEAD:main
+
+      - name: Report result
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_SHA: ${{ github.sha }}
+          PATCH_OUTCOME: ${{ steps.patch.outcome }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          body="CAMERA MOUNT · source=${GH_SHA} · patch=${PATCH_OUTCOME} · job=${JOB_STATUS} · https://github.com/${GH_REPO}/actions/runs/${GITHUB_RUN_ID}"
+          payload="$(jq -cn --arg body "$body" '{body:$body}')"
+          curl -fsSL -X POST -H 'Accept: application/vnd.github+json' -H "Authorization: Bearer ${GH_TOKEN}" -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null
