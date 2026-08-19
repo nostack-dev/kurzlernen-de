@@ -235,9 +235,9 @@ public:
             right_accel *= vector_scale;
         }
 
-        // PI+D velocity loop with back-calculation anti-windup. The integral term
-        // supplies sustained cruise drag compensation only while the pilot is
-        // actually commanding translation. Neutral never stores propulsion.
+        // Integral gain is deliberately zero in the stable GAME envelope. Keep the
+        // anti-windup structure dormant so no stored horizontal propulsion can build
+        // up while preserving the modern command/release and navigation plumbing.
         if (pilot_horizontal_speed > kHorizontalIntegralNeutralTargetMps) {
             horizontal_integral_forward_mps2_ +=
                 (kHorizontalIntegralGain * forward_error +
@@ -317,23 +317,23 @@ public:
 private:
     static constexpr float kGravityMps2 = 9.80665f;
     static constexpr float kInnerAttitudeRangeDeg = kInnerMaxAttitudeDeg;
-    static constexpr float kMaxTiltDeg = 40.0f;
-    static constexpr float kMaxTiltTangent = 0.83909963f;
+    static constexpr float kMaxTiltDeg = 25.0f;
+    static constexpr float kMaxTiltTangent = 0.46630766f;
     static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;
     static constexpr float kDegradedMaxTiltDeg = 12.0f;
     static constexpr float kDegradedBodyPitchScale = 0.35f;
 
     static constexpr float kHorizontalVelocityGain = 0.80f;
-    static constexpr float kHorizontalIntegralGain = 0.55f;
+    static constexpr float kHorizontalIntegralGain = 0.0f;
     static constexpr float kHorizontalAntiWindupGain = 2.50f;
-    static constexpr float kHorizontalIntegralLimitMps2 = 7.0f;
+    static constexpr float kHorizontalIntegralLimitMps2 = 0.0f;
     static constexpr float kHorizontalIntegralNeutralTargetMps = 0.05f;
     static constexpr float kHorizontalAccelerationDamping = 0.55f;
-    static constexpr float kHorizontalNeutralDampingScale = 0.30f;
+    static constexpr float kHorizontalNeutralDampingScale = 1.00f;
     static constexpr float kHorizontalReleaseTargetRateMps2 = 4.0f;
     static constexpr float kMeasuredAccelerationFilterTauS = 0.06f;
     static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
-    static constexpr float kMaxHorizontalAccelerationMps2 = 7.5f;
+    static constexpr float kMaxHorizontalAccelerationMps2 = 4.0f;
 
     static constexpr float kAglToVerticalSpeed = 2.00f;
     static constexpr float kMaxVerticalSpeedMps = 30.0f;
@@ -436,7 +436,7 @@ private:
         const float sample_dt = acceleration_sample_dt_s_;
         const float inv_dt = 1.0f / sample_dt;
         const V3 sample{dx * inv_dt, dy * inv_dt, dz * inv_dt};
-        previous_velocity_world_mps_ = velocity_world_mps;
+        previous_velocity_world_mps_ = nav.velocity_world_mps;
         acceleration_sample_dt_s_ = 0.0f;
 
         const float horizontal_sample = std::sqrt(sample.x * sample.x + sample.y * sample.y);
