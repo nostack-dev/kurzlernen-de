@@ -29,7 +29,7 @@ function rawInputActive(gamepad){
   return Array.from(gamepad?.buttons||[]).some(button=>Number(typeof button==="number"?button:(button?.value??(button?.pressed?1:0)))>.18);
 }
 function neutralSample(gamepad){
-  return Object.freeze({id:String(gamepad.id||"Xbox controller"),index:Number(gamepad.index)||0,left:Object.freeze({x:0,y:0}),right:Object.freeze({x:0,y:0}),leftTrigger:0,rightTrigger:0,heightAxis:0,aim:false,fire:false,arm:false,kill:false,camera:false,target:false});
+  return Object.freeze({id:String(gamepad.id||"Xbox controller"),index:Number(gamepad.index)||0,left:Object.freeze({x:0,y:0}),right:Object.freeze({x:0,y:0}),leftTrigger:0,rightTrigger:0,heightAxis:0,aim:false,fire:false,arm:false,kill:false,camera:false});
 }
 
 export function isXboxCompatibleGamepad(gamepad){
@@ -67,6 +67,5 @@ export function sampleXboxGamepad(gamepad){
     arm:buttonValue(gamepad,XBOX_STANDARD_BUTTON.A)>.5,
     kill:buttonValue(gamepad,XBOX_STANDARD_BUTTON.B)>.5,
     camera:buttonValue(gamepad,XBOX_STANDARD_BUTTON.X)>.5,
-    target:buttonValue(gamepad,XBOX_STANDARD_BUTTON.Y)>.5,
   });
 }
