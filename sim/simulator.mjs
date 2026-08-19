@@ -103,8 +103,8 @@ const AIRFRAME_VISUAL_LOWEST_Z_M = Math.min(AIRFRAME_VISUAL_BODY_CENTER_Z_M-AIRF
 const AIRFRAME_GROUND_SUPPORT_M = AIRFRAME_COLLISION_HALF_Z_M;
 const AIRFRAME_SPAWN_SEPARATION_M = .002;
 const AIRFRAME_SPAWN_Z_M = AIRFRAME_GROUND_SUPPORT_M + AIRFRAME_SPAWN_SEPARATION_M;
-const FPV_CAMERA_FORWARD_OFFSET_M = .095;
-const FPV_CAMERA_UP_OFFSET_M = .060;
+const FPV_CAMERA_FORWARD_OFFSET_M = .070;
+const FPV_CAMERA_UP_OFFSET_M = .028;
 const $ = id => document.getElementById(id);
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 const norm = v => Math.hypot(v[0], v[1], v[2]);
@@ -428,6 +428,8 @@ class PhysicsModel {
       for(const x of [-this.skidHalfLength,this.skidHalfLength]){const foot=new THREE.Mesh(new THREE.SphereGeometry(AIRFRAME_LANDING_SKID_RADIUS_M,10,8),skidMaterial);foot.position.set(x,y,AIRFRAME_LANDING_SKID_Z_M);foot.castShadow=true;this.group.add(foot);}
     }
     const nose=new THREE.Mesh(new THREE.ConeGeometry(.018,.06,16),new THREE.MeshStandardMaterial({color:0xff4f65,emissive:0x66121f,emissiveIntensity:.35}));nose.rotation.z=-Math.PI/2;nose.position.x=-.075;this.group.add(nose);
+    const fpvCameraBody=new THREE.Mesh(new THREE.BoxGeometry(.040,.030,.025),bodyMaterial);fpvCameraBody.position.set(-FPV_CAMERA_FORWARD_OFFSET_M,0,FPV_CAMERA_UP_OFFSET_M);fpvCameraBody.userData.arondightFpvCamera=true;fpvCameraBody.castShadow=true;this.group.add(fpvCameraBody);
+    const fpvCameraLens=new THREE.Mesh(new THREE.CylinderGeometry(.010,.010,.008,18),new THREE.MeshStandardMaterial({color:0x111820,metalness:.15,roughness:.22}));fpvCameraLens.rotation.z=Math.PI/2;fpvCameraLens.position.set(-FPV_CAMERA_FORWARD_OFFSET_M-.023,0,FPV_CAMERA_UP_OFFSET_M);fpvCameraLens.userData.arondightFpvCameraLens=true;this.group.add(fpvCameraLens);
     const worldHaloBack=new THREE.Mesh(new THREE.TorusGeometry(.158,.009,8,48),new THREE.MeshBasicMaterial({color:0x061018,transparent:true,opacity:.78,depthTest:false,depthWrite:false}));worldHaloBack.position.z=.034;worldHaloBack.visible=false;worldHaloBack.renderOrder=999;this.group.add(worldHaloBack);this.worldHaloBack=worldHaloBack;
     const worldHalo=new THREE.Mesh(new THREE.TorusGeometry(.15,.0055,8,48),new THREE.MeshBasicMaterial({color:0xaef3ff,transparent:true,opacity:.98,depthTest:false,depthWrite:false}));worldHalo.position.z=.035;worldHalo.visible=false;worldHalo.renderOrder=1000;this.group.add(worldHalo);this.worldHalo=worldHalo;
     const worldHeadingCue=new THREE.Mesh(new THREE.ConeGeometry(.012,.055,12),new THREE.MeshBasicMaterial({color:0xff405a,depthTest:false,depthWrite:false}));worldHeadingCue.rotation.z=-Math.PI/2;worldHeadingCue.position.set(-.19,0,.036);worldHeadingCue.visible=false;worldHeadingCue.renderOrder=1001;this.group.add(worldHeadingCue);this.worldHeadingCue=worldHeadingCue;

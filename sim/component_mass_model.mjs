@@ -10,7 +10,7 @@ const parallelAxis=(mass,[x,y,z])=>[[mass*(y*y+z*z),-mass*x*y,-mass*x*z],[-mass*
 export const DEFAULT_COMPONENT_MASSES_KG=Object.freeze({
   frame:0.180,motorEach:0.035,propEach:0.005,battery:0.200,esc:0.030,fcRx:0.020,cameraVtx:0.030,wiringHardware:0.100,
 });
-export const DEFAULT_COMPONENT_PLACEMENT_M=Object.freeze({batteryX:0.015,batteryZ:-0.015,cameraX:-0.065,cameraZ:0.006});
+export const DEFAULT_COMPONENT_PLACEMENT_M=Object.freeze({batteryX:0.015,batteryZ:-0.015,cameraX:-0.070,cameraZ:0.028});
 
 export function buildQuadComponents({spanM,propDiameterM,massesKg=DEFAULT_COMPONENT_MASSES_KG,placementM=DEFAULT_COMPONENT_PLACEMENT_M}={}){
   const span=positive(spanM,'spanM'),propDiameter=positive(propDiameterM,'propDiameterM');

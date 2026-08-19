@@ -261,7 +261,10 @@ for(const marker of ["kStateNavigationDegraded","navigation_velocity_valid","nav
 for(const marker of ["kNavigationVelocityValid","kNavigationAglValid","kNavigationSplitValidity"])requireText("esp32/Arondight45_HardwareSensors.hpp",marker);
 requireText("sim/simulator.mjs",'const motorSound=new HybridMotorSound($("viewport"));');
 for(const marker of ["loadCameraSettings","mountCameraSettings","cameraSettings.fpvTiltDeg","cameraSettings.fpvFovDeg","cameraSettings.thirdDistanceM","camera.position.distanceTo(position)"])requireText("sim/simulator.mjs",marker);
-for(const marker of ["const FPV_CAMERA_FORWARD_OFFSET_M = .095;","const FPV_CAMERA_UP_OFFSET_M = .060;","fpvCameraUpOffsetM=FPV_CAMERA_UP_OFFSET_M.toFixed(3)"])requireText("sim/simulator.mjs",marker);
+for(const marker of ["const FPV_CAMERA_FORWARD_OFFSET_M = .070;","const FPV_CAMERA_UP_OFFSET_M = .028;","fpvCameraUpOffsetM=FPV_CAMERA_UP_OFFSET_M.toFixed(3)","fpvCameraBody.userData.arondightFpvCamera=true","fpvCameraLens.userData.arondightFpvCameraLens=true"])requireText("sim/simulator.mjs",marker);
+requireText("sim/component_mass_model.mjs","cameraX:-0.070,cameraZ:0.028","camera/VTX mass placement must match the realistic forward/up mount");
+requireText("drone_simulator.html",'id="cameraXmm" type="number" step="1" value="-70"',"camera X default must match the optical/mass mount");
+requireText("drone_simulator.html",'id="cameraZmm" type="number" step="1" value="28"',"camera Z default must match the optical/mass mount");
 for(const marker of ["FPV VERTICAL TILT","VIEW FOV","THIRD PERSON DISTANCE","arondight45CameraSettingsV1"])requireText("sim/camera_settings.mjs",marker);
 requireText("sim/motor_sound.mjs",'this.viewport.dataset.motorAudioSource="motorOmega+motorTorque+propTorque+tipSpeed:hybridBladeMotor"');
 for(const marker of ["bladeSource","motorSource","washNoise","tipSpeed","playbackRate.setTargetAtTime"])requireText("sim/motor_sound.mjs",marker);
