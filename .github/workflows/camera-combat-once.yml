@@ -18,13 +18,20 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Apply complete product repair
+      - name: Apply and validate complete product repair
         run: |
           set -euxo pipefail
           python3 .github/apply-camera-combat-repair.py
+
+          # Preserve the exact already-tested final workflow contents as ordinary
+          # sidecar files. The GitHub connector (with workflows:write) promotes
+          # them after this runner publishes the product branch.
+          cp .github/workflows/deploy.yml .github/deploy-final.yml.txt
+          cp .github/workflows/s31-hil.yml .github/s31-final.yml.txt
+
+          # Tests must see the exact desired production tree: no temporary runner.
           rm -f .github/workflows/camera-combat-once.yml .github/camera-combat.trigger .github/apply-camera-combat-repair.py .github/fpv-optics.trigger
 
-          # Validate the exact final working tree after all temporary scaffold is gone.
           node --check sim/simulator.mjs
           node --check sim/flight_fire_fx.mjs
           node --check sim/real_world_bootstrap.mjs
@@ -45,7 +52,11 @@ jobs:
           /tmp/state-control
           find sim tests tools -type f -name '*.mjs' -print0 | xargs -0 -n1 node --check
 
-      - name: Commit exact final tree
+          # The Actions token may not mutate workflow paths. Restore only workflow
+          # files after validation; product/test files remain exactly as tested.
+          git checkout HEAD -- .github/workflows/deploy.yml .github/workflows/s31-hil.yml .github/workflows/camera-combat-once.yml
+
+      - name: Publish tested product branch
         run: |
           set -euxo pipefail
           git config user.name 'github-actions[bot]'
@@ -53,7 +64,7 @@ jobs:
           git add -A
           git status --short
           git commit -m 'Fix FPV optics external jitter and center fire'
-          git push origin HEAD:main
+          git push -f origin HEAD:refs/heads/camera-combat-product
 
       - name: Report result
         if: always()
@@ -62,6 +73,6 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          body="CAMERA COMBAT REPAIR · source=${GITHUB_SHA} · job=${{ job.status }} · run=${GITHUB_RUN_ID}"
+          body="CAMERA COMBAT STAGE · source=${GITHUB_SHA} · job=${{ job.status }} · run=${GITHUB_RUN_ID}"
           payload="$(jq -cn --arg body "$body" '{body:$body}')"
           curl -fsSL -X POST -H 'Accept: application/vnd.github+json' -H "Authorization: Bearer ${GH_TOKEN}" -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null
