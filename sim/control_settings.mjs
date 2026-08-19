@@ -9,6 +9,7 @@ const OBSOLETE_KEYS=[
   "arondight45PhoneControlSettingsV4",
 ];
 const GAMEPAD_MENU_BUTTON=Object.freeze({A:0,B:1,START:9,DPAD_UP:12,DPAD_DOWN:13,DPAD_LEFT:14,DPAD_RIGHT:15});
+const GAMEPAD_FLIGHT_BUTTONS=Object.freeze([0,1,2,3,4,5,6,7,9]);
 
 function clearObsoleteSettings(){
   try{for(const key of OBSOLETE_KEYS)localStorage.removeItem(key);}catch{}
@@ -33,6 +34,9 @@ function gamepadButtonPressed(gamepad,index){
 }
 function settingsGamepad(){
   try{return Array.from(navigator.getGamepads?.()||[]).find(pad=>pad?.connected&&(pad.mapping==="standard"||/xbox|xinput|045e/i.test(String(pad.id||""))))||null;}catch{return null;}
+}
+function flightGamepadNeutral(gamepad){
+  if(!gamepad)return true;const axes=[0,1,2,3].every(index=>Math.abs(Number(gamepad.axes?.[index])||0)<.24),buttons=GAMEPAD_FLIGHT_BUTTONS.every(index=>!gamepadButtonPressed(gamepad,index));return axes&&buttons;
 }
 function visibleDialogControls(dialog){
   return Array.from(dialog.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')).filter(element=>{
@@ -156,7 +160,7 @@ function mountSoloWorldSettings({parent,dialog,settingsButton}){
 export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange=()=>{},debugGrid=null,box3dColliderDebug=null,xboxControllerToggle=false}={}){
   if(!parent)throw Error("settings parent required");
   installStyle();
-  let settings=loadPhoneControlSettings();
+  let settings=loadPhoneControlSettings(),resumeToken=0;
   const button=document.createElement("button");
   button.type="button";button.className="phone-settings-button";button.textContent=buttonText;button.setAttribute("aria-label","Phone control settings");
   const dialog=document.createElement("dialog");dialog.className="phone-settings-dialog";
@@ -220,10 +224,14 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
   };
   left.addEventListener("input",apply);right.addEventListener("input",apply);speed.addEventListener("input",apply);hover.addEventListener("input",apply);invertLeft.addEventListener("change",apply);invertRight.addEventListener("change",apply);invertRightVertical.addEventListener("change",apply);lockLeft.addEventListener("change",apply);lock.addEventListener("change",apply);if(xboxControllerInput)xboxControllerInput.addEventListener("change",apply);if(debugGridInput)debugGridInput.addEventListener("change",()=>{debugGrid?.set?.(debugGridInput.checked);render();});if(box3dColliderDebugInput)box3dColliderDebugInput.addEventListener("change",()=>{box3dColliderDebug?.set?.(box3dColliderDebugInput.checked);render();});
   dialog.querySelector("[data-reset]").onclick=()=>{settings=savePhoneControlSettings(DEFAULT_PHONE_SETTINGS);debugGrid?.set?.(Boolean(debugGrid?.defaultValue));box3dColliderDebug?.set?.(Boolean(box3dColliderDebug?.defaultValue));render();emitChange();};
-  const openDialog=()=>{if(dialog.open)return;settings=loadPhoneControlSettings();render();dialog.showModal();syncGamepadMenuClass();emitChange();requestAnimationFrame(()=>{if(!dialog.contains(document.activeElement))focusDialogControl(dialog,1);});};
+  const openDialog=()=>{if(dialog.open)return;resumeToken++;settings=loadPhoneControlSettings();render();dialog.showModal();syncGamepadMenuClass();emitChange();requestAnimationFrame(()=>{if(!dialog.contains(document.activeElement))focusDialogControl(dialog,1);});};
   const closeDialog=()=>{if(dialog.open)dialog.close();};
+  const restoreFlightAfterMenu=()=>{
+    const token=++resumeToken;if(!settings.xboxControllerEnabled){document.body.classList.remove("gamepad-settings-open");onChange({...settings});button.focus({preventScroll:true});return;}
+    document.body.classList.add("gamepad-settings-open");const wait=()=>{if(token!==resumeToken||dialog.open)return;if(!flightGamepadNeutral(settingsGamepad())){requestAnimationFrame(wait);return;}document.body.classList.remove("gamepad-settings-open");onChange({...settings});button.focus({preventScroll:true});};requestAnimationFrame(wait);
+  };
   dialog.querySelector("[data-close]").onclick=closeDialog;
-  dialog.addEventListener("close",()=>{document.body.classList.remove("gamepad-settings-open");onChange({...settings});button.focus({preventScroll:true});});
+  dialog.addEventListener("close",restoreFlightAfterMenu);
   button.onclick=openDialog;
   const world=mountSoloWorldSettings({parent,dialog,settingsButton:button});
   if(xboxControllerToggle)installGamepadDialogNavigation({dialog,openDialog,closeDialog});
