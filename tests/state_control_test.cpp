@@ -108,6 +108,24 @@ int main() {
     nav = {{0.0f,0.0f,0.0f},0.5f,true};cmd=controller.run(high_clearance,nav,0.0f,true,0.001f);
     CHECK(controller.debug().target_vz_mps > 29.9f);CHECK(controller.debug().vertical_accel_mps2 > 49.9f);CHECK(cmd.throttle > 0.99f);
 
+    // Regression: a pure aggressive descent used to reduce specific_up to 0.5
+    // m/s^2 while leaving the auto-translation limiter at tan(40 deg). Even a
+    // modest 1 m/s horizontal drift then requested ~40 deg attitude. Automatic
+    // drift correction must stay inside the validated 25 deg translation envelope
+    // regardless of vertical specific-force demand.
+    controller.reset();
+    rc = base_rc(true);
+    nav = {{-1.0f, 0.0f, 0.0f}, 8.0f, true};
+    cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
+    const float descent_auto_pitch_deg = std::fabs(cmd.pitch * fc::kInnerMaxAttitudeDeg);
+    const float descent_auto_roll_deg = std::fabs(cmd.roll * fc::kInnerMaxAttitudeDeg);
+    const float descent_horizontal_accel = std::hypot(controller.debug().forward_accel_mps2,
+                                                       controller.debug().right_accel_mps2);
+    CHECK(controller.debug().vertical_accel_mps2 < -49.9f);
+    CHECK(descent_horizontal_accel < 0.235f);
+    CHECK(descent_auto_pitch_deg <= 25.05f);
+    CHECK(descent_auto_roll_deg <= 25.05f);
+
     controller.reset();
     rc = base_rc(true);
     nav = {{0.0f, 0.0f, 0.0f}, 0.05f, true};

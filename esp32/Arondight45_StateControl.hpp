@@ -229,8 +229,15 @@ public:
         // Keep the historical hardware authority available as a hard ceiling, but
         // do not drive the aircraft at that ceiling in normal GAME flight. The
         // stable command envelope is the earlier validated 4 m/s² response.
+        // Automatic translation gets the previously validated 25 deg attitude
+        // envelope even while vertical specific force is intentionally reduced for
+        // descent. Scaling horizontal acceleration by the *available* up component
+        // keeps atan2(horizontal, specific_up) bounded instead of turning a tiny
+        // drift correction into a 35-40 deg bank during a pure altitude command.
+        // The separate 40 deg hard attitude ceiling remains available for combined
+        // pilot body-pitch + translation authority.
         const float allowed_horizontal_accel = std::min(kStableHorizontalAccelerationMps2,
-                                                        specific_up * kMaxTiltTangent);
+                                                        specific_up * kMaxAutoTranslationTiltTangent);
         const float horizontal_accel = std::sqrt(forward_accel * forward_accel + right_accel * right_accel);
         if (horizontal_accel > allowed_horizontal_accel && horizontal_accel > 1.0e-6f) {
             const float vector_scale = allowed_horizontal_accel / horizontal_accel;
@@ -320,8 +327,10 @@ private:
     static constexpr float kGravityMps2 = 9.80665f;
     static constexpr float kInnerAttitudeRangeDeg = kInnerMaxAttitudeDeg;
     static constexpr float kMaxTiltDeg = 40.0f;
-    static constexpr float kMaxTiltTangent = 0.83909963f;
+    static constexpr float kMaxAutoTranslationTiltDeg = 25.0f;
+    static constexpr float kMaxAutoTranslationTiltTangent = 0.46630766f;
     static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;
+    static_assert(kMaxAutoTranslationTiltDeg == 25.0f, "automatic GAME translation tilt envelope must stay at the validated 25 deg");
     static constexpr float kDegradedMaxTiltDeg = 12.0f;
     static constexpr float kDegradedBodyPitchScale = 0.35f;
 
