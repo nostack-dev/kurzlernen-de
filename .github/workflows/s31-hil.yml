@@ -123,3 +123,5 @@ jobs:
           GH_REPO: ${{ github.repository }}
           STAGED_SHA: ${{ steps.staged.outputs.sha }}
         run: gh api "repos/${GH_REPO}/issues/53/comments" -f body="FINALIZER FINAL · run=${GITHUB_RUN_ID} · status=${{ job.status }} · staging=${STAGED_SHA:-none}" >/dev/null
+
+# retrigger-existing-finalizer-20260819
