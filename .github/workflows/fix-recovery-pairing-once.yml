@@ -1,0 +1,146 @@
+name: One-shot recovery and pairing reliability fix
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/fix-recovery-pairing-once.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply recovery and pairing fixes
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p=Path(path); s=p.read_text()
+              if old not in s:
+                  raise SystemExit(f'marker missing in {path}: {old[:120]!r}')
+              if s.count(old)!=1:
+                  raise SystemExit(f'marker not unique in {path}: {s.count(old)}')
+              p.write_text(s.replace(old,new,1))
+
+          # Gamepad global recovery actions. These are handled by the raw gamepad
+          # navigator, so they still work when touch controls are hidden or Xbox
+          # flight control itself is disabled.
+          path='sim/settings_controller_nav.mjs'
+          replace_once(path,
+              'export const SETTINGS_GAMEPAD_BUTTON=Object.freeze({A:0,B:1,VIEW:8,MENU:9,DPAD_UP:12,DPAD_DOWN:13,DPAD_LEFT:14,DPAD_RIGHT:15});',
+              'export const SETTINGS_GAMEPAD_BUTTON=Object.freeze({A:0,B:1,Y:3,VIEW:8,MENU:9,DPAD_UP:12,DPAD_DOWN:13,DPAD_LEFT:14,DPAD_RIGHT:15});')
+          replace_once(path,
+              'function adjustRange(input,direction){const min=Number(input.min),max=Number(input.max),step=Number(input.step)||1,current=Number(input.value)||0,next=clamp(current+direction*step,Number.isFinite(min)?min:-Infinity,Number.isFinite(max)?max:Infinity);if(next===current)return false;input.value=String(next);dispatchInput(input);return true;}\n',
+              'function adjustRange(input,direction){const min=Number(input.min),max=Number(input.max),step=Number(input.step)||1,current=Number(input.value)||0,next=clamp(current+direction*step,Number.isFinite(min)?min:-Infinity,Number.isFinite(max)?max:Infinity);if(next===current)return false;input.value=String(next);dispatchInput(input);return true;}\nfunction clickSoloAction(selector,datasetKey){const button=document.querySelector(selector),viewport=document.getElementById("viewport");if(!document.body.classList.contains("solo-flight")||!(button instanceof HTMLElement))return false;button.click();if(viewport)viewport.dataset[datasetKey]=String((Number(viewport.dataset[datasetKey])||0)+1);return true;}\n')
+          replace_once(path,
+              '    const menuEdge=edge(SETTINGS_GAMEPAD_BUTTON.MENU),backEdge=edge(SETTINGS_GAMEPAD_BUTTON.B)||edge(SETTINGS_GAMEPAD_BUTTON.VIEW);\n    if(!dialog.open){if(menuEdge)openDialog?.("gamepad");}\n',
+              '    const menuEdge=edge(SETTINGS_GAMEPAD_BUTTON.MENU),viewEdge=edge(SETTINGS_GAMEPAD_BUTTON.VIEW),resetEdge=edge(SETTINGS_GAMEPAD_BUTTON.Y),backEdge=edge(SETTINGS_GAMEPAD_BUTTON.B)||viewEdge;\n    if(!dialog.open){if(menuEdge)openDialog?.("gamepad");else if(viewEdge)clickSoloAction("#soloExit","gamepadExitCount");else if(resetEdge)clickSoloAction("#soloReset","gamepadResetCount");}\n')
+
+          # Keep on-screen controller help accurate.
+          path='sim/control_settings.mjs'
+          replace_once(path,
+              '  const gamepadNavigator=createSettingsGamepadNavigator({dialog,openDialog,closeDialog,getGamepad:()=>findXboxGamepad(navigator.getGamepads?.())});\n  render();',
+              '  const gamepadNavigator=createSettingsGamepadNavigator({dialog,openDialog,closeDialog,getGamepad:()=>findXboxGamepad(navigator.getGamepads?.())});\n  const gamepadHelp=document.getElementById("soloGamepadHelp");if(gamepadHelp)gamepadHelp.textContent="LS MOVE · RS TURN/PITCH · LT/RT ALT −/+ · LB+RS AIM · LB+RB FIRE · A ARM · B KILL · X CAM · Y RESET · VIEW EXIT · MENU SETTINGS";\n  render();')
+
+          # Manual controller/view WebRTC: use STUN as a fallback but do not fail
+          # the whole pairing just because STUN completion is slow when usable LAN
+          # host candidates have already been gathered.
+          path='sim/p2p_link.mjs'
+          replace_once(path,
+              'const rtcConfig = Object.freeze({iceServers:[],bundlePolicy:"max-bundle",iceCandidatePoolSize:4});',
+              'export const P2P_RTC_CONFIG = Object.freeze({iceServers:[{urls:["stun:stun.cloudflare.com:3478","stun:stun.cloudflare.com:53"]},{urls:"stun:stun.l.google.com:19302"}],iceTransportPolicy:"all",bundlePolicy:"max-bundle",iceCandidatePoolSize:4});\nconst rtcConfig=P2P_RTC_CONFIG;')
+          replace_once(path,
+              'async function waitForIceComplete(pc,timeoutMs=10000){\n  if(pc.iceGatheringState==="complete")return;\n  await new Promise((resolve,reject)=>{\n    const timer=setTimeout(()=>{cleanup();reject(new Error("WebRTC ICE gathering timed out."));},timeoutMs);\n    const check=()=>{if(pc.iceGatheringState==="complete"){cleanup();resolve();}};\n    const cleanup=()=>{clearTimeout(timer);pc.removeEventListener("icegatheringstatechange",check);};\n    pc.addEventListener("icegatheringstatechange",check);check();\n  });\n}',
+              'export async function waitForIceComplete(pc,timeoutMs=6500){\n  if(pc.iceGatheringState==="complete")return;\n  await new Promise((resolve,reject)=>{\n    const hasCandidate=()=>/a=candidate:/m.test(String(pc.localDescription?.sdp||""));\n    const timer=setTimeout(()=>{cleanup();if(hasCandidate())resolve();else reject(new Error("WebRTC ICE gathering timed out before any usable candidate."));},timeoutMs);\n    const check=()=>{if(pc.iceGatheringState==="complete"){cleanup();resolve();}};\n    const cleanup=()=>{clearTimeout(timer);pc.removeEventListener("icegatheringstatechange",check);};\n    pc.addEventListener("icegatheringstatechange",check);check();\n  });\n}')
+
+          # Multiplayer discovery/reconnect reliability.
+          path='sim/lan_vs.mjs'
+          replace_once(path,'const FINDER_MAX_ROOMS_PER_STAGE=3;','const FINDER_MAX_ROOMS_PER_STAGE=6;\nconst FINDER_RETRY_MS=1200;')
+          replace_once(path,
+              '    this.options=options;this.children=[];this.currentStageChildren=[];this.active=null;this.roomIds=[];this.stageRoomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren=new Set();this.stageErrors=[];this.stageTimer=0;this.stageResolve=null;this.stageEpoch=0;this.stageTask=null;\n    this.stageMs=Number.isFinite(options.stageMs)?Math.max(250,Number(options.stageMs)):FINDER_STAGE_MS;\n    this.maxRoomsPerStage=Number.isFinite(options.maxRoomsPerStage)?Math.max(1,Math.floor(options.maxRoomsPerStage)):FINDER_MAX_ROOMS_PER_STAGE;',
+              '    this.options=options;this.children=[];this.currentStageChildren=[];this.active=null;this.roomIds=[];this.stageRoomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren=new Set();this.stageErrors=[];this.stageTimer=0;this.stageResolve=null;this.stageEpoch=0;this.stageTask=null;this.retryTimer=0;this.retryCount=0;\n    this.stageMs=Number.isFinite(options.stageMs)?Math.max(250,Number(options.stageMs)):FINDER_STAGE_MS;\n    this.maxRoomsPerStage=Number.isFinite(options.maxRoomsPerStage)?Math.max(1,Math.floor(options.maxRoomsPerStage)):FINDER_MAX_ROOMS_PER_STAGE;\n    this.retryMs=Number.isFinite(options.retryMs)?Math.max(20,Number(options.retryMs)):FINDER_RETRY_MS;')
+          replace_once(path,
+              '  chooseStageRooms(ids){\n    const gesture=ids.filter(id=>id.startsWith("tap-")),trusted=ids.filter(id=>!id.startsWith("tap-")),out=[];\n    for(const id of gesture.slice(0,2))if(!out.includes(id))out.push(id);\n    for(const id of trusted)if(out.length<this.maxRoomsPerStage&&!out.includes(id))out.push(id);\n    for(const id of gesture.slice(2))if(out.length<this.maxRoomsPerStage&&!out.includes(id))out.push(id);\n    return out.slice(0,this.maxRoomsPerStage);\n  }',
+              '  chooseStageRooms(ids){\n    const gesture=ids.filter(id=>id.startsWith("tap-")),trusted=ids.filter(id=>!id.startsWith("tap-")),out=[];\n    // Same-network / proximity identities are stable and must win over the\n    // time-bucket gesture fallback. Keeping all six trusted candidates makes\n    // phones with different ICE candidate ordering still share a room.\n    for(const id of trusted)if(out.length<this.maxRoomsPerStage&&!out.includes(id))out.push(id);\n    for(const id of gesture)if(out.length<this.maxRoomsPerStage&&!out.includes(id))out.push(id);\n    return out.slice(0,this.maxRoomsPerStage);\n  }')
+          replace_once(path,
+              '      onPose:(pose,peerId)=>{if(this.active===child)opts.onPose?.(pose,peerId);},onOrigin:(origin,peerId)=>{if(this.active===child)opts.onOrigin?.(origin,peerId);},onCombat:(packet,peerId)=>{if(this.active===child)opts.onCombat?.(packet,peerId);},onLeave:peerId=>{if(this.active===child)opts.onLeave?.(peerId);},\n      onError:error=>{\n        if(this.active===child){opts.onError?.(error);return;}\n',
+              '      onPose:(pose,peerId)=>{if(this.active===child)opts.onPose?.(pose,peerId);},onOrigin:(origin,peerId)=>{if(this.active===child)opts.onOrigin?.(origin,peerId);},onCombat:(packet,peerId)=>{if(this.active===child)opts.onCombat?.(packet,peerId);},onLeave:peerId=>{if(this.active===child){opts.onLeave?.(peerId);this.scheduleRecovery("peer-left",child);}},\n      onError:error=>{\n        if(this.active===child){opts.onError?.(error);this.scheduleRecovery("active-transport-error",child,error);return;}\n')
+          replace_once(path,
+              '  waitStage(epoch){\n    if(this.active||!this.started||epoch!==this.stageEpoch)return Promise.resolve("cancel");\n    return new Promise(resolve=>{this.stageResolve=resolve;this.stageTimer=setTimeout(()=>{if(this.stageResolve===resolve)this.stageResolve=null;this.stageTimer=0;resolve("timeout");},this.stageMs);});\n  }\n  adopt(child,peerId,roomId,transportName){',
+              '  waitStage(epoch){\n    if(this.active||!this.started||epoch!==this.stageEpoch)return Promise.resolve("cancel");\n    return new Promise(resolve=>{this.stageResolve=resolve;this.stageTimer=setTimeout(()=>{if(this.stageResolve===resolve)this.stageResolve=null;this.stageTimer=0;resolve("timeout");},this.stageMs);});\n  }\n  scheduleRecovery(reason="retry",child=this.active,error=null){\n    if(!this.started)return false;if(child&&this.active&&child!==this.active)return false;\n    this.wakeStage("recover");clearTimeout(this.retryTimer);this.retryTimer=0;\n    const previous=this.active;this.active=null;this.children=[];this.currentStageChildren=[];this.failedChildren.clear();this.stageErrors=[];if(previous)previous.stop(false);\n    const epoch=++this.stageEpoch,attempt=Math.min(4,++this.retryCount),delay=Math.min(5000,this.retryMs*attempt);\n    emitNetworkEvent("finder-retry-scheduled",{reason,delayMs:delay,attempt,error:error?errorMessage(error):"",roomIds:this.stageRoomIds});\n    this.retryTimer=setTimeout(()=>{this.retryTimer=0;if(!this.started||epoch!==this.stageEpoch||this.active)return;emitNetworkEvent("finder-retry-start",{reason,attempt,roomIds:this.stageRoomIds});this.stageTask=this.runStages(epoch).catch(nextError=>{if(this.started&&epoch===this.stageEpoch&&!this.active){emitNetworkEvent("finder-error",{error:errorMessage(nextError)});this.scheduleRecovery("stage-error",null,nextError);}});},delay);return true;\n  }\n  adopt(child,peerId,roomId,transportName){')
+          replace_once(path,
+              '      this.active=child;this.wakeStage("peer");\n',
+              '      this.active=child;this.retryCount=0;clearTimeout(this.retryTimer);this.retryTimer=0;this.wakeStage("peer");\n')
+          replace_once(path,
+              '      emitNetworkEvent("finder-exhausted",{error:errorMessage(error),roomIds:this.stageRoomIds,transportNames:this.transportStrategies.map(item=>item.name)});\n      this.options.onError?.(error);\n',
+              '      emitNetworkEvent("finder-exhausted",{error:errorMessage(error),roomIds:this.stageRoomIds,transportNames:this.transportStrategies.map(item=>item.name)});\n      this.scheduleRecovery("finder-exhausted",null,error);\n')
+          replace_once(path,
+              '    if(this.started)return;this.started=true;\n',
+              '    if(this.started)return;this.started=true;clearTimeout(this.retryTimer);this.retryTimer=0;this.retryCount=0;\n')
+          replace_once(path,
+              '    this.stageTask=this.runStages(epoch).catch(error=>{if(this.started&&epoch===this.stageEpoch&&!this.active){emitNetworkEvent("finder-error",{error:errorMessage(error)});this.options.onError?.(error);}});\n',
+              '    this.stageTask=this.runStages(epoch).catch(error=>{if(this.started&&epoch===this.stageEpoch&&!this.active){emitNetworkEvent("finder-error",{error:errorMessage(error)});this.scheduleRecovery("stage-error",null,error);}});\n')
+          replace_once(path,
+              '    this.started=false;++this.stageEpoch;this.wakeStage("stop");clearTimeout(this.stageTimer);this.stageTimer=0;\n',
+              '    this.started=false;++this.stageEpoch;this.wakeStage("stop");clearTimeout(this.stageTimer);clearTimeout(this.retryTimer);this.stageTimer=0;this.retryTimer=0;this.retryCount=0;\n')
+
+          # Unit coverage for STUN + partial ICE fallback.
+          Path('tests/p2p_link_test.mjs').write_text('''import assert from "node:assert/strict";\nimport {P2P_RTC_CONFIG,waitForIceComplete} from "../sim/p2p_link.mjs";\nassert.equal(P2P_RTC_CONFIG.iceTransportPolicy,"all");\nassert.ok(P2P_RTC_CONFIG.iceServers.length>=2);\nassert.ok(JSON.stringify(P2P_RTC_CONFIG.iceServers).includes("stun.cloudflare.com"));\nfunction mockPc(sdp){const listeners=new Map();return{iceGatheringState:"gathering",localDescription:{sdp},addEventListener(n,f){listeners.set(n,f);},removeEventListener(n,f){if(listeners.get(n)===f)listeners.delete(n);}};}\nawait waitForIceComplete(mockPc("v=0\\na=candidate:1 1 udp 1 192.168.1.2 5000 typ host\\n"),5);\nawait assert.rejects(()=>waitForIceComplete(mockPc("v=0\\n"),5),/before any usable candidate/);\nconsole.log("P2P ICE reliability passed: STUN fallback plus partial LAN candidate timeout acceptance.");\n''')
+
+          # Multiplayer regression: shared network rooms are preferred and a peer
+          # leaving causes automatic re-discovery/rejoin rather than permanent WAITING.
+          path='tests/lan_vs_smoke.mjs'
+          replace_once(path,
+              'const strategyOne=transportHarness("one"),strategyTwo=transportHarness("two"),shared=tapA[0],strategies=[{name:"One",load:strategyOne.loadTransport},{name:"Two",load:strategyTwo.loadTransport}];let faPeer=0,fbPeer=0,faPose=null,fbPose=null,faLeft=0,faTransport="",fbTransport="";\nconst fa=new LanVsFinder({transportStrategies:strategies,gestureDeferMs:0,joinDiagnosticMs:0,onPeer:(_peer,_room,transport)=>{faPeer++;faTransport=transport;},onPose:p=>faPose=p,onLeave:()=>faLeft++}),fb=new LanVsFinder({transportStrategies:strategies,gestureDeferMs:0,joinDiagnosticMs:0,onPeer:(_peer,_room,transport)=>{fbPeer++;fbTransport=transport;},onPose:p=>fbPose=p});\nawait fa.start(["net-only-a",shared]);await fb.start(["net-only-b",shared]);',
+              'const strategyOne=transportHarness("one"),strategyTwo=transportHarness("two"),sharedNetwork="net-shared-network",strategies=[{name:"One",load:strategyOne.loadTransport},{name:"Two",load:strategyTwo.loadTransport}];let faPeer=0,fbPeer=0,faPose=null,fbPose=null,faLeft=0,faTransport="",fbTransport="";\nconst priorityProbe=new LanVsFinder({transportStrategies:strategies,maxRoomsPerStage:3});assert.deepEqual(priorityProbe.chooseStageRooms(["tap-a","tap-b",sharedNetwork,"net-only-a"]),[sharedNetwork,"net-only-a","tap-a"],"stable same-network rooms must be tried before gesture buckets");\nconst fa=new LanVsFinder({transportStrategies:strategies,stageMs:250,retryMs:25,joinDiagnosticMs:0,onPeer:(_peer,_room,transport)=>{faPeer++;faTransport=transport;},onPose:p=>faPose=p,onLeave:()=>faLeft++}),fb=new LanVsFinder({transportStrategies:strategies,stageMs:250,retryMs:25,joinDiagnosticMs:0,onPeer:(_peer,_room,transport)=>{fbPeer++;fbTransport=transport;},onPose:p=>fbPose=p});\nawait fa.start(["tap-a",sharedNetwork,"net-only-a"]);await fb.start(["tap-b",sharedNetwork,"net-only-b"]);')
+          replace_once(path,
+              'fb.stop();await sleep(5);assert.equal(faLeft,1);fa.stop();\n\nconsole.log("LAN VS deterministic smoke passed: Trystero 0.25 callback API, parallel signaling, 0-GPS rendezvous, network diagnostics, 30 Hz timestamped position/velocity/frame poses, origin and combat.");',
+              'fb.stop();await sleep(10);assert.equal(faLeft,1);\nconst fc=new LanVsFinder({transportStrategies:strategies,stageMs:250,retryMs:25,joinDiagnosticMs:0,onPeer:()=>{},onPose:()=>{}});await sleep(45);await fc.start(["tap-c",sharedNetwork,"net-only-c"]);await sleep(90);assert.ok(faPeer>=2,"finder must automatically recover and pair with a replacement peer after peer loss");fc.stop();fa.stop();\n\nconsole.log("LAN VS deterministic smoke passed: same-network rooms first, automatic peer-loss recovery, Trystero callback API, 0-GPS rendezvous, network diagnostics, 30 Hz poses, origin and combat.");')
+
+          # Browser coverage for MENU/settings, Y/reset, VIEW/exit.
+          path='tests/xbox_gamepad_browser_smoke.mjs'
+          replace_once(path,
+              '  await setButton(5,0);await setButton(4,0);await page.evaluate(()=>{globalThis.__xboxTest.setAxis(2,0);globalThis.__xboxTest.setAxis(3,0);});\n  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.gamepadFire==="0"&&getComputedStyle(document.querySelector(".xbox-crosshair")).display==="none",{timeout:3000});\n  await page.evaluate(()=>globalThis.__xboxTest.disconnect());',
+              '  await setButton(5,0);await setButton(4,0);await page.evaluate(()=>{globalThis.__xboxTest.setAxis(2,0);globalThis.__xboxTest.setAxis(3,0);});\n  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.gamepadFire==="0"&&getComputedStyle(document.querySelector(".xbox-crosshair")).display==="none",{timeout:3000});\n\n  await setButton(9,1);await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await setButton(9,0);await setButton(1,1);await page.waitForFunction(()=>!document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await setButton(1,0);\n  await setButton(3,1);await page.waitForFunction(()=>Number(document.querySelector("#viewport")?.dataset.gamepadResetCount||0)>=1,{timeout:3000});await setButton(3,0);\n  const recovery=await page.$eval("#viewport",v=>({reset:Number(v.dataset.gamepadResetCount||0),help:document.querySelector("#soloGamepadHelp")?.textContent||""}));if(recovery.reset<1||!recovery.help.includes("Y RESET")||!recovery.help.includes("VIEW EXIT")||!recovery.help.includes("MENU SETTINGS"))throw new Error(`controller recovery bindings missing: ${JSON.stringify(recovery)}`);\n  await setButton(8,1);await page.waitForFunction(()=>!document.body.classList.contains("solo-flight")&&Number(document.querySelector("#viewport")?.dataset.gamepadExitCount||0)>=1,{timeout:4000});await setButton(8,0);await page.click("#camSolo");await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.controlSource==="xbox",{timeout:5000});\n\n  await page.evaluate(()=>globalThis.__xboxTest.disconnect());')
+          replace_once(path,
+              '  console.log("Xbox browser E2E passed: default OFF, explicit persistent ON/OFF, zero touch HUD while ON/reconnecting, LT down, RT up-only, LB+RS free-look/crosshair, and LB+RB right-shoulder fire.");',
+              '  console.log("Xbox browser E2E passed: controller-only MENU settings, Y crash reset, VIEW exit, default OFF, persistent ON/OFF, zero touch HUD, LT/RT altitude, LB+RS aim and LB+RB fire.");')
+
+          # Make P2P reliability test mandatory in both host pipelines.
+          for path in ['.github/workflows/deploy.yml','.github/workflows/s31-hil.yml']:
+              replace_once(path,'          node tests/xbox_gamepad_test.mjs\n','          node tests/xbox_gamepad_test.mjs\n          node tests/p2p_link_test.mjs\n')
+          PY
+
+      - name: Deterministic regression tests
+        shell: bash
+        run: |
+          set -euxo pipefail
+          node --check sim/settings_controller_nav.mjs
+          node --check sim/control_settings.mjs
+          node --check sim/p2p_link.mjs
+          node --check sim/lan_vs.mjs
+          node --check tests/xbox_gamepad_browser_smoke.mjs
+          node tests/p2p_link_test.mjs
+          node tests/xbox_gamepad_test.mjs
+          node tests/lan_vs_smoke.mjs
+
+      - name: Commit tested fix and remove one-shot
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git rm .github/workflows/fix-recovery-pairing-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/settings_controller_nav.mjs sim/control_settings.mjs sim/p2p_link.mjs sim/lan_vs.mjs tests/p2p_link_test.mjs tests/lan_vs_smoke.mjs tests/xbox_gamepad_browser_smoke.mjs .github/workflows/deploy.yml .github/workflows/s31-hil.yml
+          git commit -m 'Fix controller crash recovery and robust same-network pairing'
+          git push origin HEAD:main
