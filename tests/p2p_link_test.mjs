@@ -1,4 +1,4 @@
-// Final regression probe: LAN candidates may complete before STUN while retaining a valid P2P path.
+// Final regression probe v2: direct LAN candidates may complete before STUN while retaining a valid fallback path.
 import assert from "node:assert/strict";
 import {P2P_RTC_CONFIG,waitForIceComplete} from "../sim/p2p_link.mjs";
 assert.equal(P2P_RTC_CONFIG.iceTransportPolicy,"all");
