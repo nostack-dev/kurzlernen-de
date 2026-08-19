@@ -212,10 +212,6 @@ public:
             horizontal_integral_right_mps2_ = 0.0f;
         }
 
-        // Architecture markers retained deliberately: the original proportional
-        // equations are still the underlying law, with a release-ramped target:
-        // kHorizontalVelocityGain * (intent.forward_mps - measured_forward)
-        // kHorizontalVelocityGain * (intent.right_mps - measured_right)
         const float neutral_damping_scale = pilot_horizontal_speed <= kHorizontalIntegralNeutralTargetMps
                                                 ? kHorizontalNeutralDampingScale
                                                 : 1.0f;
@@ -226,7 +222,10 @@ public:
 
         float forward_accel = forward_unsat;
         float right_accel = right_unsat;
-        const float allowed_horizontal_accel = std::min(kMaxHorizontalAccelerationMps2,
+        // Keep the historical hardware authority available as a hard ceiling, but
+        // do not drive the aircraft at that ceiling in normal GAME flight. The
+        // stable command envelope is the earlier validated 4 m/s² response.
+        const float allowed_horizontal_accel = std::min(kStableHorizontalAccelerationMps2,
                                                         specific_up * kMaxTiltTangent);
         const float horizontal_accel = std::sqrt(forward_accel * forward_accel + right_accel * right_accel);
         if (horizontal_accel > allowed_horizontal_accel && horizontal_accel > 1.0e-6f) {
@@ -235,9 +234,8 @@ public:
             right_accel *= vector_scale;
         }
 
-        // Integral gain is deliberately zero in the stable GAME envelope. Keep the
-        // anti-windup structure dormant so no stored horizontal propulsion can build
-        // up while preserving the modern command/release and navigation plumbing.
+        // The horizontal I path is intentionally dormant in the stable envelope;
+        // no stored propulsion may build up and kick the vehicle later.
         if (pilot_horizontal_speed > kHorizontalIntegralNeutralTargetMps) {
             horizontal_integral_forward_mps2_ +=
                 (kHorizontalIntegralGain * forward_error +
@@ -317,23 +315,24 @@ public:
 private:
     static constexpr float kGravityMps2 = 9.80665f;
     static constexpr float kInnerAttitudeRangeDeg = kInnerMaxAttitudeDeg;
-    static constexpr float kMaxTiltDeg = 25.0f;
-    static constexpr float kMaxTiltTangent = 0.46630766f;
+    static constexpr float kMaxTiltDeg = 40.0f;
+    static constexpr float kMaxTiltTangent = 0.83909963f;
     static constexpr float kMaxAttitudeCommand = kMaxTiltDeg / kInnerAttitudeRangeDeg;
     static constexpr float kDegradedMaxTiltDeg = 12.0f;
     static constexpr float kDegradedBodyPitchScale = 0.35f;
 
     static constexpr float kHorizontalVelocityGain = 0.80f;
     static constexpr float kHorizontalIntegralGain = 0.0f;
-    static constexpr float kHorizontalAntiWindupGain = 2.50f;
-    static constexpr float kHorizontalIntegralLimitMps2 = 0.0f;
+    static constexpr float kHorizontalAntiWindupGain = 0.0f;
+    static constexpr float kHorizontalIntegralLimitMps2 = 7.0f;
     static constexpr float kHorizontalIntegralNeutralTargetMps = 0.05f;
     static constexpr float kHorizontalAccelerationDamping = 0.55f;
     static constexpr float kHorizontalNeutralDampingScale = 1.00f;
     static constexpr float kHorizontalReleaseTargetRateMps2 = 4.0f;
     static constexpr float kMeasuredAccelerationFilterTauS = 0.06f;
     static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
-    static constexpr float kMaxHorizontalAccelerationMps2 = 4.0f;
+    static constexpr float kMaxHorizontalAccelerationMps2 = 7.5f;
+    static constexpr float kStableHorizontalAccelerationMps2 = 4.0f;
 
     static constexpr float kAglToVerticalSpeed = 2.00f;
     static constexpr float kMaxVerticalSpeedMps = 30.0f;
