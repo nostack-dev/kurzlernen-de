@@ -248,7 +248,9 @@ requireText("sim/real_world_bootstrap.mjs",'desynchronized:false,preserveDrawing
 requireText("sim/real_world_bootstrap.mjs",'presentationStableBackbuffer===true');
 for(const marker of ["node tests/render_stability_test.mjs","node tests/vs_pose_sync_test.mjs","node tests/android_render_browser_smoke.mjs"])requireText(".github/workflows/deploy.yml",marker);
 for(const marker of ["FLIGHT_LOGBOOK_KEY","EXPORT JSON","maxForwardMps","maxRightMps"])requireText("sim/flight_logbook.mjs",marker);
-for(const marker of ["installFlightFireFx","THREE.Raycaster","addVisualShotImpact","SHOT_INTERVAL_MS","DECAL_POOL_SIZE=32","touch-action:none"])requireText("sim/flight_fire_fx.mjs",marker);
+for(const marker of ["installFlightFireFx","THREE.Raycaster","traceProjectileWorldSegment","resolveProjectileHit","registerVsHit?.(sceneHit)","SHOT_INTERVAL_MS","PROJECTILE_POOL_SIZE=36","TRACER_SPEED_MPS=210","PROJECTILE_TTL_MS=1800","DECAL_POOL_SIZE=32","touch-action:none"])requireText("sim/flight_fire_fx.mjs",marker);
+for(const marker of ["PROJECTILE_GRAVITY_MPS2","integrateProjectile","traceProjectileWorldSegment"])requireText("sim/projectile_ballistics.mjs",marker);
+forbidText("sim/flight_fire_fx.mjs","addVisualShotImpact","instant WORLD hitscan path must not return; impacts come from projectile segment collision");
 for(const dirty of ["applyForces(","b3Body_ApplyForce","motorOmega","fc::Runtime","StateController"])forbidText("sim/flight_fire_fx.mjs",dirty,`presentation-only fire FX gained flight authority: ${dirty}`);
 for(const marker of ["kStateNavigationDegraded","navigation_velocity_valid","navigation_agl_valid","degraded_attitude_command"])requireText("esp32/Arondight45_StateControl.hpp",marker);
 for(const marker of ["kNavigationVelocityValid","kNavigationAglValid","kNavigationSplitValidity"])requireText("esp32/Arondight45_HardwareSensors.hpp",marker);
