@@ -11,7 +11,7 @@ import {HybridMotorSound} from "./motor_sound.mjs";
 import {FlightLogbook} from "./flight_logbook.mjs";
 import {installFlightFireFx} from "./flight_fire_fx.mjs";
 import {partitionCalibrationLog,evaluatePhysicsValidation,validationSummary,PHYSICS_VALIDATION_SCHEMA} from "./physics_validation.mjs";
-import {findXboxGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";
+import {findXboxGamepad,isXboxCompatibleGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";
 import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";
 import {renderPlatformProfile,quantizedViewportSize,viewportSizeChanged} from "./render_stability.mjs";
 import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,findClearBuildingLaunchPoint,resolveBox3dCameraPath} from "./world_building_collision_physics.mjs";
@@ -737,7 +737,16 @@ const flightLogbook=new FlightLogbook({parent:$("soloTopbar")});globalThis.__aro
 const flightFireFx=installFlightFireFx({viewport:$("viewport"),scene,camera,worldBridge:globalThis.__arondightRealWorld,isEnabled:()=>soloMode,isPointerEnabled:()=>$("viewport").dataset.controlSource!=="xbox"});
 const flightSelectionBlocked=target=>target instanceof Element&&Boolean(target.closest("dialog,input,textarea,select,option"));for(const type of ["selectstart","contextmenu","dragstart"])document.addEventListener(type,event=>{if(soloMode&&event.target instanceof Element&&event.target.closest("#viewport")&&!flightSelectionBlocked(event.target))event.preventDefault();},{passive:false});
 let pendingDisarmReason=null;
-let xboxGamepadActive=false,xboxPrevious=null,xboxLastPollMs=performance.now();
+let xboxGamepadActive=false,xboxPrevious=null,xboxLastPollMs=performance.now(),xboxObservedGamepad=null;
+function rememberXboxGamepad(gamepad){
+  if(!isXboxCompatibleGamepad(gamepad))return false;
+  xboxObservedGamepad=gamepad;const viewport=$("viewport");if(viewport){viewport.dataset.gamepadExposed="1";viewport.dataset.gamepadObservedId=String(gamepad.id||"Xbox controller");}return true;
+}
+function currentXboxGamepad(){
+  let pad=null;try{pad=findXboxGamepad(navigator.getGamepads?.());}catch{}
+  if(pad){rememberXboxGamepad(pad);return pad;}
+  return isXboxCompatibleGamepad(xboxObservedGamepad)?xboxObservedGamepad:null;
+}
 function neutralizeSoloMotion(){const keepArm=soloControls.arm;soloControls=neutralSoloControls();soloControls.arm=keepArm;setSoloHeightAxis(0);updateSoloSticks();}
 function toggleSoloArm(){if(soloControls.arm){soloControls.arm=false;return;}if((latest.state&STATE_NAVIGATION_VALID)&&sharedArmReady(currentFcStateText(),soloControls,true,phoneSettings))soloControls.arm=true;}
 function killSolo(){pendingDisarmReason="KILL_SWITCH";setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();arm=false;throttle=0;}
@@ -746,17 +755,23 @@ function deactivateXboxGamepad(keepXboxMode=false){
   const viewport=$("viewport"),source=keepXboxMode?"xbox":"touch";if(!xboxGamepadActive&&viewport.dataset.controlSource===source&&viewport.dataset.gamepadConnected==="0")return;if(xboxGamepadActive)neutralizeSoloMotion();xboxGamepadActive=false;xboxPrevious=null;flightFireFx?.setGamepadFire(false);flightFireFx?.setGamepadAim(false);globalThis.__arondightRealWorld?.setGamepadLook?.(false);viewport.dataset.controlSource=source;viewport.dataset.gamepadConnected="0";viewport.dataset.gamepadAim="0";viewport.dataset.gamepadFire="0";viewport.dataset.gamepadHeightAxis="0.000";delete viewport.dataset.gamepadId;$("soloGamepadStatus").hidden=true;$("soloGamepadHelp").hidden=true;
 }
 function setXboxControlPreference(enabled){
-  const xboxEnabled=enabled===true,viewport=$("viewport");viewport.dataset.gamepadEnabled=xboxEnabled?"1":"0";neutralizeSoloMotion();deactivateXboxGamepad(xboxEnabled&&soloMode);
+  const xboxEnabled=enabled===true,viewport=$("viewport");viewport.dataset.gamepadEnabled=xboxEnabled?"1":"0";neutralizeSoloMotion();deactivateXboxGamepad(xboxEnabled&&soloMode);if(soloMode)queueMicrotask(()=>pollXboxGamepad(performance.now()));
 }
 function pollXboxGamepad(now){
-  const viewport=$("viewport"),enabled=phoneSettings.xboxControllerEnabled===true;viewport.dataset.gamepadEnabled=enabled?"1":"0";
-  if(!soloMode||!enabled){deactivateXboxGamepad(false);return;}
-  let pad=null;try{pad=findXboxGamepad(navigator.getGamepads?.());}catch{}const sample=sampleXboxGamepad(pad);if(!sample){deactivateXboxGamepad(true);return;}
-  const justActivated=!xboxGamepadActive,dt=justActivated?0:clamp((now-xboxLastPollMs)/1000,0,.05);xboxLastPollMs=now;xboxGamepadActive=true;viewport.dataset.controlSource="xbox";viewport.dataset.gamepadConnected="1";viewport.dataset.gamepadId=sample.id;$("soloGamepadStatus").hidden=false;$("soloGamepadHelp").hidden=false;
+  const viewport=$("viewport"),enabled=phoneSettings.xboxControllerEnabled===true,status=$("soloGamepadStatus"),help=$("soloGamepadHelp");viewport.dataset.gamepadEnabled=enabled?"1":"0";
+  if(!soloMode){deactivateXboxGamepad(false);return;}
+  const pad=currentXboxGamepad();
+  if(!enabled){deactivateXboxGamepad(false);if(pad){viewport.dataset.gamepadExposed="1";status.hidden=false;status.textContent="XBOX DETECTED · ENABLE IN SETTINGS";help.hidden=true;}return;}
+  const sample=sampleXboxGamepad(pad);if(!sample){deactivateXboxGamepad(true);status.hidden=false;status.textContent=xboxObservedGamepad?"XBOX CONNECTING…":"XBOX ON · PRESS ANY BUTTON";help.hidden=true;return;}
+  const justActivated=!xboxGamepadActive,dt=justActivated?0:clamp((now-xboxLastPollMs)/1000,0,.05);xboxLastPollMs=now;xboxGamepadActive=true;viewport.dataset.controlSource="xbox";viewport.dataset.gamepadConnected="1";viewport.dataset.gamepadExposed="1";viewport.dataset.gamepadId=sample.id;status.hidden=false;help.hidden=false;
   applyGameStick(soloControls,"left",sample.left,phoneSettings);if(sample.aim){soloControls.yaw=0;soloControls.bodyPitch=0;}else applyGameStick(soloControls,"right",sample.right,phoneSettings);soloHeightAxis=clamp(sample.heightAxis,-1,1);globalThis.__arondightRealWorld?.setGamepadLook?.(sample.aim,sample.right.x,sample.right.y,dt);
   const aimX=viewport.clientWidth/2,aimY=viewport.clientHeight/2;flightFireFx?.setGamepadAim(sample.aim,aimX,aimY);flightFireFx?.setGamepadFire(sample.fire,aimX,aimY);viewport.dataset.gamepadAim=sample.aim?"1":"0";viewport.dataset.gamepadFire=sample.fire?"1":"0";viewport.dataset.gamepadHeightAxis=sample.heightAxis.toFixed(3);viewport.dataset.gamepadLeft=`${sample.left.x.toFixed(3)},${sample.left.y.toFixed(3)}`;viewport.dataset.gamepadRight=`${sample.right.x.toFixed(3)},${sample.right.y.toFixed(3)}`;const statusText=sample.aim?"XBOX · AIM":`XBOX · ALT ${soloGroundClearance.toFixed(1)} m`;if($("soloGamepadStatus").textContent!==statusText)$("soloGamepadStatus").textContent=statusText;
   if(!justActivated&&sample.arm&&!xboxPrevious?.arm)toggleSoloArm();if(!justActivated&&sample.kill&&!xboxPrevious?.kill)killSolo();if(!justActivated&&sample.camera&&!xboxPrevious?.camera)cycleSoloCamera();if(!justActivated&&sample.target&&!xboxPrevious?.target&&globalThis.__arondightRealWorld?.vsConnected){const rect=viewport.getBoundingClientRect();viewport.dispatchEvent(new CustomEvent("flightfiredoubletap",{detail:{clientX:rect.left+rect.width/2,clientY:rect.top+rect.height/2,pointerType:"gamepad"}}));viewport.dataset.gamepadBeaconCount=String((Number(viewport.dataset.gamepadBeaconCount)||0)+1);}xboxPrevious={arm:sample.arm,kill:sample.kill,camera:sample.camera,target:sample.target};
 }
+addEventListener("gamepadconnected",event=>{if(rememberXboxGamepad(event.gamepad)&&soloMode)pollXboxGamepad(performance.now());});
+addEventListener("gamepaddisconnected",event=>{if(xboxObservedGamepad&&Number(xboxObservedGamepad.index)===Number(event.gamepad?.index))xboxObservedGamepad=null;if(soloMode)pollXboxGamepad(performance.now());});
+addEventListener("focus",()=>{if(soloMode)pollXboxGamepad(performance.now());});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&soloMode)pollXboxGamepad(performance.now());});
 async function enterSolo(){
   soloMode=true;resetPresentationTiming();soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;setXboxControlPreference(phoneSettings.xboxControllerEnabled);inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
   try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}

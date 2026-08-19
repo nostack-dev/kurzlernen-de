@@ -10,18 +10,19 @@ const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-s
 const page=await browser.newPage();
 
 await page.evaluateOnNewDocument(()=>{
-  const state={connected:true,axes:[0,0,0,0],values:Array(17).fill(0)};
+  const state={connected:true,exposed:false,axes:[0,0,0,0],values:Array(17).fill(0)};
   const pad={id:"Xbox Wireless Controller (Vendor: 045e Product: 0b13)",index:0,mapping:"standard",timestamp:0,
     get connected(){return state.connected;},
     get axes(){return state.axes;},
     get buttons(){return state.values.map(value=>({pressed:value>.5,touched:value>0,value}));}
   };
-  Object.defineProperty(navigator,"getGamepads",{configurable:true,value:()=>state.connected?[pad]:[]});
+  Object.defineProperty(navigator,"getGamepads",{configurable:true,value:()=>state.connected&&state.exposed?[pad]:[]});
   globalThis.__xboxTest={
     setButton(index,value){state.values[index]=Math.max(0,Math.min(1,Number(value)||0));},
     setAxis(index,value){state.axes[index]=Math.max(-1,Math.min(1,Number(value)||0));},
     reset(){state.axes.fill(0);state.values.fill(0);},
-    disconnect(){state.connected=false;},
+    expose(){state.exposed=true;const event=new Event("gamepadconnected");Object.defineProperty(event,"gamepad",{value:pad});dispatchEvent(event);},
+    disconnect(){state.connected=false;const event=new Event("gamepaddisconnected");Object.defineProperty(event,"gamepad",{value:pad});dispatchEvent(event);},
   };
 });
 
@@ -34,8 +35,12 @@ try{
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return document.body.classList.contains("solo-flight")&&v?.dataset.controlSource==="touch"&&v.dataset.gamepadEnabled==="0";},{timeout:7000});
 
-  const defaultOff=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,enabled:v.dataset.gamepadEnabled,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill"),padConnected:Boolean(navigator.getGamepads?.()[0]?.connected)};});
-  if(defaultOff.source!=="touch"||defaultOff.enabled!=="0"||defaultOff.connected!=="0"||defaultOff.left==="none"||defaultOff.right==="none"||defaultOff.height==="none"||defaultOff.arm==="none"||defaultOff.kill==="none"||!defaultOff.padConnected)throw new Error(`Xbox was not safely OFF by default: ${JSON.stringify(defaultOff)}`);
+  const defaultOff=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,enabled:v.dataset.gamepadEnabled,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill"),enumerated:navigator.getGamepads?.().length||0};});
+  if(defaultOff.source!=="touch"||defaultOff.enabled!=="0"||defaultOff.connected!=="0"||defaultOff.left==="none"||defaultOff.right==="none"||defaultOff.height==="none"||defaultOff.arm==="none"||defaultOff.kill==="none"||defaultOff.enumerated!==0)throw new Error(`Xbox was not safely OFF before Chrome exposure: ${JSON.stringify(defaultOff)}`);
+  await page.evaluate(()=>globalThis.__xboxTest.expose());
+  await page.waitForFunction(()=>document.querySelector("#soloGamepadStatus")?.textContent?.includes("XBOX DETECTED"),{timeout:3000});
+  const detectedOff=await page.evaluate(()=>({source:document.querySelector("#viewport")?.dataset.controlSource,enabled:document.querySelector("#viewport")?.dataset.gamepadEnabled,connected:document.querySelector("#viewport")?.dataset.gamepadConnected,status:document.querySelector("#soloGamepadStatus")?.textContent,enumerated:navigator.getGamepads?.().length||0}));
+  if(detectedOff.source!=="touch"||detectedOff.enabled!=="0"||detectedOff.connected!=="0"||detectedOff.enumerated!==1||!detectedOff.status.includes("ENABLE IN SETTINGS"))throw new Error(`Chrome-exposed Xbox did not remain safely OFF with a clear enable hint: ${JSON.stringify(detectedOff)}`);
 
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});
   const toggleDefault=await page.$eval('.phone-settings-dialog [data-xbox-controller]',input=>input.checked);if(toggleDefault!==false)throw new Error(`Xbox settings toggle is not OFF by default: ${toggleDefault}`);
@@ -96,5 +101,5 @@ try{
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="touch"&&v.dataset.gamepadEnabled==="0"&&getComputedStyle(document.querySelector("#soloLeft")).display!=="none";},{timeout:3000});
 
-  console.log("Xbox browser E2E passed: MENU settings, Y reset, VIEW exit, persistent Xbox handoff and fire/aim/altitude controls.");
+  console.log("Xbox browser E2E passed: Chrome paired-before-load exposure, MENU settings, Y reset, VIEW exit, persistent Xbox handoff and fire/aim/altitude controls.");
 }finally{await browser.close();}
