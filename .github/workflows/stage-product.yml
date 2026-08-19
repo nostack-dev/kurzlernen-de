@@ -1,3 +1,4 @@
+# registered branch workflow retrigger
 name: Stage product branch
 
 on:
@@ -78,7 +79,6 @@ jobs:
           p.write_text(t)
           PY
 
-          # Production invariants deliberately allow only deploy.yml and s31-hil.yml.
           git rm .github/workflows/finalize-flight-photoreal.yml .github/workflows/stage-product.yml
 
       - name: Compile and validate product tree
