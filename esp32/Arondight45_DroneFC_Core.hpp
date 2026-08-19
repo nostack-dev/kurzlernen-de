@@ -307,18 +307,72 @@ struct Mix {
 
 inline Mix mix(float t, float roll, float pitch, float yaw) {
     t = clamp(t, 0.0f, 1.0f);
-    std::array<float, 4> correction{{pitch - roll - 0.65f * yaw,
-                                      pitch + roll + 0.65f * yaw,
-                                      -pitch + roll - 0.65f * yaw,
-                                      -pitch - roll + 0.65f * yaw}};
-    float scale_factor = 1.0f;
-    for (float v : correction) {
-        if (v > 0.0f) scale_factor = std::min(scale_factor, (1.0f - t) / v);
-        else if (v < 0.0f) scale_factor = std::min(scale_factor, t / -v);
+
+    // Preserve roll/pitch authority at the motor rails. Collective is
+    // translated into the remaining motor window instead of scaling
+    // attitude correction to zero at t == 0 or t == 1.
+    std::array<float, 4> roll_pitch{{pitch - roll,
+                                      pitch + roll,
+                                      -pitch + roll,
+                                      -pitch - roll}};
+    auto bounds = [](const std::array<float, 4>& values) {
+        float lo = values[0];
+        float hi = values[0];
+        for (size_t i = 1; i < values.size(); ++i) {
+            lo = std::min(lo, values[i]);
+            hi = std::max(hi, values[i]);
+        }
+        return std::array<float, 2>{{lo, hi}};
+    };
+
+    auto rp_bounds = bounds(roll_pitch);
+    const float rp_span = rp_bounds[1] - rp_bounds[0];
+    if (rp_span > 1.0f && rp_span > 1.0e-6f) {
+        const float scale = 1.0f / rp_span;
+        for (float& value : roll_pitch) value *= scale;
     }
-    scale_factor = clamp(scale_factor, 0.0f, 1.0f);
+
+    const std::array<float, 4> yaw_mix{{-0.65f * yaw,
+                                         0.65f * yaw,
+                                        -0.65f * yaw,
+                                         0.65f * yaw}};
+    auto correction_for_yaw_scale = [&](float yaw_scale) {
+        std::array<float, 4> values{};
+        for (size_t i = 0; i < values.size(); ++i)
+            values[i] = roll_pitch[i] + yaw_scale * yaw_mix[i];
+        return values;
+    };
+
+    // Yaw is lower priority than roll/pitch. If all requested moments
+    // cannot fit inside [0,1], reduce yaw only as much as necessary.
+    float yaw_scale = 1.0f;
+    auto correction = correction_for_yaw_scale(yaw_scale);
+    auto correction_bounds = bounds(correction);
+    if (correction_bounds[1] - correction_bounds[0] > 1.0f) {
+        float feasible = 0.0f;
+        float infeasible = 1.0f;
+        for (int i = 0; i < 16; ++i) {
+            const float candidate = 0.5f * (feasible + infeasible);
+            const auto candidate_bounds = bounds(correction_for_yaw_scale(candidate));
+            if (candidate_bounds[1] - candidate_bounds[0] <= 1.0f)
+                feasible = candidate;
+            else
+                infeasible = candidate;
+        }
+        yaw_scale = feasible;
+        correction = correction_for_yaw_scale(yaw_scale);
+        correction_bounds = bounds(correction);
+    }
+
+    const float collective_min = -correction_bounds[0];
+    const float collective_max = 1.0f - correction_bounds[1];
+    const float collective = collective_min <= collective_max
+        ? clamp(t, collective_min, collective_max)
+        : 0.5f * (collective_min + collective_max);
+
     Mix out;
-    for (size_t i = 0; i < 4; ++i) out.motor[i] = clamp(t + scale_factor * correction[i], 0.0f, 1.0f);
+    for (size_t i = 0; i < 4; ++i)
+        out.motor[i] = clamp(collective + correction[i], 0.0f, 1.0f);
     return out;
 }
 
