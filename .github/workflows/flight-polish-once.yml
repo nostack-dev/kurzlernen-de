@@ -1,0 +1,156 @@
+name: One-shot spawn ground and camera hardening
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/flight-polish.trigger']
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch spawn, visible ground support and external camera
+        id: patch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p=Path(path); s=p.read_text(); count=s.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected exactly one marker, found {count}: {old[:160]!r}")
+              p.write_text(s.replace(old,new,1))
+
+          # 1) Presentation support: keep authoritative collision envelope unchanged,
+          # but keep visible skids above Box3D contact slop instead of rendering them
+          # exactly at the physical support plane.
+          replace_once('sim/simulator.mjs',
+          '''const AIRFRAME_VISUAL_BODY_CENTER_Z_M = .006;
+          const AIRFRAME_LANDING_SKID_RADIUS_M = .004;
+          const AIRFRAME_LANDING_SKID_Z_M = -AIRFRAME_COLLISION_HALF_Z_M + AIRFRAME_LANDING_SKID_RADIUS_M;
+          const AIRFRAME_GROUND_SUPPORT_M = AIRFRAME_COLLISION_HALF_Z_M;
+          const AIRFRAME_SPAWN_SEPARATION_M = .002;'''.replace('          ',''),
+          '''const AIRFRAME_VISUAL_BODY_CENTER_Z_M = .006;
+          const AIRFRAME_LANDING_SKID_RADIUS_M = .004;
+          const AIRFRAME_VISUAL_SKID_CLEARANCE_M = .004;
+          const AIRFRAME_PRESENTATION_GROUND_BIAS_M = .002;
+          const AIRFRAME_LANDING_SKID_Z_M = -AIRFRAME_COLLISION_HALF_Z_M + AIRFRAME_LANDING_SKID_RADIUS_M + AIRFRAME_VISUAL_SKID_CLEARANCE_M;
+          const AIRFRAME_VISUAL_LOWEST_Z_M = Math.min(AIRFRAME_VISUAL_BODY_CENTER_Z_M-AIRFRAME_COLLISION_HALF_Z_M,AIRFRAME_LANDING_SKID_Z_M-AIRFRAME_LANDING_SKID_RADIUS_M);
+          const AIRFRAME_GROUND_SUPPORT_M = AIRFRAME_COLLISION_HALF_Z_M;
+          const AIRFRAME_SPAWN_SEPARATION_M = .002;'''.replace('          ',''))
+
+          replace_once('sim/simulator.mjs',
+            'this.worldBuildingLaunchResolved=false;this.worldBuildingLaunchPoint=[0,0];',
+            'this.worldBuildingLaunchResolved=false;this.worldBuildingLaunchPoint=[Number(initial?.x)||0,Number(initial?.y)||0];')
+
+          # 2) A building snapshot is progressive. Re-check the launch point on every
+          # collision revision while the aircraft is still sitting at the last launch
+          # point. The old one-shot flag missed a house that arrived in a later tile.
+          replace_once('sim/simulator.mjs',
+          '''  resolveWorldBuildingLaunch(){
+              if(this.worldBuildingLaunchResolved||!this.body||!this.worldBuildingCollisionSnapshot.prismCount)return false;
+              const position=this.position(),velocity=this.linear(),angular=this.angular(),untouched=Math.hypot(position[0],position[1])<.14&&position[2]<=AIRFRAME_SPAWN_Z_M+.08&&norm(velocity)<.20&&norm(angular)<.80;
+              if(!untouched){this.worldBuildingLaunchResolved=true;this.worldBuildingLaunchPoint=[Infinity,Infinity];return false;}
+              const safe=findClearBuildingLaunchPoint(this.worldBuildingCollisionSnapshot,{point:[position[0],position[1]],clearanceM:.55,maxSearchM:80}),offset=Math.hypot(safe[0]-position[0],safe[1]-position[1]);
+              this.worldBuildingLaunchResolved=true;this.worldBuildingLaunchPoint=[safe[0],safe[1]];
+              const viewport=$("viewport");if(viewport){viewport.dataset.worldLaunchRelocated=offset>.01?"1":"0";viewport.dataset.worldLaunchOffsetM=offset.toFixed(3);viewport.dataset.worldLaunchX=Number(safe[0]).toFixed(3);viewport.dataset.worldLaunchY=Number(safe[1]).toFixed(3);}
+              if(offset<=.01)return false;
+              b3.b3Body_SetTransform(this.body,[safe[0],safe[1],AIRFRAME_SPAWN_Z_M],this.rotation());b3.b3Body_SetLinearVelocity(this.body,[0,0,0]);b3.b3Body_SetAngularVelocity(this.body,[0,0,0]);this.syncPresentationSnapshots();return true;
+            }'''.replace('          ',''),
+          '''  resolveWorldBuildingLaunch(){
+              if(!this.body||!this.worldBuildingCollisionSnapshot.prismCount)return false;
+              const position=this.position(),velocity=this.linear(),angular=this.angular(),reference=Array.isArray(this.worldBuildingLaunchPoint)&&this.worldBuildingLaunchPoint.length===2&&this.worldBuildingLaunchPoint.every(Number.isFinite)?this.worldBuildingLaunchPoint:[position[0],position[1]],untouched=Math.hypot(position[0]-reference[0],position[1]-reference[1])<.14&&position[2]<=AIRFRAME_SPAWN_Z_M+.08&&norm(velocity)<.20&&norm(angular)<.80;
+              if(!untouched){this.worldBuildingLaunchResolved=true;this.worldBuildingLaunchPoint=[Infinity,Infinity];return false;}
+              const safe=findClearBuildingLaunchPoint(this.worldBuildingCollisionSnapshot,{point:[position[0],position[1]],clearanceM:.55,maxSearchM:80}),offset=Math.hypot(safe[0]-position[0],safe[1]-position[1]);
+              this.worldBuildingLaunchResolved=false;this.worldBuildingLaunchPoint=[safe[0],safe[1]];
+              const viewport=$("viewport");if(viewport){viewport.dataset.worldLaunchRelocated=offset>.01?"1":"0";viewport.dataset.worldLaunchOffsetM=offset.toFixed(3);viewport.dataset.worldLaunchX=Number(safe[0]).toFixed(3);viewport.dataset.worldLaunchY=Number(safe[1]).toFixed(3);}
+              if(offset<=.01)return false;
+              b3.b3Body_SetTransform(this.body,[safe[0],safe[1],AIRFRAME_SPAWN_Z_M],this.rotation());b3.b3Body_SetLinearVelocity(this.body,[0,0,0]);b3.b3Body_SetAngularVelocity(this.body,[0,0,0]);this.syncPresentationSnapshots();return true;
+            }'''.replace('          ',''))
+
+          replace_once('sim/simulator.mjs',
+            'this.group.position.copy(pose.position);this.group.quaternion.copy(pose.quaternion);',
+            'this.group.position.copy(pose.position);this.group.position.z+=AIRFRAME_PRESENTATION_GROUND_BIAS_M;this.group.quaternion.copy(pose.quaternion);const presentationViewport=$("viewport");if(presentationViewport){presentationViewport.dataset.airframePresentationGroundBiasM=AIRFRAME_PRESENTATION_GROUND_BIAS_M.toFixed(3);presentationViewport.dataset.airframeVisualSupportZ=(this.group.position.z+AIRFRAME_VISUAL_LOWEST_Z_M).toFixed(4);}')
+
+          # 3) Third-person camera: remove the one-frame hard lag snap and reduce
+          # yaw/position bandwidth at the long camera lever arm.
+          replace_once('sim/camera_stabilization.mjs',
+          '''  follow:Object.freeze({positionRate:4.8,velocityRate:7.0,headingRate:7.5,maxLagM:.18,teleportM:6}),
+            third:Object.freeze({positionRate:6.5,velocityRate:8.5,headingRate:10.0,maxLagM:.26,teleportM:6}),'''.replace('          ',''),
+          '''  follow:Object.freeze({positionRate:4.8,velocityRate:7.0,headingRate:7.5,maxLagM:.18,lagRecoveryRate:8.0,teleportM:6}),
+            third:Object.freeze({positionRate:3.6,velocityRate:5.2,headingRate:3.8,maxLagM:.36,lagRecoveryRate:7.0,teleportM:6}),'''.replace('          ',''))
+          replace_once('sim/camera_stabilization.mjs',
+            'if(lagLength>profile.maxLagM){const excess=(lagLength-profile.maxLagM)/lagLength;for(let i=0;i<3;i++)this.anchor[i]+=lag[i]*excess;}',
+            'if(lagLength>profile.maxLagM){const excess=lagLength-profile.maxLagM,recoveryAlpha=dampingAlpha(profile.lagRecoveryRate||8,step),correction=excess*recoveryAlpha/lagLength;for(let i=0;i<3;i++)this.anchor[i]+=lag[i]*correction;}')
+
+          # Unit regression: high-frequency third-person yaw must be heavily
+          # attenuated, and a 100 ms draw stall must not cause a hard catch-up snap.
+          marker='''// Velocity prediction must follow sustained real motion without unbounded lag.\n'''
+          addition='''// The long third-person lever arm must not amplify tiny FC yaw corrections into\n// visible world twitch. A 10 Hz ±1.5° correction is presentation noise, not a\n// deliberate camera orbit.\n{\n  const rig=new StabilizedExternalCameraRig(),raw=[],filtered=[],dt=1/120,frequencyHz=10,amplitudeRad=1.5*Math.PI/180;\n  for(let i=0;i<1200;i++){\n    const time=i*dt,yaw=amplitudeRad*Math.sin(2*Math.PI*frequencyHz*time),heading=[Math.cos(yaw),Math.sin(yaw),0],state=rig.update({position:[0,0,2],velocity:[0,0,0],heading,mode:"third",dt});\n    if(i>240){raw.push(yaw);filtered.push(Math.atan2(state.heading[1],state.heading[0]));}\n  }\n  const ratio=range(filtered)/range(raw);\n  assert.ok(ratio<.09,`third-person camera passed too much high-frequency yaw into the world view: ${ratio}`);\n}\n\n// A long compositor frame must not trigger the old hard max-lag catch-up snap.\n{\n  const rig=new StabilizedExternalCameraRig(),dts=[...Array(20).fill(1/60),.1,...Array(80).fill(1/60)];let time=0,previousAnchor=null,maxCameraSpeed=0,maxSourceSpeed=0;\n  for(const dt of dts){\n    const acceleration=30,accelerating=time<.5,position=accelerating?.5*acceleration*time*time:.5*acceleration*.5*.5+acceleration*.5*(time-.5),velocity=accelerating?acceleration*time:acceleration*.5,state=rig.update({position:[position,0,2],velocity:[velocity,0,0],heading:[-1,0,0],mode:"third",dt});\n    if(previousAnchor!==null)maxCameraSpeed=Math.max(maxCameraSpeed,Math.abs(state.anchor[0]-previousAnchor)/dt);\n    previousAnchor=state.anchor[0];maxSourceSpeed=Math.max(maxSourceSpeed,velocity);time+=dt;\n  }\n  assert.ok(maxCameraSpeed<=maxSourceSpeed+3,`third-person camera snapped after a long frame: camera=${maxCameraSpeed.toFixed(2)} source=${maxSourceSpeed.toFixed(2)}`);\n}\n\n'''
+          replace_once('tests/camera_stabilization_test.mjs',marker,addition+marker)
+
+          # Browser regression: visible support must remain above the rendered ground
+          # during the entire pre-arm settle, not only at construction time.
+          replace_once('tests/takeoff_agl_browser_smoke.mjs',
+            '    state:document.querySelector("#fcState")?.textContent||"",\n',
+            '    state:document.querySelector("#fcState")?.textContent||"",\n    visualSupport:parseFloat(document.querySelector("#viewport")?.dataset.airframeVisualSupportZ||"NaN"),\n')
+          marker='''  const before=await read();\n  if(before.state!=="DISARMED"||!before.navValid||before.navDegraded||!Number.isFinite(before.agl)||before.agl<0||before.rangeText.includes("DEGRADED")||before.rangeText.includes("LOST"))\n    throw new Error(`AGL/arm readiness invalid before ARM: ${JSON.stringify(before)}`);\n'''
+          addition='''  const groundVisualSamples=[];for(let i=0;i<20;i++){groundVisualSamples.push((await read()).visualSupport);await wait(50);}\n  const minVisualSupport=Math.min(...groundVisualSamples.filter(Number.isFinite));\n  if(!Number.isFinite(minVisualSupport)||minVisualSupport<.001)throw new Error(`visible airframe clipped the ground during pre-arm settle: minSupport=${minVisualSupport} samples=${JSON.stringify(groundVisualSamples)}`);\n'''
+          replace_once('tests/takeoff_agl_browser_smoke.mjs',marker,marker+addition)
+
+          # Live Android/world regression: first receive a harmless building tile, then
+          # discover the actual house around GPS origin. The second snapshot must move
+          # the still-untouched aircraft and keep every building collider physical.
+          marker='''  await page.evaluate(async()=>{const b=globalThis.__arondightRealWorld;for(let i=0;i<80;i++){b.setPerfMode(i%3===0?"critical":i%3===1?"constrained":"nominal");dispatchEvent(new Event("resize"));}await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);});\n'''
+          addition='''  const lateBuildingSpawn=await page.evaluate(()=>{\n    const bridge=globalThis.__arondightRealWorld,viewport=document.querySelector("#viewport"),diagnostics=globalThis.__arondightDiagnostics,sink=bridge?.buildingCollisionSink;if(typeof sink!=="function")throw new Error("building collision sink unavailable");\n    const far={buildingKey:"already-loaded",base:0,top:7,points:[[8,-1],[10,-1],[10,1],[8,1]]};\n    sink({hash:"late-clear",footprintCount:1,prismCount:1,prisms:[far]});\n    const phase1={relocated:viewport.dataset.worldLaunchRelocated,offset:Number(viewport.dataset.worldLaunchOffsetM),prisms:Number(diagnostics.worldBuildingCollisionPrisms)};\n    const home={buildingKey:"late-home",base:0,top:8,points:[[-1.2,-1.2],[1.2,-1.2],[1.2,1.2],[-1.2,1.2]]};\n    sink({hash:"late-home",footprintCount:2,prismCount:2,prisms:[far,home]});\n    return{phase1,relocated:viewport.dataset.worldLaunchRelocated,offset:Number(viewport.dataset.worldLaunchOffsetM),x:Number(viewport.dataset.worldLaunchX),y:Number(viewport.dataset.worldLaunchY),prisms:Number(diagnostics.worldBuildingCollisionPrisms)};\n  });\n  if(lateBuildingSpawn.phase1.relocated!=="0"||Math.abs(lateBuildingSpawn.phase1.offset)>.01||lateBuildingSpawn.phase1.prisms!==1)throw new Error(`clear first building snapshot unexpectedly moved launch: ${JSON.stringify(lateBuildingSpawn)}`);\n  if(lateBuildingSpawn.relocated!=="1"||!(lateBuildingSpawn.offset>1.2)||lateBuildingSpawn.prisms!==2||!Number.isFinite(lateBuildingSpawn.x)||!Number.isFinite(lateBuildingSpawn.y))throw new Error(`late-discovered home did not relocate launch outside all colliders: ${JSON.stringify(lateBuildingSpawn)}`);\n'''
+          replace_once('tests/android_render_browser_smoke.mjs',marker,addition+marker)
+
+          # Make the corrected contracts permanent architecture gates.
+          old='requireText("sim/simulator.mjs","const AIRFRAME_LANDING_SKID_Z_M = -AIRFRAME_COLLISION_HALF_Z_M + AIRFRAME_LANDING_SKID_RADIUS_M;","visible skid bottom must align exactly with the physical support plane");\n'
+          new='requireText("sim/simulator.mjs","const AIRFRAME_VISUAL_SKID_CLEARANCE_M = .004;","visible skids need explicit clearance from Box3D contact slop");\nrequireText("sim/simulator.mjs","const AIRFRAME_PRESENTATION_GROUND_BIAS_M = .002;","presentation needs a small stable ground bias without changing physics");\nrequireText("sim/simulator.mjs","AIRFRAME_LANDING_SKID_RADIUS_M + AIRFRAME_VISUAL_SKID_CLEARANCE_M;","visible skid support must sit above the physical collision support plane");\nforbidText("sim/simulator.mjs","if(this.worldBuildingLaunchResolved||!this.body||!this.worldBuildingCollisionSnapshot.prismCount)return false;","building launch resolution must not be one-shot while map tiles are still arriving");\nrequireText("sim/simulator.mjs","position[0]-reference[0]","late building snapshots must be checked relative to the last resolved launch point");\nrequireText("sim/camera_stabilization.mjs","lagRecoveryRate:7.0","third-person lag recovery must be smooth instead of a hard snap");\n'
+          replace_once('tests/architecture_invariants.mjs',old,new)
+          PY
+
+          node --check sim/simulator.mjs
+          node --check sim/camera_stabilization.mjs
+          node --check tests/camera_stabilization_test.mjs
+          node --check tests/takeoff_agl_browser_smoke.mjs
+          node --check tests/android_render_browser_smoke.mjs
+          node tests/camera_stabilization_test.mjs
+          node tests/architecture_invariants.mjs
+
+      - name: Commit hardened runtime and regressions
+        if: steps.patch.outcome == 'success'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/simulator.mjs sim/camera_stabilization.mjs tests/camera_stabilization_test.mjs tests/takeoff_agl_browser_smoke.mjs tests/android_render_browser_smoke.mjs tests/architecture_invariants.mjs
+          git commit -m 'Fix late house spawn ground clipping and third-person twitch'
+          git push origin HEAD:main
+
+      - name: Report result
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_SHA: ${{ github.sha }}
+          PATCH_OUTCOME: ${{ steps.patch.outcome }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          body="FLIGHT POLISH · source=${GH_SHA} · patch=${PATCH_OUTCOME} · job=${JOB_STATUS} · https://github.com/${GH_REPO}/actions/runs/${GITHUB_RUN_ID}"
+          payload="$(jq -cn --arg body "$body" '{body:$body}')"
+          curl -fsSL -X POST -H 'Accept: application/vnd.github+json' -H "Authorization: Bearer ${GH_TOKEN}" -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null
