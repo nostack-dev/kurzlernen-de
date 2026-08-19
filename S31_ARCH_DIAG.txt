@@ -1,0 +1,15 @@
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/architecture_invariants.mjs:7
+const fail=message=>{throw new Error(`ARCHITECTURE INVARIANT FAILED: ${message}`);};
+                           ^
+
+Error: ARCHITECTURE INVARIANT FAILED: .github/workflows/deploy.yml must contain "world_building_collision_browser_smoke.mjs"
+    at fail (file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/architecture_invariants.mjs:7:28)
+    at requireText (file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/architecture_invariants.mjs:8:118)
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/architecture_invariants.mjs:209:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+
+EXIT_CODE=1
