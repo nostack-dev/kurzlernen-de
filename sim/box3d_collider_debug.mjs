@@ -67,7 +67,15 @@ export class Box3dColliderDebugDraw{
     const ground=new THREE.GridHelper(30,30,GROUND_COLOR,GROUND_COLOR);ground.rotation.x=Math.PI/2;ground.position.z=.002;ground.material.transparent=true;ground.material.opacity=.28;ground.material.depthTest=false;ground.material.depthWrite=false;ground.renderOrder=DEBUG_RENDER_ORDER;ground.frustumCulled=false;ground.name="BOX3D_GROUND_COLLIDER_LOCAL_PATCH";this.root.add(ground);
     this.enabled=false;this.worldRevision=-1;this.airframeKey="";this.activePrismCount=0;
   }
-  setEnabled(value){this.enabled=Boolean(value);this.root.visible=this.enabled;if(!this.enabled)this.activePrismCount=0;else this.worldRevision=-1;return this.enabled;}
+  setEnabled(value){
+    this.enabled=Boolean(value);this.root.visible=this.enabled;
+    if(!this.enabled){
+      disposeChildren(this.staticRoot);disposeChildren(this.airframeRoot);this.activePrismCount=0;this.worldRevision=-1;this.airframeKey="";
+    }else{
+      this.worldRevision=-1;this.airframeKey="";
+    }
+    return this.enabled;
+  }
   syncWorld(state,revision=0){
     if(!this.enabled)return false;const nextRevision=Number(revision)||0;if(nextRevision===this.worldRevision)return false;this.worldRevision=nextRevision;disposeChildren(this.staticRoot);
     const active=Array.isArray(state?.activePrisms)?state.activePrisms:[],positions=prismEdgePositions(active);this.activePrismCount=active.length;
