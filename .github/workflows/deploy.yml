@@ -58,6 +58,8 @@ jobs:
           node tests/component_mass_model_test.mjs
           node tests/propulsion_authority_test.mjs
           node tests/s31_digital_twin_audit_test.mjs
+          node tests/architecture_invariants.mjs
+          node tests/p2p_link_test.mjs
           node tests/lan_vs_smoke.mjs
 
           # Keep DEM entirely out of runtime physics until it has a separately proven path.
