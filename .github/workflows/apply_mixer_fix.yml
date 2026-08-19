@@ -1,0 +1,165 @@
+name: Apply mixer desaturation fix
+
+on:
+  push:
+    branches: ["mixer-desaturation-fix"]
+    paths: [".github/workflows/apply_mixer_fix.yml"]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: mixer-desaturation-fix
+          fetch-depth: 0
+
+      - name: Apply exact mixer patch and regression tests
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          core = Path('esp32/Arondight45_DroneFC_Core.hpp')
+          text = core.read_text()
+          old = '''inline Mix mix(float t, float roll, float pitch, float yaw) {
+              t = clamp(t, 0.0f, 1.0f);
+              std::array<float, 4> correction{{pitch - roll - 0.65f * yaw,
+                                                pitch + roll + 0.65f * yaw,
+                                                -pitch + roll - 0.65f * yaw,
+                                                -pitch - roll + 0.65f * yaw}};
+              float scale_factor = 1.0f;
+              for (float v : correction) {
+                  if (v > 0.0f) scale_factor = std::min(scale_factor, (1.0f - t) / v);
+                  else if (v < 0.0f) scale_factor = std::min(scale_factor, t / -v);
+              }
+              scale_factor = clamp(scale_factor, 0.0f, 1.0f);
+              Mix out;
+              for (size_t i = 0; i < 4; ++i) out.motor[i] = clamp(t + scale_factor * correction[i], 0.0f, 1.0f);
+              return out;
+          }
+          '''
+          new = '''inline Mix mix(float t, float roll, float pitch, float yaw) {
+              t = clamp(t, 0.0f, 1.0f);
+
+              // Preserve roll/pitch authority at the motor rails. Collective is
+              // translated into the remaining motor window instead of scaling
+              // attitude correction to zero at t == 0 or t == 1.
+              std::array<float, 4> roll_pitch{{pitch - roll,
+                                                pitch + roll,
+                                                -pitch + roll,
+                                                -pitch - roll}};
+              auto bounds = [](const std::array<float, 4>& values) {
+                  float lo = values[0];
+                  float hi = values[0];
+                  for (size_t i = 1; i < values.size(); ++i) {
+                      lo = std::min(lo, values[i]);
+                      hi = std::max(hi, values[i]);
+                  }
+                  return std::array<float, 2>{{lo, hi}};
+              };
+
+              auto rp_bounds = bounds(roll_pitch);
+              const float rp_span = rp_bounds[1] - rp_bounds[0];
+              if (rp_span > 1.0f && rp_span > 1.0e-6f) {
+                  const float scale = 1.0f / rp_span;
+                  for (float& value : roll_pitch) value *= scale;
+              }
+
+              const std::array<float, 4> yaw_mix{{-0.65f * yaw,
+                                                   0.65f * yaw,
+                                                  -0.65f * yaw,
+                                                   0.65f * yaw}};
+              auto correction_for_yaw_scale = [&](float yaw_scale) {
+                  std::array<float, 4> values{};
+                  for (size_t i = 0; i < values.size(); ++i)
+                      values[i] = roll_pitch[i] + yaw_scale * yaw_mix[i];
+                  return values;
+              };
+
+              // Yaw is lower priority than roll/pitch. If all requested moments
+              // cannot fit inside [0,1], reduce yaw only as much as necessary.
+              float yaw_scale = 1.0f;
+              auto correction = correction_for_yaw_scale(yaw_scale);
+              auto correction_bounds = bounds(correction);
+              if (correction_bounds[1] - correction_bounds[0] > 1.0f) {
+                  float feasible = 0.0f;
+                  float infeasible = 1.0f;
+                  for (int i = 0; i < 16; ++i) {
+                      const float candidate = 0.5f * (feasible + infeasible);
+                      const auto candidate_bounds = bounds(correction_for_yaw_scale(candidate));
+                      if (candidate_bounds[1] - candidate_bounds[0] <= 1.0f)
+                          feasible = candidate;
+                      else
+                          infeasible = candidate;
+                  }
+                  yaw_scale = feasible;
+                  correction = correction_for_yaw_scale(yaw_scale);
+                  correction_bounds = bounds(correction);
+              }
+
+              const float collective_min = -correction_bounds[0];
+              const float collective_max = 1.0f - correction_bounds[1];
+              const float collective = collective_min <= collective_max
+                  ? clamp(t, collective_min, collective_max)
+                  : 0.5f * (collective_min + collective_max);
+
+              Mix out;
+              for (size_t i = 0; i < 4; ++i)
+                  out.motor[i] = clamp(collective + correction[i], 0.0f, 1.0f);
+              return out;
+          }
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one legacy mixer block, found {text.count(old)}')
+          core.write_text(text.replace(old, new))
+
+          test = Path('tests/drone_fc_core_test.cpp')
+          t = test.read_text()
+          anchor = '''    const auto mixed = fc::mix(0.9f, 0.4f, -0.3f, 0.3f);
+              for (float value : mixed.motor) CHECK(value >= 0.0f && value <= 1.0f);
+          '''
+          addition = '''    const auto mixed = fc::mix(0.9f, 0.4f, -0.3f, 0.3f);
+              for (float value : mixed.motor) CHECK(value >= 0.0f && value <= 1.0f);
+
+              // Full collective must not erase pitch authority. The old mixer
+              // collapsed all attitude correction to zero when t == 1.
+              const auto high_rail_pitch = fc::mix(1.0f, 0.0f, 0.25f, 0.0f);
+              CHECK(high_rail_pitch.motor[0] > high_rail_pitch.motor[2] + 0.45f);
+              CHECK(high_rail_pitch.motor[1] > high_rail_pitch.motor[3] + 0.45f);
+              for (float value : high_rail_pitch.motor) CHECK(value >= 0.0f && value <= 1.0f);
+
+              // Strong descent still needs differential motor authority. GAME's
+              // flight controller never commands below 0.08 while airborne.
+              const auto low_rail_pitch = fc::mix(0.08f, 0.0f, 0.25f, 0.0f);
+              CHECK(low_rail_pitch.motor[0] > low_rail_pitch.motor[2] + 0.45f);
+              CHECK(low_rail_pitch.motor[1] > low_rail_pitch.motor[3] + 0.45f);
+              for (float value : low_rail_pitch.motor) CHECK(value >= 0.0f && value <= 1.0f);
+
+              // Neutral attitude at full collective must remain full collective.
+              const auto full_collective_level = fc::mix(1.0f, 0.0f, 0.0f, 0.0f);
+              for (float value : full_collective_level.motor) CHECK(std::fabs(value - 1.0f) < 1.0e-6f);
+          '''
+          if t.count(anchor) != 1:
+              raise SystemExit(f'expected exactly one mixer test anchor, found {t.count(anchor)}')
+          test.write_text(t.replace(anchor, addition))
+          PY
+
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
+          /tmp/fc_core_test
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
+          /tmp/state_control_test
+
+      - name: Commit tested patch and remove one-shot workflow
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/apply_mixer_fix.yml
+          git add esp32/Arondight45_DroneFC_Core.hpp tests/drone_fc_core_test.cpp
+          git commit -m 'Desaturate mixer at throttle rails'
+          git push origin HEAD:mixer-desaturation-fix
