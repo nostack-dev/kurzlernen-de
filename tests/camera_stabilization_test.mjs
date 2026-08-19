@@ -91,4 +91,4 @@ assert.ok(physicsStart>=0&&physicsEnd>physicsStart,"PhysicsModel boundary missin
 for(const forbidden of ["StabilizedExternalCameraRig","externalCameraFrame","camera.position","camera.lookAt"])
   assert.ok(!physicsSource.includes(forbidden),`presentation camera leaked into authoritative physics: ${forbidden}`);
 
-console.log("Camera stabilization passed: refresh-rate invariant, translation-stable, bounded, physics-isolated");
+console.log("Camera stabilization passed: refresh-rate invariant, translation-stable, third-person yaw/stall hardened, bounded, physics-isolated");
