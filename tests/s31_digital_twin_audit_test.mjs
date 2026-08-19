@@ -38,7 +38,8 @@ assert.match(settings,/box3dColliderDebug=null/,"settings must accept the collid
 assert.match(settings,/data-box3d-collider-debug/,"settings must render the collision-debug checkbox");
 assert.match(settings,/box3dColliderDebug\?\.set\?\.\(box3dColliderDebugInput\.checked\)/,"collision-debug checkbox must drive the runtime setter in both directions");
 assert.match(settings,/box3dColliderDebug\?\.set\?\.\(Boolean\(box3dColliderDebug\?\.defaultValue\)\)/,"DEFAULT must explicitly restore collision debug OFF");
-assert.match(colliderDebug,/setEnabled\(value\)\{this\.enabled=Boolean\(value\);this\.root\.visible=this\.enabled/,"render root visibility must follow the debug flag exactly");
+assert.match(colliderDebug,/this\.enabled=Boolean\(value\);this\.root\.visible=this\.enabled;/,"render root visibility must follow the debug flag exactly");
+assert.match(colliderDebug,/if\(!this\.enabled\)[\s\S]*?disposeChildren\(this\.staticRoot\);disposeChildren\(this\.airframeRoot\)/,"turning collision debug OFF must release generated collider draw geometry");
 assert.match(html,/data-validation="unvalidated"/);
 assert.match(world,/buildingFootprintsFromFeatures/);assert.match(world,/buildingCollisionPrismsFromFootprints/);assert.match(world,/worldBuildingCollisionStatus/);
 assert.match(audit,/does \*\*not\*\* yet have a 1:1 ESP32-S31 or real-airframe twin/);
