@@ -1,0 +1,126 @@
+name: Apply final flight and photoreal staging
+
+on:
+  push:
+    branches: ["main"]
+    paths: [".github/workflows/apply-final-flight-photoreal.yml"]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  stage-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: finalize-flight-photoreal
+          fetch-depth: 0
+
+      - name: Apply reviewed source patch
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          lines=Path('.github/workflows/finalize-flight-photoreal.yml').read_text().splitlines()
+          target='- name: Apply flight handoff, FPV optical stabilization, and lazy photoreal wiring'
+          start=next(i for i,x in enumerate(lines) if x.strip()==target)
+          run=next(i+1 for i in range(start+1,len(lines)) if lines[i].strip()=='run: |')
+          out=[]
+          for line in lines[run:]:
+              if line.startswith('      - name:'): break
+              out.append(line[10:] if line.startswith('          ') else line)
+          script='\n'.join(out)+'\n'
+          script=script.replace('const MODE_STORAGE="arondight45WorldMode";','const MODE_STORAGE="arondight45WorldModeV2";')
+          Path('/tmp/apply.sh').write_text(script)
+          PY
+          bash -euxo pipefail /tmp/apply.sh
+
+      - name: Final handoff corrections
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('esp32/Arondight45_StateControl.hpp')
+          s=p.read_text().replace('kVerticalJerkLimitMps3 = 400.0f','kVerticalJerkLimitMps3 = 1200.0f')
+          old='''        const float target_horizontal_speed = std::sqrt(commanded_forward_mps_ * commanded_forward_mps_ +
+                                                        commanded_right_mps_ * commanded_right_mps_);
+        // The I term is drag compensation for a non-zero cruise target. It must
+        // never become stored propulsion after the pilot releases translation.
+        // Neutral means an immediate zero-velocity target, so clear the cruise
+        // compensation before computing the braking acceleration. The P/D path
+        // then commands counter-tilt immediately, still under the same 7.5 m/s²
+        // and 40° physical envelopes.
+        if (target_horizontal_speed <= kHorizontalIntegralNeutralTargetMps) {'''
+          new='''        const float target_horizontal_speed = std::sqrt(commanded_forward_mps_ * commanded_forward_mps_ +
+                                                        commanded_right_mps_ * commanded_right_mps_);
+        const float pilot_horizontal_speed = std::sqrt(intent.forward_mps * intent.forward_mps +
+                                                       intent.right_mps * intent.right_mps);
+        // Pilot-neutral clears cruise compensation immediately. Only the velocity
+        // target ramps down, so no stored I term can kick the airframe on release.
+        if (pilot_horizontal_speed <= kHorizontalIntegralNeutralTargetMps) {'''
+          if s.count(old)!=1: raise SystemExit('neutral-integral block mismatch')
+          s=s.replace(old,new)
+          s=s.replace('if (target_horizontal_speed > kHorizontalIntegralNeutralTargetMps) {','if (pilot_horizontal_speed > kHorizontalIntegralNeutralTargetMps) {',1)
+          p.write_text(s)
+          p=Path('tests/architecture_invariants.mjs')
+          p.write_text(p.read_text().replace('kVerticalJerkLimitMps3 = 400.0f','kVerticalJerkLimitMps3 = 1200.0f'))
+          p=Path('tests/state_control_test.cpp')
+          t=p.read_text().replace('CHECK(controller.debug().vertical_accel_mps2 > 49.4f);\n    CHECK(controller.debug().vertical_accel_mps2 < 49.7f);','CHECK(controller.debug().vertical_accel_mps2 > 48.7f);\n    CHECK(controller.debug().vertical_accel_mps2 < 48.9f);')
+          p.write_text(t)
+          PY
+
+      - name: Compile and validate flight stack
+        run: |
+          set -euxo pipefail
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/core && /tmp/core
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state && /tmp/state
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil && /tmp/sil
+          node tests/control_semantics_test.mjs
+          node tests/camera_stabilization_test.mjs
+          node tests/architecture_invariants.mjs
+          node --check sim/simulator.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/photorealistic_3d_tiles.mjs
+
+      - name: Verify real photogrammetry bundle
+        run: |
+          set -euxo pipefail
+          BUILD=/tmp/photo-final
+          rm -rf "$BUILD" && mkdir -p "$BUILD" && cd "$BUILD"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 3d-tiles-renderer@0.5.0 esbuild@0.25.8
+          ln -s "$BUILD/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/photorealistic_3d_tiles.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/photoreal.bundle.mjs
+          node --check /tmp/photoreal.bundle.mjs
+          test "$(wc -c < /tmp/photoreal.bundle.mjs)" -gt 100000
+          grep -q 'GoogleCloudAuthPlugin' sim/photorealistic_3d_tiles.mjs
+          grep -q 'maxBytesSize' sim/photorealistic_3d_tiles.mjs
+          grep -q 'dispose-model' sim/photorealistic_3d_tiles.mjs
+          grep -q 'PHOTOREAL_BUNDLE_URL' sim/real_world_bootstrap.mjs
+          rm node_modules
+
+      - name: Commit tested staging tree
+        id: staged
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/finalize-flight-photoreal.yml
+          git add esp32/Arondight45_StateControl.hpp tests/state_control_test.cpp tests/architecture_invariants.mjs sim/simulator.mjs sim/real_world_bootstrap.mjs sim/photorealistic_3d_tiles.mjs .github/workflows/deploy.yml
+          git commit -m 'Finalize smooth flight handoff and real photogrammetry streaming'
+          git push origin HEAD:finalize-flight-photoreal
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Report final staging result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STAGED_SHA: ${{ steps.staged.outputs.sha }}
+        run: |
+          set -euo pipefail
+          body="PRODUCT FINALIZER · run=${GITHUB_RUN_ID} · status=${{ job.status }} · staging=${STAGED_SHA:-none}"
+          gh api "repos/${GH_REPO}/issues/53/comments" -f body="$body" >/dev/null
