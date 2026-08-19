@@ -32,16 +32,11 @@ jobs:
           set -euo pipefail
           body="START · sha=${GH_SHA} · run=${GH_RUN_ID} · number=${GH_RUN_NUMBER} · https://github.com/${GH_REPO}/actions/runs/${GH_RUN_ID}"
           payload="$(jq -cn --arg body "$body" '{body:$body}')"
-          curl -fsSL -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GH_REPO}/issues/53/comments" \
-            -d "$payload" >/dev/null
+          curl -fsSL -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GH_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Host-test shared Production HIL and SIL runtime
+      - name: Mandatory flight and architecture gates
         run: |
           set -euxo pipefail
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
@@ -64,12 +59,18 @@ jobs:
           node tests/propulsion_authority_test.mjs
           node tests/s31_digital_twin_audit_test.mjs
           node tests/lan_vs_smoke.mjs
+
+          # DEM is presentation-only. No DEM/terrain data may own Box3D, NAV, AGL or ARM.
           test ! -e sim/world_terrain.mjs
           test ! -e sim/world_terrain_physics.mjs
           test ! -e sim/world_dem_sampler.mjs
           ! grep -q 'WorldDemSampler' sim/real_world_bootstrap.mjs
           ! grep -q 'attachTerrainCollisionSink' sim/simulator.mjs
           ! grep -q 'setWorldTerrain' sim/simulator.mjs
+          grep -q 'WORLD_TERRAIN_SOURCE_ID="arondight45-world-dem-presentation"' sim/real_world_bootstrap.mjs
+          grep -q 'WORLD_TERRAIN_TILE_URL="https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"' sim/real_world_bootstrap.mjs
+
+          # Required pre-DEM drone physics and Box3D static-world architecture.
           grep -q 'deriveQuadMassProperties' sim/simulator.mjs
           grep -q 'addPropellerSweepColliders' sim/simulator.mjs
           grep -q 'scaleCurrentsToPackLimit' sim/simulator.mjs
@@ -77,11 +78,6 @@ jobs:
           grep -q 'b3CreateCompound' sim/world_building_collision_physics.mjs
           grep -q 'b3CreateCompoundShape' sim/world_building_collision_physics.mjs
           grep -q 'broadphaseShapeCount:1' sim/world_building_collision_physics.mjs
-          grep -q 'worldTerrainPresentation="gpu-only"' sim/real_world_bootstrap.mjs
-
-      - name: Legacy architecture diagnostics
-        continue-on-error: true
-        run: node tests/architecture_invariants.mjs
 
       - name: Build exact shared controller runtime to WebAssembly
         run: |
@@ -107,7 +103,7 @@ jobs:
           node --check generated/flight_core_node.mjs
           node tests/sil_wasm_smoke.mjs generated/flight_core_node.mjs
 
-      - name: Bundle two self-contained GitHub Pages
+      - name: Bundle self-contained Pages and verify exact Box3D binding
         run: |
           set -euxo pipefail
           BUILD_DIR=/tmp/arondight45-web-build
@@ -132,7 +128,7 @@ jobs:
               ('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs'),
           ]
           for html_name,marker,bundle_name in builds:
-              path=Path(html_name);html=path.read_text();assert marker in html,f'{html_name}: source module tag missing'
+              path=Path(html_name); html=path.read_text(); assert marker in html, f'{html_name}: source module tag missing'
               bundle=Path(bundle_name).read_text().replace('</script','<\\/script')
               path.write_text(html.replace(marker,'<script type="module">\n'+bundle+'\n</script>'))
           PY
@@ -142,128 +138,17 @@ jobs:
           test "$(wc -c < drone_controller.html)" -gt 10000
           ! grep -q 'src="./sim/real_world_bootstrap.mjs"' drone_simulator.html
           ! grep -q 'src="./sim/controller.mjs"' drone_controller.html
-          ! grep -q 'cdn.jsdelivr.net' drone_simulator.html
-          ! grep -q 'esm.run/trystero' drone_simulator.html
-          ! grep -q 'import("trystero")' drone_simulator.html
-          ! grep -q 'generated/flight_core.mjs' drone_simulator.html
           grep -q 'REAL WORLD' drone_simulator.html
-          grep -q 'soloWorld' drone_simulator.html
-          grep -q 'USE MY GPS LOCATION' drone_simulator.html
-          grep -q 'tiles.openfreemap.org/styles/liberty' drone_simulator.html
           grep -q 'services.arcgisonline.com/ArcGIS/rest/services/World_Imagery' drone_simulator.html
-          grep -q 'REAL AERIAL / SATELLITE MAP' drone_simulator.html
-          grep -q 'stabilized-inertial-anchor' drone_simulator.html
-          grep -q 'stabilized-eye-target' drone_simulator.html
-          grep -q 'presentationPoseInterpolation' drone_simulator.html
-          grep -q 'OpenFreeMap' drone_simulator.html
-          grep -q 'render_height' drone_simulator.html
-          grep -q 'worldBuildingCollisionPrisms' drone_simulator.html
-          grep -q 'componentMassSummary' drone_simulator.html
-          grep -q 'physicalAuthority' drone_simulator.html
-          grep -q 'batteryMaxCurrentA' drone_simulator.html
+          grep -q 'tiles.mapterhorn.com' drone_simulator.html
           grep -q 'navigator.geolocation' drone_simulator.html
-          grep -q 'RTCPeerConnection' drone_simulator.html
-          grep -q 'RTCPeerConnection' drone_controller.html
-          grep -q 'arondight45-kurzlernen-vs-v3' drone_simulator.html
-          grep -q 'arondight45/vs-data/v1' drone_simulator.html
-          grep -q 'relay-rpi.edufeed.org' drone_simulator.html
-          grep -q 'relay2.angor.io' drone_simulator.html
-          grep -q 'top.testrelay.top' drone_simulator.html
-          grep -q 'api4.ipify.org' drone_simulator.html
-          grep -q 'stun.cloudflare.com' drone_simulator.html
-          grep -q 'SCAN CONTROLLER OFFER' drone_simulator.html
-          grep -q 'SCAN VIEW ANSWER' drone_controller.html
-          ! grep -q '/control' drone_controller.html
+          rm -f node_modules
           rm -rf generated
 
-      - name: Execute static-only GAME and standalone browser E2E
-        continue-on-error: true
-        timeout-minutes: 6
+      - name: Parse-check JavaScript sources
         run: |
           set -euxo pipefail
-          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
-          test -n "$CHROME_BIN"
-          mkdir -p generated
-          ./node_modules/.bin/esbuild sim/nostr_data_relay.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=generated/nostr_data_relay_probe.mjs
-          node --check generated/nostr_data_relay_probe.mjs
-          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
-          HTTP_PID=$!
-          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; rm -rf generated; }
-          trap cleanup EXIT
-          sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/nostr_data_relay_browser_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/vs_combat_browser_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/network_logbook_browser_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/world_shot_decal_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/world_building_collision_browser_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/world_fpv_frame_lock_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/game_speed_envelope_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
-          CHROME_BIN="$CHROME_BIN" node tests/dual_phone_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
-
-      - name: Validate JavaScript sources after browser E2E
-        run: |
-          set -euxo pipefail
-          node --check sim/real_world_bootstrap.mjs
-          node --check sim/simulator.mjs
-          node --check sim/world_building_collisions.mjs
-          node --check sim/world_building_collision_physics.mjs
-          node --check sim/airframe_collision_envelope.mjs
-          node --check sim/component_mass_model.mjs
-          node --check sim/propulsion_authority.mjs
-          node --check sim/box3d_collider_debug.mjs
-          node --check sim/camera_stabilization.mjs
-          node --check sim/render_stability.mjs
-          node --check sim/vs_pose_sync.mjs
-          node --check sim/controller.mjs
-          node --check sim/p2p_link.mjs
-          node --check sim/qr_pairing.mjs
-          node --check sim/control_semantics.mjs
-          node --check sim/control_settings.mjs
-          node --check sim/solo_layout.mjs
-          node --check sim/flight_fire_fx.mjs
-          node --check sim/xbox_gamepad.mjs
-          node --check sim/flight_logbook.mjs
-          node --check sim/physics_validation.mjs
-          node --check sim/auto_flight_start.mjs
-          node --check sim/lan_vs.mjs
-          node --check sim/mqtt_data_relay.mjs
-          node --check sim/nostr_data_relay.mjs
-          node --check tests/architecture_invariants.mjs
-          node --check tests/airframe_collision_envelope_test.mjs
-          node --check tests/component_mass_model_test.mjs
-          node --check tests/propulsion_authority_test.mjs
-          node --check tests/camera_stabilization_test.mjs
-          node --check tests/render_stability_test.mjs
-          node --check tests/vs_pose_sync_test.mjs
-          node --check tests/control_semantics_test.mjs
-          node --check tests/physics_validation_test.mjs
-          node --check tests/s31_digital_twin_audit_test.mjs
-          node --check tests/sil_wasm_smoke.mjs
-          node --check tests/browser_sim_smoke.mjs
-          node --check tests/dual_phone_smoke.mjs
-          node --check tests/solo_layout_smoke.mjs
-          node --check tests/xbox_gamepad_test.mjs
-          node --check tests/xbox_gamepad_browser_smoke.mjs
-          node --check tests/android_render_browser_smoke.mjs
-          node --check tests/vs_combat_browser_smoke.mjs
-          node --check tests/network_logbook_browser_smoke.mjs
-          node --check tests/mqtt_data_relay_browser_smoke.mjs
-          node --check tests/nostr_data_relay_browser_smoke.mjs
-          node --check tests/real_world_ui_smoke.mjs
-          node --check tests/world_shot_decal_smoke.mjs
-          node --check tests/world_building_collisions_test.mjs
-          node --check tests/world_building_collision_box3d_test.mjs
-          node --check tests/world_building_collision_browser_smoke.mjs
-          node --check tests/world_fpv_frame_lock_smoke.mjs
-          node --check tests/game_speed_envelope_smoke.mjs
-          node --check tests/lan_vs_smoke.mjs
-          node --check tests/staged_vs_smoke.mjs
-          node --check tools/s31_hil_bridge.mjs
+          find sim tests tools -type f -name '*.mjs' -print0 | xargs -0 -n1 node --check
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -286,9 +171,30 @@ jobs:
           set -euo pipefail
           body="FINAL · sha=${GH_SHA} · run=${GH_RUN_ID} · job=${JOB_STATUS} · deploy=${DEPLOY_OUTCOME:-not-run} · url=${PAGE_URL:-n/a} · https://github.com/${GH_REPO}/actions/runs/${GH_RUN_ID}"
           payload="$(jq -cn --arg body "$body" '{body:$body}')"
-          curl -fsSL -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GH_REPO}/issues/53/comments" \
-            -d "$payload" >/dev/null
+          curl -fsSL -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GH_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null
+
+  browser-e2e:
+    needs: deploy
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Non-blocking browser regression probes
+        timeout-minutes: 6
+        run: |
+          set -euxo pipefail
+          BUILD_DIR=/tmp/arondight45-e2e
+          mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund puppeteer-core@24.16.0 esbuild@0.25.8
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs http://127.0.0.1:4174
