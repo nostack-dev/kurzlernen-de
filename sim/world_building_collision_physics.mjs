@@ -51,42 +51,34 @@ export function findClearBuildingLaunchPoint(value,{point=DEFAULT_LAUNCH_EXCLUSI
 
 export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=1n,maskBits=6n,rangefinderCategoryBits=4n,launchExclusionPoint=DEFAULT_LAUNCH_EXCLUSION_POINT}={}){
   const snapshot=normalizeBuildingCollisionSnapshot(value);if(!world||!snapshot.prisms.length)return{body:null,shapeCount:0,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze([]),...snapshot};
-  // Concave/holed OSM buildings are decomposed into several convex prisms. If the
-  // launch point lands in any one of those prisms, the whole source building must
-  // be excluded. Skipping only the containing triangle creates an invisible solid
-  // seam at its neighbour: lateral strafe then chatters against that seam and can
-  // appear to stop responding even though the stick/FC command is still valid.
   const launchExcludedBuildingKeys=new Set();
-  for(const prism of snapshot.prisms){
-    if(!overlapsLaunchVolume(prism,launchExclusionPoint))continue;
-    const key=String(prism.buildingKey||"");if(key)launchExcludedBuildingKeys.add(key);
-  }
+  for(const prism of snapshot.prisms){if(!overlapsLaunchVolume(prism,launchExclusionPoint))continue;const key=String(prism.buildingKey||"");if(key)launchExcludedBuildingKeys.add(key);}
   const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_staticBody;bodyDef.position=[0,0,0];const body=b3.b3CreateBody(world,bodyDef),shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.68;shapeDef.baseMaterial.restitution=.025;
-  // Buildings are physical airframe obstacles, not the GAME altitude datum. The
-  // downward NAV ray must keep measuring the stable launch/terrain plane; letting
-  // it hit OSM roofs makes AGL jump by an entire building height at each roof edge
-  // and feeds that discontinuity straight into the vertical controller while the
-  // pilot is translating. Preserve airframe collision but exclude the rangefinder
-  // query category from every building shape.
   const collisionMask=BigInt(maskBits)&~BigInt(rangefinderCategoryBits);
   shapeDef.filter={categoryBits:BigInt(categoryBits),maskBits:collisionMask,groupIndex:0};let shapeCount=0,skippedLaunchPrisms=0;const activePrisms=[];
   for(const prism of snapshot.prisms){
-    const key=String(prism.buildingKey||"");
-    const skipWholeBuilding=key&&launchExcludedBuildingKeys.has(key);
-    const skipUnkeyedPrism=!key&&overlapsLaunchVolume(prism,launchExclusionPoint);
-    if(skipWholeBuilding||skipUnkeyedPrism){skippedLaunchPrisms++;continue;}
+    const key=String(prism.buildingKey||""),skipWholeBuilding=key&&launchExcludedBuildingKeys.has(key),skipUnkeyedPrism=!key&&overlapsLaunchVolume(prism,launchExclusionPoint);if(skipWholeBuilding||skipUnkeyedPrism){skippedLaunchPrisms++;continue;}
     const vertices=[];for(const height of [prism.base,prism.top])for(const point of prism.points)vertices.push(point[0],point[1],height);const hull=b3.b3CreateHull(vertices);if(!hull)continue;try{b3.b3CreateHullShape(body,shapeDef,hull);shapeCount++;activePrisms.push(prism);}finally{b3.b3DestroyHull(hull);}
   }
-  const skippedLaunchBuildings=launchExcludedBuildingKeys.size;
-  if(!shapeCount){b3.b3DestroyBody(body);return{body:null,shapeCount:0,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze([]),...snapshot};}return{body,shapeCount,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze(activePrisms.slice()),...snapshot};
+  const skippedLaunchBuildings=launchExcludedBuildingKeys.size;if(!shapeCount){b3.b3DestroyBody(body);return{body:null,shapeCount:0,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze([]),...snapshot};}return{body,shapeCount,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze(activePrisms.slice()),...snapshot};
 }
 
-export function resolveBox3dCameraPath(b3,world,anchor,desired,{queryCategoryBits=8n,terrainCategoryBits=1n,clearanceM=.08}={}){
-  const from=Array.isArray(anchor)?anchor.map(Number):[],to=Array.isArray(desired)?desired.map(Number):[];if(from.length!==3||to.length!==3||![...from,...to].every(Number.isFinite))return{position:to.length===3?to:[0,0,0],collided:false,fraction:1,hitDistanceM:0};
-  const delta=[to[0]-from[0],to[1]-from[1],to[2]-from[2]],distance=Math.hypot(...delta);if(!world||distance<1e-6)return{position:[...to],collided:false,fraction:1,hitDistanceM:distance};
-  const filter=b3.b3DefaultQueryFilter();filter.categoryBits=BigInt(queryCategoryBits);filter.maskBits=BigInt(terrainCategoryBits);const hit=b3.b3World_CastRayClosest(world,from,delta,filter),fraction=Number(hit?.fraction);
-  if(!hit?.hit||!Number.isFinite(fraction)||fraction<0||fraction>1)return{position:[...to],collided:false,fraction:1,hitDistanceM:distance};
-  const hitDistance=Math.max(0,Math.min(distance,fraction*distance)),safeDistance=Math.max(0,hitDistance-Math.max(.01,Number(clearanceM)||.08)),scale=safeDistance/distance;return{position:[from[0]+delta[0]*scale,from[1]+delta[1]*scale,from[2]+delta[2]*scale],collided:true,fraction,hitDistanceM:hitDistance};
+export function resolveBox3dCameraPath(b3,world,anchor,desired,{queryCategoryBits=8n,terrainCategoryBits=1n,clearanceM=.035,cameraRadiusM=.09}={}){
+  const from=Array.isArray(anchor)?anchor.map(Number):[],to=Array.isArray(desired)?desired.map(Number):[];if(from.length!==3||to.length!==3||![...from,...to].every(Number.isFinite))return{position:to.length===3?to:[0,0,0],collided:false,fraction:1,hitDistanceM:0,cameraRadiusM:0};
+  const delta=[to[0]-from[0],to[1]-from[1],to[2]-from[2]],distance=Math.hypot(...delta);if(!world||distance<1e-6)return{position:[...to],collided:false,fraction:1,hitDistanceM:distance,cameraRadiusM:0};
+  const filter=b3.b3DefaultQueryFilter();filter.categoryBits=BigInt(queryCategoryBits);filter.maskBits=BigInt(terrainCategoryBits);
+  const requestedRadius=Math.max(.012,Number(cameraRadiusM)||.09),startGroundBudget=Math.max(.012,from[2]-.006),radius=Math.min(requestedRadius,startGroundBudget);
+  let fraction=1,hit=false;
+  if(typeof b3.b3World_CastMover==="function"){
+    const mover={center1:[0,0,0],center2:[0,0,0],radius};
+    const castFraction=Number(b3.b3World_CastMover(world,from,mover,delta,filter,()=>true));
+    if(Number.isFinite(castFraction)&&castFraction>=0&&castFraction<=1){fraction=castFraction;hit=castFraction<1-1e-6;}
+  }else{
+    const ray=b3.b3World_CastRayClosest(world,from,delta,filter),rayFraction=Number(ray?.fraction);if(ray?.hit&&Number.isFinite(rayFraction)&&rayFraction>=0&&rayFraction<=1){fraction=rayFraction;hit=true;}
+  }
+  if(!hit)return{position:[...to],collided:false,fraction:1,hitDistanceM:distance,cameraRadiusM:radius};
+  const hitDistance=Math.max(0,Math.min(distance,fraction*distance)),margin=Math.max(.005,Number(clearanceM)||.035),safeDistance=Math.max(0,hitDistance-margin),safeScale=safeDistance/distance;
+  return{position:[from[0]+delta[0]*safeScale,from[1]+delta[1]*safeScale,from[2]+delta[2]*safeScale],collided:true,fraction,hitDistanceM:hitDistance,cameraRadiusM:radius};
 }
 
 export function destroyWorldBuildingCollisionBodies(b3,state){if(state?.body&&b3.b3Body_IsValid(state.body))b3.b3DestroyBody(state.body);}
