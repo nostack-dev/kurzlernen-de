@@ -436,7 +436,7 @@ private:
         const float sample_dt = acceleration_sample_dt_s_;
         const float inv_dt = 1.0f / sample_dt;
         const V3 sample{dx * inv_dt, dy * inv_dt, dz * inv_dt};
-        previous_velocity_world_mps_ = nav.velocity_world_mps;
+        previous_velocity_world_mps_ = velocity_world_mps;
         acceleration_sample_dt_s_ = 0.0f;
 
         const float horizontal_sample = std::sqrt(sample.x * sample.x + sample.y * sample.y);
