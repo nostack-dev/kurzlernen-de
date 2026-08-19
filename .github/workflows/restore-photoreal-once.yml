@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   restore:
@@ -16,6 +17,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+
+      - name: Report photoreal restore start
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh api "repos/${GH_REPO}/issues/53/comments" -f body="PHOTOREAL START · sha=${GITHUB_SHA} · run=${GITHUB_RUN_ID}" >/dev/null
 
       - name: Verify Maps Tiles browser key exists
         env:
@@ -124,3 +131,10 @@ jobs:
           git add sim/photorealistic_3d_tiles.mjs sim/real_world_bootstrap.mjs .github/workflows/deploy.yml
           git commit -m 'Restore photoreal 3D building textures'
           git push origin HEAD:main
+
+      - name: Report photoreal restore final
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh api "repos/${GH_REPO}/issues/53/comments" -f body="PHOTOREAL FINAL · sha=${GITHUB_SHA} · run=${GITHUB_RUN_ID} · status=${{ job.status }}" >/dev/null
