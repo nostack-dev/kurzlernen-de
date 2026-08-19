@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import {installFpvOpticalCameraStabilizer} from "./fpv_optical_stabilizer.mjs";
 
 const SHOT_INTERVAL_MS=92;
 const DECAL_POOL_SIZE=32;
@@ -11,6 +12,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   viewport.dataset.fireFxInstalled="1";
   viewport.dataset.fireDecalPoolSize=String(DECAL_POOL_SIZE);
   viewport.dataset.fireDecalWrites="0";
+  const fpvOpticalStabilizer=installFpvOpticalCameraStabilizer({THREE,camera,viewport});
 
   const style=document.createElement("style");style.textContent=`
     #viewport{touch-action:none;overscroll-behavior:none}
@@ -73,5 +75,5 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     if(!isEnabled()||!isPointerEnabled()||event.button!==0||blocked(event.target)||active)return;active={id:event.pointerId,source:"pointer",clientX:event.clientX,clientY:event.clientY};try{viewport.setPointerCapture?.(event.pointerId);}catch{}ensureAudio();nextShotAt=0;fire(performance.now());scheduleFire();event.preventDefault();
   },{passive:false});
   viewport.addEventListener("pointermove",move,{passive:false});viewport.addEventListener("pointerup",stop,{passive:false});viewport.addEventListener("pointercancel",stop,{passive:false});
-  return{stop,setGamepadAim,setGamepadFire,get decalPoolSize(){return decalPool.length;},get decalWrites(){return decalWrites;},dispose(){stop();gamepadCrosshair.remove();for(const mesh of decalPool){mesh.parent?.remove(mesh);mesh.visible=false;}decalGeometry.dispose();decalMaterial.dispose();for(const el of screenImpacts)el.remove();style.remove();try{audioCtx?.close();}catch{}}};
+  return{stop,setGamepadAim,setGamepadFire,get decalPoolSize(){return decalPool.length;},get decalWrites(){return decalWrites;},dispose(){stop();fpvOpticalStabilizer?.dispose();gamepadCrosshair.remove();for(const mesh of decalPool){mesh.parent?.remove(mesh);mesh.visible=false;}decalGeometry.dispose();decalMaterial.dispose();for(const el of screenImpacts)el.remove();style.remove();try{audioCtx?.close();}catch{}}};
 }
