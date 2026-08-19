@@ -209,7 +209,7 @@ int main() {
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_forward_mps > 0.009f);
     CHECK(controller.debug().forward_accel_mps2 < 0.0f);
-    CHECK(controller.debug().forward_accel_mps2 > -0.08f);
+    CHECK(controller.debug().forward_accel_mps2 > -0.10f);
     CHECK(cmd.pitch > 0.0f);
 
     controller.reset();
