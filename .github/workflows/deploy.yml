@@ -152,8 +152,8 @@ jobs:
           set -euxo pipefail
           find sim tests tools -type f -name '*.mjs' -print0 | xargs -0 -n1 node --check
 
-      - name: Blocking browser gates - boot, Xbox and Android
-        timeout-minutes: 6
+      - name: Blocking browser gates - boot, takeoff AGL, flight, Xbox and Android
+        timeout-minutes: 10
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
@@ -164,6 +164,8 @@ jobs:
           trap cleanup EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/takeoff_agl_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs http://127.0.0.1:4174
 
@@ -193,16 +195,19 @@ jobs:
   live-e2e:
     needs: deploy
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Blocking regression probes against exact deployed Pages payload
-        timeout-minutes: 8
+      - name: Blocking regression probes against exact live Pages origin
+        id: live_probes
+        timeout-minutes: 10
         run: |
           set -euxo pipefail
           BUILD_DIR=/tmp/arondight45-live-e2e-tools
-          LIVE_DIR=/tmp/arondight45-live-e2e
-          rm -rf "$BUILD_DIR" "$LIVE_DIR"
-          mkdir -p "$BUILD_DIR" "$LIVE_DIR"
+          rm -rf "$BUILD_DIR"
+          mkdir -p "$BUILD_DIR"
           cd "$BUILD_DIR"
           npm init -y >/dev/null
           npm install --ignore-scripts --no-audit --no-fund puppeteer-core@24.16.0
@@ -216,11 +221,11 @@ jobs:
             if curl -fsSL --retry 2 --connect-timeout 10 --max-time 45 \
               -H 'Cache-Control: no-cache' \
               "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}-${attempt}" \
-              -o "$LIVE_DIR/drone_simulator.html" \
-              && test "$(wc -c < "$LIVE_DIR/drone_simulator.html")" -gt 100000 \
-              && grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" "$LIVE_DIR/drone_simulator.html" \
-              && ! grep -q 'src="./sim/real_world_bootstrap.mjs"' "$LIVE_DIR/drone_simulator.html" \
-              && grep -q 'REAL WORLD' "$LIVE_DIR/drone_simulator.html"; then
+              -o /tmp/arondight45-live.html \
+              && test "$(wc -c < /tmp/arondight45-live.html)" -gt 100000 \
+              && grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" /tmp/arondight45-live.html \
+              && ! grep -q 'src="./sim/real_world_bootstrap.mjs"' /tmp/arondight45-live.html \
+              && grep -q 'REAL WORLD' /tmp/arondight45-live.html; then
               fetched=1
               break
             fi
@@ -228,10 +233,20 @@ jobs:
           done
           test "$fetched" = 1
 
-          python3 -m http.server 4174 --bind 127.0.0.1 --directory "$LIVE_DIR" >/tmp/arondight45-live-static.log 2>&1 &
-          HTTP_PID=$!
-          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; }
-          trap cleanup EXIT
-          sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/takeoff_agl_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs https://kurzlernen.de
+          CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs https://kurzlernen.de
+
+      - name: Report live E2E final
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_SHA: ${{ github.sha }}
+          GH_RUN_ID: ${{ github.run_id }}
+          LIVE_OUTCOME: ${{ steps.live_probes.outcome }}
+        run: |
+          set -euo pipefail
+          body="LIVE FINAL · sha=${GH_SHA} · run=${GH_RUN_ID} · live-e2e=${LIVE_OUTCOME} · https://github.com/${GH_REPO}/actions/runs/${GH_RUN_ID}"
+          payload="$(jq -cn --arg body "$body" '{body:$body}')"
+          curl -fsSL -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GH_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null

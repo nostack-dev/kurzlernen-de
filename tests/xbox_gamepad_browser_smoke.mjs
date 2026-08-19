@@ -1,6 +1,8 @@
 import puppeteer from "puppeteer-core";
 
 const base=process.argv[2]||"http://127.0.0.1:4174";
+const baseOrigin=new URL(base).origin;
+const cacheTag=process.env.GITHUB_SHA?`?ci=${encodeURIComponent(process.env.GITHUB_SHA)}`:"";
 const executablePath=process.env.CHROME_BIN;
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 
@@ -28,15 +30,13 @@ const setButton=(index,value)=>page.evaluate((i,v)=>globalThis.__xboxTest.setBut
 
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
-  await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
+  await page.goto(`${baseOrigin}/drone_simulator.html${cacheTag}`,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return document.body.classList.contains("solo-flight")&&v?.dataset.controlSource==="touch"&&v.dataset.gamepadEnabled==="0";},{timeout:7000});
 
   const defaultOff=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,enabled:v.dataset.gamepadEnabled,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill"),padConnected:Boolean(navigator.getGamepads?.()[0]?.connected)};});
   if(defaultOff.source!=="touch"||defaultOff.enabled!=="0"||defaultOff.connected!=="0"||defaultOff.left==="none"||defaultOff.right==="none"||defaultOff.height==="none"||defaultOff.arm==="none"||defaultOff.kill==="none"||!defaultOff.padConnected)throw new Error(`Xbox was not safely OFF by default: ${JSON.stringify(defaultOff)}`);
 
-  // Settings owns an explicit persistent override. A physically connected pad
-  // remains ignored until the user switches Xbox mode ON.
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});
   const toggleDefault=await page.$eval('.phone-settings-dialog [data-xbox-controller]',input=>input.checked);if(toggleDefault!==false)throw new Error(`Xbox settings toggle is not OFF by default: ${toggleDefault}`);
   await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
@@ -44,8 +44,6 @@ try{
   const active=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill"),status:document.querySelector("#soloGamepadStatus").hidden,help:document.querySelector("#soloGamepadHelp").hidden,helpText:document.querySelector("#soloGamepadHelp").textContent};});
   if(active.source!=="xbox"||active.connected!=="1"||active.left!=="none"||active.right!=="none"||active.height!=="none"||active.arm!=="none"||active.kill!=="none"||active.status||active.help||!active.helpText.includes("LB+RB FIRE"))throw new Error(`Xbox ON did not remove every touch flight control: ${JSON.stringify(active)}`);
 
-  // OFF restores touch even while the same physical controller stays connected;
-  // turning ON again hands control back without a reload.
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.controlSource==="touch",{timeout:3000});
   const disabled=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display,stored=JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}");return{source:v.dataset.controlSource,enabled:v.dataset.gamepadEnabled,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),stored:stored.xboxControllerEnabled,padStillConnected:Boolean(navigator.getGamepads?.()[0]?.connected)};});
@@ -53,8 +51,6 @@ try{
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="xbox"&&v.dataset.gamepadEnabled==="1";},{timeout:3000});
 
-  // Standard Gamepad indices: LT=6 and RT=7. Triggers alter only the altitude
-  // target; specifically, RT must never inherit the fire action.
   await setButton(6,.85);
   await page.waitForFunction(()=>Number(document.querySelector("#viewport")?.dataset.gamepadHeightAxis)<-.80,{timeout:3000});
   const lt=await page.$eval("#viewport",v=>Number(v.dataset.gamepadHeightAxis));
@@ -66,7 +62,6 @@ try{
   if(!(lt<0)||!(rt.height>0)||rt.shots!==triggerBaseline||rt.fire!=="0")throw new Error(`LT/RT altitude-only contract failed: ${JSON.stringify({lt,rt,triggerBaseline})}`);
   await setButton(7,0);
 
-  // RB alone cannot fire: LB is the explicit aim/free-look modifier.
   await setButton(5,1);await pause(260);
   const rbOnly=await page.$eval("#viewport",v=>({shots:Number(v.dataset.fireShots||0),aim:v.dataset.gamepadAim,fire:v.dataset.gamepadFire}));
   if(rbOnly.shots!==triggerBaseline||rbOnly.aim!=="0"||rbOnly.fire!=="0")throw new Error(`RB fired outside LB aim mode: ${JSON.stringify(rbOnly)}`);
@@ -81,7 +76,6 @@ try{
   const aim=await page.evaluate(()=>{const v=document.querySelector("#viewport"),cross=document.querySelector(".xbox-crosshair"),r=cross.getBoundingClientRect();return{aim:v.dataset.gamepadAim,fire:v.dataset.gamepadFire,yaw:Number(v.dataset.worldLookYaw),pitch:Number(v.dataset.worldLookPitch),cross:getComputedStyle(cross).display,cx:r.left+r.width/2,cy:r.top+r.height/2,vw:v.clientWidth,vh:v.clientHeight};});
   if(aim.aim!=="1"||aim.fire!=="0"||aim.cross==="none"||Math.abs(aim.yaw)<=1||Math.abs(aim.pitch)<=1||Math.abs(aim.cx-aim.vw/2)>2||Math.abs(aim.cy-aim.vh/2)>2)throw new Error(`LB + right-stick free-look/crosshair failed: ${JSON.stringify(aim)}`);
 
-  // This is the final fire mapping: hold LB, then press RIGHT SHOULDER (RB=5).
   const shotsBeforeRb=await page.$eval("#viewport",v=>Number(v.dataset.fireShots||0));
   await setButton(5,1);
   await page.waitForFunction(before=>{const v=document.querySelector("#viewport");return v?.dataset.gamepadFire==="1"&&v?.dataset.fireInputSource==="gamepad"&&Number(v.dataset.fireShots||0)>before;},{timeout:4000},shotsBeforeRb);
