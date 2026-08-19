@@ -52,6 +52,6 @@ const fireSource=readFileSync(new URL("../sim/flight_fire_fx.mjs",import.meta.ur
 for(const marker of ["PROJECTILE_POOL_SIZE=36","TRACER_SPEED_MPS=210","PROJECTILE_TTL_MS=1800","VS_COMBAT_VISUAL_SCALE=8","traceProjectileWorldSegment","flightFireTracer","vsPeerHitProxy","vsPeerHitboxScale=\"1\""])
   assert.ok(fireSource.includes(marker),`physical VS projectile/readability contract missing: ${marker}`);
 assert.equal(fireSource.includes("worldBridge?.registerVsHit?.(hit)"),false,"legacy instant hitscan damage path must not return");
-assert.ok(fireSource.indexOf("integrateProjectile(")<fireSource.indexOf("registerVsHit?.(sceneHit)"),"damage must only be emitted after projectile time-of-flight and segment collision");
+assert.ok(fireSource.includes("integrateProjectile(projectile.position,projectile.velocity,dt,projectile.nextPosition,projectile.nextVelocity);if(resolveProjectileHit(projectile,projectile.position,projectile.nextPosition,now))continue;"),"projectile time-of-flight must advance before segment collision resolution");assert.ok(fireSource.includes("registerVsHit?.(sceneHit)"),"VS damage must be emitted only from resolved projectile impact");
 
 console.log("Staged VS smoke passed: staged networking plus pooled 210 m/s gravity projectiles, real wall/roof/ground segment impacts, 8x readable peer visual and 1x hitbox.");
