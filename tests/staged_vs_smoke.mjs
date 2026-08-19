@@ -54,4 +54,4 @@ for(const marker of ["PROJECTILE_POOL_SIZE=36","TRACER_SPEED_MPS=210","PROJECTIL
 assert.equal(fireSource.includes("worldBridge?.registerVsHit?.(hit)"),false,"legacy instant hitscan damage path must not return");
 assert.ok(fireSource.includes("integrateProjectile(projectile.position,projectile.velocity,dt,projectile.nextPosition,projectile.nextVelocity);if(resolveProjectileHit(projectile,projectile.position,projectile.nextPosition,now))continue;"),"projectile time-of-flight must advance before segment collision resolution");assert.ok(fireSource.includes("registerVsHit?.(sceneHit)"),"VS damage must be emitted only from resolved projectile impact");
 
-console.log("Staged VS smoke passed: staged networking plus pooled 210 m/s gravity projectiles, real wall/roof/ground segment impacts, 8x readable peer visual and 1x hitbox.");
+console.log("Staged VS smoke passed: staged networking, pooled physical tracers, 8x readable peer/1x hitbox, and safe-building launch integration retained.");
