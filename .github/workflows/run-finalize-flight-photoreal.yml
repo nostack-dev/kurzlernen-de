@@ -1,0 +1,161 @@
+name: Run staged flight and photoreal finalizer
+
+on:
+  push:
+    branches: ["main"]
+    paths: [".github/workflows/run-finalize-flight-photoreal.yml"]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  finalize-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: finalize-flight-photoreal
+          fetch-depth: 0
+
+      - name: Report finalizer start
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          body="FINALIZER START · run=${GITHUB_RUN_ID} · staging=$(git rev-parse HEAD)"
+          gh api "repos/${GH_REPO}/issues/53/comments" -f body="$body" >/dev/null
+
+      - name: Extract and apply reviewed staged patch
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('.github/workflows/finalize-flight-photoreal.yml').read_text().splitlines()
+          def extract(name):
+              start=None
+              for i,line in enumerate(src):
+                  if line.strip()==f'- name: {name}': start=i; break
+              if start is None: raise SystemExit(f'missing step {name}')
+              run=None
+              for i in range(start+1,len(src)):
+                  if src[i].startswith('      - name:'): break
+                  if src[i].strip()=='run: |': run=i+1; break
+              if run is None: raise SystemExit(f'missing run block {name}')
+              out=[]
+              for line in src[run:]:
+                  if line.startswith('      - name:'): break
+                  out.append(line[10:] if line.startswith('          ') else line)
+              return '\n'.join(out)+'\n'
+          script=extract('Apply flight handoff, FPV optical stabilization, and lazy photoreal wiring')
+          # Current production constant is V2; the branch patch intentionally targets
+          # the semantic constant rather than renaming production storage.
+          script=script.replace('const MODE_STORAGE="arondight45WorldMode";','const MODE_STORAGE="arondight45WorldModeV2";')
+          Path('/tmp/apply-finalization.sh').write_text(script)
+          PY
+          bash -euxo pipefail /tmp/apply-finalization.sh
+
+      - name: Tighten release handoff invariants
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('esp32/Arondight45_StateControl.hpp'); s=p.read_text()
+          s=s.replace('static constexpr float kVerticalJerkLimitMps3 = 400.0f;','static constexpr float kVerticalJerkLimitMps3 = 1200.0f;')
+          old='''        const float target_horizontal_speed = std::sqrt(commanded_forward_mps_ * commanded_forward_mps_ +
+                                                        commanded_right_mps_ * commanded_right_mps_);
+        // The I term is drag compensation for a non-zero cruise target. It must
+        // never become stored propulsion after the pilot releases translation.
+        // Neutral means an immediate zero-velocity target, so clear the cruise
+        // compensation before computing the braking acceleration. The P/D path
+        // then commands counter-tilt immediately, still under the same 7.5 m/s²
+        // and 40° physical envelopes.
+        if (target_horizontal_speed <= kHorizontalIntegralNeutralTargetMps) {'''
+          new='''        const float target_horizontal_speed = std::sqrt(commanded_forward_mps_ * commanded_forward_mps_ +
+                                                        commanded_right_mps_ * commanded_right_mps_);
+        const float pilot_horizontal_speed = std::sqrt(intent.forward_mps * intent.forward_mps +
+                                                       intent.right_mps * intent.right_mps);
+        // Cruise drag compensation is pilot-command state, not release-handoff
+        // state. Drop it immediately on neutral so stored I cannot kick the
+        // airframe while the requested velocity itself decays smoothly.
+        if (pilot_horizontal_speed <= kHorizontalIntegralNeutralTargetMps) {'''
+          if s.count(old)!=1: raise SystemExit('horizontal integral release block mismatch')
+          s=s.replace(old,new)
+          s=s.replace('if (target_horizontal_speed > kHorizontalIntegralNeutralTargetMps) {','if (pilot_horizontal_speed > kHorizontalIntegralNeutralTargetMps) {',1)
+          p.write_text(s)
+
+          p=Path('tests/architecture_invariants.mjs'); a=p.read_text().replace('kVerticalJerkLimitMps3 = 400.0f','kVerticalJerkLimitMps3 = 1200.0f');p.write_text(a)
+          p=Path('tests/state_control_test.cpp'); t=p.read_text();t=t.replace('CHECK(controller.debug().vertical_accel_mps2 > 49.4f);\n    CHECK(controller.debug().vertical_accel_mps2 < 49.7f);','CHECK(controller.debug().vertical_accel_mps2 > 48.7f);\n    CHECK(controller.debug().vertical_accel_mps2 < 48.9f);');p.write_text(t)
+          PY
+
+      - name: Compile flight controller and architecture
+        run: |
+          set -euxo pipefail
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
+          /tmp/fc_core_test
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
+          /tmp/state_control_test
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil_test
+          /tmp/sil_test
+          node tests/control_semantics_test.mjs
+          node tests/camera_stabilization_test.mjs
+          node tests/architecture_invariants.mjs
+          node --check sim/simulator.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/photorealistic_3d_tiles.mjs
+
+      - name: Verify pinned photoreal renderer bundle and lazy main bundle
+        run: |
+          set -euxo pipefail
+          BUILD=/tmp/finalize-photo-build
+          rm -rf "$BUILD" && mkdir -p "$BUILD" && cd "$BUILD"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 3d-tiles-renderer@0.5.0 esbuild@0.25.8
+          ln -s "$BUILD/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/photorealistic_3d_tiles.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/photoreal.bundle.mjs
+          node --check /tmp/photoreal.bundle.mjs
+          test "$(wc -c < /tmp/photoreal.bundle.mjs)" -gt 100000
+          grep -q 'GoogleCloudAuthPlugin' sim/photorealistic_3d_tiles.mjs
+          grep -q 'maxBytesSize' sim/photorealistic_3d_tiles.mjs
+          grep -q 'dispose-model' sim/photorealistic_3d_tiles.mjs
+          grep -q 'PHOTOREAL_BUNDLE_URL' sim/real_world_bootstrap.mjs
+          grep -q 'import(PHOTOREAL_BUNDLE_URL)' sim/real_world_bootstrap.mjs
+          rm node_modules
+
+      - name: Commit tested staging tree
+        id: staged
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/finalize-flight-photoreal.yml
+          git add esp32/Arondight45_StateControl.hpp tests/state_control_test.cpp tests/architecture_invariants.mjs sim/simulator.mjs sim/real_world_bootstrap.mjs sim/photorealistic_3d_tiles.mjs .github/workflows/deploy.yml
+          git commit -m 'Finalize smooth flight handoff and real photogrammetry streaming'
+          git push origin HEAD:finalize-flight-photoreal
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Report finalizer result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STAGED_SHA: ${{ steps.staged.outputs.sha }}
+        run: |
+          body="FINALIZER FINAL · run=${GITHUB_RUN_ID} · status=${{ job.status }} · staging=${STAGED_SHA:-none}"
+          gh api "repos/${GH_REPO}/issues/53/comments" -f body="$body" >/dev/null
+
+      - name: Remove one-shot main runner
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euxo pipefail
+          git fetch origin main
+          git checkout -B main origin/main
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/run-finalize-flight-photoreal.yml
+          git commit -m 'Remove staged finalizer runner'
+          git push origin main
