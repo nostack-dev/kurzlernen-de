@@ -27,6 +27,7 @@ await page.evaluateOnNewDocument(()=>{
 
 const pause=ms=>page.evaluate(delay=>new Promise(resolve=>setTimeout(resolve,delay)),ms);
 const setButton=(index,value)=>page.evaluate((i,v)=>globalThis.__xboxTest.setButton(i,v),index,value);
+const pulseButton=async(index,{downMs=70,upMs=95}={})=>{await setButton(index,1);await pause(downMs);await setButton(index,0);await pause(upMs);};
 
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
@@ -37,10 +38,23 @@ try{
   const defaultOff=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,enabled:v.dataset.gamepadEnabled,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill"),padConnected:Boolean(navigator.getGamepads?.()[0]?.connected)};});
   if(defaultOff.source!=="touch"||defaultOff.enabled!=="0"||defaultOff.connected!=="0"||defaultOff.left==="none"||defaultOff.right==="none"||defaultOff.height==="none"||defaultOff.arm==="none"||defaultOff.kill==="none"||!defaultOff.padConnected)throw new Error(`Xbox was not safely OFF by default: ${JSON.stringify(defaultOff)}`);
 
-  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});
+  // Controller-only settings path: START must work even while Xbox mode is OFF,
+  // D-pad must navigate, A must activate, and B must close without leaking into KILL.
+  await pulseButton(9);await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});
   const toggleDefault=await page.$eval('.phone-settings-dialog [data-xbox-controller]',input=>input.checked);if(toggleDefault!==false)throw new Error(`Xbox settings toggle is not OFF by default: ${toggleDefault}`);
-  await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
-  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="xbox"&&v.dataset.gamepadEnabled==="1"&&v.dataset.gamepadConnected==="1";},{timeout:3000});
+  const nav=await page.evaluate(()=>{const dialog=document.querySelector(".phone-settings-dialog"),target=dialog.querySelector("[data-xbox-controller]"),controls=[...dialog.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(element=>{const style=getComputedStyle(element);return style.display!=="none"&&style.visibility!=="hidden"&&element.getClientRects().length>0;}),current=controls.indexOf(document.activeElement),wanted=controls.indexOf(target);return{count:controls.length,current,wanted,active:document.activeElement?.outerHTML?.slice(0,100)||""};});
+  if(nav.count<2||nav.wanted<0)throw new Error(`Xbox menu focus map invalid: ${JSON.stringify(nav)}`);
+  const startIndex=nav.current>=0?nav.current:0,steps=(nav.wanted-startIndex+nav.count)%nav.count;
+  for(let i=0;i<steps;i++)await pulseButton(13,{downMs:55,upMs:70});
+  const focusedXbox=await page.evaluate(()=>document.activeElement===document.querySelector('.phone-settings-dialog [data-xbox-controller]'));if(!focusedXbox)throw new Error(`D-pad did not reach Xbox setting: ${JSON.stringify(nav)}`);
+  await pulseButton(0);const enabledByController=await page.$eval('.phone-settings-dialog [data-xbox-controller]',input=>input.checked);if(!enabledByController)throw new Error("A did not enable Xbox controller setting");
+  const menuSuspended=await page.evaluate(()=>{const display=s=>getComputedStyle(document.querySelector(s)).display,v=document.querySelector("#viewport");return{body:document.body.classList.contains("gamepad-settings-open"),source:v.dataset.controlSource,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance")};});
+  if(!menuSuspended.body||menuSuspended.left!=="none"||menuSuspended.right!=="none"||menuSuspended.height!=="none")throw new Error(`Controller menu did not own flight input: ${JSON.stringify(menuSuspended)}`);
+  await setButton(1,1);await page.waitForFunction(()=>!document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await pause(220);
+  const heldB=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,menuGuard:document.body.classList.contains("gamepad-settings-open"),left:display("#soloLeft"),kill:display("#soloKill")};});
+  if(heldB.source==="xbox"||!heldB.menuGuard||heldB.left!=="none"||heldB.kill!=="none")throw new Error(`Held B leaked through menu close into flight controls: ${JSON.stringify(heldB)}`);
+  await setButton(1,0);await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="xbox"&&v.dataset.gamepadEnabled==="1"&&v.dataset.gamepadConnected==="1"&&!document.body.classList.contains("gamepad-settings-open");},{timeout:3000});
+
   const active=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill"),status:document.querySelector("#soloGamepadStatus").hidden,help:document.querySelector("#soloGamepadHelp").hidden,helpText:document.querySelector("#soloGamepadHelp").textContent};});
   if(active.source!=="xbox"||active.connected!=="1"||active.left!=="none"||active.right!=="none"||active.height!=="none"||active.arm!=="none"||active.kill!=="none"||active.status||active.help||!active.helpText.includes("LB+RB FIRE"))throw new Error(`Xbox ON did not remove every touch flight control: ${JSON.stringify(active)}`);
 
@@ -92,5 +106,5 @@ try{
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="touch"&&v.dataset.gamepadEnabled==="0"&&getComputedStyle(document.querySelector("#soloLeft")).display!=="none";},{timeout:3000});
 
-  console.log("Xbox browser E2E passed: default OFF, explicit persistent ON/OFF, zero touch HUD while ON/reconnecting, LT down, RT up-only, LB+RS free-look/crosshair, and LB+RB right-shoulder fire.");
+  console.log("Xbox browser E2E passed: controller-only START/D-pad/A/B settings, guarded neutral menu handoff, default OFF, persistent ON/OFF, zero touch HUD while ON/reconnecting, LT down, RT up-only, LB+RS free-look/crosshair, and LB+RB right-shoulder fire.");
 }finally{await browser.close();}
