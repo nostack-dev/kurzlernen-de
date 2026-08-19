@@ -330,7 +330,10 @@ requireText("drone_simulator.html",'<script type="module" src="./sim/real_world_
 
 requireText("sim/p2p_link.mjs","P2P_PROTOCOL = 5");
 requireText("sim/p2p_link.mjs","new RTCPeerConnection");
-requireText("sim/p2p_link.mjs","iceServers:[]");
+requireText("sim/p2p_link.mjs","P2P_RTC_CONFIG");
+requireText("sim/p2p_link.mjs",'iceTransportPolicy:"all"');
+requireText("sim/p2p_link.mjs","stun:stun.cloudflare.com:3478");
+forbidText("sim/p2p_link.mjs","iceServers:[]","manual WebRTC pairing must retain STUN fallback while allowing direct LAN candidates");
 requireText("sim/p2p_link.mjs","CONTROL_STALE_MS = 350");
 requireText("sim/p2p_link.mjs","SESSION_GRACE_MS = 5 * 60 * 1000");
 requireText("sim/p2p_link.mjs","telemetrySequence:(this.telemetrySequence++>>>0)");
