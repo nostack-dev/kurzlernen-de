@@ -23,8 +23,15 @@ const read=()=>page.evaluate(()=>{
     roll:attitude?Number(attitude[1]):NaN,pitch:attitude?Number(attitude[2]):NaN,
     state:document.querySelector("#fcState")?.textContent||"",
     visualSupport:parseFloat(document.querySelector("#viewport")?.dataset.airframeVisualSupportZ||"NaN"),
+    targetAgl:parseFloat(document.querySelector("#soloClearance")?.dataset.targetAglM||"NaN"),
   };
 });
+const assertFlightHealthy=(sample,phase)=>{
+  if(sample.state!=="ARMED"||!sample.navValid||sample.navDegraded||!Number.isFinite(sample.agl)||sample.agl<.20||sample.rangeText.includes("DEGRADED")||sample.rangeText.includes("LOST"))
+    throw new Error(`${phase} lost flight/AGL authority: ${JSON.stringify(sample)}`);
+  if(!Number.isFinite(sample.roll)||!Number.isFinite(sample.pitch)||Math.abs(sample.roll)>35||Math.abs(sample.pitch)>35)
+    throw new Error(`${phase} attitude became unstable: ${JSON.stringify(sample)}`);
+};
 
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
@@ -72,5 +79,28 @@ try{
   if(maxTilt>30)throw new Error(`takeoff attitude oscillation exceeded 30 degrees: maxTilt=${maxTilt.toFixed(1)} final=${JSON.stringify(final)}`);
   if(Math.abs(final.roll)>10||Math.abs(final.pitch)>10)throw new Error(`airframe did not settle level after takeoff: ${JSON.stringify(final)}`);
 
-  console.log(`Takeoff AGL E2E passed: AGL valid continuously, max altitude ${maxAltitude.toFixed(2)} m, final AGL ${final.agl.toFixed(2)} m, max tilt ${maxTilt.toFixed(1)} deg.`);
+  const heightPoint=async direction=>page.$eval("#soloHeightPad",(pad,dir)=>{const r=pad.getBoundingClientRect(),rotated=document.querySelector("#viewport")?.dataset.soloOrientation==="css-landscape";return rotated?{x:dir>0?r.right-4:r.left+4,y:r.top+r.height/2}:{x:r.left+r.width/2,y:dir>0?r.top+4:r.bottom-4};},direction);
+  const holdHeight=async(direction,durationMs,phase,sink)=>{
+    const point=await heightPoint(direction);await page.mouse.move(point.x,point.y);await page.mouse.down();
+    const started=Date.now();
+    try{while(Date.now()-started<durationMs){const sample=await read();sink.push(sample);assertFlightHealthy(sample,phase);await wait(100);}}
+    finally{await page.mouse.up();}
+    await wait(120);
+  };
+
+  const vertical=[];
+  const targetStart=(await read()).targetAgl;
+  await holdHeight(+1,1100,"CLIMB",vertical);
+  const targetHigh=(await read()).targetAgl;
+  if(!(targetHigh-targetStart>4.0&&targetHigh-targetStart<6.5))throw new Error(`CLIMB target slew unexpected: start=${targetStart} high=${targetHigh}`);
+  for(let i=0;i<30;i++){const sample=await read();vertical.push(sample);assertFlightHealthy(sample,"HIGH HOLD");await wait(100);}
+  await holdHeight(-1,1800,"DESCEND",vertical);
+  const targetLow=(await read()).targetAgl;
+  if(!(targetLow>=.49&&targetLow<=.75))throw new Error(`DESCEND did not clamp target at safe floor: ${targetLow}`);
+  for(let i=0;i<80;i++){const sample=await read();vertical.push(sample);assertFlightHealthy(sample,"LOW HOLD");await wait(100);}
+  const minAgl=Math.min(...vertical.map(s=>s.agl).filter(Number.isFinite)),verticalMaxTilt=Math.max(...vertical.flatMap(s=>[Math.abs(s.roll),Math.abs(s.pitch)]).filter(Number.isFinite)),verticalFinal=vertical.at(-1);
+  if(minAgl<.20)throw new Error(`UP/DOWN stress approached/struck ground: minAGL=${minAgl.toFixed(2)} final=${JSON.stringify(verticalFinal)}`);
+  if(!(verticalFinal.agl>.35&&verticalFinal.agl<1.00))throw new Error(`post-DESCEND 0.5 m hold did not settle safely: ${JSON.stringify(verticalFinal)}`);
+
+  console.log(`Takeoff + UP/DOWN AGL E2E passed: initial max altitude ${maxAltitude.toFixed(2)} m, stress target ${targetStart.toFixed(2)}→${targetHigh.toFixed(2)}→${targetLow.toFixed(2)} m, min AGL ${minAgl.toFixed(2)} m, final ${verticalFinal.agl.toFixed(2)} m, max tilt ${Math.max(maxTilt,verticalMaxTilt).toFixed(1)} deg.`);
 }finally{await browser.close();}
