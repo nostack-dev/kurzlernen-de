@@ -60,24 +60,22 @@ jobs:
           node tests/s31_digital_twin_audit_test.mjs
           node tests/lan_vs_smoke.mjs
 
-          # DEM is presentation-only. No DEM/terrain data may own Box3D, NAV, AGL or ARM.
+          # Keep DEM entirely out of runtime physics until it has a separately proven path.
           test ! -e sim/world_terrain.mjs
           test ! -e sim/world_terrain_physics.mjs
           test ! -e sim/world_dem_sampler.mjs
           ! grep -q 'WorldDemSampler' sim/real_world_bootstrap.mjs
           ! grep -q 'attachTerrainCollisionSink' sim/simulator.mjs
           ! grep -q 'setWorldTerrain' sim/simulator.mjs
-          grep -q 'WORLD_TERRAIN_SOURCE_ID="arondight45-world-dem-presentation"' sim/real_world_bootstrap.mjs
-          grep -q 'WORLD_TERRAIN_TILE_URL="https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"' sim/real_world_bootstrap.mjs
+          ! grep -q 'WORLD_TERRAIN_SOURCE_ID' sim/real_world_bootstrap.mjs
+          ! grep -q 'tiles.mapterhorn.com' sim/real_world_bootstrap.mjs
 
-          # Required pre-DEM drone physics and Box3D static-world architecture.
+          # Required drone physics stays enabled; buildings use the previously proven hull path.
           grep -q 'deriveQuadMassProperties' sim/simulator.mjs
           grep -q 'addPropellerSweepColliders' sim/simulator.mjs
           grep -q 'scaleCurrentsToPackLimit' sim/simulator.mjs
           grep -q 'resolveBox3dCameraPath' sim/simulator.mjs
-          grep -q 'b3CreateCompound' sim/world_building_collision_physics.mjs
-          grep -q 'b3CreateCompoundShape' sim/world_building_collision_physics.mjs
-          grep -q 'broadphaseShapeCount:1' sim/world_building_collision_physics.mjs
+          grep -q 'b3CreateHullShape' sim/world_building_collision_physics.mjs
 
       - name: Build exact shared controller runtime to WebAssembly
         run: |
@@ -140,15 +138,27 @@ jobs:
           ! grep -q 'src="./sim/controller.mjs"' drone_controller.html
           grep -q 'REAL WORLD' drone_simulator.html
           grep -q 'services.arcgisonline.com/ArcGIS/rest/services/World_Imagery' drone_simulator.html
-          grep -q 'tiles.mapterhorn.com' drone_simulator.html
+          ! grep -q 'tiles.mapterhorn.com' drone_simulator.html
           grep -q 'navigator.geolocation' drone_simulator.html
-          rm -f node_modules
           rm -rf generated
 
       - name: Parse-check JavaScript sources
         run: |
           set -euxo pipefail
           find sim tests tools -type f -name '*.mjs' -print0 | xargs -0 -n1 node --check
+
+      - name: Blocking browser boot gate - direct simulator start
+        timeout-minutes: 4
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
+          HTTP_PID=$!
+          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules; }
+          trap cleanup EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -195,6 +205,5 @@ jobs:
           HTTP_PID=$!
           trap 'kill "$HTTP_PID" 2>/dev/null || true; rm -f node_modules' EXIT
           sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs http://127.0.0.1:4174
