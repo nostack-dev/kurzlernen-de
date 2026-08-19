@@ -18,7 +18,7 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Patch P2P correctness and permanent deploy gates
+      - name: Patch P2P correctness and permanent invariants
         id: patch
         shell: bash
         run: |
@@ -64,11 +64,6 @@ jobs:
 
           Path('tests/p2p_link_test.mjs').write_text('''// Manual P2P must keep direct LAN candidates while retaining STUN fallback, and must never emit a candidate-less pairing code.\nimport assert from "node:assert/strict";\nimport {P2P_RTC_CONFIG,waitForIceComplete} from "../sim/p2p_link.mjs";\nassert.equal(P2P_RTC_CONFIG.iceTransportPolicy,"all");\nassert.ok(P2P_RTC_CONFIG.iceServers.length>=2);\nassert.ok(JSON.stringify(P2P_RTC_CONFIG.iceServers).includes("stun.cloudflare.com"));\nfunction mockPc(sdp,state="gathering"){const listeners=new Map();return{iceGatheringState:state,localDescription:{sdp},addEventListener(n,f){listeners.set(n,f);},removeEventListener(n,f){if(listeners.get(n)===f)listeners.delete(n);}};}\nconst candidate="v=0\\na=candidate:1 1 udp 1 192.168.1.2 5000 typ host\\n";\nawait waitForIceComplete(mockPc(candidate),5);\nawait waitForIceComplete(mockPc(candidate,"complete"),5);\nawait assert.rejects(()=>waitForIceComplete(mockPc("v=0\\n","complete"),5),/completed without any usable candidate/);\nawait assert.rejects(()=>waitForIceComplete(mockPc("v=0\\n"),5),/timed out before any usable candidate/);\nconsole.log("P2P ICE reliability passed: direct candidate, STUN fallback, and candidate-less completion guarded.");\n''')
 
-          path = '.github/workflows/deploy.yml'
-          old = '          node tests/s31_digital_twin_audit_test.mjs\n          node tests/lan_vs_smoke.mjs\n'
-          new = '          node tests/s31_digital_twin_audit_test.mjs\n          node tests/architecture_invariants.mjs\n          node tests/p2p_link_test.mjs\n          node tests/lan_vs_smoke.mjs\n'
-          replace_once(path, old, new)
-
           path = 'tests/architecture_invariants.mjs'
           old = 'requireText("sim/p2p_link.mjs","telemetrySequence:(this.telemetrySequence++>>>0)");\nrequireText("sim/p2p_link.mjs","newerSequence(sequence,this.lastTelemetrySequence)");\n'
           new = 'requireText("sim/p2p_link.mjs","telemetrySequence:(this.telemetrySequence++>>>0)");\nrequireText("sim/p2p_link.mjs","newerSequence(sequence,this.lastTelemetrySequence)");\nrequireText("sim/p2p_link.mjs","completed without any usable candidate");\nrequireText(".github/workflows/deploy.yml","node tests/architecture_invariants.mjs");\nrequireText(".github/workflows/deploy.yml","node tests/p2p_link_test.mjs");\n'
@@ -81,16 +76,15 @@ jobs:
           node tests/architecture_invariants.mjs
           node tests/lan_vs_smoke.mjs
 
-      - name: Commit hardened final tree and remove one-shot runner
+      - name: Commit hardened product tree
         if: steps.patch.outcome == 'success'
         shell: bash
         run: |
           set -euxo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm .github/p2p-hardening.trigger .github/workflows/p2p-hardening-once.yml
-          git add sim/p2p_link.mjs tests/p2p_link_test.mjs tests/architecture_invariants.mjs .github/workflows/deploy.yml
-          git commit -m 'Close P2P ICE and deploy gate gaps'
+          git add sim/p2p_link.mjs tests/p2p_link_test.mjs tests/architecture_invariants.mjs
+          git commit -m 'Close P2P ICE correctness gap'
           git push origin HEAD:main
 
       - name: Report hardening result
@@ -100,8 +94,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           GH_SHA: ${{ github.sha }}
-          OUTCOME: ${{ steps.patch.outcome }}
+          PATCH_OUTCOME: ${{ steps.patch.outcome }}
+          JOB_STATUS: ${{ job.status }}
         run: |
-          body="P2P HARDENING · source=${GH_SHA} · outcome=${OUTCOME} · https://github.com/${GH_REPO}/actions/runs/${GITHUB_RUN_ID}"
+          body="P2P HARDENING V2 · source=${GH_SHA} · patch=${PATCH_OUTCOME} · job=${JOB_STATUS} · https://github.com/${GH_REPO}/actions/runs/${GITHUB_RUN_ID}"
           payload="$(jq -cn --arg body "$body" '{body:$body}')"
           curl -fsSL -X POST -H 'Accept: application/vnd.github+json' -H "Authorization: Bearer ${GH_TOKEN}" -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null
