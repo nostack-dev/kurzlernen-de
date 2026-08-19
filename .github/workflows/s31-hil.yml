@@ -1,5 +1,6 @@
 name: ESP32-S31 flight stack
 # Production/HIL compile the same raw-hardware FirmwareRuntime boundary.
+# workflow_dispatch is the explicit same-SHA revalidation path after cleanup-only release commits.
 
 on:
   push:
