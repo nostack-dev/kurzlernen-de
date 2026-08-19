@@ -1,3 +1,5 @@
+import {mountAudioSettings} from "./audio_settings.mjs";
+
 // Camera settings remain render/optics-only. Flight/control timing is independent
 // of camera, minimap and map render FPS.
 export const CAMERA_SETTINGS_KEY="arondight45CameraSettingsV1";
@@ -23,6 +25,7 @@ export function setCameraFovDeg(value){const current=loadCameraSettings();return
 export function mountCameraSettings({dialog,onChange=()=>{}}={}){
   if(!dialog)throw Error("camera settings dialog required");
   let settings=loadCameraSettings();
+  const audio=mountAudioSettings({dialog});
   const section=document.createElement("section");section.className="camera-settings-section";
   section.innerHTML=`
     <h4>CAMERA</h4>
@@ -40,5 +43,5 @@ export function mountCameraSettings({dialog,onChange=()=>{}}={}){
   dialog.addEventListener("close",()=>{settings=loadCameraSettings();render();});
   dialog.querySelector("[data-reset]")?.addEventListener("click",()=>{settings=saveCameraSettings(DEFAULT_CAMERA_SETTINGS);render();onChange({...settings});});
   render();onChange({...settings});
-  return{section,get settings(){return{...settings};},reload(){settings=loadCameraSettings();render();onChange({...settings});return{...settings};}};
+  return{section,audio,get settings(){return{...settings};},reload(){settings=loadCameraSettings();render();onChange({...settings});return{...settings};}};
 }

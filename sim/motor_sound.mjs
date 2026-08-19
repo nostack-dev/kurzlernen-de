@@ -1,3 +1,5 @@
+import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings,saveAudioSettings} from "./audio_settings.mjs";
+
 const STATE_ARMED=1;
 const STATE_FAULT=4;
 const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
@@ -34,12 +36,15 @@ function motorShape(phase){
 
 export class HybridMotorSound {
   constructor(viewport){
-    this.viewport=viewport;this.ctx=null;this.master=null;this.voices=[];this.enabled=localStorage.getItem("arondight45MotorSound")!=="off";this.unlocked=false;this.previousArmRequested=false;this.previousFcState=0;
+    const audio=loadAudioSettings();
+    this.viewport=viewport;this.ctx=null;this.master=null;this.voices=[];this.enabled=audio.soundEnabled;this.volume=audio.droneVolume/100;this.unlocked=false;this.previousArmRequested=false;this.previousFcState=0;
+    this.audioSettingsListener=event=>this.applyAudioSettings(event.detail);window.addEventListener(AUDIO_SETTINGS_EVENT,this.audioSettingsListener);
     this.viewport.dataset.motorAudioSource="motorOmega+motorTorque+propTorque+tipSpeed:hybridBladeMotor";
-    this.viewport.dataset.motorAudioContextState="uninitialized";this.viewport.dataset.motorAudioArmEvent="idle";this.viewport.dataset.motorAudioEscToneCount="0";
+    this.viewport.dataset.motorAudioContextState="uninitialized";this.viewport.dataset.motorAudioArmEvent="idle";this.viewport.dataset.motorAudioEscToneCount="0";this.viewport.dataset.motorAudioEnabled=this.enabled?"1":"0";this.viewport.dataset.motorAudioVolumePct=String(audio.droneVolume);
   }
   isRunning(){return Boolean(this.ctx&&this.ctx.state==="running");}
   syncState(){this.unlocked=this.isRunning();this.viewport.dataset.motorAudioContextState=this.ctx?.state||"uninitialized";return this.unlocked;}
+  applyAudioSettings(value=loadAudioSettings()){const next=normalizeAudioSettings(value);this.enabled=next.soundEnabled;this.volume=next.droneVolume/100;this.viewport.dataset.motorAudioEnabled=this.enabled?"1":"0";this.viewport.dataset.motorAudioVolumePct=String(next.droneVolume);if((!this.enabled||this.volume<=0)&&this.master&&this.ctx)this.master.gain.setTargetAtTime(0,this.ctx.currentTime,.018);this.syncState();return next;}
   ensure(){
     if(this.ctx){this.syncState();return true;}
     const AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return false;
@@ -81,7 +86,8 @@ export class HybridMotorSound {
       return this.syncState();
     }catch{this.syncState();return false;}
   }
-  setEnabled(value){this.enabled=Boolean(value);localStorage.setItem("arondight45MotorSound",this.enabled?"on":"off");if(!this.enabled&&this.master&&this.ctx)this.master.gain.setTargetAtTime(0,this.ctx.currentTime,.025);this.syncState();}
+  setEnabled(value){const next=saveAudioSettings({...loadAudioSettings(),soundEnabled:Boolean(value)});this.applyAudioSettings(next);return this.enabled;}
+  setVolume(value){const next=saveAudioSettings({...loadAudioSettings(),droneVolume:Number(value)});this.applyAudioSettings(next);return next.droneVolume;}
   escWindingTone(frequencyHz,offsetSec=0,durationSec=.075,level=.20){
     if(!this.enabled||!this.isRunning()||!this.ctx||!this.master)return;
     const start=this.ctx.currentTime+Math.max(0,offsetSec),stop=start+Math.max(.025,durationSec);this.viewport.dataset.motorAudioEscToneCount=String((Number(this.viewport.dataset.motorAudioEscToneCount)||0)+1);
@@ -118,6 +124,6 @@ export class HybridMotorSound {
     }
     const meanHz=totalPropPower>1e-9?weightedHz/totalPropPower:omega.reduce((sum,w)=>sum+Math.max(0,Number(w)||0)/Math.PI,0)/4;
     this.viewport.dataset.motorAudioHz=String(meanHz);this.viewport.dataset.motorAudioPowerW=String(totalPropPower);this.viewport.dataset.motorAudioBladeGain=String(totalBladeGain);this.viewport.dataset.motorAudioMotorGain=String(totalMotorGain);this.viewport.dataset.motorAudioNoiseGain=String(totalNoiseGain);
-    if(this.master&&this.ctx){const p=model.position(),distance=cameraPosition?Math.hypot(cameraPosition.x-p[0],cameraPosition.y-p[1],cameraPosition.z-p[2]):1,distanceGain=1/(1+.12*distance*distance),target=(this.enabled&&running)?.58*distanceGain:0;this.viewport.dataset.motorAudioGain=String(target);this.master.gain.setTargetAtTime(target,this.ctx.currentTime,.045);}
+    if(this.master&&this.ctx){const p=model.position(),distance=cameraPosition?Math.hypot(cameraPosition.x-p[0],cameraPosition.y-p[1],cameraPosition.z-p[2]):1,distanceGain=1/(1+.12*distance*distance),target=(this.enabled&&running)?.58*this.volume*distanceGain:0;this.viewport.dataset.motorAudioGain=String(target);this.master.gain.setTargetAtTime(target,this.ctx.currentTime,.045);}
   }
 }
