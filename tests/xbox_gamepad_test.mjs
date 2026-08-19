@@ -37,4 +37,5 @@ pad.axes=[0,0,0,0];for(let index=0;index<buttons.length;index++)buttons[index]={
 
 pad.connected=false;
 assert.equal(sampleXboxGamepad(pad),null);
+// Release gate: the paired-before-load Chrome exposure lifecycle is exercised by xbox_gamepad_browser_smoke.mjs.
 console.log("Xbox mapping passed: touch handoff, LT/RT altitude, LB free-look/fire, and settings-modal flight suppression with release latch.");
