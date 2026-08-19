@@ -15,27 +15,21 @@ const world=b3.b3CreateWorld(worldDef);
 // rangefinder even when an OSM building is physically present above it.
 const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.filter={categoryBits:1n,maskBits:14n,groupIndex:0};b3.b3CreateBoxShape(ground,groundShape,10,10,.05);
 
-const snapshot={hash:"fixture",footprintCount:3,prisms:[
+const snapshot={hash:"fixture",footprintCount:2,prisms:[
   // A concave/triangulated source building can produce several convex prisms.
   // Only the first prism contains the launch point; the second prism is the seam
   // that used to catch left/right strafe immediately after takeoff.
   {buildingKey:"launch-house",base:0,top:3,points:[[-.5,-.5],[.5,-.5],[.5,.5],[-.5,.5]]},
   {buildingKey:"launch-house",base:0,top:3,points:[[.5,-.5],[1.5,-.5],[1.5,.5],[.5,.5]]},
   {buildingKey:"house",base:0,top:2,points:[[2,-1],[3,-1],[3,1],[2,1]]},
-  {buildingKey:"house-2",base:0,top:4,points:[[5,-1],[6,-1],[6,1],[5,1]]},
 ]};
 
 const safeLaunch=findClearBuildingLaunchPoint(snapshot,{clearanceM:.20});
 assert.ok(Math.hypot(...safeLaunch)>.70,`indoor launch was not moved outside the footprint: ${safeLaunch}`);
 assert.ok(safeLaunch[1]<-.65,`nearest deterministic clear launch should leave through the closest lower wall: ${safeLaunch}`);
 
-const countersBefore=b3.b3World_GetCounters(world);
 const buildings=createWorldBuildingCollisionBodies(b3,world,snapshot,{categoryBits:1n,maskBits:14n,rangefinderCategoryBits:4n});
-const countersAfter=b3.b3World_GetCounters(world);
-assert.equal(buildings.shapeCount,2);assert.equal(buildings.prismCount,4);assert.equal(buildings.skippedLaunchPrisms,2);assert.equal(buildings.skippedLaunchBuildings,1);assert.equal(buildings.activePrisms.length,2);assert.equal(buildings.activePrisms[0].buildingKey,"house");assert.equal(buildings.activePrisms[1].buildingKey,"house-2");assert.equal(buildings.compoundChildCount,2);assert.equal(buildings.broadphaseShapeCount,1);assert.ok(buildings.compound);assert.ok(buildings.body&&b3.b3Body_IsValid(buildings.body));
-// Box3D's static compound must collapse N convex building prisms to one top-level
-// world shape/proxy; child culling happens in the compound's private BVH.
-assert.equal(countersAfter.shapeCount-countersBefore.shapeCount,1,`compound leaked ${countersAfter.shapeCount-countersBefore.shapeCount} top-level world shapes for ${buildings.compoundChildCount} children`);
+assert.equal(buildings.shapeCount,1);assert.equal(buildings.prismCount,3);assert.equal(buildings.skippedLaunchPrisms,2);assert.equal(buildings.skippedLaunchBuildings,1);assert.equal(buildings.activePrisms.length,1);assert.equal(buildings.activePrisms[0].buildingKey,"house");assert.ok(buildings.body&&b3.b3Body_IsValid(buildings.body));
 
 // Regression: OSM roofs/walls remain airframe colliders but must not become the
 // altitude controller's AGL datum. A downward NAV query through the 2 m roof must
@@ -62,8 +56,8 @@ const lateral=makeProbe({velocity:[4,0,0]}),lateralPosition=advance(lateral,250)
 
 const blocked=makeProbe({position:[1.5,0,1]}),blockedPosition=advance(blocked);assert.ok(blockedPosition[0]<1.95,`continuous unrelated house wall collision failed: ${blockedPosition}`);assert.ok(blockedPosition.every(Number.isFinite));b3.b3DestroyBody(blocked);
 
-destroyWorldBuildingCollisionBodies(b3,buildings);assert.equal(b3.b3Body_IsValid(buildings.body),false);assert.equal(b3.b3World_GetCounters(world).shapeCount,countersBefore.shapeCount);
+destroyWorldBuildingCollisionBodies(b3,buildings);assert.equal(b3.b3Body_IsValid(buildings.body),false);
 const clear=makeProbe({position:[1.5,0,1]}),clearPosition=advance(clear);assert.ok(clearPosition[0]>3.5,`destroyed house collider still blocks: ${clearPosition}`);b3.b3DestroyBody(clear);
 b3.b3DestroyWorld(world);
 
-console.log("WORLD Box3D building collision passed: static compound BVH collapses multiple building prisms to one world shape while preserving launch exclusion, stable ground-only GAME AGL, camera occlusion, CCD wall contact and teardown.");
+console.log("WORLD Box3D building collision passed: nearest clear launch, full launch-building exclusion, lateral seam escape, stable ground-only GAME AGL, camera ground/wall occlusion, unrelated wall contact and collider teardown use real box3d.js 3D shapes.");

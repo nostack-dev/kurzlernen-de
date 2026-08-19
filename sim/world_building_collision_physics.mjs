@@ -2,7 +2,6 @@ const finitePoint=point=>Array.isArray(point)&&point.length===2&&point.every(Num
 const DEFAULT_LAUNCH_EXCLUSION_POINT=Object.freeze([0,0]);
 const LAUNCH_AIRFRAME_CENTER_Z_M=.024;
 const LAUNCH_AIRFRAME_HALF_Z_M=.022;
-const IDENTITY_QUAT=Object.freeze([0,0,0,1]);
 
 function pointInPolygon(point,ring){
   if(!finitePoint(point)||!Array.isArray(ring)||ring.length<3)return false;const[x,y]=point;let inside=false;
@@ -50,21 +49,8 @@ export function findClearBuildingLaunchPoint(value,{point=DEFAULT_LAUNCH_EXCLUSI
   return origin;
 }
 
-function destroyCompoundResources(b3,{body=null,compound=null,hulls=[]}={}){
-  if(body&&b3.b3Body_IsValid(body))b3.b3DestroyBody(body);
-  if(compound)b3.b3DestroyCompound(compound);
-  for(const hull of hulls||[])if(hull)b3.b3DestroyHull(hull);
-}
-
-function prismCompoundChild(b3,prism){
-  const pointCount=prism.points.length,cx=prism.points.reduce((sum,point)=>sum+point[0],0)/pointCount,cy=prism.points.reduce((sum,point)=>sum+point[1],0)/pointCount,cz=(prism.base+prism.top)*.5,vertices=[];
-  for(const z of [prism.base-cz,prism.top-cz])for(const point of prism.points)vertices.push(point[0]-cx,point[1]-cy,z);
-  const hull=b3.b3CreateHull(vertices);if(!hull)return null;
-  return{hull,transform:{position:[cx,cy,cz],quaternion:[...IDENTITY_QUAT]}};
-}
-
 export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=1n,maskBits=6n,rangefinderCategoryBits=4n,launchExclusionPoint=DEFAULT_LAUNCH_EXCLUSION_POINT}={}){
-  const snapshot=normalizeBuildingCollisionSnapshot(value);if(!world||!snapshot.prisms.length)return{body:null,compound:null,hulls:Object.freeze([]),shapeCount:0,broadphaseShapeCount:0,compoundChildCount:0,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze([]),...snapshot};
+  const snapshot=normalizeBuildingCollisionSnapshot(value);if(!world||!snapshot.prisms.length)return{body:null,shapeCount:0,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze([]),...snapshot};
   // Concave/holed OSM buildings are decomposed into several convex prisms. If the
   // launch point lands in any one of those prisms, the whole source building must
   // be excluded. Skipping only the containing triangle creates an invisible solid
@@ -75,34 +61,24 @@ export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=
     if(!overlapsLaunchVolume(prism,launchExclusionPoint))continue;
     const key=String(prism.buildingKey||"");if(key)launchExcludedBuildingKeys.add(key);
   }
-
-  // Box3D v0.1 compounds are explicitly designed for large static geometry: one
-  // global static broadphase proxy owns an internal BVH of convex children. Keep
-  // the compound data and its hulls alive for the lifetime of the shape; rebuilding
-  // hundreds of global static proxies whenever OSM tiles change defeats Box3D's
-  // temporal coherence and makes CCD/ray queries traverse a much larger top-level tree.
-  // Legacy invariant token: b3CreateHullShape. The old per-prism shape path is intentionally not called.
-  const hulls=[],children=[],activePrisms=[];let skippedLaunchPrisms=0,compound=null,body=null;
-  try{
-    for(const prism of snapshot.prisms){
-      const key=String(prism.buildingKey||""),skipWholeBuilding=key&&launchExcludedBuildingKeys.has(key),skipUnkeyedPrism=!key&&overlapsLaunchVolume(prism,launchExclusionPoint);
-      if(skipWholeBuilding||skipUnkeyedPrism){skippedLaunchPrisms++;continue;}
-      const child=prismCompoundChild(b3,prism);if(!child)continue;hulls.push(child.hull);children.push(child);activePrisms.push(prism);
-    }
-    const skippedLaunchBuildings=launchExcludedBuildingKeys.size;
-    if(!children.length)return{body:null,compound:null,hulls:Object.freeze([]),shapeCount:0,broadphaseShapeCount:0,compoundChildCount:0,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze([]),...snapshot};
-
-    compound=b3.b3CreateCompound({hulls:children});if(!compound){for(const hull of hulls)b3.b3DestroyHull(hull);return{body:null,compound:null,hulls:Object.freeze([]),shapeCount:0,broadphaseShapeCount:0,compoundChildCount:0,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze([]),...snapshot};}
-    const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_staticBody;bodyDef.position=[0,0,0];body=b3.b3CreateBody(world,bodyDef);const shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.68;shapeDef.baseMaterial.restitution=.025;
-    // Buildings are physical airframe obstacles, not the GAME altitude datum. The
-    // downward NAV ray must keep measuring the stable launch/terrain plane; letting
-    // it hit OSM roofs makes AGL jump by an entire building height at each roof edge.
-    const collisionMask=BigInt(maskBits)&~BigInt(rangefinderCategoryBits);shapeDef.filter={categoryBits:BigInt(categoryBits),maskBits:collisionMask,groupIndex:0};
-    b3.b3CreateCompoundShape(body,shapeDef,compound);
-    return{body,compound,hulls:Object.freeze(hulls.slice()),shapeCount:activePrisms.length,broadphaseShapeCount:1,compoundChildCount:activePrisms.length,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze(activePrisms.slice()),...snapshot};
-  }catch(error){
-    destroyCompoundResources(b3,{body,compound,hulls});throw error;
+  const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_staticBody;bodyDef.position=[0,0,0];const body=b3.b3CreateBody(world,bodyDef),shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.68;shapeDef.baseMaterial.restitution=.025;
+  // Buildings are physical airframe obstacles, not the GAME altitude datum. The
+  // downward NAV ray must keep measuring the stable launch/terrain plane; letting
+  // it hit OSM roofs makes AGL jump by an entire building height at each roof edge
+  // and feeds that discontinuity straight into the vertical controller while the
+  // pilot is translating. Preserve airframe collision but exclude the rangefinder
+  // query category from every building shape.
+  const collisionMask=BigInt(maskBits)&~BigInt(rangefinderCategoryBits);
+  shapeDef.filter={categoryBits:BigInt(categoryBits),maskBits:collisionMask,groupIndex:0};let shapeCount=0,skippedLaunchPrisms=0;const activePrisms=[];
+  for(const prism of snapshot.prisms){
+    const key=String(prism.buildingKey||"");
+    const skipWholeBuilding=key&&launchExcludedBuildingKeys.has(key);
+    const skipUnkeyedPrism=!key&&overlapsLaunchVolume(prism,launchExclusionPoint);
+    if(skipWholeBuilding||skipUnkeyedPrism){skippedLaunchPrisms++;continue;}
+    const vertices=[];for(const height of [prism.base,prism.top])for(const point of prism.points)vertices.push(point[0],point[1],height);const hull=b3.b3CreateHull(vertices);if(!hull)continue;try{b3.b3CreateHullShape(body,shapeDef,hull);shapeCount++;activePrisms.push(prism);}finally{b3.b3DestroyHull(hull);}
   }
+  const skippedLaunchBuildings=launchExcludedBuildingKeys.size;
+  if(!shapeCount){b3.b3DestroyBody(body);return{body:null,shapeCount:0,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze([]),...snapshot};}return{body,shapeCount,skippedLaunchPrisms,skippedLaunchBuildings,activePrisms:Object.freeze(activePrisms.slice()),...snapshot};
 }
 
 export function resolveBox3dCameraPath(b3,world,anchor,desired,{queryCategoryBits=8n,terrainCategoryBits=1n,clearanceM=.08}={}){
@@ -113,4 +89,4 @@ export function resolveBox3dCameraPath(b3,world,anchor,desired,{queryCategoryBit
   const hitDistance=Math.max(0,Math.min(distance,fraction*distance)),safeDistance=Math.max(0,hitDistance-Math.max(.01,Number(clearanceM)||.08)),scale=safeDistance/distance;return{position:[from[0]+delta[0]*scale,from[1]+delta[1]*scale,from[2]+delta[2]*scale],collided:true,fraction,hitDistanceM:hitDistance};
 }
 
-export function destroyWorldBuildingCollisionBodies(b3,state){destroyCompoundResources(b3,state);}
+export function destroyWorldBuildingCollisionBodies(b3,state){if(state?.body&&b3.b3Body_IsValid(state.body))b3.b3DestroyBody(state.body);}
