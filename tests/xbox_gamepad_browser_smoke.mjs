@@ -70,12 +70,16 @@ try{
   await setButton(5,1);await page.waitForFunction(before=>{const v=document.querySelector("#viewport");return v?.dataset.gamepadFire==="1"&&Number(v.dataset.fireShots||0)>before&&v.dataset.fireAimMode==="center-fixed";},{timeout:4000},triggerBaseline);await pause(180);
   const rbOnly=await page.$eval("#viewport",v=>({shots:Number(v.dataset.fireShots||0),aim:v.dataset.gamepadAim,fire:v.dataset.gamepadFire,x:Number(v.dataset.fireAimX),y:Number(v.dataset.fireAimY),w:v.clientWidth,h:v.clientHeight}));
   if(rbOnly.shots<=triggerBaseline||rbOnly.aim!=="0"||rbOnly.fire!=="1"||Math.abs(rbOnly.x-rbOnly.w/2)>.6||Math.abs(rbOnly.y-rbOnly.h/2)>.6)throw new Error(`RB did not fire straight through center without LB: ${JSON.stringify(rbOnly)}`);
+  await setButton(5,0);
+  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.gamepadFire==="0",{timeout:3000});
+  await pause(140);
+  const pointerBaseline=await page.$eval("#viewport",v=>Number(v.dataset.fireShots||0));
   await page.evaluate(()=>{const v=document.querySelector("#viewport"),r=v.getBoundingClientRect();v.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:99,pointerType:"touch",clientX:r.left+r.width/2,clientY:r.top+r.height/2,button:0}));});
   await pause(180);
   const pointerBlocked=await page.$eval("#viewport",v=>Number(v.dataset.fireShots||0));
-  if(pointerBlocked!==rbOnly.shots)throw new Error(`touch fire remained active in Xbox mode: ${rbOnly.shots} -> ${pointerBlocked}`);
+  if(pointerBlocked!==pointerBaseline)throw new Error(`touch fire remained active in Xbox mode: ${pointerBaseline} -> ${pointerBlocked}`);
 
-  await setButton(5,0);await setButton(4,1);
+  await setButton(4,1);
   await page.evaluate(()=>{globalThis.__xboxTest.setAxis(2,.82);globalThis.__xboxTest.setAxis(3,-.68);});
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.gamepadAim==="1"&&Math.abs(Number(v.dataset.worldLookYaw||0))>1&&Math.abs(Number(v.dataset.worldLookPitch||0))>1;},{timeout:4000});
   const aim=await page.evaluate(()=>{const v=document.querySelector("#viewport"),cross=document.querySelector(".xbox-crosshair"),r=cross.getBoundingClientRect();return{aim:v.dataset.gamepadAim,fire:v.dataset.gamepadFire,yaw:Number(v.dataset.worldLookYaw),pitch:Number(v.dataset.worldLookPitch),cross:getComputedStyle(cross).display,cx:r.left+r.width/2,cy:r.top+r.height/2,vw:v.clientWidth,vh:v.clientHeight};});
