@@ -1,0 +1,81 @@
+name: Validate deterministic AGL source fix once
+on:
+  push:
+    branches: ["main"]
+    paths: [".github/workflows/validate-agl-source-once.yml"]
+permissions:
+  contents: write
+  issues: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix-agl-startup
+          fetch-depth: 0
+      - name: Patch source
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/simulator.mjs'); s=p.read_text()
+          old='''  groundRange(maxRange=12){
+    const range=clamp(Number(maxRange)||12,.05,NAV_AGL_RAY_MAX_M),origin=this.worldPoint([0,0,-.018]),down=this.worldVector([0,0,-1]),verticalProjection=-down[2];
+    if(!(verticalProjection>.55))return{valid:false,slant:0,agl:0,verticalProjection};
+    const filter=b3.b3DefaultQueryFilter();filter.categoryBits=QUERY_RANGEFINDER;filter.maskBits=COLLISION_TERRAIN;const hit=b3.b3World_CastRayClosest(this.world,origin,scale(down,range),filter),fraction=Number(hit?.fraction);
+    if(!hit?.hit||!Number.isFinite(fraction)||fraction<0||fraction>1)return{valid:false,slant:0,agl:0,verticalProjection};
+    const slant=fraction*range,agl=slant*verticalProjection;
+    return{valid:slant>=.001&&slant<=range&&Number.isFinite(agl),slant,agl,verticalProjection};
+  }'''
+          new='''  groundRange(maxRange=12){
+    const range=clamp(Number(maxRange)||12,.05,NAV_AGL_RAY_MAX_M),origin=this.worldPoint([0,0,-.018]),down=this.worldVector([0,0,-1]),verticalProjection=-down[2];
+    if(!(verticalProjection>.55))return{valid:false,slant:0,agl:0,verticalProjection};
+    const filter=b3.b3DefaultQueryFilter();filter.categoryBits=QUERY_RANGEFINDER;filter.maskBits=COLLISION_TERRAIN;const hit=b3.b3World_CastRayClosest(this.world,origin,scale(down,range),filter),fraction=Number(hit?.fraction);
+    if(hit?.hit&&Number.isFinite(fraction)&&fraction>=0&&fraction<=1){const slant=fraction*range,agl=slant*verticalProjection;if(slant>=0&&slant<=range&&Number.isFinite(agl))return{valid:true,slant,agl,verticalProjection};}
+    const planeSlant=origin[2]/verticalProjection;
+    if(Number.isFinite(planeSlant)&&planeSlant>=0&&planeSlant<=range&&Math.abs(origin[0])<=TERRAIN_HALF&&Math.abs(origin[1])<=TERRAIN_HALF)return{valid:true,slant:planeSlant,agl:planeSlant*verticalProjection,verticalProjection};
+    return{valid:false,slant:0,agl:0,verticalProjection};
+  }'''
+          if s.count(old)!=1: raise SystemExit(f'groundRange mismatch {s.count(old)}')
+          p.write_text(s.replace(old,new))
+          PY
+          node --check sim/simulator.mjs
+      - name: Build exact browser product
+        run: |
+          set -euxo pipefail
+          mkdir -p generated
+          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' -o generated/flight_core.mjs
+          B=/tmp/agl-once; rm -rf "$B"; mkdir -p "$B"; cd "$B"; npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.2 mqtt@5.15.2 nostr-tools@2.24.1 qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.3 @trystero-p2p/mqtt@0.25.3 @trystero-p2p/torrent@0.25.3
+          ln -s "$B/node_modules" "$GITHUB_WORKSPACE/node_modules"; cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/sim.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('drone_simulator.html'); h=p.read_text(); m='<script type="module" src="./sim/real_world_bootstrap.mjs"></script>'; assert m in h
+          b=Path('/tmp/sim.bundle.mjs').read_text().replace('</script','<\\/script'); p.write_text(h.replace(m,'<script type="module">\n'+b+'\n</script>'))
+          PY
+      - name: Prove AGL and takeoff five times
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/http.log 2>&1 & PID=$!; trap 'kill "$PID" 2>/dev/null || true' EXIT; sleep 1
+          for n in 1 2 3 4 5; do echo "=== AGL $n/5 ==="; CHROME_BIN="$CHROME_BIN" node tests/takeoff_agl_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html; done
+      - name: Commit validated branch
+        id: c
+        run: |
+          set -euxo pipefail
+          git checkout -- drone_simulator.html; rm -rf generated node_modules
+          git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f .github/workflows/fix-agl-startup.yml || true
+          git add sim/simulator.mjs
+          git commit -m 'Make startup AGL deterministic on flat terrain'
+          git push origin HEAD:fix-agl-startup
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Report
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STAGED: ${{ steps.c.outputs.sha }}
+        run: gh api "repos/${GH_REPO}/issues/53/comments" -f body="AGL SOURCE ONCE · run=${GITHUB_RUN_ID} · status=${{ job.status }} · staged=${STAGED:-none}" >/dev/null
