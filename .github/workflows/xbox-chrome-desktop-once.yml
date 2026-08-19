@@ -1,0 +1,151 @@
+name: One-shot Chrome desktop Xbox handoff
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/xbox-chrome-desktop.trigger']
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch Chrome Gamepad exposure lifecycle
+        id: patch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p=Path(path); s=p.read_text(); count=s.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one marker, found {count}: {old[:180]!r}')
+              p.write_text(s.replace(old,new,1))
+
+          # Simulator: listen to the browser exposure lifecycle instead of assuming
+          # a paired pad is already enumerable through navigator.getGamepads().
+          replace_once('sim/simulator.mjs',
+            'import {findXboxGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";',
+            'import {findXboxGamepad,isXboxCompatibleGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";')
+
+          old='''let pendingDisarmReason=null;
+          let xboxGamepadActive=false,xboxPrevious=null,xboxLastPollMs=performance.now();
+          function neutralizeSoloMotion(){const keepArm=soloControls.arm;soloControls=neutralSoloControls();soloControls.arm=keepArm;setSoloHeightAxis(0);updateSoloSticks();}'''.replace('          ','')
+          new='''let pendingDisarmReason=null;
+          let xboxGamepadActive=false,xboxPrevious=null,xboxLastPollMs=performance.now(),xboxObservedGamepad=null;
+          function rememberXboxGamepad(gamepad){
+            if(!isXboxCompatibleGamepad(gamepad))return false;
+            xboxObservedGamepad=gamepad;const viewport=$("viewport");if(viewport){viewport.dataset.gamepadExposed="1";viewport.dataset.gamepadObservedId=String(gamepad.id||"Xbox controller");}return true;
+          }
+          function currentXboxGamepad(){
+            let pad=null;try{pad=findXboxGamepad(navigator.getGamepads?.());}catch{}
+            if(pad){rememberXboxGamepad(pad);return pad;}
+            return isXboxCompatibleGamepad(xboxObservedGamepad)?xboxObservedGamepad:null;
+          }
+          function neutralizeSoloMotion(){const keepArm=soloControls.arm;soloControls=neutralSoloControls();soloControls.arm=keepArm;setSoloHeightAxis(0);updateSoloSticks();}'''.replace('          ','')
+          replace_once('sim/simulator.mjs',old,new)
+
+          old='''function setXboxControlPreference(enabled){
+            const xboxEnabled=enabled===true,viewport=$("viewport");viewport.dataset.gamepadEnabled=xboxEnabled?"1":"0";neutralizeSoloMotion();deactivateXboxGamepad(xboxEnabled&&soloMode);
+          }
+          function pollXboxGamepad(now){
+            const viewport=$("viewport"),enabled=phoneSettings.xboxControllerEnabled===true;viewport.dataset.gamepadEnabled=enabled?"1":"0";
+            if(!soloMode||!enabled){deactivateXboxGamepad(false);return;}
+            let pad=null;try{pad=findXboxGamepad(navigator.getGamepads?.());}catch{}const sample=sampleXboxGamepad(pad);if(!sample){deactivateXboxGamepad(true);return;}
+            const justActivated=!xboxGamepadActive,dt=justActivated?0:clamp((now-xboxLastPollMs)/1000,0,.05);xboxLastPollMs=now;xboxGamepadActive=true;viewport.dataset.controlSource="xbox";viewport.dataset.gamepadConnected="1";viewport.dataset.gamepadId=sample.id;$("soloGamepadStatus").hidden=false;$("soloGamepadHelp").hidden=false;'''.replace('          ','')
+          new='''function setXboxControlPreference(enabled){
+            const xboxEnabled=enabled===true,viewport=$("viewport");viewport.dataset.gamepadEnabled=xboxEnabled?"1":"0";neutralizeSoloMotion();deactivateXboxGamepad(xboxEnabled&&soloMode);if(soloMode)queueMicrotask(()=>pollXboxGamepad(performance.now()));
+          }
+          function pollXboxGamepad(now){
+            const viewport=$("viewport"),enabled=phoneSettings.xboxControllerEnabled===true,status=$("soloGamepadStatus"),help=$("soloGamepadHelp");viewport.dataset.gamepadEnabled=enabled?"1":"0";
+            if(!soloMode){deactivateXboxGamepad(false);return;}
+            const pad=currentXboxGamepad();
+            if(!enabled){deactivateXboxGamepad(false);if(pad){viewport.dataset.gamepadExposed="1";status.hidden=false;status.textContent="XBOX DETECTED · ENABLE IN SETTINGS";help.hidden=true;}return;}
+            const sample=sampleXboxGamepad(pad);if(!sample){deactivateXboxGamepad(true);status.hidden=false;status.textContent=xboxObservedGamepad?"XBOX CONNECTING…":"XBOX ON · PRESS ANY BUTTON";help.hidden=true;return;}
+            const justActivated=!xboxGamepadActive,dt=justActivated?0:clamp((now-xboxLastPollMs)/1000,0,.05);xboxLastPollMs=now;xboxGamepadActive=true;viewport.dataset.controlSource="xbox";viewport.dataset.gamepadConnected="1";viewport.dataset.gamepadExposed="1";viewport.dataset.gamepadId=sample.id;status.hidden=false;help.hidden=false;'''.replace('          ','')
+          replace_once('sim/simulator.mjs',old,new)
+
+          marker='''async function enterSolo(){
+            soloMode=true;resetPresentationTiming();soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;setXboxControlPreference(phoneSettings.xboxControllerEnabled);inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();'''.replace('          ','')
+          replacement='''addEventListener("gamepadconnected",event=>{if(rememberXboxGamepad(event.gamepad)&&soloMode)pollXboxGamepad(performance.now());});
+          addEventListener("gamepaddisconnected",event=>{if(xboxObservedGamepad&&Number(xboxObservedGamepad.index)===Number(event.gamepad?.index))xboxObservedGamepad=null;if(soloMode)pollXboxGamepad(performance.now());});
+          addEventListener("focus",()=>{if(soloMode)pollXboxGamepad(performance.now());});
+          document.addEventListener("visibilitychange",()=>{if(!document.hidden&&soloMode)pollXboxGamepad(performance.now());});
+          async function enterSolo(){
+            soloMode=true;resetPresentationTiming();soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;setXboxControlPreference(phoneSettings.xboxControllerEnabled);inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();'''.replace('          ','')
+          replace_once('sim/simulator.mjs',marker,replacement)
+
+          # Browser smoke: reproduce Chrome's privacy lifecycle. A controller may be
+          # paired before navigation yet navigator.getGamepads() is empty until a real
+          # controller gesture exposes it and gamepadconnected fires.
+          path='tests/xbox_gamepad_browser_smoke.mjs'; p=Path(path); s=p.read_text()
+          s=s.replace('const state={connected:true,axes:[0,0,0,0],values:Array(17).fill(0)};','const state={connected:true,exposed:false,axes:[0,0,0,0],values:Array(17).fill(0)};')
+          s=s.replace('Object.defineProperty(navigator,"getGamepads",{configurable:true,value:()=>state.connected?[pad]:[]});','Object.defineProperty(navigator,"getGamepads",{configurable:true,value:()=>state.connected&&state.exposed?[pad]:[]});')
+          s=s.replace('''    reset(){state.axes.fill(0);state.values.fill(0);},
+              disconnect(){state.connected=false;},'''.replace('              ',''),'''    reset(){state.axes.fill(0);state.values.fill(0);},
+              expose(){state.exposed=true;const event=new Event("gamepadconnected");Object.defineProperty(event,"gamepad",{value:pad});dispatchEvent(event);},
+              disconnect(){state.connected=false;const event=new Event("gamepaddisconnected");Object.defineProperty(event,"gamepad",{value:pad});dispatchEvent(event);},'''.replace('              ',''))
+          old='''  const defaultOff=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,enabled:v.dataset.gamepadEnabled,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill"),padConnected:Boolean(navigator.getGamepads?.()[0]?.connected)};});
+            if(defaultOff.source!=="touch"||defaultOff.enabled!=="0"||defaultOff.connected!=="0"||defaultOff.left==="none"||defaultOff.right==="none"||defaultOff.height==="none"||defaultOff.arm==="none"||defaultOff.kill==="none"||!defaultOff.padConnected)throw new Error(`Xbox was not safely OFF by default: ${JSON.stringify(defaultOff)}`);
+
+            await page.click("#soloTopbar .phone-settings-button");'''.replace('            ','')
+          new='''  const defaultOff=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,enabled:v.dataset.gamepadEnabled,connected:v.dataset.gamepadConnected,left:display("#soloLeft"),right:display("#soloRight"),height:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill"),enumerated:navigator.getGamepads?.().length||0};});
+            if(defaultOff.source!=="touch"||defaultOff.enabled!=="0"||defaultOff.connected!=="0"||defaultOff.left==="none"||defaultOff.right==="none"||defaultOff.height==="none"||defaultOff.arm==="none"||defaultOff.kill==="none"||defaultOff.enumerated!==0)throw new Error(`Xbox was not safely OFF before Chrome exposure: ${JSON.stringify(defaultOff)}`);
+            await page.evaluate(()=>globalThis.__xboxTest.expose());
+            await page.waitForFunction(()=>document.querySelector("#soloGamepadStatus")?.textContent?.includes("XBOX DETECTED"),{timeout:3000});
+            const detectedOff=await page.evaluate(()=>({source:document.querySelector("#viewport")?.dataset.controlSource,enabled:document.querySelector("#viewport")?.dataset.gamepadEnabled,connected:document.querySelector("#viewport")?.dataset.gamepadConnected,status:document.querySelector("#soloGamepadStatus")?.textContent,enumerated:navigator.getGamepads?.().length||0}));
+            if(detectedOff.source!=="touch"||detectedOff.enabled!=="0"||detectedOff.connected!=="0"||detectedOff.enumerated!==1||!detectedOff.status.includes("ENABLE IN SETTINGS"))throw new Error(`Chrome-exposed Xbox did not remain safely OFF with a clear enable hint: ${JSON.stringify(detectedOff)}`);
+
+            await page.click("#soloTopbar .phone-settings-button");'''.replace('            ','')
+          if old not in s: raise SystemExit('xbox browser default-off marker not found')
+          s=s.replace(old,new,1)
+          s=s.replace('console.log("Xbox browser E2E passed: MENU settings, Y reset, VIEW exit, persistent Xbox handoff and fire/aim/altitude controls.");','console.log("Xbox browser E2E passed: Chrome paired-before-load exposure, MENU settings, Y reset, VIEW exit, persistent Xbox handoff and fire/aim/altitude controls.");')
+          p.write_text(s)
+
+          # Permanent architecture guards so this desktop lifecycle cannot disappear.
+          path='tests/architecture_invariants.mjs'; p=Path(path); s=p.read_text()
+          marker='requireText("sim/simulator.mjs","pollXboxGamepad(renderNow)");\n'
+          addition='requireText("sim/simulator.mjs","gamepadconnected");\nrequireText("sim/simulator.mjs","XBOX ON · PRESS ANY BUTTON");\nrequireText("sim/simulator.mjs","XBOX DETECTED · ENABLE IN SETTINGS");\n'
+          if marker not in s: raise SystemExit('architecture Xbox marker not found')
+          p.write_text(s.replace(marker,marker+addition,1))
+          PY
+
+          node --check sim/simulator.mjs
+          node --check tests/xbox_gamepad_browser_smoke.mjs
+          node tests/xbox_gamepad_test.mjs
+          node tests/architecture_invariants.mjs
+
+      - name: Commit product and tests
+        if: steps.patch.outcome == 'success'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/simulator.mjs tests/xbox_gamepad_browser_smoke.mjs tests/architecture_invariants.mjs
+          git commit -m 'Fix Chrome desktop Xbox exposure handoff'
+          git push origin HEAD:main
+
+      - name: Report result
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_SHA: ${{ github.sha }}
+          PATCH_OUTCOME: ${{ steps.patch.outcome }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          body="XBOX CHROME DESKTOP · source=${GH_SHA} · patch=${PATCH_OUTCOME} · job=${JOB_STATUS} · https://github.com/${GH_REPO}/actions/runs/${GITHUB_RUN_ID}"
+          payload="$(jq -cn --arg body "$body" '{body:$body}')"
+          curl -fsSL -X POST -H 'Accept: application/vnd.github+json' -H "Authorization: Bearer ${GH_TOKEN}" -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null
