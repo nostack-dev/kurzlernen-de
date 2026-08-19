@@ -522,20 +522,17 @@ public:
 
         if (!armed_) controller_.reset();
         if (armed_) {
-            if (std::fabs(controller_.attitude.roll) > 68.0f ||
-                std::fabs(controller_.attitude.pitch) > 68.0f) {
-                set_fault(kFaultTilt);
-                armed_ = false;
+            // Large attitude is recoverable flight state. Angle alone must never
+            // hard-cut every motor; retain attitude authority so the aircraft can
+            // right itself. Explicit disarm/KILL, RC loss and genuine IMU/rate/
+            // timing/protocol faults retain their existing hard-stop behavior.
+            Mix mixed{};
+            if (cmd.throttle <= 0.02f) {
                 controller_.reset();
             } else {
-                Mix mixed{};
-                if (cmd.throttle <= 0.02f) {
-                    controller_.reset();
-                } else {
-                    mixed = controller_.run(imu, cmd, dt, cmd.throttle > 0.05f);
-                }
-                for (size_t i = 0; i < 4; ++i) out.motor_us[i] = pulse(mixed.motor[i], true);
+                mixed = controller_.run(imu, cmd, dt, cmd.throttle > 0.05f);
             }
+            for (size_t i = 0; i < 4; ++i) out.motor_us[i] = pulse(mixed.motor[i], true);
         }
 
         return finalize(out, command_valid, true);
