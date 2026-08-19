@@ -2,6 +2,7 @@ import puppeteer from "puppeteer-core";
 import {readFileSync} from "node:fs";
 
 const base=process.argv[2]||"http://127.0.0.1:4174";
+const baseOrigin=new URL(base).origin;
 const executablePath=process.env.CHROME_BIN;
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 
@@ -17,12 +18,12 @@ const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
 const WORLD_IMAGERY_PREFIX="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/";
 const fixtureTile=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
 const fixtureStyle={version:8,name:"Arondight45 all-camera frame-lock fixture",sources:{},layers:[{id:"background",type:"background",paint:{"background-color":"#243440"}}]};
-await browser.defaultBrowserContext().overridePermissions(base,["geolocation"]);
+await browser.defaultBrowserContext().overridePermissions(baseOrigin,["geolocation"]);
 await page.setGeolocation({latitude:39.569600,longitude:2.650200,accuracy:4});
 await page.setRequestInterception(true);
 page.on("request",request=>{
   const url=request.url(),parsed=new URL(url);
-  if(["data:","blob:","about:"].includes(parsed.protocol)||["127.0.0.1","localhost"].includes(parsed.hostname)){request.continue();return;}
+  if(["data:","blob:","about:"].includes(parsed.protocol)||parsed.origin===baseOrigin||["127.0.0.1","localhost"].includes(parsed.hostname)){request.continue();return;}
   if(url.startsWith(OPENFREEMAP_STYLE)){request.respond({status:200,contentType:"application/json",headers:{"access-control-allow-origin":"*","cache-control":"no-store"},body:JSON.stringify(fixtureStyle)});return;}
   if(url.startsWith(WORLD_IMAGERY_PREFIX)){request.respond({status:200,contentType:"image/png",headers:{"access-control-allow-origin":"*","cache-control":"public,max-age=3600"},body:fixtureTile});return;}
   request.abort();
