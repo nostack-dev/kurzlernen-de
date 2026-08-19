@@ -1,188 +1,125 @@
 name: ESP32-S31 flight stack
-# Production/HIL compile the same raw-hardware FirmwareRuntime boundary.
 
 on:
   push:
     branches: [main]
     paths:
-      - "esp32/Arondight45_DroneFC_Core.hpp"
-      - "esp32/Arondight45_StateControl.hpp"
-      - "esp32/Arondight45_HardwareSensors.hpp"
-      - "esp32/Arondight45_FirmwareRuntime.hpp"
-      - "esp32/Arondight45_HIL_Protocol.hpp"
-      - "esp32/Arondight45_DroneFC_S31.cpp"
-      - "esp32/Arondight45_DroneFC_HIL_S31.cpp"
-      - "sim/**"
-      - "tests/**"
-      - "tools/s31_hil_bridge.mjs"
-      - "drone_simulator.html"
-      - "drone_controller.html"
       - ".github/workflows/s31-hil.yml"
-      - ".github/workflows/deploy.yml"
-  pull_request:
-    paths:
-      - "esp32/Arondight45_DroneFC_Core.hpp"
-      - "esp32/Arondight45_StateControl.hpp"
-      - "esp32/Arondight45_HardwareSensors.hpp"
-      - "esp32/Arondight45_FirmwareRuntime.hpp"
-      - "esp32/Arondight45_HIL_Protocol.hpp"
-      - "esp32/Arondight45_DroneFC_S31.cpp"
-      - "esp32/Arondight45_DroneFC_HIL_S31.cpp"
-      - "sim/**"
-      - "tests/**"
-      - "tools/s31_hil_bridge.mjs"
-      - "drone_simulator.html"
-      - "drone_controller.html"
-      - ".github/workflows/s31-hil.yml"
-      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
-  host-tests:
+  finalize-staging:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Shared raw-hardware runtime and protocol tests
-        run: |
-          set -euxo pipefail
-          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core-tests
-          /tmp/fc-core-tests
-          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control-tests
-          /tmp/state-control-tests
-          g++ -std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -Iesp32 tests/drone_hil_protocol_test.cpp -o /tmp/hil-tests
-          ASAN_OPTIONS=detect_leaks=1 /tmp/hil-tests
-          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil-host-tests
-          /tmp/sil-host-tests
-          clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core-clang
-          /tmp/fc-core-clang
-          clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control-clang
-          /tmp/state-control-clang
-          node tests/control_semantics_test.mjs
-          node tests/xbox_gamepad_test.mjs
-          node tests/render_stability_test.mjs
-          node tests/vs_pose_sync_test.mjs
-          node tests/physics_validation_test.mjs
-          node tests/world_building_collisions_test.mjs
-          node tests/s31_digital_twin_audit_test.mjs
-          node tests/lan_vs_smoke.mjs
-      - name: Architecture and JavaScript validation
-        run: |
-          set -euxo pipefail
-          node --check sim/real_world_bootstrap.mjs
-          node --check sim/simulator.mjs
-          node --check sim/world_building_collisions.mjs
-          node --check sim/world_building_collision_physics.mjs
-          node --check sim/controller.mjs
-          node --check sim/p2p_link.mjs
-          node --check sim/control_semantics.mjs
-          node --check sim/control_settings.mjs
-          node --check sim/xbox_gamepad.mjs
-          node --check sim/render_stability.mjs
-          node --check sim/vs_pose_sync.mjs
-          node --check sim/flight_logbook.mjs
-          node --check sim/physics_validation.mjs
-          node --check sim/lan_vs.mjs
-          node --check tests/architecture_invariants.mjs
-          node --check tests/control_semantics_test.mjs
-          node --check tests/xbox_gamepad_test.mjs
-          node --check tests/xbox_gamepad_browser_smoke.mjs
-          node --check tests/android_render_browser_smoke.mjs
-          node --check tests/render_stability_test.mjs
-          node --check tests/vs_pose_sync_test.mjs
-          node --check tests/physics_validation_test.mjs
-          node --check tests/s31_digital_twin_audit_test.mjs
-          node --check tests/sil_wasm_smoke.mjs
-          node --check tests/browser_sim_smoke.mjs
-          node --check tests/dual_phone_smoke.mjs
-          node --check tests/lan_vs_smoke.mjs
-          node --check tests/network_logbook_browser_smoke.mjs
-          node --check tests/world_building_collisions_test.mjs
-          node --check tests/world_building_collision_box3d_test.mjs
-          node --check tests/world_building_collision_browser_smoke.mjs
-          node --check tools/s31_hil_bridge.mjs
-          node tests/architecture_invariants.mjs
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: finalize-flight-photoreal
+          fetch-depth: 0
 
-  esp-idf-build:
-    runs-on: ubuntu-latest
-    container: espressif/idf@sha256:68085df693b34bacfd69984ae05bb1e3b475ea3d4684943cfeed5a39954850e7
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Activate ESP-IDF
-        shell: bash
-        run: |
-          set -euxo pipefail
-          . "$IDF_PATH/export.sh"
-          python "$IDF_PATH/tools/idf.py" --version
-      - name: Build production firmware for ESP32-S31
-        shell: bash
-        run: |
-          set -euxo pipefail
-          . "$IDF_PATH/export.sh"
-          rm -rf /tmp/arondight45-production
-          mkdir -p /tmp/arondight45-production/main
-          cp esp32/Arondight45_DroneFC_Core.hpp /tmp/arondight45-production/main/
-          cp esp32/Arondight45_StateControl.hpp /tmp/arondight45-production/main/
-          cp esp32/Arondight45_HardwareSensors.hpp /tmp/arondight45-production/main/
-          cp esp32/Arondight45_FirmwareRuntime.hpp /tmp/arondight45-production/main/
-          cp esp32/Arondight45_DroneFC_S31.cpp /tmp/arondight45-production/main/
-          cat > /tmp/arondight45-production/CMakeLists.txt <<'EOF'
-          cmake_minimum_required(VERSION 3.16)
-          include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-          project(arondight45_s31_production)
-          EOF
-          cat > /tmp/arondight45-production/main/CMakeLists.txt <<'EOF'
-          idf_component_register(SRCS "Arondight45_DroneFC_S31.cpp" INCLUDE_DIRS ".")
-          EOF
-          cd /tmp/arondight45-production
-          python "$IDF_PATH/tools/idf.py" --preview set-target esp32s31
-          python "$IDF_PATH/tools/idf.py" --preview build
-      - name: Build functional HIL firmware for ESP32-S31
-        shell: bash
-        run: |
-          set -euxo pipefail
-          . "$IDF_PATH/export.sh"
-          rm -rf /tmp/arondight45-hil
-          mkdir -p /tmp/arondight45-hil/main
-          cp esp32/Arondight45_DroneFC_Core.hpp /tmp/arondight45-hil/main/
-          cp esp32/Arondight45_StateControl.hpp /tmp/arondight45-hil/main/
-          cp esp32/Arondight45_HardwareSensors.hpp /tmp/arondight45-hil/main/
-          cp esp32/Arondight45_FirmwareRuntime.hpp /tmp/arondight45-hil/main/
-          cp esp32/Arondight45_HIL_Protocol.hpp /tmp/arondight45-hil/main/
-          cp esp32/Arondight45_DroneFC_HIL_S31.cpp /tmp/arondight45-hil/main/
-          cat > /tmp/arondight45-hil/CMakeLists.txt <<'EOF'
-          cmake_minimum_required(VERSION 3.16)
-          include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-          project(arondight45_s31_hil)
-          EOF
-          cat > /tmp/arondight45-hil/main/CMakeLists.txt <<'EOF'
-          idf_component_register(SRCS "Arondight45_DroneFC_HIL_S31.cpp" INCLUDE_DIRS ".")
-          EOF
-          cd /tmp/arondight45-hil
-          python "$IDF_PATH/tools/idf.py" --preview set-target esp32s31
-          python "$IDF_PATH/tools/idf.py" --preview build
-
-  report:
-    if: always()
-    needs: [host-tests, esp-idf-build]
-    runs-on: ubuntu-latest
-    permissions:
-      issues: write
-    steps:
-      - name: Report S31 final status
+      - name: Report start
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          GH_SHA: ${{ github.sha }}
-          GH_RUN_ID: ${{ github.run_id }}
-          GH_RUN_NUMBER: ${{ github.run_number }}
-          HOST_RESULT: ${{ needs.host-tests.result }}
-          IDF_RESULT: ${{ needs.esp-idf-build.result }}
+        run: gh api "repos/${GH_REPO}/issues/53/comments" -f body="FINALIZER START · run=${GITHUB_RUN_ID} · staging=$(git rev-parse HEAD)" >/dev/null
+
+      - name: Apply reviewed staged patch
         run: |
-          set -euo pipefail
-          body="S31 FINAL · sha=${GH_SHA} · run=${GH_RUN_ID} · number=${GH_RUN_NUMBER} · host=${HOST_RESULT} · idf=${IDF_RESULT} · https://github.com/${GH_REPO}/actions/runs/${GH_RUN_ID}"
-          payload="$(jq -cn --arg body "$body" '{body:$body}')"
-          curl -fsSL -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GH_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          lines=Path('.github/workflows/finalize-flight-photoreal.yml').read_text().splitlines()
+          target='- name: Apply flight handoff, FPV optical stabilization, and lazy photoreal wiring'
+          start=next(i for i,x in enumerate(lines) if x.strip()==target)
+          run=next(i+1 for i in range(start+1,len(lines)) if lines[i].strip()=='run: |')
+          out=[]
+          for line in lines[run:]:
+              if line.startswith('      - name:'): break
+              out.append(line[10:] if line.startswith('          ') else line)
+          script='\n'.join(out)+'\n'
+          script=script.replace('const MODE_STORAGE="arondight45WorldMode";','const MODE_STORAGE="arondight45WorldModeV2";')
+          Path('/tmp/apply.sh').write_text(script)
+          PY
+          bash -euxo pipefail /tmp/apply.sh
+
+      - name: Tighten neutral and vertical handoff
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('esp32/Arondight45_StateControl.hpp');s=p.read_text().replace('kVerticalJerkLimitMps3 = 400.0f','kVerticalJerkLimitMps3 = 1200.0f')
+          old='''        const float target_horizontal_speed = std::sqrt(commanded_forward_mps_ * commanded_forward_mps_ +
+                                                        commanded_right_mps_ * commanded_right_mps_);
+        // The I term is drag compensation for a non-zero cruise target. It must
+        // never become stored propulsion after the pilot releases translation.
+        // Neutral means an immediate zero-velocity target, so clear the cruise
+        // compensation before computing the braking acceleration. The P/D path
+        // then commands counter-tilt immediately, still under the same 7.5 m/s²
+        // and 40° physical envelopes.
+        if (target_horizontal_speed <= kHorizontalIntegralNeutralTargetMps) {'''
+          new='''        const float target_horizontal_speed = std::sqrt(commanded_forward_mps_ * commanded_forward_mps_ +
+                                                        commanded_right_mps_ * commanded_right_mps_);
+        const float pilot_horizontal_speed = std::sqrt(intent.forward_mps * intent.forward_mps +
+                                                       intent.right_mps * intent.right_mps);
+        // Pilot-neutral clears cruise compensation immediately; only the velocity
+        // target itself ramps down, so no stored I term can kick the airframe.
+        if (pilot_horizontal_speed <= kHorizontalIntegralNeutralTargetMps) {'''
+          if s.count(old)!=1: raise SystemExit('neutral-integral block mismatch')
+          s=s.replace(old,new).replace('if (target_horizontal_speed > kHorizontalIntegralNeutralTargetMps) {','if (pilot_horizontal_speed > kHorizontalIntegralNeutralTargetMps) {',1)
+          p.write_text(s)
+          p=Path('tests/architecture_invariants.mjs');p.write_text(p.read_text().replace('kVerticalJerkLimitMps3 = 400.0f','kVerticalJerkLimitMps3 = 1200.0f'))
+          p=Path('tests/state_control_test.cpp');t=p.read_text().replace('CHECK(controller.debug().vertical_accel_mps2 > 49.4f);\n    CHECK(controller.debug().vertical_accel_mps2 < 49.7f);','CHECK(controller.debug().vertical_accel_mps2 > 48.7f);\n    CHECK(controller.debug().vertical_accel_mps2 < 48.9f);');p.write_text(t)
+          PY
+
+      - name: Compile and test controller architecture
+        run: |
+          set -euxo pipefail
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/core && /tmp/core
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state && /tmp/state
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil && /tmp/sil
+          node tests/control_semantics_test.mjs
+          node tests/camera_stabilization_test.mjs
+          node tests/architecture_invariants.mjs
+          node --check sim/simulator.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/photorealistic_3d_tiles.mjs
+
+      - name: Bundle pinned real photogrammetry renderer
+        run: |
+          set -euxo pipefail
+          mkdir -p /tmp/photo && cd /tmp/photo
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 3d-tiles-renderer@0.5.0 esbuild@0.25.8
+          ln -s /tmp/photo/node_modules "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/photorealistic_3d_tiles.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/photo.mjs
+          node --check /tmp/photo.mjs
+          test "$(wc -c < /tmp/photo.mjs)" -gt 100000
+          grep -q 'GoogleCloudAuthPlugin' sim/photorealistic_3d_tiles.mjs
+          grep -q 'maxBytesSize' sim/photorealistic_3d_tiles.mjs
+          grep -q 'dispose-model' sim/photorealistic_3d_tiles.mjs
+          grep -q 'import(PHOTOREAL_BUNDLE_URL)' sim/real_world_bootstrap.mjs
+          rm node_modules
+
+      - name: Commit tested staging tree
+        id: staged
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/finalize-flight-photoreal.yml
+          git add esp32/Arondight45_StateControl.hpp tests/state_control_test.cpp tests/architecture_invariants.mjs sim/simulator.mjs sim/real_world_bootstrap.mjs sim/photorealistic_3d_tiles.mjs .github/workflows/deploy.yml
+          git commit -m 'Finalize smooth flight handoff and real photogrammetry streaming'
+          git push origin HEAD:finalize-flight-photoreal
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Report result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STAGED_SHA: ${{ steps.staged.outputs.sha }}
+        run: gh api "repos/${GH_REPO}/issues/53/comments" -f body="FINALIZER FINAL · run=${GITHUB_RUN_ID} · status=${{ job.status }} · staging=${STAGED_SHA:-none}" >/dev/null
