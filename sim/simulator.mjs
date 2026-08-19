@@ -14,7 +14,7 @@ import {partitionCalibrationLog,evaluatePhysicsValidation,validationSummary,PHYS
 import {findXboxGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";
 import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";
 import {renderPlatformProfile,quantizedViewportSize,viewportSizeChanged} from "./render_stability.mjs";
-import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,resolveBox3dCameraPath} from "./world_building_collision_physics.mjs";
+import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,findClearBuildingLaunchPoint,resolveBox3dCameraPath} from "./world_building_collision_physics.mjs";
 import {Box3dColliderDebugDraw} from "./box3d_collider_debug.mjs";
 import {addPropellerSweepColliders} from "./airframe_collision_envelope.mjs";
 import {deriveQuadMassProperties} from "./component_mass_model.mjs";
@@ -377,6 +377,7 @@ class PhysicsModel {
     validateParams(p);
     this.noise=new Noise();
     this.p={...p,wind:[...p.wind]};
+    this.worldBuildingLaunchResolved=false;this.worldBuildingLaunchPoint=[0,0];
     if(this.world){this.worldBuildingCollisionState=null;b3.b3DestroyWorld(this.world);}
     const worldDef=b3.b3DefaultWorldDef();worldDef.gravity=[0,0,-G];worldDef.enableSleep=false;worldDef.enableContinuous=true;this.world=b3.b3CreateWorld(worldDef);
     const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(this.world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,groupIndex:0};b3.b3CreateBoxShape(ground,groundShape,TERRAIN_HALF,TERRAIN_HALF,.05);
@@ -398,7 +399,17 @@ class PhysicsModel {
     }
   }
   setWorldBuildingCollisions(value){const snapshot=normalizeBuildingCollisionSnapshot(value);if(snapshot.hash===this.worldBuildingCollisionSnapshot.hash&&snapshot.prismCount===this.worldBuildingCollisionSnapshot.prismCount)return false;this.worldBuildingCollisionSnapshot=snapshot;this.rebuildWorldBuildingCollisions();return true;}
-  rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA});this.worldBuildingCollisionRevision++;}
+  resolveWorldBuildingLaunch(){
+    if(this.worldBuildingLaunchResolved||!this.body||!this.worldBuildingCollisionSnapshot.prismCount)return false;
+    const position=this.position(),velocity=this.linear(),angular=this.angular(),untouched=Math.hypot(position[0],position[1])<.14&&position[2]<=AIRFRAME_SPAWN_Z_M+.08&&norm(velocity)<.20&&norm(angular)<.80;
+    if(!untouched){this.worldBuildingLaunchResolved=true;this.worldBuildingLaunchPoint=[Infinity,Infinity];return false;}
+    const safe=findClearBuildingLaunchPoint(this.worldBuildingCollisionSnapshot,{point:[position[0],position[1]],clearanceM:.55,maxSearchM:80}),offset=Math.hypot(safe[0]-position[0],safe[1]-position[1]);
+    this.worldBuildingLaunchResolved=true;this.worldBuildingLaunchPoint=[safe[0],safe[1]];
+    const viewport=$("viewport");if(viewport){viewport.dataset.worldLaunchRelocated=offset>.01?"1":"0";viewport.dataset.worldLaunchOffsetM=offset.toFixed(3);viewport.dataset.worldLaunchX=Number(safe[0]).toFixed(3);viewport.dataset.worldLaunchY=Number(safe[1]).toFixed(3);}
+    if(offset<=.01)return false;
+    b3.b3Body_SetTransform(this.body,[safe[0],safe[1],AIRFRAME_SPAWN_Z_M],this.rotation());b3.b3Body_SetLinearVelocity(this.body,[0,0,0]);b3.b3Body_SetAngularVelocity(this.body,[0,0,0]);this.syncPresentationSnapshots();return true;
+  }
+  rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.resolveWorldBuildingLaunch();this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,launchExclusionPoint:this.worldBuildingLaunchPoint||[Infinity,Infinity]});this.worldBuildingCollisionRevision++;}
   buildGraphics(){
     if(this.group)this.scene.remove(this.group);
     this.group=new THREE.Group();this.group.userData.arondightAirframe=true;this.scene.add(this.group);this.rotors=[];
