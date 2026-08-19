@@ -154,7 +154,7 @@ jobs:
           set -euxo pipefail
           find sim tests tools -type f -name '*.mjs' -print0 | xargs -0 -n1 node --check
 
-      - name: Blocking browser gates - boot, takeoff AGL, flight, Xbox and Android
+      - name: Blocking browser gates - boot, takeoff AGL, flight, Xbox, Android and WORLD frame lock
         timeout-minutes: 10
         run: |
           set -euxo pipefail
@@ -170,6 +170,7 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/world_fpv_frame_lock_smoke.mjs http://127.0.0.1:4174
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -238,6 +239,7 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/takeoff_agl_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs https://kurzlernen.de
           CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs https://kurzlernen.de
+          CHROME_BIN="$CHROME_BIN" node tests/world_fpv_frame_lock_smoke.mjs https://kurzlernen.de
 
       - name: Report live E2E final
         if: always()
