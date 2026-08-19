@@ -1,0 +1,35 @@
+name: AUDIO SETTINGS PATCH
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/audio-settings-trigger'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Apply audio settings product patch
+        run: |
+          set -euxo pipefail
+          python3 .github/audio-settings-patch.py
+          node --check sim/audio_settings.mjs
+          node --check sim/camera_settings.mjs
+          node --check sim/motor_sound.mjs
+          node --check sim/flight_fire_fx.mjs
+          node --check tests/combat_center_fire_browser_smoke.mjs
+      - name: Commit tested product tree
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Add granular audio settings'
+          git push origin HEAD:main
