@@ -308,9 +308,12 @@ struct Mix {
 inline Mix mix(float t, float roll, float pitch, float yaw) {
     t = clamp(t, 0.0f, 1.0f);
 
-    // Preserve roll/pitch authority at the motor rails. Collective is
-    // translated into the remaining motor window instead of scaling
-    // attitude correction to zero at t == 0 or t == 1.
+    // Rail-aware mixer contract:
+    // - upper rail: collective may move DOWN to preserve roll/pitch;
+    // - lower rail: collective must NEVER move UP above the FC request.
+    //   Instead attitude correction is reduced into the available lower
+    //   headroom. This makes t == 0 an absolute zero-thrust command even
+    //   when the attitude loop still carries residual error on the pad.
     std::array<float, 4> roll_pitch{{pitch - roll,
                                       pitch + roll,
                                       -pitch + roll,
@@ -343,8 +346,8 @@ inline Mix mix(float t, float roll, float pitch, float yaw) {
         return values;
     };
 
-    // Yaw is lower priority than roll/pitch. If all requested moments
-    // cannot fit inside [0,1], reduce yaw only as much as necessary.
+    // Yaw is lower priority than roll/pitch whenever the requested
+    // differential span itself exceeds the motor window.
     float yaw_scale = 1.0f;
     auto correction = correction_for_yaw_scale(yaw_scale);
     auto correction_bounds = bounds(correction);
@@ -364,11 +367,20 @@ inline Mix mix(float t, float roll, float pitch, float yaw) {
         correction_bounds = bounds(correction);
     }
 
-    const float collective_min = -correction_bounds[0];
-    const float collective_max = 1.0f - correction_bounds[1];
-    const float collective = collective_min <= collective_max
-        ? clamp(t, collective_min, collective_max)
-        : 0.5f * (collective_min + collective_max);
+    // Lower rail is authoritative: never manufacture extra collective
+    // just to satisfy attitude error while sitting on / descending to
+    // the ground. Scale the differential instead.
+    if (correction_bounds[0] < -t) {
+        const float scale = t > 0.0f ? t / -correction_bounds[0] : 0.0f;
+        for (float& value : correction) value *= clamp(scale, 0.0f, 1.0f);
+        correction_bounds = bounds(correction);
+    }
+
+    // At the upper rail there is real thrust available, so translate
+    // collective downward to keep the requested attitude differential.
+    // Because the differential now fits the lower rail, this shift can
+    // never push a motor below zero.
+    const float collective = std::min(t, 1.0f - correction_bounds[1]);
 
     Mix out;
     for (size_t i = 0; i < 4; ++i)

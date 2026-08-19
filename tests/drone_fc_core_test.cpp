@@ -127,12 +127,21 @@ int main() {
     CHECK(high_rail_pitch.motor[1] > high_rail_pitch.motor[3] + 0.45f);
     for (float value : high_rail_pitch.motor) CHECK(value >= 0.0f && value <= 1.0f);
 
-    // Strong descent still needs differential motor authority. GAME's
-    // flight controller never commands below 0.08 while airborne.
+    // The lower rail must never manufacture collective. This is the
+    // takeoff/landing safety contract: residual attitude error on the pad
+    // may use only the thrust already requested by the state controller.
+    const auto zero_rail_pitch = fc::mix(0.0f, 0.0f, 0.25f, 0.0f);
+    for (float value : zero_rail_pitch.motor) CHECK(std::fabs(value) < 1.0e-6f);
+
     const auto low_rail_pitch = fc::mix(0.08f, 0.0f, 0.25f, 0.0f);
-    CHECK(low_rail_pitch.motor[0] > low_rail_pitch.motor[2] + 0.45f);
-    CHECK(low_rail_pitch.motor[1] > low_rail_pitch.motor[3] + 0.45f);
-    for (float value : low_rail_pitch.motor) CHECK(value >= 0.0f && value <= 1.0f);
+    float low_sum = 0.0f;
+    for (float value : low_rail_pitch.motor) {
+        CHECK(value >= 0.0f && value <= 1.0f);
+        low_sum += value;
+    }
+    CHECK(low_rail_pitch.motor[0] > low_rail_pitch.motor[2] + 0.15f);
+    CHECK(low_rail_pitch.motor[1] > low_rail_pitch.motor[3] + 0.15f);
+    CHECK(low_sum / 4.0f <= 0.0801f);
 
     // Neutral attitude at full collective must remain full collective.
     const auto full_collective_level = fc::mix(1.0f, 0.0f, 0.0f, 0.0f);
