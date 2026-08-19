@@ -45,8 +45,15 @@ try{
   if(before.state!=="DISARMED"||!before.navValid||before.navDegraded||!Number.isFinite(before.agl)||before.agl<0||before.rangeText.includes("DEGRADED")||before.rangeText.includes("LOST"))
     throw new Error(`AGL/arm readiness invalid before ARM: ${JSON.stringify(before)}`);
 
+  const armStart=await page.evaluate(()=>Number(globalThis.__arondightDiagnostics?.simTime));
   await page.click("#soloArm");
-  await page.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:5000});
+  await page.waitForFunction(({start,limit})=>{
+    const d=globalThis.__arondightDiagnostics,sim=Number(d?.simTime),fc=Number(d?.fcState)||0;
+    return Boolean(fc&1)||(Number.isFinite(sim)&&sim>=start+limit);
+  },{timeout:15000},{start:armStart,limit:1.5});
+  const armReached=await page.evaluate(()=>({sim:Number(globalThis.__arondightDiagnostics?.simTime),fc:Number(globalThis.__arondightDiagnostics?.fcState)||0}));
+  if(!(armReached.fc&1)||armReached.sim-armStart>1.5)throw new Error(`takeoff ARM authority failed: start=${armStart} reached=${JSON.stringify(armReached)}`);
+  await page.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:1500});
   await wait(250);
 
   const samples=[];
