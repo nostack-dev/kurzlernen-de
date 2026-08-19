@@ -325,6 +325,7 @@ requireText("sim/simulator.mjs","let soloGroundClearance=phoneSettings.defaultHo
 requireText("sim/control_settings.mjs","INVERT LEFT STICK HORIZONTAL (L/R)");
 requireText("sim/control_settings.mjs","INVERT RIGHT STICK HORIZONTAL (L/R)");
 requireText("sim/control_settings.mjs","INVERT RIGHT STICK VERTICAL (UP/DOWN)");
+requireText("sim/simulator.mjs","pollXboxGamepad(renderNow)");
 requireText("drone_controller.html",'id="gameModeButton"');
 requireText("drone_controller.html",'id="gameHeightPad"');
 requireText("drone_controller.html",'id="gameUp"');
