@@ -8,6 +8,7 @@ import {
   makeBuildingCollisionSnapshot,
   triangulateBuildingFootprints,
 } from "../sim/world_building_collisions.mjs";
+import {resolveBox3dCameraPath} from "../sim/world_building_collision_physics.mjs";
 
 const polygon=(id,coordinates,properties={})=>({id,properties,geometry:{type:"Polygon",coordinates}});
 const square=(x0,y0,x1,y1)=>[[x0,y0],[x1,y0],[x1,y1],[x0,y1],[x0,y0]];
@@ -47,4 +48,15 @@ let courtyardTriangulatorCalls=0;const courtyardPrisms=buildingCollisionPrismsFr
 const snapshot=makeBuildingCollisionSnapshot([polygon("snap",[square(1,2,5,6)],{render_height:11})],{triangulate:fan});
 assert.match(snapshot.hash,/^osm-[0-9a-f]{8}$/);assert.equal(snapshot.footprintCount,1);assert.equal(snapshot.prismCount,1);assert.equal(Object.isFrozen(snapshot),true);
 
-console.log("WORLD building geometry passed: OSM Polygon/MultiPolygon, holes, min/max heights, tile fragments, deterministic hashing and collision budgets are bounded.");
+// Camera occlusion must prefer Box3D's swept mover volume over a center ray.
+// This host contract catches regressions even before the real binding smoke runs.
+let moverCall=null,rayCalls=0;
+const cameraB3={
+  b3DefaultQueryFilter:()=>({categoryBits:0n,maskBits:0n}),
+  b3World_CastMover:(world,origin,mover,translation,filter,callback)=>{moverCall={world,origin:[...origin],mover:{center1:[...mover.center1],center2:[...mover.center2],radius:mover.radius},translation:[...translation],filter:{...filter},callbackResult:callback({})};return .40;},
+  b3World_CastRayClosest:()=>{rayCalls++;return{hit:true,fraction:.9};},
+};
+const cameraSweep=resolveBox3dCameraPath(cameraB3,{id:"world"},[0,0,1],[2,0,1],{queryCategoryBits:8n,terrainCategoryBits:1n,cameraRadiusM:.12,clearanceM:.025});
+assert.ok(moverCall,"camera did not use b3World_CastMover");assert.equal(rayCalls,0,"camera fell back to center ray despite mover support");assert.deepEqual(moverCall.origin,[0,0,1]);assert.deepEqual(moverCall.translation,[2,0,0]);assert.equal(moverCall.mover.radius,.12);assert.equal(moverCall.filter.categoryBits,8n);assert.equal(moverCall.filter.maskBits,1n);assert.equal(cameraSweep.collided,true);assert.ok(cameraSweep.position[0]>.74&&cameraSweep.position[0]<.80,`unexpected swept camera clearance ${JSON.stringify(cameraSweep)}`);
+
+console.log("WORLD building geometry passed: OSM Polygon/MultiPolygon, holes, min/max heights, tile fragments, deterministic hashing, bounded collision budgets and swept camera-volume contract.");
