@@ -1,4 +1,4 @@
-# registered workflow retrigger
+# registered workflow retrigger with explicit status reporting
 name: Stage final product
 
 on:
@@ -8,11 +8,18 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   stage:
     runs-on: ubuntu-latest
     steps:
+      - name: Report staging start
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh api "repos/${GH_REPO}/issues/53/comments" -f body="STAGE START · run=${GITHUB_RUN_ID} · trigger=${GITHUB_SHA}" >/dev/null
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: finalize-flight-photoreal
@@ -106,6 +113,7 @@ jobs:
           rm node_modules
 
       - name: Commit tested product tree
+        id: commit
         run: |
           set -euxo pipefail
           git config user.name 'github-actions[bot]'
@@ -113,3 +121,12 @@ jobs:
           git add -A
           git commit -m 'Finalize smooth flight handoff and real photogrammetry streaming'
           git push origin HEAD:finalize-flight-photoreal
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Report staging final
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STAGED_SHA: ${{ steps.commit.outputs.sha }}
+        run: gh api "repos/${GH_REPO}/issues/53/comments" -f body="STAGE FINAL · run=${GITHUB_RUN_ID} · status=${{ job.status }} · staged=${STAGED_SHA:-none}" >/dev/null
