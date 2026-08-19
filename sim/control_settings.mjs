@@ -92,7 +92,7 @@ function mountSoloWorldSettings({parent,dialog,settingsButton}){
   renderButton();return{section,button:worldButton,activate};
 }
 
-export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange=()=>{},debugGrid=null,xboxControllerToggle=false}={}){
+export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange=()=>{},debugGrid=null,box3dColliderDebug=null,xboxControllerToggle=false}={}){
   if(!parent)throw Error("settings parent required");
   installStyle();
   let settings=loadPhoneControlSettings();
@@ -129,15 +129,16 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
     <label class="phone-settings-toggle"><span>LOCK RIGHT STICK VERTICAL AXIS</span><input data-lock-horizontal type="checkbox"></label>
     ${xboxControllerToggle?'<label class="phone-settings-toggle"><span>XBOX CONTROLLER</span><input data-xbox-controller type="checkbox"></label><p class="phone-settings-note">OFF is the default and keeps touch controls active. ON reserves Xbox/standard-gamepad control and removes every touch flight control from the image, including while the selected controller reconnects.</p>':''}
     ${debugGrid?'<label class="phone-settings-toggle"><span>DEBUG GRIDLINES</span><input data-debug-grid type="checkbox"></label><p class="phone-settings-note">DEBUG GRIDLINES affect only the local training renderer. They never alter WORLD GRID, sensors, collision, FC state or physics.</p>':''}
+    ${box3dColliderDebug?'<label class="phone-settings-toggle"><span>DEBUG COLLISION DRAW</span><input data-box3d-collider-debug type="checkbox"></label><p class="phone-settings-note">DEBUG COLLISION DRAW is render-only. OFF immediately hides Box3D ground, airframe and building collider wireframes and persists OFF locally.</p>':''}
     <p class="phone-settings-note">Left X invert reverses MANUAL yaw / GAME strafe. Right X/Y invert independently reverse TURN and body pitch. MAX HORIZONTAL SPEED scales the real GAME velocity request sent through SBUS to the shared StateController; acceleration, tilt, mixer and motor authority remain flight-controller bounded. Settings are stored locally on this device.</p>
     <div class="phone-settings-actions"><button type="button" data-reset>DEFAULT</button><button type="button" data-close>CLOSE</button></div>`;
   document.body.appendChild(dialog);parent.appendChild(button);
   const left=dialog.querySelector('[data-slider="left"]'),right=dialog.querySelector('[data-slider="right"]'),speed=dialog.querySelector('[data-slider="speed"]'),hover=dialog.querySelector('[data-slider="hover"]');
   const leftOut=dialog.querySelector('[data-out="left"]'),rightOut=dialog.querySelector('[data-out="right"]'),speedOut=dialog.querySelector('[data-out="speed"]'),hoverOut=dialog.querySelector('[data-out="hover"]');
-  const invertLeft=dialog.querySelector("[data-invert-left-horizontal]"),invertRight=dialog.querySelector("[data-invert-right-horizontal]"),invertRightVertical=dialog.querySelector("[data-invert-right-vertical]"),lockLeft=dialog.querySelector("[data-lock-left-horizontal]"),lock=dialog.querySelector("[data-lock-horizontal]"),xboxControllerInput=dialog.querySelector("[data-xbox-controller]"),debugGridInput=dialog.querySelector("[data-debug-grid]");
+  const invertLeft=dialog.querySelector("[data-invert-left-horizontal]"),invertRight=dialog.querySelector("[data-invert-right-horizontal]"),invertRightVertical=dialog.querySelector("[data-invert-right-vertical]"),lockLeft=dialog.querySelector("[data-lock-left-horizontal]"),lock=dialog.querySelector("[data-lock-horizontal]"),xboxControllerInput=dialog.querySelector("[data-xbox-controller]"),debugGridInput=dialog.querySelector("[data-debug-grid]"),box3dColliderDebugInput=dialog.querySelector("[data-box3d-collider-debug]");
   const render=()=>{
     left.value=String(settings.leftFineness);right.value=String(settings.rightFineness);speed.value=String(settings.maxHorizontalSpeedKmh);hover.value=String(settings.defaultHoverAgl);
-    leftOut.value=`${left.value}/10`;rightOut.value=`${right.value}/10`;speedOut.value=`${Math.round(Number(speed.value))} km/h`;hoverOut.value=`${Number(hover.value).toFixed(1)} m`;invertLeft.checked=settings.invertLeftHorizontal;invertRight.checked=settings.invertRightHorizontal;invertRightVertical.checked=settings.invertRightVertical;lockLeft.checked=settings.lockLeftHorizontal;lock.checked=settings.lockRightHorizontal;if(xboxControllerInput)xboxControllerInput.checked=settings.xboxControllerEnabled!==false;if(debugGridInput)debugGridInput.checked=Boolean(debugGrid?.get?.());
+    leftOut.value=`${left.value}/10`;rightOut.value=`${right.value}/10`;speedOut.value=`${Math.round(Number(speed.value))} km/h`;hoverOut.value=`${Number(hover.value).toFixed(1)} m`;invertLeft.checked=settings.invertLeftHorizontal;invertRight.checked=settings.invertRightHorizontal;invertRightVertical.checked=settings.invertRightVertical;lockLeft.checked=settings.lockLeftHorizontal;lock.checked=settings.lockRightHorizontal;if(xboxControllerInput)xboxControllerInput.checked=settings.xboxControllerEnabled!==false;if(debugGridInput)debugGridInput.checked=Boolean(debugGrid?.get?.());if(box3dColliderDebugInput)box3dColliderDebugInput.checked=Boolean(box3dColliderDebug?.get?.());
   };
   const apply=()=>{
     settings=savePhoneControlSettings({
@@ -154,8 +155,8 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
     });
     render();onChange({...settings});
   };
-  left.addEventListener("input",apply);right.addEventListener("input",apply);speed.addEventListener("input",apply);hover.addEventListener("input",apply);invertLeft.addEventListener("change",apply);invertRight.addEventListener("change",apply);invertRightVertical.addEventListener("change",apply);lockLeft.addEventListener("change",apply);lock.addEventListener("change",apply);if(xboxControllerInput)xboxControllerInput.addEventListener("change",apply);if(debugGridInput)debugGridInput.addEventListener("change",()=>{debugGrid?.set?.(debugGridInput.checked);render();});
-  dialog.querySelector("[data-reset]").onclick=()=>{settings=savePhoneControlSettings(DEFAULT_PHONE_SETTINGS);debugGrid?.set?.(Boolean(debugGrid?.defaultValue));render();onChange({...settings});};
+  left.addEventListener("input",apply);right.addEventListener("input",apply);speed.addEventListener("input",apply);hover.addEventListener("input",apply);invertLeft.addEventListener("change",apply);invertRight.addEventListener("change",apply);invertRightVertical.addEventListener("change",apply);lockLeft.addEventListener("change",apply);lock.addEventListener("change",apply);if(xboxControllerInput)xboxControllerInput.addEventListener("change",apply);if(debugGridInput)debugGridInput.addEventListener("change",()=>{debugGrid?.set?.(debugGridInput.checked);render();});if(box3dColliderDebugInput)box3dColliderDebugInput.addEventListener("change",()=>{box3dColliderDebug?.set?.(box3dColliderDebugInput.checked);render();});
+  dialog.querySelector("[data-reset]").onclick=()=>{settings=savePhoneControlSettings(DEFAULT_PHONE_SETTINGS);debugGrid?.set?.(Boolean(debugGrid?.defaultValue));box3dColliderDebug?.set?.(Boolean(box3dColliderDebug?.defaultValue));render();onChange({...settings});};
   dialog.querySelector("[data-close]").onclick=()=>dialog.close();
   button.onclick=()=>{settings=loadPhoneControlSettings();render();dialog.showModal();};
   const world=mountSoloWorldSettings({parent,dialog,settingsButton:button});
