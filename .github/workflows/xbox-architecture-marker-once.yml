@@ -16,22 +16,24 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Add permanent Xbox polling invariant
+      - name: Refresh permanent Xbox lifecycle invariants
         shell: bash
         run: |
           set -euxo pipefail
           python3 - <<'PY'
           from pathlib import Path
           p=Path('tests/architecture_invariants.mjs');s=p.read_text()
-          marker='requireText("sim/control_settings.mjs","INVERT RIGHT STICK VERTICAL (UP/DOWN)");\n'
-          line='requireText("sim/simulator.mjs","pollXboxGamepad(renderNow)");\n'
-          if line not in s:
-              if marker not in s: raise SystemExit('stable Xbox architecture insertion marker missing')
-              s=s.replace(marker,marker+line,1);p.write_text(s)
+          old='requireText("sim/simulator.mjs",\'import {findXboxGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";\');'
+          new='requireText("sim/simulator.mjs",\'import {findXboxGamepad,isXboxCompatibleGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";\');'
+          if old not in s: raise SystemExit('stale Xbox import invariant missing')
+          s=s.replace(old,new,1)
+          marker='requireText("sim/simulator.mjs","pollXboxGamepad(renderNow)");\n'
+          if marker not in s: raise SystemExit('Xbox polling invariant missing')
+          p.write_text(s)
           PY
           node tests/architecture_invariants.mjs
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add tests/architecture_invariants.mjs
-          git commit -m 'Gate Xbox polling in architecture tests'
+          git commit -m 'Refresh Xbox lifecycle architecture invariants'
           git push origin HEAD:main
