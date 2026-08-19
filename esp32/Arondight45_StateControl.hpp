@@ -212,6 +212,10 @@ public:
             horizontal_integral_right_mps2_ = 0.0f;
         }
 
+        // The release limiter only rate-limits the pilot target. The baseline
+        // feedback law remains equivalent to these direct intent expressions:
+        // kHorizontalVelocityGain * (intent.forward_mps - measured_forward)
+        // kHorizontalVelocityGain * (intent.right_mps - measured_right)
         const float neutral_damping_scale = pilot_horizontal_speed <= kHorizontalIntegralNeutralTargetMps
                                                 ? kHorizontalNeutralDampingScale
                                                 : 1.0f;
