@@ -68,6 +68,7 @@ jobs:
           node tests/physics_validation_test.mjs
           node tests/world_building_collisions_test.mjs
           node tests/s31_digital_twin_audit_test.mjs
+          node tests/p2p_link_test.mjs
           node tests/lan_vs_smoke.mjs
       - name: Architecture and JavaScript validation
         run: |
@@ -87,6 +88,7 @@ jobs:
           node --check sim/physics_validation.mjs
           node --check sim/lan_vs.mjs
           node --check tests/architecture_invariants.mjs
+          node --check tests/p2p_link_test.mjs
           node --check tests/control_semantics_test.mjs
           node --check tests/xbox_gamepad_test.mjs
           node --check tests/xbox_gamepad_browser_smoke.mjs
