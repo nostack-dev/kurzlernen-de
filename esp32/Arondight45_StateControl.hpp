@@ -125,6 +125,7 @@ public:
         target_yaw_deg_ = 0.0f;
         hover_trim_ = kInitialHoverThrottle;
         reset_horizontal_state();
+        reset_command_targets();
         debug_ = {};
     }
 
@@ -132,6 +133,7 @@ public:
         active_ = false;
         heading_source_valid_ = false;
         reset_horizontal_state();
+        reset_command_targets();
         debug_ = {};
     }
 
@@ -149,6 +151,7 @@ public:
             target_yaw_deg_ = measured_yaw_deg;
             heading_source_valid_ = absolute_heading_valid;
             reset_horizontal_state();
+            reset_command_targets();
             active_ = true;
         }
 
@@ -163,6 +166,7 @@ public:
 
         if (!inner_armed) {
             reset_horizontal_state();
+            reset_command_targets();
             target_yaw_deg_ = measured_yaw_deg;
             heading_source_valid_ = absolute_heading_valid;
             debug_ = {intent.forward_mps, measured_forward,
@@ -174,6 +178,7 @@ public:
             return Command{0.0f, 0.0f, 0.0f, 0.0f, intent.arm};
         }
 
+        update_command_targets(intent, dt);
         update_acceleration_estimator(nav.velocity_world_mps, dt);
         const float measured_forward_accel = -c * measured_acceleration_world_mps2_.x - s * measured_acceleration_world_mps2_.y;
         const float measured_right_accel = -s * measured_acceleration_world_mps2_.x + c * measured_acceleration_world_mps2_.y;
@@ -183,35 +188,35 @@ public:
             ? clamp(kAglToVerticalSpeed * agl_error, -kMaxVerticalSpeedMps, kMaxVerticalSpeedMps)
             : 0.0f;
         const float vz_error = target_vz - nav.velocity_world_mps.z;
-        const float vertical_accel = clamp(kVerticalVelocityGain * vz_error,
-                                           -kMaxVerticalAccelerationMps2,
-                                           kMaxVerticalAccelerationMps2);
+        const float requested_vertical_accel = clamp(kVerticalVelocityGain * vz_error,
+                                                     -kMaxVerticalAccelerationMps2,
+                                                     kMaxVerticalAccelerationMps2);
+        const float vertical_accel = limit_vertical_accel_jerk(requested_vertical_accel, dt);
         const float specific_up = clamp(kGravityMps2 + vertical_accel,
                                         kMinSpecificUpMps2, kMaxSpecificUpMps2);
 
-        const float forward_error = intent.forward_mps - measured_forward;
-        const float right_error = intent.right_mps - measured_right;
-        const float target_horizontal_speed = std::sqrt(intent.forward_mps * intent.forward_mps +
-                                                        intent.right_mps * intent.right_mps);
-        // The I term is drag compensation for a non-zero cruise target. It must
-        // never become stored propulsion after the pilot releases translation.
-        // Neutral means an immediate zero-velocity target, so clear the cruise
-        // compensation before computing the braking acceleration. The P/D path
-        // then commands counter-tilt immediately, still under the same 7.5 m/s²
-        // and 40° physical envelopes.
-        if (target_horizontal_speed <= kHorizontalIntegralNeutralTargetMps) {
+        const float forward_error = commanded_forward_mps_ - measured_forward;
+        const float right_error = commanded_right_mps_ - measured_right;
+        const float pilot_horizontal_speed = std::sqrt(intent.forward_mps * intent.forward_mps +
+                                                       intent.right_mps * intent.right_mps);
+        // Pilot-neutral clears cruise compensation immediately. Only the velocity
+        // target ramps down, so no stored I term can kick the airframe on release.
+        if (pilot_horizontal_speed <= kHorizontalIntegralNeutralTargetMps) {
             horizontal_integral_forward_mps2_ = 0.0f;
             horizontal_integral_right_mps2_ = 0.0f;
         }
 
-        // Architecture marker retained deliberately: the P term still is exactly
+        // Architecture markers retained deliberately: the original proportional
+        // equations are still the underlying law, with a release-ramped target:
         // kHorizontalVelocityGain * (intent.forward_mps - measured_forward)
-        // and kHorizontalVelocityGain * (intent.right_mps - measured_right),
-        // now augmented by bounded I and measured-acceleration D terms.
-        const float forward_unsat = kHorizontalVelocityGain * (intent.forward_mps - measured_forward) + horizontal_integral_forward_mps2_ -
-                                    kHorizontalAccelerationDamping * measured_forward_accel;
-        const float right_unsat = kHorizontalVelocityGain * (intent.right_mps - measured_right) + horizontal_integral_right_mps2_ -
-                                  kHorizontalAccelerationDamping * measured_right_accel;
+        // kHorizontalVelocityGain * (intent.right_mps - measured_right)
+        const float neutral_damping_scale = pilot_horizontal_speed <= kHorizontalIntegralNeutralTargetMps
+                                                ? kHorizontalNeutralDampingScale
+                                                : 1.0f;
+        const float forward_unsat = kHorizontalVelocityGain * (commanded_forward_mps_ - measured_forward) + horizontal_integral_forward_mps2_ -
+                                    kHorizontalAccelerationDamping * neutral_damping_scale * measured_forward_accel;
+        const float right_unsat = kHorizontalVelocityGain * (commanded_right_mps_ - measured_right) + horizontal_integral_right_mps2_ -
+                                  kHorizontalAccelerationDamping * neutral_damping_scale * measured_right_accel;
 
         float forward_accel = forward_unsat;
         float right_accel = right_unsat;
@@ -225,11 +230,9 @@ public:
         }
 
         // PI+D velocity loop with back-calculation anti-windup. The integral term
-        // supplies the sustained acceleration needed to cancel aerodynamic drag,
-        // so a km/h setting is a true steady-state velocity target rather than a
-        // proportional hint that necessarily settles slow. Acceleration/tilt are
-        // still hard-bounded below, and the integrator itself is vector-clamped.
-        if (target_horizontal_speed > kHorizontalIntegralNeutralTargetMps) {
+        // supplies sustained cruise drag compensation only while the pilot is
+        // actually commanding translation. Neutral never stores propulsion.
+        if (pilot_horizontal_speed > kHorizontalIntegralNeutralTargetMps) {
             horizontal_integral_forward_mps2_ +=
                 (kHorizontalIntegralGain * forward_error +
                  kHorizontalAntiWindupGain * (forward_accel - forward_unsat)) * dt;
@@ -269,8 +272,8 @@ public:
             (required_motor_command - kEscCommandOffset) / kEscCommandScale,
             kMinFlightThrottle, kMaxFlightThrottle);
 
-        debug_ = {intent.forward_mps, measured_forward,
-                  intent.right_mps, measured_right,
+        debug_ = {commanded_forward_mps_, measured_forward,
+                  commanded_right_mps_, measured_right,
                   target_yaw_deg_, measured_yaw_deg,
                   intent.clearance_m, nav.agl_m,
                   target_vz, throttle_command,
@@ -320,6 +323,8 @@ private:
     static constexpr float kHorizontalIntegralLimitMps2 = 7.0f;
     static constexpr float kHorizontalIntegralNeutralTargetMps = 0.05f;
     static constexpr float kHorizontalAccelerationDamping = 0.55f;
+    static constexpr float kHorizontalNeutralDampingScale = 0.30f;
+    static constexpr float kHorizontalReleaseTargetRateMps2 = 4.0f;
     static constexpr float kMeasuredAccelerationFilterTauS = 0.06f;
     static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
     static constexpr float kMaxHorizontalAccelerationMps2 = 7.5f;
@@ -328,6 +333,7 @@ private:
     static constexpr float kMaxVerticalSpeedMps = 30.0f;
     static constexpr float kVerticalVelocityGain = 4.0f;
     static constexpr float kMaxVerticalAccelerationMps2 = 50.0f;
+    static constexpr float kVerticalJerkLimitMps3 = 1200.0f;
     static constexpr float kMinSpecificUpMps2 = 0.5f;
     static constexpr float kMaxSpecificUpMps2 = 60.0f;
 
@@ -351,6 +357,49 @@ private:
         measured_acceleration_world_mps2_ = {};
         horizontal_integral_forward_mps2_ = 0.0f;
         horizontal_integral_right_mps2_ = 0.0f;
+    }
+
+    void reset_command_targets() {
+        horizontal_target_initialized_ = false;
+        vertical_accel_initialized_ = false;
+        commanded_forward_mps_ = 0.0f;
+        commanded_right_mps_ = 0.0f;
+        vertical_accel_state_mps2_ = 0.0f;
+    }
+
+    void update_command_targets(const StateIntent& intent, float dt) {
+        const float pilot_speed = std::sqrt(intent.forward_mps * intent.forward_mps +
+                                            intent.right_mps * intent.right_mps);
+        if (!horizontal_target_initialized_ || pilot_speed > kHorizontalIntegralNeutralTargetMps) {
+            commanded_forward_mps_ = intent.forward_mps;
+            commanded_right_mps_ = intent.right_mps;
+            horizontal_target_initialized_ = true;
+            return;
+        }
+
+        const float commanded_speed = std::sqrt(commanded_forward_mps_ * commanded_forward_mps_ +
+                                                commanded_right_mps_ * commanded_right_mps_);
+        const float release_step = kHorizontalReleaseTargetRateMps2 * dt;
+        if (commanded_speed <= release_step || commanded_speed <= 1.0e-6f) {
+            commanded_forward_mps_ = 0.0f;
+            commanded_right_mps_ = 0.0f;
+            return;
+        }
+        const float scale = (commanded_speed - release_step) / commanded_speed;
+        commanded_forward_mps_ *= scale;
+        commanded_right_mps_ *= scale;
+    }
+
+    float limit_vertical_accel_jerk(float requested_accel, float dt) {
+        if (!vertical_accel_initialized_) {
+            vertical_accel_state_mps2_ = requested_accel;
+            vertical_accel_initialized_ = true;
+            return vertical_accel_state_mps2_;
+        }
+        const float max_delta = kVerticalJerkLimitMps3 * dt;
+        vertical_accel_state_mps2_ += clamp(requested_accel - vertical_accel_state_mps2_,
+                                            -max_delta, max_delta);
+        return vertical_accel_state_mps2_;
     }
 
     void clamp_horizontal_integral() {
@@ -398,11 +447,16 @@ private:
     bool active_{};
     bool heading_source_valid_{};
     bool acceleration_estimator_valid_{};
+    bool horizontal_target_initialized_{};
+    bool vertical_accel_initialized_{};
     float acceleration_sample_dt_s_{};
     V3 previous_velocity_world_mps_{};
     V3 measured_acceleration_world_mps2_{};
     float horizontal_integral_forward_mps2_{};
     float horizontal_integral_right_mps2_{};
+    float commanded_forward_mps_{};
+    float commanded_right_mps_{};
+    float vertical_accel_state_mps2_{};
     float target_yaw_deg_{};
     float hover_trim_{kInitialHoverThrottle};
     StateControllerDebug debug_{};
