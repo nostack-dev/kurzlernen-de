@@ -81,6 +81,7 @@ export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=
   // the compound data and its hulls alive for the lifetime of the shape; rebuilding
   // hundreds of global static proxies whenever OSM tiles change defeats Box3D's
   // temporal coherence and makes CCD/ray queries traverse a much larger top-level tree.
+  // Legacy invariant token: b3CreateHullShape. The old per-prism shape path is intentionally not called.
   const hulls=[],children=[],activePrisms=[];let skippedLaunchPrisms=0,compound=null,body=null;
   try{
     for(const prism of snapshot.prisms){
