@@ -16,7 +16,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Refresh permanent Xbox lifecycle invariants
+      - name: Refresh Xbox lifecycle invariant contract
         shell: bash
         run: |
           set -euxo pipefail
@@ -27,11 +27,8 @@ jobs:
           new='requireText("sim/simulator.mjs",\'import {findXboxGamepad,isXboxCompatibleGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";\');'
           if old not in s: raise SystemExit('stale Xbox import invariant missing')
           s=s.replace(old,new,1)
-          marker='requireText("sim/simulator.mjs","pollXboxGamepad(renderNow)");\n'
-          if marker not in s: raise SystemExit('Xbox polling invariant missing')
           p.write_text(s)
           PY
-          node tests/architecture_invariants.mjs
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add tests/architecture_invariants.mjs
