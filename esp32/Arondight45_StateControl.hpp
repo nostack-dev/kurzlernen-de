@@ -183,8 +183,13 @@ public:
         const float measured_right_accel = -s * measured_acceleration_world_mps2_.x + c * measured_acceleration_world_mps2_.y;
 
         const float agl_error = agl_valid ? intent.clearance_m - nav.agl_m : 0.0f;
+        // Climb and descent need asymmetric envelopes. High upward authority is
+        // useful for takeoff/recovery, while allowing the same 30 m/s target on
+        // descent builds downward momentum that cannot be removed before a low
+        // AGL target. Keep the historically validated 2 m/s descent envelope and
+        // retain the modern high climb ceiling.
         const float target_vz = agl_valid
-            ? clamp(kAglToVerticalSpeed * agl_error, -kMaxVerticalSpeedMps, kMaxVerticalSpeedMps)
+            ? clamp(kAglToVerticalSpeed * agl_error, -kMaxVerticalDescentSpeedMps, kMaxVerticalSpeedMps)
             : 0.0f;
         const float vz_error = target_vz - nav.velocity_world_mps.z;
         // The altitude/vertical-speed cascade is critically damped on descent.
@@ -194,8 +199,11 @@ public:
         const float vertical_velocity_gain = target_vz < 0.0f
             ? kVerticalDescentVelocityGain
             : kVerticalVelocityGain;
+        // Downward acceleration is separately bounded so the aircraft never
+        // trades away the motor/attitude reserve merely to chase a falling AGL
+        // target. Positive braking/recovery acceleration keeps the full ceiling.
         const float requested_vertical_accel = clamp(vertical_velocity_gain * vz_error,
-                                                     -kMaxVerticalAccelerationMps2,
+                                                     -kMaxVerticalDescentAccelerationMps2,
                                                      kMaxVerticalAccelerationMps2);
         const float vertical_accel = limit_vertical_accel_jerk(requested_vertical_accel, dt);
         const float specific_up = clamp(kGravityMps2 + vertical_accel,
@@ -349,9 +357,11 @@ private:
 
     static constexpr float kAglToVerticalSpeed = 2.00f;
     static constexpr float kMaxVerticalSpeedMps = 30.0f;
+    static constexpr float kMaxVerticalDescentSpeedMps = 2.0f;
     static constexpr float kVerticalVelocityGain = 4.0f;
     static constexpr float kVerticalDescentVelocityGain = 8.0f;
     static constexpr float kMaxVerticalAccelerationMps2 = 50.0f;
+    static constexpr float kMaxVerticalDescentAccelerationMps2 = 4.0f;
     static constexpr float kVerticalJerkLimitMps3 = 1200.0f;
     // Keep enough collective thrust during aggressive descent for the inner
     // attitude loop to retain real motor/torque authority. 0.5 m/s² was nearly

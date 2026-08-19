@@ -121,10 +121,12 @@ int main() {
     const float descent_auto_roll_deg = std::fabs(cmd.roll * fc::kInnerMaxAttitudeDeg);
     const float descent_horizontal_accel = std::hypot(controller.debug().forward_accel_mps2,
                                                        controller.debug().right_accel_mps2);
-    CHECK(controller.debug().vertical_accel_mps2 < -49.9f);
-    // At the restored 4 m/s² collective reserve, tan(25°) permits at most
-    // ~1.865 m/s² automatic horizontal correction while preserving attitude torque.
-    CHECK(descent_horizontal_accel < 1.87f);
+    CHECK(controller.debug().target_vz_mps < -1.99f && controller.debug().target_vz_mps > -2.01f);
+    CHECK(controller.debug().vertical_accel_mps2 < -3.99f && controller.debug().vertical_accel_mps2 > -4.01f);
+    // With descent acceleration bounded to 4 m/s², the vertical specific-force
+    // component stays around 5.8 m/s² before any extra safety floor. The 25°
+    // translation envelope therefore permits at most ~2.71 m/s² automatically.
+    CHECK(descent_horizontal_accel < 2.71f);
     CHECK(cmd.throttle > 0.10f);
     CHECK(descent_auto_pitch_deg <= 25.05f);
     CHECK(descent_auto_roll_deg <= 25.05f);
