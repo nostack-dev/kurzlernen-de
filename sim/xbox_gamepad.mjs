@@ -63,7 +63,7 @@ export function sampleXboxGamepad(gamepad){
     rightTrigger,
     heightAxis:Math.abs(rightTrigger-leftTrigger)<.05?0:clamp(rightTrigger-leftTrigger),
     aim,
-    fire:aim&&rightShoulder,
+    fire:rightShoulder,
     arm:buttonValue(gamepad,XBOX_STANDARD_BUTTON.A)>.5,
     kill:buttonValue(gamepad,XBOX_STANDARD_BUTTON.B)>.5,
     camera:buttonValue(gamepad,XBOX_STANDARD_BUTTON.X)>.5,

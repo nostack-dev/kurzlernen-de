@@ -156,11 +156,11 @@ class RealWorldBridge{
   applyVsCombat(packet){
     if(!packet||!this.vsSession)return;
     if(packet.type==="hit"){
-      if(this.vsLocalDead||this.vsSeenHits.has(packet.id))return;this.rememberVsHit(packet.id);const damage=clamp(Math.round(Number(packet.damage)||0),1,100);this.vsLocalHealth=Math.max(0,this.vsLocalHealth-damage);const killed=this.vsLocalHealth===0;if(killed){this.vsLocalDead=true;this.vsDeaths++;}this.updateVsCombatHud(true);this.vsSession.sendCombat({type:"state",id:packet.id,hp:this.vsLocalHealth,killed});
+      if(this.vsLocalDead||this.vsSeenHits.has(packet.id))return;this.rememberVsHit(packet.id);const damage=clamp(Math.round(Number(packet.damage)||0),1,100);this.vsLocalHealth=Math.max(0,this.vsLocalHealth-damage);const killed=this.vsLocalHealth===0;if(killed){this.vsLocalDead=true;this.vsDeaths++;}this.updateVsCombatHud(true);window.dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage,hp:this.vsLocalHealth,killed}}));this.vsSession.sendCombat({type:"state",id:packet.id,hp:this.vsLocalHealth,killed});
       if(killed){clearTimeout(this.vsRespawnTimer);this.vsRespawnTimer=setTimeout(()=>{if(!this.vsSession)return;this.vsLocalDead=false;this.vsLocalHealth=100;this.updateVsCombatHud(true);this.vsSession.sendCombat({type:"respawn",hp:100});},2200);}return;
     }
     if(packet.type==="state"){
-      if(!this.vsPendingHits.delete(packet.id))return;if(this.vsPeerDead&&!packet.killed)return;this.vsPeerHealth=clamp(Math.round(Number(packet.hp)||0),0,100);if(packet.killed&&!this.vsPeerDead){this.vsPeerDead=true;this.vsKills++;this.vsPendingHits.clear();this.explodeVsPeer();}this.updateVsCombatHud(true);return;
+      if(!this.vsPendingHits.delete(packet.id))return;if(this.vsPeerDead&&!packet.killed)return;this.vsPeerHealth=clamp(Math.round(Number(packet.hp)||0),0,100);if(packet.killed&&!this.vsPeerDead){this.vsPeerDead=true;this.vsKills++;this.vsPendingHits.clear();this.explodeVsPeer();}this.updateVsCombatHud(true);window.dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{hp:this.vsPeerHealth,killed:Boolean(packet.killed)}}));return;
     }
     if(packet.type==="respawn"){this.vsPeerHealth=clamp(Math.round(Number(packet.hp)||100),0,100);this.vsPeerDead=false;this.updateVsCombatHud(true);}
   }

@@ -12,14 +12,13 @@ buttons[XBOX_STANDARD_BUTTON.LEFT_TRIGGER]={pressed:true,value:.65};
 buttons[XBOX_STANDARD_BUTTON.RIGHT_TRIGGER]={pressed:true,value:.20};
 let sample=sampleXboxGamepad(pad);
 assert.ok(sample.heightAxis<-.44,"LT must command height down while RT remains height up");
-assert.equal(sample.fire,false,"RB must never fire without the LB aim modifier");
+assert.equal(sample.fire,false,"RB is released, so fixed-center fire must be off");
 
-buttons[XBOX_STANDARD_BUTTON.LEFT_SHOULDER]={pressed:true,value:1};
 buttons[XBOX_STANDARD_BUTTON.RIGHT_SHOULDER]={pressed:true,value:1};
 sample=sampleXboxGamepad(pad);
-assert.equal(sample.aim,true);
-assert.equal(sample.fire,true,"LB + RB must fire");
-assert.ok(sample.right.x>.45&&sample.right.y<-.25,"LB aim must retain right-stick free-look axes");
+assert.equal(sample.aim,false);
+assert.equal(sample.fire,true,"RB must fire straight through the center crosshair without LB");
+buttons[XBOX_STANDARD_BUTTON.LEFT_SHOULDER]={pressed:true,value:1};sample=sampleXboxGamepad(pad);assert.equal(sample.aim,true);assert.equal(sample.fire,true);assert.ok(sample.right.x>.45&&sample.right.y<-.25,"LB free-look must retain right-stick axes while RB fire stays independent");
 
 buttons[XBOX_STANDARD_BUTTON.RIGHT_TRIGGER]={pressed:true,value:1};
 sample=sampleXboxGamepad(pad);
@@ -38,4 +37,4 @@ pad.axes=[0,0,0,0];for(let index=0;index<buttons.length;index++)buttons[index]={
 pad.connected=false;
 assert.equal(sampleXboxGamepad(pad),null);
 // Release gate: the paired-before-load Chrome exposure lifecycle is exercised by xbox_gamepad_browser_smoke.mjs.
-console.log("Xbox mapping passed: touch handoff, LT/RT altitude, LB free-look/fire, and settings-modal flight suppression with release latch.");
+console.log("Xbox mapping passed: touch handoff, LT/RT altitude, independent RB center-fire, LB free-look, and settings-modal flight suppression with release latch.");

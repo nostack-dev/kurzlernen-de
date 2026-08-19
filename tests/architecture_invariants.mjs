@@ -236,14 +236,14 @@ requireText("sim/simulator.mjs",'import {HybridMotorSound} from "./motor_sound.m
 requireText("sim/simulator.mjs",'import {FlightLogbook} from "./flight_logbook.mjs";');
 requireText("sim/simulator.mjs",'import {installFlightFireFx} from "./flight_fire_fx.mjs";');
 requireText("sim/simulator.mjs",'import {findXboxGamepad,isXboxCompatibleGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";');
-for(const marker of ["LB+RB FIRE","data-control-source=\"xbox\"","data-gamepad-enabled=\"1\"","pollXboxGamepad(renderNow)","setGamepadLook?.(sample.aim","setGamepadFire(sample.fire","xboxControllerToggle:true","phoneSettings.xboxControllerEnabled===true","deactivateXboxGamepad(true)"])
+for(const marker of ["RB FIRE","data-control-source=\"xbox\"","data-gamepad-enabled=\"1\"","pollXboxGamepad(renderNow)","setGamepadLook?.(sample.aim","setGamepadFire(sample.fire","xboxControllerToggle:true","phoneSettings.xboxControllerEnabled===true","deactivateXboxGamepad(true)"])
   requireText("sim/simulator.mjs",marker);
 for(const marker of ["XBOX CONTROLLER","data-xbox-controller","xboxControllerEnabled:xboxControllerInput?xboxControllerInput.checked:settings.xboxControllerEnabled"])
   requireText("sim/control_settings.mjs",marker);
 requireText("sim/control_semantics.mjs","xboxControllerEnabled:false");
-for(const marker of ["RIGHT_SHOULDER:5","LEFT_TRIGGER:6","RIGHT_TRIGGER:7","heightAxis:","fire:aim&&rightShoulder"])
+for(const marker of ["RIGHT_SHOULDER:5","LEFT_TRIGGER:6","RIGHT_TRIGGER:7","heightAxis:","fire:rightShoulder"])
   requireText("sim/xbox_gamepad.mjs",marker);
-requireText("tests/xbox_gamepad_test.mjs","LB + RB must fire");
+requireText("tests/xbox_gamepad_test.mjs","RB must fire straight through the center crosshair without LB");
 requireText(".github/workflows/deploy.yml","node tests/xbox_gamepad_test.mjs");
 requireText(".github/workflows/deploy.yml","node tests/xbox_gamepad_browser_smoke.mjs");
 for(const marker of ['import {renderPlatformProfile,quantizedViewportSize,viewportSizeChanged} from "./render_stability.mjs";','desynchronized:false,preserveDrawingBuffer:false','presentationStableBackbuffer','presentationQualityMode="fixed-backbuffer"','commitPresentationResize()','viewportSizeChanged(presentationViewportSize,next)','html.android-stable-webgl body.solo-flight #viewport{height:100svh!important}','html.android-stable-webgl body.solo-flight #viewport{width:100svh!important;height:100vw!important}'])requireText("sim/simulator.mjs",marker);
@@ -261,7 +261,7 @@ for(const marker of ["kStateNavigationDegraded","navigation_velocity_valid","nav
 for(const marker of ["kNavigationVelocityValid","kNavigationAglValid","kNavigationSplitValidity"])requireText("esp32/Arondight45_HardwareSensors.hpp",marker);
 requireText("sim/simulator.mjs",'const motorSound=new HybridMotorSound($("viewport"));');
 for(const marker of ["loadCameraSettings","mountCameraSettings","cameraSettings.fpvTiltDeg","cameraSettings.fpvFovDeg","cameraSettings.thirdDistanceM","camera.position.distanceTo(position)"])requireText("sim/simulator.mjs",marker);
-for(const marker of ["const FPV_CAMERA_FORWARD_OFFSET_M = .070;","const FPV_CAMERA_UP_OFFSET_M = .028;","fpvCameraUpOffsetM=FPV_CAMERA_UP_OFFSET_M.toFixed(3)","fpvCameraBody.userData.arondightFpvCamera=true","fpvCameraLens.userData.arondightFpvCameraLens=true"])requireText("sim/simulator.mjs",marker);
+for(const marker of ["const FPV_CAMERA_MOUNT_FORWARD_OFFSET_M = .070;","const FPV_CAMERA_LENS_FORWARD_OFFSET_M = .093;","const FPV_CAMERA_FORWARD_OFFSET_M = .102;","const FPV_CAMERA_UP_OFFSET_M = .028;","FPV_CAMERA_OPTICAL_CLEARANCE_M","fpvCameraMountForwardOffsetM=FPV_CAMERA_MOUNT_FORWARD_OFFSET_M.toFixed(3)","fpvCameraOpticalClearanceM=FPV_CAMERA_OPTICAL_CLEARANCE_M.toFixed(3)","fpvSelfCameraVisible","fpvCameraBody.userData.arondightFpvCamera=true","fpvCameraLens.userData.arondightFpvCameraLens=true"])requireText("sim/simulator.mjs",marker);forbidText("sim/simulator.mjs","fpvCameraBody.position.set(-FPV_CAMERA_FORWARD_OFFSET_M","optical origin must not be reused as physical camera-body center");
 requireText("sim/component_mass_model.mjs","cameraX:-0.070,cameraZ:0.028","camera/VTX mass placement must match the realistic forward/up mount");
 requireText("drone_simulator.html",'id="cameraXmm" type="number" step="1" value="-70"',"camera X default must match the optical/mass mount");
 requireText("drone_simulator.html",'id="cameraZmm" type="number" step="1" value="28"',"camera Z default must match the optical/mass mount");
@@ -317,7 +317,7 @@ const worldSource=read("sim/real_world_bootstrap.mjs"),worldSyncStart=worldSourc
 if(worldSyncStart<0||worldSyncEnd<=worldSyncStart)fail("cannot isolate WORLD camera synchronization boundary");
 if((worldSyncSource.match(/calculateCameraOptionsFromTo/g)||[]).length!==2)fail("WORLD camera must use one exact eye/target MapLibre solve for every camera mode");
 forbidText("sim/real_world_bootstrap.mjs","}else if(!forceMode&&now-this.lastMapSyncMs<this.mapFrameMs)return;","external cameras must not run on a slower map clock");
-for(const marker of ['import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";',"capturePresentationStep()","capturePresentationCurrent()","presentationPose(alpha=1)","stabilized-inertial-anchor","presentationPoseInterpolation","physics.render(presentationPose,presentationDt);updateCamera(presentationPose,renderNow)"])
+for(const marker of ['import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";','import {StabilizedExternalAirframeVisual,EXTERNAL_AIRFRAME_VISUAL_PROFILES} from "./visual_pose_stabilization.mjs";',"capturePresentationStep()","capturePresentationCurrent()","presentationPose(alpha=1)","stabilized-inertial-anchor","presentationPoseInterpolation","physics.render(presentationPose,presentationDt,visualPose)","this.visualGroup","externalAirframeVisualRig.update"])
   requireText("sim/simulator.mjs",marker);
 for(const forbidden of ["camera.position.lerp(desired","cameraFollowInitialized","followHeading","thirdHeading"])
   forbidText("sim/simulator.mjs",forbidden,`external camera reintroduced split-frame smoothing: ${forbidden}`);
@@ -427,3 +427,10 @@ forbidText("sim/simulator.mjs","stepSoloHeightTarget(renderNow)","solo height ta
 requireText("tests/browser_sim_smoke.mjs","fixed-step simulation is not tracking wall time");
 requireText("tests/real_world_ui_smoke.mjs","WORLD GRID off did not persist");
 requireText("tests/real_world_ui_smoke.mjs","WORLD semantic palette/legend marker missing");
+
+for(const marker of ["fireAimMode=\"center-fixed\"","fireCrosshairMode=\"center-fixed\"","hitConfirmSound","combat-damage-vignette","onRecoil(.16)"])requireText("sim/flight_fire_fx.mjs",marker);
+for(const marker of ["arondight:combat-hit-confirm","arondight:combat-damage"])requireText("sim/real_world_bootstrap.mjs",marker);
+requireText("sim/visual_pose_stabilization.mjs","class StabilizedExternalAirframeVisual");
+requireText(".github/workflows/deploy.yml","node tests/visual_pose_stabilization_test.mjs");
+requireText(".github/workflows/deploy.yml","node tests/combat_center_fire_test.mjs");
+requireText(".github/workflows/deploy.yml","node tests/combat_center_fire_browser_smoke.mjs");

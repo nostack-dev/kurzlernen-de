@@ -13,6 +13,7 @@ import {installFlightFireFx} from "./flight_fire_fx.mjs";
 import {partitionCalibrationLog,evaluatePhysicsValidation,validationSummary,PHYSICS_VALIDATION_SCHEMA} from "./physics_validation.mjs";
 import {findXboxGamepad,isXboxCompatibleGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";
 import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";
+import {StabilizedExternalAirframeVisual,EXTERNAL_AIRFRAME_VISUAL_PROFILES} from "./visual_pose_stabilization.mjs";
 import {renderPlatformProfile,quantizedViewportSize,viewportSizeChanged} from "./render_stability.mjs";
 import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,findClearBuildingLaunchPoint,resolveBox3dCameraPath} from "./world_building_collision_physics.mjs";
 import {Box3dColliderDebugDraw} from "./box3d_collider_debug.mjs";
@@ -103,8 +104,12 @@ const AIRFRAME_VISUAL_LOWEST_Z_M = Math.min(AIRFRAME_VISUAL_BODY_CENTER_Z_M-AIRF
 const AIRFRAME_GROUND_SUPPORT_M = AIRFRAME_COLLISION_HALF_Z_M;
 const AIRFRAME_SPAWN_SEPARATION_M = .002;
 const AIRFRAME_SPAWN_Z_M = AIRFRAME_GROUND_SUPPORT_M + AIRFRAME_SPAWN_SEPARATION_M;
-const FPV_CAMERA_FORWARD_OFFSET_M = .070;
+const FPV_CAMERA_MOUNT_FORWARD_OFFSET_M = .070;
+const FPV_CAMERA_LENS_FORWARD_OFFSET_M = .093;
+const FPV_CAMERA_LENS_HALF_DEPTH_M = .004;
+const FPV_CAMERA_FORWARD_OFFSET_M = .102;
 const FPV_CAMERA_UP_OFFSET_M = .028;
+const FPV_CAMERA_OPTICAL_CLEARANCE_M = FPV_CAMERA_FORWARD_OFFSET_M - (FPV_CAMERA_LENS_FORWARD_OFFSET_M + FPV_CAMERA_LENS_HALF_DEPTH_M);
 const $ = id => document.getElementById(id);
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 const norm = v => Math.hypot(v[0], v[1], v[2]);
@@ -375,7 +380,7 @@ function eulerToQuat(r,p,y){
 }
 
 class PhysicsModel {
-  constructor(params,{graphics=false,scene=null}={}){this.graphics=graphics;this.scene=scene;this.noise=new Noise();this.world=null;this.body=null;this.group=null;this.rotors=[];this.worldBuildingCollisionSnapshot=normalizeBuildingCollisionSnapshot(null);this.worldBuildingCollisionState=null;this.worldBuildingCollisionRevision=0;this.renderPreviousPosition=[0,0,0];this.renderCurrentPosition=[0,0,0];this.renderPreviousRotation=[0,0,0,1];this.renderCurrentRotation=[0,0,0,1];this.renderPreviousVelocity=[0,0,0];this.renderCurrentVelocity=[0,0,0];this.renderPosition=new THREE.Vector3();this.renderRotation=new THREE.Quaternion();this.renderVelocity=new THREE.Vector3();this.renderCurrentQuaternion=new THREE.Quaternion();this.presentationPoseCache={position:this.renderPosition,quaternion:this.renderRotation,velocity:this.renderVelocity};this.reset(params);}
+  constructor(params,{graphics=false,scene=null}={}){this.graphics=graphics;this.scene=scene;this.noise=new Noise();this.world=null;this.body=null;this.group=null;this.rotors=[];this.worldBuildingCollisionSnapshot=normalizeBuildingCollisionSnapshot(null);this.worldBuildingCollisionState=null;this.worldBuildingCollisionRevision=0;this.renderPreviousPosition=[0,0,0];this.renderCurrentPosition=[0,0,0];this.renderPreviousRotation=[0,0,0,1];this.renderCurrentRotation=[0,0,0,1];this.renderPreviousVelocity=[0,0,0];this.renderCurrentVelocity=[0,0,0];this.renderPosition=new THREE.Vector3();this.renderRotation=new THREE.Quaternion();this.renderVelocity=new THREE.Vector3();this.renderCurrentQuaternion=new THREE.Quaternion();this.presentationPoseCache={position:this.renderPosition,quaternion:this.renderRotation,velocity:this.renderVelocity};this.visualRelativePosition=new THREE.Vector3();this.visualDesiredPosition=new THREE.Vector3();this.visualInverseRootQuaternion=new THREE.Quaternion();this.visualRelativeQuaternion=new THREE.Quaternion();this.reset(params);}
   reset(p,initial=null){
     validateParams(p);
     this.noise=new Noise();
@@ -428,11 +433,15 @@ class PhysicsModel {
       for(const x of [-this.skidHalfLength,this.skidHalfLength]){const foot=new THREE.Mesh(new THREE.SphereGeometry(AIRFRAME_LANDING_SKID_RADIUS_M,10,8),skidMaterial);foot.position.set(x,y,AIRFRAME_LANDING_SKID_Z_M);foot.castShadow=true;this.group.add(foot);}
     }
     const nose=new THREE.Mesh(new THREE.ConeGeometry(.018,.06,16),new THREE.MeshStandardMaterial({color:0xff4f65,emissive:0x66121f,emissiveIntensity:.35}));nose.rotation.z=-Math.PI/2;nose.position.x=-.075;this.group.add(nose);
-    const fpvCameraBody=new THREE.Mesh(new THREE.BoxGeometry(.040,.030,.025),bodyMaterial);fpvCameraBody.position.set(-FPV_CAMERA_FORWARD_OFFSET_M,0,FPV_CAMERA_UP_OFFSET_M);fpvCameraBody.userData.arondightFpvCamera=true;fpvCameraBody.castShadow=true;this.group.add(fpvCameraBody);
-    const fpvCameraLens=new THREE.Mesh(new THREE.CylinderGeometry(.010,.010,.008,18),new THREE.MeshStandardMaterial({color:0x111820,metalness:.15,roughness:.22}));fpvCameraLens.rotation.z=Math.PI/2;fpvCameraLens.position.set(-FPV_CAMERA_FORWARD_OFFSET_M-.023,0,FPV_CAMERA_UP_OFFSET_M);fpvCameraLens.userData.arondightFpvCameraLens=true;this.group.add(fpvCameraLens);
+    const fpvCameraBody=new THREE.Mesh(new THREE.BoxGeometry(.040,.030,.025),bodyMaterial);fpvCameraBody.position.set(-FPV_CAMERA_MOUNT_FORWARD_OFFSET_M,0,FPV_CAMERA_UP_OFFSET_M);fpvCameraBody.userData.arondightFpvCamera=true;fpvCameraBody.castShadow=true;this.group.add(fpvCameraBody);this.fpvCameraBody=fpvCameraBody;
+    const fpvCameraLens=new THREE.Mesh(new THREE.CylinderGeometry(.010,.010,.008,18),new THREE.MeshStandardMaterial({color:0x111820,metalness:.15,roughness:.22}));fpvCameraLens.rotation.z=Math.PI/2;fpvCameraLens.position.set(-FPV_CAMERA_LENS_FORWARD_OFFSET_M,0,FPV_CAMERA_UP_OFFSET_M);fpvCameraLens.userData.arondightFpvCameraLens=true;this.group.add(fpvCameraLens);this.fpvCameraLens=fpvCameraLens;
     const worldHaloBack=new THREE.Mesh(new THREE.TorusGeometry(.158,.009,8,48),new THREE.MeshBasicMaterial({color:0x061018,transparent:true,opacity:.78,depthTest:false,depthWrite:false}));worldHaloBack.position.z=.034;worldHaloBack.visible=false;worldHaloBack.renderOrder=999;this.group.add(worldHaloBack);this.worldHaloBack=worldHaloBack;
     const worldHalo=new THREE.Mesh(new THREE.TorusGeometry(.15,.0055,8,48),new THREE.MeshBasicMaterial({color:0xaef3ff,transparent:true,opacity:.98,depthTest:false,depthWrite:false}));worldHalo.position.z=.035;worldHalo.visible=false;worldHalo.renderOrder=1000;this.group.add(worldHalo);this.worldHalo=worldHalo;
     const worldHeadingCue=new THREE.Mesh(new THREE.ConeGeometry(.012,.055,12),new THREE.MeshBasicMaterial({color:0xff405a,depthTest:false,depthWrite:false}));worldHeadingCue.rotation.z=-Math.PI/2;worldHeadingCue.position.set(-.19,0,.036);worldHeadingCue.visible=false;worldHeadingCue.renderOrder=1001;this.group.add(worldHeadingCue);this.worldHeadingCue=worldHeadingCue;
+    // Root airframe stays authoritative for WORLD/VS/network state. Every visible
+    // component lives under a presentation-only child that may be filtered in
+    // external views without ever moving physics, hitboxes or multiplayer pose.
+    this.visualGroup=new THREE.Group();this.visualGroup.userData.arondightVisualAirframe=true;const visualChildren=[...this.group.children];for(const child of visualChildren)this.visualGroup.add(child);this.group.add(this.visualGroup);
   }
   localVector(v){return b3.b3Body_GetLocalVector([0,0,0],this.body,v);}
   worldVector(v){return b3.b3Body_GetWorldVector([0,0,0],this.body,v);}
@@ -519,7 +528,7 @@ class PhysicsModel {
     this.capturePresentationCurrent();
   }
   state(){const p=this.position(),q=this.rotation(),v=this.linear();return{x:p[0],y:p[1],z:p[2],vx:v[0],vy:v[1],vz:v[2],speed:norm(v),attitude:quatToEuler(q),battery_v:this.batteryVoltage,current_a:this.batteryCurrent};}
-  render(pose=this.presentationPose(1),dt=1/60){if(!this.graphics||!this.group)return pose;this.group.position.copy(pose.position);this.group.position.z+=AIRFRAME_PRESENTATION_GROUND_BIAS_M;this.group.quaternion.copy(pose.quaternion);const presentationViewport=$("viewport");if(presentationViewport){presentationViewport.dataset.airframePresentationGroundBiasM=AIRFRAME_PRESENTATION_GROUND_BIAS_M.toFixed(3);presentationViewport.dataset.airframeVisualSupportZ=(this.group.position.z+AIRFRAME_VISUAL_LOWEST_Z_M).toFixed(4);}const step=clamp(Number(dt)||0,0,.1);this.rotors.forEach((rotor,i)=>rotor.rotation.z=(rotor.rotation.z+(i%2?-1:1)*this.motorOmega[i]*step)%(2*Math.PI));const worldActive=Boolean(globalThis.__arondightRealWorld?.active),cameraMode=$("viewport")?.dataset.cameraMode||"follow",showWorldMarker=worldActive&&cameraMode!=="fpv";if(this.worldHalo)this.worldHalo.visible=showWorldMarker;if(this.worldHaloBack)this.worldHaloBack.visible=showWorldMarker;if(this.worldHeadingCue)this.worldHeadingCue.visible=showWorldMarker;return pose;}
+  render(pose=this.presentationPose(1),dt=1/60,visualPose=pose){if(!this.graphics||!this.group)return pose;this.group.position.copy(pose.position);this.group.position.z+=AIRFRAME_PRESENTATION_GROUND_BIAS_M;this.group.quaternion.copy(pose.quaternion);const visible=visualPose||pose;if(this.visualGroup){this.visualDesiredPosition.copy(visible.position);this.visualDesiredPosition.z+=AIRFRAME_PRESENTATION_GROUND_BIAS_M;this.visualInverseRootQuaternion.copy(this.group.quaternion).invert();this.visualRelativePosition.copy(this.visualDesiredPosition).sub(this.group.position).applyQuaternion(this.visualInverseRootQuaternion);this.visualGroup.position.copy(this.visualRelativePosition);this.visualRelativeQuaternion.copy(this.visualInverseRootQuaternion).multiply(visible.quaternion).normalize();this.visualGroup.quaternion.copy(this.visualRelativeQuaternion);}const presentationViewport=$("viewport");if(presentationViewport){presentationViewport.dataset.airframePresentationGroundBiasM=AIRFRAME_PRESENTATION_GROUND_BIAS_M.toFixed(3);presentationViewport.dataset.airframeVisualSupportZ=(visible.position.z+AIRFRAME_PRESENTATION_GROUND_BIAS_M+AIRFRAME_VISUAL_LOWEST_Z_M).toFixed(4);}const step=clamp(Number(dt)||0,0,.1);this.rotors.forEach((rotor,i)=>rotor.rotation.z=(rotor.rotation.z+(i%2?-1:1)*this.motorOmega[i]*step)%(2*Math.PI));const worldActive=Boolean(globalThis.__arondightRealWorld?.active),cameraMode=$("viewport")?.dataset.cameraMode||"follow",showWorldMarker=worldActive&&cameraMode!=="fpv";if(this.worldHalo)this.worldHalo.visible=showWorldMarker;if(this.worldHaloBack)this.worldHaloBack.visible=showWorldMarker;if(this.worldHeadingCue)this.worldHeadingCue.visible=showWorldMarker;return pose;}
 }
 
 function integrateDuration(model,pulses,duration){
@@ -592,21 +601,26 @@ let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglVa
 const savedCameraMode=localStorage.getItem("arondight45CameraMode");
 let cameraMode=["follow","fpv","third"].includes(savedCameraMode)?savedCameraMode:"follow",cameraFrameMs=performance.now();
 const externalCameraRig=new StabilizedExternalCameraRig();
+const externalAirframeVisualRig=new StabilizedExternalAirframeVisual(EXTERNAL_AIRFRAME_VISUAL_PROFILES),externalVisualPosition=new THREE.Vector3(),externalVisualQuaternion=new THREE.Quaternion(),externalVisualVelocity=new THREE.Vector3(),externalVisualPose={position:externalVisualPosition,quaternion:externalVisualQuaternion,velocity:externalVisualVelocity};
 const cameraLookTarget=new THREE.Vector3();
+let fireCameraKick=0,fireCameraPhase=0;
+function addFireCameraKick(intensity=.16){fireCameraKick=Math.min(.65,fireCameraKick+clamp(Number(intensity)||0,0,.25));const viewport=$("viewport");if(viewport){viewport.dataset.fireRecoilImpulses=String((Number(viewport.dataset.fireRecoilImpulses)||0)+1);viewport.dataset.fireCameraKick=fireCameraKick.toFixed(3);}}
+function applyFireCameraShake(dt){if(!(fireCameraKick>.0001))return;const step=clamp(dt,0,.1);fireCameraPhase+=step*55;camera.rotateX((-.00135+Math.sin(fireCameraPhase)*.00045)*fireCameraKick);camera.rotateY(Math.sin(fireCameraPhase*1.37)*.00055*fireCameraKick);fireCameraKick*=Math.exp(-19*step);const viewport=$("viewport");if(viewport)viewport.dataset.fireCameraKick=fireCameraKick.toFixed(3);}
 let cameraSettings=loadCameraSettings();
-function applyCameraSettings(next){cameraSettings=next;externalCameraRig.invalidate();$("viewport").dataset.fpvTiltDeg=String(cameraSettings.fpvTiltDeg);$("viewport").dataset.fpvFovDeg=String(cameraSettings.fpvFovDeg);$("viewport").dataset.thirdCameraDistanceM=String(cameraSettings.thirdDistanceM);}
+function applyCameraSettings(next){cameraSettings=next;externalCameraRig.invalidate();externalAirframeVisualRig.invalidate();$("viewport").dataset.fpvTiltDeg=String(cameraSettings.fpvTiltDeg);$("viewport").dataset.fpvFovDeg=String(cameraSettings.fpvFovDeg);$("viewport").dataset.thirdCameraDistanceM=String(cameraSettings.thirdDistanceM);}
 applyCameraSettings(cameraSettings);
 function setCameraMode(next){
-  cameraMode=["follow","fpv","third"].includes(next)?next:"follow";externalCameraRig.invalidate();cameraFrameMs=performance.now();localStorage.setItem("arondight45CameraMode",cameraMode);$("viewport").dataset.cameraMode=cameraMode;
+  cameraMode=["follow","fpv","third"].includes(next)?next:"follow";externalCameraRig.invalidate();externalAirframeVisualRig.invalidate();cameraFrameMs=performance.now();localStorage.setItem("arondight45CameraMode",cameraMode);$("viewport").dataset.cameraMode=cameraMode;
   for(const [id,value] of [["camFollow","follow"],["camFpv","fpv"],["camThird","third"]]){
     const button=$(id),active=cameraMode===value;button.dataset.active=active?"1":"0";button.style.background=active?"#17694f":"rgba(17,29,43,.82)";button.style.borderColor=active?"#62d6aa":"rgba(255,255,255,.3)";
   }
 }
 function updateCamera(pose,now=performance.now()){
   const position=pose.position,q=pose.quaternion,velocity=pose.velocity,dt=clamp((now-cameraFrameMs)/1000,0,.1);cameraFrameMs=now;
-  const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize();
+  const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize(),showFpvSelfCamera=cameraMode!=="fpv";
+  if(physics.fpvCameraBody)physics.fpvCameraBody.visible=showFpvSelfCamera;if(physics.fpvCameraLens)physics.fpvCameraLens.visible=showFpvSelfCamera;const fpvViewport=$("viewport");if(fpvViewport)fpvViewport.dataset.fpvSelfCameraVisible=showFpvSelfCamera?"1":"0";
   if(cameraMode==="fpv"){
-    externalCameraRig.invalidate();
+    externalCameraRig.invalidate();externalAirframeVisualRig.invalidate();
     const bodyUp=new THREE.Vector3(0,0,1).applyQuaternion(q).normalize();
     // FPV optics are rigidly mounted to the airframe. GAME right-stick pitch now
     // moves the physical body through the motors; there is no virtual camera axis.
@@ -616,8 +630,8 @@ function updateCamera(pose,now=performance.now()){
     camera.position.copy(position).addScaledVector(bodyForward,FPV_CAMERA_FORWARD_OFFSET_M).addScaledVector(bodyUp,FPV_CAMERA_UP_OFFSET_M);
     camera.up.copy(fpvUp);camera.lookAt(cameraLookTarget.copy(camera.position).addScaledVector(fpvForward,4));
     if(camera.fov!==cameraSettings.fpvFovDeg){camera.fov=cameraSettings.fpvFovDeg;camera.updateProjectionMatrix();}
-    const viewport=$("viewport");viewport.dataset.cameraFov=String(camera.fov);viewport.dataset.cameraTiltDeg=String(cameraSettings.fpvTiltDeg);viewport.dataset.cameraDistanceM="0";viewport.dataset.cameraRigMode="rigid-airframe";viewport.dataset.cameraRigLagM="0.0000";viewport.dataset.cameraRigAnchor=[position.x,position.y,position.z].map(value=>value.toFixed(4)).join(",");viewport.dataset.fpvCameraForwardOffsetM=FPV_CAMERA_FORWARD_OFFSET_M.toFixed(3);viewport.dataset.fpvCameraUpOffsetM=FPV_CAMERA_UP_OFFSET_M.toFixed(3);
-    return;
+    applyFireCameraShake(dt);const viewport=$("viewport");viewport.dataset.cameraFov=String(camera.fov);viewport.dataset.cameraTiltDeg=String(cameraSettings.fpvTiltDeg);viewport.dataset.cameraDistanceM="0";viewport.dataset.cameraRigMode="rigid-airframe";viewport.dataset.cameraRigLagM="0.0000";viewport.dataset.cameraRigAnchor=[position.x,position.y,position.z].map(value=>value.toFixed(4)).join(",");viewport.dataset.fpvCameraMountForwardOffsetM=FPV_CAMERA_MOUNT_FORWARD_OFFSET_M.toFixed(3);viewport.dataset.fpvCameraForwardOffsetM=FPV_CAMERA_FORWARD_OFFSET_M.toFixed(3);viewport.dataset.fpvCameraOpticalClearanceM=FPV_CAMERA_OPTICAL_CLEARANCE_M.toFixed(3);viewport.dataset.fpvCameraUpOffsetM=FPV_CAMERA_UP_OFFSET_M.toFixed(3);
+    return null;
   }
   const horizontal=bodyForward.clone();horizontal.z=0;
   if(horizontal.lengthSq()>.04)horizontal.normalize();else if(externalCameraRig.initialized)horizontal.set(...externalCameraRig.heading);else horizontal.set(-1,0,0);
@@ -627,12 +641,11 @@ function updateCamera(pose,now=performance.now()){
     const thirdBaseLength=Math.hypot(2.25,1.05),thirdBack=cameraSettings.thirdDistanceM*(2.25/thirdBaseLength),thirdUp=cameraSettings.thirdDistanceM*(1.05/thirdBaseLength),frame=externalCameraFrame(rig.anchor,rig.heading,{back:thirdBack,up:thirdUp,lookAhead:.55,lookUp:.18});
     camera.position.set(...frame.position);camera.up.set(0,0,1);camera.lookAt(cameraLookTarget.set(...frame.target));
     const thirdFov=clamp(62*(cameraSettings.fpvFovDeg/105),35,100);if(Math.abs(camera.fov-thirdFov)>.01){camera.fov=thirdFov;camera.updateProjectionMatrix();}
-    $("viewport").dataset.cameraFov=String(camera.fov);$("viewport").dataset.cameraTiltDeg="0";$("viewport").dataset.cameraDistanceM=String(camera.position.distanceTo(position));
-    return;
+    applyFireCameraShake(dt);viewport.dataset.cameraFov=String(camera.fov);viewport.dataset.cameraTiltDeg="0";viewport.dataset.cameraDistanceM=String(camera.position.distanceTo(position));return rig;
   }
   const frame=externalCameraFrame(rig.anchor,rig.heading,{back:1.65,up:.78,lookAhead:.38,lookUp:.10});camera.position.set(...frame.position);camera.up.set(0,0,1);camera.lookAt(cameraLookTarget.set(...frame.target));
   const followFov=clamp(52*(cameraSettings.fpvFovDeg/105),30,90);if(Math.abs(camera.fov-followFov)>.01){camera.fov=followFov;camera.updateProjectionMatrix();}
-  $("viewport").dataset.cameraFov=String(camera.fov);
+  applyFireCameraShake(dt);viewport.dataset.cameraFov=String(camera.fov);return rig;
 }
 $("camFollow").onclick=()=>setCameraMode("follow");$("camFpv").onclick=()=>setCameraMode("fpv");$("camThird").onclick=()=>setCameraMode("third");setCameraMode(cameraMode);
 
@@ -645,7 +658,7 @@ soloHud.innerHTML=`
   <div id="soloRight" class="solo-stick"><div class="solo-ring"></div><div class="solo-knob"></div><span>TURN / PITCH</span></div>
   <button id="soloArm" class="solo-action arm-start-cta" type="button">ARM</button>
   <button id="soloKill" class="solo-action" type="button">KILL</button>
-  <div id="soloGamepadHelp" hidden>LS MOVE · RS TURN/PITCH · LT/RT ALT −/+ · LB+RS AIM · LB+RB FIRE · Y TARGET · A ARM · B KILL · X CAM</div>`;
+  <div id="soloGamepadHelp" hidden>LS MOVE · RS TURN/PITCH · LT/RT ALT −/+ · LB+RS LOOK · RB FIRE · Y TARGET · A ARM · B KILL · X CAM</div>`;
 $("viewport").appendChild(soloHud);
 const soloStyle=document.createElement("style");soloStyle.textContent=`
   body.solo-flight{overflow:hidden!important;background:#000!important;-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-tap-highlight-color:transparent!important}
@@ -736,7 +749,7 @@ const soloSettingsMount=mountPhoneControlSettings({
 });
 mountCameraSettings({dialog:soloSettingsMount.dialog,onChange:applyCameraSettings});
 const flightLogbook=new FlightLogbook({parent:$("soloTopbar")});globalThis.__arondightFlightLogbook=flightLogbook;
-const flightFireFx=installFlightFireFx({viewport:$("viewport"),scene,camera,worldBridge:globalThis.__arondightRealWorld,isEnabled:()=>soloMode,isPointerEnabled:()=>$("viewport").dataset.controlSource!=="xbox"});
+const flightFireFx=installFlightFireFx({viewport:$("viewport"),scene,camera,worldBridge:globalThis.__arondightRealWorld,isEnabled:()=>soloMode,isPointerEnabled:()=>$("viewport").dataset.controlSource!=="xbox",onRecoil:addFireCameraKick});
 const flightSelectionBlocked=target=>target instanceof Element&&Boolean(target.closest("dialog,input,textarea,select,option"));for(const type of ["selectstart","contextmenu","dragstart"])document.addEventListener(type,event=>{if(soloMode&&event.target instanceof Element&&event.target.closest("#viewport")&&!flightSelectionBlocked(event.target))event.preventDefault();},{passive:false});
 let pendingDisarmReason=null;
 let xboxGamepadActive=false,xboxPrevious=null,xboxLastPollMs=performance.now(),xboxObservedGamepad=null;
@@ -767,7 +780,7 @@ function pollXboxGamepad(now){
   const sample=sampleXboxGamepad(pad);if(!sample){deactivateXboxGamepad(true);status.hidden=false;status.textContent=xboxObservedGamepad?"XBOX CONNECTING…":"XBOX ON · PRESS ANY BUTTON";help.hidden=true;return;}
   const justActivated=!xboxGamepadActive,dt=justActivated?0:clamp((now-xboxLastPollMs)/1000,0,.05);xboxLastPollMs=now;xboxGamepadActive=true;viewport.dataset.controlSource="xbox";viewport.dataset.gamepadConnected="1";viewport.dataset.gamepadExposed="1";viewport.dataset.gamepadId=sample.id;status.hidden=false;help.hidden=false;
   applyGameStick(soloControls,"left",sample.left,phoneSettings);if(sample.aim){soloControls.yaw=0;soloControls.bodyPitch=0;}else applyGameStick(soloControls,"right",sample.right,phoneSettings);soloHeightAxis=clamp(sample.heightAxis,-1,1);globalThis.__arondightRealWorld?.setGamepadLook?.(sample.aim,sample.right.x,sample.right.y,dt);
-  const aimX=viewport.clientWidth/2,aimY=viewport.clientHeight/2;flightFireFx?.setGamepadAim(sample.aim,aimX,aimY);flightFireFx?.setGamepadFire(sample.fire,aimX,aimY);viewport.dataset.gamepadAim=sample.aim?"1":"0";viewport.dataset.gamepadFire=sample.fire?"1":"0";viewport.dataset.gamepadHeightAxis=sample.heightAxis.toFixed(3);viewport.dataset.gamepadLeft=`${sample.left.x.toFixed(3)},${sample.left.y.toFixed(3)}`;viewport.dataset.gamepadRight=`${sample.right.x.toFixed(3)},${sample.right.y.toFixed(3)}`;const statusText=sample.aim?"XBOX · AIM":`XBOX · ALT ${soloGroundClearance.toFixed(1)} m`;if($("soloGamepadStatus").textContent!==statusText)$("soloGamepadStatus").textContent=statusText;
+  flightFireFx?.setGamepadAim(sample.aim);flightFireFx?.setGamepadFire(sample.fire);viewport.dataset.gamepadAim=sample.aim?"1":"0";viewport.dataset.gamepadFire=sample.fire?"1":"0";viewport.dataset.gamepadHeightAxis=sample.heightAxis.toFixed(3);viewport.dataset.gamepadLeft=`${sample.left.x.toFixed(3)},${sample.left.y.toFixed(3)}`;viewport.dataset.gamepadRight=`${sample.right.x.toFixed(3)},${sample.right.y.toFixed(3)}`;const statusText=sample.aim?"XBOX · AIM":`XBOX · ALT ${soloGroundClearance.toFixed(1)} m`;if($("soloGamepadStatus").textContent!==statusText)$("soloGamepadStatus").textContent=statusText;
   if(!justActivated&&sample.arm&&!xboxPrevious?.arm)toggleSoloArm();if(!justActivated&&sample.kill&&!xboxPrevious?.kill)killSolo();if(!justActivated&&sample.camera&&!xboxPrevious?.camera)cycleSoloCamera();if(!justActivated&&sample.target&&!xboxPrevious?.target&&globalThis.__arondightRealWorld?.vsConnected){const rect=viewport.getBoundingClientRect();viewport.dispatchEvent(new CustomEvent("flightfiredoubletap",{detail:{clientX:rect.left+rect.width/2,clientY:rect.top+rect.height/2,pointerType:"gamepad"}}));viewport.dataset.gamepadBeaconCount=String((Number(viewport.dataset.gamepadBeaconCount)||0)+1);}xboxPrevious={arm:sample.arm,kill:sample.kill,camera:sample.camera,target:sample.target};
 }
 addEventListener("gamepadconnected",event=>{if(rememberXboxGamepad(event.gamepad)&&soloMode)pollXboxGamepad(performance.now());});
@@ -821,7 +834,7 @@ async function switchMode(next){
 function resetSimulation(initial=null){
   if(typeof flightLogbook!=="undefined")flightLogbook.finish("SIM_RESET");
   phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);
-  externalCameraRig.invalidate();cameraFrameMs=performance.now();physics.reset(defaultParams(),initial);navigationSensors.reset();sbusReceiver.reset();latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false,headingDeg:0,headingValid:false};raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralSoloControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];
+  externalCameraRig.invalidate();externalAirframeVisualRig.invalidate();cameraFrameMs=performance.now();physics.reset(defaultParams(),initial);navigationSensors.reset();sbusReceiver.reset();latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false,headingDeg:0,headingValid:false};raceTrack.reset();sequence=1;simTime=0;resetFlag=true;latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};soloControls=neutralSoloControls();updateSoloSticks();localThrottle=throttle=0;localArm=arm=false;effectiveInput=neutralControls();replayIndex=0;sessionLog=[];
   ui.touchThrottle.value="0";ui.touchRoll.value=ui.touchPitch.value=ui.touchYaw.value="0";ui.touchArm.textContent="ARM request: OFF";wallStart=performance.now();simStart=0;if(backend?.reset)backend.reset();
 }
 function localControlState(){
@@ -983,7 +996,7 @@ function render(){
     const presentationDt=Number.isFinite(lastPresentationDrawMs)?clamp(sinceDraw/1000,0,.1):1/60,presentationAlpha=running&&mode!=="replay"?clamp(backlog/SIM_FIXED_STEP_MS,0,1):1;
     recordPresentationFrame(renderNow);
     lastPresentationDrawMs=renderNow;
-    const presentationPose=physics.presentationPose(presentationAlpha);box3dColliderDebugDraw.syncAirframe(physics.motorPos,AIRFRAME_COLLISION_HALF_Z_M,physics.p.propD);box3dColliderDebugDraw.syncWorld(physics.worldBuildingCollisionState,physics.worldBuildingCollisionRevision);box3dColliderDebugDraw.updateAirframe(presentationPose);const box3dDebugViewport=$("viewport");if(box3dDebugViewport&&box3dColliderDebugEnabled)box3dDebugViewport.dataset.box3dColliderDebugPrisms=String(box3dColliderDebugDraw.activePrismCount);physics.render(presentationPose,presentationDt);updateCamera(presentationPose,renderNow);
+    const presentationPose=physics.presentationPose(presentationAlpha);box3dColliderDebugDraw.syncAirframe(physics.motorPos,AIRFRAME_COLLISION_HALF_Z_M,physics.p.propD);box3dColliderDebugDraw.syncWorld(physics.worldBuildingCollisionState,physics.worldBuildingCollisionRevision);box3dColliderDebugDraw.updateAirframe(presentationPose);const box3dDebugViewport=$("viewport");if(box3dDebugViewport&&box3dColliderDebugEnabled)box3dDebugViewport.dataset.box3dColliderDebugPrisms=String(box3dColliderDebugDraw.activePrismCount);const externalCameraState=updateCamera(presentationPose,renderNow);let visualPose=presentationPose,visualState=null;if(externalCameraState){visualState=externalAirframeVisualRig.update({position:[presentationPose.position.x,presentationPose.position.y,presentationPose.position.z],quaternion:[presentationPose.quaternion.x,presentationPose.quaternion.y,presentationPose.quaternion.z,presentationPose.quaternion.w],cameraAnchor:externalCameraState.anchor,mode:cameraMode,dt:presentationDt});externalVisualPosition.set(...visualState.position);externalVisualQuaternion.set(...visualState.quaternion);externalVisualVelocity.copy(presentationPose.velocity);visualPose=externalVisualPose;}else externalAirframeVisualRig.invalidate();const visualViewport=$("viewport");if(visualViewport){visualViewport.dataset.visualAirframeFilter=externalCameraState?cameraMode:"off";visualViewport.dataset.visualAirframePositionErrorM=(visualState?.positionErrorM||0).toFixed(4);visualViewport.dataset.visualAirframeRotationErrorDeg=((visualState?.rotationErrorRad||0)*180/Math.PI).toFixed(3);}physics.render(presentationPose,presentationDt,visualPose);
     if(renderer.shadowMap.enabled&&renderNow-lastPresentationShadowMs>=PRESENTATION_SHADOW_INTERVAL_MS&&backlog<PRESENTATION_SHADOW_BACKLOG_MS){
       lastPresentationShadowMs=renderNow;
       renderer.shadowMap.needsUpdate=true;

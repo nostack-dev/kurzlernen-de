@@ -1,0 +1,192 @@
+name: ESP32-S31 flight stack
+# Production/HIL compile the same raw-hardware FirmwareRuntime boundary.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "esp32/Arondight45_DroneFC_Core.hpp"
+      - "esp32/Arondight45_StateControl.hpp"
+      - "esp32/Arondight45_HardwareSensors.hpp"
+      - "esp32/Arondight45_FirmwareRuntime.hpp"
+      - "esp32/Arondight45_HIL_Protocol.hpp"
+      - "esp32/Arondight45_DroneFC_S31.cpp"
+      - "esp32/Arondight45_DroneFC_HIL_S31.cpp"
+      - "sim/**"
+      - "tests/**"
+      - "tools/s31_hil_bridge.mjs"
+      - "drone_simulator.html"
+      - "drone_controller.html"
+      - ".github/workflows/s31-hil.yml"
+      - ".github/workflows/deploy.yml"
+  pull_request:
+    paths:
+      - "esp32/Arondight45_DroneFC_Core.hpp"
+      - "esp32/Arondight45_StateControl.hpp"
+      - "esp32/Arondight45_HardwareSensors.hpp"
+      - "esp32/Arondight45_FirmwareRuntime.hpp"
+      - "esp32/Arondight45_HIL_Protocol.hpp"
+      - "esp32/Arondight45_DroneFC_S31.cpp"
+      - "esp32/Arondight45_DroneFC_HIL_S31.cpp"
+      - "sim/**"
+      - "tests/**"
+      - "tools/s31_hil_bridge.mjs"
+      - "drone_simulator.html"
+      - "drone_controller.html"
+      - ".github/workflows/s31-hil.yml"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Shared raw-hardware runtime and protocol tests
+        run: |
+          set -euxo pipefail
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core-tests
+          /tmp/fc-core-tests
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control-tests
+          /tmp/state-control-tests
+          g++ -std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -Iesp32 tests/drone_hil_protocol_test.cpp -o /tmp/hil-tests
+          ASAN_OPTIONS=detect_leaks=1 /tmp/hil-tests
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil-host-tests
+          /tmp/sil-host-tests
+          clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core-clang
+          /tmp/fc-core-clang
+          clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control-clang
+          /tmp/state-control-clang
+          node tests/control_semantics_test.mjs
+          node tests/xbox_gamepad_test.mjs
+          node tests/visual_pose_stabilization_test.mjs
+          node tests/combat_center_fire_test.mjs
+          node tests/render_stability_test.mjs
+          node tests/vs_pose_sync_test.mjs
+          node tests/physics_validation_test.mjs
+          node tests/world_building_collisions_test.mjs
+          node tests/s31_digital_twin_audit_test.mjs
+          node tests/p2p_link_test.mjs
+          node tests/lan_vs_smoke.mjs
+      - name: Architecture and JavaScript validation
+        run: |
+          set -euxo pipefail
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/simulator.mjs
+          node --check sim/world_building_collisions.mjs
+          node --check sim/world_building_collision_physics.mjs
+          node --check sim/controller.mjs
+          node --check sim/p2p_link.mjs
+          node --check sim/control_semantics.mjs
+          node --check sim/control_settings.mjs
+          node --check sim/xbox_gamepad.mjs
+          node --check sim/render_stability.mjs
+          node --check sim/vs_pose_sync.mjs
+          node --check sim/flight_logbook.mjs
+          node --check sim/physics_validation.mjs
+          node --check sim/lan_vs.mjs
+          node --check tests/architecture_invariants.mjs
+          node --check tests/p2p_link_test.mjs
+          node --check tests/control_semantics_test.mjs
+          node --check tests/xbox_gamepad_test.mjs
+          node --check tests/xbox_gamepad_browser_smoke.mjs
+          node --check tests/android_render_browser_smoke.mjs
+          node --check tests/render_stability_test.mjs
+          node --check tests/vs_pose_sync_test.mjs
+          node --check tests/physics_validation_test.mjs
+          node --check tests/s31_digital_twin_audit_test.mjs
+          node --check tests/sil_wasm_smoke.mjs
+          node --check tests/browser_sim_smoke.mjs
+          node --check tests/dual_phone_smoke.mjs
+          node --check tests/lan_vs_smoke.mjs
+          node --check tests/network_logbook_browser_smoke.mjs
+          node --check tests/world_building_collisions_test.mjs
+          node --check tests/world_building_collision_box3d_test.mjs
+          node --check tests/world_building_collision_browser_smoke.mjs
+          node --check tools/s31_hil_bridge.mjs
+          node tests/architecture_invariants.mjs
+
+  esp-idf-build:
+    runs-on: ubuntu-latest
+    container: espressif/idf@sha256:68085df693b34bacfd69984ae05bb1e3b475ea3d4684943cfeed5a39954850e7
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Activate ESP-IDF
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$IDF_PATH/export.sh"
+          python "$IDF_PATH/tools/idf.py" --version
+      - name: Build production firmware for ESP32-S31
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$IDF_PATH/export.sh"
+          rm -rf /tmp/arondight45-production
+          mkdir -p /tmp/arondight45-production/main
+          cp esp32/Arondight45_DroneFC_Core.hpp /tmp/arondight45-production/main/
+          cp esp32/Arondight45_StateControl.hpp /tmp/arondight45-production/main/
+          cp esp32/Arondight45_HardwareSensors.hpp /tmp/arondight45-production/main/
+          cp esp32/Arondight45_FirmwareRuntime.hpp /tmp/arondight45-production/main/
+          cp esp32/Arondight45_DroneFC_S31.cpp /tmp/arondight45-production/main/
+          cat > /tmp/arondight45-production/CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.16)
+          include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+          project(arondight45_s31_production)
+          EOF
+          cat > /tmp/arondight45-production/main/CMakeLists.txt <<'EOF'
+          idf_component_register(SRCS "Arondight45_DroneFC_S31.cpp" INCLUDE_DIRS ".")
+          EOF
+          cd /tmp/arondight45-production
+          python "$IDF_PATH/tools/idf.py" --preview set-target esp32s31
+          python "$IDF_PATH/tools/idf.py" --preview build
+      - name: Build functional HIL firmware for ESP32-S31
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . "$IDF_PATH/export.sh"
+          rm -rf /tmp/arondight45-hil
+          mkdir -p /tmp/arondight45-hil/main
+          cp esp32/Arondight45_DroneFC_Core.hpp /tmp/arondight45-hil/main/
+          cp esp32/Arondight45_StateControl.hpp /tmp/arondight45-hil/main/
+          cp esp32/Arondight45_HardwareSensors.hpp /tmp/arondight45-hil/main/
+          cp esp32/Arondight45_FirmwareRuntime.hpp /tmp/arondight45-hil/main/
+          cp esp32/Arondight45_HIL_Protocol.hpp /tmp/arondight45-hil/main/
+          cp esp32/Arondight45_DroneFC_HIL_S31.cpp /tmp/arondight45-hil/main/
+          cat > /tmp/arondight45-hil/CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.16)
+          include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+          project(arondight45_s31_hil)
+          EOF
+          cat > /tmp/arondight45-hil/main/CMakeLists.txt <<'EOF'
+          idf_component_register(SRCS "Arondight45_DroneFC_HIL_S31.cpp" INCLUDE_DIRS ".")
+          EOF
+          cd /tmp/arondight45-hil
+          python "$IDF_PATH/tools/idf.py" --preview set-target esp32s31
+          python "$IDF_PATH/tools/idf.py" --preview build
+
+  report:
+    if: always()
+    needs: [host-tests, esp-idf-build]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Report S31 final status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_SHA: ${{ github.sha }}
+          GH_RUN_ID: ${{ github.run_id }}
+          GH_RUN_NUMBER: ${{ github.run_number }}
+          HOST_RESULT: ${{ needs.host-tests.result }}
+          IDF_RESULT: ${{ needs.esp-idf-build.result }}
+        run: |
+          set -euo pipefail
+          body="S31 FINAL · sha=${GH_SHA} · run=${GH_RUN_ID} · number=${GH_RUN_NUMBER} · host=${HOST_RESULT} · idf=${IDF_RESULT} · https://github.com/${GH_REPO}/actions/runs/${GH_RUN_ID}"
+          payload="$(jq -cn --arg body "$body" '{body:$body}')"
+          curl -fsSL -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GH_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null

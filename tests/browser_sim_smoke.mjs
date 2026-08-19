@@ -92,7 +92,10 @@ try{
     tilt:document.querySelector("#viewport")?.dataset.fpvTiltDeg||"",
     auto:document.querySelector("#viewport")?.dataset.autoFlightStart||"",
     soloCamera:document.querySelector("#soloCamera")?.textContent?.trim()||"",
+    fpvCameraMountForward:Number(document.querySelector("#viewport")?.dataset.fpvCameraMountForwardOffsetM),
     fpvCameraForward:Number(document.querySelector("#viewport")?.dataset.fpvCameraForwardOffsetM),
+    fpvCameraOpticalClearance:Number(document.querySelector("#viewport")?.dataset.fpvCameraOpticalClearanceM),
+    fpvSelfCameraVisible:document.querySelector("#viewport")?.dataset.fpvSelfCameraVisible||"",
     fpvCameraUp:Number(document.querySelector("#viewport")?.dataset.fpvCameraUpOffsetM),
     cameraMassX:Number(document.querySelector("#cameraXmm")?.value),
     cameraMassZ:Number(document.querySelector("#cameraZmm")?.value),
@@ -100,7 +103,7 @@ try{
     initialVisualBottom:Number(document.querySelector("#viewport")?.dataset.initialAirframeVisualBottomM),
     panel:getComputedStyle(document.querySelector(".panel")).display,
   }));
-  if(cameraBoot.mode!=="fpv"||cameraBoot.fpv!=="1"||cameraBoot.tilt!=="-15"||cameraBoot.auto!=="fpv"||cameraBoot.soloCamera!=="FPV"||cameraBoot.fpvCameraForward!==.070||cameraBoot.fpvCameraUp!==.028||cameraBoot.cameraMassX!==-70||cameraBoot.cameraMassZ!==28||cameraBoot.initialGroundPose!=="1"||cameraBoot.initialVisualBottom<0||cameraBoot.panel!=="none")
+  if(cameraBoot.mode!=="fpv"||cameraBoot.fpv!=="1"||cameraBoot.tilt!=="-15"||cameraBoot.auto!=="fpv"||cameraBoot.soloCamera!=="FPV"||cameraBoot.fpvCameraMountForward!==.070||cameraBoot.fpvCameraForward!==.102||cameraBoot.fpvCameraOpticalClearance<.004||cameraBoot.fpvSelfCameraVisible!=="0"||cameraBoot.fpvCameraUp!==.028||cameraBoot.cameraMassX!==-70||cameraBoot.cameraMassZ!==28||cameraBoot.initialGroundPose!=="1"||cameraBoot.initialVisualBottom<0||cameraBoot.panel!=="none")
     throw new Error(`direct FPV startup failed: ${JSON.stringify(cameraBoot)}`);
 
   // Re-enter once through the now-hidden main UI path so the legacy-settings
