@@ -353,7 +353,11 @@ private:
     static constexpr float kVerticalDescentVelocityGain = 8.0f;
     static constexpr float kMaxVerticalAccelerationMps2 = 50.0f;
     static constexpr float kVerticalJerkLimitMps3 = 1200.0f;
-    static constexpr float kMinSpecificUpMps2 = 0.5f;
+    // Keep enough collective thrust during aggressive descent for the inner
+    // attitude loop to retain real motor/torque authority. 0.5 m/s² was nearly
+    // free-fall and allowed the physical airframe to tumble well beyond the
+    // bounded attitude target. 4.0 m/s² is the previously validated reserve.
+    static constexpr float kMinSpecificUpMps2 = 4.0f;
     static constexpr float kMaxSpecificUpMps2 = 60.0f;
 
     static constexpr float kEscCommandOffset =

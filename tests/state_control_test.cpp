@@ -122,7 +122,10 @@ int main() {
     const float descent_horizontal_accel = std::hypot(controller.debug().forward_accel_mps2,
                                                        controller.debug().right_accel_mps2);
     CHECK(controller.debug().vertical_accel_mps2 < -49.9f);
-    CHECK(descent_horizontal_accel < 0.235f);
+    // At the restored 4 m/s² collective reserve, tan(25°) permits at most
+    // ~1.865 m/s² automatic horizontal correction while preserving attitude torque.
+    CHECK(descent_horizontal_accel < 1.87f);
+    CHECK(cmd.throttle > 0.10f);
     CHECK(descent_auto_pitch_deg <= 25.05f);
     CHECK(descent_auto_roll_deg <= 25.05f);
 
