@@ -177,7 +177,6 @@ public:
                       0.0f, 0.0f, 0.0f};
             return Command{0.0f, 0.0f, 0.0f, 0.0f, intent.arm};
         }
-
         update_command_targets(intent, dt);
         update_acceleration_estimator(nav.velocity_world_mps, dt);
         const float measured_forward_accel = -c * measured_acceleration_world_mps2_.x - s * measured_acceleration_world_mps2_.y;
@@ -188,7 +187,14 @@ public:
             ? clamp(kAglToVerticalSpeed * agl_error, -kMaxVerticalSpeedMps, kMaxVerticalSpeedMps)
             : 0.0f;
         const float vz_error = target_vz - nav.velocity_world_mps.z;
-        const float requested_vertical_accel = clamp(kVerticalVelocityGain * vz_error,
+        // The altitude/vertical-speed cascade is critically damped on descent.
+        // kAglToVerticalSpeed=2 and kVerticalDescentVelocityGain=8 give zeta=1
+        // for the unsaturated second-order descent loop (s^2 + 8s + 16).
+        // Climb keeps the previous gain, so takeoff authority and feel are unchanged.
+        const float vertical_velocity_gain = target_vz < 0.0f
+            ? kVerticalDescentVelocityGain
+            : kVerticalVelocityGain;
+        const float requested_vertical_accel = clamp(vertical_velocity_gain * vz_error,
                                                      -kMaxVerticalAccelerationMps2,
                                                      kMaxVerticalAccelerationMps2);
         const float vertical_accel = limit_vertical_accel_jerk(requested_vertical_accel, dt);
@@ -332,6 +338,7 @@ private:
     static constexpr float kAglToVerticalSpeed = 2.00f;
     static constexpr float kMaxVerticalSpeedMps = 30.0f;
     static constexpr float kVerticalVelocityGain = 4.0f;
+    static constexpr float kVerticalDescentVelocityGain = 8.0f;
     static constexpr float kMaxVerticalAccelerationMps2 = 50.0f;
     static constexpr float kVerticalJerkLimitMps3 = 1200.0f;
     static constexpr float kMinSpecificUpMps2 = 0.5f;
