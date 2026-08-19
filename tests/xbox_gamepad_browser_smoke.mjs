@@ -85,6 +85,10 @@ try{
 
   await setButton(5,0);await setButton(4,0);await page.evaluate(()=>{globalThis.__xboxTest.setAxis(2,0);globalThis.__xboxTest.setAxis(3,0);});
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.gamepadFire==="0"&&getComputedStyle(document.querySelector(".xbox-crosshair")).display==="none",{timeout:3000});
+  await setButton(9,1);await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await setButton(9,0);await setButton(1,1);await page.waitForFunction(()=>!document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await setButton(1,0);
+  await setButton(3,1);await page.waitForFunction(()=>Number(document.querySelector("#viewport")?.dataset.gamepadResetCount||0)>=1,{timeout:3000});await setButton(3,0);
+  const recovery=await page.$eval("#viewport",v=>({reset:Number(v.dataset.gamepadResetCount||0),help:document.querySelector("#soloGamepadHelp")?.textContent||""}));if(recovery.reset<1||!recovery.help.includes("Y RESET")||!recovery.help.includes("VIEW EXIT")||!recovery.help.includes("MENU SETTINGS"))throw new Error(`controller recovery bindings missing: ${JSON.stringify(recovery)}`);
+  await setButton(8,1);await page.waitForFunction(()=>!document.body.classList.contains("solo-flight")&&Number(document.querySelector("#viewport")?.dataset.gamepadExitCount||0)>=1,{timeout:4000});await setButton(8,0);await page.click("#camSolo");await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.controlSource==="xbox",{timeout:5000});
   await page.evaluate(()=>globalThis.__xboxTest.disconnect());
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="xbox"&&v.dataset.gamepadConnected==="0";},{timeout:3000});
   const disconnected=await page.evaluate(()=>{const v=document.querySelector("#viewport"),display=s=>getComputedStyle(document.querySelector(s)).display;return{source:v.dataset.controlSource,connected:v.dataset.gamepadConnected,height:Number(v.dataset.gamepadHeightAxis||0),left:display("#soloLeft"),right:display("#soloRight"),clearance:display("#soloClearance"),arm:display("#soloArm"),kill:display("#soloKill")};});
@@ -92,5 +96,5 @@ try{
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="touch"&&v.dataset.gamepadEnabled==="0"&&getComputedStyle(document.querySelector("#soloLeft")).display!=="none";},{timeout:3000});
 
-  console.log("Xbox browser E2E passed: default OFF, explicit persistent ON/OFF, zero touch HUD while ON/reconnecting, LT down, RT up-only, LB+RS free-look/crosshair, and LB+RB right-shoulder fire.");
+  console.log("Xbox browser E2E passed: MENU settings, Y reset, VIEW exit, persistent Xbox handoff and fire/aim/altitude controls.");
 }finally{await browser.close();}

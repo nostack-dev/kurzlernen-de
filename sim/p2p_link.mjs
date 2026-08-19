@@ -4,7 +4,8 @@ export const SESSION_GRACE_MS = 5 * 60 * 1000;
 export const P2P_MAX_GROUND_CLEARANCE_M = 50;
 
 const clamp = (value,lo,hi) => Math.max(lo,Math.min(hi,value));
-const rtcConfig = Object.freeze({iceServers:[],bundlePolicy:"max-bundle",iceCandidatePoolSize:4});
+export const P2P_RTC_CONFIG = Object.freeze({iceServers:[{urls:["stun:stun.cloudflare.com:3478","stun:stun.cloudflare.com:53"]},{urls:"stun:stun.l.google.com:19302"}],iceTransportPolicy:"all",bundlePolicy:"max-bundle",iceCandidatePoolSize:4});
+const rtcConfig=P2P_RTC_CONFIG;
 
 function assertWebRtc(){
   if(typeof RTCPeerConnection!=="function") throw new Error("This browser does not support WebRTC DataChannel.");
@@ -33,10 +34,11 @@ export function decodeSignal(code,expectedType){
   return {type:value.type,sdp:value.sdp};
 }
 
-async function waitForIceComplete(pc,timeoutMs=10000){
+export async function waitForIceComplete(pc,timeoutMs=6500){
   if(pc.iceGatheringState==="complete")return;
   await new Promise((resolve,reject)=>{
-    const timer=setTimeout(()=>{cleanup();reject(new Error("WebRTC ICE gathering timed out."));},timeoutMs);
+    const hasCandidate=()=>/a=candidate:/m.test(String(pc.localDescription?.sdp||""));
+    const timer=setTimeout(()=>{cleanup();if(hasCandidate())resolve();else reject(new Error("WebRTC ICE gathering timed out before any usable candidate."));},timeoutMs);
     const check=()=>{if(pc.iceGatheringState==="complete"){cleanup();resolve();}};
     const cleanup=()=>{clearTimeout(timer);pc.removeEventListener("icegatheringstatechange",check);};
     pc.addEventListener("icegatheringstatechange",check);check();

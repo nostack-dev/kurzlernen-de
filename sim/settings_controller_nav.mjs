@@ -1,12 +1,13 @@
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
-export const SETTINGS_GAMEPAD_BUTTON=Object.freeze({A:0,B:1,VIEW:8,MENU:9,DPAD_UP:12,DPAD_DOWN:13,DPAD_LEFT:14,DPAD_RIGHT:15});
+export const SETTINGS_GAMEPAD_BUTTON=Object.freeze({A:0,B:1,Y:3,VIEW:8,MENU:9,DPAD_UP:12,DPAD_DOWN:13,DPAD_LEFT:14,DPAD_RIGHT:15});
 
 function buttonPressed(gamepad,index){const button=gamepad?.buttons?.[index];return Boolean(typeof button==="number"?button>.5:button?.pressed||Number(button?.value)>.5);}
 function focusable(dialog){return Array.from(dialog?.querySelectorAll?.('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"]):not([disabled])')||[]).filter(element=>element.offsetParent!==null&&!element.closest('[hidden]'));}
 function dispatchInput(element){element.dispatchEvent(new Event("input",{bubbles:true}));element.dispatchEvent(new Event("change",{bubbles:true}));}
 function adjustRange(input,direction){const min=Number(input.min),max=Number(input.max),step=Number(input.step)||1,current=Number(input.value)||0,next=clamp(current+direction*step,Number.isFinite(min)?min:-Infinity,Number.isFinite(max)?max:Infinity);if(next===current)return false;input.value=String(next);dispatchInput(input);return true;}
 function latchFlightRelease(){globalThis.__arondightSettingsGamepadBlockUntilRelease=true;}
+function clickSoloAction(selector,datasetKey){const button=document.querySelector(selector),viewport=document.getElementById("viewport");if(!document.body.classList.contains("solo-flight")||!(button instanceof HTMLElement))return false;latchFlightRelease();button.click();if(viewport)viewport.dataset[datasetKey]=String((Number(viewport.dataset[datasetKey])||0)+1);return true;}
 
 export function createSettingsGamepadNavigator({dialog,openDialog,closeDialog,getGamepad}){
   if(!dialog)throw Error("settings dialog required");
@@ -18,8 +19,8 @@ export function createSettingsGamepadNavigator({dialog,openDialog,closeDialog,ge
     if(!running)return;let pad=null;try{pad=getGamepad?.()||null;}catch{}
     if(!pad){previous.fill(false);stickLatchX=stickLatchY=0;requestAnimationFrame(frame);return;}
     const pressed=previous.map((_,index)=>buttonPressed(pad,index)),edge=index=>pressed[index]&&!previous[index];
-    const menuEdge=edge(SETTINGS_GAMEPAD_BUTTON.MENU),backEdge=edge(SETTINGS_GAMEPAD_BUTTON.B)||edge(SETTINGS_GAMEPAD_BUTTON.VIEW);
-    if(!dialog.open){if(menuEdge){latchFlightRelease();openDialog?.("gamepad");}}
+    const menuEdge=edge(SETTINGS_GAMEPAD_BUTTON.MENU),viewEdge=edge(SETTINGS_GAMEPAD_BUTTON.VIEW),resetEdge=edge(SETTINGS_GAMEPAD_BUTTON.Y),backEdge=edge(SETTINGS_GAMEPAD_BUTTON.B)||viewEdge;
+    if(!dialog.open){if(menuEdge){latchFlightRelease();openDialog?.("gamepad");}else if(viewEdge)clickSoloAction("#soloExit","gamepadExitCount");else if(resetEdge)clickSoloAction("#soloReset","gamepadResetCount");}
     else{
       if(backEdge){latchFlightRelease();closeDialog?.("gamepad");}
       else{

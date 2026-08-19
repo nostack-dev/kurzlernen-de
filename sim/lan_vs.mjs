@@ -14,7 +14,8 @@ const PROXIMITY_CELL_M=800;
 const GESTURE_BUCKET_MS=8000;
 const GESTURE_DEFER_MS=650;
 const FINDER_STAGE_MS=6500;
-const FINDER_MAX_ROOMS_PER_STAGE=3;
+const FINDER_MAX_ROOMS_PER_STAGE=6;
+const FINDER_RETRY_MS=1200;
 const GEO_DISCOVERY_TIMEOUT_MS=1800;
 const GEO_DISCOVERY_MAX_AGE_MS=120000;
 const EARTH_RADIUS_M=6378137;
@@ -263,18 +264,18 @@ export class LanVsSession{
 
 export class LanVsFinder{
   constructor(options={}){
-    this.options=options;this.children=[];this.currentStageChildren=[];this.active=null;this.roomIds=[];this.stageRoomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren=new Set();this.stageErrors=[];this.stageTimer=0;this.stageResolve=null;this.stageEpoch=0;this.stageTask=null;
+    this.options=options;this.children=[];this.currentStageChildren=[];this.active=null;this.roomIds=[];this.stageRoomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.started=false;this.failedChildren=new Set();this.stageErrors=[];this.stageTimer=0;this.stageResolve=null;this.stageEpoch=0;this.stageTask=null;this.retryTimer=0;this.retryCount=0;
     this.stageMs=Number.isFinite(options.stageMs)?Math.max(250,Number(options.stageMs)):FINDER_STAGE_MS;
     this.maxRoomsPerStage=Number.isFinite(options.maxRoomsPerStage)?Math.max(1,Math.floor(options.maxRoomsPerStage)):FINDER_MAX_ROOMS_PER_STAGE;
+    this.retryMs=Number.isFinite(options.retryMs)?Math.max(20,Number(options.retryMs)):FINDER_RETRY_MS;
     if(Array.isArray(options.transportStrategies)&&options.transportStrategies.length)this.transportStrategies=options.transportStrategies;
     else if(typeof options.loadTransport==="function")this.transportStrategies=[{name:String(options.transportName||"Custom"),load:options.loadTransport}];
     else this.transportStrategies=DEFAULT_TRANSPORTS;
   }
   chooseStageRooms(ids){
     const gesture=ids.filter(id=>id.startsWith("tap-")),trusted=ids.filter(id=>!id.startsWith("tap-")),out=[];
-    for(const id of gesture.slice(0,2))if(!out.includes(id))out.push(id);
     for(const id of trusted)if(out.length<this.maxRoomsPerStage&&!out.includes(id))out.push(id);
-    for(const id of gesture.slice(2))if(out.length<this.maxRoomsPerStage&&!out.includes(id))out.push(id);
+    for(const id of gesture)if(out.length<this.maxRoomsPerStage&&!out.includes(id))out.push(id);
     return out.slice(0,this.maxRoomsPerStage);
   }
   makeChild(roomId,strategy){
@@ -283,9 +284,9 @@ export class LanVsFinder{
       loadTransport:strategy.load,transportName:strategy.name,
       ...(Number.isFinite(opts.relayRedundancy)?{relayRedundancy:opts.relayRedundancy}:{}),...(Number.isFinite(opts.joinDiagnosticMs)?{joinDiagnosticMs:opts.joinDiagnosticMs}:{}),
       onTransport:name=>{if(!this.active||this.active===child)opts.onTransport?.(name,roomId);},onDiagnostic:event=>opts.onDiagnostic?.(event,roomId,strategy.name),onPeer:peerId=>this.adopt(child,peerId,roomId,strategy.name),
-      onPose:(pose,peerId)=>{if(this.active===child)opts.onPose?.(pose,peerId);},onOrigin:(origin,peerId)=>{if(this.active===child)opts.onOrigin?.(origin,peerId);},onCombat:(packet,peerId)=>{if(this.active===child)opts.onCombat?.(packet,peerId);},onLeave:peerId=>{if(this.active===child)opts.onLeave?.(peerId);},
+      onPose:(pose,peerId)=>{if(this.active===child)opts.onPose?.(pose,peerId);},onOrigin:(origin,peerId)=>{if(this.active===child)opts.onOrigin?.(origin,peerId);},onCombat:(packet,peerId)=>{if(this.active===child)opts.onCombat?.(packet,peerId);},onLeave:peerId=>{if(this.active===child){opts.onLeave?.(peerId);this.scheduleRecovery("peer-left",child);}},
       onError:error=>{
-        if(this.active===child){opts.onError?.(error);return;}
+        if(this.active===child){opts.onError?.(error);this.scheduleRecovery("active-transport-error",child,error);return;}
         this.failedChildren.add(child);this.stageErrors.push(error);
         if(this.currentStageChildren.length&&this.currentStageChildren.every(item=>this.failedChildren.has(item)))this.wakeStage("all-error");
       }
@@ -299,10 +300,18 @@ export class LanVsFinder{
     if(this.active||!this.started||epoch!==this.stageEpoch)return Promise.resolve("cancel");
     return new Promise(resolve=>{this.stageResolve=resolve;this.stageTimer=setTimeout(()=>{if(this.stageResolve===resolve)this.stageResolve=null;this.stageTimer=0;resolve("timeout");},this.stageMs);});
   }
+  scheduleRecovery(reason="retry",child=this.active,error=null){
+    if(!this.started)return false;if(child&&this.active&&child!==this.active)return false;
+    this.wakeStage("recover");clearTimeout(this.retryTimer);this.retryTimer=0;
+    const previous=this.active;this.active=null;this.children=[];this.currentStageChildren=[];this.failedChildren.clear();this.stageErrors=[];if(previous)previous.stop(false);
+    const epoch=++this.stageEpoch,attempt=Math.min(4,++this.retryCount),delay=Math.min(5000,this.retryMs*attempt);
+    emitNetworkEvent("finder-retry-scheduled",{reason,delayMs:delay,attempt,error:error?errorMessage(error):"",roomIds:this.stageRoomIds});
+    this.retryTimer=setTimeout(()=>{this.retryTimer=0;if(!this.started||epoch!==this.stageEpoch||this.active)return;emitNetworkEvent("finder-retry-start",{reason,attempt,roomIds:this.stageRoomIds});this.stageTask=this.runStages(epoch).catch(nextError=>{if(this.started&&epoch===this.stageEpoch&&!this.active){emitNetworkEvent("finder-error",{error:errorMessage(nextError)});this.scheduleRecovery("stage-error",null,nextError);}});},delay);return true;
+  }
   adopt(child,peerId,roomId,transportName){
     if(this.active&&this.active!==child){child.stop(false);return;}
     if(!this.active){
-      this.active=child;this.wakeStage("peer");
+      this.active=child;this.retryCount=0;clearTimeout(this.retryTimer);this.retryTimer=0;this.wakeStage("peer");
       for(const other of this.children)if(other!==child)other.stop(false);
       this.children=[child];this.currentStageChildren=[child];this.failedChildren.clear();this.stageErrors=[];
       emitNetworkEvent("finder-selected",{roomId,transport:transportName,peerId,maxConcurrent:this.maxRoomsPerStage});
@@ -334,25 +343,25 @@ export class LanVsFinder{
     if(this.started&&epoch===this.stageEpoch&&!this.active){
       const error=lastError instanceof Error?lastError:Error("VS peer not reachable after staged direct/NostrRelay/Torrent/MQTT/Broker attempts");
       emitNetworkEvent("finder-exhausted",{error:errorMessage(error),roomIds:this.stageRoomIds,transportNames:this.transportStrategies.map(item=>item.name)});
-      this.options.onError?.(error);
+      this.scheduleRecovery("finder-exhausted",null,error);
     }
   }
   async start(roomIds){
-    if(this.started)return;this.started=true;
+    if(this.started)return;this.started=true;clearTimeout(this.retryTimer);this.retryTimer=0;this.retryCount=0;
     const ids=[...new Set((Array.isArray(roomIds)?roomIds:[roomIds]).filter(id=>typeof id==="string"&&id))].slice(0,DISCOVERY_MAX_ROOMS);
     if(!ids.length){this.started=false;throw Error("VS discovery produced no room candidates");}
     this.roomIds=ids;this.stageRoomIds=this.chooseStageRooms(ids);
     if(!this.stageRoomIds.length){this.started=false;throw Error("VS discovery produced no staged room candidates");}
     const epoch=++this.stageEpoch;
     emitNetworkEvent("finder-start",{roomCount:ids.length,selectedRoomIds:this.stageRoomIds,transportNames:this.transportStrategies.map(item=>item.name),maxConcurrent:this.maxRoomsPerStage,mode:"staged-mobile"});
-    this.stageTask=this.runStages(epoch).catch(error=>{if(this.started&&epoch===this.stageEpoch&&!this.active){emitNetworkEvent("finder-error",{error:errorMessage(error)});this.options.onError?.(error);}});
+    this.stageTask=this.runStages(epoch).catch(error=>{if(this.started&&epoch===this.stageEpoch&&!this.active){emitNetworkEvent("finder-error",{error:errorMessage(error)});this.scheduleRecovery("stage-error",null,error);}});
     await Promise.resolve();
   }
   setOrigin(origin){if(!validOrigin(origin))return false;this.pendingOrigin={...origin};for(const child of this.active?[this.active]:this.children)child.setOrigin(origin);return true;}
   setPose(pose){if(!validPose(pose))return false;this.pendingPose={...pose,p:[...pose.p],q:[...pose.q],...(pose.v?{v:[...pose.v]}:{}),...(pose.g?{g:[...pose.g]}:{})};for(const child of this.active?[this.active]:this.children)child.setPose(pose);return true;}
   sendCombat(packet){return this.active?.sendCombat(packet)||false;}
   stop(){
-    this.started=false;++this.stageEpoch;this.wakeStage("stop");clearTimeout(this.stageTimer);this.stageTimer=0;
+    this.started=false;++this.stageEpoch;this.wakeStage("stop");clearTimeout(this.stageTimer);clearTimeout(this.retryTimer);this.stageTimer=0;this.retryTimer=0;this.retryCount=0;
     for(const child of this.children)child.stop(false);this.children=[];this.currentStageChildren=[];this.active=null;this.roomIds=[];this.stageRoomIds=[];this.pendingPose=null;this.pendingOrigin=null;this.failedChildren.clear();this.stageErrors=[];this.stageTask=null;emitNetworkEvent("finder-stop");
   }
 }

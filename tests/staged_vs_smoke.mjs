@@ -29,7 +29,7 @@ assert.equal(connected,"NostrRelay","Nostr data relay must take over immediately
 assert.ok(opened.length<=6,`staged finder opened too many sessions before connection: ${opened.length}`);
 const firstStage=opened.filter(x=>x.name==="Nostr");
 assert.equal(firstStage.length,3,"mobile stage must cap simultaneous rooms at three");
-assert.deepEqual(firstStage.map(x=>x.roomId),["tap-current","tap-previous","net-exact"],"gesture rooms plus first trusted network room must be first");
+assert.deepEqual(firstStage.map(x=>x.roomId),["net-exact","net-secondary","net-third"],"stable same-network/proximity rooms must be attempted before transient gesture rooms");
 for(const item of opened.filter(x=>!["Broker","NostrRelay"].includes(x.name))){
   assert.equal(item.config.trickleIce,true,`${item.name} must force trickle ICE`);
   assert.equal(item.config.rtcConfig?.iceTransportPolicy,"all",`${item.name} must explicitly keep direct ICE paths enabled`);
