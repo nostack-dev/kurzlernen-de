@@ -1,0 +1,37 @@
+name: One-shot Xbox architecture marker
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/xbox-architecture-marker.trigger']
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Add permanent Xbox polling invariant
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/architecture_invariants.mjs');s=p.read_text()
+          marker='requireText("sim/control_settings.mjs","INVERT RIGHT STICK VERTICAL (UP/DOWN)");\n'
+          line='requireText("sim/simulator.mjs","pollXboxGamepad(renderNow)");\n'
+          if line not in s:
+              if marker not in s: raise SystemExit('stable Xbox architecture insertion marker missing')
+              s=s.replace(marker,marker+line,1);p.write_text(s)
+          PY
+          node tests/architecture_invariants.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/architecture_invariants.mjs
+          git commit -m 'Gate Xbox polling in architecture tests'
+          git push origin HEAD:main
