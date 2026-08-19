@@ -83,6 +83,9 @@ try{
   const remoteScripts=boot.scripts.filter(src=>{const u=new URL(src);return u.hostname!=="127.0.0.1"&&u.hostname!=="localhost";});
   if(remoteScripts.length||externalRequests.length)throw new Error(`self-contained fallback made external requests: scripts=${JSON.stringify(remoteScripts)} requests=${JSON.stringify(externalRequests)}`);
 
+  // The FPV mount offsets are published by the actual camera render path.
+  // Wait for that first authoritative render instead of racing the startup frame.
+  await page.waitForFunction(()=>Number.isFinite(Number(document.querySelector("#viewport")?.dataset.fpvCameraUpOffsetM)),{timeout:5000});
   const cameraBoot=await page.evaluate(()=>({
     mode:document.querySelector("#viewport")?.dataset.cameraMode||"",
     fpv:document.querySelector("#camFpv")?.dataset.active||"",
