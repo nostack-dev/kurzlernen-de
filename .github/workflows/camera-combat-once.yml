@@ -1,0 +1,67 @@
+name: One-shot camera combat repair
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/camera-combat.trigger']
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply complete product repair
+        run: |
+          set -euxo pipefail
+          python3 .github/apply-camera-combat-repair.py
+          rm -f .github/workflows/camera-combat-once.yml .github/camera-combat.trigger .github/apply-camera-combat-repair.py .github/fpv-optics.trigger
+
+          # Validate the exact final working tree after all temporary scaffold is gone.
+          node --check sim/simulator.mjs
+          node --check sim/flight_fire_fx.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/xbox_gamepad.mjs
+          node --check sim/visual_pose_stabilization.mjs
+          node --check tests/combat_center_fire_browser_smoke.mjs
+          node tests/control_semantics_test.mjs
+          node tests/xbox_gamepad_test.mjs
+          node tests/camera_stabilization_test.mjs
+          node tests/visual_pose_stabilization_test.mjs
+          node tests/combat_center_fire_test.mjs
+          node tests/render_stability_test.mjs
+          node tests/vs_pose_sync_test.mjs
+          node tests/architecture_invariants.mjs
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core
+          /tmp/fc-core
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control
+          /tmp/state-control
+          find sim tests tools -type f -name '*.mjs' -print0 | xargs -0 -n1 node --check
+
+      - name: Commit exact final tree
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git status --short
+          git commit -m 'Fix FPV optics external jitter and center fire'
+          git push origin HEAD:main
+
+      - name: Report result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          body="CAMERA COMBAT REPAIR · source=${GITHUB_SHA} · job=${{ job.status }} · run=${GITHUB_RUN_ID}"
+          payload="$(jq -cn --arg body "$body" '{body:$body}')"
+          curl -fsSL -X POST -H 'Accept: application/vnd.github+json' -H "Authorization: Bearer ${GH_TOKEN}" -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null
