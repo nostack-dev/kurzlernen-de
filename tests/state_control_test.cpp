@@ -79,12 +79,22 @@ int main() {
     rc = base_rc(true);
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
     const float climb_throttle = cmd.throttle;
+    const float climb_accel = controller.debug().vertical_accel_mps2;
     CHECK(controller.debug().target_vz_mps > 2.9f);
-    CHECK(controller.debug().vertical_accel_mps2 > 11.9f);
+    CHECK(climb_accel > 11.9f);
     CHECK(climb_throttle > 0.58f && climb_throttle < 0.65f);
 
+    // A sudden measured-height reversal must no longer command an impossible
+    // +12 -> -12 m/s^2 acceleration step in one millisecond. 1200 m/s^3 allows
+    // at most 1.2 m/s^2 per 1 ms controller tick, while still reaching a clear
+    // descent command within a few tens of milliseconds.
     nav.agl_m = 3.5f;
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
+    const float first_reverse_accel = controller.debug().vertical_accel_mps2;
+    CHECK(first_reverse_accel > 0.0f);
+    CHECK(climb_accel - first_reverse_accel > 1.0f);
+    CHECK(climb_accel - first_reverse_accel < 1.3f);
+    for (int i = 0; i < 24; ++i) cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
     const float descend_throttle = cmd.throttle;
     CHECK(controller.debug().vertical_accel_mps2 < -3.0f);
     CHECK(descend_throttle < climb_throttle);
@@ -149,6 +159,19 @@ int main() {
     CHECK(std::fabs(controller.debug().right_accel_mps2) < 0.001f);
     CHECK(std::fabs(cmd.pitch) < 0.01f);
 
+    // Releasing a translation stick while already travelling at the commanded
+    // velocity must not flip immediately to full reverse acceleration. The cruise
+    // integrator clears at once, while the velocity target ramps down at 4 m/s^2.
+    auto released = base_rc(true);
+    cmd = controller.run(released, nav, 0.0f, true, 0.001f);
+    CHECK(controller.debug().desired_forward_mps > desired_forward - 0.01f);
+    CHECK(controller.debug().forward_accel_mps2 < 0.0f);
+    CHECK(controller.debug().forward_accel_mps2 > -0.05f);
+    for (int i = 0; i < 249; ++i) cmd = controller.run(released, nav, 0.0f, true, 0.001f);
+    CHECK(controller.debug().desired_forward_mps < desired_forward - 0.95f);
+    CHECK(controller.debug().desired_forward_mps > desired_forward - 1.05f);
+    CHECK(controller.debug().forward_accel_mps2 > -1.0f);
+
     controller.reset();
     nav = {{0.0f, 0.0f, 0.0f}, 2.0f, true};
     rc = base_rc(true);
@@ -185,7 +208,8 @@ int main() {
     nav.velocity_world_mps = {-0.01f, 0.0f, 0.0f};
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
     CHECK(controller.debug().measured_forward_mps > 0.009f);
-    CHECK(controller.debug().forward_accel_mps2 < -0.08f);
+    CHECK(controller.debug().forward_accel_mps2 < 0.0f);
+    CHECK(controller.debug().forward_accel_mps2 > -0.08f);
     CHECK(cmd.pitch > 0.0f);
 
     controller.reset();
