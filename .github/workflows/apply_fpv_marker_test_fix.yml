@@ -1,0 +1,41 @@
+name: Apply FPV marker test fix
+
+on:
+  push:
+    branches: ["fix-fpv-marker-race"]
+    paths: [".github/workflows/apply_fpv_marker_test_fix.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix-fpv-marker-race
+          fetch-depth: 0
+      - name: Synchronize direct-FPV diagnostic assertion
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/browser_sim_smoke.mjs')
+          t=p.read_text()
+          old='''  const cameraBoot=await page.evaluate(()=>({\n'''
+          new='''  // The FPV mount offsets are published by the actual camera render path.\n  // Wait for that first authoritative render instead of racing the startup frame.\n  await page.waitForFunction(()=>Number.isFinite(Number(document.querySelector("#viewport")?.dataset.fpvCameraUpOffsetM)),{timeout:5000});\n  const cameraBoot=await page.evaluate(()=>({\n'''
+          if t.count(old)!=1:
+              raise SystemExit(f'expected one cameraBoot anchor, got {t.count(old)}')
+          p.write_text(t.replace(old,new))
+          PY
+          node --check tests/browser_sim_smoke.mjs
+      - name: Commit patch and remove one-shot workflow
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/apply_fpv_marker_test_fix.yml
+          git add tests/browser_sim_smoke.mjs
+          git commit -m 'Synchronize FPV startup diagnostic assertion'
+          git push origin HEAD:fix-fpv-marker-race
