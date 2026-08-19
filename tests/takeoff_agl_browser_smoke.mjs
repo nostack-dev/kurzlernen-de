@@ -35,13 +35,15 @@ try{
     const fc=Number(globalThis.__arondightDiagnostics?.fcState)||0;
     const aglText=document.querySelector("#soloAlt")?.textContent||"";
     const rangeText=document.querySelector("#soloRangeStatus")?.textContent||"";
+    const state=document.querySelector("#fcState")?.textContent||"";
+    const button=document.querySelector("#soloArm");
     const match=aglText.match(/AGL\s+([0-9.]+)\s*m/);
-    return Boolean(fc&(1<<5))&&!Boolean(fc&(1<<7))&&Boolean(match)&&!rangeText.includes("DEGRADED")&&!rangeText.includes("LOST");
-  },{timeout:10000});
+    return state==="DISARMED"&&Boolean(button)&&!button.disabled&&button.textContent.trim()==="ARM"&&Boolean(fc&(1<<5))&&!Boolean(fc&(1<<7))&&Boolean(match)&&!rangeText.includes("DEGRADED")&&!rangeText.includes("LOST");
+  },{timeout:20000});
 
   const before=await read();
-  if(!before.navValid||before.navDegraded||!Number.isFinite(before.agl)||before.agl<0||before.rangeText.includes("DEGRADED")||before.rangeText.includes("LOST"))
-    throw new Error(`AGL invalid before ARM: ${JSON.stringify(before)}`);
+  if(before.state!=="DISARMED"||!before.navValid||before.navDegraded||!Number.isFinite(before.agl)||before.agl<0||before.rangeText.includes("DEGRADED")||before.rangeText.includes("LOST"))
+    throw new Error(`AGL/arm readiness invalid before ARM: ${JSON.stringify(before)}`);
 
   await page.click("#soloArm");
   await page.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:5000});
