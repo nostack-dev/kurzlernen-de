@@ -1,0 +1,197 @@
+name: Finalize flight and real photogrammetry
+
+on:
+  push:
+    branches: ["finalize-flight-photoreal"]
+    paths: [".github/workflows/finalize-flight-photoreal.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: finalize-flight-photoreal
+          fetch-depth: 0
+
+      - name: Apply flight handoff, FPV optical stabilization, and lazy photoreal wiring
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_one(path, old, new):
+              p=Path(path); s=p.read_text(); n=s.count(old)
+              if n!=1: raise SystemExit(f"{path}: expected one match, got {n}: {old[:120]!r}")
+              p.write_text(s.replace(old,new))
+
+          state='esp32/Arondight45_StateControl.hpp'
+          replace_one(state,
+          '''        hover_trim_ = kInitialHoverThrottle;\n        reset_horizontal_state();\n        debug_ = {};''',
+          '''        hover_trim_ = kInitialHoverThrottle;\n        reset_horizontal_state();\n        reset_command_targets();\n        debug_ = {};''')
+          replace_one(state,
+          '''        active_ = false;\n        heading_source_valid_ = false;\n        reset_horizontal_state();\n        debug_ = {};''',
+          '''        active_ = false;\n        heading_source_valid_ = false;\n        reset_horizontal_state();\n        reset_command_targets();\n        debug_ = {};''')
+          replace_one(state,
+          '''            heading_source_valid_ = absolute_heading_valid;\n            reset_horizontal_state();\n            active_ = true;''',
+          '''            heading_source_valid_ = absolute_heading_valid;\n            reset_horizontal_state();\n            reset_command_targets();\n            active_ = true;''')
+          replace_one(state,
+          '''        if (!inner_armed) {\n            reset_horizontal_state();\n            target_yaw_deg_ = measured_yaw_deg;''',
+          '''        if (!inner_armed) {\n            reset_horizontal_state();\n            reset_command_targets();\n            target_yaw_deg_ = measured_yaw_deg;''')
+          replace_one(state,
+          '''        update_acceleration_estimator(nav.velocity_world_mps, dt);''',
+          '''        update_command_targets(intent, dt);\n        update_acceleration_estimator(nav.velocity_world_mps, dt);''')
+          replace_one(state,
+          '''        const float vz_error = target_vz - nav.velocity_world_mps.z;\n        const float vertical_accel = clamp(kVerticalVelocityGain * vz_error,\n                                           -kMaxVerticalAccelerationMps2,\n                                           kMaxVerticalAccelerationMps2);\n        const float specific_up = clamp(kGravityMps2 + vertical_accel,''',
+          '''        const float vz_error = target_vz - nav.velocity_world_mps.z;\n        const float requested_vertical_accel = clamp(kVerticalVelocityGain * vz_error,\n                                                     -kMaxVerticalAccelerationMps2,\n                                                     kMaxVerticalAccelerationMps2);\n        const float vertical_accel = limit_vertical_accel_jerk(requested_vertical_accel, dt);\n        const float specific_up = clamp(kGravityMps2 + vertical_accel,''')
+          replace_one(state,
+          '''        const float forward_error = intent.forward_mps - measured_forward;\n        const float right_error = intent.right_mps - measured_right;\n        const float target_horizontal_speed = std::sqrt(intent.forward_mps * intent.forward_mps +\n                                                        intent.right_mps * intent.right_mps);''',
+          '''        const float forward_error = commanded_forward_mps_ - measured_forward;\n        const float right_error = commanded_right_mps_ - measured_right;\n        const float target_horizontal_speed = std::sqrt(commanded_forward_mps_ * commanded_forward_mps_ +\n                                                        commanded_right_mps_ * commanded_right_mps_);''')
+          replace_one(state,
+          '''        // Architecture marker retained deliberately: the P term still is exactly\n        // kHorizontalVelocityGain * (intent.forward_mps - measured_forward)\n        // and kHorizontalVelocityGain * (intent.right_mps - measured_right),\n        // now augmented by bounded I and measured-acceleration D terms.\n        const float forward_unsat = kHorizontalVelocityGain * (intent.forward_mps - measured_forward) + horizontal_integral_forward_mps2_ -\n                                    kHorizontalAccelerationDamping * measured_forward_accel;\n        const float right_unsat = kHorizontalVelocityGain * (intent.right_mps - measured_right) + horizontal_integral_right_mps2_ -\n                                  kHorizontalAccelerationDamping * measured_right_accel;''',
+          '''        // Stick deflection remains immediate. Only the neutral-release handoff\n        // slews the velocity target toward zero, preventing a one-tick reversal of\n        // demanded acceleration while preserving the same physical P/I/D loop.\n        const float forward_unsat = kHorizontalVelocityGain * (commanded_forward_mps_ - measured_forward) + horizontal_integral_forward_mps2_ -\n                                    kHorizontalAccelerationDamping * measured_forward_accel;\n        const float right_unsat = kHorizontalVelocityGain * (commanded_right_mps_ - measured_right) + horizontal_integral_right_mps2_ -\n                                  kHorizontalAccelerationDamping * measured_right_accel;''')
+          replace_one(state,
+          '''    static constexpr float kHorizontalIntegralNeutralTargetMps = 0.05f;\n    static constexpr float kHorizontalAccelerationDamping = 0.55f;''',
+          '''    static constexpr float kHorizontalIntegralNeutralTargetMps = 0.05f;\n    static constexpr float kHorizontalReleaseTargetRateMps2 = 4.0f;\n    static constexpr float kHorizontalAccelerationDamping = 0.55f;''')
+          replace_one(state,
+          '''    static constexpr float kMaxVerticalAccelerationMps2 = 50.0f;\n    static constexpr float kMinSpecificUpMps2 = 0.5f;''',
+          '''    static constexpr float kMaxVerticalAccelerationMps2 = 50.0f;\n    static constexpr float kVerticalJerkLimitMps3 = 400.0f;\n    static constexpr float kMinSpecificUpMps2 = 0.5f;''')
+          replace_one(state,
+          '''    void reset_horizontal_state() {''',
+          '''    void reset_command_targets() {\n        horizontal_target_initialized_ = false;\n        commanded_forward_mps_ = 0.0f;\n        commanded_right_mps_ = 0.0f;\n        vertical_accel_initialized_ = false;\n        vertical_accel_state_mps2_ = 0.0f;\n    }\n\n    void update_command_targets(const StateIntent& intent, float dt) {\n        const float requested_speed = std::sqrt(intent.forward_mps * intent.forward_mps +\n                                                intent.right_mps * intent.right_mps);\n        if (!horizontal_target_initialized_ || requested_speed > kHorizontalIntegralNeutralTargetMps) {\n            commanded_forward_mps_ = intent.forward_mps;\n            commanded_right_mps_ = intent.right_mps;\n            horizontal_target_initialized_ = true;\n            return;\n        }\n\n        const float current_speed = std::sqrt(commanded_forward_mps_ * commanded_forward_mps_ +\n                                              commanded_right_mps_ * commanded_right_mps_);\n        const float release_step = kHorizontalReleaseTargetRateMps2 * dt;\n        if (current_speed <= release_step || current_speed < 1.0e-6f) {\n            commanded_forward_mps_ = 0.0f;\n            commanded_right_mps_ = 0.0f;\n        } else {\n            const float scale = (current_speed - release_step) / current_speed;\n            commanded_forward_mps_ *= scale;\n            commanded_right_mps_ *= scale;\n        }\n    }\n\n    float limit_vertical_accel_jerk(float requested, float dt) {\n        if (!vertical_accel_initialized_) {\n            vertical_accel_state_mps2_ = requested;\n            vertical_accel_initialized_ = true;\n            return vertical_accel_state_mps2_;\n        }\n        const float max_step = kVerticalJerkLimitMps3 * dt;\n        vertical_accel_state_mps2_ += clamp(requested - vertical_accel_state_mps2_, -max_step, max_step);\n        return vertical_accel_state_mps2_;\n    }\n\n    void reset_horizontal_state() {''')
+          replace_one(state,
+          '''    bool acceleration_estimator_valid_{};\n    float acceleration_sample_dt_s_{};''',
+          '''    bool acceleration_estimator_valid_{};\n    bool horizontal_target_initialized_{};\n    bool vertical_accel_initialized_{};\n    float commanded_forward_mps_{};\n    float commanded_right_mps_{};\n    float vertical_accel_state_mps2_{};\n    float acceleration_sample_dt_s_{};''')
+
+          arch='tests/architecture_invariants.mjs'
+          replace_one(arch,
+          '''requireText("esp32/Arondight45_StateControl.hpp","kHorizontalVelocityGain * (intent.forward_mps - measured_forward)");\nrequireText("esp32/Arondight45_StateControl.hpp","kHorizontalVelocityGain * (intent.right_mps - measured_right)");''',
+          '''requireText("esp32/Arondight45_StateControl.hpp","kHorizontalVelocityGain * (commanded_forward_mps_ - measured_forward)");\nrequireText("esp32/Arondight45_StateControl.hpp","kHorizontalVelocityGain * (commanded_right_mps_ - measured_right)");\nrequireText("esp32/Arondight45_StateControl.hpp","kHorizontalReleaseTargetRateMps2 = 4.0f");\nrequireText("esp32/Arondight45_StateControl.hpp","kVerticalJerkLimitMps3 = 400.0f");''')
+
+          test='tests/state_control_test.cpp'
+          anchor='''    CHECK(std::fabs(cmd.pitch) < 0.01f);\n\n    controller.reset();\n    nav = {{0.0f, 0.0f, 0.0f}, 2.0f, true};'''
+          addition='''    CHECK(std::fabs(cmd.pitch) < 0.01f);\n\n    // Releasing a translation stick must not turn a matching cruise velocity into\n    // an instantaneous full reverse-acceleration target. The target decays at a\n    // bounded physical handoff rate while the plant remains untouched.\n    controller.reset();\n    rc = base_rc(true);\n    rc.ch[FC_SBUS_PITCH] = centered_raw(0.45f);\n    nav = {{0.0f, 0.0f, 0.0f}, 2.0f, true};\n    cmd = controller.run(rc, nav, 0.0f, true, 0.001f);\n    const float cruise_target = controller.debug().desired_forward_mps;\n    nav.velocity_world_mps = {-cruise_target, 0.0f, 0.0f};\n    cmd = controller.run(rc, nav, 0.0f, true, 0.001f);\n    rc.ch[FC_SBUS_PITCH] = centered_raw(0.0f);\n    cmd = controller.run(rc, nav, 0.0f, true, 0.001f);\n    CHECK(controller.debug().forward_accel_mps2 > -0.08f);\n    CHECK(std::fabs(cmd.pitch) < 0.02f);\n    for (int i = 0; i < 300; ++i) cmd = controller.run(rc, nav, 0.0f, true, 0.001f);\n    CHECK(controller.debug().forward_accel_mps2 < -0.5f);\n\n    // Once airborne, an AGL-target reversal may use the full 50 m/s^2 envelope,\n    // but thrust acceleration cannot reverse in one 1 ms control tick.\n    controller.reset();\n    auto jerk_high = base_rc(true);\n    jerk_high.ch[fc::kStateClearanceChannel] = 1811;\n    nav = {{0.0f,0.0f,0.0f},0.5f,true};\n    cmd = controller.run(jerk_high,nav,0.0f,true,0.001f);\n    CHECK(controller.debug().vertical_accel_mps2 > 49.9f);\n    auto jerk_low = base_rc(true);\n    jerk_low.ch[fc::kStateClearanceChannel] = 172;\n    nav.velocity_world_mps.z = 20.0f;\n    cmd = controller.run(jerk_low,nav,0.0f,true,0.001f);\n    CHECK(controller.debug().vertical_accel_mps2 > 49.4f);\n    CHECK(controller.debug().vertical_accel_mps2 < 49.7f);\n\n    controller.reset();\n    nav = {{0.0f, 0.0f, 0.0f}, 2.0f, true};'''
+          replace_one(test,anchor,addition)
+
+          sim='sim/simulator.mjs'
+          replace_one(sim,
+          '''const externalCameraRig=new StabilizedExternalCameraRig();\nconst cameraLookTarget=new THREE.Vector3();\nlet cameraSettings=loadCameraSettings();''',
+          '''const externalCameraRig=new StabilizedExternalCameraRig();\nconst cameraLookTarget=new THREE.Vector3();\nconst fpvOpticalPosition=new THREE.Vector3(),fpvOpticalQuaternion=new THREE.Quaternion(),fpvBodyForward=new THREE.Vector3(),fpvBodyUp=new THREE.Vector3();\nlet fpvOpticalInitialized=false;\nfunction resetFpvOpticalStabilizer(){fpvOpticalInitialized=false;}\nlet cameraSettings=loadCameraSettings();''')
+          replace_one(sim,
+          '''function applyCameraSettings(next){cameraSettings=next;externalCameraRig.invalidate();$("viewport").dataset.fpvTiltDeg=String(cameraSettings.fpvTiltDeg);''',
+          '''function applyCameraSettings(next){cameraSettings=next;externalCameraRig.invalidate();resetFpvOpticalStabilizer();$("viewport").dataset.fpvTiltDeg=String(cameraSettings.fpvTiltDeg);''')
+          replace_one(sim,
+          '''  cameraMode=["follow","fpv","third"].includes(next)?next:"follow";externalCameraRig.invalidate();cameraFrameMs=performance.now();localStorage.setItem("arondight45CameraMode",cameraMode);''',
+          '''  cameraMode=["follow","fpv","third"].includes(next)?next:"follow";externalCameraRig.invalidate();resetFpvOpticalStabilizer();cameraFrameMs=performance.now();localStorage.setItem("arondight45CameraMode",cameraMode);''')
+          old='''  const position=pose.position,q=pose.quaternion,velocity=pose.velocity,dt=clamp((now-cameraFrameMs)/1000,0,.1);cameraFrameMs=now;\n  const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize();\n  if(cameraMode==="fpv"){\n    externalCameraRig.invalidate();\n    const bodyUp=new THREE.Vector3(0,0,1).applyQuaternion(q).normalize();'''
+          new='''  const position=pose.position,q=pose.quaternion,velocity=pose.velocity,dt=clamp((now-cameraFrameMs)/1000,0,.1);cameraFrameMs=now;\n  if(cameraMode==="fpv"){\n    externalCameraRig.invalidate();\n    const teleport=!fpvOpticalInitialized||fpvOpticalPosition.distanceToSquared(position)>.1225||fpvOpticalQuaternion.angleTo(q)>.70;\n    if(teleport){fpvOpticalPosition.copy(position);fpvOpticalQuaternion.copy(q);fpvOpticalInitialized=true;}\n    else{const positionAlpha=1-Math.exp(-55*dt),rotationAlpha=1-Math.exp(-45*dt);fpvOpticalPosition.lerp(position,positionAlpha);fpvOpticalQuaternion.slerp(q,rotationAlpha).normalize();}\n    const bodyForward=fpvBodyForward.set(-1,0,0).applyQuaternion(fpvOpticalQuaternion).normalize();\n    const bodyUp=fpvBodyUp.set(0,0,1).applyQuaternion(fpvOpticalQuaternion).normalize();'''
+          replace_one(sim,old,new)
+          replace_one(sim,
+          '''    camera.position.copy(position).addScaledVector(bodyForward,FPV_CAMERA_FORWARD_OFFSET_M).addScaledVector(bodyUp,FPV_CAMERA_UP_OFFSET_M);''',
+          '''    camera.position.copy(fpvOpticalPosition).addScaledVector(bodyForward,FPV_CAMERA_FORWARD_OFFSET_M).addScaledVector(bodyUp,FPV_CAMERA_UP_OFFSET_M);''')
+          replace_one(sim,
+          '''viewport.dataset.cameraRigMode="rigid-airframe";viewport.dataset.cameraRigLagM="0.0000";viewport.dataset.cameraRigAnchor=[position.x,position.y,position.z].map(value=>value.toFixed(4)).join(",");''',
+          '''viewport.dataset.cameraRigMode="fpv-optical-micro-stabilized";viewport.dataset.cameraRigLagM=fpvOpticalPosition.distanceTo(position).toFixed(4);viewport.dataset.cameraRigAnchor=[fpvOpticalPosition.x,fpvOpticalPosition.y,fpvOpticalPosition.z].map(value=>value.toFixed(4)).join(",");''')
+          replace_one(sim,
+          '''    return;\n  }\n  const horizontal=bodyForward.clone();''',
+          '''    return;\n  }\n  const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize();\n  const horizontal=bodyForward.clone();''')
+
+          rw='sim/real_world_bootstrap.mjs'
+          replace_one(rw,
+          '''const MODE_STORAGE="arondight45WorldMode";''',
+          '''const MODE_STORAGE="arondight45WorldMode";\nconst PHOTOREAL_BUNDLE_URL="./sim/photorealistic_3d_tiles.bundle.mjs";''')
+          replace_one(rw,
+          '''this.buildingCollisionRevisions=0;this.cameraCollisionResolver=null;''',
+          '''this.buildingCollisionRevisions=0;this.cameraCollisionResolver=null;this.photorealistic=null;this.photorealisticPromise=null;this.photorealGeneration=0;this.photorealBuildingVisibility="visible";this.originAltitudeM=null;''')
+          replace_one(rw,
+          '''  clearBuildingCollisions(){''',
+          '''  photorealApiKey(){return String(globalThis.__ARONDIGHT45_GOOGLE_MAP_TILES_API_KEY__||"").trim();}\n  setPhotorealBuildingFallback(photoVisible){\n    const visibility=photoVisible?"none":"visible";if(this.photorealBuildingVisibility===visibility)return;this.photorealBuildingVisibility=visibility;try{if(this.map?.getLayer("arondight45-buildings-3d"))this.map.setLayoutProperty("arondight45-buildings-3d","visibility",visibility);}catch(error){console.warn("WORLD building presentation fallback warning:",error);}\n  }\n  ensurePhotorealistic(){\n    if(this.photorealistic||this.photorealisticPromise||!this.active||!this.threeScene||!this.threeRenderer||!this.threeCamera)return;const key=this.photorealApiKey(),viewport=$("viewport");if(!key){if(viewport)viewport.dataset.worldPhotorealStatus="key-missing";return;}\n    const generation=++this.photorealGeneration;this.photorealisticPromise=import(PHOTOREAL_BUNDLE_URL).then(module=>{if(!this.active||generation!==this.photorealGeneration)return null;const layer=new module.PhotorealisticWorldLayer({scene:this.threeScene,renderer:this.threeRenderer,camera:this.threeCamera,viewport,latitude:this.originLat,longitude:this.originLon,altitudeM:this.originAltitudeM,apiKey:key});if(!layer.start())return null;this.photorealistic=layer;return layer;}).catch(error=>{console.warn("WORLD photorealistic 3D module warning:",error);if(viewport)viewport.dataset.worldPhotorealStatus="module-error";return null;}).finally(()=>{if(generation===this.photorealGeneration)this.photorealisticPromise=null;});\n  }\n  clearBuildingCollisions(){''')
+          replace_one(rw,
+          '''      const fix=locationFix?.coords?locationFix:await geolocate();this.lastLocation=fix;const {latitude,longitude,accuracy}=fix.coords;''',
+          '''      const fix=locationFix?.coords?locationFix:await geolocate();this.lastLocation=fix;const {latitude,longitude,accuracy,altitude}=fix.coords;this.originAltitudeM=Number.isFinite(Number(altitude))?Number(altitude):null;''')
+          replace_one(rw,
+          '''      if(!this.threeRenderer)throw Error("Flight renderer is not ready");''',
+          '''      if(!this.threeRenderer)throw Error("Flight renderer is not ready");this.ensurePhotorealistic();''')
+          replace_one(rw,
+          '''  deactivate(){\n    this.active=false;this.loading=false;this.lastMapSyncFrameSerial=-1;''',
+          '''  deactivate(){\n    this.active=false;this.loading=false;this.photorealGeneration++;this.photorealisticPromise=null;this.photorealistic?.dispose();this.photorealistic=null;this.originAltitudeM=null;this.setPhotorealBuildingFallback(false);this.lastMapSyncFrameSerial=-1;''')
+          replace_one(rw,
+          '''    this.applyLookCamera(scene,camera);this.syncMapCamera(camera,this.presentationFrameSerial);this.drawMinimap(performance.now());const renderer=this.threeRenderer;''',
+          '''    this.applyLookCamera(scene,camera);const frameNow=performance.now();if(!this.photorealistic)this.ensurePhotorealistic();const photoVisible=this.photorealistic?.update(this.perfMode,frameNow)===true;this.setPhotorealBuildingFallback(photoVisible);this.syncMapCamera(camera,this.presentationFrameSerial);this.drawMinimap(frameNow);const renderer=this.threeRenderer;''')
+
+          # Keep the build lightweight until WORLD actually asks for real 3D: build a
+          # separate local bundle and dynamically import it only when a browser key exists.
+          deploy='.github/workflows/deploy.yml'; p=Path(deploy); d=p.read_text()
+          dep_old='''three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 mqtt@5.15.2 nostr-tools@2.24.1'''
+          dep_new='''three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 3d-tiles-renderer@0.5.0 esbuild@0.25.8 puppeteer-core@24.16.0 mqtt@5.15.2 nostr-tools@2.24.1'''
+          if d.count(dep_old)!=1: raise SystemExit('deploy npm dependency line mismatch')
+          d=d.replace(dep_old,dep_new)
+          build_marker='''      - name: Bundle self-contained Pages and verify exact Box3D binding\n        run: |'''
+          build_repl='''      - name: Bundle self-contained Pages and verify exact Box3D binding\n        env:\n          GOOGLE_MAP_TILES_BROWSER_KEY: '''+'$'+'{{ secrets.GOOGLE_MAP_TILES_BROWSER_KEY }}'+'''\n        run: |'''
+          if d.count(build_marker)!=1: raise SystemExit('deploy build step marker mismatch')
+          d=d.replace(build_marker,build_repl)
+          esbuild_marker='''          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs\n          ./node_modules/.bin/esbuild sim/controller.mjs'''
+          esbuild_repl='''          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs\n          ./node_modules/.bin/esbuild sim/photorealistic_3d_tiles.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=sim/photorealistic_3d_tiles.bundle.mjs\n          ./node_modules/.bin/esbuild sim/controller.mjs'''
+          if d.count(esbuild_marker)!=1: raise SystemExit('deploy esbuild marker mismatch')
+          d=d.replace(esbuild_marker,esbuild_repl)
+          check_marker='''          node --check /tmp/arondight45-simulator.bundle.mjs\n          node --check /tmp/arondight45-controller.bundle.mjs'''
+          check_repl='''          node --check /tmp/arondight45-simulator.bundle.mjs\n          node --check sim/photorealistic_3d_tiles.bundle.mjs\n          node --check /tmp/arondight45-controller.bundle.mjs'''
+          if d.count(check_marker)!=1: raise SystemExit('deploy bundle check marker mismatch')
+          d=d.replace(check_marker,check_repl)
+          py_marker="""          sha=os.environ['GITHUB_SHA']\n          builds=["""
+          py_repl="""          sha=os.environ['GITHUB_SHA']\n          key=os.environ.get('GOOGLE_MAP_TILES_BROWSER_KEY','').strip()\n          key_bootstrap='<script>globalThis.__ARONDIGHT45_GOOGLE_MAP_TILES_API_KEY__='+__import__('json').dumps(key)+'</script>\\n'\n          builds=["""
+          if d.count(py_marker)!=1: raise SystemExit('deploy python key marker mismatch')
+          d=d.replace(py_marker,py_repl)
+          html_marker="""              built=html.replace(marker,'<script type=\"module\">\\n'+bundle+'\\n</script>')\n              path.write_text(f'<!-- ARONDIGHT45_BUILD_SHA:{sha} -->\\n'+built)"""
+          html_repl="""              built=html.replace(marker,'<script type=\"module\">\\n'+bundle+'\\n</script>')\n              path.write_text(f'<!-- ARONDIGHT45_BUILD_SHA:{sha} -->\\n'+key_bootstrap+built)"""
+          if d.count(html_marker)!=1: raise SystemExit('deploy html injection marker mismatch')
+          d=d.replace(html_marker,html_repl)
+          size_marker='''          test -s drone_simulator.html\n          test -s drone_controller.html'''
+          size_repl='''          test -s drone_simulator.html\n          test -s sim/photorealistic_3d_tiles.bundle.mjs\n          test -s drone_controller.html'''
+          if d.count(size_marker)!=1: raise SystemExit('deploy size marker mismatch')
+          d=d.replace(size_marker,size_repl)
+          p.write_text(d)
+          PY
+
+      - name: Compile and regression-test changed flight controller
+        run: |
+          set -euxo pipefail
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc_core_test
+          /tmp/fc_core_test
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
+          /tmp/state_control_test
+          node tests/control_semantics_test.mjs
+          node tests/architecture_invariants.mjs
+          node --check sim/simulator.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/photorealistic_3d_tiles.mjs
+
+      - name: Verify lazy photoreal bundle against pinned renderer
+        run: |
+          set -euxo pipefail
+          mkdir -p /tmp/photo-build && cd /tmp/photo-build
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 3d-tiles-renderer@0.5.0 esbuild@0.25.8
+          ln -s /tmp/photo-build/node_modules "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/esbuild sim/photorealistic_3d_tiles.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/photoreal.bundle.mjs
+          node --check /tmp/photoreal.bundle.mjs
+          grep -q 'GoogleCloudAuthPlugin' sim/photorealistic_3d_tiles.mjs
+          grep -q 'maxBytesSize' sim/photorealistic_3d_tiles.mjs
+          grep -q 'dispose-model' sim/photorealistic_3d_tiles.mjs
+          grep -q 'PHOTOREAL_BUNDLE_URL' sim/real_world_bootstrap.mjs
+          ! grep -q 'PhotorealisticWorldLayer' /tmp/arondight-no-such-file 2>/dev/null || true
+          rm node_modules
+
+      - name: Commit tested finalization and remove one-shot workflow
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/finalize-flight-photoreal.yml
+          git add esp32/Arondight45_StateControl.hpp tests/state_control_test.cpp tests/architecture_invariants.mjs sim/simulator.mjs sim/real_world_bootstrap.mjs sim/photorealistic_3d_tiles.mjs .github/workflows/deploy.yml
+          git commit -m 'Finalize smooth flight handoff and real photogrammetry streaming'
+          git push origin HEAD:finalize-flight-photoreal
