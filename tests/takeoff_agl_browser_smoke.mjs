@@ -22,6 +22,7 @@ const read=()=>page.evaluate(()=>{
     altitude:parseFloat(document.querySelector("#altitude")?.textContent||"NaN"),
     roll:attitude?Number(attitude[1]):NaN,pitch:attitude?Number(attitude[2]):NaN,
     state:document.querySelector("#fcState")?.textContent||"",
+    visualSupport:parseFloat(document.querySelector("#viewport")?.dataset.airframeVisualSupportZ||"NaN"),
   };
 });
 
@@ -44,6 +45,9 @@ try{
   const before=await read();
   if(before.state!=="DISARMED"||!before.navValid||before.navDegraded||!Number.isFinite(before.agl)||before.agl<0||before.rangeText.includes("DEGRADED")||before.rangeText.includes("LOST"))
     throw new Error(`AGL/arm readiness invalid before ARM: ${JSON.stringify(before)}`);
+  const groundVisualSamples=[];for(let i=0;i<20;i++){groundVisualSamples.push((await read()).visualSupport);await wait(50);}
+  const minVisualSupport=Math.min(...groundVisualSamples.filter(Number.isFinite));
+  if(!Number.isFinite(minVisualSupport)||minVisualSupport<.001)throw new Error(`visible airframe clipped the ground during pre-arm settle: minSupport=${minVisualSupport} samples=${JSON.stringify(groundVisualSamples)}`);
 
   const armStart=await page.evaluate(()=>Number(globalThis.__arondightDiagnostics?.simTime));
   await page.click("#soloArm");

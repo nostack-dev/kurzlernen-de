@@ -42,6 +42,30 @@ for(const mode of ["follow","third"]){
   assert.ok(ratio<.30,`${mode} camera passed too much hover correction into the world view: ${ratio}`);
 }
 
+// The long third-person lever arm must not amplify tiny FC yaw corrections into
+// visible world twitch. A 10 Hz ±1.5° correction is presentation noise, not a
+// deliberate camera orbit.
+{
+  const rig=new StabilizedExternalCameraRig(),raw=[],filtered=[],dt=1/120,frequencyHz=10,amplitudeRad=1.5*Math.PI/180;
+  for(let i=0;i<1200;i++){
+    const time=i*dt,yaw=amplitudeRad*Math.sin(2*Math.PI*frequencyHz*time),heading=[Math.cos(yaw),Math.sin(yaw),0],state=rig.update({position:[0,0,2],velocity:[0,0,0],heading,mode:"third",dt});
+    if(i>240){raw.push(yaw);filtered.push(Math.atan2(state.heading[1],state.heading[0]));}
+  }
+  const ratio=range(filtered)/range(raw);
+  assert.ok(ratio<.09,`third-person camera passed too much high-frequency yaw into the world view: ${ratio}`);
+}
+
+// A long compositor frame must not trigger the old hard max-lag catch-up snap.
+{
+  const rig=new StabilizedExternalCameraRig(),dts=[...Array(20).fill(1/60),.1,...Array(80).fill(1/60)];let time=0,previousAnchor=null,maxCameraSpeed=0,maxSourceSpeed=0;
+  for(const dt of dts){
+    const acceleration=30,accelerating=time<.5,position=accelerating?.5*acceleration*time*time:.5*acceleration*.5*.5+acceleration*.5*(time-.5),velocity=accelerating?acceleration*time:acceleration*.5,state=rig.update({position:[position,0,2],velocity:[velocity,0,0],heading:[-1,0,0],mode:"third",dt});
+    if(previousAnchor!==null)maxCameraSpeed=Math.max(maxCameraSpeed,Math.abs(state.anchor[0]-previousAnchor)/dt);
+    previousAnchor=state.anchor[0];maxSourceSpeed=Math.max(maxSourceSpeed,velocity);time+=dt;
+  }
+  assert.ok(maxCameraSpeed<=maxSourceSpeed+3,`third-person camera snapped after a long frame: camera=${maxCameraSpeed.toFixed(2)} source=${maxSourceSpeed.toFixed(2)}`);
+}
+
 // Velocity prediction must follow sustained real motion without unbounded lag.
 for(const mode of ["follow","third"]){
   const rig=new StabilizedExternalCameraRig(),dt=1/120,velocity=[8,-3,.4];let maximumLag=0;

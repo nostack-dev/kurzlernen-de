@@ -10,7 +10,12 @@ const forbidText=(path,text,message=`${path} must not contain ${JSON.stringify(t
 const walk=(root,accept)=>{const out=[];for(const name of readdirSync(root)){const path=join(root,name),stat=statSync(path);if(stat.isDirectory())out.push(...walk(path,accept));else if(accept(path))out.push(path);}return out;};
 requireText("sim/simulator.mjs","const AIRFRAME_GROUND_SUPPORT_M = AIRFRAME_COLLISION_HALF_Z_M;","spawn support must be derived from the stable Box3D collision envelope");
 requireText("sim/simulator.mjs","Math.max(AIRFRAME_SPAWN_Z_M,initialZ)","spawn must derive from collision support instead of an unexplained literal");
-requireText("sim/simulator.mjs","const AIRFRAME_LANDING_SKID_Z_M = -AIRFRAME_COLLISION_HALF_Z_M + AIRFRAME_LANDING_SKID_RADIUS_M;","visible skid bottom must align exactly with the physical support plane");
+requireText("sim/simulator.mjs","const AIRFRAME_VISUAL_SKID_CLEARANCE_M = .004;","visible skids need explicit clearance from Box3D contact slop");
+requireText("sim/simulator.mjs","const AIRFRAME_PRESENTATION_GROUND_BIAS_M = .002;","presentation needs a small stable ground bias without changing physics");
+requireText("sim/simulator.mjs","AIRFRAME_LANDING_SKID_RADIUS_M + AIRFRAME_VISUAL_SKID_CLEARANCE_M;","visible skid support must sit above the physical collision support plane");
+forbidText("sim/simulator.mjs","if(this.worldBuildingLaunchResolved||!this.body||!this.worldBuildingCollisionSnapshot.prismCount)return false;","building launch resolution must not be one-shot while map tiles are still arriving");
+requireText("sim/simulator.mjs","position[0]-reference[0]","late building snapshots must be checked relative to the last resolved launch point");
+requireText("sim/camera_stabilization.mjs","lagRecoveryRate:7.0","third-person lag recovery must be smooth instead of a hard snap");
 requireText("sim/simulator.mjs","center.position.z=AIRFRAME_VISUAL_BODY_CENTER_Z_M","visible fuselage must sit above the landing support rather than intersect terrain contact slop");
 requireText("sim/simulator.mjs","new THREE.CylinderGeometry(AIRFRAME_LANDING_SKID_RADIUS_M,AIRFRAME_LANDING_SKID_RADIUS_M,this.skidHalfLength*2,12)","landing skids must exist in visible geometry");
 requireText("sim/simulator.mjs","this.buildGraphics();\n      // A freshly constructed Object3D starts at z=0.","visible airframe must be synchronized to the Box3D spawn before its first compositor frame");

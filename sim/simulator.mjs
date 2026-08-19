@@ -96,7 +96,10 @@ const QUERY_CAMERA = 8n;
 const AIRFRAME_COLLISION_HALF_Z_M = .022;
 const AIRFRAME_VISUAL_BODY_CENTER_Z_M = .006;
 const AIRFRAME_LANDING_SKID_RADIUS_M = .004;
-const AIRFRAME_LANDING_SKID_Z_M = -AIRFRAME_COLLISION_HALF_Z_M + AIRFRAME_LANDING_SKID_RADIUS_M;
+const AIRFRAME_VISUAL_SKID_CLEARANCE_M = .004;
+const AIRFRAME_PRESENTATION_GROUND_BIAS_M = .002;
+const AIRFRAME_LANDING_SKID_Z_M = -AIRFRAME_COLLISION_HALF_Z_M + AIRFRAME_LANDING_SKID_RADIUS_M + AIRFRAME_VISUAL_SKID_CLEARANCE_M;
+const AIRFRAME_VISUAL_LOWEST_Z_M = Math.min(AIRFRAME_VISUAL_BODY_CENTER_Z_M-AIRFRAME_COLLISION_HALF_Z_M,AIRFRAME_LANDING_SKID_Z_M-AIRFRAME_LANDING_SKID_RADIUS_M);
 const AIRFRAME_GROUND_SUPPORT_M = AIRFRAME_COLLISION_HALF_Z_M;
 const AIRFRAME_SPAWN_SEPARATION_M = .002;
 const AIRFRAME_SPAWN_Z_M = AIRFRAME_GROUND_SUPPORT_M + AIRFRAME_SPAWN_SEPARATION_M;
@@ -377,7 +380,7 @@ class PhysicsModel {
     validateParams(p);
     this.noise=new Noise();
     this.p={...p,wind:[...p.wind]};
-    this.worldBuildingLaunchResolved=false;this.worldBuildingLaunchPoint=[0,0];
+    this.worldBuildingLaunchResolved=false;this.worldBuildingLaunchPoint=[Number(initial?.x)||0,Number(initial?.y)||0];
     if(this.world){this.worldBuildingCollisionState=null;b3.b3DestroyWorld(this.world);}
     const worldDef=b3.b3DefaultWorldDef();worldDef.gravity=[0,0,-G];worldDef.enableSleep=false;worldDef.enableContinuous=true;this.world=b3.b3CreateWorld(worldDef);
     const groundDef=b3.b3DefaultBodyDef();groundDef.position=[0,0,-.05];const ground=b3.b3CreateBody(this.world,groundDef),groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,groupIndex:0};b3.b3CreateBoxShape(ground,groundShape,TERRAIN_HALF,TERRAIN_HALF,.05);
@@ -400,11 +403,11 @@ class PhysicsModel {
   }
   setWorldBuildingCollisions(value){const snapshot=normalizeBuildingCollisionSnapshot(value);if(snapshot.hash===this.worldBuildingCollisionSnapshot.hash&&snapshot.prismCount===this.worldBuildingCollisionSnapshot.prismCount)return false;this.worldBuildingCollisionSnapshot=snapshot;this.rebuildWorldBuildingCollisions();return true;}
   resolveWorldBuildingLaunch(){
-    if(this.worldBuildingLaunchResolved||!this.body||!this.worldBuildingCollisionSnapshot.prismCount)return false;
-    const position=this.position(),velocity=this.linear(),angular=this.angular(),untouched=Math.hypot(position[0],position[1])<.14&&position[2]<=AIRFRAME_SPAWN_Z_M+.08&&norm(velocity)<.20&&norm(angular)<.80;
+    if(!this.body||!this.worldBuildingCollisionSnapshot.prismCount)return false;
+    const position=this.position(),velocity=this.linear(),angular=this.angular(),reference=Array.isArray(this.worldBuildingLaunchPoint)&&this.worldBuildingLaunchPoint.length===2&&this.worldBuildingLaunchPoint.every(Number.isFinite)?this.worldBuildingLaunchPoint:[position[0],position[1]],untouched=Math.hypot(position[0]-reference[0],position[1]-reference[1])<.14&&position[2]<=AIRFRAME_SPAWN_Z_M+.08&&norm(velocity)<.20&&norm(angular)<.80;
     if(!untouched){this.worldBuildingLaunchResolved=true;this.worldBuildingLaunchPoint=[Infinity,Infinity];return false;}
     const safe=findClearBuildingLaunchPoint(this.worldBuildingCollisionSnapshot,{point:[position[0],position[1]],clearanceM:.55,maxSearchM:80}),offset=Math.hypot(safe[0]-position[0],safe[1]-position[1]);
-    this.worldBuildingLaunchResolved=true;this.worldBuildingLaunchPoint=[safe[0],safe[1]];
+    this.worldBuildingLaunchResolved=false;this.worldBuildingLaunchPoint=[safe[0],safe[1]];
     const viewport=$("viewport");if(viewport){viewport.dataset.worldLaunchRelocated=offset>.01?"1":"0";viewport.dataset.worldLaunchOffsetM=offset.toFixed(3);viewport.dataset.worldLaunchX=Number(safe[0]).toFixed(3);viewport.dataset.worldLaunchY=Number(safe[1]).toFixed(3);}
     if(offset<=.01)return false;
     b3.b3Body_SetTransform(this.body,[safe[0],safe[1],AIRFRAME_SPAWN_Z_M],this.rotation());b3.b3Body_SetLinearVelocity(this.body,[0,0,0]);b3.b3Body_SetAngularVelocity(this.body,[0,0,0]);this.syncPresentationSnapshots();return true;
@@ -514,7 +517,7 @@ class PhysicsModel {
     this.capturePresentationCurrent();
   }
   state(){const p=this.position(),q=this.rotation(),v=this.linear();return{x:p[0],y:p[1],z:p[2],vx:v[0],vy:v[1],vz:v[2],speed:norm(v),attitude:quatToEuler(q),battery_v:this.batteryVoltage,current_a:this.batteryCurrent};}
-  render(pose=this.presentationPose(1),dt=1/60){if(!this.graphics||!this.group)return pose;this.group.position.copy(pose.position);this.group.quaternion.copy(pose.quaternion);const step=clamp(Number(dt)||0,0,.1);this.rotors.forEach((rotor,i)=>rotor.rotation.z=(rotor.rotation.z+(i%2?-1:1)*this.motorOmega[i]*step)%(2*Math.PI));const worldActive=Boolean(globalThis.__arondightRealWorld?.active),cameraMode=$("viewport")?.dataset.cameraMode||"follow",showWorldMarker=worldActive&&cameraMode!=="fpv";if(this.worldHalo)this.worldHalo.visible=showWorldMarker;if(this.worldHaloBack)this.worldHaloBack.visible=showWorldMarker;if(this.worldHeadingCue)this.worldHeadingCue.visible=showWorldMarker;return pose;}
+  render(pose=this.presentationPose(1),dt=1/60){if(!this.graphics||!this.group)return pose;this.group.position.copy(pose.position);this.group.position.z+=AIRFRAME_PRESENTATION_GROUND_BIAS_M;this.group.quaternion.copy(pose.quaternion);const presentationViewport=$("viewport");if(presentationViewport){presentationViewport.dataset.airframePresentationGroundBiasM=AIRFRAME_PRESENTATION_GROUND_BIAS_M.toFixed(3);presentationViewport.dataset.airframeVisualSupportZ=(this.group.position.z+AIRFRAME_VISUAL_LOWEST_Z_M).toFixed(4);}const step=clamp(Number(dt)||0,0,.1);this.rotors.forEach((rotor,i)=>rotor.rotation.z=(rotor.rotation.z+(i%2?-1:1)*this.motorOmega[i]*step)%(2*Math.PI));const worldActive=Boolean(globalThis.__arondightRealWorld?.active),cameraMode=$("viewport")?.dataset.cameraMode||"follow",showWorldMarker=worldActive&&cameraMode!=="fpv";if(this.worldHalo)this.worldHalo.visible=showWorldMarker;if(this.worldHaloBack)this.worldHaloBack.visible=showWorldMarker;if(this.worldHeadingCue)this.worldHeadingCue.visible=showWorldMarker;return pose;}
 }
 
 function integrateDuration(model,pulses,duration){

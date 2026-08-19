@@ -1,8 +1,8 @@
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 
 export const EXTERNAL_CAMERA_PROFILES=Object.freeze({
-  follow:Object.freeze({positionRate:4.8,velocityRate:7.0,headingRate:7.5,maxLagM:.18,teleportM:6}),
-  third:Object.freeze({positionRate:6.5,velocityRate:8.5,headingRate:10.0,maxLagM:.26,teleportM:6}),
+  follow:Object.freeze({positionRate:4.8,velocityRate:7.0,headingRate:7.5,maxLagM:.18,lagRecoveryRate:8.0,teleportM:6}),
+  third:Object.freeze({positionRate:3.6,velocityRate:5.2,headingRate:3.8,maxLagM:.36,lagRecoveryRate:7.0,teleportM:6}),
 });
 
 export function dampingAlpha(ratePerSecond,dtSeconds){
@@ -44,7 +44,7 @@ export class StabilizedExternalCameraRig{
       this.anchor[i]+=(position[i]-this.anchor[i])*positionAlpha;
     }
     const lag=[position[0]-this.anchor[0],position[1]-this.anchor[1],position[2]-this.anchor[2]],lagLength=Math.hypot(...lag);
-    if(lagLength>profile.maxLagM){const excess=(lagLength-profile.maxLagM)/lagLength;for(let i=0;i<3;i++)this.anchor[i]+=lag[i]*excess;}
+    if(lagLength>profile.maxLagM){const excess=lagLength-profile.maxLagM,recoveryAlpha=dampingAlpha(profile.lagRecoveryRate||8,step),correction=excess*recoveryAlpha/lagLength;for(let i=0;i<3;i++)this.anchor[i]+=lag[i]*correction;}
     const targetHeading=[0,0,0];normalizeHorizontal3(targetHeading,heading,this.heading);const currentYaw=Math.atan2(this.heading[1],this.heading[0]),targetYaw=Math.atan2(targetHeading[1],targetHeading[0]),yawDelta=Math.atan2(Math.sin(targetYaw-currentYaw),Math.cos(targetYaw-currentYaw)),nextYaw=currentYaw+yawDelta*headingAlpha;this.heading[0]=Math.cos(nextYaw);this.heading[1]=Math.sin(nextYaw);this.heading[2]=0;
     return this.state();
   }
