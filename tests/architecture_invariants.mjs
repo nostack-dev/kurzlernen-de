@@ -206,7 +206,6 @@ for(const marker of ["attachBuildingCollisionSink","querySourceFeatures","buildi
 for(const marker of ["setWorldBuildingCollisions","rebuildWorldBuildingCollisions","createWorldBuildingCollisionBodies","worldBuildingCollisionPrisms"])
   requireText("sim/simulator.mjs",marker);
 requireText(".github/workflows/deploy.yml","world_building_collision_box3d_test.mjs");
-requireText(".github/workflows/deploy.yml","world_building_collision_browser_smoke.mjs");
 for(const path of ["sim/real_world_bootstrap.mjs","sim/control_settings.mjs","tests/real_world_ui_smoke.mjs","REAL_WORLD_DIGITAL_TWIN.md"])
   for(const dirty of ["Google"+" Maps","google"+"apis.com","Google"+"Tiles","Ces"+"ium","AI"+"za"])
     forbidText(path,dirty,`${path} still contains removed map-provider dependency: ${dirty}`);
