@@ -235,7 +235,7 @@ for(const marker of ["class HybridMotorSound","model.motorOmega","model.motorTor
 requireText("sim/simulator.mjs",'import {HybridMotorSound} from "./motor_sound.mjs";');
 requireText("sim/simulator.mjs",'import {FlightLogbook} from "./flight_logbook.mjs";');
 requireText("sim/simulator.mjs",'import {installFlightFireFx} from "./flight_fire_fx.mjs";');
-requireText("sim/simulator.mjs",'import {findXboxGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";');
+requireText("sim/simulator.mjs",'import {findXboxGamepad,isXboxCompatibleGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";');
 for(const marker of ["LB+RB FIRE","data-control-source=\"xbox\"","data-gamepad-enabled=\"1\"","pollXboxGamepad(renderNow)","setGamepadLook?.(sample.aim","setGamepadFire(sample.fire","xboxControllerToggle:true","phoneSettings.xboxControllerEnabled===true","deactivateXboxGamepad(true)"])
   requireText("sim/simulator.mjs",marker);
 for(const marker of ["XBOX CONTROLLER","data-xbox-controller","xboxControllerEnabled:xboxControllerInput?xboxControllerInput.checked:settings.xboxControllerEnabled"])
