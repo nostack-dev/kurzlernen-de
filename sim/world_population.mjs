@@ -51,9 +51,7 @@ function refreshRoutes(now){
   const view=viewport();if(view){view.dataset.worldTrafficRoutes=String(routes.length);view.dataset.worldTrafficStableRoutes=String(routeRegistry.size);view.dataset.worldCars=String(CAR_COUNT);view.dataset.worldPeople=String(PERSON_COUNT);}
 }
 
-function refreshBuildingVisuals(now){
-  if(now-lastBuildingVisualRefresh<BUILDING_VISUAL_REFRESH_MS)return;lastBuildingVisualRefresh=now;const count=enforceOpaqueBuildingLayers(bridge()?.map);const view=viewport();if(view)view.dataset.worldOpaqueBuildingLayers=String(count);
-}
+function refreshBuildingVisuals(now){if(now-lastBuildingVisualRefresh<BUILDING_VISUAL_REFRESH_MS)return;lastBuildingVisualRefresh=now;const count=enforceOpaqueBuildingLayers(bridge()?.map);const view=viewport();if(view)view.dataset.worldOpaqueBuildingLayers=String(count);}
 
 function makeCar(index){
   const group=new THREE.Group(),seed=hashText(`car:${index}`),color=[0xd53d32,0x2f82d7,0xd9b53b,0xe7e7e7,0x24282d,0x45a85a][seed%6],bodyMat=new THREE.MeshStandardMaterial({color,roughness:.38,metalness:.35}),glassMat=new THREE.MeshStandardMaterial({color:0x18364f,roughness:.18,metalness:.2});
@@ -77,10 +75,7 @@ function ensurePools(){
   if(!explosionGeometry){explosionGeometry=new THREE.SphereGeometry(.16,7,5);for(let i=0;i<16;i++){const material=new THREE.MeshBasicMaterial({color:i%2?0xff5a27:0xffc45a,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending}),mesh=new THREE.Mesh(explosionGeometry,material);mesh.visible=false;mesh.renderOrder=17;mesh.userData.flightFireIgnore=true;scene.add(mesh);explosions.push({mesh,born:0,expires:0});}}
 }
 
-function assign(record,route,slot){
-  if(!route){record.id="";record.routeKey="";record.group.visible=false;return;}record.routeKey=route.key;record.id=`${record.kind}-${route.key}-${slot}`;record.group.userData.worldPopulationId=record.id;record.group.traverse(node=>{if(node?.isMesh){node.userData.worldPopulationId=record.id;node.userData.worldPopulationKind=record.kind;}});const dead=pendingDead.get(record.id);if(dead)record.deadUntil=Math.max(record.deadUntil,dead);
-}
-
+function assign(record,route,slot){if(!route){record.id="";record.routeKey="";record.group.visible=false;return;}record.routeKey=route.key;record.id=`${record.kind}-${route.key}-${slot}`;record.group.userData.worldPopulationId=record.id;record.group.traverse(node=>{if(node?.isMesh){node.userData.worldPopulationId=record.id;node.userData.worldPopulationKind=record.kind;}});const dead=pendingDead.get(record.id);if(dead)record.deadUntil=Math.max(record.deadUntil,dead);}
 function spawnExplosion(position){ensurePools();const item=explosions.find(x=>!x.mesh.visible)||explosions[hashText(`${position.x}:${position.y}`)%explosions.length];item.born=performance.now();item.expires=item.born+900;item.mesh.position.copy(position);item.mesh.scale.setScalar(1);item.mesh.material.opacity=.95;item.mesh.visible=true;}
 function personImpulseAt(position){const camera=bridge()?.threeCamera;if(camera?.getWorldPosition){camera.getWorldPosition(cameraPos);impactDir.copy(position).sub(cameraPos);if(impactDir.lengthSq()<1e-6)impactDir.set(1,0,0);impactDir.normalize().multiplyScalar(4.6);}else impactDir.set(2.8,0,0);impactDir.z=Math.max(2.2,impactDir.z+2.0);return[impactDir.x,impactDir.y,impactDir.z];}
 function recordColors(record){return record?.kind==="person"?{shirt:record.shirtHex??colorHex(record.materials?.shirt),skin:record.skinHex??colorHex(record.materials?.skin),pants:record.pantsHex??colorHex(record.materials?.pants)}:null;}
@@ -101,7 +96,7 @@ function handleRemoteFx(event){
 function updateRecord(record,nowMs,epochSeconds,person=false){
   if(!routeRegistry.size){record.group.visible=false;return;}let route=record.routeKey?routeRegistry.get(record.routeKey):null;if(!route){route=routes[(record.index*7+(person?3:0))%Math.max(1,routes.length)]||null;if(route)assign(record,route,record.index);}if(!route){record.group.visible=false;return;}
   if(Date.now()<record.deadUntil){record.group.visible=false;return;}record.group.rotation.x=0;pendingDead.delete(record.id);const distance=epochSeconds*record.speed+record.phase,lane=person?record.side:record.lane,sample=sampleRoadRoute(route,distance,lane);if(!sample){record.group.visible=false;return;}
-  record.group.position.set(sample.x,sample.y,person?.018:0);record.group.rotation.z=sample.yaw;if(person)record.group.position.z=.018+.012*Math.sin(epochSeconds*record.speed*4+record.index);record.group.visible=Boolean(bridge()?.active);
+  record.group.position.set(sample.x,sample.y,person?0.018:0);record.group.rotation.z=sample.yaw;if(person)record.group.position.z=.018+.012*Math.sin(epochSeconds*record.speed*4+record.index);record.group.visible=Boolean(bridge()?.active);
 }
 
 function updateExplosions(now){for(const item of explosions){if(!item.mesh.visible)continue;if(now>=item.expires){item.mesh.visible=false;continue;}const t=(now-item.born)/(item.expires-item.born);item.mesh.scale.setScalar(.8+8*t);item.mesh.material.opacity=Math.max(0,.95*(1-t));}}
@@ -109,5 +104,4 @@ function frame(now=performance.now()){raf=requestAnimationFrame(frame);const b=b
 
 function installHitHook(){const b=bridge();if(!b)return;if(!b.__worldPopulationHitHook){b.__worldPopulationHitHook=true;b.registerWorldPopulationHit=hit=>{let node=hit?.object;while(node&&!node.userData?.worldPopulationId)node=node.parent;if(!node)return false;const record=recordById(String(node.userData.worldPopulationId||""));if(!record||Date.now()<record.deadUntil)return Boolean(record);markDead(record,{network:true});const view=viewport();if(view){view.dataset.worldPopulationHits=String((Number(view.dataset.worldPopulationHits)||0)+1);view.dataset.worldPopulationLastHit=record.kind;}return true;};}if(!b.__worldPopulationRegisterShim&&typeof b.registerVsHit==="function"){b.__worldPopulationRegisterShim=true;const base=b.registerVsHit.bind(b);b.registerVsHit=hit=>b.registerWorldPopulationHit?.(hit)||base(hit);}}
 function hookLoop(){installHitHook();setTimeout(hookLoop,500);}
-
 export function installWorldPopulation(){if(installed)return;installed=true;globalThis.addEventListener(VS_FX_EVENT,handleRemoteFx);hookLoop();raf=requestAnimationFrame(frame);}
