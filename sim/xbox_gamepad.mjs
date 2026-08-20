@@ -47,9 +47,9 @@ export function findXboxGamepad(gamepads){
 
 export function sampleXboxGamepad(gamepad){
   if(!isXboxCompatibleGamepad(gamepad))return null;
-  const modalOpen=globalThis.__arondightSettingsModalOpen===true,releaseBlock=globalThis.__arondightSettingsGamepadBlockUntilRelease===true;
-  if(modalOpen||releaseBlock){
-    if(!modalOpen&&releaseBlock&&!rawInputActive(gamepad))globalThis.__arondightSettingsGamepadBlockUntilRelease=false;
+  const modalOpen=globalThis.__arondightSettingsModalOpen===true,releaseBlock=globalThis.__arondightSettingsGamepadBlockUntilRelease===true,onFoot=globalThis.__arondightOnFootMode===true;
+  if(modalOpen||releaseBlock||onFoot){
+    if(!modalOpen&&!onFoot&&releaseBlock&&!rawInputActive(gamepad))globalThis.__arondightSettingsGamepadBlockUntilRelease=false;
     return neutralSample(gamepad);
   }
   const left={x:gamepadAxis(gamepad.axes?.[0]),y:gamepadAxis(gamepad.axes?.[1])};
