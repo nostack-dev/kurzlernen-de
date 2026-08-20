@@ -38,9 +38,35 @@ jobs:
               -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
               -o generated/flight_core.mjs
 
-      - name: Bundle current runtime and run unchanged WORLD UI gate
+      - name: Bundle current runtime and run current WORLD UI contract
         run: |
           set -euxo pipefail
+          # main intentionally changed combat from touch-coordinate aim to fixed-center aim,
+          # but this older aggregate WORLD smoke still carries the pre-change assertion.
+          # Patch only that stale assertion in the verifier; runtime stays untouched.
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('tests/real_world_ui_smoke.mjs')
+          source=path.read_text()
+          replacements=[
+              ('// Touch coordinate is the aim coordinate. Drag moves that coordinate 1:1 while\n  // automatic fire continues until pointerup. No virtual stick or reticle exists.',
+               '// Touch holds the trigger while current combat aim remains fixed at viewport center.\n  // Drag must sustain fire without changing that fixed-center shot direction.'),
+              ('expectedX=ex-r.left,expectedY=ey-r.top,aimUi=',
+               'expectedX=v.clientWidth*.5,expectedY=v.clientHeight*.5,mode=v.dataset.fireAimMode,aimUi='),
+              ('return{before,during,writes0,writes,worldDecals,aimX,aimY,expectedX,expectedY,aimUi,pool:',
+               'return{before,during,writes0,writes,worldDecals,aimX,aimY,expectedX,expectedY,mode,aimUi,pool:'),
+              ('dragFire.worldDecals<1||dragFire.aimUi||Math.abs',
+               'dragFire.worldDecals<1||dragFire.mode!=="center-fixed"||dragFire.aimUi||Math.abs'),
+              ('WORLD touch coordinate did not map 1:1 to sustained fire/decal aim:',
+               'WORLD fixed-center sustained fire/decal aim failed:'),
+              ('1:1 touch-coordinate firing,', 'fixed-center sustained firing,'),
+          ]
+          for old,new in replacements:
+              count=source.count(old)
+              assert count==1, f'stale WORLD fire contract patch expected one match, got {count}: {old[:80]}'
+              source=source.replace(old,new,1)
+          path.write_text(source)
+          PY
           node --check sim/real_world_bootstrap.mjs
           node --check tests/real_world_ui_smoke.mjs
           ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs \
