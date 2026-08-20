@@ -18,49 +18,53 @@ function harness(name,{connect=false,fail=false}={}){
 }
 
 const source=readFileSync(new URL("../sim/lan_vs.mjs",import.meta.url),"utf8");
-assert.ok(source.indexOf('{name:"Nostr"')<source.indexOf('{name:"NostrRelay"'),"direct Nostr must precede Nostr data relay in the default non-Safari order");
-assert.ok(source.indexOf('{name:"NostrRelay"')<source.indexOf('{name:"MQTT"'),"Nostr data relay must precede MQTT/broker fallbacks in the default order");
+assert.ok(source.indexOf('{name:"DirectP2PUDP"')<source.indexOf('{name:"Nostr"'),"direct P2P UDP must be the first transport for every browser");
+assert.ok(source.indexOf('{name:"Nostr"')<source.indexOf('{name:"Broker"'),"direct Trystero Nostr must remain the first fallback");
 const safariUa="Mozilla/5.0 (iPhone; CPU iPhone OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1";
 const chromeUa="Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";
-const safariFinder=new LanVsFinder({userAgent:safariUa});
-assert.deepEqual(safariFinder.transportStrategies.map(item=>item.name).slice(0,3),["NostrRelay","Broker","Nostr"],"Safari must bypass WebRTC first and enter WebSocket relay matchmaking immediately");
-assert.equal(safariFinder.transportMode,"safari-relay-first");
-const chromeFinder=new LanVsFinder({userAgent:chromeUa});
-assert.equal(chromeFinder.transportStrategies[0].name,"Nostr","non-Safari browsers must retain direct WebRTC-first matchmaking");
-assert.equal(chromeFinder.transportMode,"direct-first");
+for(const [name,userAgent] of [["Safari",safariUa],["Chrome Android",chromeUa]]){
+  const finder=new LanVsFinder({userAgent});
+  assert.equal(finder.transportStrategies[0].name,"DirectP2PUDP",`${name} must enter the same direct UDP gameplay path first`);
+  assert.equal(finder.transportMode,"direct-p2p-udp-first",`${name} must advertise the unified transport mode`);
+}
 
-const udpSource=readFileSync(new URL("../sim/nostr_data_relay.mjs",import.meta.url),"utf8");
+const udpSource=readFileSync(new URL("../sim/direct_udp_peer.mjs",import.meta.url),"utf8");
 for(const marker of [
-  'transport:"DirectP2PUDP"',
-  'this.isHost=this.id<packet.id',
   'createDataChannel("pose",{negotiated:true,id:0,ordered:false,maxRetransmits:0})',
   'createDataChannel("control",{negotiated:true,id:1,ordered:true})',
-  'candidateProtocol(candidate)!=="udp"',
+  'packet.a==="__ready"',
+  'packet.a==="__ready-ack"',
+  'this.localChannelsReady||!this.remoteReady||!this.remoteAcked',
+  'type:"hit-request"',
+  'type:"state-ack"',
+  'authority-state-ack',
+  'type:"respawn-request"',
+  'kind:"restart-needed"',
   'iceRestart:true',
   'POSE_BUFFER_LIMIT_BYTES',
   'pose-drop-backpressure',
-  'pc.__a45HostAuthority=Boolean(isHost)',
+  'pc.__a45HostAuthority=this.isHost',
   'pc.__a45Transport="direct-p2p-udp"'
-])assert.ok(udpSource.includes(marker),`direct P2P UDP transport contract missing: ${marker}`);
-assert.ok(udpSource.includes('if(action==="pose")'),"pose must have a dedicated unreliable path");
-assert.ok(udpSource.includes('return this._sendControl({a:action,d:data});'),"origin/combat/control traffic must stay on the reliable channel");
-assert.equal(udpSource.includes('kind:"sealed"'),false,"relay must no longer carry gameplay payloads after pairing");
+])assert.ok(udpSource.includes(marker),`direct P2P UDP engine contract missing: ${marker}`);
+const signalSource=readFileSync(new URL("../sim/nostr_data_relay.mjs",import.meta.url),"utf8");
+for(const marker of ['verifyEvent(event)','kind==="probe"','kind==="probe-ack"','probe.pubkey!==packet._pubkey','peerPubkey'])assert.ok(signalSource.includes(marker),`signed probe-bound signaling contract missing: ${marker}`);
+assert.equal(signalSource.includes('kind:"sealed"'),false,"Nostr signaling must never carry gameplay payloads");
 
 let connected="";
-const finder=new LanVsFinder({stageMs:250,maxRoomsPerStage:3,transportStrategies:[{name:"Nostr",load:harness("Nostr",{fail:true})},{name:"NostrRelay",load:harness("NostrRelay",{connect:true})},{name:"Torrent",load:harness("Torrent")},{name:"MQTT",load:harness("MQTT")},{name:"Broker",load:harness("Broker")}],onPeer:(_peer,_room,transport)=>connected=transport});
+const finder=new LanVsFinder({stageMs:250,maxRoomsPerStage:3,transportStrategies:[{name:"DirectP2PUDP",load:harness("DirectP2PUDP",{fail:true})},{name:"Nostr",load:harness("Nostr",{connect:true})},{name:"Broker",load:harness("Broker")},{name:"MQTT",load:harness("MQTT")},{name:"Torrent",load:harness("Torrent")}],onPeer:(_peer,_room,transport)=>connected=transport});
 await finder.start(["net-exact","net-secondary","net-third","tap-current","tap-previous","net-extra"]);
 await sleep(400);
-assert.equal(connected,"NostrRelay","Nostr data relay must take over immediately after direct ICE fails");
-assert.ok(opened.length<=6,`staged finder opened too many sessions before connection: ${opened.length}`);
-const firstStage=opened.filter(x=>x.name==="Nostr");
-assert.equal(firstStage.length,3,"mobile stage must cap simultaneous rooms at three");
+assert.equal(connected,"Nostr","direct Trystero Nostr must take over when the primary UDP engine cannot connect");
+assert.ok(opened.length<=6,`staged finder opened too many sessions before fallback connection: ${opened.length}`);
+const firstStage=opened.filter(x=>x.name==="DirectP2PUDP");
+assert.equal(firstStage.length,3,"mobile stage must cap simultaneous direct UDP rooms at three");
 assert.deepEqual(firstStage.map(x=>x.roomId),["net-exact","net-secondary","net-third"],"stable same-network/proximity rooms must be attempted before transient gesture rooms");
-for(const item of opened.filter(x=>!["Broker","NostrRelay"].includes(x.name))){
+for(const item of opened.filter(x=>!["Broker","DirectP2PUDP"].includes(x.name))){
   assert.equal(item.config.trickleIce,true,`${item.name} must force trickle ICE`);
   assert.equal(item.config.rtcConfig?.iceTransportPolicy,"all",`${item.name} must explicitly keep direct ICE paths enabled`);
   assert.ok(Array.isArray(item.config.rtcConfig?.iceServers)&&item.config.rtcConfig.iceServers.length>=2,`${item.name} must explicitly carry STUN config`);
 }
-for(const item of opened.filter(x=>["Broker","NostrRelay"].includes(x.name)))assert.equal(item.config.rtcConfig,undefined,`${item.name} owns its own signaling/direct-P2P setup and must not receive the Trystero RTC config`);
+for(const item of opened.filter(x=>["Broker","DirectP2PUDP"].includes(x.name)))assert.equal(item.config.rtcConfig,undefined,`${item.name} owns its own networking setup and must not receive the Trystero RTC config`);
 finder.stop();
 
 const position={x:0,y:0,z:10},velocity={x:20,y:0,z:0},nextPosition={x:0,y:0,z:0},nextVelocity={x:0,y:0,z:0};
@@ -79,4 +83,4 @@ for(const marker of ["PROJECTILE_POOL_SIZE=36","TRACER_SPEED_MPS=210","PROJECTIL
 assert.equal(fireSource.includes("worldBridge?.registerVsHit?.(hit)"),false,"legacy instant hitscan damage path must not return");
 assert.ok(fireSource.includes("integrateProjectile(projectile.position,projectile.velocity,dt,projectile.nextPosition,projectile.nextVelocity);if(resolveProjectileHit(projectile,projectile.position,projectile.nextPosition,now))continue;"),"projectile time-of-flight must advance before segment collision resolution");assert.ok(fireSource.includes("registerVsHit?.(sceneHit)"),"VS damage must be emitted only from resolved projectile impact");
 
-console.log("Staged VS smoke passed: Safari signaling -> direct P2P UDP gameplay, host authority election, unreliable pose/reliable control channels, staged fallback networking, pooled physical tracers, 8x readable peer/1x hitbox, and safe-building launch integration retained.");
+console.log("Staged VS smoke passed: unified direct P2P UDP first, signed probe-bound signaling, two-sided ready handshake, host-authoritative combat state, UDP pose/reliable control and staged fallbacks retained.");
