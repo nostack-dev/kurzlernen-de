@@ -43,6 +43,7 @@ export function findXboxGamepad(gamepads){
 
 export function sampleXboxGamepad(gamepad){
   if(!isXboxCompatibleGamepad(gamepad))return null;
+  if(globalThis.__arondightOnFootMode===true)return neutralSample(gamepad);
   const modalOpen=globalThis.__arondightSettingsModalOpen===true,releaseBlock=globalThis.__arondightSettingsGamepadBlockUntilRelease===true;
   if(modalOpen||releaseBlock){
     if(!modalOpen&&releaseBlock&&!rawInputActive(gamepad))globalThis.__arondightSettingsGamepadBlockUntilRelease=false;
