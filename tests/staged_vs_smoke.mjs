@@ -18,8 +18,16 @@ function harness(name,{connect=false,fail=false}={}){
 }
 
 const source=readFileSync(new URL("../sim/lan_vs.mjs",import.meta.url),"utf8");
-assert.ok(source.indexOf('{name:"Nostr"')<source.indexOf('{name:"NostrRelay"'),"direct Nostr must precede Nostr data relay");
-assert.ok(source.indexOf('{name:"NostrRelay"')<source.indexOf('{name:"MQTT"'),"Nostr data relay must precede MQTT/broker fallbacks");
+assert.ok(source.indexOf('{name:"Nostr"')<source.indexOf('{name:"NostrRelay"'),"direct Nostr must precede Nostr data relay in the default non-Safari order");
+assert.ok(source.indexOf('{name:"NostrRelay"')<source.indexOf('{name:"MQTT"'),"Nostr data relay must precede MQTT/broker fallbacks in the default order");
+const safariUa="Mozilla/5.0 (iPhone; CPU iPhone OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1";
+const chromeUa="Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";
+const safariFinder=new LanVsFinder({userAgent:safariUa});
+assert.deepEqual(safariFinder.transportStrategies.map(item=>item.name).slice(0,3),["NostrRelay","Broker","Nostr"],"Safari must bypass WebRTC first and enter WebSocket relay matchmaking immediately");
+assert.equal(safariFinder.transportMode,"safari-relay-first");
+const chromeFinder=new LanVsFinder({userAgent:chromeUa});
+assert.equal(chromeFinder.transportStrategies[0].name,"Nostr","non-Safari browsers must retain direct WebRTC-first matchmaking");
+assert.equal(chromeFinder.transportMode,"direct-first");
 
 let connected="";
 const finder=new LanVsFinder({stageMs:250,maxRoomsPerStage:3,transportStrategies:[{name:"Nostr",load:harness("Nostr",{fail:true})},{name:"NostrRelay",load:harness("NostrRelay",{connect:true})},{name:"Torrent",load:harness("Torrent")},{name:"MQTT",load:harness("MQTT")},{name:"Broker",load:harness("Broker")}],onPeer:(_peer,_room,transport)=>connected=transport});
@@ -54,4 +62,4 @@ for(const marker of ["PROJECTILE_POOL_SIZE=36","TRACER_SPEED_MPS=210","PROJECTIL
 assert.equal(fireSource.includes("worldBridge?.registerVsHit?.(hit)"),false,"legacy instant hitscan damage path must not return");
 assert.ok(fireSource.includes("integrateProjectile(projectile.position,projectile.velocity,dt,projectile.nextPosition,projectile.nextVelocity);if(resolveProjectileHit(projectile,projectile.position,projectile.nextPosition,now))continue;"),"projectile time-of-flight must advance before segment collision resolution");assert.ok(fireSource.includes("registerVsHit?.(sceneHit)"),"VS damage must be emitted only from resolved projectile impact");
 
-console.log("Staged VS smoke passed: staged networking, pooled physical tracers, 8x readable peer/1x hitbox, and safe-building launch integration retained.");
+console.log("Staged VS smoke passed: Safari relay-first matchmaking, staged networking, pooled physical tracers, 8x readable peer/1x hitbox, and safe-building launch integration retained.");
