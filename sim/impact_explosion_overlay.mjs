@@ -2,6 +2,7 @@ const POOL_SIZE=12;
 const SPARKS=9;
 const LIFE_MS=330;
 let installed=false,pool=null,cursor=0,style=null;
+const lastExplosionAt=new WeakMap();
 
 function ensureStyle(){
   if(style)return;style=document.createElement("style");style.textContent=`
@@ -24,6 +25,7 @@ function ensurePool(viewport){
   });return pool;
 }
 function explode(marker){
+  const now=performance.now(),previous=lastExplosionAt.get(marker)||-Infinity;if(now-previous<20)return;lastExplosionAt.set(marker,now);
   const viewport=marker.closest("#viewport");if(!viewport)return;const x=Number.parseFloat(marker.style.left),y=Number.parseFloat(marker.style.top);if(!Number.isFinite(x)||!Number.isFinite(y))return;
   const items=ensurePool(viewport),item=items[cursor++%items.length];clearTimeout(item.timer);item.el.classList.remove("active");item.el.style.left=`${x}px`;item.el.style.top=`${y}px`;void item.el.offsetWidth;item.el.classList.add("active");item.timer=setTimeout(()=>item.el.classList.remove("active"),LIFE_MS+30);viewport.dataset.fireImpactExplosions=String((Number(viewport.dataset.fireImpactExplosions)||0)+1);
 }
