@@ -1,5 +1,7 @@
+import "./world_spawn_guard.mjs";
 import {installVsCombatPresentation} from "./vs_combat_presentation.mjs";
 import {installVsMultiplayerGuard} from "./vs_multiplayer_guard.mjs";
+import {installVsFxGeoAdapter} from "./vs_fx_geo_adapter.mjs";
 import {installVsMultiplayer} from "./vs_multiplayer.mjs";
 import {installWorldPopulation} from "./world_population.mjs";
 import {installInitialAirframeGroundPose} from "./start_pose_guard.mjs";
@@ -73,6 +75,7 @@ export function installSoloFlightLayout(){
   installInitialAirframeGroundPose();
   installVsCombatPresentation();
   installVsMultiplayerGuard();
+  installVsFxGeoAdapter();
   installVsMultiplayer();
   installWorldPopulation();
 }
