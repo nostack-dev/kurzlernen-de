@@ -19,7 +19,7 @@ export function createSettingsGamepadNavigator({dialog,openDialog,closeDialog,ge
     if(!running)return;let pad=null;try{pad=getGamepad?.()||null;}catch{}
     if(!pad){previous.fill(false);stickLatchX=stickLatchY=0;requestAnimationFrame(frame);return;}
     const pressed=previous.map((_,index)=>buttonPressed(pad,index)),edge=index=>pressed[index]&&!previous[index];
-    const menuEdge=edge(SETTINGS_GAMEPAD_BUTTON.MENU),viewEdge=edge(SETTINGS_GAMEPAD_BUTTON.VIEW),resetEdge=edge(SETTINGS_GAMEPAD_BUTTON.Y),backEdge=edge(SETTINGS_GAMEPAD_BUTTON.B)||viewEdge;
+    const menuEdge=edge(SETTINGS_GAMEPAD_BUTTON.MENU),viewEdge=edge(SETTINGS_GAMEPAD_BUTTON.VIEW),resetEdge=!globalThis.__arondightOnFootMode&&edge(SETTINGS_GAMEPAD_BUTTON.Y),backEdge=edge(SETTINGS_GAMEPAD_BUTTON.B)||viewEdge;
     if(!dialog.open){if(menuEdge){latchFlightRelease();openDialog?.("gamepad");}else if(viewEdge)clickSoloAction("#soloExit","gamepadExitCount");else if(resetEdge)clickSoloAction("#soloReset","gamepadResetCount");}
     else{
       if(backEdge){latchFlightRelease();closeDialog?.("gamepad");}
