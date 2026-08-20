@@ -1,0 +1,66 @@
+import * as THREE from "three";
+
+const MOBILE_RE=/(?:android|iphone|ipad|ipod|macintosh.*mobile)/i;
+const MOBILE=MOBILE_RE.test(globalThis.navigator?.userAgent||"");
+const MAX_WRECKS=MOBILE?4:7;
+const LIFE_MS=5200;
+const FADE_MS=1200;
+const GRAVITY=9.81;
+const FLOOR_Z=.04;
+const DAMPING=.994;
+const BOUNCE=.24;
+const FRICTION=.76;
+const PIECES=[
+  {name:"shell-front",size:[1.55,1.68,.48],offset:[.98,0,.55],kind:"body",mass:1.1},
+  {name:"shell-rear",size:[1.65,1.68,.48],offset:[-.92,0,.55],kind:"body",mass:1.15},
+  {name:"roof",size:[1.75,1.42,.42],offset:[-.12,0,1.02],kind:"glass",mass:.55},
+  {name:"wheel-fl",size:[.42,.18,.42],offset:[1.18,.82,.28],kind:"wheel",mass:.35},
+  {name:"wheel-fr",size:[.42,.18,.42],offset:[1.18,-.82,.28],kind:"wheel",mass:.35},
+  {name:"wheel-rl",size:[.42,.18,.42],offset:[-1.18,.82,.28],kind:"wheel",mass:.35},
+  {name:"wheel-rr",size:[.42,.18,.42],offset:[-1.18,-.82,.28],kind:"wheel",mass:.35},
+];
+
+const wrecks=[];
+let boxGeometry=null,wheelGeometry=null,raf=0,lastNow=performance.now();
+
+function bridge(){return globalThis.__arondightRealWorld||null;}
+function viewport(){return document.getElementById("viewport");}
+function hashText(text){let h=2166136261;for(const c of String(text||"")){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;}
+function noise(seed,index){let x=(seed+Math.imul(index+1,0x9e3779b1))>>>0;x^=x>>>16;x=Math.imul(x,0x7feb352d);x^=x>>>15;x=Math.imul(x,0x846ca68b);x^=x>>>16;return(x>>>0)/0xffffffff*2-1;}
+function rotateZ(x,y,yaw){const c=Math.cos(yaw),s=Math.sin(yaw);return[x*c-y*s,x*s+y*c];}
+function setOpacity(wreck,value){for(const material of wreck.materials){material.opacity=value;material.transparent=value<.999;material.depthWrite=value>.35;}}
+
+function makeWreck(index){
+  const scene=bridge()?.threeScene;if(!scene)return null;boxGeometry??=new THREE.BoxGeometry(1,1,1);wheelGeometry??=new THREE.CylinderGeometry(1,1,1,10,1,false);
+  const group=new THREE.Group();group.visible=false;group.userData.worldCarWreckRoot=true;group.userData.worldCarWreckIndex=index;scene.add(group);
+  const materials=[new THREE.MeshStandardMaterial({color:0x555555,roughness:.52,metalness:.3}),new THREE.MeshStandardMaterial({color:0x18364f,roughness:.18,metalness:.2}),new THREE.MeshStandardMaterial({color:0x151515,roughness:.9,metalness:.05})];
+  const parts=PIECES.map((spec,i)=>{const geometry=spec.kind==="wheel"?wheelGeometry:boxGeometry,material=spec.kind==="body"?materials[0]:spec.kind==="glass"?materials[1]:materials[2],mesh=new THREE.Mesh(geometry,material);mesh.userData.worldCarWreckPart=true;mesh.userData.worldCarWreckPartName=spec.name;mesh.userData.flightFireIgnore=true;mesh.castShadow=true;group.add(mesh);return{spec,mesh,p:new THREE.Vector3(),v:new THREE.Vector3(),q:new THREE.Quaternion(),w:new THREE.Vector3()};});
+  return{index,group,materials,parts,active:false,born:0,expires:0,id:"",seed:0};
+}
+function ensurePool(){const scene=bridge()?.threeScene;if(!scene)return false;while(wrecks.length<MAX_WRECKS){const w=makeWreck(wrecks.length);if(!w)break;wrecks.push(w);}const view=viewport();if(view){view.dataset.worldCarWreckPool=String(wrecks.length);view.dataset.worldCarWreckMax=String(MAX_WRECKS);}return wrecks.length>0;}
+function chooseWreck(){if(!ensurePool())return null;return wrecks.find(w=>!w.active)||wrecks.reduce((a,b)=>a.born<=b.born?a:b);}
+
+function initializePart(part,position,yaw,impulse,seed,index){
+  const [rx,ry]=rotateZ(part.spec.offset[0],part.spec.offset[1],yaw);part.p.set(position[0]+rx,position[1]+ry,position[2]+part.spec.offset[2]);part.q.setFromAxisAngle(new THREE.Vector3(0,0,1),yaw);
+  const radial=new THREE.Vector3(rx,ry,.28+Math.abs(noise(seed,index*7+2))*.7);if(radial.lengthSq()<1e-6)radial.set(1,0,.3);radial.normalize();
+  const base=part.spec.kind==="wheel"?5.4:3.4,ix=Number(impulse?.[0])||0,iy=Number(impulse?.[1])||0,iz=Number(impulse?.[2])||0;part.v.set(ix*.28+radial.x*base+noise(seed,index*7)*1.3,iy*.28+radial.y*base+noise(seed,index*7+1)*1.3,Math.max(2.2,iz*.22+radial.z*base+1.8));part.w.set(noise(seed,index*7+3)*7,noise(seed,index*7+4)*7,noise(seed,index*7+5)*8);
+  const mesh=part.mesh;mesh.position.copy(part.p);mesh.quaternion.copy(part.q);if(part.spec.kind==="wheel"){mesh.scale.set(part.spec.size[0],part.spec.size[1],part.spec.size[2]);mesh.rotation.x=Math.PI/2;}else mesh.scale.set(...part.spec.size);
+}
+
+function stepPart(part,dt){
+  part.v.z-=GRAVITY*dt;part.v.multiplyScalar(Math.pow(DAMPING,dt*60));part.p.addScaledVector(part.v,dt);const floor=FLOOR_Z+(part.spec.kind==="wheel"?.18:part.spec.size[2]*.45);if(part.p.z<floor){part.p.z=floor;if(part.v.z<0)part.v.z=-part.v.z*BOUNCE;part.v.x*=FRICTION;part.v.y*=FRICTION;part.w.multiplyScalar(.82);}
+  const angle=part.w.length()*dt;if(angle>1e-6){const axis=part.w.clone().normalize(),dq=new THREE.Quaternion().setFromAxisAngle(axis,angle);part.q.premultiply(dq).normalize();}
+  part.mesh.position.copy(part.p);part.mesh.quaternion.copy(part.q);
+}
+function update(now=performance.now()){
+  raf=requestAnimationFrame(update);const dt=Math.min(.05,Math.max(0,(now-lastNow)/1000));lastNow=now;let active=0;
+  for(const wreck of wrecks){if(!wreck.active)continue;if(now>=wreck.expires){wreck.active=false;wreck.group.visible=false;continue;}active++;for(const part of wreck.parts)stepPart(part,dt);const remaining=wreck.expires-now,set=remaining<FADE_MS?Math.max(0,remaining/FADE_MS):1;setOpacity(wreck,set);}
+  const view=viewport();if(view){view.dataset.worldCarWrecks=String(active);view.dataset.worldCarWreckParts=String(active?PIECES.length:0);}
+}
+function startLoop(){if(raf)return;lastNow=performance.now();raf=requestAnimationFrame(update);}
+
+export function spawnWorldCarExplosion({position=[0,0,0],yaw=0,impulse=[0,0,0],color=0x555555,id=""}={}){
+  const wreck=chooseWreck();if(!wreck)return false;startLoop();const seed=hashText(id||`${position[0]}:${position[1]}:${position[2]}`);wreck.materials[0].color.setHex(Number.isFinite(Number(color))?Number(color):0x555555);setOpacity(wreck,1);for(let i=0;i<wreck.parts.length;i++)initializePart(wreck.parts[i],position,Number(yaw)||0,impulse,seed,i);wreck.active=true;wreck.born=performance.now();wreck.expires=wreck.born+LIFE_MS;wreck.id=String(id||"");wreck.seed=seed;wreck.group.visible=true;wreck.group.userData.worldCarWreckId=wreck.id;const view=viewport();if(view){view.dataset.worldCarExplosions=String((Number(view.dataset.worldCarExplosions)||0)+1);view.dataset.worldCarWreckLastId=wreck.id;}return true;
+}
+
+export function worldCarExplosionStats(){return{active:wrecks.filter(w=>w.active).length,pool:wrecks.length,max:MAX_WRECKS,partsPerWreck:PIECES.length};}
