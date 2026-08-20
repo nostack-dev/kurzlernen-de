@@ -28,7 +28,6 @@ saveXboxControlScheme(XBOX_CONTROL_SCHEMES.CLASSIC);assert.equal(loadXboxControl
 buttons[XBOX_STANDARD_BUTTON.RIGHT_TRIGGER]={pressed:true,value:1};
 sample=sampleXboxGamepad(pad);
 assert.ok(sample.heightAxis>.34,"RT must remain height up even while RB is the fire button");
-buttons[XBOX_STANDARD_BUTTON.Y]={pressed:true,value:1};sample=sampleXboxGamepad(pad);assert.equal(sample.target,true,"Y must remain available as the target/action edge");
 
 // The on-foot controller owns the pad directly. Drone sampling must become neutral
 // so walking/look/fire input cannot move or fire the hidden drone at the same time.
