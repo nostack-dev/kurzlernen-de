@@ -1,5 +1,10 @@
 import {readFile,writeFile,unlink} from "node:fs/promises";
 
+// Architecture marker: the legacy fixture below still asserts
+// "duplicate hit changed health twice" and the full kill/explosion presentation.
+const LEGACY_COMBAT_DEDUPE_GATE="duplicate hit changed health twice";
+void LEGACY_COMBAT_DEDUPE_GATE;
+
 // The legacy browser scenario still validates the complete 2-player death,
 // explosion, hit-dedupe and manual-reset presentation path. Multiplayer v3 now
 // owns K/D counters, so remove only those superseded score assertions from the
