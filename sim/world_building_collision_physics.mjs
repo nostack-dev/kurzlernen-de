@@ -30,7 +30,9 @@ export function findClearBuildingLaunchPoint(value,{point=DEFAULT_LAUNCH_EXCLUSI
   for(const prism of blockers){const ring=prism.points;for(let index=0;index<ring.length;index++){const a=ring[index],b=ring[(index+1)%ring.length],q=closestPointOnSegment(origin,a,b),dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy);if(length<=1e-9)continue;const nx=-dy/length,ny=dx/length;candidates.push([q[0]+nx*pad,q[1]+ny*pad],[q[0]-nx*pad,q[1]-ny*pad]);const radialX=q[0]-origin[0],radialY=q[1]-origin[1],radialLength=Math.hypot(radialX,radialY);if(radialLength>1e-9)candidates.push([q[0]+radialX/radialLength*pad,q[1]+radialY/radialLength*pad]);}}
   candidates.sort((a,b)=>Math.hypot(a[0]-origin[0],a[1]-origin[1])-Math.hypot(b[0]-origin[0],b[1]-origin[1]));for(const candidate of candidates)if(pointHasLaunchClearance(candidate,active,clearance))return candidate;
   const maxSearch=Math.max(10,Number(maxSearchM)||180),step=Math.max(1.25,clearance*1.4);for(let radius=step;radius<=maxSearch;radius+=step){const samples=Math.max(32,Math.ceil(radius*Math.PI/1.5));for(let index=0;index<samples;index++){const angle=index/samples*Math.PI*2,candidate=[origin[0]+Math.cos(angle)*radius,origin[1]+Math.sin(angle)*radius];if(pointHasLaunchClearance(candidate,active,clearance))return candidate;}}
-  return origin;
+  let furthest=0;for(const prism of active)for(const p of prism.points)furthest=Math.max(furthest,Math.hypot(p[0]-origin[0],p[1]-origin[1]));const guaranteedRadius=furthest+clearance*2+1;const guaranteed=[origin[0]+guaranteedRadius,origin[1]];if(pointHasLaunchClearance(guaranteed,active,clearance))return guaranteed;
+  for(let index=0;index<64;index++){const angle=index/64*Math.PI*2,candidate=[origin[0]+Math.cos(angle)*guaranteedRadius,origin[1]+Math.sin(angle)*guaranteedRadius];if(pointHasLaunchClearance(candidate,active,clearance))return candidate;}
+  throw Error("No collision-free WORLD launch point could be proven");
 }
 
 export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=1n,maskBits=6n,rangefinderCategoryBits=4n,launchExclusionPoint=DEFAULT_LAUNCH_EXCLUSION_POINT}={}){
