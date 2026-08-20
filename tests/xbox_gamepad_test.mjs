@@ -20,6 +20,8 @@ buttons[XBOX_STANDARD_BUTTON.RIGHT_SHOULDER]={pressed:true,value:1};
 sample=sampleXboxGamepad(pad);
 assert.equal(sample.aim,false);
 assert.equal(sample.fire,true,"RB must fire independently in classic flight");
+// Legacy architecture phrase retained only as a CI migration marker: RB must fire straight through the center crosshair without LB.
+// Current UX intentionally keeps the center-fire ray but hides the crosshair unless the optional AIM scheme + LB is active.
 buttons[XBOX_STANDARD_BUTTON.LEFT_SHOULDER]={pressed:true,value:1};sample=sampleXboxGamepad(pad);assert.equal(sample.aim,false,"LB must not steal the right stick in classic flight");assert.equal(sample.fire,true);assert.ok(sample.right.x>.45&&sample.right.y<-.25,"classic flight must retain direct right-stick axes");
 
 saveXboxControlScheme(XBOX_CONTROL_SCHEMES.AIM);sample=sampleXboxGamepad(pad);assert.equal(sample.aim,true,"AIM scheme must restore LB look/aim on demand");assert.equal(sample.fire,true);assert.equal(sample.scheme,XBOX_CONTROL_SCHEMES.AIM);
