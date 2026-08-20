@@ -11,15 +11,17 @@ function clickSoloAction(selector,datasetKey){const button=document.querySelecto
 
 export function createSettingsGamepadNavigator({dialog,openDialog,closeDialog,getGamepad}){
   if(!dialog)throw Error("settings dialog required");
-  let previous=Array(16).fill(false),previousOnFoot=Boolean(globalThis.__arondightOnFootMode),stickLatchY=0,stickLatchX=0,running=true;
+  let previous=Array(16).fill(false),suppressYUntilRelease=Boolean(globalThis.__arondightOnFootMode),stickLatchY=0,stickLatchX=0,running=true;
+  const footObserver=new MutationObserver(()=>{if(document.body.classList.contains("on-foot-mode"))suppressYUntilRelease=true;});footObserver.observe(document.body,{attributes:true,attributeFilter:["class"]});
   const setFocus=(delta=0)=>{const items=focusable(dialog);if(!items.length)return null;let index=items.indexOf(document.activeElement);if(index<0)index=0;else index=(index+delta+items.length)%items.length;const target=items[index];target.focus({preventScroll:true});target.scrollIntoView({block:"nearest",inline:"nearest"});return target;};
   const activate=()=>{const target=document.activeElement;if(!(target instanceof HTMLElement)||!dialog.contains(target))return false;if(target instanceof HTMLInputElement&&target.type==="range")return false;latchFlightRelease();target.click();return true;};
   const horizontal=direction=>{const target=document.activeElement;if(target instanceof HTMLInputElement&&dialog.contains(target)){if(target.type==="range")return adjustRange(target,direction);if(target.type==="checkbox"){latchFlightRelease();target.click();return true;}}return false;};
   const frame=()=>{
     if(!running)return;let pad=null;try{pad=getGamepad?.()||null;}catch{}
-    if(!pad){previous.fill(false);previousOnFoot=Boolean(globalThis.__arondightOnFootMode);stickLatchX=stickLatchY=0;requestAnimationFrame(frame);return;}
-    const pressed=previous.map((_,index)=>buttonPressed(pad,index)),edge=index=>pressed[index]&&!previous[index],onFoot=Boolean(globalThis.__arondightOnFootMode);
-    const menuEdge=edge(SETTINGS_GAMEPAD_BUTTON.MENU),viewEdge=edge(SETTINGS_GAMEPAD_BUTTON.VIEW),resetEdge=!onFoot&&!previousOnFoot&&edge(SETTINGS_GAMEPAD_BUTTON.Y),backEdge=edge(SETTINGS_GAMEPAD_BUTTON.B)||viewEdge;
+    if(!pad){previous.fill(false);if(globalThis.__arondightOnFootMode)suppressYUntilRelease=true;stickLatchX=stickLatchY=0;requestAnimationFrame(frame);return;}
+    const pressed=previous.map((_,index)=>buttonPressed(pad,index)),edge=index=>pressed[index]&&!previous[index],onFoot=Boolean(globalThis.__arondightOnFootMode),yPressed=pressed[SETTINGS_GAMEPAD_BUTTON.Y];
+    if(onFoot)suppressYUntilRelease=true;else if(suppressYUntilRelease&&!yPressed)suppressYUntilRelease=false;
+    const menuEdge=edge(SETTINGS_GAMEPAD_BUTTON.MENU),viewEdge=edge(SETTINGS_GAMEPAD_BUTTON.VIEW),resetEdge=!onFoot&&!suppressYUntilRelease&&edge(SETTINGS_GAMEPAD_BUTTON.Y),backEdge=edge(SETTINGS_GAMEPAD_BUTTON.B)||viewEdge;
     if(!dialog.open){if(menuEdge){latchFlightRelease();openDialog?.("gamepad");}else if(viewEdge)clickSoloAction("#soloExit","gamepadExitCount");else if(resetEdge)clickSoloAction("#soloReset","gamepadResetCount");}
     else{
       if(backEdge){latchFlightRelease();closeDialog?.("gamepad");}
@@ -32,9 +34,9 @@ export function createSettingsGamepadNavigator({dialog,openDialog,closeDialog,ge
         if(navY)setFocus(navY);else if(navX)horizontal(navX);else if(edge(SETTINGS_GAMEPAD_BUTTON.A))activate();
       }
     }
-    previous=pressed;previousOnFoot=onFoot;requestAnimationFrame(frame);
+    previous=pressed;requestAnimationFrame(frame);
   };
   dialog.addEventListener("close",()=>{stickLatchX=stickLatchY=0;});
   requestAnimationFrame(frame);
-  return{focusFirst:()=>setFocus(0),destroy(){running=false;}};
+  return{focusFirst:()=>setFocus(0),destroy(){running=false;footObserver.disconnect();}};
 }
