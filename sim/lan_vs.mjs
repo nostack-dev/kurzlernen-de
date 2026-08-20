@@ -346,7 +346,7 @@ export class LanVsFinder{
         emitNetworkEvent("finder-stage-end",{stage:index+1,transport:strategy.name,reason,errors:this.stageErrors.map(error=>errorMessage(error)).slice(-4)});
       }else emitNetworkEvent("finder-stage-end",{stage:index+1,transport:strategy.name,reason:allStartRejected?"start-failed":"all-error",errors:(this.stageErrors.length?this.stageErrors:results.filter(result=>result.status==="rejected").map(result=>result.reason)).map(error=>errorMessage(error)).slice(-4)});
       for(const previous of carry)previous.stop(false);
-      carry=children.filter(child=>child.room&&!this.failedChildren.has(child));this.children=[...carry];this.currentStageChildren=[...carry];
+      const nextCarry=children.filter(child=>child.room&&!this.failedChildren.has(child));for(const child of children)if(!nextCarry.includes(child))child.stop(false);carry=nextCarry;this.children=[...carry];this.currentStageChildren=[...carry];
       if(this.stageErrors.length)lastError=this.stageErrors[this.stageErrors.length-1];
     }
     if(this.started&&epoch===this.stageEpoch&&!this.active){
