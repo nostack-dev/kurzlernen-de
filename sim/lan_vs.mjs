@@ -11,13 +11,14 @@ const DEFAULT_TRANSPORTS=[
 ];
 const DISCOVERY_MAX_ROOMS=8;
 const PROXIMITY_CELL_M=800;
-const GESTURE_BUCKET_MS=8000;
+const GESTURE_BUCKET_MS=30000;
 const GESTURE_DEFER_MS=650;
-const FINDER_STAGE_MS=6500;
-const FINDER_MAX_ROOMS_PER_STAGE=6;
+const FINDER_STAGE_MS=10000;
+const FINDER_MAX_ROOMS_PER_STAGE=8;
 const FINDER_RETRY_MS=1200;
 const GEO_DISCOVERY_TIMEOUT_MS=1800;
 const GEO_DISCOVERY_MAX_AGE_MS=120000;
+const NETWORK_DISCOVERY_TIMEOUT_MS=2400;
 const EARTH_RADIUS_M=6378137;
 const STUN_ICE_SERVERS=[
   {urls:["stun:stun.cloudflare.com:3478","stun:stun.cloudflare.com:53"]},
@@ -130,6 +131,11 @@ function addExpandedNetworkMaterial(target,material){
   target.add(material);
   if(material.startsWith("ipv4:")){const address=material.slice(5),prefix=ipv4Subnet24(address);if(prefix)target.add(`ipv4p24:${prefix}`);}
 }
+function orderedNetworkMaterials(materials){
+  const list=[...materials].sort(),groups=["ipv4:","ipv4p24:","ipv6p64:","lan4p24:"],primary=[],remaining=[];
+  for(const prefix of groups){const matches=list.filter(item=>item.startsWith(prefix));if(matches.length){primary.push(matches[0]);remaining.push(...matches.slice(1));}}
+  remaining.push(...list.filter(item=>!groups.some(prefix=>item.startsWith(prefix))));return[...primary,...remaining];
+}
 async function webRtcNetworkMaterials({RTCPeerConnectionCtor=globalThis.RTCPeerConnection}={}){
   if(typeof RTCPeerConnectionCtor!=="function"){emitNetworkEvent("discovery-webrtc-unavailable");return[];}
   let pc=null,timer=0;
@@ -138,7 +144,7 @@ async function webRtcNetworkMaterials({RTCPeerConnectionCtor=globalThis.RTCPeerC
     return await new Promise((resolve,reject)=>{
       const materials=new Set();let settled=false;
       const finish=()=>{if(settled)return;settled=true;clearTimeout(timer);const list=[...materials].sort();emitNetworkEvent("discovery-ice-complete",{materials:list,iceGatheringState:String(pc?.iceGatheringState||"")});resolve(list);};
-      timer=setTimeout(finish,3600);
+      timer=setTimeout(finish,NETWORK_DISCOVERY_TIMEOUT_MS);
       pc.onicecandidate=event=>{
         if(!event.candidate){finish();return;}
         const record=candidateRecord(event.candidate),material=networkMaterialFromCandidate(event.candidate);
@@ -273,10 +279,12 @@ export class LanVsFinder{
     else this.transportStrategies=DEFAULT_TRANSPORTS;
   }
   chooseStageRooms(ids){
-    const gesture=ids.filter(id=>id.startsWith("tap-")),trusted=ids.filter(id=>!id.startsWith("tap-")),out=[];
-    for(const id of trusted)if(out.length<this.maxRoomsPerStage&&!out.includes(id))out.push(id);
-    for(const id of gesture)if(out.length<this.maxRoomsPerStage&&!out.includes(id))out.push(id);
-    return out.slice(0,this.maxRoomsPerStage);
+    const gesture=ids.filter(id=>id.startsWith("tap-")),trusted=ids.filter(id=>!id.startsWith("tap-")),max=this.maxRoomsPerStage;if(max<=1)return(trusted[0]||gesture[0])?[trusted[0]||gesture[0]]:[];
+    const gestureSlots=max>=6?Math.min(gesture.length,2):0,trustedSlots=Math.max(0,max-gestureSlots),out=[];
+    for(const id of trusted)if(out.length<trustedSlots&&!out.includes(id))out.push(id);
+    for(const id of gesture)if(out.length<max&&!out.includes(id))out.push(id);
+    for(const id of trusted)if(out.length<max&&!out.includes(id))out.push(id);
+    return out.slice(0,max);
   }
   makeChild(roomId,strategy){
     let child=null;const opts=this.options;
@@ -303,7 +311,7 @@ export class LanVsFinder{
   scheduleRecovery(reason="retry",child=this.active,error=null){
     if(!this.started)return false;if(child&&this.active&&child!==this.active)return false;
     this.wakeStage("recover");clearTimeout(this.retryTimer);this.retryTimer=0;
-    const previous=this.active;this.active=null;this.children=[];this.currentStageChildren=[];this.failedChildren.clear();this.stageErrors=[];if(previous)previous.stop(false);
+    const previousChildren=[...this.children];this.active=null;this.children=[];this.currentStageChildren=[];this.failedChildren.clear();this.stageErrors=[];for(const previous of previousChildren)previous.stop(false);
     const epoch=++this.stageEpoch,attempt=Math.min(4,++this.retryCount),delay=Math.min(5000,this.retryMs*attempt);
     emitNetworkEvent("finder-retry-scheduled",{reason,delayMs:delay,attempt,error:error?errorMessage(error):"",roomIds:this.stageRoomIds});
     this.retryTimer=setTimeout(()=>{this.retryTimer=0;if(!this.started||epoch!==this.stageEpoch||this.active)return;emitNetworkEvent("finder-retry-start",{reason,attempt,roomIds:this.stageRoomIds});this.stageTask=this.runStages(epoch).catch(nextError=>{if(this.started&&epoch===this.stageEpoch&&!this.active){emitNetworkEvent("finder-error",{error:errorMessage(nextError)});this.scheduleRecovery("stage-error",null,nextError);}});},delay);return true;
@@ -319,29 +327,31 @@ export class LanVsFinder{
     this.options.onPeer?.(peerId,roomId,transportName);
   }
   async runStages(epoch){
-    let lastError=null;
+    let lastError=null,carry=[];
     for(let index=0;index<this.transportStrategies.length;index++){
       if(!this.started||epoch!==this.stageEpoch||this.active)return;
       const strategy=this.transportStrategies[index];this.failedChildren.clear();this.stageErrors=[];
       const rooms=this.stageRoomIds.filter(id=>!strategy.trustedOnly||!id.startsWith("tap-"));
       if(!rooms.length)continue;
-      const children=rooms.map(roomId=>this.makeChild(roomId,strategy));this.children=children;this.currentStageChildren=children;
-      emitNetworkEvent("finder-stage-start",{stage:index+1,transport:strategy.name,roomIds:rooms,maxConcurrent:children.length});
+      const children=rooms.map(roomId=>this.makeChild(roomId,strategy));this.children=[...carry,...children];this.currentStageChildren=children;
+      emitNetworkEvent("finder-stage-start",{stage:index+1,transport:strategy.name,roomIds:rooms,maxConcurrent:children.length,lingerCount:carry.length});
       const results=await Promise.allSettled(children.map((child,i)=>child.start(rooms[i])));
       for(const result of results)if(result.status==="rejected")lastError=result.reason;
       if(this.active||!this.started||epoch!==this.stageEpoch)return;
       const allStartRejected=results.every(result=>result.status==="rejected");
       const allJoinFailed=this.currentStageChildren.length>0&&this.currentStageChildren.every(child=>this.failedChildren.has(child));
-      if(!allStartRejected&&!allJoinFailed){
+      if(carry.length||(!allStartRejected&&!allJoinFailed)){
         const reason=await this.waitStage(epoch);
         if(this.active||!this.started||epoch!==this.stageEpoch)return;
         emitNetworkEvent("finder-stage-end",{stage:index+1,transport:strategy.name,reason,errors:this.stageErrors.map(error=>errorMessage(error)).slice(-4)});
       }else emitNetworkEvent("finder-stage-end",{stage:index+1,transport:strategy.name,reason:allStartRejected?"start-failed":"all-error",errors:(this.stageErrors.length?this.stageErrors:results.filter(result=>result.status==="rejected").map(result=>result.reason)).map(error=>errorMessage(error)).slice(-4)});
-      for(const child of children)child.stop(false);this.children=[];this.currentStageChildren=[];
+      for(const previous of carry)previous.stop(false);
+      const nextCarry=children.filter(child=>child.room&&!this.failedChildren.has(child));for(const child of children)if(!nextCarry.includes(child))child.stop(false);carry=nextCarry;this.children=[...carry];this.currentStageChildren=[...carry];
       if(this.stageErrors.length)lastError=this.stageErrors[this.stageErrors.length-1];
     }
     if(this.started&&epoch===this.stageEpoch&&!this.active){
-      const error=lastError instanceof Error?lastError:Error("VS peer not reachable after staged direct/NostrRelay/Torrent/MQTT/Broker attempts");
+      for(const child of carry)child.stop(false);this.children=[];this.currentStageChildren=[];
+      const error=lastError instanceof Error?lastError:Error("VS peer not reachable after overlapped direct/NostrRelay/Torrent/MQTT/Broker attempts");
       emitNetworkEvent("finder-exhausted",{error:errorMessage(error),roomIds:this.stageRoomIds,transportNames:this.transportStrategies.map(item=>item.name)});
       this.scheduleRecovery("finder-exhausted",null,error);
     }
@@ -353,7 +363,7 @@ export class LanVsFinder{
     this.roomIds=ids;this.stageRoomIds=this.chooseStageRooms(ids);
     if(!this.stageRoomIds.length){this.started=false;throw Error("VS discovery produced no staged room candidates");}
     const epoch=++this.stageEpoch;
-    emitNetworkEvent("finder-start",{roomCount:ids.length,selectedRoomIds:this.stageRoomIds,transportNames:this.transportStrategies.map(item=>item.name),maxConcurrent:this.maxRoomsPerStage,mode:"staged-mobile"});
+    emitNetworkEvent("finder-start",{roomCount:ids.length,selectedRoomIds:this.stageRoomIds,transportNames:this.transportStrategies.map(item=>item.name),maxConcurrent:this.maxRoomsPerStage,mode:"overlapped-mobile"});
     this.stageTask=this.runStages(epoch).catch(error=>{if(this.started&&epoch===this.stageEpoch&&!this.active){emitNetworkEvent("finder-error",{error:errorMessage(error)});this.scheduleRecovery("stage-error",null,error);}});
     await Promise.resolve();
   }
@@ -372,16 +382,17 @@ async function hashRoomMaterial(material,cryptoObj){
 }
 export async function gestureRoomKeys({gestureTimeMs=Date.now(),cryptoObj=globalThis.crypto}={}){
   const time=Number(gestureTimeMs);if(!Number.isFinite(time)||time<0)return[];const bucket=Math.floor(time/GESTURE_BUCKET_MS),keys=[];
-  for(const slot of [bucket,bucket-1]){const key=await hashRoomMaterial(`arondight45-vs-discovery-v6:gesture:${GESTURE_BUCKET_MS}:${slot}`,cryptoObj);keys.push(`tap-${key}`);}return [...new Set(keys)];
+  for(const slot of [bucket,bucket-1]){const key=await hashRoomMaterial(`arondight45-vs-discovery-v7:gesture:${GESTURE_BUCKET_MS}:${slot}`,cryptoObj);keys.push(`tap-${key}`);}return [...new Set(keys)];
 }
 export async function sameNetworkRoomKeys({fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto,networkMaterialsFn=webRtcNetworkMaterials}={}){
   const materials=new Set();let lastError=null;
-  try{for(const material of await networkMaterialsFn?.()||[])addExpandedNetworkMaterial(materials,material);}catch(error){lastError=error;emitNetworkEvent("discovery-network-material-error",{error:errorMessage(error)});}
-  if(typeof fetchFn==="function"){
-    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),3500);
+  const rtcTask=Promise.resolve().then(()=>networkMaterialsFn?.()||[]).then(list=>{for(const material of list)addExpandedNetworkMaterial(materials,material);}).catch(error=>{lastError=error;emitNetworkEvent("discovery-network-material-error",{error:errorMessage(error)});});
+  const ipTask=typeof fetchFn==="function"?(async()=>{
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),NETWORK_DISCOVERY_TIMEOUT_MS);
     try{const response=await fetchFn(NETWORK_IPV4_URL,{cache:"no-store",signal:controller.signal});if(!response?.ok)throw Error(`Network lookup failed (${response?.status||0})`);const data=await response.json(),address=String(data?.ip||"").trim();if(!validIpv4(address))throw Error("Network lookup returned invalid IPv4 address");emitNetworkEvent("discovery-public-ip",{address});addExpandedNetworkMaterial(materials,`ipv4:${address}`);}catch(error){lastError=error;emitNetworkEvent("discovery-public-ip-error",{error:errorMessage(error)});}finally{clearTimeout(timeout);}
-  }
-  if(!materials.size)throw lastError||Error("Could not determine shared network identity");const sorted=[...materials].sort();emitNetworkEvent("discovery-network-materials",{materials:sorted});const keys=[];for(const material of sorted){const key=await hashRoomMaterial(`arondight45-vs-discovery-v5:${material}`,cryptoObj);keys.push(`net-${key}`);}return [...new Set(keys)];
+  })():Promise.resolve();
+  await Promise.all([rtcTask,ipTask]);
+  if(!materials.size)throw lastError||Error("Could not determine shared network identity");const sorted=orderedNetworkMaterials(materials);emitNetworkEvent("discovery-network-materials",{materials:sorted});const keys=[];for(const material of sorted){const key=await hashRoomMaterial(`arondight45-vs-discovery-v5:${material}`,cryptoObj);keys.push(`net-${key}`);}return [...new Set(keys)];
 }
 export async function sameNetworkRoomKey(options={}){const keys=await sameNetworkRoomKeys(options);return keys[0];}
 export async function proximityRoomKeys({longitude,latitude,cryptoObj=globalThis.crypto}={}){
@@ -389,7 +400,9 @@ export async function proximityRoomKeys({longitude,latitude,cryptoObj=globalThis
   for(let i=0;i<shifts.length;i++){const [sx,sy]=shifts[i],ix=Math.floor((x+sx)/PROXIMITY_CELL_M),iy=Math.floor((y+sy)/PROXIMITY_CELL_M),key=await hashRoomMaterial(`arondight45-vs-discovery-v5:geo:${PROXIMITY_CELL_M}:${i}:${ix}:${iy}`,cryptoObj);keys.push(`net-${key}`);}return [...new Set(keys)];
 }
 export async function discoveryRoomKeys({longitude,latitude,fetchFn=globalThis.fetch,cryptoObj=globalThis.crypto,networkMaterialsFn=webRtcNetworkMaterials,positionFn=browserPosition,gestureTimeMs=Date.now()}={}){
-  const gesturePromise=gestureRoomKeys({gestureTimeMs,cryptoObj});let position=normalizePosition({longitude,latitude});if(!position&&typeof positionFn==="function")try{position=normalizePosition(await positionFn());}catch(error){emitNetworkEvent("discovery-geo-error",{error:errorMessage(error)});}
-  const [gesture,geo,network]=await Promise.all([gesturePromise,position?proximityRoomKeys({...position,cryptoObj}):Promise.resolve([]),sameNetworkRoomKeys({fetchFn,cryptoObj,networkMaterialsFn}).catch(()=>[])]);
-  const trusted=[...new Set([...network.slice(0,3),...geo.slice(0,3)])].slice(0,Math.max(0,DISCOVERY_MAX_ROOMS-gesture.length)),keys=[...trusted,...gesture];if(!keys.length)throw Error("No automatic proximity/network/gesture discovery path available");const unique=[...new Set(keys)].slice(0,DISCOVERY_MAX_ROOMS);emitNetworkEvent("discovery-plan",{roomIds:unique,networkRooms:network.length,geoRooms:geo.length,gestureRooms:gesture.length});return unique;
+  const gesturePromise=gestureRoomKeys({gestureTimeMs,cryptoObj}),provided=normalizePosition({longitude,latitude});
+  const positionPromise=provided?Promise.resolve(provided):typeof positionFn==="function"?Promise.resolve().then(()=>positionFn()).then(normalizePosition).catch(error=>{emitNetworkEvent("discovery-geo-error",{error:errorMessage(error)});return null;}):Promise.resolve(null);
+  const networkPromise=sameNetworkRoomKeys({fetchFn,cryptoObj,networkMaterialsFn}).catch(()=>[]);
+  const [gesture,position,network]=await Promise.all([gesturePromise,positionPromise,networkPromise]),geo=position?await proximityRoomKeys({...position,cryptoObj}):[];
+  const trusted=[...new Set([...network.slice(0,2),...geo.slice(0,4)])],keys=[...trusted,...gesture];if(!keys.length)throw Error("No automatic proximity/network/gesture discovery path available");const unique=[...new Set(keys)].slice(0,DISCOVERY_MAX_ROOMS);emitNetworkEvent("discovery-plan",{roomIds:unique,networkRooms:network.length,geoRooms:geo.length,gestureRooms:gesture.length,reservedGestureRooms:unique.filter(id=>id.startsWith("tap-")).length});return unique;
 }
