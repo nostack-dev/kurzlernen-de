@@ -1,4 +1,4 @@
-import "./gameplay_polish.mjs";
+import "./gameplay_polish_lite.mjs";
 import "./world_experience.mjs";
 import "./combat_visual_polish.mjs";
 import {buildingLaunchPointClear} from "./world_building_collision_physics.mjs";
