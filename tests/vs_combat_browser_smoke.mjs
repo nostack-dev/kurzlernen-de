@@ -31,3 +31,4 @@ await import("./vs_multiplayer_browser_smoke.mjs");
 await import("./vs_multiplayer_score_browser_smoke.mjs");
 await import("./world_ragdoll_browser_smoke.mjs");
 await import("./world_lane_depth_browser_smoke.mjs");
+await import("./projectile_decal_browser_smoke.mjs");
