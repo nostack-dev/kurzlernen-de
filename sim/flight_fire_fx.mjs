@@ -24,7 +24,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   viewport.dataset.fireDecalWrites="0";
   viewport.dataset.fireActiveProjectiles="0";
   viewport.dataset.fireProjectileImpacts="0";
-  viewport.dataset.fireProjectileExpired="0";viewport.dataset.fireAimMode="center-fixed";viewport.dataset.fireCrosshairMode="center-fixed";
+  viewport.dataset.fireProjectileExpired="0";viewport.dataset.fireAimMode="touch-1to1";viewport.dataset.fireCrosshairMode="center-fixed";
 
   const style=document.createElement("style");style.textContent=`
     #viewport{touch-action:none;overscroll-behavior:none}
@@ -106,7 +106,13 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   }
   function updateImpacts(now){for(const item of impactPool){if(!item.mesh.visible)continue;if(now>=item.expiresAt){item.mesh.visible=false;item.material.opacity=0;continue;}const life=Math.max(1,item.expiresAt-item.bornAt),t=(now-item.bornAt)/life;item.material.opacity=Math.max(0,1-t);item.mesh.scale.multiplyScalar(1+Math.min(.08,(now-lastProjectileFrameMs)/1000*2));}}
 
-  function aimPoint(){const rect={left:0,top:0,width:Math.max(1,viewport.clientWidth),height:Math.max(1,viewport.clientHeight)},x=rect.width*.5,y=rect.height*.5;return{x,y,rect};}
+  function aimPoint(){
+    const rect={left:0,top:0,width:Math.max(1,viewport.clientWidth),height:Math.max(1,viewport.clientHeight)};
+    if(active?.source==="gamepad"){const x=rect.width*.5,y=rect.height*.5;return{x,y,rect};}
+    const screenRect=viewport.getBoundingClientRect(),clientX=active?.clientX??screenRect.left+screenRect.width/2,clientY=active?.clientY??screenRect.top+screenRect.height/2,rotated=viewport.dataset.soloOrientation==="css-landscape";
+    const x=rotated?clientY-screenRect.top:clientX-screenRect.left,y=rotated?screenRect.right-clientX:clientY-screenRect.top;
+    return{x:Math.max(0,Math.min(rect.width,x)),y:Math.max(0,Math.min(rect.height,y)),rect};
+  }
   function projectileMuzzle(ray){
     const airframe=worldBridge?.airframeFor?.(scene)||worldBridge?.airframe;if(!airframe?.getWorldPosition){muzzlePosition.copy(ray.origin);return muzzlePosition;}
     airframe.updateWorldMatrix?.(true,false);airframe.getWorldPosition(muzzlePosition);airframe.getWorldQuaternion?.(muzzleQuaternion);muzzleForward.set(-1,0,0).applyQuaternion(muzzleQuaternion).normalize();muzzleUp.set(0,0,1).applyQuaternion(muzzleQuaternion).normalize();muzzlePosition.addScaledVector(muzzleForward,.16).addScaledVector(muzzleUp,.018);return muzzlePosition;
@@ -136,7 +142,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   projectileRaf=requestAnimationFrame(updateProjectiles);
 
   function fire(now){
-    if(!active||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint();spawnProjectile(now,aim);shotSound();try{onRecoil(.16);}catch{}viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);viewport.dataset.fireAimX=aim.x.toFixed(2);viewport.dataset.fireAimY=aim.y.toFixed(2);viewport.dataset.fireInputSource=active.source||"pointer";return true;
+    if(!active||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint();spawnProjectile(now,aim);shotSound();try{onRecoil(.16);}catch{}viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);viewport.dataset.fireAimX=aim.x.toFixed(2);viewport.dataset.fireAimY=aim.y.toFixed(2);viewport.dataset.fireAimMode=active.source==="gamepad"?"center-fixed":"touch-1to1";viewport.dataset.fireInputSource=active.source||"pointer";return true;
   }
   function scheduleFire(){
     if(!active||fireTimer)return;const tick=()=>{fireTimer=0;if(!active)return;const now=performance.now();fire(now);fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));};fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));
