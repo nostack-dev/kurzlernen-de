@@ -3,11 +3,11 @@ const SEND_MS=33;
 const RELAY_REDUNDANCY=3;
 const JOIN_DIAGNOSTIC_MS=12000;
 const DEFAULT_TRANSPORTS=[
+  {name:"DirectP2PUDP",load:()=>import("./nostr_data_relay.mjs")},
   {name:"Nostr",load:()=>import("trystero")},
-  {name:"NostrRelay",load:()=>import("./nostr_data_relay.mjs")},
-  {name:"Torrent",load:()=>import("@trystero-p2p/torrent")},
+  {name:"Broker",load:()=>import("./mqtt_data_relay.mjs")},
   {name:"MQTT",load:()=>import("@trystero-p2p/mqtt")},
-  {name:"Broker",load:()=>import("./mqtt_data_relay.mjs")}
+  {name:"Torrent",load:()=>import("@trystero-p2p/torrent")}
 ];
 const DISCOVERY_MAX_ROOMS=8;
 const PROXIMITY_CELL_M=800;
@@ -174,7 +174,7 @@ export class LanVsSession{
     this.onPeer=options.onPeer;this.onPose=options.onPose;this.onOrigin=options.onOrigin;this.onCombat=options.onCombat;this.onLeave=options.onLeave;this.onError=options.onError;this.onTransport=options.onTransport;this.onDiagnostic=options.onDiagnostic;
     this.pendingPose=null;this.pendingOrigin=null;this.originDirty=false;this.seq=0;this.lastRxSeq=0;this.sendBusy=false;this.originBusy=false;
     this.loadTransport=options.loadTransport||DEFAULT_TRANSPORTS[0].load;
-    this.transportName=String(options.transportName||(customPrimary?"Custom":"Nostr"));
+    this.transportName=String(options.transportName||(customPrimary?"Custom":DEFAULT_TRANSPORTS[0].name));
     this.relayRedundancy=Number.isFinite(options.relayRedundancy)?Math.max(1,Math.floor(options.relayRedundancy)):RELAY_REDUNDANCY;
     this.joinDiagnosticMs=Number.isFinite(options.joinDiagnosticMs)?Math.max(0,Number(options.joinDiagnosticMs)):JOIN_DIAGNOSTIC_MS;
     this.getRelaySockets=null;
@@ -184,7 +184,7 @@ export class LanVsSession{
     if(this.room)return;
     if(typeof roomId!=="string"||!roomId)throw Error("VS room id required");
     this.roomId=roomId;
-    if(!this.timer)this.timer=setInterval(()=>{this.flushOrigin();this.flushPose();},this.transportName==="NostrRelay"?100:SEND_MS);
+    if(!this.timer)this.timer=setInterval(()=>{this.flushOrigin();this.flushPose();},SEND_MS);
     this.diag("transport-start",{relayRedundancy:this.relayRedundancy});this.onTransport?.(this.transportName);
     try{
       await this.openTransport();
@@ -209,7 +209,7 @@ export class LanVsSession{
       this.diag("join-error",{peerId:String(details?.peerId||""),error:errorMessage(error),relays:relaySnapshot(this.getRelaySockets)});
       this.onError?.(error);
     };
-    const directRtc=!["Broker","NostrRelay"].includes(this.transportName);
+    const directRtc=!["Broker","DirectP2PUDP"].includes(this.transportName);
     const roomConfig={appId:APP_ID,relayConfig:{redundancy:this.relayRedundancy},...(directRtc?{trickleIce:true,rtcConfig:{iceServers:STUN_ICE_SERVERS,iceTransportPolicy:"all",iceCandidatePoolSize:1,bundlePolicy:"max-bundle"}}:{})};
     this.diag("ice-config",{directRtc,trickleIce:directRtc,iceServers:directRtc?STUN_ICE_SERVERS.map(server=>server.urls):[]});
     room=joinRoom(roomConfig,this.roomId,{onJoinError});
@@ -274,11 +274,10 @@ export class LanVsFinder{
     this.stageMs=Number.isFinite(options.stageMs)?Math.max(250,Number(options.stageMs)):FINDER_STAGE_MS;
     this.maxRoomsPerStage=Number.isFinite(options.maxRoomsPerStage)?Math.max(1,Math.floor(options.maxRoomsPerStage)):FINDER_MAX_ROOMS_PER_STAGE;
     this.retryMs=Number.isFinite(options.retryMs)?Math.max(20,Number(options.retryMs)):FINDER_RETRY_MS;
-    const userAgent=String(options.userAgent??globalThis.navigator?.userAgent??""),safariWebKit=/AppleWebKit/i.test(userAgent)&&/Safari/i.test(userAgent)&&!/CriOS|FxiOS|EdgiOS|OPiOS|Android/i.test(userAgent);
     if(Array.isArray(options.transportStrategies)&&options.transportStrategies.length)this.transportStrategies=options.transportStrategies;
     else if(typeof options.loadTransport==="function")this.transportStrategies=[{name:String(options.transportName||"Custom"),load:options.loadTransport}];
-    else this.transportStrategies=safariWebKit?[DEFAULT_TRANSPORTS[1],DEFAULT_TRANSPORTS[4],DEFAULT_TRANSPORTS[0],DEFAULT_TRANSPORTS[3],DEFAULT_TRANSPORTS[2]]:DEFAULT_TRANSPORTS;
-    this.transportMode=safariWebKit?"safari-relay-first":"direct-first";
+    else this.transportStrategies=DEFAULT_TRANSPORTS;
+    this.transportMode="direct-p2p-udp-first";
   }
   chooseStageRooms(ids){
     const gesture=ids.filter(id=>id.startsWith("tap-")),trusted=ids.filter(id=>!id.startsWith("tap-")),max=this.maxRoomsPerStage;if(max<=1)return(trusted[0]||gesture[0])?[trusted[0]||gesture[0]]:[];
@@ -353,7 +352,7 @@ export class LanVsFinder{
     }
     if(this.started&&epoch===this.stageEpoch&&!this.active){
       for(const child of carry)child.stop(false);this.children=[];this.currentStageChildren=[];
-      const error=lastError instanceof Error?lastError:Error("VS peer not reachable after overlapped direct/NostrRelay/Torrent/MQTT/Broker attempts");
+      const error=lastError instanceof Error?lastError:Error("VS peer not reachable after direct P2P UDP/Nostr/Broker/MQTT/Torrent attempts");
       emitNetworkEvent("finder-exhausted",{error:errorMessage(error),roomIds:this.stageRoomIds,transportNames:this.transportStrategies.map(item=>item.name)});
       this.scheduleRecovery("finder-exhausted",null,error);
     }
@@ -391,7 +390,7 @@ export async function sameNetworkRoomKeys({fetchFn=globalThis.fetch,cryptoObj=gl
   const rtcTask=Promise.resolve().then(()=>networkMaterialsFn?.()||[]).then(list=>{for(const material of list)addExpandedNetworkMaterial(materials,material);}).catch(error=>{lastError=error;emitNetworkEvent("discovery-network-material-error",{error:errorMessage(error)});});
   const ipTask=typeof fetchFn==="function"?(async()=>{
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),NETWORK_DISCOVERY_TIMEOUT_MS);
-    try{const response=await fetchFn(NETWORK_IPV4_URL,{cache:"no-store",signal:controller.signal});if(!response?.ok)throw Error(`Network lookup failed (${response?.status||0})`);const data=await response.json(),address=String(data?.ip||"").trim();if(!validIpv4(address))throw Error("Network lookup returned invalid IPv4 address");emitNetworkEvent("discovery-public-ip",{address});addExpandedNetworkMaterial(materials,`ipv4:${address}`);}catch(error){lastError=error;emitNetworkEvent("discovery-public-ip-error",{error:errorMessage(error)});}finally{clearTimeout(timeout);}
+    try{const response=await fetchFn(NETWORK_IPV4_URL,{cache:"no-store",signal:controller.signal});if(!response?.ok)throw Error(`Network lookup failed (${response?.status||0})`);const data=await response.json(),address=String(data?.ip||"").trim();if(!validIpv4(address))throw Error("Network lookup returned invalid IPv4 address");emitNetworkEvent("discovery-public-ip",{address});addExpandedNetworkMaterial(materials,`ipv4:${address}`);}catch(error){lastError=error;emitNetworkEvent("discovery-public-ip-error",{error:errorMessage(error));}finally{clearTimeout(timeout);}
   })():Promise.resolve();
   await Promise.all([rtcTask,ipTask]);
   if(!materials.size)throw lastError||Error("Could not determine shared network identity");const sorted=orderedNetworkMaterials(materials);emitNetworkEvent("discovery-network-materials",{materials:sorted});const keys=[];for(const material of sorted){const key=await hashRoomMaterial(`arondight45-vs-discovery-v5:${material}`,cryptoObj);keys.push(`net-${key}`);}return [...new Set(keys)];
