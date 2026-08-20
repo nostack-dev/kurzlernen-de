@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import * as THREE from "three";
 import {LanVsSession} from "../sim/lan_vs.mjs";
 import {findClearBuildingLaunchPoint,buildingLaunchPointClear} from "../sim/world_building_collision_physics.mjs";
 import {FPV_VIEW_EXTRA_UP_M,installFpvViewHeight} from "../sim/fpv_view_height.mjs";
 import {roadRouteKey,buildRoadRoute,mergeRoadRouteRegistry,sampleRoadRoute} from "../sim/world_road_routes.mjs";
+import {isDrivableRoadFeature} from "../sim/world_road_feature_filter.mjs";
 import {enforceOpaqueBuildingLayers} from "../sim/world_building_visual_guard.mjs";
+import {buildBuildingDepthGeometry,syncWorldBuildingDepthOcclusion,buildingDepthOcclusionState} from "../sim/world_building_depth_occlusion.mjs";
 
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
@@ -18,13 +21,20 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 {
   const path=[[9,47],[9.001,47],[9.002,47]],reversed=[...path].reverse();assert.equal(roadRouteKey(path),roadRouteKey(reversed),"the same OSM road must keep one stable route id even if feature direction flips");
   const route=buildRoadRoute(path,9,47,{lastSeen:0});assert.ok(route&&!route.closed&&route.length>100,"test road must be a long open route");
-  const outbound=sampleRoadRoute(route,5,.82),returning=sampleRoadRoute(route,route.length+5,.82);assert.ok(outbound&&returning&&returning.reverse,"open road must ping-pong instead of teleport-looping from end to start");assert.ok(Math.abs(Math.abs(returning.y)-.82)<.05,"lane offset must remain road-relative while returning");
+  const outbound=sampleRoadRoute(route,5,.82),returning=sampleRoadRoute(route,route.length+5,.82);assert.ok(outbound&&returning&&returning.reverse,"open road must ping-pong instead of teleport-looping from end to start");assert.ok(Math.abs(outbound.y-returning.y)<.05,"a U-turn must keep the same physical lane instead of jumping sideways");
   const registry=new Map();let active=mergeRoadRouteRegistry(registry,[path],9,47,1000,{graceMs:30000});assert.equal(active.length,1);const key=active[0].key;active=mergeRoadRouteRegistry(registry,[],9,47,4000,{graceMs:30000});assert.equal(active.length,1,"brief OSM/minimap refresh gaps must not despawn traffic");assert.equal(active[0].key,key,"route identity must survive feature refresh gaps");active=mergeRoadRouteRegistry(registry,[],9,47,32001,{graceMs:30000});assert.equal(active.length,0,"stale roads may expire only after the full route grace interval");
+  const feature=(klass,id="road-main")=>({sourceLayer:"transportation",layer:{id,"source-layer":"transportation"},properties:{class:klass}});assert.equal(isDrivableRoadFeature(feature("residential")),true,"residential streets must carry traffic");assert.equal(isDrivableRoadFeature(feature("service")),true,"service roads must remain drivable");assert.equal(isDrivableRoadFeature(feature("rail","railway")),false,"rail must never receive cars");assert.equal(isDrivableRoadFeature(feature("path","path")),false,"foot/path geometry must never receive cars");assert.equal(isDrivableRoadFeature(feature("cycleway","cycleway")),false,"cycleways must never receive cars");
 }
 
 {
   const writes=[],map={getStyle:()=>({layers:[{id:"building-3d",type:"fill-extrusion","source-layer":"building"},{id:"water",type:"fill"}]}),setPaintProperty:(id,name,value)=>writes.push([id,name,value]),getPaintProperty:()=>"rgba(120,130,140,0.35)"};
   assert.equal(enforceOpaqueBuildingLayers(map),1,"exactly the 3D building layer must be hardened");assert.ok(writes.some(x=>x[0]==="building-3d"&&x[1]==="fill-extrusion-opacity"&&x[2]===1),"3D buildings must render fully opaque");assert.ok(writes.some(x=>x[0]==="building-3d"&&x[1]==="fill-extrusion-color"&&x[2]==="rgb(120,130,140)"),"embedded alpha in building color must be stripped");assert.equal(writes.some(x=>x[0]==="water"),false,"non-building layers must not be modified");
+  const expression=["interpolate",["linear"],["zoom"],14,"#777777",18,"#dddddd"],expressionWrites=[],expressionMap={getStyle:()=>({layers:[{id:"building-expr",type:"fill-extrusion","source-layer":"building"}]}),setPaintProperty:(id,name,value)=>expressionWrites.push([id,name,value]),getPaintProperty:()=>expression};enforceOpaqueBuildingLayers(expressionMap);assert.equal(expressionWrites.some(x=>x[1]==="fill-extrusion-color"),false,"opaque guard must preserve expression-based building colors instead of flattening them");
+}
+
+{
+  const geometry=buildBuildingDepthGeometry([{buildingKey:"b",base:0,top:12,points:[[-2,-2],[2,-2],[2,2],[-2,2]]}]);assert.ok(geometry.getAttribute("position")?.count>=30,"depth occluder must contain roof/floor/wall triangles");
+  const viewport={dataset:{}},scene=new THREE.Scene(),bridge={active:true,threeScene:scene,buildingCollisionSnapshot:{hash:"depth-test",prisms:[{buildingKey:"b",base:0,top:12,points:[[-2,-2],[2,-2],[2,2],[-2,2]]}]}};globalThis.document={getElementById:id=>id==="viewport"?viewport:null};syncWorldBuildingDepthOcclusion(bridge);const state=buildingDepthOcclusionState(),occluder=state.mesh;assert.ok(occluder?.visible&&occluder.userData.worldBuildingDepthOccluder,"building collision geometry must create a visible-in-depth Three occluder");assert.equal(occluder.material.colorWrite,false,"building occluder must not paint over the MapLibre building pixels");assert.equal(occluder.material.depthWrite,true,"building occluder must write depth so drones/cars/people cannot render through walls");assert.equal(occluder.material.depthTest,true);assert.equal(viewport.dataset.worldBuildingOcclusion,"depth-active");delete globalThis.document;
 }
 
 function meshHarness(){
@@ -62,4 +72,4 @@ const oldAuthority=a.getAuthorityId();assert.equal(oldAuthority,a.getSelfId());a
 const huge={hash:"huge",prisms:[{buildingKey:"block",base:0,top:30,points:[[-500,-500],[500,-500],[500,500],[-500,500]]}]};const safe=findClearBuildingLaunchPoint(huge,{point:[0,0],clearanceM:1,maxSearchM:2});assert.equal(buildingLaunchPointClear(huge,safe,{clearanceM:1}),true,"guaranteed fallback launch point must be proven clear even when normal search radius cannot escape the building");assert.ok(Math.hypot(safe[0],safe[1])>500,"fallback must leave the full blocking footprint instead of returning the unsafe origin");
 
 b.stop();c.stop();d.stop();
-console.log("Four-player VS mesh smoke passed: raised 4.8 cm FPV view, stable ping-pong road routing, opaque buildings, simultaneous mates, authority migration and guaranteed collision-free WORLD spawn.");
+console.log("Four-player VS mesh smoke passed: raised 4.8 cm FPV view, drivable stable road routing, opaque depth-occluding buildings, simultaneous mates, authority migration and guaranteed collision-free WORLD spawn.");
