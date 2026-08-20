@@ -5,7 +5,8 @@ const APPLE_MOBILE_RE=/(?:iphone|ipad|ipod)|(?:macintosh.*mobile)/i;
 
 export function renderPlatformProfile({userAgent="",devicePixelRatio=1,rendererName=""}={}){
   const ua=String(userAgent||""),android=ANDROID_RE.test(ua),honor=HONOR_RE.test(ua),appleMobile=APPLE_MOBILE_RE.test(ua),software=SOFTWARE_RENDERER_RE.test(String(rendererName||""));
-  const nativePixelRatio=Math.max(.25,Number(devicePixelRatio)||1),pixelRatioCeiling=software?Math.min(nativePixelRatio,.30):android?Math.min(nativePixelRatio,.90):appleMobile?Math.min(nativePixelRatio,1):Math.min(nativePixelRatio,1.25);
+  const nativePixelRatio=Math.max(.25,Number(devicePixelRatio)||1);let pixelRatioCeiling=software?Math.min(nativePixelRatio,.30):android?Math.min(nativePixelRatio,1):Math.min(nativePixelRatio,1.25);
+  if(!software&&android)pixelRatioCeiling=Math.min(pixelRatioCeiling,.90);else if(!software&&appleMobile)pixelRatioCeiling=Math.min(pixelRatioCeiling,1);
   return Object.freeze({android,honor,appleMobile,software,pixelRatioCeiling,stableBackbuffer:android||honor,canvasDesynchronized:false});
 }
 
