@@ -5,6 +5,17 @@ const DRIVABLE_RE=/(?:motorway|trunk|primary|secondary|tertiary|residential|livi
 function hashText(text){let h=2166136261;for(const c of String(text||"")){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;}
 function lngLatToMeters(lon0,lat0,lon,lat){const north=(lat-lat0)*Math.PI/180*EARTH_RADIUS_M,east=(lon-lon0)*Math.PI/180*EARTH_RADIUS_M*Math.max(.01,Math.cos(lat0*Math.PI/180));return[east,north];}
 function pointToken(point){return`${Number(point[0]).toFixed(6)},${Number(point[1]).toFixed(6)}`;}
+function opaqueColor(value){
+  if(typeof value==="string"){
+    const rgba=value.match(/^rgba\(\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*[^)]+\)$/i);if(rgba)return`rgb(${rgba[1]},${rgba[2]},${rgba[3]})`;
+    if(/^#[0-9a-f]{8}$/i.test(value))return value.slice(0,7);if(/^#[0-9a-f]{4}$/i.test(value))return value.slice(0,4);return value;
+  }
+  if(Array.isArray(value)){
+    if(String(value[0]||"").toLowerCase()==="rgba"&&value.length>=5)return["rgb",opaqueColor(value[1]),opaqueColor(value[2]),opaqueColor(value[3])];
+    return value.map(opaqueColor);
+  }
+  return value;
+}
 export function canonicalGeoPath(path){const valid=(Array.isArray(path)?path:[]).map(point=>[Number(point?.[0]),Number(point?.[1])]).filter(point=>point.every(Number.isFinite));if(valid.length<2)return valid;const forward=valid.map(pointToken).join(";"),reverse=[...valid].reverse(),backward=reverse.map(pointToken).join(";");return backward<forward?reverse:valid;}
 export function geometryPaths(geometry){if(!geometry)return[];const c=geometry.coordinates||[];if(geometry.type==="LineString")return[c];if(geometry.type==="MultiLineString")return c;return[];}
 export function roadFeatureClass(feature){const p=feature?.properties||{},layer=feature?.layer||{};return String(p.class||p.subclass||p.type||p.service||layer.id||"").toLowerCase();}
@@ -12,4 +23,8 @@ export function isDrivableTransportationFeature(feature){const p=feature?.proper
 export function routeKey(path){const canonical=canonicalGeoPath(path);return`r${hashText(canonical.map(pointToken).join(";")).toString(36)}`;}
 export function buildTrafficRoute(path,{originLon,originLat,roadClass="road",lastSeen=0}={}){if(!Number.isFinite(originLon)||!Number.isFinite(originLat)||!Array.isArray(path))return null;const geoPath=canonicalGeoPath(path),points=geoPath.map(([lon,lat])=>lngLatToMeters(originLon,originLat,lon,lat)),segments=[];let length=0;for(let i=0;i<points.length-1;i++){const a=points[i],c=points[i+1],dx=c[0]-a[0],dy=c[1]-a[1],d=Math.hypot(dx,dy);if(d<1)continue;segments.push({a,c,dx,dy,d,start:length});length+=d;}return length>=18&&segments.length?{key:routeKey(geoPath),geoPath,points,segments,length,roadClass:String(roadClass||"road").toLowerCase(),lastSeen}:null;}
 export function collectRenderedDrivableRoads(map){if(!map?.getStyle||!map?.queryRenderedFeatures)return[];const layers=(map.getStyle()?.layers||[]).filter(layer=>layer?.type==="line"&&String(layer["source-layer"]||"").toLowerCase()==="transportation").map(layer=>layer.id);if(!layers.length)return[];const out=[];for(const feature of map.queryRenderedFeatures(undefined,{layers})||[]){if(!isDrivableTransportationFeature(feature))continue;for(const path of geometryPaths(feature.geometry))if(path?.length>=2)out.push({path:canonicalGeoPath(path),roadClass:roadFeatureClass(feature)||"road"});}return out;}
-export function makeBuildingsOpaque(map){if(!map?.getStyle||!map?.getLayer||!map?.setPaintProperty)return 0;let changed=0;for(const layer of map.getStyle()?.layers||[]){if(layer?.type!=="fill-extrusion")continue;const sourceLayer=String(layer["source-layer"]||"").toLowerCase();if(layer.id!=="arondight45-buildings-3d"&&sourceLayer!=="building")continue;if(!map.getLayer(layer.id))continue;let opacity;try{opacity=map.getPaintProperty?.(layer.id,"fill-extrusion-opacity");}catch{}if(opacity!==1){try{map.setPaintProperty(layer.id,"fill-extrusion-opacity",1);changed++;}catch{}}}return changed;}
+export function makeBuildingsOpaque(map){
+  let changed=0;
+  if(map?.getStyle&&map?.getLayer&&map?.setPaintProperty){for(const layer of map.getStyle()?.layers||[]){if(layer?.type!=="fill-extrusion")continue;const sourceLayer=String(layer["source-layer"]||"").toLowerCase();if(layer.id!=="arondight45-buildings-3d"&&sourceLayer!=="building")continue;if(!map.getLayer(layer.id))continue;try{const opacity=map.getPaintProperty?.(layer.id,"fill-extrusion-opacity");if(opacity!==1){map.setPaintProperty(layer.id,"fill-extrusion-opacity",1);changed++;}const color=map.getPaintProperty?.(layer.id,"fill-extrusion-color"),solid=opaqueColor(color);if(JSON.stringify(solid)!==JSON.stringify(color)){map.setPaintProperty(layer.id,"fill-extrusion-color",solid);changed++;}}catch{}}}
+  return changed;
+}
