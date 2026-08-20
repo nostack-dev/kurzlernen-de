@@ -7,7 +7,7 @@ const DISCONNECT_GRACE_MS=4500;
 const RESTART_TIMEOUT_MS=10000;
 const READY_RETRY_MS=350;
 const SIGNAL_RETRY_MS=1200;
-const RESPAWN_AUTHORITY_MS=2000;
+const RESPAWN_AUTHORITY_MS=0;
 const PING_TIMEOUT_MS=3000;
 const MAX_SEEN_COMBAT=256;
 
@@ -70,7 +70,7 @@ export class DirectUdpPeer{
   _requestRecovery(reason){if(this.closed||!this.pc)return;if(!this.restartTimer)this.restartTimer=setTimeout(()=>{this.restartTimer=0;if(!this.closed&&String(this.pc?.connectionState||this.pc?.iceConnectionState||"")!=="connected")this.close(`ice-restart-timeout:${reason}`,true);},RESTART_TIMEOUT_MS);if(this.isHost)this.restartIce(reason).catch(error=>this.diag("ice-restart-error",{error:errorText(error)}));else Promise.resolve(this.sendSignal({kind:"restart-needed",reason})).catch(error=>this.diag("signal-send-error",{kind:"restart-needed",error:errorText(error)}));}
   async restartIce(reason="manual"){if(this.closed||!this.pc||!this.isHost)return false;if(this.restartInFlight)return true;this.restartInFlight=true;try{await this._startOffer(true);this.diag("ice-restart-requested",{reason});return true;}catch(error){this.restartInFlight=false;throw error;}}
   _channelClosed(channel){if(this.closed)return;this.diag("direct-udp-channel-close",{channel});this.close(`${channel}-closed`,true);}
-  debug(){return{ready:this.ready,isHost:this.isHost,localChannelsReady:this.localChannelsReady,remoteReady:this.remoteReady,remoteAcked:this.remoteAcked,peerHealth:this.peerHealth,pose:{readyState:this.poseChannel?.readyState||"",ordered:this.poseChannel?.ordered,maxRetransmits:this.poseChannel?.maxRetransmits,bufferedAmount:Number(this.poseChannel?.bufferedAmount||0)},control:{readyState:this.controlChannel?.readyState||"",ordered:this.controlChannel?.ordered,maxRetransmits:this.controlChannel?.maxRetransmits},connectionState:String(this.pc?.connectionState||""),iceConnectionState:String(this.pc?.iceConnectionState||"")};}
+  debug(){return{ready:this.ready,isHost:this.isHost,localChannelsReady:this.localChannelsReady,remoteReady:this.remoteReady,remoteAcked:this.remoteAcked,peerHealth:this.peerHealth,pose:{readyState:this.poseChannel?.readyState||"",ordered:this.poseChannel?.ordered,maxRetransmits:this.poseChannel?.maxRetransmits,bufferedAmount:Number(this.poseChannel?.bufferedAmount||0)},control:{readyState:this.controlChannel?.readyState||"",ordered:this.controlChannel.ordered,maxRetransmits:this.controlChannel.maxRetransmits},connectionState:String(this.pc?.connectionState||""),iceConnectionState:String(this.pc?.iceConnectionState||"")};}
   close(reason="closed",notify=false){if(this.closed)return;this.closed=true;const wasReady=this.ready;this.ready=false;clearInterval(this.readyTimer);clearInterval(this.offerTimer);clearTimeout(this.disconnectTimer);clearTimeout(this.restartTimer);this.readyTimer=0;this.offerTimer=0;this.disconnectTimer=0;this.restartTimer=0;for(const pending of this.pendingPings.values())pending.reject?.(Error("Direct UDP peer closed"));this.pendingPings.clear();try{this.pc?.close?.();}catch{}this.diag("direct-udp-peer-left",{reason});if(notify&&wasReady)queueMicrotask(()=>this.onLeave?.(this.peerId,reason));}
 }
 
