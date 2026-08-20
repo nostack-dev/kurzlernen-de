@@ -30,6 +30,7 @@ function refreshRelayStates(){
   try{const status=pool?.listConnectionStatus?.();if(status)for(const url of RELAYS){const connected=Boolean(status.get(url)||status.get(`${url}/`));const state=statusObject(url);if(connected){state.readyState=1;state.error="";}else if(state.readyState===1)state.readyState=0;}}catch{}
 }
 export function getRelaySockets(){refreshRelayStates();return Object.fromEntries(RELAYS.map(url=>[url,{...statusObject(url)}]));}
+function fastRelayTargets(){refreshRelayStates();const open=RELAYS.filter(url=>statusObject(url).readyState===1);return open.length?open:RELAYS;}
 function ensurePool(){
   if(pool)return pool;
   pool=new SimplePool({enablePing:true,enableReconnect:true});
@@ -81,9 +82,9 @@ class NostrRelayRoom{
     if(this.closed)throw Error("Nostr data relay room closed");
     const text=JSON.stringify(packet);if(text.length>MAX_PACKET_BYTES)throw Error("Nostr VS relay packet too large");
     const p=ensurePool(),event=finalizeEvent({kind:EVENT_KIND,created_at:Math.floor(Date.now()/1000),tags:[["t",this.tag],["expiration",String(Math.floor(Date.now()/1000)+30)]],content:text},signerKey);
-    const targets=fast&&this.preferredRelay?[this.preferredRelay]:RELAYS;
+    const targets=fast?fastRelayTargets():RELAYS;
     const attempts=targets.map(url=>p.publish([url],event,{maxWait:2500})[0].then(()=>{const normalized=url.replace(/\/$/,""),state=statusObject(normalized);state.readyState=1;state.error="";this.preferredRelay=normalized;return normalized;}).catch(error=>{const normalized=url.replace(/\/$/,""),state=statusObject(normalized);state.readyState=3;state.error=String(error?.message||error||"publish failed");throw error;}));
-    try{return await Promise.any(attempts);}catch(error){if(fast&&this.preferredRelay){this.preferredRelay="";return this._publish(packet,false);}throw error;}
+    try{return await Promise.any(attempts);}catch(error){if(fast){this.preferredRelay="";return this._publish(packet,false);}throw error;}
   }
   _announce(){if(this.closed)return;this.cryptoReady.then(()=>this._publish({...this._base("hello"),key:this.identity.publicJwk},false)).catch(()=>{});}
   async _adopt(peerId,publicJwk){
