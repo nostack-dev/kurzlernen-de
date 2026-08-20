@@ -1,5 +1,3 @@
-import {syncWorldBuildingDepthOcclusion} from "./world_building_depth_occlusion.mjs";
-
 const EARTH_RADIUS_M=6378137;
 const NON_DRIVABLE_RE=/(?:rail|tram|subway|ferry|aerialway|runway|taxiway|path|foot|pedestrian|cycle|steps|track)/i;
 const DRIVABLE_RE=/(?:motorway|trunk|primary|secondary|tertiary|residential|living|street|service|minor|road|highway|unclassified)/i;
@@ -28,5 +26,5 @@ export function collectRenderedDrivableRoads(map){if(!map?.getStyle||!map?.query
 export function makeBuildingsOpaque(map){
   let changed=0;
   if(map?.getStyle&&map?.getLayer&&map?.setPaintProperty){for(const layer of map.getStyle()?.layers||[]){if(layer?.type!=="fill-extrusion")continue;const sourceLayer=String(layer["source-layer"]||"").toLowerCase();if(layer.id!=="arondight45-buildings-3d"&&sourceLayer!=="building")continue;if(!map.getLayer(layer.id))continue;try{const opacity=map.getPaintProperty?.(layer.id,"fill-extrusion-opacity");if(opacity!==1){map.setPaintProperty(layer.id,"fill-extrusion-opacity",1);changed++;}const color=map.getPaintProperty?.(layer.id,"fill-extrusion-color"),solid=opaqueColor(color);if(JSON.stringify(solid)!==JSON.stringify(color)){map.setPaintProperty(layer.id,"fill-extrusion-color",solid);changed++;}}catch{}}}
-  syncWorldBuildingDepthOcclusion();return changed;
+  return changed;
 }
