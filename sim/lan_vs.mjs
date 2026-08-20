@@ -274,9 +274,11 @@ export class LanVsFinder{
     this.stageMs=Number.isFinite(options.stageMs)?Math.max(250,Number(options.stageMs)):FINDER_STAGE_MS;
     this.maxRoomsPerStage=Number.isFinite(options.maxRoomsPerStage)?Math.max(1,Math.floor(options.maxRoomsPerStage)):FINDER_MAX_ROOMS_PER_STAGE;
     this.retryMs=Number.isFinite(options.retryMs)?Math.max(20,Number(options.retryMs)):FINDER_RETRY_MS;
+    const userAgent=String(options.userAgent??globalThis.navigator?.userAgent??""),safariWebKit=/AppleWebKit/i.test(userAgent)&&/Safari/i.test(userAgent)&&!/CriOS|FxiOS|EdgiOS|OPiOS|Android/i.test(userAgent);
     if(Array.isArray(options.transportStrategies)&&options.transportStrategies.length)this.transportStrategies=options.transportStrategies;
     else if(typeof options.loadTransport==="function")this.transportStrategies=[{name:String(options.transportName||"Custom"),load:options.loadTransport}];
-    else this.transportStrategies=DEFAULT_TRANSPORTS;
+    else this.transportStrategies=safariWebKit?[DEFAULT_TRANSPORTS[1],DEFAULT_TRANSPORTS[4],DEFAULT_TRANSPORTS[0],DEFAULT_TRANSPORTS[3],DEFAULT_TRANSPORTS[2]]:DEFAULT_TRANSPORTS;
+    this.transportMode=safariWebKit?"safari-relay-first":"direct-first";
   }
   chooseStageRooms(ids){
     const gesture=ids.filter(id=>id.startsWith("tap-")),trusted=ids.filter(id=>!id.startsWith("tap-")),max=this.maxRoomsPerStage;if(max<=1)return(trusted[0]||gesture[0])?[trusted[0]||gesture[0]]:[];
@@ -363,7 +365,7 @@ export class LanVsFinder{
     this.roomIds=ids;this.stageRoomIds=this.chooseStageRooms(ids);
     if(!this.stageRoomIds.length){this.started=false;throw Error("VS discovery produced no staged room candidates");}
     const epoch=++this.stageEpoch;
-    emitNetworkEvent("finder-start",{roomCount:ids.length,selectedRoomIds:this.stageRoomIds,transportNames:this.transportStrategies.map(item=>item.name),maxConcurrent:this.maxRoomsPerStage,mode:"overlapped-mobile"});
+    emitNetworkEvent("finder-start",{roomCount:ids.length,selectedRoomIds:this.stageRoomIds,transportNames:this.transportStrategies.map(item=>item.name),maxConcurrent:this.maxRoomsPerStage,mode:this.transportMode});
     this.stageTask=this.runStages(epoch).catch(error=>{if(this.started&&epoch===this.stageEpoch&&!this.active){emitNetworkEvent("finder-error",{error:errorMessage(error)});this.scheduleRecovery("stage-error",null,error);}});
     await Promise.resolve();
   }
