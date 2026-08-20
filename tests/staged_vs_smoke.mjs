@@ -72,7 +72,7 @@ assert.ok(Math.abs(nextVelocity.z+PROJECTILE_GRAVITY_MPS2)<1e-9,"projectile vert
 const snapshot={prisms:[{buildingKey:"wall",base:0,top:10,points:[[4,-1],[6,-1],[6,1],[4,1]]}]},hit=createProjectileHit();
 const wall=traceProjectileWorldSegment(snapshot,{x:0,y:0,z:5},{x:10,y:0,z:5},hit);assert.ok(wall&&wall.kind==="building"&&Math.abs(wall.point.x-4)<1e-9&&wall.normal.x<-.99,"projectile segment must physically stop on a building wall");
 const roof=traceProjectileWorldSegment(snapshot,{x:5,y:0,z:20},{x:5,y:0,z:0},hit);assert.ok(roof&&roof.kind==="building"&&Math.abs(roof.point.z-10)<1e-9&&roof.normal.z>.99,"projectile segment must physically stop on a roof");
-const ground=traceProjectileWorldSegment({prisms:[]},{x:0,y:0,z:2},{x:0,y:0,z:-2},hit);assert.ok(ground&&ground.kind==="ground"&&Math.abs(ground.point.z)<1e-9,"projectile segment must physically stop on the ground");
+const ground=traceProjectileWorldSegment({prisms:[]},{x:0,y:0,z:2},{x:0,y:0,z:-2},hit);assert.ok(ground&&ground.kind==="ground"&&Math.abs(ground.point.z)<1e-9,"projectile collision must physically stop on the ground");
 const miss=traceProjectileWorldSegment(snapshot,{x:0,y:3,z:5},{x:10,y:3,z:5},hit);assert.equal(miss,null,"projectile collision must not invent hits outside the footprint");
 
 const fireSource=readFileSync(new URL("../sim/flight_fire_fx.mjs",import.meta.url),"utf8");
@@ -85,13 +85,24 @@ const presentationSource=readFileSync(new URL("../sim/vs_combat_presentation.mjs
 for(const marker of ["RESPAWN_RADIUS_MIN_M=12","RESPAWN_RADIUS_MAX_M=30","RESET SIM TO RESPAWN NEARBY","WAITING FOR RESET","vsRespawnLocalOffset","vsManualRespawns","MOBILE_WORLD_COLLISION_SYNC_MS=1400"])
   assert.ok(presentationSource.includes(marker),`VS death/respawn/performance contract missing: ${marker}`);
 const multiplayerSource=readFileSync(new URL("../sim/vs_multiplayer.mjs",import.meta.url),"utf8");
-for(const marker of ["MAX_PLAYERS=9","PALETTE=[","vsPlayerId","hit-request","authorityHit","MATES ${peers.size} ✓","flightFireTracer","sendFx(packet)"])
+for(const marker of ["MAX_PLAYERS=9","PALETTE=[","vsPlayerId","hit-request","authorityHit","AUTHORITY_SETTLE_MS","confirmedHealth","report:true","MATES ${peers.size} ✓","flightFireTracer","flightFireImpact","vsRemoteShot","vsRemoteExplosion"])
   assert.ok(multiplayerSource.includes(marker),`multiplayer gameplay/FX contract missing: ${marker}`);
+const guardSource=readFileSync(new URL("../sim/vs_multiplayer_guard.mjs",import.meta.url),"utf8");
+for(const marker of ["finder.peerCount>0","MATES ${finder.peerCount} ✓"])
+  assert.ok(guardSource.includes(marker),`primary-peer promotion guard missing: ${marker}`);
+const geoFxSource=readFileSync(new URL("../sim/vs_fx_geo_adapter.mjs",import.meta.url),"utf8");
+for(const marker of ["fromG","packet.g","lngLatToMeters","metersToLngLat","__vsFxGeoAdapter"])
+  assert.ok(geoFxSource.includes(marker),`WORLD replicated FX frame adapter missing: ${marker}`);
 const populationSource=readFileSync(new URL("../sim/world_population.mjs",import.meta.url),"utf8");
 for(const marker of ["CAR_COUNT","PERSON_COUNT","worldPopulationId","registerWorldPopulationHit","CAR_RESPAWN_MS","PERSON_RESPAWN_MS","kind:\"car\"","kind:\"person\""])
   assert.ok(populationSource.includes(marker),`WORLD traffic/population contract missing: ${marker}`);
 const buildingSource=readFileSync(new URL("../sim/world_building_collision_physics.mjs",import.meta.url),"utf8");
-assert.equal(buildingSource.includes("skipWholeBuilding"),false,"WORLD launch must never delete the building collider it started inside");assert.ok(buildingSource.includes("pointHasLaunchClearance(candidate,active,clearance)"),"WORLD launch must search for a truly clear footprint location");
+assert.equal(buildingSource.includes("skipWholeBuilding"),false,"WORLD launch must never delete the building collider it started inside");
+for(const marker of ["pointHasLaunchClearance(candidate,active,clearance)","guaranteedRadius","No collision-free WORLD launch point could be proven"])
+  assert.ok(buildingSource.includes(marker),`WORLD launch proof contract missing: ${marker}`);
+const spawnGuardSource=readFileSync(new URL("../sim/world_spawn_guard.mjs",import.meta.url),"utf8");
+for(const marker of ["firstLoaded","buildingLaunchPointClear","queueMicrotask","soloReset","worldSpawnGuardResets"])
+  assert.ok(spawnGuardSource.includes(marker),`delayed WORLD-collider spawn guard missing: ${marker}`);
 
 await import("./multiplayer_mesh_smoke.mjs");
-console.log("Staged VS smoke passed: direct P2P UDP mesh, unique players, replicated fire/explosions, 3+ peers, hardened WORLD spawn and lightweight road traffic retained.");
+console.log("Staged VS smoke passed: direct P2P UDP mesh, unique players, replicated fire/explosions, 4-player authority migration, hardened WORLD spawn and lightweight road traffic retained.");
