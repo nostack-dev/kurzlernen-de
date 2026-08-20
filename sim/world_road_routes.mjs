@@ -56,6 +56,6 @@ export function sampleRoadRoute(route,distance,laneOffset=0){
     const cycle=route.length*2,phase=((distance%cycle)+cycle)%cycle;reverse=phase>route.length;d=reverse?cycle-phase:phase;
   }
   let segment=route.segments.at(-1);for(const s of route.segments)if(d<=s.start+s.d){segment=s;break;}
-  const t=Math.max(0,Math.min(1,(d-segment.start)/segment.d)),travel=reverse?-1:1,dx=segment.dx*travel,dy=segment.dy*travel,nx=-dy/segment.d,ny=dx/segment.d;
+  const t=Math.max(0,Math.min(1,(d-segment.start)/segment.d)),travel=reverse?-1:1,dx=segment.dx*travel,dy=segment.dy*travel,nx=-segment.dy/segment.d,ny=segment.dx/segment.d;
   return{x:segment.a[0]+segment.dx*t+nx*laneOffset,y:segment.a[1]+segment.dy*t+ny*laneOffset,yaw:Math.atan2(dy,dx),reverse};
 }
