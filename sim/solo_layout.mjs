@@ -1,4 +1,6 @@
 import {installVsCombatPresentation} from "./vs_combat_presentation.mjs";
+import {installVsMultiplayer} from "./vs_multiplayer.mjs";
+import {installWorldPopulation} from "./world_population.mjs";
 import {installInitialAirframeGroundPose} from "./start_pose_guard.mjs";
 
 let installed=false;
@@ -58,7 +60,6 @@ export function installSoloFlightLayout(){
       body.solo-flight #soloTopbar #soloCamera,body.solo-flight #soloTopbar .phone-settings-button,body.solo-flight #soloTopbar #lanVsButton{min-width:52px;min-height:24px}
       body.solo-flight #soloTopbar #vsCombatHud{min-width:100px;font-size:9px;padding-left:5px;padding-right:5px}
       body.solo-flight .solo-stick{width:min(22%,128px);bottom:max(16px,var(--solo-safe-bottom))}
-      body.solo-flight .solo-stick span{bottom:-13px;font-size:8px}
       body.solo-flight #soloClearance{left:calc(max(10px,var(--solo-safe-left)) + min(22%,128px) + 8px);bottom:max(16px,var(--solo-safe-bottom));width:42px;height:112px;padding:5px 2px}
       body.solo-flight #soloClearance small{font-size:5.8px}
       body.solo-flight #soloClearance strong{font-size:10px}
@@ -70,4 +71,6 @@ export function installSoloFlightLayout(){
   document.head.appendChild(style);
   installInitialAirframeGroundPose();
   installVsCombatPresentation();
+  installVsMultiplayer();
+  installWorldPopulation();
 }
