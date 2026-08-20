@@ -149,7 +149,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   }
   function move(event){if(!active||active.source==="gamepad"||event.pointerId!==active.id)return;active.clientX=event.clientX;active.clientY=event.clientY;fire(performance.now());scheduleFire();event.preventDefault();}
   function stop(event){if(!active||(event?.pointerId!=null&&event.pointerId!==active.id))return;const id=active.id;active=null;if(fireTimer){clearTimeout(fireTimer);fireTimer=0;}viewport.dataset.fireInputSource="none";try{viewport.releasePointerCapture?.(id);}catch{}event?.preventDefault();}
-  function setGamepadAim(enabled){viewport.dataset.gamepadAim=Boolean(enabled&&isEnabled())?"1":"0";updateCrosshair();}
+  function setGamepadAim(enabled){viewport.dataset.gamepadAim=Boolean(enabled&&isEnabled())?"1":"0";viewport.dataset.fireAimMode="center-fixed";updateCrosshair();}
   function setGamepadFire(pressed){
     if(!pressed||!isEnabled()){if(active?.source==="gamepad")stop();return false;}
     if(active&&active.source!=="gamepad")return false;
