@@ -15,14 +15,16 @@ export function vsOriginKey(value){
 }
 
 export function chooseCanonicalVsOrigin(...values){
-  const candidates=values.flat().map(normalizeVsOrigin).filter(Boolean),unique=new Map(candidates.map(origin=>[vsOriginKey(origin),origin]));
-  return [...unique.entries()].sort(([a],[b])=>a<b?-1:a>b?1:0)[0]?.[1]||null;
+  const candidates=values.flat().map(normalizeVsOrigin).filter(Boolean);if(!candidates.length)return null;
+  if(candidates.length>=2&&vsOriginKey(candidates[0])===vsOriginKey(candidates[1]))return candidates[0];
+  const unique=new Map(candidates.map(origin=>[vsOriginKey(origin),origin]));return [...unique.entries()].sort(([a],[b])=>a<b?-1:a>b?1:0)[0]?.[1]||null;
 }
 
 export function vsFrameId(origin){return vsOriginKey(origin)||"local-metric";}
 
 export function poseMatchesVsFrame(pose,origin){
-  return typeof pose?.f!=="string"||pose.f===vsFrameId(origin);
+  if(typeof pose?.f!=="string"||pose.f===vsFrameId(origin))return true;
+  return finiteArray(pose?.g,2)&&Math.abs(pose.g[0])<=180&&Math.abs(pose.g[1])<=90;
 }
 
 function normalizeQuaternion(value){
