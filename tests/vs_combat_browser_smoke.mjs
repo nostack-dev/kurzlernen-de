@@ -16,9 +16,14 @@ try{
     document.body.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerType:"touch"}));await sleep(120);
     bridge.vsConnected=true;bridge.vsSession={setOrigin(){return true;},setPose(pose){poses.push(JSON.parse(JSON.stringify(pose)));return true;},sendCombat(packet){sent.push(JSON.parse(JSON.stringify(packet)));return true;},stop(){}};bridge.resetVsCombat(true);
     const own=bridge.airframeFor?.(bridge.threeScene)||bridge.airframe;if(!own?.position)throw new Error("local airframe missing");const ox=own.position.x,oy=own.position.y,oz=own.position.z;
-    bridge.applyVsPose({p:[ox+10,oy,oz],q:[0,0,0,1]});await sleep(180);
+    bridge.applyVsPose({p:[ox+10,oy,oz],q:[0,0,0,1]});
+    let readable=null,hitbox=null;const visualDeadline=performance.now()+5000;
+    while(performance.now()<visualDeadline){
+      if(bridge.vsPeerMesh?.children?.length){readable=null;hitbox=null;bridge.vsPeerMesh.traverse(node=>{if(node.userData?.vsReadableVisual)readable=node;if(node.userData?.vsCombatHitbox)hitbox=node;});if(readable&&hitbox&&Number(viewport.dataset.vsPeerVisualScale)===12)break;}
+      await sleep(50);
+    }
     if(!bridge.vsPeerMesh?.children?.length)throw new Error("peer mesh missing after real pose path");
-    let readable=null,hitbox=null;bridge.vsPeerMesh.traverse(node=>{if(node.userData?.vsReadableVisual)readable=node;if(node.userData?.vsCombatHitbox)hitbox=node;});if(!readable)throw new Error("12x readable peer visual missing");if(!hitbox)throw new Error("visible-envelope peer hitbox missing");
+    if(!readable)throw new Error(`12x readable peer visual missing · scale=${viewport.dataset.vsPeerVisualScale||"unset"} · children=${bridge.vsPeerMesh.children.length}`);if(!hitbox)throw new Error(`visible-envelope peer hitbox missing · scale=${viewport.dataset.vsPeerHitboxScale||"unset"} · children=${bridge.vsPeerMesh.children.length}`);
     const marker=document.querySelector("#vsEnemyMarker"),distanceM=Number(viewport.dataset.vsEnemyDistanceM),hpFill=marker?.querySelector(".vs-enemy-hp>b"),reticle=marker?.querySelector(".vs-enemy-reticle"),reticleStyle=getComputedStyle(reticle);
     const hitboxScale=Number(viewport.dataset.vsPeerHitboxScale),visualScale=Number(viewport.dataset.vsPeerVisualScale),hitboxM=String(viewport.dataset.vsPeerHitboxM||"").split("x").map(Number);
     const markerBefore={exists:Boolean(marker),hidden:Boolean(marker?.hidden),text:marker?.textContent||"",mode:viewport.dataset.vsEnemyMarker||"",distanceM,expectedDistanceM:10,hpFill:Boolean(hpFill),hpTransform:hpFill?.style?.transform||"",emissiveIntensity:Number(readable?.material?.emissiveIntensity)||0,color:readable?.material?.color?.getHex?.()||0,audioReady:viewport.dataset.vsExplosionAudioReady||"",audioState:viewport.dataset.vsExplosionAudioState||"",visualScale,hitboxScale,hitboxM,reticleBorder:reticleStyle.borderTopWidth,reticleWidth:reticleStyle.width};
