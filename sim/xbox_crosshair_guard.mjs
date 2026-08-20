@@ -13,11 +13,6 @@ function frame(){
   requestAnimationFrame(frame);
 }
 export function installXboxCrosshairGuard(){
-  if(installed)return;installed=true;
-  // Production keeps the crosshair entirely absent outside opt-in AIM. A legacy headless
-  // geometry smoke still measures its centered layout, so expose only an invisible box
-  // to that one generic webdriver context; the Xbox E2E injects __xboxTest and sees none.
-  const layoutProbe=navigator.webdriver===true&&!globalThis.__xboxTest;document.documentElement.classList.toggle("xbox-crosshair-layout-probe",layoutProbe);
-  const style=document.createElement("style");style.dataset.xboxCrosshairGuard="v3";style.textContent=`body:not(.xbox-aim-active) #viewport .xbox-crosshair{display:none!important}html.xbox-crosshair-layout-probe body:not(.xbox-aim-active) #viewport .xbox-crosshair{display:block!important;visibility:hidden!important}body.xbox-aim-active #viewport .xbox-crosshair{display:block!important;visibility:visible!important}`;document.head.appendChild(style);requestAnimationFrame(frame);
+  if(installed)return;installed=true;const style=document.createElement("style");style.dataset.xboxCrosshairGuard="v4";style.textContent=`body:not(.xbox-aim-active) #viewport .xbox-crosshair{display:none!important}body.xbox-aim-active #viewport .xbox-crosshair{display:block!important}`;document.head.appendChild(style);requestAnimationFrame(frame);
 }
 installXboxCrosshairGuard();
