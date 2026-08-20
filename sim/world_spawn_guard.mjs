@@ -1,4 +1,5 @@
 import "./gameplay_polish.mjs";
+import "./combat_visual_polish.mjs";
 import {buildingLaunchPointClear} from "./world_building_collision_physics.mjs";
 
 let installed=false;
