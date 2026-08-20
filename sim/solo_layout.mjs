@@ -5,6 +5,7 @@ import {installVsFxGeoAdapter} from "./vs_fx_geo_adapter.mjs";
 import {installVsMultiplayer} from "./vs_multiplayer.mjs";
 import {installWorldPopulation} from "./world_population.mjs";
 import {installInitialAirframeGroundPose} from "./start_pose_guard.mjs";
+import {installFpvViewHeight} from "./fpv_view_height.mjs";
 
 let installed=false;
 
@@ -73,6 +74,7 @@ export function installSoloFlightLayout(){
   `;
   document.head.appendChild(style);
   installInitialAirframeGroundPose();
+  installFpvViewHeight();
   installVsCombatPresentation();
   installVsMultiplayerGuard();
   installVsFxGeoAdapter();
