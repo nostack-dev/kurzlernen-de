@@ -11,7 +11,9 @@ const TRACER_SPEED_MPS=210;
 const TRACER_LENGTH_M=2.2;
 const PROJECTILE_TTL_MS=1800;
 const PROJECTILE_AIM_DISTANCE_M=650;
-const VS_COMBAT_VISUAL_SCALE=8;
+const VS_COMBAT_VISUAL_SCALE=12;
+const VS_HITBOX_PADDING=1.16;
+const FIRE_CANDIDATE_REFRESH_MS=120;
 const BLOCKED_SELECTOR="#soloTopbar,#soloRaceHud,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud,dialog,button,input,select,textarea,a,label";
 
 export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEnabled=()=>document.body.classList.contains("solo-flight"),isPointerEnabled=()=>true,onRecoil=()=>{}}={}){
@@ -45,6 +47,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   const raycaster=new THREE.Raycaster(),pointerNdc=new THREE.Vector2(),candidates=[],intersections=[],hitNormal=new THREE.Vector3(),decalForward=new THREE.Vector3(0,0,1);
   const muzzlePosition=new THREE.Vector3(),muzzleQuaternion=new THREE.Quaternion(),muzzleForward=new THREE.Vector3(),muzzleUp=new THREE.Vector3(),aimTarget=new THREE.Vector3(),launchDirection=new THREE.Vector3();
   const projectedImpact=new THREE.Vector3(),tracerDirection=new THREE.Vector3(),tracerAxis=new THREE.Vector3(0,1,0),worldImpactPoint=new THREE.Vector3(),worldImpactNormal=new THREE.Vector3();
+  const peerBounds=new THREE.Box3(),peerBoundsSize=new THREE.Vector3(),peerBoundsCenter=new THREE.Vector3();
   const worldVisualHit={point:worldImpactPoint,worldNormal:worldImpactNormal};
 
   const decalGeometry=new THREE.CircleGeometry(.022,12),decalMaterial=new THREE.MeshBasicMaterial({color:0x171717,transparent:true,opacity:.94,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,side:THREE.DoubleSide});
@@ -60,7 +63,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   let impactCursor=0;
 
   const peerHitProxyMaterial=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,depthTest:false});peerHitProxyMaterial.colorWrite=false;
-  let enhancedPeer=null;
+  let enhancedPeer=null,lastCandidateRefreshMs=-Infinity;
   let active=null,nextShotAt=0,fireTimer=0,audioCtx=null,audioMaster=null,noiseBuffer=null,audioSettings=loadAudioSettings();
   function applyAudioSettings(value=loadAudioSettings()){audioSettings=normalizeAudioSettings(value);viewport.dataset.fireAudioEnabled=audioSettings.soundEnabled?"1":"0";viewport.dataset.fireShotsVolumePct=String(audioSettings.shotsVolume);viewport.dataset.fireFxVolumePct=String(audioSettings.fxVolume);if(audioMaster&&audioCtx)audioMaster.gain.setTargetAtTime(audioSettings.soundEnabled?1:0,audioCtx.currentTime,.012);return audioSettings;}
   const audioSettingsListener=event=>applyAudioSettings(event.detail);window.addEventListener(AUDIO_SETTINGS_EVENT,audioSettingsListener);applyAudioSettings(audioSettings);
@@ -68,19 +71,21 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   function blocked(target){return target instanceof Element&&Boolean(target.closest(BLOCKED_SELECTOR));}
   function hiddenTrainingObject(object){if(!worldBridge?.active)return false;for(let node=object;node;node=node.parent)if(worldBridge.trainingObjects?.has?.(node))return true;return false;}
   function visibleInHierarchy(object){for(let node=object;node;node=node.parent)if(node.visible===false)return false;return true;}
-  function refreshCandidates(){candidates.length=0;scene.traverse(object=>{if(object.isMesh&&visibleInHierarchy(object)&&!object.userData?.arondightAirframe&&!object.userData?.flightFireDecal&&!object.userData?.flightFireIgnore&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});}
+  function refreshCandidates(now=performance.now(),force=false){if(!force&&now-lastCandidateRefreshMs<FIRE_CANDIDATE_REFRESH_MS)return;lastCandidateRefreshMs=now;candidates.length=0;scene.traverse(object=>{if(object.isMesh&&visibleInHierarchy(object)&&!object.userData?.arondightAirframe&&!object.userData?.flightFireDecal&&!object.userData?.flightFireIgnore&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});viewport.dataset.fireCandidateCount=String(candidates.length);}
 
   function ensurePeerCombatScale(){
     const peer=worldBridge?.vsPeerMesh;if(!peer||peer===enhancedPeer)return;enhancedPeer=peer;
-    const originals=peer.children.filter(child=>child?.isMesh&&!child.userData?.vsCombatOutline&&!child.userData?.vsReadableVisual);if(!originals.length)return;
+    const originals=peer.children.filter(child=>child?.isMesh&&!child.userData?.vsCombatOutline&&!child.userData?.vsReadableVisual&&!child.userData?.vsCombatHitbox);if(!originals.length)return;
+    peer.updateWorldMatrix?.(true,true);peerBounds.makeEmpty();for(const proxy of originals){proxy.updateWorldMatrix?.(true,false);peerBounds.union(new THREE.Box3().setFromObject(proxy));}peerBounds.getSize(peerBoundsSize);peerBounds.getCenter(peerBoundsCenter);peer.worldToLocal(peerBoundsCenter);
     const visualGroup=new THREE.Group();visualGroup.name="VS_READABLE_DRONE";visualGroup.scale.setScalar(VS_COMBAT_VISUAL_SCALE);visualGroup.userData.vsReadableVisualGroup=true;visualGroup.userData.flightFireIgnore=true;
     for(const proxy of originals){
-      const visualMaterial=proxy.material?.clone?.()||proxy.material;if(visualMaterial?.color?.setHex)visualMaterial.color.setHex(0xff6542);if(visualMaterial?.emissive?.setHex){visualMaterial.emissive.setHex(0xb51c08);visualMaterial.emissiveIntensity=2.2;}if(visualMaterial){visualMaterial.roughness=.24;visualMaterial.metalness=.18;}
-      const visual=new THREE.Mesh(proxy.geometry,visualMaterial);visual.position.copy(proxy.position);visual.quaternion.copy(proxy.quaternion);visual.scale.copy(proxy.scale);visual.renderOrder=6;visual.userData.vsReadableVisual=true;visual.userData.vsCombatOutline=true;visual.userData.flightFireIgnore=true;visual.raycast=()=>{};visualGroup.add(visual);
+      const visualMaterial=proxy.material?.clone?.()||proxy.material;if(visualMaterial?.color?.setHex)visualMaterial.color.setHex(0xff6542);if(visualMaterial?.emissive?.setHex){visualMaterial.emissive.setHex(0xb51c08);visualMaterial.emissiveIntensity=2.35;}if(visualMaterial){visualMaterial.roughness=.22;visualMaterial.metalness=.16;}
+      const visual=new THREE.Mesh(proxy.geometry,visualMaterial);visual.position.copy(proxy.position);visual.quaternion.copy(proxy.quaternion);visual.scale.copy(proxy.scale);visual.renderOrder=6;visual.userData.vsReadableVisual=true;visual.userData.flightFireIgnore=true;visual.raycast=()=>{};visualGroup.add(visual);
       for(const child of proxy.children)if(child.userData?.vsCombatOutline)child.visible=false;
-      proxy.userData.vsPeerHitProxy=true;proxy.userData.vsCombatOutline=true;proxy.material=peerHitProxyMaterial;
+      proxy.userData.vsPeerHitProxy=false;proxy.userData.vsCombatOutline=true;proxy.userData.flightFireIgnore=true;proxy.material=peerHitProxyMaterial;proxy.raycast=()=>{};
     }
-    peer.add(visualGroup);peer.userData.vsCombatVisualScale=VS_COMBAT_VISUAL_SCALE;viewport.dataset.vsPeerVisualScale=String(VS_COMBAT_VISUAL_SCALE);viewport.dataset.vsPeerHitboxScale="1";
+    const hitboxSize=peerBoundsSize.clone().multiplyScalar(VS_COMBAT_VISUAL_SCALE*VS_HITBOX_PADDING);hitboxSize.z=Math.max(hitboxSize.z,.72);const hitbox=new THREE.Mesh(new THREE.BoxGeometry(Math.max(.8,hitboxSize.x),Math.max(.8,hitboxSize.y),hitboxSize.z),peerHitProxyMaterial);hitbox.position.copy(peerBoundsCenter).multiplyScalar(VS_COMBAT_VISUAL_SCALE);hitbox.userData.vsPeerHitProxy=true;hitbox.userData.vsCombatHitbox=true;hitbox.renderOrder=5;peer.add(hitbox);
+    peer.add(visualGroup);peer.userData.vsCombatVisualScale=VS_COMBAT_VISUAL_SCALE;peer.userData.vsCombatHitboxPadding=VS_HITBOX_PADDING;viewport.dataset.vsPeerVisualScale=String(VS_COMBAT_VISUAL_SCALE);viewport.dataset.vsPeerHitboxScale=String(VS_COMBAT_VISUAL_SCALE*VS_HITBOX_PADDING);viewport.dataset.vsPeerHitboxM=[hitboxSize.x,hitboxSize.y,hitboxSize.z].map(value=>value.toFixed(2)).join("x");lastCandidateRefreshMs=-Infinity;refreshCandidates(performance.now(),true);
   }
 
   function ensureAudio(){
@@ -136,7 +141,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     impactFlash(impactPoint,vsHit,now);projectImpactToScreen(impactPoint);viewport.dataset.fireProjectileImpacts=String((Number(viewport.dataset.fireProjectileImpacts)||0)+1);if(vsHit)viewport.dataset.fireVsHits=String((Number(viewport.dataset.fireVsHits)||0)+1);deactivateProjectile(projectile,false);return true;
   }
   function updateProjectiles(now){
-    updateCrosshair();ensurePeerCombatScale();updateImpacts(now);const dt=Math.max(0,Math.min(.08,(now-lastProjectileFrameMs)/1000));lastProjectileFrameMs=now;if(activeProjectileCount>0){refreshCandidates();for(const projectile of projectilePool){if(!projectile.active)continue;if(now-projectile.bornAt>=PROJECTILE_TTL_MS){deactivateProjectile(projectile,true);continue;}integrateProjectile(projectile.position,projectile.velocity,dt,projectile.nextPosition,projectile.nextVelocity);if(resolveProjectileHit(projectile,projectile.position,projectile.nextPosition,now))continue;projectile.position.copy(projectile.nextPosition);projectile.velocity.copy(projectile.nextVelocity);orientTracer(projectile);}}
+    updateCrosshair();ensurePeerCombatScale();updateImpacts(now);const dt=Math.max(0,Math.min(.08,(now-lastProjectileFrameMs)/1000));lastProjectileFrameMs=now;if(activeProjectileCount>0){refreshCandidates(now);for(const projectile of projectilePool){if(!projectile.active)continue;if(now-projectile.bornAt>=PROJECTILE_TTL_MS){deactivateProjectile(projectile,true);continue;}integrateProjectile(projectile.position,projectile.velocity,dt,projectile.nextPosition,projectile.nextVelocity);if(resolveProjectileHit(projectile,projectile.position,projectile.nextPosition,now))continue;projectile.position.copy(projectile.nextPosition);projectile.velocity.copy(projectile.nextVelocity);orientTracer(projectile);}}
     projectileRaf=requestAnimationFrame(updateProjectiles);
   }
   projectileRaf=requestAnimationFrame(updateProjectiles);
