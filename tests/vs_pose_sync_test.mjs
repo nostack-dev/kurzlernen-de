@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import {VsPoseTimeline,chooseCanonicalVsOrigin,normalizeVsOrigin,poseMatchesVsFrame,vsFrameId,vsOriginKey,VS_POSE_INTERPOLATION_DELAY_MS,VS_POSE_MAX_EXTRAPOLATION_MS,VS_POSE_STALE_HOLD_MS} from "../sim/vs_pose_sync.mjs";
 
 const west={lon:9.1700001,lat:47.6600001,alt:0},east={lon:9.1700049,lat:47.6599980,alt:0};
-assert.equal(vsOriginKey(chooseCanonicalVsOrigin(west,east)),vsOriginKey(chooseCanonicalVsOrigin(east,west)),"canonical WORLD origin must not depend on message order");
+assert.equal(vsOriginKey(chooseCanonicalVsOrigin(west,east)),vsOriginKey(chooseCanonicalVsOrigin(east,west)),"canonical WORLD origin must not depend on message order when there is no established local frame");
 assert.equal(vsOriginKey(chooseCanonicalVsOrigin(west,east)),vsOriginKey(west));assert.deepEqual(normalizeVsOrigin({lon:181,lat:0}),null);
+assert.equal(vsOriginKey(chooseCanonicalVsOrigin(west,west,east)),vsOriginKey(west),"an established local GPS frame must not jump to the mate origin");assert.equal(vsOriginKey(chooseCanonicalVsOrigin(east,east,west)),vsOriginKey(east),"each GPS-equipped peer must retain its own local physics/world frame");
 const roundedA={lon:9.170000141,lat:47.660000141,alt:.01},roundedB={lon:9.170000149,lat:47.660000149,alt:.04};assert.deepEqual(chooseCanonicalVsOrigin(roundedA,roundedB),chooseCanonicalVsOrigin(roundedB,roundedA),"sub-centimetre GPS differences must collapse to the same exact frame on both phones");
-assert.equal(vsFrameId(west),vsOriginKey(west));assert.equal(vsFrameId(null),"local-metric");assert.equal(poseMatchesVsFrame({f:vsOriginKey(west)},west),true);assert.equal(poseMatchesVsFrame({f:vsOriginKey(east)},west),false,"a pose from an obsolete WORLD frame must be rejected");assert.equal(poseMatchesVsFrame({},west),true,"legacy frame-less packets remain compatible");
+assert.equal(vsFrameId(west),vsOriginKey(west));assert.equal(vsFrameId(null),"local-metric");assert.equal(poseMatchesVsFrame({f:vsOriginKey(west)},west),true);assert.equal(poseMatchesVsFrame({f:vsOriginKey(east)},west),false,"a frame-mismatched pose without absolute geo coordinates must be rejected");assert.equal(poseMatchesVsFrame({f:vsOriginKey(east),g:[east.lon,east.lat]},west),true,"absolute geo coordinates must allow peers with independent local WORLD origins to exchange poses");assert.equal(poseMatchesVsFrame({},west),true,"legacy frame-less packets remain compatible");
 assert.equal(VS_POSE_INTERPOLATION_DELAY_MS,90);assert.equal(VS_POSE_MAX_EXTRAPOLATION_MS,100);assert.equal(VS_POSE_STALE_HOLD_MS,3000);
 
 const timeline=new VsPoseTimeline();
@@ -21,4 +22,4 @@ assert.equal(timeline.sample(4000).stale,true);timeline.reset();assert.equal(tim
 const jittered=new VsPoseTimeline();
 for(const [source,received] of [[2000,1000],[2033,1068],[2066,1080],[2099,1130]]){const x=(source-2000)*.01;assert.equal(jittered.push({p:[x,0,1],q:[0,0,0,1],v:[10,0,0],t:source},received),true);}
 const smooth=jittered.sample(1160);assert.equal(smooth.mode,"interpolate-source-clock");assert.ok(Math.abs(smooth.p[0]-.70)<.015,`arrival jitter leaked into rendered peer pose: ${JSON.stringify(smooth)}`);assert.ok(Math.abs(smooth.clockOffsetMs+1000)<1e-9,"clock offset must use the low-latency envelope instead of packet arrival time");
-console.log("VS pose sync contract passed: order-independent canonical WORLD frame, 90 ms jitter-buffer interpolation with velocity compensation, 100 ms bounded extrapolation, normalized attitude, explicit stale hold, and source-clock arrival-jitter rejection.");
+console.log("VS pose sync contract passed: order-independent canonical WORLD frame before authority is established, local GPS frame retention across peers, 90 ms jitter-buffer interpolation with velocity compensation, 100 ms bounded extrapolation, normalized attitude, explicit stale hold, and source-clock arrival-jitter rejection.");
