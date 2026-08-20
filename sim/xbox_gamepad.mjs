@@ -32,6 +32,12 @@ function rawInputActive(gamepad){
   if(Array.from(gamepad?.axes||[]).some(value=>Math.abs(Number(value)||0)>.18))return true;
   return Array.from(gamepad?.buttons||[]).some(button=>Number(typeof button==="number"?button:(button?.value??(button?.pressed?1:0)))>.18);
 }
+function settingsModalOpen(){
+  const flagged=globalThis.__arondightSettingsModalOpen===true;if(!flagged)return false;
+  const dialog=globalThis.document?.querySelector?.(".phone-settings-dialog");
+  if(dialog&&dialog.open!==true){globalThis.__arondightSettingsModalOpen=false;return false;}
+  return true;
+}
 function neutralSample(gamepad){
   return Object.freeze({id:String(gamepad.id||"Xbox controller"),index:Number(gamepad.index)||0,left:Object.freeze({x:0,y:0}),right:Object.freeze({x:0,y:0}),leftTrigger:0,rightTrigger:0,heightAxis:0,aim:false,fire:false,arm:false,kill:false,camera:false,scheme:loadXboxControlScheme()});
 }
@@ -47,7 +53,7 @@ export function findXboxGamepad(gamepads){
 
 export function sampleXboxGamepad(gamepad){
   if(!isXboxCompatibleGamepad(gamepad))return null;
-  const modalOpen=globalThis.__arondightSettingsModalOpen===true,releaseBlock=globalThis.__arondightSettingsGamepadBlockUntilRelease===true,onFoot=globalThis.__arondightOnFootMode===true;
+  const modalOpen=settingsModalOpen(),releaseBlock=globalThis.__arondightSettingsGamepadBlockUntilRelease===true,onFoot=globalThis.__arondightOnFootMode===true;
   if(modalOpen||releaseBlock||onFoot){
     if(!modalOpen&&!onFoot&&releaseBlock&&!rawInputActive(gamepad))globalThis.__arondightSettingsGamepadBlockUntilRelease=false;
     return neutralSample(gamepad);
