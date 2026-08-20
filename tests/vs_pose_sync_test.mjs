@@ -12,9 +12,13 @@ const timeline=new VsPoseTimeline();
 assert.equal(timeline.push({p:[0,0,1],q:[0,0,0,1],v:[10,0,0],t:1000},0),true);
 assert.equal(timeline.push({p:[1,0,1],q:[0,0,Math.sin(Math.PI/8),Math.cos(Math.PI/8)],v:[10,0,0],t:1100},100),true);
 assert.equal(timeline.push({p:[1.8,0,1],q:[0,0,Math.sin(Math.PI/5),Math.cos(Math.PI/5)],v:[10,0,0],t:1180},180),true);
-assert.equal(timeline.push({p:[99,0,1],q:[0,0,0,1]},180),false,"arrival time must remain monotonic");
-const interpolated=timeline.sample(250);assert.equal(interpolated.mode,"interpolate-predict");assert.ok(Math.abs(interpolated.p[0]-2.5)<1e-9,`velocity-compensated jitter-buffer position drifted: ${JSON.stringify(interpolated)}`);assert.ok(Math.abs(Math.hypot(...interpolated.q)-1)<1e-9);
-const extrapolated=timeline.sample(330);assert.equal(extrapolated.mode,"extrapolate");assert.ok(Math.abs(extrapolated.p[0]-2.8)<1e-9,`bounded extrapolation drifted: ${JSON.stringify(extrapolated)}`);
+assert.equal(timeline.push({p:[99,0,1],q:[0,0,0,1],t:1180},181),false,"remote source time must remain monotonic");
+const interpolated=timeline.sample(250);assert.equal(interpolated.mode,"interpolate-source-clock");assert.ok(Math.abs(interpolated.p[0]-1.6)<1e-9,`source-clock jitter-buffer position drifted: ${JSON.stringify(interpolated)}`);assert.ok(Math.abs(Math.hypot(...interpolated.q)-1)<1e-9);
+const extrapolated=timeline.sample(330);assert.equal(extrapolated.mode,"extrapolate");assert.ok(Math.abs(extrapolated.p[0]-2.4)<1e-9,`bounded extrapolation drifted: ${JSON.stringify(extrapolated)}`);
 const capped=timeline.sample(500);assert.equal(capped.mode,"extrapolate");assert.ok(Math.abs(capped.p[0]-2.8)<1e-9,"extrapolation must be capped at 100 ms");
 assert.equal(timeline.sample(4000).stale,true);timeline.reset();assert.equal(timeline.sample(4000),null);
-console.log("VS pose sync contract passed: order-independent canonical WORLD frame, 90 ms jitter-buffer interpolation with velocity compensation, 100 ms bounded extrapolation, normalized attitude, and explicit stale hold.");
+
+const jittered=new VsPoseTimeline();
+for(const [source,received] of [[2000,1000],[2033,1068],[2066,1080],[2099,1130]]){const x=(source-2000)*.01;assert.equal(jittered.push({p:[x,0,1],q:[0,0,0,1],v:[10,0,0],t:source},received),true);}
+const smooth=jittered.sample(1160);assert.equal(smooth.mode,"interpolate-source-clock");assert.ok(Math.abs(smooth.p[0]-.70)<.015,`arrival jitter leaked into rendered peer pose: ${JSON.stringify(smooth)}`);assert.ok(Math.abs(smooth.clockOffsetMs+1000)<1e-9,"clock offset must use the low-latency envelope instead of packet arrival time");
+console.log("VS pose sync contract passed: order-independent canonical WORLD frame, 90 ms jitter-buffer interpolation with velocity compensation, 100 ms bounded extrapolation, normalized attitude, explicit stale hold, and source-clock arrival-jitter rejection.");
