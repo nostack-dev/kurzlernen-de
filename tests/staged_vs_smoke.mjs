@@ -39,6 +39,7 @@ for(const marker of [
   'type:"state-ack"',
   'authority-state-ack',
   'type:"respawn-request"',
+  'RESPAWN_AUTHORITY_MS=0',
   'kind:"restart-needed"',
   'iceRestart:true',
   'POSE_BUFFER_LIMIT_BYTES',
@@ -78,9 +79,13 @@ const ground=traceProjectileWorldSegment({prisms:[]},{x:0,y:0,z:2},{x:0,y:0,z:-2
 const miss=traceProjectileWorldSegment(snapshot,{x:0,y:3,z:5},{x:10,y:3,z:5},hit);assert.equal(miss,null,"projectile collision must not invent hits outside the footprint");
 
 const fireSource=readFileSync(new URL("../sim/flight_fire_fx.mjs",import.meta.url),"utf8");
-for(const marker of ["PROJECTILE_POOL_SIZE=36","TRACER_SPEED_MPS=210","PROJECTILE_TTL_MS=1800","VS_COMBAT_VISUAL_SCALE=8","traceProjectileWorldSegment","flightFireTracer","vsPeerHitProxy","vsPeerHitboxScale=\"1\""])
+for(const marker of ["PROJECTILE_POOL_SIZE=36","TRACER_SPEED_MPS=210","PROJECTILE_TTL_MS=1800","VS_COMBAT_VISUAL_SCALE=12","VS_HITBOX_PADDING=1.16","FIRE_CANDIDATE_REFRESH_MS=120","vsCombatHitbox=true","vsPeerHitboxM","traceProjectileWorldSegment","flightFireTracer","vsPeerHitProxy"])
   assert.ok(fireSource.includes(marker),`physical VS projectile/readability contract missing: ${marker}`);
+assert.equal(fireSource.includes('viewport.dataset.vsPeerHitboxScale="1"'),false,"visible 12x enemy must never regress to a hidden 1x hitbox");
 assert.equal(fireSource.includes("worldBridge?.registerVsHit?.(hit)"),false,"legacy instant hitscan damage path must not return");
 assert.ok(fireSource.includes("integrateProjectile(projectile.position,projectile.velocity,dt,projectile.nextPosition,projectile.nextVelocity);if(resolveProjectileHit(projectile,projectile.position,projectile.nextPosition,now))continue;"),"projectile time-of-flight must advance before segment collision resolution");assert.ok(fireSource.includes("registerVsHit?.(sceneHit)"),"VS damage must be emitted only from resolved projectile impact");
+const presentationSource=readFileSync(new URL("../sim/vs_combat_presentation.mjs",import.meta.url),"utf8");
+for(const marker of ["RESPAWN_RADIUS_MIN_M=12","RESPAWN_RADIUS_MAX_M=30","RESET SIM TO RESPAWN NEARBY","WAITING FOR RESET","vsRespawnLocalOffset","vsManualRespawns","MOBILE_WORLD_COLLISION_SYNC_MS=1400"])
+  assert.ok(presentationSource.includes(marker),`VS death/respawn/performance contract missing: ${marker}`);
 
-console.log("Staged VS smoke passed: unified direct P2P UDP first, signed probe-bound signaling, two-sided ready handshake, host-authoritative combat state, UDP pose/reliable control and staged fallbacks retained.");
+console.log("Staged VS smoke passed: unified direct P2P UDP, signed signaling, manual randomized respawn, 12x readable enemy with matching padded hitbox, cached fire candidates and staged fallbacks retained.");
