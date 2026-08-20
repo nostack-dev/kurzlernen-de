@@ -28,8 +28,7 @@ function buttonValue(gamepad,index){
   if(typeof button==="number")return clamp(button,0,1);
   return clamp(button?.value??(button?.pressed?1:0),0,1);
 }
-function rawInputActive(gamepad){
-  if(Array.from(gamepad?.axes||[]).some(value=>Math.abs(Number(value)||0)>.18))return true;
+function releaseLatchButtonActive(gamepad){
   return Array.from(gamepad?.buttons||[]).some(button=>Number(typeof button==="number"?button:(button?.value??(button?.pressed?1:0)))>.18);
 }
 function settingsModalOpen(){
@@ -55,7 +54,7 @@ export function sampleXboxGamepad(gamepad){
   if(!isXboxCompatibleGamepad(gamepad))return null;
   const modalOpen=settingsModalOpen(),releaseBlock=globalThis.__arondightSettingsGamepadBlockUntilRelease===true,onFoot=globalThis.__arondightOnFootMode===true;
   if(modalOpen||releaseBlock||onFoot){
-    if(!modalOpen&&!onFoot&&releaseBlock&&!rawInputActive(gamepad))globalThis.__arondightSettingsGamepadBlockUntilRelease=false;
+    if(!modalOpen&&!onFoot&&releaseBlock&&!releaseLatchButtonActive(gamepad))globalThis.__arondightSettingsGamepadBlockUntilRelease=false;
     return neutralSample(gamepad);
   }
   const left={x:gamepadAxis(gamepad.axes?.[0]),y:gamepadAxis(gamepad.axes?.[1])};
