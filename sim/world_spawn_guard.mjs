@@ -1,8 +1,4 @@
-// Lightweight WORLD gameplay stack: no cloned density meshes; on-foot and FPV share one scene.
-import "./gameplay_polish_lite.mjs";
-import "./world_experience.mjs";
-import "./foot_weapon_hud.mjs";
-import "./xbox_crosshair_guard.mjs";
+import "./gameplay_polish.mjs";
 import "./combat_visual_polish.mjs";
 import {buildingLaunchPointClear} from "./world_building_collision_physics.mjs";
 

@@ -19,7 +19,6 @@ const replacements=[
   ["Number(viewport.dataset.vsPeerVisualScale)===12","Number(viewport.dataset.vsPeerVisualScale)===7"],
   ["12x readable peer visual missing","7x readable peer visual missing"],
   ["result.markerBefore.emissiveIntensity<2||result.markerBefore.color===0||result.markerBefore.visualScale!==12","result.markerBefore.emissiveIntensity<=0||result.markerBefore.emissiveIntensity>.65||result.markerBefore.color===0||result.markerBefore.visualScale!==7"],
-  ["result.markerBefore.hitboxM.every(v=>Number.isFinite(v)&&v>=.7)","result.markerBefore.hitboxM.every((v,i)=>Number.isFinite(v)&&v>=(i===2?.56:.7))"],
   ["result.markerBefore.reticleBorder!==\"1px\"||Number.parseFloat(result.markerBefore.reticleWidth)>22","Number.parseFloat(result.markerBefore.reticleBorder)>1||Number.parseFloat(result.markerBefore.reticleWidth)>30"],
   ["VS combat browser smoke passed: 12x readable enemy, matching padded hitbox, restrained marker","VS combat browser smoke passed: clean 7x readable enemy, matching padded hitbox, thin diamond marker"],
 ];
