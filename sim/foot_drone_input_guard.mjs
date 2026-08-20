@@ -1,0 +1,7 @@
+let installed=false,lastFoot=false;
+function centerStick(el,pointerId){if(!el)return;const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;try{el.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId,pointerType:"touch",clientX:x,clientY:y,button:0}));el.dispatchEvent(new PointerEvent("pointermove",{bubbles:true,cancelable:true,pointerId,pointerType:"touch",clientX:x,clientY:y,button:0}));el.dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId,pointerType:"touch",clientX:x,clientY:y,button:0}));}catch{}}
+function neutralize(){centerStick(document.getElementById("soloLeft"),9101);centerStick(document.getElementById("soloRight"),9102);}
+function mountButtonGuard(){const button=document.getElementById("playerModeButton");if(!button||button.dataset.droneInputGuard)return;button.dataset.droneInputGuard="1";button.addEventListener("click",()=>{if(globalThis.__arondightOnFootMode!==true)neutralize();},{capture:true});}
+function tick(){mountButtonGuard();const foot=globalThis.__arondightOnFootMode===true;if(foot&&!lastFoot){const arm=document.getElementById("soloArm"),text=String(arm?.textContent||"");if(/^ARMED|^ARMING/.test(text))arm?.click();}if(!foot&&lastFoot)neutralize();lastFoot=foot;requestAnimationFrame(tick);}
+export function installFootDroneInputGuard(){if(installed)return;installed=true;requestAnimationFrame(tick);}
+installFootDroneInputGuard();
