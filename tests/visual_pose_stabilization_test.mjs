@@ -17,9 +17,9 @@ for(const mode of ["follow","third"]){
   assert.ok(range(filtered)/range(raw)<.55,`${mode} passed too much 12 Hz attitude twitch`);
 }
 {
-  const filter=new StabilizedExternalAirframeVisual(),dt=1/120,positions=[];
-  for(let i=0;i<500;i++){const t=i*dt,relative=Math.min(.14,.028*t)+.008*Math.sin(2*Math.PI*14*t),state=filter.update({position:[0,0,2],quaternion:[0,0,0,1],cameraAnchor:[-relative,0,2],mode:"third",dt});positions.push(state.position[0]);}
-  const velocity=positions.slice(1).map((value,index)=>value-positions[index]),jerk=velocity.slice(1).map((value,index)=>value-velocity[index]);
+  const filter=new StabilizedExternalAirframeVisual(),dt=1/120,relativeVisual=[];
+  for(let i=0;i<500;i++){const t=i*dt,relative=Math.min(.14,.028*t)+.008*Math.sin(2*Math.PI*14*t),anchor=[-relative,0,2],state=filter.update({position:[0,0,2],quaternion:[0,0,0,1],cameraAnchor:anchor,mode:"third",dt});relativeVisual.push(state.position[0]-anchor[0]);}
+  const velocity=relativeVisual.slice(1).map((value,index)=>value-relativeVisual[index]),jerk=velocity.slice(1).map((value,index)=>value-velocity[index]);
   assert.ok(Math.max(...jerk.map(Math.abs))<.00035,`third-person visible model still snaps while crossing the old 5 cm correction boundary: ${Math.max(...jerk.map(Math.abs))}`);
 }
 console.log("External airframe presentation passed: high-frequency relative twitch attenuated, third-person correction is snap-free through the former 5 cm boundary, physical/root pose untouched, bounded visual error.");
