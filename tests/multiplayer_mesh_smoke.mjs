@@ -1,8 +1,17 @@
 import assert from "node:assert/strict";
 import {LanVsSession} from "../sim/lan_vs.mjs";
 import {findClearBuildingLaunchPoint,buildingLaunchPointClear} from "../sim/world_building_collision_physics.mjs";
+import {FPV_VIEW_EXTRA_UP_M,installFpvViewHeight} from "../sim/fpv_view_height.mjs";
 
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+
+{
+  const viewport={dataset:{cameraMode:"fpv",fpvCameraUpOffsetM:"0.028"}},camera={position:{x:0,y:0,z:0}},bridge={applyLookCamera(){return true;},airframeFor(){return{quaternion:{x:0,y:0,z:0,w:1}};}};
+  globalThis.document={getElementById:id=>id==="viewport"?viewport:null};globalThis.__arondightDiagnostics={presentationDraws:1};globalThis.__arondightRealWorld=bridge;
+  assert.equal(FPV_VIEW_EXTRA_UP_M,.020,"FPV view must move exactly two centimetres above the physical camera mount");installFpvViewHeight();bridge.applyLookCamera(null,camera);
+  assert.ok(Math.abs(camera.position.z-.020)<1e-12&&camera.position.x===0&&camera.position.y===0,"neutral FPV body-up offset must raise only the optical viewpoint");assert.equal(viewport.dataset.fpvViewUpOffsetM,"0.048","2.8 cm physical mount plus 2.0 cm optical lift must expose a 4.8 cm FPV view height");
+  delete globalThis.document;delete globalThis.__arondightDiagnostics;delete globalThis.__arondightRealWorld;
+}
 
 function meshHarness(){
   const rooms=new Map();let serial=0;
@@ -39,4 +48,4 @@ const oldAuthority=a.getAuthorityId();assert.equal(oldAuthority,a.getSelfId());a
 const huge={hash:"huge",prisms:[{buildingKey:"block",base:0,top:30,points:[[-500,-500],[500,-500],[500,500],[-500,500]]}]};const safe=findClearBuildingLaunchPoint(huge,{point:[0,0],clearanceM:1,maxSearchM:2});assert.equal(buildingLaunchPointClear(huge,safe,{clearanceM:1}),true,"guaranteed fallback launch point must be proven clear even when normal search radius cannot escape the building");assert.ok(Math.hypot(safe[0],safe[1])>500,"fallback must leave the full blocking footprint instead of returning the unsafe origin");
 
 b.stop();c.stop();d.stop();
-console.log("Four-player VS mesh smoke passed: simultaneous mates, unique identities, broadcast/targeted FX, authority migration and guaranteed collision-free WORLD spawn.");
+console.log("Four-player VS mesh smoke passed: raised 4.8 cm FPV optical viewpoint, simultaneous mates, unique identities, broadcast/targeted FX, authority migration and guaranteed collision-free WORLD spawn.");
