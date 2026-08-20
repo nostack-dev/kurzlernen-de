@@ -1,3 +1,5 @@
+import "./impact_explosion_overlay.mjs";
+
 export const AUDIO_SETTINGS_KEY="arondight45AudioSettingsV1";
 export const AUDIO_SETTINGS_EVENT="arondight45-audio-settings-change";
 export const DEFAULT_AUDIO_SETTINGS=Object.freeze({soundEnabled:true,droneVolume:100,shotsVolume:100,fxVolume:100});
