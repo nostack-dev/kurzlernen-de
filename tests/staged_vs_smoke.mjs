@@ -9,7 +9,7 @@ function harness(name,{connect=false,fail=false}={}){
   return async()=>({
     joinRoom(config,roomId,callbacks={}){
       opened.push({name,roomId,config});
-      const room={onPeerJoin:null,onPeerLeave:null,makeAction(){return{onMessage:null,send:async()=>{}};},getPeers:()=>({}),ping:async()=>1,leave(){}};
+      const room={id:`${name}-${roomId}`,onPeerJoin:null,onPeerLeave:null,makeAction(){return{onMessage:null,send:async()=>{}};},getSelfId(){return`${name}-self`;},getAuthorityId(){return`${name}-self`;},getPeers:()=>({}),ping:async()=>1,leave(){}};
       if(fail)queueMicrotask(()=>callbacks.onJoinError?.({peerId:"x",error:new Error(`${name} failed`)}));
       if(connect)queueMicrotask(()=>room.onPeerJoin?.("peer-ok"));
       return room;
@@ -25,8 +25,10 @@ const chromeUa="Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 (KHTML, like 
 for(const [name,userAgent] of [["Safari",safariUa],["Chrome Android",chromeUa]]){
   const finder=new LanVsFinder({userAgent});
   assert.equal(finder.transportStrategies[0].name,"DirectP2PUDP",`${name} must enter the same direct UDP gameplay path first`);
-  assert.equal(finder.transportMode,"direct-p2p-udp-first",`${name} must advertise the unified transport mode`);
+  assert.equal(finder.transportMode,"direct-p2p-udp-mesh-first",`${name} must advertise the multi-peer UDP mesh transport mode`);
 }
+for(const marker of ["peerIds=new Set()","sendGame(packet","sendFx(packet","VS_PEER_EVENT","VS_POSE_EVENT","VS_GAME_EVENT","VS_FX_EVENT","getAuthorityId()"])
+  assert.ok(source.includes(marker),`multi-peer session contract missing: ${marker}`);
 
 const udpSource=readFileSync(new URL("../sim/direct_udp_peer.mjs",import.meta.url),"utf8");
 for(const marker of [
@@ -35,11 +37,6 @@ for(const marker of [
   'packet.a==="__ready"',
   'packet.a==="__ready-ack"',
   'this.localChannelsReady||!this.remoteReady||!this.remoteAcked',
-  'type:"hit-request"',
-  'type:"state-ack"',
-  'authority-state-ack',
-  'type:"respawn-request"',
-  'RESPAWN_AUTHORITY_MS=0',
   'kind:"restart-needed"',
   'iceRestart:true',
   'POSE_BUFFER_LIMIT_BYTES',
@@ -48,7 +45,7 @@ for(const marker of [
   'pc.__a45Transport="direct-p2p-udp"'
 ])assert.ok(udpSource.includes(marker),`direct P2P UDP engine contract missing: ${marker}`);
 const signalSource=readFileSync(new URL("../sim/nostr_data_relay.mjs",import.meta.url),"utf8");
-for(const marker of ['verifyEvent(event)','kind==="probe"','kind==="probe-ack"','probe.pubkey!==packet._pubkey','peerPubkey'])assert.ok(signalSource.includes(marker),`signed probe-bound signaling contract missing: ${marker}`);
+for(const marker of ['verifyEvent(event)','kind==="probe"','kind==="probe-ack"','probe.pubkey!==packet._pubkey','this.peers=new Map()','MAX_PEERS=8','getAuthorityId()','readyPeerIds()'])assert.ok(signalSource.includes(marker),`signed multi-peer signaling contract missing: ${marker}`);
 assert.equal(signalSource.includes('kind:"sealed"'),false,"Nostr signaling must never carry gameplay payloads");
 
 let connected="";
@@ -75,7 +72,7 @@ assert.ok(Math.abs(nextVelocity.z+PROJECTILE_GRAVITY_MPS2)<1e-9,"projectile vert
 const snapshot={prisms:[{buildingKey:"wall",base:0,top:10,points:[[4,-1],[6,-1],[6,1],[4,1]]}]},hit=createProjectileHit();
 const wall=traceProjectileWorldSegment(snapshot,{x:0,y:0,z:5},{x:10,y:0,z:5},hit);assert.ok(wall&&wall.kind==="building"&&Math.abs(wall.point.x-4)<1e-9&&wall.normal.x<-.99,"projectile segment must physically stop on a building wall");
 const roof=traceProjectileWorldSegment(snapshot,{x:5,y:0,z:20},{x:5,y:0,z:0},hit);assert.ok(roof&&roof.kind==="building"&&Math.abs(roof.point.z-10)<1e-9&&roof.normal.z>.99,"projectile segment must physically stop on a roof");
-const ground=traceProjectileWorldSegment({prisms:[]},{x:0,y:0,z:2},{x:0,y:0,z:-2},hit);assert.ok(ground&&ground.kind==="ground"&&Math.abs(ground.point.z)<1e-9,"projectile segment must physically stop on the ground");
+const ground=traceProjectileWorldSegment({prisms:[]},{x:0,y:0,z:2},{x:0,y:0,z:-2},hit);assert.ok(ground&&ground.kind==="ground"&&Math.abs(ground.point.z)<1e-9,"projectile collision must physically stop on the ground");
 const miss=traceProjectileWorldSegment(snapshot,{x:0,y:3,z:5},{x:10,y:3,z:5},hit);assert.equal(miss,null,"projectile collision must not invent hits outside the footprint");
 
 const fireSource=readFileSync(new URL("../sim/flight_fire_fx.mjs",import.meta.url),"utf8");
@@ -87,5 +84,25 @@ assert.ok(fireSource.includes("integrateProjectile(projectile.position,projectil
 const presentationSource=readFileSync(new URL("../sim/vs_combat_presentation.mjs",import.meta.url),"utf8");
 for(const marker of ["RESPAWN_RADIUS_MIN_M=12","RESPAWN_RADIUS_MAX_M=30","RESET SIM TO RESPAWN NEARBY","WAITING FOR RESET","vsRespawnLocalOffset","vsManualRespawns","MOBILE_WORLD_COLLISION_SYNC_MS=1400"])
   assert.ok(presentationSource.includes(marker),`VS death/respawn/performance contract missing: ${marker}`);
+const multiplayerSource=readFileSync(new URL("../sim/vs_multiplayer.mjs",import.meta.url),"utf8");
+for(const marker of ["MAX_PLAYERS=9","PALETTE=[","vsPlayerId","hit-request","authorityHit","AUTHORITY_SETTLE_MS","confirmedHealth","report:true","MATES ${peers.size} ✓","flightFireTracer","flightFireImpact","vsRemoteShot","vsRemoteExplosion"])
+  assert.ok(multiplayerSource.includes(marker),`multiplayer gameplay/FX contract missing: ${marker}`);
+const guardSource=readFileSync(new URL("../sim/vs_multiplayer_guard.mjs",import.meta.url),"utf8");
+for(const marker of ["finder.peerCount>0","MATES ${finder.peerCount} ✓"])
+  assert.ok(guardSource.includes(marker),`primary-peer promotion guard missing: ${marker}`);
+const geoFxSource=readFileSync(new URL("../sim/vs_fx_geo_adapter.mjs",import.meta.url),"utf8");
+for(const marker of ["fromG","packet.g","lngLatToMeters","metersToLngLat","__vsFxGeoAdapter"])
+  assert.ok(geoFxSource.includes(marker),`WORLD replicated FX frame adapter missing: ${marker}`);
+const populationSource=readFileSync(new URL("../sim/world_population.mjs",import.meta.url),"utf8");
+for(const marker of ["CAR_COUNT","PERSON_COUNT","worldPopulationId","registerWorldPopulationHit","CAR_RESPAWN_MS","PERSON_RESPAWN_MS","kind:\"car\"","kind:\"person\""])
+  assert.ok(populationSource.includes(marker),`WORLD traffic/population contract missing: ${marker}`);
+const buildingSource=readFileSync(new URL("../sim/world_building_collision_physics.mjs",import.meta.url),"utf8");
+assert.equal(buildingSource.includes("skipWholeBuilding"),false,"WORLD launch must never delete the building collider it started inside");
+for(const marker of ["pointHasLaunchClearance(candidate,active,clearance)","guaranteedRadius","No collision-free WORLD launch point could be proven"])
+  assert.ok(buildingSource.includes(marker),`WORLD launch proof contract missing: ${marker}`);
+const spawnGuardSource=readFileSync(new URL("../sim/world_spawn_guard.mjs",import.meta.url),"utf8");
+for(const marker of ["firstLoaded","buildingLaunchPointClear","queueMicrotask","soloReset","worldSpawnGuardResets"])
+  assert.ok(spawnGuardSource.includes(marker),`delayed WORLD-collider spawn guard missing: ${marker}`);
 
-console.log("Staged VS smoke passed: unified direct P2P UDP, signed signaling, manual randomized respawn, 12x readable enemy with matching padded hitbox, cached fire candidates and staged fallbacks retained.");
+await import("./multiplayer_mesh_smoke.mjs");
+console.log("Staged VS smoke passed: direct P2P UDP mesh, unique players, replicated fire/explosions, 4-player authority migration, hardened WORLD spawn and lightweight road traffic retained.");
