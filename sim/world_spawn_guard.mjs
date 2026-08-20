@@ -1,6 +1,7 @@
 import "./gameplay_polish_lite.mjs";
 import "./combat_visual_polish.mjs";
 import "./foot_mode.mjs";
+import "./foot_touch_guard.mjs";
 import {buildingLaunchPointClear} from "./world_building_collision_physics.mjs";
 
 let installed=false;
