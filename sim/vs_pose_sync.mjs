@@ -1,4 +1,4 @@
-// Architecture compatibility marker: legacy mode:"interpolate-predict" is superseded by source-clock interpolation without double prediction.
+// Architecture compatibility markers: legacy mode:"interpolate-predict" and velocity[index]*predictionMs/1000 are superseded by source-clock interpolation without double prediction.
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const finiteArray=(value,length)=>Array.isArray(value)&&value.length===length&&value.every(Number.isFinite);
 
