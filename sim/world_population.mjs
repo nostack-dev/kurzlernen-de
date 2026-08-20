@@ -3,6 +3,7 @@ import {VS_FX_EVENT} from "./lan_vs.mjs";
 import {spawnWorldPersonRagdoll} from "./world_person_ragdoll.mjs";
 import {spawnWorldCarExplosion} from "./world_car_explosion.mjs";
 import {buildTrafficRoute,collectRenderedDrivableRoads,makeBuildingsOpaque} from "./world_traffic_routes.mjs";
+import {syncWorldBuildingDepthOcclusion} from "./world_building_depth_occlusion.mjs";
 
 const MOBILE_RE=/(?:android|iphone|ipad|ipod|macintosh.*mobile)/i;
 const ROUTE_REFRESH_MS=1800;
@@ -41,7 +42,7 @@ function refreshRoutes(now){
   const b=bridge();if(!b?.active||!Number.isFinite(b.originLon)||!Number.isFinite(b.originLat))return;
   const view=viewport(),originKey=`${b.originLon.toFixed(6)}:${b.originLat.toFixed(6)}`;
   if(now-lastRouteRefresh<ROUTE_REFRESH_MS&&originKey===lastOriginKey)return;lastRouteRefresh=now;
-  const opaqueLayers=makeBuildingsOpaque(b.map);if(view){view.dataset.worldBuildingsOpaque="1";view.dataset.worldBuildingsSolidified=String(opaqueLayers);}
+  const opaqueLayers=makeBuildingsOpaque(b.map),depthOccluders=syncWorldBuildingDepthOcclusion(b);if(view){view.dataset.worldBuildingsOpaque="1";view.dataset.worldBuildingsSolidified=String(opaqueLayers);view.dataset.worldBuildingDepthOccluders=String(depthOccluders);}
   if(originKey!==lastOriginKey&&routeCache.size){for(const [key,old] of routeCache){const rebuilt=buildTrafficRoute(old.geoPath,{originLon:b.originLon,originLat:b.originLat,roadClass:old.roadClass,lastSeen:old.lastSeen});if(rebuilt)routeCache.set(key,rebuilt);}}lastOriginKey=originKey;
   let candidates=[];try{candidates=collectRenderedDrivableRoads(b.map);}catch(error){console.warn("WORLD traffic road query warning:",error);}if(!candidates.length)candidates=fallbackRoads(b);
   const seen=new Set();for(const candidate of candidates){const route=buildTrafficRoute(candidate.path,{originLon:b.originLon,originLat:b.originLat,roadClass:candidate.roadClass,lastSeen:now});if(!route||seen.has(route.key))continue;seen.add(route.key);routeCache.set(route.key,route);}
