@@ -1,13 +1,13 @@
 import puppeteer from "puppeteer-core";
 
-const base=process.argv[2]||"http://127.0.0.1:4174";
-const executablePath=process.env.CHROME_BIN;
+const input=process.argv[2]||"http://127.0.0.1:4174/drone_simulator.html",inputUrl=new URL(input,"http://127.0.0.1:4174"),url=inputUrl.pathname.endsWith("/drone_simulator.html")?new URL(inputUrl.href):new URL("/drone_simulator.html",inputUrl.origin),executablePath=process.env.CHROME_BIN;
+if(process.env.GITHUB_SHA)url.searchParams.set("ci",process.env.GITHUB_SHA);
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader","--autoplay-policy=no-user-gesture-required"]});
 const page=await browser.newPage();
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
-  await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
+  await page.goto(url.href,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
   await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&globalThis.__arondightRealWorld?.threeScene&&globalThis.__arondightRealWorld?.threeCamera,{timeout:10000});
   const result=await page.evaluate(async()=>{
