@@ -16,6 +16,7 @@ export const GAME_STATE_STICK_EXPO=0.25;
 // vehicle position/velocity and still crosses SBUS -> StateController -> motors.
 
 const clampLevel=value=>Math.max(1,Math.min(10,Math.round(Number(value)||1)));
+const PHONE_EXPO_RESPONSE_SCALE=0.38;
 export const finenessToExpo=level=>MAX_PHONE_EXPO*((clampLevel(level)-1)/9);
 export const expoToFineness=expo=>clampLevel(1+9*clampControl(Number(expo)||0,0,MAX_PHONE_EXPO)/MAX_PHONE_EXPO);
 export const gameHorizontalSpeedScale=kmh=>clampControl(Number(kmh)||DEFAULT_GAME_HORIZONTAL_SPEED_KMH,MIN_GAME_HORIZONTAL_SPEED_KMH,MAX_GAME_HORIZONTAL_SPEED_KMH)/MAX_GAME_HORIZONTAL_SPEED_KMH;
@@ -73,13 +74,13 @@ export function normalizePhoneSettings(settings={}){
 }
 
 export function phoneAxis(value,fineness=1){
-  const x=clampControl(value),expo=finenessToExpo(fineness);
+  const x=clampControl(value),expo=finenessToExpo(fineness)*PHONE_EXPO_RESPONSE_SCALE;
   return clampControl(x*(1-expo)+x*x*x*expo);
 }
 export function inversePhoneAxis(value,fineness=1){
   const target=Math.abs(clampControl(value));
   if(target===0||target===1)return Math.sign(value)*target;
-  const expo=finenessToExpo(fineness),sign=Math.sign(value);
+  const expo=finenessToExpo(fineness)*PHONE_EXPO_RESPONSE_SCALE,sign=Math.sign(value);
   let lo=0,hi=1;
   for(let i=0;i<28;i++){
     const mid=(lo+hi)/2,shaped=mid*(1-expo)+mid*mid*mid*expo;
