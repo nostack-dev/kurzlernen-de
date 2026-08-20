@@ -1,16 +1,4 @@
+const FALLBACK_BUILDING_COLOR="#d8d2c8";
 function isBuildingLayer(layer){const id=String(layer?.id||"").toLowerCase(),sourceLayer=String(layer?.["source-layer"]||"").toLowerCase();return layer?.type==="fill-extrusion"&&(id.includes("building")||sourceLayer.includes("building"));}
-
-export function enforceOpaqueBuildingLayers(map){
-  if(!map?.getStyle||!map?.setPaintProperty)return 0;let changed=0;
-  for(const layer of map.getStyle()?.layers||[]){if(!isBuildingLayer(layer))continue;
-    try{map.setPaintProperty(layer.id,"fill-extrusion-opacity",1);changed++;}catch{}
-    try{
-      const color=map.getPaintProperty?.(layer.id,"fill-extrusion-color");
-      if(typeof color==="string"){
-        const m=color.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*[\d.]+)?\s*\)$/i);
-        if(m)map.setPaintProperty(layer.id,"fill-extrusion-color",`rgb(${m[1]},${m[2]},${m[3]})`);
-      }
-    }catch{}
-  }
-  return changed;
-}
+function opaqueColor(value){if(typeof value!=="string")return FALLBACK_BUILDING_COLOR;const rgba=value.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*[\d.]+)?\s*\)$/i);if(rgba)return`rgb(${rgba[1]},${rgba[2]},${rgba[3]})`;if(/^#[0-9a-f]{6}$/i.test(value)||/^#[0-9a-f]{3}$/i.test(value)||/^rgb\(/i.test(value))return value;return FALLBACK_BUILDING_COLOR;}
+export function enforceOpaqueBuildingLayers(map){if(!map?.getStyle||!map?.setPaintProperty)return 0;let changed=0;for(const layer of map.getStyle()?.layers||[]){if(!isBuildingLayer(layer))continue;try{map.setPaintProperty(layer.id,"fill-extrusion-opacity",1);const color=map.getPaintProperty?.(layer.id,"fill-extrusion-color");map.setPaintProperty(layer.id,"fill-extrusion-color",opaqueColor(color));changed++;}catch{}}return changed;}
