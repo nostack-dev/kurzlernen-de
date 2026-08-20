@@ -28,6 +28,10 @@ assert.equal(safariFinder.transportMode,"safari-relay-first");
 const chromeFinder=new LanVsFinder({userAgent:chromeUa});
 assert.equal(chromeFinder.transportStrategies[0].name,"Nostr","non-Safari browsers must retain direct WebRTC-first matchmaking");
 assert.equal(chromeFinder.transportMode,"direct-first");
+const nostrRelaySource=readFileSync(new URL("../sim/nostr_data_relay.mjs",import.meta.url),"utf8");
+assert.ok(nostrRelaySource.includes("function fastRelayTargets()"),"Safari relay pose path must compute redundant open relay targets");
+assert.ok(nostrRelaySource.includes("const targets=fast?fastRelayTargets():RELAYS;"),"fast pose packets must fan out across open relays instead of one preferred relay");
+assert.equal(nostrRelaySource.includes("fast&&this.preferredRelay?[this.preferredRelay]:RELAYS"),false,"single preferred-relay pose routing must not return");
 
 let connected="";
 const finder=new LanVsFinder({stageMs:250,maxRoomsPerStage:3,transportStrategies:[{name:"Nostr",load:harness("Nostr",{fail:true})},{name:"NostrRelay",load:harness("NostrRelay",{connect:true})},{name:"Torrent",load:harness("Torrent")},{name:"MQTT",load:harness("MQTT")},{name:"Broker",load:harness("Broker")}],onPeer:(_peer,_room,transport)=>connected=transport});
@@ -62,4 +66,4 @@ for(const marker of ["PROJECTILE_POOL_SIZE=36","TRACER_SPEED_MPS=210","PROJECTIL
 assert.equal(fireSource.includes("worldBridge?.registerVsHit?.(hit)"),false,"legacy instant hitscan damage path must not return");
 assert.ok(fireSource.includes("integrateProjectile(projectile.position,projectile.velocity,dt,projectile.nextPosition,projectile.nextVelocity);if(resolveProjectileHit(projectile,projectile.position,projectile.nextPosition,now))continue;"),"projectile time-of-flight must advance before segment collision resolution");assert.ok(fireSource.includes("registerVsHit?.(sceneHit)"),"VS damage must be emitted only from resolved projectile impact");
 
-console.log("Staged VS smoke passed: Safari relay-first matchmaking, staged networking, pooled physical tracers, 8x readable peer/1x hitbox, and safe-building launch integration retained.");
+console.log("Staged VS smoke passed: Safari relay-first matchmaking with redundant live pose fanout, staged networking, pooled physical tracers, 8x readable peer/1x hitbox, and safe-building launch integration retained.");
