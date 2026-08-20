@@ -280,7 +280,7 @@ export class LanVsFinder{
   }
   chooseStageRooms(ids){
     const gesture=ids.filter(id=>id.startsWith("tap-")),trusted=ids.filter(id=>!id.startsWith("tap-")),max=this.maxRoomsPerStage;if(max<=1)return(trusted[0]||gesture[0])?[trusted[0]||gesture[0]]:[];
-    const gestureSlots=Math.min(gesture.length,max>=6?2:1),trustedSlots=Math.max(0,max-gestureSlots),out=[];
+    const gestureSlots=max>=6?Math.min(gesture.length,2):0,trustedSlots=Math.max(0,max-gestureSlots),out=[];
     for(const id of trusted)if(out.length<trustedSlots&&!out.includes(id))out.push(id);
     for(const id of gesture)if(out.length<max&&!out.includes(id))out.push(id);
     for(const id of trusted)if(out.length<max&&!out.includes(id))out.push(id);
