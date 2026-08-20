@@ -1,8 +1,8 @@
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 
 export const EXTERNAL_AIRFRAME_VISUAL_PROFILES=Object.freeze({
-  follow:Object.freeze({offsetRate:10.0,rotationRate:14.0,maxPositionErrorM:.030,maxRotationErrorRad:4*Math.PI/180}),
-  third:Object.freeze({offsetRate:8.0,rotationRate:11.0,maxPositionErrorM:.050,maxRotationErrorRad:6*Math.PI/180}),
+  follow:Object.freeze({offsetRate:9.0,rotationRate:12.0,softPositionErrorM:.025,maxPositionErrorM:.10,errorRecoveryRate:9.0,softRotationErrorRad:3*Math.PI/180,maxRotationErrorRad:10*Math.PI/180,rotationRecoveryRate:10.0}),
+  third:Object.freeze({offsetRate:5.2,rotationRate:7.0,softPositionErrorM:.050,maxPositionErrorM:.18,errorRecoveryRate:7.0,softRotationErrorRad:5*Math.PI/180,maxRotationErrorRad:14*Math.PI/180,rotationRecoveryRate:7.5}),
 });
 
 export function visualDampingAlpha(ratePerSecond,dtSeconds){
@@ -38,12 +38,15 @@ export class StabilizedExternalAirframeVisual{
     if(!finite3(position)||!finite3(cameraAnchor)||!finite4(quaternion))throw new Error("external visual pose must be finite");
     const profile=this.profiles[mode]||this.profiles.follow;
     if(!this.initialized||this.mode!==mode)return this.reset({position,quaternion,cameraAnchor,mode});
-    const alpha=visualDampingAlpha(profile.offsetRate,dt),rawOffset=[position[0]-cameraAnchor[0],position[1]-cameraAnchor[1],position[2]-cameraAnchor[2]];
+    const step=clamp(dt,0,.1),alpha=visualDampingAlpha(profile.offsetRate,step),rawOffset=[position[0]-cameraAnchor[0],position[1]-cameraAnchor[1],position[2]-cameraAnchor[2]];
     for(let i=0;i<3;i++)this.offset[i]+=(rawOffset[i]-this.offset[i])*alpha;
     let ex=rawOffset[0]-this.offset[0],ey=rawOffset[1]-this.offset[1],ez=rawOffset[2]-this.offset[2],error=Math.hypot(ex,ey,ez);
+    if(error>profile.softPositionErrorM){const excess=error-profile.softPositionErrorM,recovery=visualDampingAlpha(profile.errorRecoveryRate,step),correction=excess*recovery/error;this.offset[0]+=ex*correction;this.offset[1]+=ey*correction;this.offset[2]+=ez*correction;}
+    ex=rawOffset[0]-this.offset[0];ey=rawOffset[1]-this.offset[1];ez=rawOffset[2]-this.offset[2];error=Math.hypot(ex,ey,ez);
     if(error>profile.maxPositionErrorM){const correction=(error-profile.maxPositionErrorM)/error;this.offset[0]+=ex*correction;this.offset[1]+=ey*correction;this.offset[2]+=ez*correction;}
-    const target=[0,0,0,1];normalizeQuat(target,quaternion);slerpQuat(this.quaternion,this.quaternion,target,visualDampingAlpha(profile.rotationRate,dt));
-    const angleError=quatAngle(this.quaternion,target);if(angleError>profile.maxRotationErrorRad)slerpQuat(this.quaternion,this.quaternion,target,1-profile.maxRotationErrorRad/angleError);
+    const target=[0,0,0,1];normalizeQuat(target,quaternion);slerpQuat(this.quaternion,this.quaternion,target,visualDampingAlpha(profile.rotationRate,step));
+    let angleError=quatAngle(this.quaternion,target);if(angleError>profile.softRotationErrorRad){const excess=angleError-profile.softRotationErrorRad,recovery=visualDampingAlpha(profile.rotationRecoveryRate,step);slerpQuat(this.quaternion,this.quaternion,target,clamp(excess*recovery/angleError,0,1));}
+    angleError=quatAngle(this.quaternion,target);if(angleError>profile.maxRotationErrorRad)slerpQuat(this.quaternion,this.quaternion,target,1-profile.maxRotationErrorRad/angleError);
     for(let i=0;i<3;i++)this.outputPosition[i]=cameraAnchor[i]+this.offset[i];
     return this.state(position,target);
   }
