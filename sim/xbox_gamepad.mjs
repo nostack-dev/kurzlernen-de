@@ -11,7 +11,20 @@ export const XBOX_STANDARD_BUTTON=Object.freeze({
   RIGHT_SHOULDER:5,
   LEFT_TRIGGER:6,
   RIGHT_TRIGGER:7,
+  VIEW:8,
+  MENU:9,
 });
+const RELEASE_LATCH_BUTTONS=Object.freeze([
+  XBOX_STANDARD_BUTTON.A,
+  XBOX_STANDARD_BUTTON.B,
+  XBOX_STANDARD_BUTTON.X,
+  XBOX_STANDARD_BUTTON.Y,
+  XBOX_STANDARD_BUTTON.RIGHT_SHOULDER,
+  XBOX_STANDARD_BUTTON.LEFT_TRIGGER,
+  XBOX_STANDARD_BUTTON.RIGHT_TRIGGER,
+  XBOX_STANDARD_BUTTON.VIEW,
+  XBOX_STANDARD_BUTTON.MENU,
+]);
 
 function clamp(value,min=-1,max=1){return Math.max(min,Math.min(max,Number(value)||0));}
 export function loadXboxControlScheme(){try{return localStorage.getItem(XBOX_CONTROL_SCHEME_KEY)===XBOX_CONTROL_SCHEMES.AIM?XBOX_CONTROL_SCHEMES.AIM:XBOX_CONTROL_SCHEMES.CLASSIC;}catch{return XBOX_CONTROL_SCHEMES.CLASSIC;}}
@@ -29,7 +42,7 @@ function buttonValue(gamepad,index){
   return clamp(button?.value??(button?.pressed?1:0),0,1);
 }
 function releaseLatchButtonActive(gamepad){
-  return Array.from(gamepad?.buttons||[]).some(button=>Number(typeof button==="number"?button:(button?.value??(button?.pressed?1:0)))>.18);
+  return RELEASE_LATCH_BUTTONS.some(index=>buttonValue(gamepad,index)>.18);
 }
 function settingsModalOpen(){
   const flagged=globalThis.__arondightSettingsModalOpen===true;if(!flagged)return false;
