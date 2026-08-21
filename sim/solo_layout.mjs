@@ -7,6 +7,7 @@ import {installVsMultiplayerGuard} from "./vs_multiplayer_guard.mjs";
 import {installVsFxGeoAdapter} from "./vs_fx_geo_adapter.mjs";
 import {installVsMultiplayer} from "./vs_multiplayer.mjs";
 import {installWorldPopulation} from "./world_population.mjs";
+import "./world_liveliness.mjs";
 import {installInitialAirframeGroundPose} from "./start_pose_guard.mjs";
 import {installFpvViewHeight} from "./fpv_view_height.mjs";
 
