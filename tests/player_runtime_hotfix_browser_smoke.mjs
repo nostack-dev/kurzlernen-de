@@ -21,19 +21,16 @@ try{
   await page.evaluate(()=>globalThis.__arondightWalkMode.setMode("drone"));await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.selfHarm==="enabled-v2"&&document.querySelector("#viewport")?.dataset.selfHitRouting==="local-authoritative-v2",{timeout:5000});
   const selfHit=await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),root=b.threeScene.children.find(node=>node?.userData?.localHumanAvatar||node?.name==="LOCAL_HUMAN_VR");let mesh=null;const stack=root?[root]:[];while(stack.length&&!mesh){const n=stack.pop();if(n?.isMesh)mesh=n;else for(const child of n?.children||[])stack.push(child);}if(!mesh)return{root:Boolean(root),mesh:false};b.vsLocalHealth=100;b.vsLocalDead=false;const before=Number(b.vsLocalHealth),handled=Boolean(b.registerVsHit({object:mesh,point:mesh.getWorldPosition(mesh.position.clone())}));return{root:Boolean(root),mesh:true,ignore:mesh.userData.flightFireIgnore,before,after:Number(b.vsLocalHealth),handled,selfHits:Number(v.dataset.selfHits||0)};});await sleep(80);const selfHp=Number(await page.evaluate(()=>globalThis.__arondightRealWorld?.vsLocalHealth));if(!selfHit.root||!selfHit.mesh||selfHit.ignore!==false||!selfHit.handled||selfHp>=selfHit.before||selfHit.selfHits<1)throw new Error(`self-hit contract failed: ${JSON.stringify({...selfHit,selfHp})}`);
 
-  // Exercise the patched traversal classifier directly instead of waiting for
-  // unrelated gameplay modules to happen to traverse the scene in a specific
-  // order. These probes deliberately use only the stable object-property names
-  // that survive esbuild minification, which is exactly the runtime contract.
+  // Exercise each cached traversal classification directly instead of waiting
+  // for unrelated modules to happen to traverse in a particular frame order.
+  // The callbacks intentionally rely only on object-property names and literals
+  // that survive esbuild minification, matching the production classifier.
   const cacheProbe=await page.evaluate(()=>{
-    const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),scene=b?.threeScene,counts={};
-    const probes={
-      vehicles:node=>{const u=node?.userData||{};return Boolean((u.worldLifeKind==="car"||u.worldLifeKind==="bus"||u.worldPopulationKind==="car")&&!u.worldLifeId);},
-      population:node=>Boolean(node?.isMesh&&node.userData?.worldPopulationKind&&!node.userData?.worldPopulationClone),
-      decor:node=>Boolean((node?.isMesh||node?.isInstancedMesh)&&!node.userData?.worldActionFeedbackFx&&!node.userData?.flightFireTracer),
-      fire:node=>Boolean(node?.isMesh&&!node.userData?.arondightAirframe&&!node.userData?.flightFireDecal&&!node.userData?.flightFireIgnore),
-    };
-    for(const [kind,predicate] of Object.entries(probes)){let count=0;scene.traverse(node=>{if(predicate(node))count++;});counts[kind]=count;}
+    const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),scene=b?.threeScene,counts={vehicles:0,population:0,decor:0,fire:0};
+    scene.traverse(node=>{const u=node?.userData||{},life=u.worldLifeKind,pop=u.worldPopulationKind,id=u.worldLifeId;if((life==="car"||life==="bus"||pop==="car")&&!id)counts.vehicles++;});
+    scene.traverse(node=>{if(node?.isMesh&&node.userData?.worldPopulationKind&&!node.userData?.worldPopulationClone)counts.population++;});
+    scene.traverse(node=>{if((node?.isMesh||node?.isInstancedMesh)&&!node.userData?.worldActionFeedbackFx&&!node.userData?.flightFireTracer)counts.decor++;});
+    scene.traverse(node=>{if(node?.isMesh&&!node.userData?.arondightAirframe&&!node.userData?.flightFireDecal&&!node.userData?.flightFireIgnore)counts.fire++;});
     return{kinds:v?.dataset.playerSceneCachedKinds||"",counts,patched:Boolean(scene?.traverse?.__playerRuntimeHotfix),index:Number(v?.dataset.playerSceneIndex||0),fireCandidates:Number(v?.dataset.playerSceneFireCandidates||0)};
   });
   const cachedKinds=cacheProbe.kinds.split(",").filter(Boolean);if(!cacheProbe.patched||cacheProbe.index<1||cacheProbe.fireCandidates<1||!["vehicles","population","decor","fire"].every(kind=>cachedKinds.includes(kind)))throw new Error(`minification-safe cached traversal classifier failed: ${JSON.stringify(cacheProbe)}`);
