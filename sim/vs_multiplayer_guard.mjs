@@ -16,18 +16,6 @@ function patchFinder(){
   };
 }
 
-function patchLegacyPeerRenderer(){
-  const b=bridge();if(!b||b.__vsV3PrimaryRenderGuard||typeof b.updateVsPeerRender!=="function")return;
-  b.__vsV3PrimaryRenderGuard=true;
-  const base=b.updateVsPeerRender.bind(b);
-  b.updateVsPeerRender=(...args)=>{
-    const view=document.getElementById("viewport"),v3OwnsPrimary=document.body.classList.contains("vs-multiplayer")&&Number(view?.dataset.vsPeerCount||0)>0&&Boolean(b.vsPeerMesh?.userData?.vsPlayerId);
-    if(v3OwnsPrimary){if(view)view.dataset.vsPrimaryRenderOwner="multiplayer-v3";return;}
-    if(view&&view.dataset.vsPrimaryRenderOwner==="multiplayer-v3")delete view.dataset.vsPrimaryRenderOwner;
-    return base(...args);
-  };
-}
-
-function frame(){patchFinder();patchLegacyPeerRenderer();requestAnimationFrame(frame);}
+function frame(){patchFinder();requestAnimationFrame(frame);}
 
 export function installVsMultiplayerGuard(){if(installed)return;installed=true;requestAnimationFrame(frame);}
