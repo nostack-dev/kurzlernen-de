@@ -3,6 +3,7 @@ import "./combat_visual_polish.mjs";
 import "./mobile_zoom_guard.mjs";
 import "./world_action_feedback.mjs";
 import "./foot_look_capture.mjs";
+import "./walk_world_experience_hotfix.mjs";
 import {buildingLaunchPointClear} from "./world_building_collision_physics.mjs";
 
 let installed=false;
