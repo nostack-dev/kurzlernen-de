@@ -165,6 +165,20 @@ jobs:
           set -euxo pipefail
           find sim tests tools -type f -name '*.mjs' -print0 | xargs -0 -n1 node --check
 
+      - name: Diagnostic WALK browser smoke
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          set -u
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4175 --bind 127.0.0.1 >/tmp/arondight45-walk-diagnostic.log 2>&1 &
+          HTTP_PID=$!
+          cleanup(){ kill "$HTTP_PID" 2>/dev/null || true; }
+          trap cleanup EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/player_walk_browser_smoke.mjs http://127.0.0.1:4175/drone_simulator.html
+
       - name: Blocking browser gates - boot, takeoff AGL, flight, VEHICLE, Xbox, Android and WORLD frame lock
         timeout-minutes: 10
         run: |
@@ -184,7 +198,6 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/world_fpv_frame_lock_smoke.mjs http://127.0.0.1:4174
-          CHROME_BIN="$CHROME_BIN" node tests/player_walk_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html || echo "::warning::Synthetic WALK smoke timed out; diagnostic only"
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -256,7 +269,14 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs https://kurzlernen.de
           CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs https://kurzlernen.de
           CHROME_BIN="$CHROME_BIN" node tests/world_fpv_frame_lock_smoke.mjs https://kurzlernen.de
-          CHROME_BIN="$CHROME_BIN" node tests/player_walk_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}" || echo "::warning::Synthetic live WALK smoke timed out; diagnostic only"
+
+      - name: Diagnostic live WALK smoke
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          CHROME_BIN="$CHROME_BIN" node tests/player_walk_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
 
       - name: Report live E2E final
         if: always()
