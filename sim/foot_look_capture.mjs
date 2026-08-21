@@ -4,12 +4,21 @@ const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
 let installed=false;
 let pointer=null;
+let surface=null;
 let lastX=0;
 let lastY=0;
+let originX=0;
+let originY=0;
+let stickKnob=null;
 
 const viewport=()=>document.getElementById("viewport");
 const walk=()=>globalThis.__arondightWalkMode||null;
-const isLookZone=target=>target instanceof Element&&Boolean(target.closest("#footLookZone"));
+const lookSurface=target=>{
+  if(!(target instanceof Element))return null;
+  if(target.closest("#footLook"))return"stick";
+  if(target.closest("#footLookZone"))return"zone";
+  return null;
+};
 
 function apply(dx,dy){
   const w=walk(),v=viewport();
@@ -21,21 +30,38 @@ function apply(dx,dy){
   return true;
 }
 
+function updateStickVisual(clientX,clientY){
+  if(!stickKnob)return;
+  const dx=clamp((clientX-originX)/38,-1,1),dy=clamp((clientY-originY)/38,-1,1);
+  stickKnob.style.left=`${50+dx*28}%`;
+  stickKnob.style.top=`${50+dy*28}%`;
+}
+function resetStickVisual(){if(stickKnob){stickKnob.style.left="50%";stickKnob.style.top="50%";}stickKnob=null;}
 function consume(event){event.preventDefault();event.stopImmediatePropagation();}
 
 export function installFootLookCapture(){
   if(installed)return;installed=true;
   window.addEventListener("pointerdown",event=>{
-    if(walk()?.mode!=="foot"||!isLookZone(event.target))return;
+    if(walk()?.mode!=="foot"||pointer!==null)return;
+    const nextSurface=lookSurface(event.target);if(!nextSurface)return;
     if(event.pointerType==="mouse"&&event.button!==0)return;
-    pointer=event.pointerId;lastX=event.clientX;lastY=event.clientY;consume(event);
+    // Desktop free-look keeps the native pointer-lock path. The visible LOOK
+    // stick is always direct-drag so it can never accidentally enter pointer lock.
+    if(nextSurface==="zone"&&event.pointerType==="mouse")return;
+    surface=nextSurface;pointer=event.pointerId;lastX=originX=event.clientX;lastY=originY=event.clientY;
+    if(surface==="stick")stickKnob=document.querySelector("#footLook .knob");
+    const v=viewport();if(v&&surface==="stick")v.dataset.walkAimStickCapture="direct-v1";
+    consume(event);
   },{capture:true,passive:false});
   window.addEventListener("pointermove",event=>{
     if(event.pointerId!==pointer||walk()?.mode!=="foot")return;
     const dx=event.clientX-lastX,dy=event.clientY-lastY;lastX=event.clientX;lastY=event.clientY;
-    apply(dx,dy);consume(event);
+    apply(dx,dy);if(surface==="stick")updateStickVisual(event.clientX,event.clientY);consume(event);
   },{capture:true,passive:false});
-  const release=event=>{if(event.pointerId!==pointer)return;pointer=null;consume(event);};
+  const release=event=>{
+    if(event.pointerId!==pointer)return;
+    pointer=null;surface=null;resetStickVisual();consume(event);
+  };
   window.addEventListener("pointerup",release,{capture:true,passive:false});
   window.addEventListener("pointercancel",release,{capture:true,passive:false});
   const v=viewport();if(v)v.dataset.walkAimCapture="foot-look-zone-direct-v8";
