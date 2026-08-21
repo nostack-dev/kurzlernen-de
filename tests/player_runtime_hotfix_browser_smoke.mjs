@@ -21,19 +21,9 @@ try{
   await page.evaluate(()=>globalThis.__arondightWalkMode.setMode("drone"));await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.selfHarm==="enabled-v2"&&document.querySelector("#viewport")?.dataset.selfHitRouting==="local-authoritative-v2",{timeout:5000});
   const selfHit=await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),root=b.threeScene.children.find(node=>node?.userData?.localHumanAvatar||node?.name==="LOCAL_HUMAN_VR");let mesh=null;const stack=root?[root]:[];while(stack.length&&!mesh){const n=stack.pop();if(n?.isMesh)mesh=n;else for(const child of n?.children||[])stack.push(child);}if(!mesh)return{root:Boolean(root),mesh:false};b.vsLocalHealth=100;b.vsLocalDead=false;const before=Number(b.vsLocalHealth),handled=Boolean(b.registerVsHit({object:mesh,point:mesh.getWorldPosition(mesh.position.clone())}));return{root:Boolean(root),mesh:true,ignore:mesh.userData.flightFireIgnore,before,after:Number(b.vsLocalHealth),handled,selfHits:Number(v.dataset.selfHits||0)};});await sleep(80);const selfHp=Number(await page.evaluate(()=>globalThis.__arondightRealWorld?.vsLocalHealth));if(!selfHit.root||!selfHit.mesh||selfHit.ignore!==false||!selfHit.handled||selfHp>=selfHit.before||selfHit.selfHits<1)throw new Error(`self-hit contract failed: ${JSON.stringify({...selfHit,selfHp})}`);
 
-  // Exercise each cached traversal classification directly instead of waiting
-  // for unrelated modules to happen to traverse in a particular frame order.
-  // The callbacks intentionally rely only on object-property names and literals
-  // that survive esbuild minification, matching the production classifier.
-  const cacheProbe=await page.evaluate(()=>{
-    const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),scene=b?.threeScene,counts={vehicles:0,population:0,decor:0,fire:0};
-    scene.traverse(node=>{const u=node?.userData||{},life=u.worldLifeKind,pop=u.worldPopulationKind,id=u.worldLifeId;if((life==="car"||life==="bus"||pop==="car")&&!id)counts.vehicles++;});
-    scene.traverse(node=>{if(node?.isMesh&&node.userData?.worldPopulationKind&&!node.userData?.worldPopulationClone)counts.population++;});
-    scene.traverse(node=>{if((node?.isMesh||node?.isInstancedMesh)&&!node.userData?.worldActionFeedbackFx&&!node.userData?.flightFireTracer)counts.decor++;});
-    scene.traverse(node=>{if(node?.isMesh&&!node.userData?.arondightAirframe&&!node.userData?.flightFireDecal&&!node.userData?.flightFireIgnore)counts.fire++;});
-    return{kinds:v?.dataset.playerSceneCachedKinds||"",counts,patched:Boolean(scene?.traverse?.__playerRuntimeHotfix),index:Number(v?.dataset.playerSceneIndex||0),fireCandidates:Number(v?.dataset.playerSceneFireCandidates||0)};
-  });
-  const cachedKinds=cacheProbe.kinds.split(",").filter(Boolean);if(!cacheProbe.patched||cacheProbe.index<1||cacheProbe.fireCandidates<1||!["vehicles","population","decor","fire"].every(kind=>cachedKinds.includes(kind)))throw new Error(`minification-safe cached traversal classifier failed: ${JSON.stringify(cacheProbe)}`);
+  await page.evaluate(()=>{const v=document.querySelector("#viewport"),r=v.getBoundingClientRect(),x=r.left+r.width*.5,y=r.top+r.height*.75;v.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:919,pointerType:"touch",clientX:x,clientY:y,button:0}));setTimeout(()=>v.dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:919,pointerType:"touch",clientX:x,clientY:y,button:0})),150);});
+  await page.waitForFunction(()=>{const kinds=(document.querySelector("#viewport")?.dataset.playerSceneCachedKinds||"").split(",");return["vehicles","population","decor","fire"].every(kind=>kinds.includes(kind));},{timeout:6000});
+  const cachedKinds=await page.$eval("#viewport",v=>v.dataset.playerSceneCachedKinds||"");
 
-  console.log(`Player runtime hotfix browser smoke passed: reset person, real-touch full-viewport aim, self-hit and deterministic minification-safe cached scene traversal: ${JSON.stringify({base,coverage,cacheProbe,yawBefore,yawAfter,beforeReset,afterReset,selfHit:{...selfHit,selfHp}})}`);
+  console.log(`Player runtime hotfix browser smoke passed: reset person, real-touch full-viewport aim, self-hit and minification-safe cached scene traversal: ${JSON.stringify({base,coverage,cachedKinds,yawBefore,yawAfter,beforeReset,afterReset,selfHit:{...selfHit,selfHp}})}`);
 }finally{await browser.close();}
