@@ -9,10 +9,12 @@ try{
   await page.goto(url.href,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return document.body.classList.contains("solo-flight")&&v?.dataset.mobileDoubleTapZoom==="disabled-v2"&&/population\+static-v2|vs\+population\+static-v2/.test(v?.dataset.worldHitRouting||"")&&String(v?.dataset.worldActionFeedback||"").includes("decals+particles+audio");},{timeout:8000});
-  const result=await page.evaluate(async()=>{
+  const result=await page.evaluate(()=>{
     const v=document.querySelector("#viewport"),meta=document.querySelector('meta[name="viewport"]');
-    const touch=()=>{const event=new Event("touchend",{bubbles:true,cancelable:true});Object.defineProperty(event,"changedTouches",{value:[{identifier:1}]});v.dispatchEvent(event);return event.defaultPrevented;};
-    const firstPrevented=touch();await new Promise(resolve=>setTimeout(resolve,18));const secondPrevented=touch();
+    const touch=stamp=>{const event=new Event("touchend",{bubbles:true,cancelable:true});Object.defineProperty(event,"changedTouches",{value:[{identifier:1}]});Object.defineProperty(event,"timeStamp",{value:stamp});v.dispatchEvent(event);return event.defaultPrevented;};
+    // Pin synthetic event timestamps so CI scheduling/load cannot stretch an
+    // intended 18 ms double tap beyond the real 340 ms production threshold.
+    const firstPrevented=touch(1000),secondPrevented=touch(1018);
     return{meta:meta?.content||"",firstPrevented,secondPrevented,blocks:Number(v?.dataset.mobileDoubleTapBlocks||0),zoom:v?.dataset.mobileDoubleTapZoom,routing:v?.dataset.worldHitRouting,feedback:v?.dataset.worldActionFeedback,audio:v?.dataset.worldActionAudio,decalPool:Number(v?.dataset.fireDecalPoolSize||0)};
   });
   if(!/maximum-scale\s*=\s*1/i.test(result.meta)||!/user-scalable\s*=\s*no/i.test(result.meta))throw new Error(`mobile viewport zoom lock missing: ${JSON.stringify(result)}`);
