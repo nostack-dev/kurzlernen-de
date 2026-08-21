@@ -11,7 +11,7 @@ const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,Number(v)||0));
 let installed=false,patchedScene=null,nativeTraverse=null,cache=emptyCache(),build=null,lastIndexStart=-Infinity,indexTimer=0;
 let dragPointer=null,lastPointerX=0,lastPointerY=0,lastResetAt=-Infinity,resetSeq=0,lastAvatarCheck=-Infinity;
 let patchedRegister=null,shotSeq=0,resetHumanAnchor=null,resetAnchorSawFoot=false;
-const callbackKinds=new WeakMap();
+const callbackKinds=new WeakMap(),cachedKindsSeen=new Set();
 const tmpPos=new THREE.Vector3(),tmpQuat=new THREE.Quaternion(),tmpEuler=new THREE.Euler();
 
 function emptyCache(){return{peer:[],vehicles:[],population:[],decor:[],fire:[],fireSet:new Set(),localAvatar:null,generation:0};}
@@ -22,15 +22,17 @@ function gameplayTarget(target){return target instanceof Element&&Boolean(target
 function ancestorNames(node){let out="";for(let n=node;n;n=n.parent)out+=` ${String(n.name||"")}`;return out;}
 function ownSession(){return bridge()?.vsSession||null;}
 function selfId(){const s=ownSession();try{return String(s?.getSelfId?.()||s?.active?.getSelfId?.()||"");}catch{return"";}}
+function markCachedKind(kind){if(kind==="native"||cachedKindsSeen.has(kind))return;cachedKindsSeen.add(kind);const v=viewport();if(v)v.dataset.playerSceneCachedKinds=[...cachedKindsSeen].sort().join(",");}
 
 function classifyTraverse(callback){
   if(typeof callback!=="function")return"native";const known=callbackKinds.get(callback);if(known)return known;let source="";try{source=Function.prototype.toString.call(callback);}catch{}
   let kind="native";
+  // Only stable object-property names are used here. esbuild minifies local variable/function names in the live bundle.
   if(source.includes("vsMultiplayerPeer")&&source.includes("vsLegacyPrimary"))kind="peer";
-  else if(source.includes("worldLifeKind")&&source.includes("vehicleNodes"))kind="vehicles";
-  else if(source.includes("worldPopulationKind")&&source.includes("candidates.push")&&source.includes("worldPopulationClone"))kind="population";
+  else if(source.includes("worldLifeKind")&&source.includes("worldPopulationKind")&&source.includes("worldLifeId")&&source.includes("car")&&source.includes("bus"))kind="vehicles";
+  else if(source.includes("worldPopulationKind")&&source.includes("worldPopulationClone")&&source.includes("isMesh"))kind="population";
   else if(source.includes("worldActionFeedbackFx")&&source.includes("flightFireTracer"))kind="decor";
-  else if(source.includes("arondightAirframe")&&source.includes("flightFireDecal")&&source.includes("hiddenTrainingObject"))kind="fire";
+  else if(source.includes("arondightAirframe")&&source.includes("flightFireDecal")&&source.includes("flightFireIgnore"))kind="fire";
   callbackKinds.set(callback,kind);return kind;
 }
 function pushFire(target,node){if(node&&!target.fireSet.has(node)){target.fireSet.add(node);target.fire.push(node);}}
@@ -53,7 +55,7 @@ function pumpIndex(){
       const node=build.queue.pop();indexNode(node,build.next);const children=node?.children||[];for(let i=children.length-1;i>=0;i--)build.queue.push(children[i]);processed++;
     }
     if(build.queue.length){pumpIndex();return;}
-    build.next.generation=(cache.generation||0)+1;cache=build.next;const scene=build.scene;build=null;makeLocalAvatarShootable(scene);const v=viewport();if(v){v.dataset.playerSceneIndex=String(cache.generation);v.dataset.playerSceneFireCandidates=String(cache.fire.length);v.dataset.playerSceneTraversal="cached-incremental-v3";}
+    build.next.generation=(cache.generation||0)+1;cache=build.next;const scene=build.scene;build=null;makeLocalAvatarShootable(scene);const v=viewport();if(v){v.dataset.playerSceneIndex=String(cache.generation);v.dataset.playerSceneFireCandidates=String(cache.fire.length);v.dataset.playerSceneTraversal="cached-incremental-v4";}
   });
 }
 function scheduleReindex(){clearTimeout(indexTimer);indexTimer=setTimeout(()=>{const scene=bridge()?.threeScene;if(scene&&!build)startIndex(scene,true);scheduleReindex();},INDEX_REFRESH_MS);}
@@ -61,10 +63,10 @@ function patchSceneTraversal(scene){
   if(!scene||scene===patchedScene)return;if(patchedScene&&nativeTraverse&&patchedScene.traverse?.__playerRuntimeHotfix)patchedScene.traverse=nativeTraverse;
   patchedScene=scene;nativeTraverse=scene.traverse;const base=nativeTraverse.bind(scene);
   const wrapper=function(callback){
-    const kind=classifyTraverse(callback);if(kind==="native")return base(callback);const list=cache[kind]?.length?cache[kind]:(build?.next?.[kind]||[]);
+    const kind=classifyTraverse(callback);markCachedKind(kind);if(kind==="native")return base(callback);const list=cache[kind]?.length?cache[kind]:(build?.next?.[kind]||[]);
     for(const node of list){if(!node||node!==scene&&!node.parent)continue;callback(node);if(kind==="decor"&&node.isMesh&&!node.userData?.flightFireIgnore&&!node.userData?.flightFireDecal)pushFire(cache,node);}
   };
-  wrapper.__playerRuntimeHotfix=true;wrapper.__nativeTraverse=nativeTraverse;scene.traverse=wrapper;cache=emptyCache();build=null;startIndex(scene,true);const v=viewport();if(v)v.dataset.playerSceneTraversal="indexing-v3";
+  wrapper.__playerRuntimeHotfix=true;wrapper.__nativeTraverse=nativeTraverse;scene.traverse=wrapper;cache=emptyCache();build=null;startIndex(scene,true);const v=viewport();if(v)v.dataset.playerSceneTraversal="indexing-v4";
 }
 
 function localAvatarRoot(scene){return cache.localAvatar||build?.next?.localAvatar||scene?.children?.find?.(node=>node?.userData?.localHumanAvatar||node?.name==="LOCAL_HUMAN_VR")||null;}
@@ -124,5 +126,5 @@ function maintenance(now=performance.now()){
 function onWorldChanged(){const scene=bridge()?.threeScene;if(scene&&!build)startIndex(scene,true);}
 
 export function installPlayerRuntimeHotfix(){
-  if(installed)return;installed=true;installAim();installResetHook();addEventListener(VS_PEER_EVENT,onWorldChanged);scheduleReindex();const v=viewport();if(v){v.dataset.playerRuntimeHotfix="reset+selfhit+aim+cached-scene-v3";v.dataset.walkAimProfile="pointerlock+drag-center-v6";}requestAnimationFrame(maintenance);
+  if(installed)return;installed=true;installAim();installResetHook();addEventListener(VS_PEER_EVENT,onWorldChanged);scheduleReindex();const v=viewport();if(v){v.dataset.playerRuntimeHotfix="reset+selfhit+aim+cached-scene-v4";v.dataset.walkAimProfile="pointerlock+drag-center-v6";}requestAnimationFrame(maintenance);
 }
