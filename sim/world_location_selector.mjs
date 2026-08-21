@@ -98,10 +98,13 @@ function patchBridge(){
   const bridge=currentBridge();if(!bridge||bridge.__worldLocationSelectorPatched)return false;
   const originalActivate=bridge.activate.bind(bridge);bridge.__worldLocationSelectorPatched=true;bridge.__worldLocationOriginalActivate=originalActivate;
   bridge.activate=async locationFix=>{
-    let fix=locationFix,choice=null;
-    if(!fix?.coords){choice=readChoice();if(choice.kind==="manual")fix=manualFix(choice);}
+    let fix=locationFix,choice=null;const persisted=readChoice(),explicitShared=Boolean(locationFix?.vsSharedOrigin);
+    if(!explicitShared&&persisted.kind==="manual"&&!locationFix?.manualWorldLocation){choice=persisted;fix=manualFix(persisted);}
+    else if(!fix?.coords){choice=persisted;if(choice.kind==="manual")fix=manualFix(choice);}
     else if(fix.manualWorldLocation)choice={kind:"manual",id:"custom",label:fix.locationLabel||"Custom coordinates",latitude:Number(fix.coords.latitude),longitude:Number(fix.coords.longitude)};
-    const result=await originalActivate(fix);if(!locationFix?.vsSharedOrigin)annotate(choice||readChoice());return result;
+    const result=await originalActivate(fix);
+    if(!explicitShared){const selected=choice||readChoice();annotate(selected);if(selected.kind==="manual")bridge.status?.(`REAL WORLD LIVE · MANUAL ${selected.label} · ${selected.latitude.toFixed(6)}, ${selected.longitude.toFixed(6)}`,"good");}
+    return result;
   };
   return true;
 }
