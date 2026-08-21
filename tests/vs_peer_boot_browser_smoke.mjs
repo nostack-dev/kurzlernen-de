@@ -1,0 +1,20 @@
+import puppeteer from "puppeteer-core";
+
+const input=process.argv[2]||"http://127.0.0.1:4174/drone_simulator.html",inputUrl=new URL(input,"http://127.0.0.1:4174"),url=inputUrl.pathname.endsWith("/drone_simulator.html")?new URL(inputUrl.href):new URL("/drone_simulator.html",inputUrl.origin),executablePath=process.env.CHROME_BIN;
+if(process.env.GITHUB_SHA)url.searchParams.set("ci",process.env.GITHUB_SHA);if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
+const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]}),page=await browser.newPage();
+try{
+  await page.setViewport({width:844,height:390,deviceScaleFactor:1});await page.goto(url.href,{waitUntil:"load",timeout:30000});await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&document.body.classList.contains("solo-flight")&&globalThis.__arondightRealWorld?.threeScene,{timeout:30000});
+  const result=await page.evaluate(async()=>{
+    const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),errors=[];addEventListener("error",event=>errors.push(`error:${event.message||event.error||"unknown"}`));addEventListener("unhandledrejection",event=>errors.push(`rejection:${String(event.reason?.stack||event.reason||"unknown")}`));
+    const bridge=globalThis.__arondightRealWorld,view=document.querySelector("#viewport"),peerIds=["peer-b","peer-c"],sentGame=[];
+    bridge.vsConnected=true;bridge.ensureVsPeerMesh?.();bridge.vsSession={primaryPeerId:"peer-b",getSelfId:()=>"peer-a",getAuthorityId:()=>"peer-a",getPeerIds:()=>[...peerIds],setOrigin:()=>true,setPose:()=>true,sendCombat:()=>true,sendGame(packet,options={}){sentGame.push({packet:structuredClone(packet),options:structuredClone(options)});return true;},sendFx:()=>true,stop(){}};
+    for(const peerId of peerIds)dispatchEvent(new CustomEvent("arondight45:vs-peer",{detail:{type:"join",peerId,selfId:"peer-a",authorityId:"peer-a",peerIds:[...peerIds],transport:"Test"}}));
+    const now=performance.now();for(const [i,peerId] of peerIds.entries())dispatchEvent(new CustomEvent("arondight45:vs-pose",{detail:{peerId,pose:{p:[10-i*18,i*6,2+i],q:[0,0,0,1],v:[0,0,0],t:now+i,f:"local-metric"}}}));
+    await sleep(1400);
+    const scenePeers=bridge.threeScene.children.filter(node=>node.userData?.vsMultiplayerPeer||node===bridge.vsPeerMesh).map(node=>({id:node.userData?.vsPlayerId||"",multi:Boolean(node.userData?.vsMultiplayerPeer),legacy:node===bridge.vsPeerMesh,visible:Boolean(node.visible),scale:[node.scale.x,node.scale.y,node.scale.z],combatScale:node.userData?.vsCombatVisualScale||null,kind:node.userData?.worldLifeKind||"",worldId:node.userData?.worldLifeId||"",children:node.children.length}));
+    return{self:view.dataset.vsSelfId||"",authority:view.dataset.vsAuthorityId||"",playerCount:view.dataset.vsPlayerCount||"",peerCount:view.dataset.vsPeerCount||"",markers:[...document.querySelectorAll(".vs-player-marker")].map(el=>el.dataset.peerId),scenePeers,boxGlobal:Boolean(globalThis.__arondightBox3dCombat),boxPeerCount:Number(globalThis.__arondightBox3dCombat?.peerCount??-1),boxDataset:Number(view.dataset.box3dCombatPeers??-1),boxVisualScale:Number(view.dataset.box3dVsCombatVisualScale??-1),boxPadding:Number(view.dataset.box3dVsHitboxPadding??-1),combatVisualScale:Number(view.dataset.vsCombatVisualScale??-1),errors:errors.slice(-8),sentGame:sentGame.slice(-4).map(x=>x.packet)};
+  });
+  const extra=result.scenePeers.filter(x=>x.multi);if(result.self!=="peer-a"||result.authority!=="peer-a"||result.playerCount!=="3"||result.peerCount!=="2"||result.markers.length!==2||extra.length<1||result.boxPeerCount<2||result.boxDataset<2||result.boxVisualScale!==7||result.combatVisualScale!==7||Math.abs(result.boxPadding-1.16)>.001)throw new Error(`VS peer boot regression: ${JSON.stringify(result)}`);
+  console.log(`VS peer boot passed: ${JSON.stringify(result)}`);
+}finally{await browser.close();}

@@ -4,6 +4,7 @@ void LEGACY_COMBAT_DEDUPE_GATE;
 
 // Current multiplayer/browser contract only. The removed legacy fixture expected
 // hidden Three.js hit proxies that are intentionally no longer gameplay truth.
+await import("./vs_peer_boot_browser_smoke.mjs");
 await import("./vs_multiplayer_browser_smoke.mjs");
 await import("./vs_multiplayer_score_browser_smoke.mjs");
 await import("./world_ragdoll_browser_smoke.mjs");
