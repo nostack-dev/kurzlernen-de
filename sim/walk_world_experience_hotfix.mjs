@@ -8,7 +8,7 @@ const PANIC_MS=5200;
 const FLEE_MPS=4.4;
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
-let installed=false,lastScan=0,lastFrame=performance.now(),lastWalkShots=0,lastLifeHits=0,audioCtx=null,audioUnlocked=false;
+let installed=false,lastScan=0,lastFrame=performance.now(),lastWalkShots=0,lastLifeHits=0,audioCtx=null,audioUnlocked=false,shotObserver=null;
 let sceneRef=null;
 const roots=new Map();
 const tmp=new THREE.Vector3();
@@ -50,7 +50,7 @@ function reactToGunshot(){
   const shot=parseWalkPosition();if(!shot)return;const now=performance.now(),near=[];
   for(const item of personEntries()){
     item.root.getWorldPosition(tmp);const dx=tmp.x-shot.x,dy=tmp.y-shot.y,dist=Math.hypot(dx,dy);if(dist>PANIC_RADIUS_M)continue;
-    const inv=1/Math.max(.25,dist),p=item.root.userData.walkPanic||{offsetX:0,offsetY:0,lastScream:-Infinity};p.dirX=dx*inv;p.dirY=dy*inv;if(dist<1){const a=(item.id.length*1.731)%6.283;p.dirX=Math.cos(a);p.dirY=Math.sin(a);}p.until=now+PANIC_MS;p.speed=FLEE_MPS+(1-dist/PANIC_RADIUS_M)*1.7;item.root.userData.walkPanic=p;near.push({item,dist,p});
+    const inv=1/Math.max(.25,dist),p=item.root.userData.walkPanic||{offsetX:0,offsetY:0,lastScream:-Infinity,lastPatchedX:null,lastPatchedY:null};p.dirX=dx*inv;p.dirY=dy*inv;if(dist<1){const a=(item.id.length*1.731)%6.283;p.dirX=Math.cos(a);p.dirY=Math.sin(a);}p.until=now+PANIC_MS;p.speed=FLEE_MPS+(1-dist/PANIC_RADIUS_M)*1.7;item.root.userData.walkPanic=p;near.push({item,dist,p});
   }
   near.sort((a,b)=>a.dist-b.dist);let screamed=0;for(const x of near){if(screamed>=2)break;if(now-x.p.lastScream<2600)continue;x.p.lastScream=now;scream(x.dist<8?1:.72);screamed++;}
   const v=viewport();if(v){v.dataset.worldPeoplePanic=String(near.length);v.dataset.worldPeopleReaction="flee+scream-v1";}
@@ -58,10 +58,15 @@ function reactToGunshot(){
 function reactToHit(){scream(1.08);const v=viewport();if(v)v.dataset.worldPeopleHitScream="synth-v1";}
 function updatePanic(now,dt){
   for(const item of personEntries()){
-    const p=item.root.userData.walkPanic;if(!p)continue;
-    if(now<p.until){p.offsetX=(Number(p.offsetX)||0)+(Number(p.dirX)||0)*(Number(p.speed)||FLEE_MPS)*dt;p.offsetY=(Number(p.offsetY)||0)+(Number(p.dirY)||0)*(Number(p.speed)||FLEE_MPS)*dt;item.root.rotation.z=Math.atan2(Number(p.dirY)||0,Number(p.dirX)||1);}
-    else{const decay=Math.exp(-.10*dt);p.offsetX*=decay;p.offsetY*=decay;if(Math.hypot(p.offsetX,p.offsetY)<.03){delete item.root.userData.walkPanic;continue;}}
-    item.root.position.x+=Number(p.offsetX)||0;item.root.position.y+=Number(p.offsetY)||0;
+    const root=item.root,p=root.userData.walkPanic;if(!p)continue;
+    // WORLD population code rewrites its deterministic base pose each frame. If
+    // it did not run this frame, first remove our previous overlay so offsets
+    // cannot accumulate twice.
+    const sameAsLast=Number.isFinite(p.lastPatchedX)&&Math.hypot(root.position.x-p.lastPatchedX,root.position.y-p.lastPatchedY)<.006;
+    if(sameAsLast){root.position.x-=Number(p.offsetX)||0;root.position.y-=Number(p.offsetY)||0;}
+    if(now<p.until){p.offsetX=(Number(p.offsetX)||0)+(Number(p.dirX)||0)*(Number(p.speed)||FLEE_MPS)*dt;p.offsetY=(Number(p.offsetY)||0)+(Number(p.dirY)||0)*(Number(p.speed)||FLEE_MPS)*dt;root.rotation.z=Math.atan2(Number(p.dirY)||0,Number(p.dirX)||1);}
+    else{const decay=Math.exp(-.10*dt);p.offsetX*=decay;p.offsetY*=decay;if(Math.hypot(p.offsetX,p.offsetY)<.03){delete root.userData.walkPanic;continue;}}
+    root.position.x+=Number(p.offsetX)||0;root.position.y+=Number(p.offsetY)||0;p.lastPatchedX=root.position.x;p.lastPatchedY=root.position.y;
   }
 }
 
@@ -93,10 +98,10 @@ function installLocationAutoApply(){
   document.addEventListener("change",event=>{const select=event.target instanceof Element?event.target.closest("[data-world-location-select]"):null;if(!select||select.value==="custom")return;const root=select.closest("[data-world-location-selector]");queueMicrotask(()=>root?.querySelector("[data-world-location-apply]")?.click());const v=viewport();if(v)v.dataset.worldLocationSwitch="auto-apply-v1";},{capture:true});
 }
 function observeShots(){
-  const v=viewport();if(!v)return;lastWalkShots=Number(v.dataset.walkShots)||0;lastLifeHits=Number(v.dataset.worldLifeHits)||0;
-  new MutationObserver(()=>{const shots=Number(v.dataset.walkShots)||0,hits=Number(v.dataset.worldLifeHits)||0;if(shots>lastWalkShots)for(let n=lastWalkShots;n<shots;n++)reactToGunshot();if(hits>lastLifeHits)reactToHit();lastWalkShots=shots;lastLifeHits=hits;}).observe(v,{attributes:true,attributeFilter:["data-walk-shots","data-world-life-hits"]});
+  const v=viewport();if(!v||shotObserver)return false;lastWalkShots=Number(v.dataset.walkShots)||0;lastLifeHits=Number(v.dataset.worldLifeHits)||0;
+  shotObserver=new MutationObserver(()=>{const shots=Number(v.dataset.walkShots)||0,hits=Number(v.dataset.worldLifeHits)||0;if(shots>lastWalkShots)for(let n=lastWalkShots;n<shots;n++)reactToGunshot();if(hits>lastLifeHits)reactToHit();lastWalkShots=shots;lastLifeHits=hits;});shotObserver.observe(v,{attributes:true,attributeFilter:["data-walk-shots","data-world-life-hits"]});return true;
 }
-function frame(now=performance.now()){const dt=clamp((now-lastFrame)/1000,0,.05);lastFrame=now;scanDynamic(now);patchWeapon();updatePanic(now,dt);syncRagdollPalette();requestAnimationFrame(frame);}
+function frame(now=performance.now()){const dt=clamp((now-lastFrame)/1000,0,.05);lastFrame=now;observeShots();scanDynamic(now);patchWeapon();updatePanic(now,dt);syncRagdollPalette();requestAnimationFrame(frame);}
 
 export function installWalkWorldExperienceHotfix(){if(installed)return;installed=true;addEventListener("pointerdown",unlockAudio,{capture:true,passive:true});addEventListener("keydown",unlockAudio,{capture:true});installLocationAutoApply();observeShots();requestAnimationFrame(frame);}
 
