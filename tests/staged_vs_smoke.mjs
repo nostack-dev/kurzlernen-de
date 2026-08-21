@@ -26,14 +26,14 @@ for(const marker of ["DECAL_POOL_SIZE=32","PROJECTILE_POOL_SIZE=64","__arondight
   assert.ok(fireSource.includes(marker),`fire presentation contract missing: ${marker}`);
 
 const physicsSource=readFileSync(new URL("../sim/box3d_combat_world.mjs",import.meta.url),"utf8");
-for(const marker of ["BULLET_POOL=64","worldDef.enableContinuous=true","def.isBullet=true","b3Body_SetTargetTransform","type:\"physics-bullet\"","kind===\"vs-drone\"","half:[.22,.22,.06]","registerTarget","registerVsHit(hit)"])
+for(const marker of ["BULLET_POOL=64","worldDef.enableContinuous=true","def.isBullet=true","b3Body_SetTargetTransform","type:\"physics-bullet\"","kind===\"vs-drone\"","VS_COMBAT_VISUAL_SCALE=7","VS_HITBOX_PADDING=1.16",".16*VS_COMBAT_VISUAL_SCALE*VS_HITBOX_PADDING",".22*VS_COMBAT_VISUAL_SCALE*VS_HITBOX_PADDING","registerTarget","registerVsHit(hit)"])
   assert.ok(physicsSource.includes(marker),`shared Box3D interaction contract missing: ${marker}`);
 
 const vsSource=readFileSync(new URL("../sim/vs_multiplayer.mjs",import.meta.url),"utf8");
-for(const marker of ["const VISUAL_SCALE=1","worldLifeKind=\"vs-drone\"","vsCombatReadability=\"hud-marker+emissive-v1\"","registerPhysicsPeer","vsCombatVisualScale"])
-  assert.ok(vsSource.includes(marker),`physical-scale peer readability contract missing: ${marker}`);
-assert.equal(vsSource.includes("const VISUAL_SCALE=12"),false,"peer geometry must not be artificially enlarged");
-assert.equal(vsSource.includes("vsPeerHitProxy"),false,"hidden render hit proxies must not diverge from Box3D geometry");
+for(const marker of ["const VISUAL_SCALE=7","worldLifeKind=\"vs-drone\"","scaled-7x+hud-marker+emissive-v2","registerPhysicsPeer","applyCombatScale","vsCombatVisualScale"])
+  assert.ok(vsSource.includes(marker),`7x peer readability contract missing: ${marker}`);
+assert.equal(vsSource.includes("const VISUAL_SCALE=1"),false,"combat peers must not regress to hard-to-see physical scale");
+assert.equal(vsSource.includes("vsPeerHitProxy"),false,"hidden Three hit proxies must not diverge from the Box3D hitbody");
 
 const presentationSource=readFileSync(new URL("../sim/vs_combat_presentation.mjs",import.meta.url),"utf8");
 for(const marker of ["RESPAWN_RADIUS_MIN_M=12","RESPAWN_RADIUS_MAX_M=30","RESET SIM TO RESPAWN NEARBY","WAITING FOR RESET","vsRespawnLocalOffset","vsManualRespawns","MOBILE_WORLD_COLLISION_SYNC_MS=1400"])
@@ -48,4 +48,4 @@ const buildingSource=readFileSync(new URL("../sim/world_building_collision_physi
 const spawnGuardSource=readFileSync(new URL("../sim/world_spawn_guard.mjs",import.meta.url),"utf8");for(const marker of ["firstLoaded","buildingLaunchPointClear","queueMicrotask","soloReset","worldSpawnGuardResets"])assert.ok(spawnGuardSource.includes(marker),`WORLD spawn guard missing: ${marker}`);
 
 await import("./multiplayer_mesh_smoke.mjs");
-console.log("Staged VS smoke passed: physical-scale peer geometry, HUD readability, shared Box3D interactions, authority migration and WORLD population retained.");
+console.log("Staged VS smoke passed: 7x readable peer geometry, matching Box3D hitbodies, replicated physics bullets, authority migration and WORLD population retained.");
