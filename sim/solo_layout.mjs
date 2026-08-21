@@ -7,6 +7,7 @@ import {installVsMultiplayerGuard} from "./vs_multiplayer_guard.mjs";
 import {installVsFxGeoAdapter} from "./vs_fx_geo_adapter.mjs";
 import {installVsMultiplayer} from "./vs_multiplayer.mjs";
 import {installPlayerVehicleRuntime} from "./player_vehicle_runtime_v2.mjs";
+import {installPlayerRuntimeHotfix} from "./player_runtime_hotfix.mjs";
 import {installWorldPopulation} from "./world_population.mjs";
 import "./world_liveliness.mjs";
 import {installInitialAirframeGroundPose} from "./start_pose_guard.mjs";
@@ -87,4 +88,5 @@ export function installSoloFlightLayout(){
   installVsMultiplayer();
   installPlayerVehicleRuntime();
   installWorldPopulation();
+  installPlayerRuntimeHotfix();
 }

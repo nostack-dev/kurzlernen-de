@@ -34,3 +34,4 @@ await import("./world_lane_depth_browser_smoke.mjs");
 await import("./projectile_decal_browser_smoke.mjs");
 await import("./world_action_feedback_browser_smoke.mjs");
 await import("./player_walk_browser_smoke.mjs");
+await import("./player_runtime_hotfix_browser_smoke.mjs");
