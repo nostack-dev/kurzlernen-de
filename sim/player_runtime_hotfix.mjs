@@ -110,7 +110,7 @@ function syncResetHumanAnchor(scene){
   const anchor=resetHumanAnchor,w=walk();if(!anchor||!w)return;if(w.mode==="foot"){if(!resetAnchorSawFoot){w.setPose?.(anchor);resetAnchorSawFoot=true;}return;}if(resetAnchorSawFoot){resetHumanAnchor=null;resetAnchorSawFoot=false;return;}const root=localAvatarRoot(scene);if(root){root.position.set(anchor.x,anchor.y,0);root.rotation.set(0,0,anchor.yaw);}
 }
 function performPlayerReset(seq){
-  if(seq!==resetSeq)return;const w=walk(),v=viewport();if(!w)return;const pose=resetPoseFromAirframe();if(v)v.dataset.vsManualRespawns=String((Number(v.dataset.vsManualRespawns)||0)+1);
+  if(seq!==resetSeq)return;const w=walk(),v=viewport();if(!w)return;const pose=resetPoseFromAirframe();
   if(w.mode==="foot"){w.setPose?.(pose);resetHumanAnchor=null;resetAnchorSawFoot=false;if(v){v.dataset.playerReset="foot+health-v3";v.dataset.selfHp="100";}}
   else{resetHumanAnchor={...pose};resetAnchorSawFoot=false;syncResetHumanAnchor(bridge()?.threeScene);if(v){v.dataset.playerReset="human+drone+health-v3";v.dataset.selfHp="100";}}
   const b=bridge();if(b&&!selfId()){b.vsLocalHealth=100;b.vsLocalDead=false;b.updateVsCombatHud?.(true);}
