@@ -5,13 +5,23 @@ import "./world_action_feedback.mjs";
 import "./foot_look_capture.mjs";
 import "./walk_world_experience_hotfix.mjs";
 import "./world_visibility_continuity.mjs";
-import "./box3d_combat_world.mjs";
 import "./walk_weapon_system.mjs";
 import "./walk_aim_state_sync.mjs";
 import "./walk_ui_layout_hotfix.mjs";
 import {buildingLaunchPointClear} from "./world_building_collision_physics.mjs";
 
-let installed=false,lateCombatIndexTimer=0;
+let installed=false,lateCombatIndexTimer=0,combatBootPromise=null;
+
+function bootCombatAfterWorldReality(){
+  if(combatBootPromise)return combatBootPromise;
+  // walk_world_experience_hotfix schedules its first RAF from a zero-delay timer.
+  // Boot Box3D from the following timer so every frame stays ordered:
+  // WORLD base pose -> WALK presentation/reaction pose -> Box3D target sync/step.
+  combatBootPromise=new Promise(resolve=>setTimeout(resolve,0)).then(()=>import("./box3d_combat_world.mjs")).then(module=>{
+    const viewport=document.getElementById("viewport");if(viewport)viewport.dataset.box3dCombatFrameOrder="world-reality-box3d-v1";return module;
+  });
+  return combatBootPromise;
+}
 
 function syncLatePopulationCombatTargets(){
   const bridge=globalThis.__arondightRealWorld,scene=bridge?.threeScene,combat=globalThis.__arondightBox3dCombat,viewport=document.getElementById("viewport");
@@ -47,5 +57,6 @@ function installLoop(){if(!installWorldSpawnGuard())requestAnimationFrame(instal
 // Population groups are created before route-derived IDs exist. Start this
 // independently of the building spawn guard so late IDs always become physical
 // Box3D combat targets, even when the RealWorld bridge finishes booting later.
+bootCombatAfterWorldReality();
 syncLatePopulationCombatTargets();
 installLoop();
