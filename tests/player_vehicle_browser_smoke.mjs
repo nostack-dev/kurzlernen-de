@@ -30,7 +30,7 @@ try{
   await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:sx,y:sy,id:819,radiusX:2,radiusY:2,force:1}]});await sleep(160);
   const yawHoldA=Number(await page.$eval("#viewport",v=>v.dataset.walkYaw||0));await sleep(260);const yawHoldB=Number(await page.$eval("#viewport",v=>v.dataset.walkYaw||0));
   if(yawHoldB-yawHoldA<.25)throw new Error(`LOOK stick did not continue turning while held at edge: ${yawHoldA} -> ${yawHoldB}`);
-  const stickMode=await page.$eval("#viewport",v=>v.dataset.walkAimStickMode||"");if(stickMode!=="rate-edge-hold-v1")throw new Error(`LOOK stick rate contract missing: ${stickMode}`);
+  const stickMode=await page.$eval("#viewport",v=>v.dataset.walkAimStickMode||"");if(stickMode!=="rate-edge-hold-v2")throw new Error(`LOOK stick rate contract missing: ${stickMode}`);
   await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});await sleep(90);const yawReleaseA=Number(await page.$eval("#viewport",v=>v.dataset.walkYaw||0));await sleep(180);const yawReleaseB=Number(await page.$eval("#viewport",v=>v.dataset.walkYaw||0));if(Math.abs(yawReleaseB-yawReleaseA)>.08)throw new Error(`LOOK stick kept turning after release: ${yawReleaseA} -> ${yawReleaseB}`);
   await page.evaluate(()=>document.exitPointerLock?.());
 
