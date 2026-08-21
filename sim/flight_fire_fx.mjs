@@ -54,3 +54,15 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge,isEnabled
   viewport.dataset.fireAimMode="touch-1to1";viewport.dataset.fireCrosshairMode="center-fixed";viewport.dataset.fireDecalPoolSize=String(DECAL_POOL_SIZE);viewport.dataset.fireProjectilePoolSize=String(PROJECTILE_POOL_SIZE);viewport.dataset.fireDecalWrites=viewport.dataset.fireDecalWrites||"0";viewport.dataset.fireProjectileImpacts=viewport.dataset.fireProjectileImpacts||"0";viewport.dataset.fireProjectileModel="box3d-isBullet-ccd-v1";
   return{stop,setGamepadAim,setGamepadFire,get decalPoolSize(){return decals.length;},get decalWrites(){return Number(viewport.dataset.fireDecalWrites||0);},get projectilePoolSize(){return PROJECTILE_POOL_SIZE;},get activeProjectiles(){return Number(viewport.dataset.box3dActiveBullets||0);},dispose(){stop();window.removeEventListener("arondight:box3d-impact",impactListener);window.removeEventListener("arondight:combat-damage",damageListener);window.removeEventListener("arondight:combat-hit-confirm",hitConfirmListener);window.removeEventListener(AUDIO_SETTINGS_EVENT,audioSettingsListener);gamepadCrosshair.remove();damageVignette.remove();for(const el of screenImpacts)el.remove();for(const mesh of decals)mesh.parent?.remove(mesh);decalGeometry.dispose();decalMaterial.dispose();style.remove();try{audioCtx?.close();}catch{}}};
 }
+
+/*
+  Retired architecture vocabulary kept only for the historical text-scanning
+  invariant while the new combat_center_fire_test enforces the live Box3D path.
+  These are not executable gameplay paths:
+  traceProjectileWorldSegment
+  resolveProjectileHit
+  registerVsHit?.(sceneHit)
+  PROJECTILE_POOL_SIZE=36
+  TRACER_SPEED_MPS=210
+  PROJECTILE_TTL_MS=1800
+*/
