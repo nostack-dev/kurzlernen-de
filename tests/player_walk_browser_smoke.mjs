@@ -148,6 +148,18 @@ try {
       blood:Number(v.dataset.worldBloodFx||0),
       ragdolls:Number(v.dataset.worldRagdollSpawns||0),
       lastPopulationHit:v.dataset.worldPopulationLastHit||"",
+      walkFireApi:v.dataset.walkFireApi||"",
+      walkAimStateSync:v.dataset.walkAimStateSync||"",
+      walkPhysicsShots:Number(v.dataset.walkPhysicsShots||0),
+      bulletSpawns:Number(v.dataset.box3dBulletSpawns||0),
+      bulletImpacts:Number(v.dataset.box3dBulletImpacts||0),
+      lastImpact:v.dataset.box3dLastImpactKind||"",
+      combatPeople:Number(v.dataset.box3dCombatPeople||0),
+      combatTargets:Number(v.dataset.box3dCombatTargets||0),
+      latePending:Number(v.dataset.box3dLatePopulationPending||0),
+      lateRegistered:Number(v.dataset.box3dLatePopulationRegistered||0),
+      walkYaw:v.dataset.walkYaw||"",
+      walkPitch:v.dataset.walkPitch||"",
     });
     const waitFor=async(fn,timeout=10000,label="state")=>{
       const end=performance.now()+timeout;
@@ -165,6 +177,9 @@ try {
       Number(v.dataset.worldTrafficRoutes||0)>=1 &&
       Number(v.dataset.worldLifeRoutes||0)>=1 &&
       Number(v.dataset.worldLifeVisible||0)>0 &&
+      Number(v.dataset.box3dCombatPeople||0)>=1 &&
+      Number(v.dataset.box3dLatePopulationRegistered||0)>=1 &&
+      v.dataset.walkFireApi==="box3d-direct-v1" &&
       typeof b.registerWorldPopulationHit==="function",
       12000,
       "world-ready"
@@ -181,12 +196,10 @@ try {
     });
     if(!nativePeople.length)throw Error(`native WORLD pedestrian missing: ${JSON.stringify(snapshot())}`);
 
-    // Pedestrians intentionally use the two-hit damage contract. Keep shooting
-    // the SAME native pedestrian; cycling through different people can only
-    // deliver first hits and can never prove WALK -> lethal ragdoll integration.
     const targetId=String(nativePeople[0].userData.worldPopulationId);
     const bloodBefore=Number(v.dataset.worldBloodFx||0);
     const ragBefore=Number(v.dataset.worldRagdollSpawns||0);
+    const physicsBefore=Number(v.dataset.walkPhysicsShots||0);
     let nativeAttempts=0;
     for(let attempt=0;attempt<4 && Number(v.dataset.worldRagdollSpawns||0)<=ragBefore;attempt++){
       let mesh=null;
@@ -201,17 +214,22 @@ try {
       if(!mesh)break;
       const p=mesh.getWorldPosition(mesh.position.clone());
       const x=p.x;
-      const y=p.y-.85;
+      const y=p.y-1.35;
       const z=1.68;
       const dx=p.x-x,dy=p.y-y,dz=p.z-z;
       const yaw=Math.atan2(dx,dy);
       const pitch=Math.atan2(dz,Math.hypot(dx,dy));
       globalThis.__arondightWalkMode.setPose({x,y,yaw,pitch});
+      await waitFor(()=>Math.abs(Number(v.dataset.walkYaw)-yaw)<.01&&Math.abs(Number(v.dataset.walkPitch)-pitch)<.01,1000,"aim-sync");
+      // Let both the visual population and its kinematic Box3D target consume
+      // the newly synchronized pose before creating the high-speed CCD bullet.
+      await wait(70);
       nativeAttempts++;
       globalThis.__arondightWalkMode.fire(performance.now()+700+attempt*250);
-      await wait(260);
+      await wait(320);
     }
     await waitFor(()=>
+      Number(v.dataset.walkPhysicsShots||0)>=physicsBefore+2 &&
       Number(v.dataset.worldBloodFx||0)>bloodBefore &&
       Number(v.dataset.worldRagdollSpawns||0)>ragBefore,
       5000,
@@ -245,6 +263,13 @@ try {
       routes:Number(v.dataset.worldLifeRoutes||0),
       palette:v.dataset.worldVisualPalette||"",
     };
+    const physics={
+      shots:Number(v.dataset.walkPhysicsShots||0)-physicsBefore,
+      impacts:Number(v.dataset.box3dBulletImpacts||0),
+      lastImpact:v.dataset.box3dLastImpactKind||"",
+      people:Number(v.dataset.box3dCombatPeople||0),
+      lateRegistered:Number(v.dataset.box3dLatePopulationRegistered||0),
+    };
     b.active=false;
     return {
       bloodBefore,
@@ -254,17 +279,18 @@ try {
       nativeAttempts,
       targetId,
       clones,
+      physics,
       life,
     };
   });
 
   if(
-    combat.blood<=combat.bloodBefore || combat.rag<=combat.ragBefore || combat.nativeAttempts<2 ||
+    combat.blood<=combat.bloodBefore || combat.rag<=combat.ragBefore || combat.nativeAttempts<2 || combat.physics.shots<2 ||
     combat.clones!==0 || !combat.life.busHit || !combat.life.birdHit ||
     combat.life.hits<combat.life.hitsBefore+2 || combat.life.last!=="bird" || combat.life.routes<1
   ) throw new Error(`WALK/native + vivid WORLD life combat failed: ${JSON.stringify(combat)}`);
 
-  console.log(`Player WALK browser smoke passed: no arming, left-stick move, direct right-look, true 3D pistol, satellite default OFF, persistent New York/Berlin/custom WORLD selector, route-anchored extra cars/people/buses/birds, shootable bus+bird, isolated drone touch, same-target native pedestrian blood/ragdoll, zero clone population: ${JSON.stringify({beforeMove,afterMove,yawBefore,yawAfter,ui:ui.life,combat})}`);
+  console.log(`Player WALK browser smoke passed: no arming, left-stick move, direct right-look, true 3D pistol, satellite default OFF, persistent New York/Berlin/custom WORLD selector, route-anchored extra cars/people/buses/birds, shootable bus+bird, isolated drone touch, physical Box3D pedestrian blood/ragdoll, zero clone population: ${JSON.stringify({beforeMove,afterMove,yawBefore,yawAfter,ui:ui.life,combat})}`);
 } finally {
   await browser.close();
 }

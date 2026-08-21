@@ -24,6 +24,7 @@ function syncLatePopulationCombatTargets(){
     if(combat.registerTarget(node))registered++;
   });
   if(viewport){viewport.dataset.box3dLatePopulationPending=String(pending);viewport.dataset.box3dLatePopulationRegistered=String((Number(viewport.dataset.box3dLatePopulationRegistered)||0)+registered);}
+  clearTimeout(lateCombatIndexTimer);
   lateCombatIndexTimer=setTimeout(syncLatePopulationCombatTargets,250);
 }
 
@@ -38,8 +39,13 @@ export function installWorldSpawnGuard(){
       resetQueued=false;const button=document.getElementById("soloReset");if(!button)return;if(viewport){viewport.dataset.worldSpawnGuardResets=String((Number(viewport.dataset.worldSpawnGuardResets)||0)+1);viewport.dataset.worldSpawnGuard="resetting-to-clear-launch";}button.click();
     });
   });
-  clearTimeout(lateCombatIndexTimer);syncLatePopulationCombatTargets();
   return true;
 }
 
-installWorldSpawnGuard();
+function installLoop(){if(!installWorldSpawnGuard())requestAnimationFrame(installLoop);}
+
+// Population groups are created before route-derived IDs exist. Start this
+// independently of the building spawn guard so late IDs always become physical
+// Box3D combat targets, even when the RealWorld bridge finishes booting later.
+syncLatePopulationCombatTargets();
+installLoop();
