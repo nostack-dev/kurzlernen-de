@@ -1,5 +1,7 @@
 const YAW_PER_PX=.0066;
 const PITCH_PER_PX=.0050;
+const MOBILE_RE=/(?:android|iphone|ipad|ipod|macintosh.*mobile)/i;
+const MOBILE=MOBILE_RE.test(globalThis.navigator?.userAgent||"");
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
 let installed=false;
@@ -45,12 +47,16 @@ export function installFootLookCapture(){
     if(walk()?.mode!=="foot"||pointer!==null)return;
     const nextSurface=lookSurface(event.target);if(!nextSurface)return;
     if(event.pointerType==="mouse"&&event.button!==0)return;
-    // Desktop free-look keeps the native pointer-lock path. The visible LOOK
-    // stick is always direct-drag so it can never accidentally enter pointer lock.
-    if(nextSurface==="zone"&&event.pointerType==="mouse")return;
+    // Real desktop mouse keeps pointer-lock free-look. Mobile/touch UI must stay
+    // direct-drag even when automation or an attached pointer reports as mouse,
+    // otherwise pointer lock retargets the next MOVE-stick press to the viewport.
+    if(nextSurface==="zone"&&event.pointerType==="mouse"&&!MOBILE)return;
     surface=nextSurface;pointer=event.pointerId;lastX=originX=event.clientX;lastY=originY=event.clientY;
     if(surface==="stick")stickKnob=document.querySelector("#footLook .knob");
-    const v=viewport();if(v&&surface==="stick")v.dataset.walkAimStickCapture="direct-v1";
+    const v=viewport();if(v){
+      if(surface==="stick")v.dataset.walkAimStickCapture="direct-v1";
+      if(surface==="zone"&&MOBILE)v.dataset.walkAimMobileCapture="direct-v1";
+    }
     consume(event);
   },{capture:true,passive:false});
   window.addEventListener("pointermove",event=>{
