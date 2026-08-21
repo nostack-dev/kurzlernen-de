@@ -5,6 +5,7 @@ import "./world_action_feedback.mjs";
 import "./foot_look_capture.mjs";
 import "./walk_world_experience_hotfix.mjs";
 import "./world_visibility_continuity.mjs";
+import "./box3d_combat_world.mjs";
 import "./walk_weapon_system.mjs";
 import "./walk_ui_layout_hotfix.mjs";
 import {buildingLaunchPointClear} from "./world_building_collision_physics.mjs";
