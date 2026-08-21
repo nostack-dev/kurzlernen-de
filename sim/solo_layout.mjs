@@ -1,6 +1,7 @@
 import "./world_spawn_guard.mjs";
 import "./player_walk_mode.mjs";
 import "./xbox_control_mode.mjs";
+import "./world_location_selector.mjs";
 import {installVsCombatPresentation} from "./vs_combat_presentation.mjs";
 import {installVsMultiplayerGuard} from "./vs_multiplayer_guard.mjs";
 import {installVsFxGeoAdapter} from "./vs_fx_geo_adapter.mjs";
