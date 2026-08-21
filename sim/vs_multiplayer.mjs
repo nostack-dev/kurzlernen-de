@@ -2,13 +2,13 @@ import * as THREE from "three";
 import {VsPoseTimeline} from "./vs_pose_sync.mjs";
 import {VS_PEER_EVENT,VS_POSE_EVENT,VS_GAME_EVENT,VS_FX_EVENT} from "./lan_vs.mjs";
 
-const VISUAL_SCALE=1;
+const VISUAL_SCALE=7;
 const STALE_MS=3000;
 const MAX_PLAYERS=9;
 const COLOR_REFRESH_MS=420;
 const TRACER_SCAN_MS=600;
 const AUTHORITY_SETTLE_MS=420;
-const PALETTE=[0x29d6ff,0xff6b35,0x8cf43f,0xff4fd8,0xffd83d,0x9b7bff,0x24e6a1,0xff405f,0x43a8ff,0xff9f1c,0x7ce7ff,0xd6ff4b];
+const PALETTE=[0x29d6ff,0xff6b35,0x8cf43f,0xff4fd8,0xffd83d,0x9b7bff,0x24e6a1,0xff405f,0xff9f1c,0x7ce7ff,0xd6ff4b];
 
 const peers=new Map(),health=new Map(),confirmedHealth=new Set(),seenHits=new Set(),seenStates=new Set();
 const tempPosition=new THREE.Vector3(),tempCamera=new THREE.Vector3(),tempProjected=new THREE.Vector3(),tempCameraSpace=new THREE.Vector3(),tempDir=new THREE.Vector3(),tempQuat=new THREE.Quaternion(),axisY=new THREE.Vector3(0,1,0);
@@ -35,6 +35,7 @@ function localHealth(){const b=bridge();return clamp(Math.round(Number(health.ge
 function localDead(){return localHealth()<=0;}
 function packetId(prefix){return`${prefix}-${Date.now().toString(36)}-${(++shotSeq).toString(36)}`;}
 function registerPhysicsPeer(root){if(!root)return;root.userData.worldLifeKind="vs-drone";root.userData.worldLifeId=String(root.userData.vsPlayerId||"");globalThis.__arondightBox3dCombat?.registerTarget?.(root);}
+function applyCombatScale(root){if(!root)return;if(!Array.isArray(root.userData.vsCombatBaseScale)){root.userData.vsCombatBaseScale=[Number(root.scale?.x)||1,Number(root.scale?.y)||1,Number(root.scale?.z)||1];}const s=root.userData.vsCombatBaseScale;root.scale.set(s[0]*VISUAL_SCALE,s[1]*VISUAL_SCALE,s[2]*VISUAL_SCALE);root.userData.vsCombatVisualScale=VISUAL_SCALE;root.userData.vsCombatReadability="scaled-7x+hud-marker+emissive-v2";}
 
 function applyMaterialColor(root,color){
   root?.traverse?.(node=>{
@@ -49,7 +50,7 @@ function refreshColors(force=false,now=performance.now()){
   const map=assignments();
   for(const r of peers.values()){r.color=map.get(r.id)||r.color;applyMaterialColor(r.mesh,r.color);if(r.marker)r.marker.style.setProperty("--vs-player-color",cssColor(r.color));}
   const b=bridge(),own=b?.airframeFor?.(b.threeScene)||b?.airframe;if(own&&selfId)applyMaterialColor(own,map.get(selfId)||colorFor(selfId));
-  if(b?.vsPeerMesh&&primaryId){b.vsPeerMesh.userData.vsPlayerId=primaryId;b.vsPeerMesh.userData.vsPlayerColor=map.get(primaryId)||colorFor(primaryId);applyMaterialColor(b.vsPeerMesh,b.vsPeerMesh.userData.vsPlayerColor);registerPhysicsPeer(b.vsPeerMesh);}
+  if(b?.vsPeerMesh&&primaryId){b.vsPeerMesh.userData.vsPlayerId=primaryId;b.vsPeerMesh.userData.vsPlayerColor=map.get(primaryId)||colorFor(primaryId);applyCombatScale(b.vsPeerMesh);applyMaterialColor(b.vsPeerMesh,b.vsPeerMesh.userData.vsPlayerColor);registerPhysicsPeer(b.vsPeerMesh);}
 }
 
 function makeMarker(record){
@@ -58,10 +59,10 @@ function makeMarker(record){
 
 function createPeerMesh(record){
   const b=bridge(),scene=b?.threeScene;if(!scene)return null;
-  const group=new THREE.Group(),material=new THREE.MeshStandardMaterial({color:record.color,emissive:record.color,emissiveIntensity:1.7,roughness:.24,metalness:.18});group.scale.setScalar(VISUAL_SCALE);
+  const group=new THREE.Group(),material=new THREE.MeshStandardMaterial({color:record.color,emissive:record.color,emissiveIntensity:1.7,roughness:.24,metalness:.18});group.scale.setScalar(VISUAL_SCALE);group.userData.vsCombatBaseScale=[1,1,1];
   const body=new THREE.Mesh(new THREE.BoxGeometry(.22,.34,.07),material);body.userData.flightFireIgnore=true;group.add(body);
   for(const[x,y]of[[-.19,-.19],[.19,-.19],[-.19,.19],[.19,.19]]){const arm=new THREE.Mesh(new THREE.BoxGeometry(.025,.26,.025),material);arm.position.set(x*.5,y*.5,0);arm.rotation.z=(x*y>0?1:-1)*Math.PI/4;arm.userData.flightFireIgnore=true;group.add(arm);}
-  group.userData.vsPlayerId=record.id;group.userData.vsPlayerColor=record.color;group.userData.vsMultiplayerPeer=true;group.userData.vsCombatReadability="hud-marker+emissive-v1";group.userData.worldLifeKind="vs-drone";group.userData.worldLifeId=record.id;group.visible=false;scene.add(group);registerPhysicsPeer(group);return group;
+  group.userData.vsPlayerId=record.id;group.userData.vsPlayerColor=record.color;group.userData.vsMultiplayerPeer=true;group.userData.vsCombatVisualScale=VISUAL_SCALE;group.userData.vsCombatReadability="scaled-7x+hud-marker+emissive-v2";group.userData.worldLifeKind="vs-drone";group.userData.worldLifeId=record.id;group.visible=false;scene.add(group);registerPhysicsPeer(group);return group;
 }
 
 function recordFor(id){
@@ -88,7 +89,7 @@ function onPoseEvent(event){updateIdentity();const{peerId,pose}=event.detail||{}
 
 function setPrimaryCompatibility(record){
   const b=bridge();if(!b||record.id!==primaryId)return;
-  if(b.vsPeerMesh&&record.mesh!==b.vsPeerMesh){if(record.mesh&&!record.mesh.userData?.vsLegacyPrimary)record.mesh.parent?.remove(record.mesh);record.mesh=b.vsPeerMesh;record.mesh.userData.vsLegacyPrimary=true;record.mesh.userData.vsPlayerId=record.id;record.mesh.userData.vsPlayerColor=record.color;record.mesh.userData.vsCombatReadability="hud-marker+emissive-v1";applyMaterialColor(record.mesh,record.color);registerPhysicsPeer(record.mesh);}
+  if(b.vsPeerMesh&&record.mesh!==b.vsPeerMesh){if(record.mesh&&!record.mesh.userData?.vsLegacyPrimary)record.mesh.parent?.remove(record.mesh);record.mesh=b.vsPeerMesh;record.mesh.userData.vsLegacyPrimary=true;record.mesh.userData.vsPlayerId=record.id;record.mesh.userData.vsPlayerColor=record.color;applyCombatScale(record.mesh);applyMaterialColor(record.mesh,record.color);registerPhysicsPeer(record.mesh);}
   b.vsPeerHealth=record.health;b.vsPeerDead=record.dead;
 }
 
@@ -152,7 +153,7 @@ function updateIdentity(){
   if(nextSelf)selfId=nextSelf;if(selfId&&!health.has(selfId)){health.set(selfId,clamp(Math.round(Number(bridge()?.vsLocalHealth)||100),0,100));confirmedHealth.add(selfId);}
   if(nextPrimary!==primaryId){lastPrimaryId=primaryId;if(lastPrimaryId)releaseLegacyPrimary(lastPrimaryId);primaryId=nextPrimary;}
   authorityId=nextAuthority;if(authorityId!==lastAuthorityId){const previous=lastAuthorityId;lastAuthorityId=authorityId;handleAuthorityChange(previous,authorityId);}
-  const view=viewport();if(view){view.dataset.vsSelfId=selfId;view.dataset.vsAuthorityId=authorityId;view.dataset.vsPeerCount=String(peers.size);view.dataset.vsPlayerCount=String(Math.min(MAX_PLAYERS,peers.size+1));view.dataset.vsLocalColor=cssColor(colorFor(selfId));view.dataset.vsPlayerColors=JSON.stringify(Object.fromEntries([...assignments()].map(([id,c])=>[id,cssColor(c)])));view.dataset.vsCombatVisualScale=String(VISUAL_SCALE);view.dataset.vsCombatReadability="hud-marker+emissive-v1";}
+  const view=viewport();if(view){view.dataset.vsSelfId=selfId;view.dataset.vsAuthorityId=authorityId;view.dataset.vsPeerCount=String(peers.size);view.dataset.vsPlayerCount=String(Math.min(MAX_PLAYERS,peers.size+1));view.dataset.vsLocalColor=cssColor(colorFor(selfId));view.dataset.vsPlayerColors=JSON.stringify(Object.fromEntries([...assignments()].map(([id,c])=>[id,cssColor(c)])));view.dataset.vsCombatVisualScale=String(VISUAL_SCALE);view.dataset.vsCombatReadability="scaled-7x+hud-marker+emissive-v2";}
 }
 
 function authorityHit(packet,allowQueue=true){
@@ -224,7 +225,7 @@ function updateHud(){
 function render(now=performance.now()){
   raf=requestAnimationFrame(render);const dt=Math.min(.05,Math.max(0,(now-lastRender)/1000||0));lastRender=now;updateSessionHooks();updateIdentity();reconcilePeers();flushAuthorityHits(now);
   const b=bridge(),camera=b?.threeCamera,view=viewport();if(!b?.threeScene||!camera||!view)return;document.body.classList.toggle("vs-multiplayer",peers.size>0);refreshColors(false,now);
-  for(const r of peers.values()){if(r.id===primaryId&&b.vsPeerMesh){r.mesh=b.vsPeerMesh;setPrimaryCompatibility(r);}else if(!r.mesh)r.mesh=createPeerMesh(r);if(!r.mesh)continue;registerPhysicsPeer(r.mesh);const sample=r.timeline.sample(now);if(sample&&!r.dead&&now-r.lastPoseMs<=STALE_MS){r.mesh.position.set(...sample.p);r.mesh.quaternion.set(...sample.q);r.mesh.visible=true;}else if(r.dead||now-r.lastPoseMs>STALE_MS)r.mesh.visible=false;renderMarker(r,camera,view,now);}
+  for(const r of peers.values()){if(r.id===primaryId&&b.vsPeerMesh){r.mesh=b.vsPeerMesh;setPrimaryCompatibility(r);}else if(!r.mesh)r.mesh=createPeerMesh(r);if(!r.mesh)continue;applyCombatScale(r.mesh);registerPhysicsPeer(r.mesh);const sample=r.timeline.sample(now);if(sample&&!r.dead&&now-r.lastPoseMs<=STALE_MS){r.mesh.position.set(...sample.p);r.mesh.quaternion.set(...sample.q);r.mesh.visible=true;}else if(r.dead||now-r.lastPoseMs>STALE_MS)r.mesh.visible=false;renderMarker(r,camera,view,now);}
   scanLocalFx(now);renderFx(now,dt);syncLegacyLocalState();updateHud();
 }
 
