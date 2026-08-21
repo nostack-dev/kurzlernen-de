@@ -226,7 +226,7 @@ function render(now=performance.now()){
   raf=requestAnimationFrame(render);const dt=Math.min(.05,Math.max(0,(now-lastRender)/1000||0));lastRender=now;updateSessionHooks();updateIdentity();reconcilePeers();flushAuthorityHits(now);
   const b=bridge(),camera=b?.threeCamera,view=viewport();if(!b?.threeScene||!camera||!view)return;document.body.classList.toggle("vs-multiplayer",peers.size>0);refreshColors(false,now);
   for(const r of peers.values()){if(r.id===primaryId&&b.vsPeerMesh){r.mesh=b.vsPeerMesh;setPrimaryCompatibility(r);}else if(!r.mesh)r.mesh=createPeerMesh(r);if(!r.mesh)continue;applyCombatScale(r.mesh);registerPhysicsPeer(r.mesh);const sample=r.timeline.sample(now);if(sample&&!r.dead&&now-r.lastPoseMs<=STALE_MS){r.mesh.position.set(...sample.p);r.mesh.quaternion.set(...sample.q);r.mesh.visible=true;}else if(r.dead||now-r.lastPoseMs>STALE_MS)r.mesh.visible=false;renderMarker(r,camera,view,now);}
-  scanLocalFx(now);renderFx(now,dt);syncLegacyLocalState();updateHud();
+  view.dataset.vsLocalFxRoute="box3d-direct-v1";renderFx(now,dt);syncLegacyLocalState();updateHud();
 }
 
 export function installVsMultiplayer(){
