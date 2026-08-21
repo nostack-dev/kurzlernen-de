@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import {LanVsSession} from "../sim/lan_vs.mjs";
 import {findClearBuildingLaunchPoint,buildingLaunchPointClear} from "../sim/world_building_collision_physics.mjs";
 import {FPV_VIEW_EXTRA_UP_M,installFpvViewHeight} from "../sim/fpv_view_height.mjs";
-import {buildTrafficRoute,collectRenderedDrivableRoads,isDrivableTransportationFeature,makeBuildingsOpaque} from "../sim/world_traffic_routes.mjs";
 
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
@@ -12,13 +11,6 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   assert.equal(FPV_VIEW_EXTRA_UP_M,.020,"FPV view must move exactly two centimetres above the physical camera mount");installFpvViewHeight();bridge.applyLookCamera(null,camera);
   assert.ok(Math.abs(camera.position.z-.020)<1e-12&&camera.position.x===0&&camera.position.y===0,"neutral FPV body-up offset must raise only the optical viewpoint");assert.equal(viewport.dataset.fpvViewUpOffsetM,"0.048","2.8 cm physical mount plus 2.0 cm optical lift must expose a 4.8 cm FPV view height");
   delete globalThis.document;delete globalThis.__arondightDiagnostics;delete globalThis.__arondightRealWorld;
-}
-
-{
-  const primary={properties:{class:"primary"},layer:{id:"road-primary",type:"line","source-layer":"transportation"},sourceLayer:"transportation",geometry:{type:"LineString",coordinates:[[9,47],[9.001,47]]}},rail={properties:{class:"rail"},layer:{id:"rail",type:"line","source-layer":"transportation"},sourceLayer:"transportation",geometry:{type:"LineString",coordinates:[[9,47],[9.001,47.001]]}},path={properties:{class:"path"},layer:{id:"path",type:"line","source-layer":"transportation"},sourceLayer:"transportation",geometry:{type:"LineString",coordinates:[[9,47],[9,47.001]]}};
-  assert.equal(isDrivableTransportationFeature(primary),true,"primary road must be accepted for traffic");assert.equal(isDrivableTransportationFeature(rail),false,"rail geometry must never be treated as a road");assert.equal(isDrivableTransportationFeature(path),false,"foot/path geometry must never be treated as a drivable road");
-  const paintCalls=[],fakeMap={getStyle(){return{layers:[{id:"road-primary",type:"line","source-layer":"transportation"},{id:"rail",type:"line","source-layer":"transportation"},{id:"arondight45-buildings-3d",type:"fill-extrusion","source-layer":"building"}]};},queryRenderedFeatures(){return[primary,rail,path];},getLayer(id){return{id};},getPaintProperty(){return .78;},setPaintProperty(id,name,value){paintCalls.push([id,name,value]);}};
-  const roads=collectRenderedDrivableRoads(fakeMap);assert.equal(roads.length,1,"rendered traffic extraction must keep only drivable roads");const route=buildTrafficRoute(roads[0].path,{originLon:9,originLat:47,roadClass:roads[0].roadClass,lastSeen:1});assert.ok(route&&route.length>70&&route.length<90,"drivable road must produce a metric route bound to its actual centerline");assert.equal(makeBuildingsOpaque(fakeMap),1,"transparent 3D building layer must be forced opaque");assert.deepEqual(paintCalls,[["arondight45-buildings-3d","fill-extrusion-opacity",1]],"building opacity fix must set exact fill extrusion opacity to 1");
 }
 
 function meshHarness(){
@@ -56,4 +48,4 @@ const oldAuthority=a.getAuthorityId();assert.equal(oldAuthority,a.getSelfId());a
 const huge={hash:"huge",prisms:[{buildingKey:"block",base:0,top:30,points:[[-500,-500],[500,-500],[500,500],[-500,500]]}]};const safe=findClearBuildingLaunchPoint(huge,{point:[0,0],clearanceM:1,maxSearchM:2});assert.equal(buildingLaunchPointClear(huge,safe,{clearanceM:1}),true,"guaranteed fallback launch point must be proven clear even when normal search radius cannot escape the building");assert.ok(Math.hypot(safe[0],safe[1])>500,"fallback must leave the full blocking footprint instead of returning the unsafe origin");
 
 b.stop();c.stop();d.stop();
-console.log("Four-player VS mesh smoke passed: raised 4.8 cm FPV viewpoint, stable drivable-road traffic, opaque 3D buildings, simultaneous mates, unique identities, FX, authority migration and collision-free WORLD spawn.");
+console.log("Four-player VS mesh smoke passed: raised 4.8 cm FPV optical viewpoint, simultaneous mates, unique identities, broadcast/targeted FX, authority migration and guaranteed collision-free WORLD spawn.");

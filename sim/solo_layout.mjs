@@ -1,20 +1,12 @@
 import "./world_spawn_guard.mjs";
-import "./player_walk_mode_v4.mjs";
-import "./walk_profile_contract.mjs";
-import "./xbox_control_mode.mjs";
-import "./world_location_selector.mjs";
 import {installVsCombatPresentation} from "./vs_combat_presentation.mjs";
 import {installVsMultiplayerGuard} from "./vs_multiplayer_guard.mjs";
 import {installVsFxGeoAdapter} from "./vs_fx_geo_adapter.mjs";
 import {installVsMultiplayer} from "./vs_multiplayer.mjs";
-import {installPlayerVehicleRuntime} from "./player_vehicle_runtime_v2.mjs";
-import {installPlayerRuntimeHotfix} from "./player_runtime_hotfix.mjs";
 import {installWorldPopulation} from "./world_population.mjs";
-import "./world_liveliness.mjs";
 import {installInitialAirframeGroundPose} from "./start_pose_guard.mjs";
 import {installFpvViewHeight} from "./fpv_view_height.mjs";
 
-// Compatibility marker for the historical deploy invariant: player_vehicle_runtime.mjs
 let installed=false;
 
 export function installSoloFlightLayout(){
@@ -87,7 +79,5 @@ export function installSoloFlightLayout(){
   installVsMultiplayerGuard();
   installVsFxGeoAdapter();
   installVsMultiplayer();
-  installPlayerVehicleRuntime();
   installWorldPopulation();
-  installPlayerRuntimeHotfix();
 }

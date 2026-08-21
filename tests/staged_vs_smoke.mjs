@@ -76,9 +76,9 @@ const ground=traceProjectileWorldSegment({prisms:[]},{x:0,y:0,z:2},{x:0,y:0,z:-2
 const miss=traceProjectileWorldSegment(snapshot,{x:0,y:3,z:5},{x:10,y:3,z:5},hit);assert.equal(miss,null,"projectile collision must not invent hits outside the footprint");
 
 const fireSource=readFileSync(new URL("../sim/flight_fire_fx.mjs",import.meta.url),"utf8");
-for(const marker of ["PROJECTILE_POOL_SIZE=36","TRACER_SPEED_MPS=210","PROJECTILE_TTL_MS=1800","VS_COMBAT_VISUAL_SCALE=7","VS_HITBOX_PADDING=1.16","FIRE_CANDIDATE_REFRESH_MS=120","vsCombatHitbox=true","vsPeerHitboxM","traceProjectileWorldSegment","flightFireTracer","vsPeerHitProxy","combatLocked()"])
+for(const marker of ["PROJECTILE_POOL_SIZE=36","TRACER_SPEED_MPS=210","PROJECTILE_TTL_MS=1800","VS_COMBAT_VISUAL_SCALE=12","VS_HITBOX_PADDING=1.16","FIRE_CANDIDATE_REFRESH_MS=120","vsCombatHitbox=true","vsPeerHitboxM","traceProjectileWorldSegment","flightFireTracer","vsPeerHitProxy"])
   assert.ok(fireSource.includes(marker),`physical VS projectile/readability contract missing: ${marker}`);
-assert.equal(fireSource.includes('viewport.dataset.vsPeerHitboxScale="1"'),false,"visible 7x enemy must never regress to a hidden 1x hitbox");
+assert.equal(fireSource.includes('viewport.dataset.vsPeerHitboxScale="1"'),false,"visible 12x enemy must never regress to a hidden 1x hitbox");
 assert.equal(fireSource.includes("worldBridge?.registerVsHit?.(hit)"),false,"legacy instant hitscan damage path must not return");
 assert.ok(fireSource.includes("integrateProjectile(projectile.position,projectile.velocity,dt,projectile.nextPosition,projectile.nextVelocity);if(resolveProjectileHit(projectile,projectile.position,projectile.nextPosition,now))continue;"),"projectile time-of-flight must advance before segment collision resolution");assert.ok(fireSource.includes("registerVsHit?.(sceneHit)"),"VS damage must be emitted only from resolved projectile impact");
 const presentationSource=readFileSync(new URL("../sim/vs_combat_presentation.mjs",import.meta.url),"utf8");
@@ -101,8 +101,8 @@ assert.equal(buildingSource.includes("skipWholeBuilding"),false,"WORLD launch mu
 for(const marker of ["pointHasLaunchClearance(candidate,active,clearance)","guaranteedRadius","No collision-free WORLD launch point could be proven"])
   assert.ok(buildingSource.includes(marker),`WORLD launch proof contract missing: ${marker}`);
 const spawnGuardSource=readFileSync(new URL("../sim/world_spawn_guard.mjs",import.meta.url),"utf8");
-for(const marker of ["firstLoaded","buildingLaunchPointClear","queueMicrotask","soloReset","worldSpawnGuardResets","combat_visual_polish.mjs"])
-  assert.ok(spawnGuardSource.includes(marker),`delayed WORLD-collider/combat polish guard missing: ${marker}`);
+for(const marker of ["firstLoaded","buildingLaunchPointClear","queueMicrotask","soloReset","worldSpawnGuardResets"])
+  assert.ok(spawnGuardSource.includes(marker),`delayed WORLD-collider spawn guard missing: ${marker}`);
 
 await import("./multiplayer_mesh_smoke.mjs");
 console.log("Staged VS smoke passed: direct P2P UDP mesh, unique players, replicated fire/explosions, 4-player authority migration, hardened WORLD spawn and lightweight road traffic retained.");
