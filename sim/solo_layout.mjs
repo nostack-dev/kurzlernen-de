@@ -1,5 +1,6 @@
 import "./world_spawn_guard.mjs";
 import "./player_walk_mode_v4.mjs";
+import "./walk_profile_contract.mjs";
 import "./xbox_control_mode.mjs";
 import "./world_location_selector.mjs";
 import {installVsCombatPresentation} from "./vs_combat_presentation.mjs";
