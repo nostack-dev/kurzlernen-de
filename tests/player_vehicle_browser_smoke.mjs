@@ -18,6 +18,7 @@ try{
 
   const yawBefore=Number(await page.$eval("#viewport",v=>v.dataset.walkYaw||0)),lookBox=await page.$eval("#footLookZone",el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};});
   const lx=lookBox.x+lookBox.w*.32,ly=lookBox.y+lookBox.h*.30;await page.mouse.move(lx,ly);await page.mouse.down();await page.mouse.move(lx+90,ly,{steps:5});await page.mouse.up();await sleep(80);const yawAfter=Number(await page.$eval("#viewport",v=>v.dataset.walkYaw||0));if(yawAfter-yawBefore<.35)throw new Error(`COD direct-look too weak or rate based: ${yawBefore} -> ${yawAfter}`);
+  await page.evaluate(()=>document.exitPointerLock?.());await page.waitForFunction(()=>!document.pointerLockElement,{timeout:1500});
 
   const beforeMove=await page.$eval("#viewport",v=>v.dataset.walkPosition||""),moveBox=await page.$eval("#footMove",el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};});
   await page.mouse.move(moveBox.x+moveBox.w/2,moveBox.y+moveBox.h/2);await page.mouse.down();await page.mouse.move(moveBox.x+moveBox.w/2,moveBox.y+moveBox.h*.13,{steps:4});await sleep(330);await page.mouse.up();const afterMove=await page.$eval("#viewport",v=>v.dataset.walkPosition||"");if(!beforeMove||beforeMove===afterMove)throw new Error(`human did not move: ${beforeMove} -> ${afterMove}`);
