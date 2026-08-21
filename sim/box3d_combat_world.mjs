@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import Box3DFactory from "box3d.js/dist/box3d.inline.mjs";
+import Box3DFactory from "box3d.js/inline";
 import {VS_FX_EVENT} from "./lan_vs.mjs";
 import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies} from "./world_building_collision_physics.mjs";
 
