@@ -11,7 +11,7 @@ const TRACER_SPEED_MPS=210;
 const TRACER_LENGTH_M=2.2;
 const PROJECTILE_TTL_MS=1800;
 const PROJECTILE_AIM_DISTANCE_M=650;
-const VS_COMBAT_VISUAL_SCALE=7;
+const VS_COMBAT_VISUAL_SCALE=12;
 const VS_HITBOX_PADDING=1.16;
 const FIRE_CANDIDATE_REFRESH_MS=120;
 const BLOCKED_SELECTOR="#soloTopbar,#soloRaceHud,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud,dialog,button,input,select,textarea,a,label";
@@ -26,7 +26,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   viewport.dataset.fireDecalWrites="0";
   viewport.dataset.fireActiveProjectiles="0";
   viewport.dataset.fireProjectileImpacts="0";
-  viewport.dataset.fireProjectileExpired="0";viewport.dataset.fireAimMode="touch-1to1";viewport.dataset.fireCrosshairMode="center-fixed";viewport.dataset.fireCombatLocked="0";
+  viewport.dataset.fireProjectileExpired="0";viewport.dataset.fireAimMode="touch-1to1";viewport.dataset.fireCrosshairMode="center-fixed";
 
   const style=document.createElement("style");style.textContent=`
     #viewport{touch-action:none;overscroll-behavior:none}
@@ -71,7 +71,6 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   function blocked(target){return target instanceof Element&&Boolean(target.closest(BLOCKED_SELECTOR));}
   function hiddenTrainingObject(object){if(!worldBridge?.active)return false;for(let node=object;node;node=node.parent)if(worldBridge.trainingObjects?.has?.(node))return true;return false;}
   function visibleInHierarchy(object){for(let node=object;node;node=node.parent)if(node.visible===false)return false;return true;}
-  function combatLocked(){const locked=Boolean(worldBridge?.vsConnected&&worldBridge?.vsLocalDead);viewport.dataset.fireCombatLocked=locked?"1":"0";return locked;}
   function refreshCandidates(now=performance.now(),force=false){if(!force&&now-lastCandidateRefreshMs<FIRE_CANDIDATE_REFRESH_MS)return;lastCandidateRefreshMs=now;candidates.length=0;scene.traverse(object=>{if(object.isMesh&&visibleInHierarchy(object)&&!object.userData?.arondightAirframe&&!object.userData?.flightFireDecal&&!object.userData?.flightFireIgnore&&object.material?.visible!==false&&!hiddenTrainingObject(object))candidates.push(object);});viewport.dataset.fireCandidateCount=String(candidates.length);}
 
   function ensurePeerCombatScale(){
@@ -80,12 +79,12 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     peer.updateWorldMatrix?.(true,true);peerBounds.makeEmpty();for(const proxy of originals){proxy.updateWorldMatrix?.(true,false);peerBounds.union(new THREE.Box3().setFromObject(proxy));}peerBounds.getSize(peerBoundsSize);peerBounds.getCenter(peerBoundsCenter);peer.worldToLocal(peerBoundsCenter);
     const visualGroup=new THREE.Group();visualGroup.name="VS_READABLE_DRONE";visualGroup.scale.setScalar(VS_COMBAT_VISUAL_SCALE);visualGroup.userData.vsReadableVisualGroup=true;visualGroup.userData.flightFireIgnore=true;
     for(const proxy of originals){
-      const visualMaterial=proxy.material?.clone?.()||proxy.material;if(visualMaterial?.emissive&&visualMaterial?.color){visualMaterial.emissive.copy?.(visualMaterial.color);visualMaterial.emissiveIntensity=.32;}if(visualMaterial){visualMaterial.roughness=.42;visualMaterial.metalness=.18;}
+      const visualMaterial=proxy.material?.clone?.()||proxy.material;if(visualMaterial?.color?.setHex)visualMaterial.color.setHex(0xff6542);if(visualMaterial?.emissive?.setHex){visualMaterial.emissive.setHex(0xb51c08);visualMaterial.emissiveIntensity=2.35;}if(visualMaterial){visualMaterial.roughness=.22;visualMaterial.metalness=.16;}
       const visual=new THREE.Mesh(proxy.geometry,visualMaterial);visual.position.copy(proxy.position);visual.quaternion.copy(proxy.quaternion);visual.scale.copy(proxy.scale);visual.renderOrder=6;visual.userData.vsReadableVisual=true;visual.userData.flightFireIgnore=true;visual.raycast=()=>{};visualGroup.add(visual);
       for(const child of proxy.children)if(child.userData?.vsCombatOutline)child.visible=false;
       proxy.userData.vsPeerHitProxy=false;proxy.userData.vsCombatOutline=true;proxy.userData.flightFireIgnore=true;proxy.material=peerHitProxyMaterial;proxy.raycast=()=>{};
     }
-    const hitboxSize=peerBoundsSize.clone().multiplyScalar(VS_COMBAT_VISUAL_SCALE*VS_HITBOX_PADDING);hitboxSize.z=Math.max(hitboxSize.z,.56);const hitbox=new THREE.Mesh(new THREE.BoxGeometry(Math.max(.62,hitboxSize.x),Math.max(.62,hitboxSize.y),hitboxSize.z),peerHitProxyMaterial);hitbox.position.copy(peerBoundsCenter).multiplyScalar(VS_COMBAT_VISUAL_SCALE);hitbox.userData.vsPeerHitProxy=true;hitbox.userData.vsCombatHitbox=true;hitbox.renderOrder=5;peer.add(hitbox);
+    const hitboxSize=peerBoundsSize.clone().multiplyScalar(VS_COMBAT_VISUAL_SCALE*VS_HITBOX_PADDING);hitboxSize.z=Math.max(hitboxSize.z,.72);const hitbox=new THREE.Mesh(new THREE.BoxGeometry(Math.max(.8,hitboxSize.x),Math.max(.8,hitboxSize.y),hitboxSize.z),peerHitProxyMaterial);hitbox.position.copy(peerBoundsCenter).multiplyScalar(VS_COMBAT_VISUAL_SCALE);hitbox.userData.vsPeerHitProxy=true;hitbox.userData.vsCombatHitbox=true;hitbox.renderOrder=5;peer.add(hitbox);
     peer.add(visualGroup);peer.userData.vsCombatVisualScale=VS_COMBAT_VISUAL_SCALE;peer.userData.vsCombatHitboxPadding=VS_HITBOX_PADDING;viewport.dataset.vsPeerVisualScale=String(VS_COMBAT_VISUAL_SCALE);viewport.dataset.vsPeerHitboxScale=String(VS_COMBAT_VISUAL_SCALE*VS_HITBOX_PADDING);viewport.dataset.vsPeerHitboxM=[hitboxSize.x,hitboxSize.y,hitboxSize.z].map(value=>value.toFixed(2)).join("x");lastCandidateRefreshMs=-Infinity;refreshCandidates(performance.now(),true);
   }
 
@@ -97,10 +96,10 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   }
   function hitConfirmSound(){if(!audioSettings.soundEnabled||audioSettings.fxVolume<=0)return;const level=audioSettings.fxVolume/100,ctx=ensureAudio();if(!ctx||!audioMaster)return;try{if(ctx.state==="suspended")ctx.resume();const t=ctx.currentTime,osc=ctx.createOscillator(),gain=ctx.createGain(),tick=ctx.createOscillator(),tickGain=ctx.createGain();osc.type="sine";osc.frequency.setValueAtTime(900,t);osc.frequency.exponentialRampToValueAtTime(1500,t+.052);gain.gain.setValueAtTime(.065*level,t);gain.gain.exponentialRampToValueAtTime(.001,t+.075);tick.type="triangle";tick.frequency.setValueAtTime(2100,t);tick.frequency.exponentialRampToValueAtTime(1250,t+.035);tickGain.gain.setValueAtTime(.025*level,t);tickGain.gain.exponentialRampToValueAtTime(.001,t+.045);osc.connect(gain).connect(audioMaster);tick.connect(tickGain).connect(audioMaster);osc.start(t);osc.stop(t+.08);tick.start(t);tick.stop(t+.05);}catch{}}
   function damageSound(){if(!audioSettings.soundEnabled||audioSettings.fxVolume<=0)return;const level=audioSettings.fxVolume/100,ctx=ensureAudio();if(!ctx||!audioMaster)return;try{if(ctx.state==="suspended")ctx.resume();const t=ctx.currentTime,osc=ctx.createOscillator(),gain=ctx.createGain();osc.type="triangle";osc.frequency.setValueAtTime(125,t);osc.frequency.exponentialRampToValueAtTime(72,t+.07);gain.gain.setValueAtTime(.045*level,t);gain.gain.exponentialRampToValueAtTime(.001,t+.085);osc.connect(gain).connect(audioMaster);osc.start(t);osc.stop(t+.09);}catch{}}
-  function updateCrosshair(){const enabled=Boolean(isEnabled()&&!combatLocked());gamepadCrosshair.classList.toggle("active",enabled);viewport.dataset.fireCrosshairMode="center-fixed";}
+  function updateCrosshair(){gamepadCrosshair.classList.toggle("active",Boolean(isEnabled()));viewport.dataset.fireCrosshairMode="center-fixed";}
   function damageFeedback(){damageSound();damageVignette.classList.remove("active");void damageVignette.offsetWidth;damageVignette.classList.add("active");viewport.dataset.combatDamageFx=String((Number(viewport.dataset.combatDamageFx)||0)+1);}
   function hitConfirmFeedback(){hitConfirmSound();gamepadCrosshair.classList.remove("hit-confirm");void gamepadCrosshair.offsetWidth;gamepadCrosshair.classList.add("hit-confirm");viewport.dataset.combatHitConfirmFx=String((Number(viewport.dataset.combatHitConfirmFx)||0)+1);}
-  const damageListener=event=>{damageFeedback();if(event?.detail?.killed)stop();},hitConfirmListener=()=>hitConfirmFeedback();window.addEventListener("arondight:combat-damage",damageListener);window.addEventListener("arondight:combat-hit-confirm",hitConfirmListener);
+  const damageListener=()=>damageFeedback(),hitConfirmListener=()=>hitConfirmFeedback();window.addEventListener("arondight:combat-damage",damageListener);window.addEventListener("arondight:combat-hit-confirm",hitConfirmListener);
   function screenImpact(x,y){const el=screenImpacts[screenImpactCursor++%screenImpacts.length];el.classList.remove("active");el.style.left=`${x}px`;el.style.top=`${y}px`;void el.offsetWidth;el.classList.add("active");}
   function projectImpactToScreen(point){projectedImpact.copy(point).project(camera);if(projectedImpact.z<-1||projectedImpact.z>1||Math.abs(projectedImpact.x)>1.1||Math.abs(projectedImpact.y)>1.1)return;screenImpact((projectedImpact.x*.5+.5)*Math.max(1,viewport.clientWidth),(-projectedImpact.y*.5+.5)*Math.max(1,viewport.clientHeight));}
   function addThreeDecal(hit){
@@ -142,28 +141,28 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     impactFlash(impactPoint,vsHit,now);projectImpactToScreen(impactPoint);viewport.dataset.fireProjectileImpacts=String((Number(viewport.dataset.fireProjectileImpacts)||0)+1);if(vsHit)viewport.dataset.fireVsHits=String((Number(viewport.dataset.fireVsHits)||0)+1);deactivateProjectile(projectile,false);return true;
   }
   function updateProjectiles(now){
-    updateCrosshair();if(combatLocked()&&active)stop();ensurePeerCombatScale();updateImpacts(now);const dt=Math.max(0,Math.min(.08,(now-lastProjectileFrameMs)/1000));lastProjectileFrameMs=now;if(activeProjectileCount>0){refreshCandidates(now);for(const projectile of projectilePool){if(!projectile.active)continue;if(now-projectile.bornAt>=PROJECTILE_TTL_MS){deactivateProjectile(projectile,true);continue;}integrateProjectile(projectile.position,projectile.velocity,dt,projectile.nextPosition,projectile.nextVelocity);if(resolveProjectileHit(projectile,projectile.position,projectile.nextPosition,now))continue;projectile.position.copy(projectile.nextPosition);projectile.velocity.copy(projectile.nextVelocity);orientTracer(projectile);}}
+    updateCrosshair();ensurePeerCombatScale();updateImpacts(now);const dt=Math.max(0,Math.min(.08,(now-lastProjectileFrameMs)/1000));lastProjectileFrameMs=now;if(activeProjectileCount>0){refreshCandidates(now);for(const projectile of projectilePool){if(!projectile.active)continue;if(now-projectile.bornAt>=PROJECTILE_TTL_MS){deactivateProjectile(projectile,true);continue;}integrateProjectile(projectile.position,projectile.velocity,dt,projectile.nextPosition,projectile.nextVelocity);if(resolveProjectileHit(projectile,projectile.position,projectile.nextPosition,now))continue;projectile.position.copy(projectile.nextPosition);projectile.velocity.copy(projectile.nextVelocity);orientTracer(projectile);}}
     projectileRaf=requestAnimationFrame(updateProjectiles);
   }
   projectileRaf=requestAnimationFrame(updateProjectiles);
 
   function fire(now){
-    if(!active||combatLocked()||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint();spawnProjectile(now,aim);shotSound();try{onRecoil(.16);}catch{}viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);viewport.dataset.fireAimX=aim.x.toFixed(2);viewport.dataset.fireAimY=aim.y.toFixed(2);viewport.dataset.fireAimMode=active.source==="gamepad"?"center-fixed":"touch-1to1";viewport.dataset.fireInputSource=active.source||"pointer";return true;
+    if(!active||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint();spawnProjectile(now,aim);shotSound();try{onRecoil(.16);}catch{}viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);viewport.dataset.fireAimX=aim.x.toFixed(2);viewport.dataset.fireAimY=aim.y.toFixed(2);viewport.dataset.fireAimMode=active.source==="gamepad"?"center-fixed":"touch-1to1";viewport.dataset.fireInputSource=active.source||"pointer";return true;
   }
   function scheduleFire(){
-    if(!active||combatLocked()||fireTimer)return;const tick=()=>{fireTimer=0;if(!active)return;if(combatLocked()){stop();return;}const now=performance.now();fire(now);fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));};fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));
+    if(!active||fireTimer)return;const tick=()=>{fireTimer=0;if(!active)return;const now=performance.now();fire(now);fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));};fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));
   }
-  function move(event){if(!active||active.source==="gamepad"||event.pointerId!==active.id)return;if(combatLocked()){stop();return;}active.clientX=event.clientX;active.clientY=event.clientY;fire(performance.now());scheduleFire();event.preventDefault();}
+  function move(event){if(!active||active.source==="gamepad"||event.pointerId!==active.id)return;active.clientX=event.clientX;active.clientY=event.clientY;fire(performance.now());scheduleFire();event.preventDefault();}
   function stop(event){if(!active||(event?.pointerId!=null&&event.pointerId!==active.id))return;const id=active.id;active=null;if(fireTimer){clearTimeout(fireTimer);fireTimer=0;}viewport.dataset.fireInputSource="none";try{viewport.releasePointerCapture?.(id);}catch{}event?.preventDefault();}
-  function setGamepadAim(enabled){viewport.dataset.gamepadAim=Boolean(enabled&&isEnabled()&&!combatLocked())?"1":"0";viewport.dataset.fireAimMode="center-fixed";updateCrosshair();}
+  function setGamepadAim(enabled){viewport.dataset.gamepadAim=Boolean(enabled&&isEnabled())?"1":"0";viewport.dataset.fireAimMode="center-fixed";updateCrosshair();}
   function setGamepadFire(pressed){
-    if(combatLocked()){stop();return false;}if(!pressed||!isEnabled()){if(active?.source==="gamepad")stop();return false;}
+    if(!pressed||!isEnabled()){if(active?.source==="gamepad")stop();return false;}
     if(active&&active.source!=="gamepad")return false;
     if(!active){active={id:"xbox",source:"gamepad"};ensureAudio();nextShotAt=0;}
     fire(performance.now());scheduleFire();return true;
   }
   viewport.addEventListener("pointerdown",event=>{
-    if(!isEnabled()||combatLocked()||!isPointerEnabled()||event.button!==0||blocked(event.target)||active)return;active={id:event.pointerId,source:"pointer",clientX:event.clientX,clientY:event.clientY};try{viewport.setPointerCapture?.(event.pointerId);}catch{}ensureAudio();nextShotAt=0;fire(performance.now());scheduleFire();event.preventDefault();
+    if(!isEnabled()||!isPointerEnabled()||event.button!==0||blocked(event.target)||active)return;active={id:event.pointerId,source:"pointer",clientX:event.clientX,clientY:event.clientY};try{viewport.setPointerCapture?.(event.pointerId);}catch{}ensureAudio();nextShotAt=0;fire(performance.now());scheduleFire();event.preventDefault();
   },{passive:false});
   viewport.addEventListener("pointermove",move,{passive:false});viewport.addEventListener("pointerup",stop,{passive:false});viewport.addEventListener("pointercancel",stop,{passive:false});
   return{stop,setGamepadAim,setGamepadFire,get decalPoolSize(){return decalPool.length;},get decalWrites(){return decalWrites;},get projectilePoolSize(){return projectilePool.length;},get activeProjectiles(){return activeProjectileCount;},dispose(){stop();cancelAnimationFrame(projectileRaf);window.removeEventListener("arondight:combat-damage",damageListener);window.removeEventListener("arondight:combat-hit-confirm",hitConfirmListener);window.removeEventListener(AUDIO_SETTINGS_EVENT,audioSettingsListener);gamepadCrosshair.remove();damageVignette.remove();for(const projectile of projectilePool){projectile.mesh.parent?.remove(projectile.mesh);projectile.mesh.visible=false;}for(const item of impactPool){item.mesh.parent?.remove(item.mesh);item.mesh.visible=false;item.material.dispose();}for(const mesh of decalPool){mesh.parent?.remove(mesh);mesh.visible=false;}tracerGeometry.dispose();tracerMaterial.dispose();impactGeometry.dispose();decalGeometry.dispose();decalMaterial.dispose();peerHitProxyMaterial.dispose();for(const el of screenImpacts)el.remove();style.remove();try{audioCtx?.close();}catch{}}};
