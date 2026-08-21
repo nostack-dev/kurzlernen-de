@@ -11,7 +11,21 @@ import "./walk_aim_state_sync.mjs";
 import "./walk_ui_layout_hotfix.mjs";
 import {buildingLaunchPointClear} from "./world_building_collision_physics.mjs";
 
-let installed=false;
+let installed=false,lateCombatIndexTimer=0;
+
+function syncLatePopulationCombatTargets(){
+  const bridge=globalThis.__arondightRealWorld,scene=bridge?.threeScene,combat=globalThis.__arondightBox3dCombat,viewport=document.getElementById("viewport");
+  let registered=0,pending=0;
+  if(scene&&typeof combat?.registerTarget==="function")scene.traverse(node=>{
+    if(!node?.isGroup||node.userData?.worldPopulationClone||node.userData?.box3dCombatBody)return;
+    const id=String(node.userData?.worldPopulationId||""),kind=String(node.userData?.worldPopulationKind||"");
+    if(!id||!(kind==="car"||kind==="person"))return;
+    pending++;
+    if(combat.registerTarget(node))registered++;
+  });
+  if(viewport){viewport.dataset.box3dLatePopulationPending=String(pending);viewport.dataset.box3dLatePopulationRegistered=String((Number(viewport.dataset.box3dLatePopulationRegistered)||0)+registered);}
+  lateCombatIndexTimer=setTimeout(syncLatePopulationCombatTargets,250);
+}
 
 export function installWorldSpawnGuard(){
   if(installed)return true;const bridge=globalThis.__arondightRealWorld;if(!bridge||typeof bridge.attachBuildingCollisionSink!=="function")return false;installed=true;
@@ -24,6 +38,7 @@ export function installWorldSpawnGuard(){
       resetQueued=false;const button=document.getElementById("soloReset");if(!button)return;if(viewport){viewport.dataset.worldSpawnGuardResets=String((Number(viewport.dataset.worldSpawnGuardResets)||0)+1);viewport.dataset.worldSpawnGuard="resetting-to-clear-launch";}button.click();
     });
   });
+  clearTimeout(lateCombatIndexTimer);syncLatePopulationCombatTargets();
   return true;
 }
 
