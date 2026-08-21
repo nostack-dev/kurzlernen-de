@@ -7,10 +7,15 @@ const executablePath=process.env.CHROME_BIN;
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 
 const source=readFileSync("sim/real_world_bootstrap.mjs","utf8");
+const locationSource=readFileSync("sim/world_location_selector.mjs","utf8");
+const soloLayoutSource=readFileSync("sim/solo_layout.mjs","utf8");
 for(const marker of ["WORLD_MAP_DIRECT_DEDUP_MS","presentationFrameSerial","lastMapSyncFrameSerial","syncMapCamera(camera,frameSerial=null)","syncMapCamera(camera,this.presentationFrameSerial)","frameSerial===this.lastMapSyncFrameSerial",'worldMapFpsCap="presentation"',"stabilized-eye-target","calculateCameraOptionsFromTo"])
   if(!source.includes(marker))throw new Error(`all-camera WORLD frame-lock source contract missing: ${marker}`);
 for(const forbidden of ["WORLD_MAP_FRAME_MS","lastFpvSyncFrameSerial","budgeted-ground-target","mapFrameMs"])
   if(source.includes(forbidden))throw new Error(`split-rate WORLD camera path returned: ${forbidden}`);
+for(const marker of ["arondight45WorldLocationV1","New York","Berlin","CUSTOM LAT / LON","PERMANENT GEO POSITION","worldLocationPersistent","manualWorldLocation"])
+  if(!locationSource.includes(marker))throw new Error(`persistent WORLD location selector contract missing: ${marker}`);
+if(!soloLayoutSource.includes('import "./world_location_selector.mjs"'))throw new Error("persistent WORLD location selector is not wired into solo flight");
 
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
 const page=await browser.newPage();
@@ -35,6 +40,21 @@ try{
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
   await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#viewport")?.dataset.cameraMode==="fpv",{timeout:5000});
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-imagery"&&globalThis.__arondightRealWorld?.map;},{timeout:20000});
+
+  await page.click("#soloTopbar .phone-settings-button");
+  await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open&&document.querySelector('.phone-settings-dialog [data-world-location-select]'),{timeout:5000});
+  await page.select('.phone-settings-dialog [data-world-location-select]',"new-york");
+  await page.click('.phone-settings-dialog [data-world-location-apply]');
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport"),stored=JSON.parse(localStorage.getItem("arondight45WorldLocationV1")||"{}");return v?.dataset.worldLocationSource==="manual"&&v?.dataset.worldLocationName==="New York"&&v?.dataset.worldLocationPersistent==="1"&&stored.id==="new-york"&&Math.abs(Number(v?.dataset.worldLatitude)-40.7128)<1e-5&&Math.abs(Number(v?.dataset.worldLongitude)+74.0060)<1e-5;},{timeout:20000});
+  await page.click('.phone-settings-dialog [data-close]');
+  const persistentLocation=await page.evaluate(async()=>{
+    const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport");
+    b.deactivate();
+    await b.activate({coords:{latitude:51.0,longitude:7.0,altitude:0,accuracy:1}});
+    const stored=JSON.parse(localStorage.getItem("arondight45WorldLocationV1")||"{}");
+    return{stored,source:v.dataset.worldLocationSource,name:v.dataset.worldLocationName,persistent:v.dataset.worldLocationPersistent,lat:Number(v.dataset.worldLatitude),lon:Number(v.dataset.worldLongitude),status:document.querySelector("#realWorldStatus")?.textContent||""};
+  });
+  if(persistentLocation.stored.id!=="new-york"||persistentLocation.source!=="manual"||persistentLocation.name!=="New York"||persistentLocation.persistent!=="1"||Math.abs(persistentLocation.lat-40.7128)>1e-5||Math.abs(persistentLocation.lon+74.0060)>1e-5||!persistentLocation.status.includes("MANUAL New York"))throw new Error(`persistent manual WORLD location did not override later GPS activation: ${JSON.stringify(persistentLocation)}`);
 
   const result=await page.evaluate(async()=>{
     const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),camera=b.threeCamera.clone(),modes=["fpv","follow","third"];
@@ -98,5 +118,5 @@ try{
     if(screenLocked.samples<150||screenLocked.p95ScreenPx>1)throw new Error(`${mode} MapLibre/THREE screen-space registration exceeds 1px p95: ${JSON.stringify(result)}`);
     if(!(screenHalfRate.p95ScreenPx>screenLocked.p95ScreenPx+1))throw new Error(`${mode} screen-space probe cannot distinguish frame-lock from half-rate jitter: ${JSON.stringify(result)}`);
   }
-  console.log(`WORLD all-camera frame-lock passed: ${JSON.stringify(result)}`);
+  console.log(`WORLD persistent location + all-camera frame-lock passed: ${JSON.stringify({persistentLocation,result})}`);
 }finally{await browser.close();}
