@@ -216,6 +216,24 @@ int main() {
     CHECK(cmd.pitch * fc::kInnerMaxAttitudeDeg < -24.9f);
     CHECK(cmd.throttle > 0.40f);
 
+    // Manual GAME pitch owns the longitudinal attitude axis. A vehicle that is
+    // already moving forward must not get an automatic counter-pitch from the
+    // velocity loop while the pilot is holding pitch. Releasing pitch rebases
+    // velocity control at the measured speed and starts only a gentle ramp-down.
+    controller.reset();
+    rc = base_rc(true);
+    rc.ch[fc::kStateBodyPitchChannel] = centered_raw(-1.0f);
+    nav = {{-6.0f, 0.0f, 0.0f}, 2.0f, true};
+    cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
+    CHECK(controller.debug().measured_forward_mps > 5.99f);
+    CHECK(std::fabs(controller.debug().forward_accel_mps2) < 0.001f);
+    CHECK(cmd.pitch < -0.60f);
+    rc.ch[fc::kStateBodyPitchChannel] = centered_raw(0.0f);
+    cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
+    CHECK(controller.debug().desired_forward_mps > 5.99f);
+    CHECK(controller.debug().forward_accel_mps2 < 0.0f);
+    CHECK(controller.debug().forward_accel_mps2 > -0.05f);
+
     controller.reset();
     rc = base_rc(true);
     nav.velocity_world_mps = {-1.0f, 0.0f, 0.0f};
