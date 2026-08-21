@@ -1,5 +1,6 @@
 const YAW_PER_PX=.0066;
 const PITCH_PER_PX=.0050;
+const CONTROL_PROFILE="cod-full-viewport-v6";
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
 let installed=false;
@@ -10,6 +11,7 @@ let lastY=0;
 let originX=0;
 let originY=0;
 let stickKnob=null;
+let profileObserver=null;
 
 const viewport=()=>document.getElementById("viewport");
 const walk=()=>globalThis.__arondightWalkMode||null;
@@ -19,6 +21,19 @@ const lookSurface=target=>{
   if(target.closest("#footLookZone"))return"zone";
   return null;
 };
+
+function enforceControlProfile(){
+  const v=viewport();if(!v)return;
+  if(v.dataset.walkControlProfile!==CONTROL_PROFILE)v.dataset.walkControlProfile=CONTROL_PROFILE;
+  v.dataset.walkControlProfileOwner="foot-look-canonical-v1";
+}
+function installControlProfileOwner(){
+  const v=viewport();if(!v)return;
+  enforceControlProfile();
+  profileObserver?.disconnect?.();
+  profileObserver=new MutationObserver(()=>enforceControlProfile());
+  profileObserver.observe(v,{attributes:true,attributeFilter:["data-walk-control-profile"]});
+}
 
 function apply(dx,dy){
   const w=walk(),v=viewport();
@@ -41,6 +56,7 @@ function consume(event){event.preventDefault();event.stopImmediatePropagation();
 
 export function installFootLookCapture(){
   if(installed)return;installed=true;
+  installControlProfileOwner();
   window.addEventListener("pointerdown",event=>{
     if(walk()?.mode!=="foot"||pointer!==null)return;
     const nextSurface=lookSurface(event.target);if(!nextSurface)return;
