@@ -13,11 +13,14 @@ const BIRD_COUNT=MOBILE?10:16;
 const TREE_COUNT=MOBILE?18:32;
 const LAMP_COUNT=MOBILE?14:24;
 const ROUTE_REFRESH_MS=1800;
+const ROUTE_STALE_MS=18000;
+const ROUTE_DROP_MS=90000;
+const MAX_ROUTE_POOL=48;
 const IMAGERY_STORAGE="arondight45WorldImageryV1";
 const IMAGERY_DEFAULT_OFF_MIGRATION="arondight45WorldImageryDefaultOffV3";
 const AUDIO_SETTINGS_KEY="arondight45AudioSettingsV1";
 const LIFE_FX_TYPE="world-life-death-v1";
-const records=[],routes=[],lifeById=new Map(),particles=[];
+const records=[],routes=[],routeCache=new Map(),lifeById=new Map(),particles=[];
 const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),matrix=new THREE.Matrix4(),quat=new THREE.Quaternion(),scale=new THREE.Vector3(1,1,1);
 let installed=false,boundScene=null,lifeRoot=null,lightRoot=null,treeRoot=null,lampRoot=null,lastRouteRefresh=-Infinity,lastOriginKey="",lastFrame=performance.now(),audioCtx=null,audioUnlocked=false,lastChirp=0,wrappedHit=null,particlePoints=null,particleGeometry=null,particlePositions=null,particleColors=null,particleCursor=0,treeTrunks=null,treeCrowns=null,lampPoles=null,lampHeads=null,mapStyledFor=null,forcedDefaultOff=false;
 
@@ -87,10 +90,24 @@ function createDecor(scene){
   treeRoot=new THREE.Group();treeRoot.name="WORLD_LIVELINESS_TREES";treeRoot.add(treeTrunks,treeCrowns);lampRoot=new THREE.Group();lampRoot.name="WORLD_LIVELINESS_LAMPS";lampRoot.add(lampPoles,lampHeads);for(const x of[treeTrunks,treeCrowns,lampPoles,lampHeads]){x.frustumCulled=true;x.userData.flightFireIgnore=true;}scene.add(treeRoot,lampRoot);
 }
 function createLights(scene){lightRoot=new THREE.Group();lightRoot.name="WORLD_LIVELINESS_LIGHTS";const hemi=new THREE.HemisphereLight(0xdff5ff,0x604b35,.72),sun=new THREE.DirectionalLight(0xffe6ba,.88),fill=new THREE.DirectionalLight(0x8fcfff,.24);sun.position.set(-70,-40,110);fill.position.set(55,30,45);lightRoot.add(hemi,sun,fill);scene.add(lightRoot);}
-function ensureScene(){const scene=bridge()?.threeScene;if(!scene)return false;if(scene===boundScene&&lifeRoot)return true;boundScene=scene;records.splice(0);lifeById.clear();routes.splice(0);particles.splice(0);lifeRoot=new THREE.Group();lifeRoot.name="WORLD_LIVELINESS";scene.add(lifeRoot);createParticles(scene);createDecor(scene);createLights(scene);for(let i=0;i<EXTRA_CARS;i++)records.push(makeCar(i));for(let i=0;i<EXTRA_PEOPLE;i++)records.push(makePerson(i));for(let i=0;i<BUS_COUNT;i++)records.push(makeBus(i));for(let i=0;i<BIRD_COUNT;i++)records.push(makeBird(i));for(const r of records){lifeById.set(r.id,r);lifeRoot.add(r.group);r.group.visible=false;}const v=viewport();if(v){v.dataset.worldLifeExtraCars=String(EXTRA_CARS);v.dataset.worldLifeExtraPeople=String(EXTRA_PEOPLE);v.dataset.worldLifeBuses=String(BUS_COUNT);v.dataset.worldLifeBirds=String(BIRD_COUNT);v.dataset.worldLifeShootable="1";v.dataset.worldLifeArchitecture="route-anchored-v1";}return true;}
+function ensureScene(){const scene=bridge()?.threeScene;if(!scene)return false;if(scene===boundScene&&lifeRoot)return true;boundScene=scene;records.splice(0);lifeById.clear();routes.splice(0);routeCache.clear();lastOriginKey="";lastRouteRefresh=-Infinity;particles.splice(0);lifeRoot=new THREE.Group();lifeRoot.name="WORLD_LIVELINESS";scene.add(lifeRoot);createParticles(scene);createDecor(scene);createLights(scene);for(let i=0;i<EXTRA_CARS;i++)records.push(makeCar(i));for(let i=0;i<EXTRA_PEOPLE;i++)records.push(makePerson(i));for(let i=0;i<BUS_COUNT;i++)records.push(makeBus(i));for(let i=0;i<BIRD_COUNT;i++)records.push(makeBird(i));for(const r of records){lifeById.set(r.id,r);lifeRoot.add(r.group);r.group.visible=false;}const v=viewport();if(v){v.dataset.worldLifeExtraCars=String(EXTRA_CARS);v.dataset.worldLifeExtraPeople=String(EXTRA_PEOPLE);v.dataset.worldLifeBuses=String(BUS_COUNT);v.dataset.worldLifeBirds=String(BIRD_COUNT);v.dataset.worldLifeShootable="1";v.dataset.worldLifeArchitecture="route-anchored-v1";}return true;}
 
 function fallbackRoads(b){const out=[];for(const feature of b?.minimapFeatures||[]){if(feature?.kind!=="road")continue;for(const path of feature.paths||[])if(path?.length>=2)out.push({path,roadClass:String(feature.roadClass||"road")});}return out;}
-function refreshRoutes(now){const b=bridge();if(!b?.active||!Number.isFinite(b.originLon)||!Number.isFinite(b.originLat))return;const key=`${b.originLon.toFixed(6)}:${b.originLat.toFixed(6)}`;if(now-lastRouteRefresh<ROUTE_REFRESH_MS&&key===lastOriginKey)return;lastRouteRefresh=now;lastOriginKey=key;let candidates=[];try{candidates=collectRenderedDrivableRoads(b.map);}catch{}if(!candidates.length)candidates=fallbackRoads(b);const unique=new Map();for(const c of candidates){const r=buildTrafficRoute(c.path,{originLon:b.originLon,originLat:b.originLat,roadClass:c.roadClass,lastSeen:now});if(r&&!unique.has(r.key))unique.set(r.key,r);}routes.splice(0,routes.length,...[...unique.values()].sort((a,c)=>a.key.localeCompare(c.key)).slice(0,48));positionDecor();const v=viewport();if(v){v.dataset.worldLifeRoutes=String(routes.length);v.dataset.worldLifeAlive="1";}}
+function refreshRoutes(now){
+  const b=bridge();if(!b?.active||!Number.isFinite(b.originLon)||!Number.isFinite(b.originLat))return;
+  const key=`${b.originLon.toFixed(6)}:${b.originLat.toFixed(6)}`;
+  if(now-lastRouteRefresh<ROUTE_REFRESH_MS&&key===lastOriginKey)return;
+  lastRouteRefresh=now;
+  if(key!==lastOriginKey&&routeCache.size){for(const [routeKey,old] of routeCache){const rebuilt=buildTrafficRoute(old.geoPath,{originLon:b.originLon,originLat:b.originLat,roadClass:old.roadClass,lastSeen:old.lastSeen});if(rebuilt)routeCache.set(routeKey,rebuilt);else routeCache.delete(routeKey);}}
+  lastOriginKey=key;
+  let candidates=[];try{candidates=collectRenderedDrivableRoads(b.map);}catch{}
+  if(!candidates.length)candidates=fallbackRoads(b);
+  const seen=new Set();for(const c of candidates){const r=buildTrafficRoute(c.path,{originLon:b.originLon,originLat:b.originLat,roadClass:c.roadClass,lastSeen:now});if(!r||seen.has(r.key))continue;seen.add(r.key);routeCache.set(r.key,r);}
+  for(const [routeKey,route] of routeCache)if(now-route.lastSeen>ROUTE_DROP_MS)routeCache.delete(routeKey);
+  const fresh=[...routeCache.values()].filter(route=>now-route.lastSeen<=ROUTE_STALE_MS),pool=(fresh.length?fresh:[...routeCache.values()]).sort((a,c)=>a.key.localeCompare(c.key)).slice(0,MAX_ROUTE_POOL);
+  if(pool.length){routes.splice(0,routes.length,...pool);positionDecor();}
+  const v=viewport();if(v){v.dataset.worldLifeRoutes=String(routes.length);v.dataset.worldLifeCachedRoutes=String(routeCache.size);v.dataset.worldLifeRouteGapHeld=seen.size?"0":routes.length?"1":"0";v.dataset.worldLifeAlive="1";}
+}
 function sampleRoute(route,distance,offset=0){if(!route?.segments?.length)return null;const period=route.length*2,cycle=((distance%period)+period)%period,reverse=cycle>route.length,d=reverse?period-cycle:cycle;let seg=route.segments.at(-1);for(const s of route.segments){if(d<=s.start+s.d){seg=s;break;}}const t=clamp((d-seg.start)/seg.d,0,1),x=seg.a[0]+seg.dx*t,y=seg.a[1]+seg.dy*t,nx=-seg.dy/seg.d,ny=seg.dx/seg.d;return{x:x+nx*offset,y:y+ny*offset,yaw:Math.atan2(seg.dy,seg.dx)+(reverse?Math.PI:0)};}
 function routeFor(record){if(!routes.length)return null;return routes[(record.index*7+(record.kind==="person"?3:record.kind==="bus"?5:1))%routes.length];}
 function carLane(route,record){const cls=String(route?.roadClass||""),m=/motorway|trunk|primary|secondary/.test(cls)?1.2:/service|living/.test(cls)?.62:.84;return(record.laneSign||1)*m;}
