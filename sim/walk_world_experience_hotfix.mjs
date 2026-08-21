@@ -59,9 +59,6 @@ function reactToHit(){scream(1.08);const v=viewport();if(v)v.dataset.worldPeople
 function updatePanic(now,dt){
   for(const item of personEntries()){
     const root=item.root,p=root.userData.walkPanic;if(!p)continue;
-    // WORLD population code rewrites its deterministic base pose each frame. If
-    // it did not run this frame, first remove our previous overlay so offsets
-    // cannot accumulate twice.
     const sameAsLast=Number.isFinite(p.lastPatchedX)&&Math.hypot(root.position.x-p.lastPatchedX,root.position.y-p.lastPatchedY)<.006;
     if(sameAsLast){root.position.x-=Number(p.offsetX)||0;root.position.y-=Number(p.offsetY)||0;}
     if(now<p.until){p.offsetX=(Number(p.offsetX)||0)+(Number(p.dirX)||0)*(Number(p.speed)||FLEE_MPS)*dt;p.offsetY=(Number(p.offsetY)||0)+(Number(p.dirY)||0)*(Number(p.speed)||FLEE_MPS)*dt;root.rotation.z=Math.atan2(Number(p.dirY)||0,Number(p.dirX)||1);}
@@ -103,6 +100,6 @@ function observeShots(){
 }
 function frame(now=performance.now()){const dt=clamp((now-lastFrame)/1000,0,.05);lastFrame=now;observeShots();scanDynamic(now);patchWeapon();updatePanic(now,dt);syncRagdollPalette();requestAnimationFrame(frame);}
 
-export function installWalkWorldExperienceHotfix(){if(installed)return;installed=true;addEventListener("pointerdown",unlockAudio,{capture:true,passive:true});addEventListener("keydown",unlockAudio,{capture:true});installLocationAutoApply();observeShots();requestAnimationFrame(frame);}
+export function installWalkWorldExperienceHotfix(){if(installed)return;installed=true;addEventListener("pointerdown",unlockAudio,{capture:true,passive:true});addEventListener("keydown",unlockAudio,{capture:true});installLocationAutoApply();observeShots();setTimeout(()=>requestAnimationFrame(frame),0);}
 
 installWalkWorldExperienceHotfix();
