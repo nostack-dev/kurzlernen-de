@@ -2,8 +2,7 @@ import * as THREE from "three";
 import {VsPoseTimeline} from "./vs_pose_sync.mjs";
 import {VS_PEER_EVENT,VS_POSE_EVENT,VS_GAME_EVENT,VS_FX_EVENT} from "./lan_vs.mjs";
 
-const VISUAL_SCALE=12;
-const HITBOX_PADDING=1.16;
+const VISUAL_SCALE=1;
 const STALE_MS=3000;
 const MAX_PLAYERS=9;
 const COLOR_REFRESH_MS=420;
@@ -35,10 +34,11 @@ function participantIds(){return[selfId,...peers.keys()].filter(Boolean).sort();
 function localHealth(){const b=bridge();return clamp(Math.round(Number(health.get(selfId)??b?.vsLocalHealth??100)),0,100);}
 function localDead(){return localHealth()<=0;}
 function packetId(prefix){return`${prefix}-${Date.now().toString(36)}-${(++shotSeq).toString(36)}`;}
+function registerPhysicsPeer(root){if(!root)return;root.userData.worldLifeKind="vs-drone";root.userData.worldLifeId=String(root.userData.vsPlayerId||"");globalThis.__arondightBox3dCombat?.registerTarget?.(root);}
 
 function applyMaterialColor(root,color){
   root?.traverse?.(node=>{
-    if(!node?.isMesh||node.userData?.vsCombatHitbox)return;
+    if(!node?.isMesh)return;
     const m=node.material;if(m?.color?.setHex)m.color.setHex(color);if(m?.emissive?.setHex){m.emissive.setHex(color);m.emissiveIntensity=Math.max(Number(m.emissiveIntensity)||0,1.6);}
   });
   root?.traverse?.(node=>{if(node?.isSprite&&node.material?.color?.setHex)node.material.color.setHex(color);});
@@ -49,7 +49,7 @@ function refreshColors(force=false,now=performance.now()){
   const map=assignments();
   for(const r of peers.values()){r.color=map.get(r.id)||r.color;applyMaterialColor(r.mesh,r.color);if(r.marker)r.marker.style.setProperty("--vs-player-color",cssColor(r.color));}
   const b=bridge(),own=b?.airframeFor?.(b.threeScene)||b?.airframe;if(own&&selfId)applyMaterialColor(own,map.get(selfId)||colorFor(selfId));
-  if(b?.vsPeerMesh&&primaryId){b.vsPeerMesh.userData.vsPlayerId=primaryId;b.vsPeerMesh.userData.vsPlayerColor=map.get(primaryId)||colorFor(primaryId);applyMaterialColor(b.vsPeerMesh,b.vsPeerMesh.userData.vsPlayerColor);}
+  if(b?.vsPeerMesh&&primaryId){b.vsPeerMesh.userData.vsPlayerId=primaryId;b.vsPeerMesh.userData.vsPlayerColor=map.get(primaryId)||colorFor(primaryId);applyMaterialColor(b.vsPeerMesh,b.vsPeerMesh.userData.vsPlayerColor);registerPhysicsPeer(b.vsPeerMesh);}
 }
 
 function makeMarker(record){
@@ -61,9 +61,7 @@ function createPeerMesh(record){
   const group=new THREE.Group(),material=new THREE.MeshStandardMaterial({color:record.color,emissive:record.color,emissiveIntensity:1.7,roughness:.24,metalness:.18});group.scale.setScalar(VISUAL_SCALE);
   const body=new THREE.Mesh(new THREE.BoxGeometry(.22,.34,.07),material);body.userData.flightFireIgnore=true;group.add(body);
   for(const[x,y]of[[-.19,-.19],[.19,-.19],[-.19,.19],[.19,.19]]){const arm=new THREE.Mesh(new THREE.BoxGeometry(.025,.26,.025),material);arm.position.set(x*.5,y*.5,0);arm.rotation.z=(x*y>0?1:-1)*Math.PI/4;arm.userData.flightFireIgnore=true;group.add(arm);}
-  const hitMaterial=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,depthTest:false});hitMaterial.colorWrite=false;
-  const hitbox=new THREE.Mesh(new THREE.BoxGeometry(.32*HITBOX_PADDING,.44*HITBOX_PADDING,.10*HITBOX_PADDING),hitMaterial);hitbox.userData.vsCombatHitbox=true;hitbox.userData.vsPlayerId=record.id;hitbox.userData.vsPeerHitProxy=true;group.add(hitbox);
-  group.userData.vsPlayerId=record.id;group.userData.vsPlayerColor=record.color;group.userData.vsMultiplayerPeer=true;group.visible=false;scene.add(group);return group;
+  group.userData.vsPlayerId=record.id;group.userData.vsPlayerColor=record.color;group.userData.vsMultiplayerPeer=true;group.userData.vsCombatReadability="hud-marker+emissive-v1";group.userData.worldLifeKind="vs-drone";group.userData.worldLifeId=record.id;group.visible=false;scene.add(group);registerPhysicsPeer(group);return group;
 }
 
 function recordFor(id){
@@ -71,7 +69,7 @@ function recordFor(id){
 }
 
 function releaseLegacyPrimary(previousId){
-  const b=bridge(),r=peers.get(previousId);if(!b?.vsPeerMesh||!r||r.mesh!==b.vsPeerMesh)return;r.mesh=null;b.vsPeerMesh.visible=false;delete b.vsPeerMesh.userData.vsPlayerId;delete b.vsPeerMesh.userData.vsPlayerColor;
+  const b=bridge(),r=peers.get(previousId);if(!b?.vsPeerMesh||!r||r.mesh!==b.vsPeerMesh)return;r.mesh=null;b.vsPeerMesh.visible=false;delete b.vsPeerMesh.userData.vsPlayerId;delete b.vsPeerMesh.userData.vsPlayerColor;delete b.vsPeerMesh.userData.worldLifeKind;delete b.vsPeerMesh.userData.worldLifeId;
 }
 
 function removePeer(id){
@@ -90,7 +88,7 @@ function onPoseEvent(event){updateIdentity();const{peerId,pose}=event.detail||{}
 
 function setPrimaryCompatibility(record){
   const b=bridge();if(!b||record.id!==primaryId)return;
-  if(b.vsPeerMesh&&record.mesh!==b.vsPeerMesh){if(record.mesh&&!record.mesh.userData?.vsLegacyPrimary)record.mesh.parent?.remove(record.mesh);record.mesh=b.vsPeerMesh;record.mesh.userData.vsLegacyPrimary=true;record.mesh.userData.vsPlayerId=record.id;record.mesh.userData.vsPlayerColor=record.color;applyMaterialColor(record.mesh,record.color);}
+  if(b.vsPeerMesh&&record.mesh!==b.vsPeerMesh){if(record.mesh&&!record.mesh.userData?.vsLegacyPrimary)record.mesh.parent?.remove(record.mesh);record.mesh=b.vsPeerMesh;record.mesh.userData.vsLegacyPrimary=true;record.mesh.userData.vsPlayerId=record.id;record.mesh.userData.vsPlayerColor=record.color;record.mesh.userData.vsCombatReadability="hud-marker+emissive-v1";applyMaterialColor(record.mesh,record.color);registerPhysicsPeer(record.mesh);}
   b.vsPeerHealth=record.health;b.vsPeerDead=record.dead;
 }
 
@@ -154,7 +152,7 @@ function updateIdentity(){
   if(nextSelf)selfId=nextSelf;if(selfId&&!health.has(selfId)){health.set(selfId,clamp(Math.round(Number(bridge()?.vsLocalHealth)||100),0,100));confirmedHealth.add(selfId);}
   if(nextPrimary!==primaryId){lastPrimaryId=primaryId;if(lastPrimaryId)releaseLegacyPrimary(lastPrimaryId);primaryId=nextPrimary;}
   authorityId=nextAuthority;if(authorityId!==lastAuthorityId){const previous=lastAuthorityId;lastAuthorityId=authorityId;handleAuthorityChange(previous,authorityId);}
-  const view=viewport();if(view){view.dataset.vsSelfId=selfId;view.dataset.vsAuthorityId=authorityId;view.dataset.vsPeerCount=String(peers.size);view.dataset.vsPlayerCount=String(Math.min(MAX_PLAYERS,peers.size+1));view.dataset.vsLocalColor=cssColor(colorFor(selfId));view.dataset.vsPlayerColors=JSON.stringify(Object.fromEntries([...assignments()].map(([id,c])=>[id,cssColor(c)])));}
+  const view=viewport();if(view){view.dataset.vsSelfId=selfId;view.dataset.vsAuthorityId=authorityId;view.dataset.vsPeerCount=String(peers.size);view.dataset.vsPlayerCount=String(Math.min(MAX_PLAYERS,peers.size+1));view.dataset.vsLocalColor=cssColor(colorFor(selfId));view.dataset.vsPlayerColors=JSON.stringify(Object.fromEntries([...assignments()].map(([id,c])=>[id,cssColor(c)])));view.dataset.vsCombatVisualScale=String(VISUAL_SCALE);view.dataset.vsCombatReadability="hud-marker+emissive-v1";}
 }
 
 function authorityHit(packet,allowQueue=true){
@@ -226,10 +224,10 @@ function updateHud(){
 function render(now=performance.now()){
   raf=requestAnimationFrame(render);const dt=Math.min(.05,Math.max(0,(now-lastRender)/1000||0));lastRender=now;updateSessionHooks();updateIdentity();reconcilePeers();flushAuthorityHits(now);
   const b=bridge(),camera=b?.threeCamera,view=viewport();if(!b?.threeScene||!camera||!view)return;document.body.classList.toggle("vs-multiplayer",peers.size>0);refreshColors(false,now);
-  for(const r of peers.values()){if(r.id===primaryId&&b.vsPeerMesh){r.mesh=b.vsPeerMesh;setPrimaryCompatibility(r);}else if(!r.mesh)r.mesh=createPeerMesh(r);if(!r.mesh)continue;const sample=r.timeline.sample(now);if(sample&&!r.dead&&now-r.lastPoseMs<=STALE_MS){r.mesh.position.set(...sample.p);r.mesh.quaternion.set(...sample.q);r.mesh.visible=true;}else if(r.dead||now-r.lastPoseMs>STALE_MS)r.mesh.visible=false;renderMarker(r,camera,view,now);}
+  for(const r of peers.values()){if(r.id===primaryId&&b.vsPeerMesh){r.mesh=b.vsPeerMesh;setPrimaryCompatibility(r);}else if(!r.mesh)r.mesh=createPeerMesh(r);if(!r.mesh)continue;registerPhysicsPeer(r.mesh);const sample=r.timeline.sample(now);if(sample&&!r.dead&&now-r.lastPoseMs<=STALE_MS){r.mesh.position.set(...sample.p);r.mesh.quaternion.set(...sample.q);r.mesh.visible=true;}else if(r.dead||now-r.lastPoseMs>STALE_MS)r.mesh.visible=false;renderMarker(r,camera,view,now);}
   scanLocalFx(now);renderFx(now,dt);syncLegacyLocalState();updateHud();
 }
 
 export function installVsMultiplayer(){
-  if(installed)return;installed=true;style=document.createElement("style");style.textContent=`body.vs-multiplayer #vsEnemyMarker{display:none!important}.vs-player-marker{--vs-player-color:#fff;position:absolute;z-index:14;left:0;top:0;min-width:38px;padding:2px 5px 2px 12px;border-radius:7px;background:#071522a6;color:#fff;font:800 8px/1.05 system-ui,-apple-system,sans-serif;letter-spacing:.02em;pointer-events:none;box-shadow:0 0 0 1px color-mix(in srgb,var(--vs-player-color) 36%,transparent)}.vs-player-marker i{position:absolute;left:4px;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:var(--vs-player-color);box-shadow:0 0 5px var(--vs-player-color)}.vs-player-marker strong{display:block;font-size:7px;color:var(--vs-player-color)}.vs-player-marker small{display:block;font-size:7px;opacity:.76}.vs-player-marker.offscreen{opacity:.68}.vs-player-marker.dead{opacity:.58}`;document.head.appendChild(style);globalThis.addEventListener(VS_PEER_EVENT,onPeerEvent);globalThis.addEventListener(VS_POSE_EVENT,onPoseEvent);globalThis.addEventListener(VS_GAME_EVENT,onGameEvent);globalThis.addEventListener(VS_FX_EVENT,onFxEvent);raf=requestAnimationFrame(render);
+  if(installed)return;installed=true;style=document.createElement("style");style.textContent=`body.vs-multiplayer #vsEnemyMarker{display:none!important}.vs-player-marker{--vs-player-color:#fff;position:absolute;z-index:14;left:0;top:0;min-width:48px;padding:3px 6px 3px 14px;border-radius:7px;background:#071522b8;color:#fff;font:800 9px/1.05 system-ui,-apple-system,sans-serif;letter-spacing:.02em;pointer-events:none;box-shadow:0 0 0 1px color-mix(in srgb,var(--vs-player-color) 52%,transparent),0 0 10px color-mix(in srgb,var(--vs-player-color) 28%,transparent)}.vs-player-marker i{position:absolute;left:5px;top:50%;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;background:var(--vs-player-color);box-shadow:0 0 7px var(--vs-player-color)}.vs-player-marker strong{display:block;font-size:8px;color:var(--vs-player-color)}.vs-player-marker small{display:block;font-size:8px;opacity:.82}.vs-player-marker.offscreen{opacity:.72}.vs-player-marker.dead{opacity:.58}`;document.head.appendChild(style);globalThis.addEventListener(VS_PEER_EVENT,onPeerEvent);globalThis.addEventListener(VS_POSE_EVENT,onPoseEvent);globalThis.addEventListener(VS_GAME_EVENT,onGameEvent);globalThis.addEventListener(VS_FX_EVENT,onFxEvent);raf=requestAnimationFrame(render);
 }
