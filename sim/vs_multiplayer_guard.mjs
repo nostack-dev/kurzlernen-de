@@ -21,10 +21,9 @@ function patchLegacyPeerRenderer(){
   b.__vsV3PrimaryRenderGuard=true;
   const base=b.updateVsPeerRender.bind(b);
   b.updateVsPeerRender=(...args)=>{
-    if(b.vsPeerMesh?.userData?.vsLegacyPrimary){
-      const view=document.getElementById("viewport");if(view)view.dataset.vsPrimaryRenderOwner="multiplayer-v3";
-      return;
-    }
+    const view=document.getElementById("viewport"),v3OwnsPrimary=document.body.classList.contains("vs-multiplayer")&&Number(view?.dataset.vsPeerCount||0)>0&&Boolean(b.vsPeerMesh?.userData?.vsPlayerId);
+    if(v3OwnsPrimary){if(view)view.dataset.vsPrimaryRenderOwner="multiplayer-v3";return;}
+    if(view&&view.dataset.vsPrimaryRenderOwner==="multiplayer-v3")delete view.dataset.vsPrimaryRenderOwner;
     return base(...args);
   };
 }
