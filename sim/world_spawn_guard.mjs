@@ -1,6 +1,7 @@
 import "./gameplay_polish_lite.mjs";
 import "./combat_visual_polish.mjs";
 import "./world_action_feedback.mjs";
+import "./foot_look_capture.mjs";
 import {buildingLaunchPointClear} from "./world_building_collision_physics.mjs";
 
 let installed=false;
