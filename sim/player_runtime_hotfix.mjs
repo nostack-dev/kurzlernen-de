@@ -18,7 +18,7 @@ function emptyCache(){return{peer:[],vehicles:[],population:[],decor:[],fire:[],
 function viewport(){return document.getElementById("viewport");}
 function bridge(){return globalThis.__arondightRealWorld||null;}
 function walk(){return globalThis.__arondightWalkMode||null;}
-function gameplayTarget(target){return target instanceof Element&&Boolean(target.closest("#viewport"))&&!target.closest(UI_SELECTOR);}
+function gameplayTarget(target){const v=viewport();return Boolean(v&&target instanceof Node&&v.contains(target))&&!(target instanceof Element&&target.closest(UI_SELECTOR));}
 function ancestorNames(node){let out="";for(let n=node;n;n=n.parent)out+=` ${String(n.name||"")}`;return out;}
 function ownSession(){return bridge()?.vsSession||null;}
 function selfId(){const s=ownSession();try{return String(s?.getSelfId?.()||s?.active?.getSelfId?.()||"");}catch{return"";}}
@@ -95,14 +95,14 @@ function patchSelfHitRouting(){
 
 function applyAimDelta(dx,dy){const w=walk(),v=viewport();if(w?.mode!=="foot"||!v)return false;const yaw=Number(v.dataset.walkYaw)||0,pitch=Number(v.dataset.walkPitch)||0;w.setPose?.({yaw:yaw+Number(dx||0)*AIM_YAW_PER_PX,pitch:clamp(pitch-Number(dy||0)*AIM_PITCH_PER_PX,-1.30,1.30)});v.dataset.walkAimEvents=String((Number(v.dataset.walkAimEvents)||0)+1);return true;}
 function installAim(){
-  document.addEventListener("pointerdown",event=>{
+  window.addEventListener("pointerdown",event=>{
     const v=viewport(),w=walk();if(w?.mode!=="foot"||!v||!gameplayTarget(event.target))return;if(event.pointerType==="mouse"&&event.button!==0)return;
     if(event.pointerType==="mouse"&&document.pointerLockElement===v){w.fire?.();return;}dragPointer=event.pointerId;lastPointerX=event.clientX;lastPointerY=event.clientY;if(event.pointerType==="mouse"&&v.requestPointerLock)try{v.requestPointerLock();}catch{}
   },{capture:true,passive:true});
-  document.addEventListener("pointermove",event=>{
+  window.addEventListener("pointermove",event=>{
     if(walk()?.mode!=="foot")return;const v=viewport();if(document.pointerLockElement===v){applyAimDelta(event.movementX,event.movementY);return;}if(event.pointerId!==dragPointer)return;const dx=event.clientX-lastPointerX,dy=event.clientY-lastPointerY;lastPointerX=event.clientX;lastPointerY=event.clientY;applyAimDelta(dx,dy);
   },{capture:true,passive:true});
-  const release=event=>{if(event.pointerId===dragPointer)dragPointer=null;};document.addEventListener("pointerup",release,{capture:true,passive:true});document.addEventListener("pointercancel",release,{capture:true,passive:true});document.addEventListener("contextmenu",event=>{if(walk()?.mode==="foot"&&gameplayTarget(event.target))event.preventDefault();},{capture:true});const v=viewport();if(v)v.dataset.walkAimProfile="pointerlock+drag-center-v6";
+  const release=event=>{if(event.pointerId===dragPointer)dragPointer=null;};window.addEventListener("pointerup",release,{capture:true,passive:true});window.addEventListener("pointercancel",release,{capture:true,passive:true});window.addEventListener("contextmenu",event=>{if(walk()?.mode==="foot"&&gameplayTarget(event.target))event.preventDefault();},{capture:true});const v=viewport();if(v)v.dataset.walkAimProfile="window-pointerlock+drag-center-v7";
 }
 
 function resetPoseFromAirframe(){
@@ -126,5 +126,5 @@ function maintenance(now=performance.now()){
 function onWorldChanged(){const scene=bridge()?.threeScene;if(scene&&!build)startIndex(scene,true);}
 
 export function installPlayerRuntimeHotfix(){
-  if(installed)return;installed=true;installAim();installResetHook();addEventListener(VS_PEER_EVENT,onWorldChanged);scheduleReindex();const v=viewport();if(v){v.dataset.playerRuntimeHotfix="reset+selfhit+aim+cached-scene-v4";v.dataset.walkAimProfile="pointerlock+drag-center-v6";}requestAnimationFrame(maintenance);
+  if(installed)return;installed=true;installAim();installResetHook();addEventListener(VS_PEER_EVENT,onWorldChanged);scheduleReindex();const v=viewport();if(v){v.dataset.playerRuntimeHotfix="reset+selfhit+aim+cached-scene-v4";v.dataset.walkAimProfile="window-pointerlock+drag-center-v7";}requestAnimationFrame(maintenance);
 }
