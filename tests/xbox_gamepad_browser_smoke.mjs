@@ -67,11 +67,16 @@ try{
   if(!(lt<0)||!(rt.height>0)||rt.shots!==triggerBaseline||rt.fire!=="0")throw new Error(`LT/RT altitude-only contract failed: ${JSON.stringify({lt,rt,triggerBaseline})}`);
   await setButton(7,0);
 
+  await setButton(4,1);await page.evaluate(()=>{globalThis.__xboxTest.setAxis(2,.82);globalThis.__xboxTest.setAxis(3,-.68);});
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport"),parts=String(v?.dataset.gamepadRight||"").split(",").map(Number);return v?.dataset.xboxControlScheme==="classic"&&v.dataset.gamepadAim==="0"&&parts.length===2&&parts[0]>.70&&parts[1]<-.50;},{timeout:4000});
+  const classic=await page.evaluate(()=>{const v=document.querySelector("#viewport"),cross=document.querySelector(".xbox-crosshair");return{scheme:v.dataset.xboxControlScheme,aim:v.dataset.gamepadAim,right:v.dataset.gamepadRight,cross:getComputedStyle(cross).display,help:document.querySelector("#soloGamepadHelp")?.textContent||""};});
+  if(classic.scheme!=="classic"||classic.aim!=="0"||classic.cross!=="none"||!classic.help.includes("CLASSIC"))throw new Error(`CLASSIC did not keep direct RS with hidden crosshair: ${JSON.stringify(classic)}`);
+
   await setButton(5,1);await page.waitForFunction(before=>{const v=document.querySelector("#viewport");return v?.dataset.gamepadFire==="1"&&Number(v.dataset.fireShots||0)>before&&v.dataset.fireAimMode==="center-fixed";},{timeout:4000},triggerBaseline);await pause(180);
   const rbOnly=await page.$eval("#viewport",v=>({shots:Number(v.dataset.fireShots||0),aim:v.dataset.gamepadAim,fire:v.dataset.gamepadFire,x:Number(v.dataset.fireAimX),y:Number(v.dataset.fireAimY),w:v.clientWidth,h:v.clientHeight}));
-  if(rbOnly.shots<=triggerBaseline||rbOnly.aim!=="0"||rbOnly.fire!=="1"||Math.abs(rbOnly.x-rbOnly.w/2)>.6||Math.abs(rbOnly.y-rbOnly.h/2)>.6)throw new Error(`RB did not fire straight through center without LB: ${JSON.stringify(rbOnly)}`);
-  await setButton(5,0);
-  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.gamepadFire==="0",{timeout:3000});
+  if(rbOnly.shots<=triggerBaseline||rbOnly.aim!=="0"||rbOnly.fire!=="1"||Math.abs(rbOnly.x-rbOnly.w/2)>.6||Math.abs(rbOnly.y-rbOnly.h/2)>.6)throw new Error(`CLASSIC RB did not fire through center independently: ${JSON.stringify(rbOnly)}`);
+  await setButton(5,0);await setButton(4,0);await page.evaluate(()=>{globalThis.__xboxTest.setAxis(2,0);globalThis.__xboxTest.setAxis(3,0);});
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.gamepadFire==="0"&&v.dataset.gamepadAim==="0"&&getComputedStyle(document.querySelector(".xbox-crosshair")).display==="none";},{timeout:3000});
   await pause(140);
   const pointerBaseline=await page.$eval("#viewport",v=>Number(v.dataset.fireShots||0));
   await page.evaluate(()=>{const v=document.querySelector("#viewport"),r=v.getBoundingClientRect();v.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:99,pointerType:"touch",clientX:r.left+r.width/2,clientY:r.top+r.height/2,button:0}));});
@@ -79,21 +84,23 @@ try{
   const pointerBlocked=await page.$eval("#viewport",v=>Number(v.dataset.fireShots||0));
   if(pointerBlocked!==pointerBaseline)throw new Error(`touch fire remained active in Xbox mode: ${pointerBaseline} -> ${pointerBlocked}`);
 
-  await setButton(4,1);
-  await page.evaluate(()=>{globalThis.__xboxTest.setAxis(2,.82);globalThis.__xboxTest.setAxis(3,-.68);});
-  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.gamepadAim==="1"&&Math.abs(Number(v.dataset.worldLookYaw||0))>1&&Math.abs(Number(v.dataset.worldLookPitch||0))>1;},{timeout:4000});
-  const aim=await page.evaluate(()=>{const v=document.querySelector("#viewport"),cross=document.querySelector(".xbox-crosshair"),r=cross.getBoundingClientRect();return{aim:v.dataset.gamepadAim,fire:v.dataset.gamepadFire,yaw:Number(v.dataset.worldLookYaw),pitch:Number(v.dataset.worldLookPitch),cross:getComputedStyle(cross).display,cx:r.left+r.width/2,cy:r.top+r.height/2,vw:v.clientWidth,vh:v.clientHeight};});
-  if(aim.aim!=="1"||aim.fire!=="0"||aim.cross==="none"||Math.abs(aim.yaw)<=1||Math.abs(aim.pitch)<=1||Math.abs(aim.cx-aim.vw/2)>2||Math.abs(aim.cy-aim.vh/2)>2)throw new Error(`LB + right-stick free-look/crosshair failed: ${JSON.stringify(aim)}`);
+  await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});
+  await page.$eval('[data-xbox-scheme]',el=>{el.value="aim";el.dispatchEvent(new Event("change",{bubbles:true}));});await page.click('.phone-settings-dialog [data-close]');
+  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.xboxControlScheme==="aim",{timeout:3000});
+  await setButton(4,1);await page.evaluate(()=>{globalThis.__xboxTest.setAxis(2,.82);globalThis.__xboxTest.setAxis(3,-.68);});
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.gamepadAim==="1"&&Math.abs(Number(v.dataset.worldLookYaw||0))>1&&Math.abs(Number(v.dataset.worldLookPitch||0))>1&&getComputedStyle(document.querySelector(".xbox-crosshair")).display!=="none";},{timeout:4000});
+  const aim=await page.evaluate(()=>{const v=document.querySelector("#viewport"),cross=document.querySelector(".xbox-crosshair"),r=cross.getBoundingClientRect(),vr=v.getBoundingClientRect();return{scheme:v.dataset.xboxControlScheme,aim:v.dataset.gamepadAim,fire:v.dataset.gamepadFire,yaw:Number(v.dataset.worldLookYaw),pitch:Number(v.dataset.worldLookPitch),cross:getComputedStyle(cross).display,cx:r.left+r.width/2-vr.left,cy:r.top+r.height/2-vr.top,vw:v.clientWidth,vh:v.clientHeight};});
+  if(aim.scheme!=="aim"||aim.aim!=="1"||aim.fire!=="0"||aim.cross==="none"||Math.abs(aim.yaw)<=1||Math.abs(aim.pitch)<=1||Math.abs(aim.cx-aim.vw/2)>2||Math.abs(aim.cy-aim.vh/2)>2)throw new Error(`AIM LB + right-stick free-look/crosshair failed: ${JSON.stringify(aim)}`);
 
   const shotsBeforeRb=await page.$eval("#viewport",v=>Number(v.dataset.fireShots||0));
   await setButton(5,1);
   await page.waitForFunction(before=>{const v=document.querySelector("#viewport");return v?.dataset.gamepadFire==="1"&&v?.dataset.fireInputSource==="gamepad"&&Number(v.dataset.fireShots||0)>before;},{timeout:4000},shotsBeforeRb);
   await pause(220);
   const fired=await page.$eval("#viewport",v=>({shots:Number(v.dataset.fireShots||0),source:v.dataset.fireInputSource,fire:v.dataset.gamepadFire,height:Number(v.dataset.gamepadHeightAxis)}));
-  if(fired.shots<=shotsBeforeRb||fired.source!=="gamepad"||fired.fire!=="1"||fired.height!==0)throw new Error(`LB + RB did not fire independently of the altitude triggers: ${JSON.stringify({shotsBeforeRb,fired})}`);
+  if(fired.shots<=shotsBeforeRb||fired.source!=="gamepad"||fired.fire!=="1"||fired.height!==0)throw new Error(`AIM LB + RB did not fire independently of altitude: ${JSON.stringify({shotsBeforeRb,fired})}`);
 
   await setButton(5,0);await setButton(4,0);await page.evaluate(()=>{globalThis.__xboxTest.setAxis(2,0);globalThis.__xboxTest.setAxis(3,0);});
-  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.gamepadFire==="0"&&document.querySelector("#viewport")?.dataset.fireCrosshairMode==="center-fixed"&&getComputedStyle(document.querySelector(".xbox-crosshair")).display!=="none",{timeout:3000});
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.gamepadFire==="0"&&v.dataset.gamepadAim==="0"&&v.dataset.xboxAimCrosshair==="0"&&getComputedStyle(document.querySelector(".xbox-crosshair")).display==="none";},{timeout:3000});
   await setButton(9,1);await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await setButton(9,0);await setButton(1,1);await page.waitForFunction(()=>!document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await setButton(1,0);
   await setButton(3,1);await page.waitForFunction(()=>Number(document.querySelector("#viewport")?.dataset.gamepadResetCount||0)>=1,{timeout:3000});await setButton(3,0);
   const recovery=await page.$eval("#viewport",v=>({reset:Number(v.dataset.gamepadResetCount||0),help:document.querySelector("#soloGamepadHelp")?.textContent||""}));if(recovery.reset<1||!recovery.help.includes("Y RESET")||!recovery.help.includes("VIEW EXIT")||!recovery.help.includes("MENU SETTINGS"))throw new Error(`controller recovery bindings missing: ${JSON.stringify(recovery)}`);
@@ -105,5 +112,5 @@ try{
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="touch"&&v.dataset.gamepadEnabled==="0"&&getComputedStyle(document.querySelector("#soloLeft")).display!=="none";},{timeout:3000});
 
-  console.log("Xbox browser E2E passed: Chrome exposure, persistent handoff, independent RB center-fire, LB free-look, altitude, MENU/Y/VIEW recovery controls.");
+  console.log("Xbox browser E2E passed: default CLASSIC direct RS with hidden crosshair, optional AIM/LB look crosshair, independent RB fire, altitude, MENU/Y/VIEW recovery controls.");
 }finally{await browser.close();}
