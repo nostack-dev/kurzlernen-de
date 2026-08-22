@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {LanVsFinder} from "../sim/lan_vs.mjs";
-import {integrateProjectile,traceProjectileWorldSegment,createProjectileHit,PROJECTILE_GRAVITY_MPS2} from "../sim/projectile_ballistics.mjs";
 
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const opened=[];
@@ -65,22 +64,15 @@ for(const item of opened.filter(x=>!["Broker","DirectP2PUDP"].includes(x.name)))
 for(const item of opened.filter(x=>["Broker","DirectP2PUDP"].includes(x.name)))assert.equal(item.config.rtcConfig,undefined,`${item.name} owns its own networking setup and must not receive the Trystero RTC config`);
 finder.stop();
 
-const position={x:0,y:0,z:10},velocity={x:20,y:0,z:0},nextPosition={x:0,y:0,z:0},nextVelocity={x:0,y:0,z:0};
-integrateProjectile(position,velocity,1,nextPosition,nextVelocity);
-assert.ok(Math.abs(nextPosition.x-20)<1e-9&&Math.abs(nextPosition.z-(10-PROJECTILE_GRAVITY_MPS2*.5))<1e-9,"projectile time-of-flight integration must include gravity drop");
-assert.ok(Math.abs(nextVelocity.z+PROJECTILE_GRAVITY_MPS2)<1e-9,"projectile vertical velocity must accumulate gravity");
-const snapshot={prisms:[{buildingKey:"wall",base:0,top:10,points:[[4,-1],[6,-1],[6,1],[4,1]]}]},hit=createProjectileHit();
-const wall=traceProjectileWorldSegment(snapshot,{x:0,y:0,z:5},{x:10,y:0,z:5},hit);assert.ok(wall&&wall.kind==="building"&&Math.abs(wall.point.x-4)<1e-9&&wall.normal.x<-.99,"projectile segment must physically stop on a building wall");
-const roof=traceProjectileWorldSegment(snapshot,{x:5,y:0,z:20},{x:5,y:0,z:0},hit);assert.ok(roof&&roof.kind==="building"&&Math.abs(roof.point.z-10)<1e-9&&roof.normal.z>.99,"projectile segment must physically stop on a roof");
-const ground=traceProjectileWorldSegment({prisms:[]},{x:0,y:0,z:2},{x:0,y:0,z:-2},hit);assert.ok(ground&&ground.kind==="ground"&&Math.abs(ground.point.z)<1e-9,"projectile collision must physically stop on the ground");
-const miss=traceProjectileWorldSegment(snapshot,{x:0,y:3,z:5},{x:10,y:3,z:5},hit);assert.equal(miss,null,"projectile collision must not invent hits outside the footprint");
-
 const fireSource=readFileSync(new URL("../sim/flight_fire_fx.mjs",import.meta.url),"utf8");
-for(const marker of ["PROJECTILE_POOL_SIZE=36","TRACER_SPEED_MPS=210","PROJECTILE_TTL_MS=1800","VS_COMBAT_VISUAL_SCALE=7","VS_HITBOX_PADDING=1.16","FIRE_CANDIDATE_REFRESH_MS=120","vsCombatHitbox=true","vsPeerHitboxM","traceProjectileWorldSegment","flightFireTracer","vsPeerHitProxy","combatLocked()"])
-  assert.ok(fireSource.includes(marker),`physical VS projectile/readability contract missing: ${marker}`);
+const hitscanSource=readFileSync(new URL("../sim/box3d_hitscan.mjs",import.meta.url),"utf8");
+for(const marker of ["fireHitMode=\"box3d-raycast-hitscan\"","fireProjectilePoolSize=\"0\"","VS_COMBAT_VISUAL_SCALE=7","VS_HITBOX_PADDING=1.16","vsCombatHitbox=true","vsPeerHitboxM","raycaster.setFromCamera(pointerNdc,camera)","registerWorldPopulationHit?.(sceneHit)","flightFireTracer","vsPeerHitProxy","combatLocked()"])
+  assert.ok(fireSource.includes(marker),`hitscan VS/readability contract missing: ${marker}`);
+for(const marker of ["b3DefaultQueryFilter","b3World_CastRayClosest","QUERY_HITSCAN=16n","COLLISION_WORLD=1n","createWorldBuildingCollisionBodies"])
+  assert.ok(hitscanSource.includes(marker),`Box3D hitscan contract missing: ${marker}`);
 assert.equal(fireSource.includes('viewport.dataset.vsPeerHitboxScale="1"'),false,"visible 7x enemy must never regress to a hidden 1x hitbox");
-assert.equal(fireSource.includes("worldBridge?.registerVsHit?.(hit)"),false,"legacy instant hitscan damage path must not return");
-assert.ok(fireSource.includes("integrateProjectile(projectile.position,projectile.velocity,dt,projectile.nextPosition,projectile.nextVelocity);if(resolveProjectileHit(projectile,projectile.position,projectile.nextPosition,now))continue;"),"projectile time-of-flight must advance before segment collision resolution");assert.ok(fireSource.includes("registerVsHit?.(sceneHit)"),"VS damage must be emitted only from resolved projectile impact");
+assert.equal(fireSource.includes("integrateProjectile("),false,"damage must not depend on a long-lived projectile integration loop");
+assert.ok(fireSource.includes("registerVsHit?.(sceneHit)"),"VS hitscan damage must route immediately from the trigger ray");
 const presentationSource=readFileSync(new URL("../sim/vs_combat_presentation.mjs",import.meta.url),"utf8");
 for(const marker of ["RESPAWN_RADIUS_MIN_M=12","RESPAWN_RADIUS_MAX_M=30","RESET SIM TO RESPAWN NEARBY","WAITING FOR RESET","vsRespawnLocalOffset","vsManualRespawns","MOBILE_WORLD_COLLISION_SYNC_MS=1400"])
   assert.ok(presentationSource.includes(marker),`VS death/respawn/performance contract missing: ${marker}`);
@@ -105,4 +97,4 @@ for(const marker of ["firstLoaded","buildingLaunchPointClear","queueMicrotask","
   assert.ok(spawnGuardSource.includes(marker),`delayed WORLD-collider/combat polish guard missing: ${marker}`);
 
 await import("./multiplayer_mesh_smoke.mjs");
-console.log("Staged VS smoke passed: direct P2P UDP mesh, unique players, replicated fire/explosions, 4-player authority migration, hardened WORLD spawn and lightweight road traffic retained.");
+console.log("Staged VS smoke passed: direct P2P UDP mesh, deterministic Box3D hitscan fire, unique players, replicated fire/explosions, authority migration, hardened WORLD spawn and road traffic retained.");
