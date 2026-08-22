@@ -100,19 +100,11 @@ int main() {
     CHECK(descend_throttle < climb_throttle);
     CHECK(descend_throttle >= 0.0f);
 
-    // Vertical controller ceilings are deliberately above nominal plant authority.
-    // Full-clearance error must be able to saturate the physical motor path rather
-    // than an old 2 m/s / 4 m/s^2 camera-drone software envelope.
     controller.reset();
     auto high_clearance = base_rc(true);high_clearance.ch[fc::kStateClearanceChannel] = 1811;
     nav = {{0.0f,0.0f,0.0f},0.5f,true};cmd=controller.run(high_clearance,nav,0.0f,true,0.001f);
     CHECK(controller.debug().target_vz_mps > 29.9f);CHECK(controller.debug().vertical_accel_mps2 > 49.9f);CHECK(cmd.throttle > 0.99f);
 
-    // Regression: a pure aggressive descent used to reduce specific_up to 0.5
-    // m/s^2 while leaving the auto-translation limiter at tan(40 deg). Even a
-    // modest 1 m/s horizontal drift then requested ~40 deg attitude. Automatic
-    // drift correction must stay inside the validated 25 deg translation envelope
-    // regardless of vertical specific-force demand.
     controller.reset();
     rc = base_rc(true);
     nav = {{-1.0f, 0.0f, 0.0f}, 8.0f, true};
@@ -123,9 +115,6 @@ int main() {
                                                        controller.debug().right_accel_mps2);
     CHECK(controller.debug().target_vz_mps < -1.99f && controller.debug().target_vz_mps > -2.01f);
     CHECK(controller.debug().vertical_accel_mps2 < -3.99f && controller.debug().vertical_accel_mps2 > -4.01f);
-    // With descent acceleration bounded to 4 m/s², the vertical specific-force
-    // component stays around 5.8 m/s² before any extra safety floor. The 25°
-    // translation envelope therefore permits at most ~2.71 m/s² automatically.
     CHECK(descent_horizontal_accel < 2.71f);
     CHECK(cmd.throttle > 0.10f);
     CHECK(descent_auto_pitch_deg <= 25.05f);
@@ -162,11 +151,9 @@ int main() {
     rc = base_rc(true);
     rc.ch[FC_SBUS_PITCH] = centered_raw(1.0f);
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
-    CHECK(controller.debug().forward_accel_mps2 > 3.9f && controller.debug().forward_accel_mps2 < 4.1f);
-    CHECK(cmd.pitch < -0.50f);
+    CHECK(controller.debug().forward_accel_mps2 > 4.5f && controller.debug().forward_accel_mps2 < 4.7f);
+    CHECK(cmd.pitch < -0.60f);
     CHECK(std::fabs(cmd.pitch - controller.debug().pitch_command) < 0.0001f);
-    // The plant retains higher hard authority, while normal GAME translation is
-    // deliberately capped at the earlier stable 4.0 m/s^2 command envelope.
     {
         const fc::Imu level{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
         fc::Controller inner;
@@ -182,18 +169,13 @@ int main() {
     CHECK(std::fabs(controller.debug().right_accel_mps2) < 0.001f);
     CHECK(std::fabs(cmd.pitch) < 0.01f);
 
-    // Releasing a translation stick while already travelling at the commanded
-    // velocity must not flip immediately to full reverse acceleration. The cruise
-    // integrator clears at once, while the velocity target ramps down at 4 m/s^2.
+    // Neutral must be a real stop command, not a synthetic velocity ramp. The
+    // target becomes zero in the same controller tick and P/D braking starts now.
     auto released = base_rc(true);
     cmd = controller.run(released, nav, 0.0f, true, 0.001f);
-    CHECK(controller.debug().desired_forward_mps > desired_forward - 0.01f);
-    CHECK(controller.debug().forward_accel_mps2 < 0.0f);
-    CHECK(controller.debug().forward_accel_mps2 > -0.05f);
-    for (int i = 0; i < 249; ++i) cmd = controller.run(released, nav, 0.0f, true, 0.001f);
-    CHECK(controller.debug().desired_forward_mps < desired_forward - 0.95f);
-    CHECK(controller.debug().desired_forward_mps > desired_forward - 1.05f);
-    CHECK(controller.debug().forward_accel_mps2 > -1.0f);
+    CHECK(std::fabs(controller.debug().desired_forward_mps) < 0.001f);
+    CHECK(controller.debug().forward_accel_mps2 < -4.5f);
+    CHECK(controller.debug().forward_accel_mps2 > -4.7f);
 
     controller.reset();
     nav = {{0.0f, 0.0f, 0.0f}, 2.0f, true};
@@ -217,9 +199,8 @@ int main() {
     CHECK(cmd.throttle > 0.40f);
 
     // Manual GAME pitch owns the longitudinal attitude axis. A vehicle that is
-    // already moving forward must not get an automatic counter-pitch from the
-    // velocity loop while the pilot is holding pitch. Releasing pitch rebases
-    // velocity control at the measured speed and starts only a gentle ramp-down.
+    // already moving forward must not get an automatic counter-pitch while held.
+    // Releasing manual pitch hands control back to the immediate neutral brake.
     controller.reset();
     rc = base_rc(true);
     rc.ch[fc::kStateBodyPitchChannel] = centered_raw(-1.0f);
@@ -230,9 +211,9 @@ int main() {
     CHECK(cmd.pitch < -0.60f);
     rc.ch[fc::kStateBodyPitchChannel] = centered_raw(0.0f);
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
-    CHECK(controller.debug().desired_forward_mps > 5.99f);
-    CHECK(controller.debug().forward_accel_mps2 < 0.0f);
-    CHECK(controller.debug().forward_accel_mps2 > -0.05f);
+    CHECK(std::fabs(controller.debug().desired_forward_mps) < 0.001f);
+    CHECK(controller.debug().forward_accel_mps2 < -4.5f);
+    CHECK(controller.debug().forward_accel_mps2 > -4.7f);
 
     controller.reset();
     rc = base_rc(true);
@@ -261,7 +242,7 @@ int main() {
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
     const float accel_norm = std::hypot(controller.debug().forward_accel_mps2,
                                         controller.debug().right_accel_mps2);
-    CHECK(accel_norm > 3.9f && accel_norm < 4.1f);
+    CHECK(accel_norm > 4.5f && accel_norm < 4.7f);
     CHECK(cmd.pitch < -0.20f);
     CHECK(cmd.roll < -0.20f);
 
@@ -270,8 +251,8 @@ int main() {
     rc.ch[FC_SBUS_ROLL] = centered_raw(1.0f);
     nav.velocity_world_mps = {0.0f, 0.0f, 0.0f};
     cmd = controller.run(rc, nav, 0.0f, true, 0.001f);
-    CHECK(controller.debug().right_accel_mps2 > 3.9f && controller.debug().right_accel_mps2 < 4.1f);
-    CHECK(cmd.roll < -0.50f);
+    CHECK(controller.debug().right_accel_mps2 > 4.5f && controller.debug().right_accel_mps2 < 4.7f);
+    CHECK(cmd.roll < -0.60f);
 
     const float desired_right = fc::state_intent(rc).right_mps;
     controller.reset();
@@ -296,8 +277,6 @@ int main() {
     CHECK(controller.debug().right_accel_mps2 > 0.75f && controller.debug().right_accel_mps2 < 0.85f);
     CHECK(cmd.roll < -0.08f);
 
-    // Absolute NAV heading, when present, is the physical world/body frame
-    // reference. A drifting 6-DoF IMU yaw must not rotate velocity axes.
     controller.reset();
     rc = base_rc(true);
     rc.ch[FC_SBUS_PITCH] = centered_raw(1.0f);
@@ -318,8 +297,6 @@ int main() {
     cmd = controller.run(rc, nav, 0.0f, true, 0.01f);
     CHECK(cmd.yaw > 0.50f);
 
-    // In-flight AGL loss must degrade, never cut motors. Velocity remains real,
-    // so vertical control switches to vz=0 while horizontal state control remains active.
     {
         fc::StateRuntime state_runtime;
         uint64_t t = 0;
@@ -347,8 +324,6 @@ int main() {
         CHECK(state_runtime.state_controller().debug().target_vz_mps == 0.0f);
         CHECK(degraded.motor_us[0] > fc::kEscMinUs);
 
-        // If all NAV is lost, an already-airborne craft falls back to bounded
-        // IMU attitude/hover control. It still obeys a real ARM-low immediately.
         in.flight = stationary_input(t += 1000);
         in.flight.rc = base_rc(true);
         in.navigation = {{}, 0.0f, false, false, false};
