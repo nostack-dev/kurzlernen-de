@@ -80,6 +80,15 @@ jobs:
           grep -q 'scaleCurrentsToPackLimit' sim/simulator.mjs
           grep -q 'resolveBox3dCameraPath' sim/simulator.mjs
           grep -q 'b3CreateHullShape' sim/world_building_collision_physics.mjs
+          grep -q 'world_location_selector.mjs' sim/solo_layout.mjs
+          grep -q 'New York' sim/world_location_selector.mjs
+
+          # Human/drone is a gameplay vehicle state, not a camera skin.
+          grep -q 'player_vehicle_runtime.mjs' sim/solo_layout.mjs
+          grep -q 'human+drone+audio+fx-v1' sim/player_vehicle_runtime.mjs
+          grep -q 'box3d-reset-v1' sim/player_vehicle_runtime.mjs
+          grep -q 'procedural-synced-v1' sim/player_vehicle_runtime.mjs
+          grep -q 'round-layered-v2' sim/world_car_explosion.mjs
 
       - name: Build exact shared controller runtime to WebAssembly
         run: |
@@ -156,7 +165,7 @@ jobs:
           set -euxo pipefail
           find sim tests tools -type f -name '*.mjs' -print0 | xargs -0 -n1 node --check
 
-      - name: Blocking browser gates - boot, takeoff AGL, flight, Xbox, Android and WORLD frame lock
+      - name: Blocking browser gates - boot, takeoff AGL, flight, WALK, VEHICLE, Xbox, Android and WORLD frame lock
         timeout-minutes: 10
         run: |
           set -euxo pipefail
@@ -171,6 +180,8 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/takeoff_agl_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/browser_sim_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/combat_center_fire_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/player_walk_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/player_vehicle_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/world_fpv_frame_lock_smoke.mjs http://127.0.0.1:4174
@@ -241,6 +252,8 @@ jobs:
 
           CHROME_BIN="$CHROME_BIN" node tests/takeoff_agl_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/combat_center_fire_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/player_walk_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/player_vehicle_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs https://kurzlernen.de
           CHROME_BIN="$CHROME_BIN" node tests/android_render_browser_smoke.mjs https://kurzlernen.de
           CHROME_BIN="$CHROME_BIN" node tests/world_fpv_frame_lock_smoke.mjs https://kurzlernen.de
