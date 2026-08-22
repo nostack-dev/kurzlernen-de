@@ -243,15 +243,15 @@ public:
         const float right_error = commanded_right_mps_ - measured_right;
         const float pilot_horizontal_speed = std::sqrt(intent.forward_mps * intent.forward_mps +
                                                        intent.right_mps * intent.right_mps);
-        // Pilot-neutral clears cruise compensation immediately. Only the velocity
-        // target ramps down, so no stored I term can kick the airframe on release.
+        // Neutral is an immediate zero-velocity target. Clear all cruise state
+        // before the P/D law computes braking so the vehicle stops where the pilot
+        // released the stick instead of floating through a synthetic release ramp.
         if (pilot_horizontal_speed <= kHorizontalIntegralNeutralTargetMps) {
             horizontal_integral_forward_mps2_ = 0.0f;
             horizontal_integral_right_mps2_ = 0.0f;
         }
 
-        // The release limiter only rate-limits the pilot target. The baseline
-        // feedback law remains equivalent to these direct intent expressions:
+        // The baseline feedback law remains equivalent to these direct intent expressions:
         // kHorizontalVelocityGain * (intent.forward_mps - measured_forward)
         // kHorizontalVelocityGain * (intent.right_mps - measured_right)
         const float neutral_damping_scale = pilot_horizontal_speed <= kHorizontalIntegralNeutralTargetMps
@@ -267,17 +267,10 @@ public:
         // otherwise the velocity loop would physically pitch against the pilot.
         float forward_accel = manual_pitch_active ? 0.0f : forward_feedback_unsat;
         float right_accel = right_unsat;
-        // Keep the historical hardware authority available as a hard ceiling, but
-        // do not drive the aircraft at that ceiling in normal GAME flight. The
-        // stable command envelope is the earlier validated 4 m/s² response.
-        // Automatic translation gets the previously validated 25 deg attitude
-        // envelope even while vertical specific force is intentionally reduced for
-        // descent. Scaling horizontal acceleration by the *available* up component
-        // keeps atan2(horizontal, specific_up) bounded instead of turning a tiny
-        // drift correction into a 35-40 deg bank during a pure altitude command.
-        // The separate 40 deg hard attitude ceiling remains available for combined
-        // pilot body-pitch + translation authority.
-        const float allowed_horizontal_accel = std::min(kStableHorizontalAccelerationMps2,
+        // Use the full horizontal controller authority up to the independently
+        // bounded 25-degree automatic translation envelope. This removes the
+        // redundant 4 m/s² softness while retaining the physical tilt safety cap.
+        const float allowed_horizontal_accel = std::min(kMaxHorizontalAccelerationMps2,
                                                         specific_up * kMaxAutoTranslationTiltTangent);
         const float horizontal_accel = std::sqrt(forward_accel * forward_accel + right_accel * right_accel);
         if (horizontal_accel > allowed_horizontal_accel && horizontal_accel > 1.0e-6f) {
@@ -385,11 +378,9 @@ private:
     static constexpr float kHorizontalIntegralNeutralTargetMps = 0.05f;
     static constexpr float kHorizontalAccelerationDamping = 0.55f;
     static constexpr float kHorizontalNeutralDampingScale = 1.00f;
-    static constexpr float kHorizontalReleaseTargetRateMps2 = 4.0f;
     static constexpr float kMeasuredAccelerationFilterTauS = 0.06f;
     static constexpr float kMaxNavigationAccelSampleMps2 = 15.0f;
     static constexpr float kMaxHorizontalAccelerationMps2 = 7.5f;
-    static constexpr float kStableHorizontalAccelerationMps2 = 4.0f;
 
     static constexpr float kAglToVerticalSpeed = 2.00f;
     static constexpr float kMaxVerticalSpeedMps = 30.0f;
@@ -436,27 +427,10 @@ private:
         vertical_accel_state_mps2_ = 0.0f;
     }
 
-    void update_command_targets(const StateIntent& intent, float dt) {
-        const float pilot_speed = std::sqrt(intent.forward_mps * intent.forward_mps +
-                                            intent.right_mps * intent.right_mps);
-        if (!horizontal_target_initialized_ || pilot_speed > kHorizontalIntegralNeutralTargetMps) {
-            commanded_forward_mps_ = intent.forward_mps;
-            commanded_right_mps_ = intent.right_mps;
-            horizontal_target_initialized_ = true;
-            return;
-        }
-
-        const float commanded_speed = std::sqrt(commanded_forward_mps_ * commanded_forward_mps_ +
-                                                commanded_right_mps_ * commanded_right_mps_);
-        const float release_step = kHorizontalReleaseTargetRateMps2 * dt;
-        if (commanded_speed <= release_step || commanded_speed <= 1.0e-6f) {
-            commanded_forward_mps_ = 0.0f;
-            commanded_right_mps_ = 0.0f;
-            return;
-        }
-        const float scale = (commanded_speed - release_step) / commanded_speed;
-        commanded_forward_mps_ *= scale;
-        commanded_right_mps_ *= scale;
+    void update_command_targets(const StateIntent& intent, float) {
+        commanded_forward_mps_ = intent.forward_mps;
+        commanded_right_mps_ = intent.right_mps;
+        horizontal_target_initialized_ = true;
     }
 
     float limit_vertical_accel_jerk(float requested_accel, float dt) {
