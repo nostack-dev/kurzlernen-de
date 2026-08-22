@@ -36,7 +36,7 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Minimal flight and combat gates
+      - name: Minimal flight, combat and population gates
         run: |
           set -euxo pipefail
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
@@ -44,11 +44,12 @@ jobs:
           node tests/combat_center_fire_test.mjs
           node --check sim/flight_fire_fx.mjs
           node --check sim/box3d_hitscan.mjs
-          node --check sim/world_population.mjs
+          node --check sim/world_procedural_population.mjs
           grep -q 'kMaxHorizontalAccelerationMps2 = 7.5f' esp32/Arondight45_StateControl.hpp
           grep -q 'commanded_forward_mps_ = intent.forward_mps' esp32/Arondight45_StateControl.hpp
           grep -q 'commanded_right_mps_ = intent.right_mps' esp32/Arondight45_StateControl.hpp
           grep -q 'box3d_hitscan.mjs' sim/flight_fire_fx.mjs
+          grep -q 'world_procedural_population.mjs' sim/solo_layout.mjs
 
       - name: Build exact shared controller runtime to WebAssembly
         run: |
@@ -118,7 +119,7 @@ jobs:
           trap cleanup EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/combat_center_fire_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
-          CHROME_BIN="$CHROME_BIN" node tests/player_walk_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/procedural_population_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -181,7 +182,7 @@ jobs:
           done
           test "$fetched" = 1
           CHROME_BIN="$CHROME_BIN" node tests/combat_center_fire_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
-          CHROME_BIN="$CHROME_BIN" node tests/player_walk_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/procedural_population_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
 
       - name: Report live E2E final
         if: always()
