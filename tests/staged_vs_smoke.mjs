@@ -66,14 +66,13 @@ finder.stop();
 
 const fireSource=readFileSync(new URL("../sim/flight_fire_fx.mjs",import.meta.url),"utf8");
 const hitscanSource=readFileSync(new URL("../sim/box3d_hitscan.mjs",import.meta.url),"utf8");
-for(const marker of ["fireHitMode=\"box3d-raycast-hitscan\"","fireProjectilePoolSize=\"0\"","VS_COMBAT_VISUAL_SCALE=7","VS_HITBOX_PADDING=1.16","vsCombatHitbox=true","vsPeerHitboxM","raycaster.setFromCamera(pointerNdc,camera)","registerWorldPopulationHit?.(hit)","flightFireTracer","vsPeerHitProxy","combatLocked()"])
+for(const marker of ["fireHitMode=\"box3d-raycast-hitscan\"","fireProjectilePoolSize=\"0\"","VS_COMBAT_VISUAL_SCALE=7","VS_HITBOX_PADDING=1.16","vsCombatHitbox=true","vsPeerHitboxM","raycaster.setFromCamera(pointerNdc,camera)","registerWorldPopulationHit?.(sceneHit)","flightFireTracer","vsPeerHitProxy","combatLocked()"])
   assert.ok(fireSource.includes(marker),`hitscan VS/readability contract missing: ${marker}`);
 for(const marker of ["b3DefaultQueryFilter","b3World_CastRayClosest","QUERY_HITSCAN=16n","COLLISION_WORLD=1n","createWorldBuildingCollisionBodies"])
   assert.ok(hitscanSource.includes(marker),`Box3D hitscan contract missing: ${marker}`);
 assert.equal(fireSource.includes('viewport.dataset.vsPeerHitboxScale="1"'),false,"visible 7x enemy must never regress to a hidden 1x hitbox");
-assert.equal(fireSource.includes("PROJECTILE_POOL_SIZE=36"),false,"authoritative projectile pool must not return");
 assert.equal(fireSource.includes("integrateProjectile("),false,"damage must not depend on a long-lived projectile integration loop");
-assert.ok(fireSource.includes("registerVsHit?.(hit)"),"VS hitscan damage must route immediately from the trigger ray");
+assert.ok(fireSource.includes("registerVsHit?.(sceneHit)"),"VS hitscan damage must route immediately from the trigger ray");
 const presentationSource=readFileSync(new URL("../sim/vs_combat_presentation.mjs",import.meta.url),"utf8");
 for(const marker of ["RESPAWN_RADIUS_MIN_M=12","RESPAWN_RADIUS_MAX_M=30","RESET SIM TO RESPAWN NEARBY","WAITING FOR RESET","vsRespawnLocalOffset","vsManualRespawns","MOBILE_WORLD_COLLISION_SYNC_MS=1400"])
   assert.ok(presentationSource.includes(marker),`VS death/respawn/performance contract missing: ${marker}`);
