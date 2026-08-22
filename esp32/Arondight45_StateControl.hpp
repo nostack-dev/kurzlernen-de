@@ -122,6 +122,7 @@ public:
     void reset() {
         active_ = false;
         heading_source_valid_ = false;
+        manual_pitch_active_ = false;
         target_yaw_deg_ = 0.0f;
         hover_trim_ = kInitialHoverThrottle;
         reset_horizontal_state();
@@ -132,6 +133,7 @@ public:
     void leave_mode() {
         active_ = false;
         heading_source_valid_ = false;
+        manual_pitch_active_ = false;
         reset_horizontal_state();
         reset_command_targets();
         debug_ = {};
@@ -150,6 +152,7 @@ public:
         if (!active_ || heading_source_valid_ != absolute_heading_valid) {
             target_yaw_deg_ = measured_yaw_deg;
             heading_source_valid_ = absolute_heading_valid;
+            manual_pitch_active_ = false;
             reset_horizontal_state();
             reset_command_targets();
             active_ = true;
@@ -167,6 +170,7 @@ public:
         if (!inner_armed) {
             reset_horizontal_state();
             reset_command_targets();
+            manual_pitch_active_ = false;
             target_yaw_deg_ = measured_yaw_deg;
             heading_source_valid_ = absolute_heading_valid;
             debug_ = {intent.forward_mps, measured_forward,
@@ -177,7 +181,33 @@ public:
                       0.0f, 0.0f, 0.0f};
             return Command{0.0f, 0.0f, 0.0f, 0.0f, intent.arm};
         }
+
+        const bool manual_pitch_active = std::fabs(intent.body_pitch_deg) >= kManualPitchOverrideThresholdDeg;
+        const bool manual_pitch_released = manual_pitch_active_ && !manual_pitch_active;
+        manual_pitch_active_ = manual_pitch_active;
+
+        // GAME exposes two independent pilot intents on the forward axis: a
+        // velocity target (left stick) and physical body pitch (right stick).
+        // They must never fight each other. While body pitch is held, the pilot
+        // owns longitudinal attitude and the automatic forward velocity loop is
+        // transparent. On release, rebase the velocity target at the aircraft's
+        // actual speed and clear acceleration history so control hands back without
+        // an artificial reverse kick.
+        if (manual_pitch_released) {
+            commanded_forward_mps_ = measured_forward;
+            horizontal_target_initialized_ = true;
+            acceleration_estimator_valid_ = false;
+            acceleration_sample_dt_s_ = 0.0f;
+            previous_velocity_world_mps_ = nav.velocity_world_mps;
+            measured_acceleration_world_mps2_ = {};
+            horizontal_integral_forward_mps2_ = 0.0f;
+        }
+
         update_command_targets(intent, dt);
+        if (manual_pitch_active) {
+            commanded_forward_mps_ = measured_forward;
+            horizontal_integral_forward_mps2_ = 0.0f;
+        }
         update_acceleration_estimator(nav.velocity_world_mps, dt);
         const float measured_forward_accel = -c * measured_acceleration_world_mps2_.x - s * measured_acceleration_world_mps2_.y;
         const float measured_right_accel = -s * measured_acceleration_world_mps2_.x + c * measured_acceleration_world_mps2_.y;
@@ -227,12 +257,15 @@ public:
         const float neutral_damping_scale = pilot_horizontal_speed <= kHorizontalIntegralNeutralTargetMps
                                                 ? kHorizontalNeutralDampingScale
                                                 : 1.0f;
-        const float forward_unsat = kHorizontalVelocityGain * (commanded_forward_mps_ - measured_forward) + horizontal_integral_forward_mps2_ -
-                                    kHorizontalAccelerationDamping * neutral_damping_scale * measured_forward_accel;
+        const float forward_feedback_unsat = kHorizontalVelocityGain * (commanded_forward_mps_ - measured_forward) + horizontal_integral_forward_mps2_ -
+                                             kHorizontalAccelerationDamping * neutral_damping_scale * measured_forward_accel;
         const float right_unsat = kHorizontalVelocityGain * (commanded_right_mps_ - measured_right) + horizontal_integral_right_mps2_ -
                                   kHorizontalAccelerationDamping * neutral_damping_scale * measured_right_accel;
 
-        float forward_accel = forward_unsat;
+        // A real body-pitch command is direct longitudinal attitude authority.
+        // Automatic forward acceleration/damping is therefore zero on that axis;
+        // otherwise the velocity loop would physically pitch against the pilot.
+        float forward_accel = manual_pitch_active ? 0.0f : forward_feedback_unsat;
         float right_accel = right_unsat;
         // Keep the historical hardware authority available as a hard ceiling, but
         // do not drive the aircraft at that ceiling in normal GAME flight. The
@@ -256,9 +289,11 @@ public:
         // The horizontal I path is intentionally dormant in the stable envelope;
         // no stored propulsion may build up and kick the vehicle later.
         if (pilot_horizontal_speed > kHorizontalIntegralNeutralTargetMps) {
-            horizontal_integral_forward_mps2_ +=
-                (kHorizontalIntegralGain * forward_error +
-                 kHorizontalAntiWindupGain * (forward_accel - forward_unsat)) * dt;
+            if (!manual_pitch_active) {
+                horizontal_integral_forward_mps2_ +=
+                    (kHorizontalIntegralGain * forward_error +
+                     kHorizontalAntiWindupGain * (forward_accel - forward_feedback_unsat)) * dt;
+            }
             horizontal_integral_right_mps2_ +=
                 (kHorizontalIntegralGain * right_error +
                  kHorizontalAntiWindupGain * (right_accel - right_unsat)) * dt;
@@ -341,6 +376,7 @@ private:
     static_assert(kMaxAutoTranslationTiltDeg == 25.0f, "automatic GAME translation tilt envelope must stay at the validated 25 deg");
     static constexpr float kDegradedMaxTiltDeg = 12.0f;
     static constexpr float kDegradedBodyPitchScale = 0.35f;
+    static constexpr float kManualPitchOverrideThresholdDeg = 0.50f;
 
     static constexpr float kHorizontalVelocityGain = 0.80f;
     static constexpr float kHorizontalIntegralGain = 0.0f;
@@ -479,6 +515,7 @@ private:
 
     bool active_{};
     bool heading_source_valid_{};
+    bool manual_pitch_active_{};
     bool acceleration_estimator_valid_{};
     bool horizontal_target_initialized_{};
     bool vertical_accel_initialized_{};
