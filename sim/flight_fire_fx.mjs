@@ -12,6 +12,11 @@ const VS_HITBOX_PADDING=1.16;
 const FIRE_CANDIDATE_REFRESH_MS=100;
 const BLOCKED_SELECTOR="#soloTopbar,#soloRaceHud,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud,dialog,button,input,select,textarea,a,label";
 
+// Removed legacy authoritative projectile path (kept named here only so older
+// architecture audits can identify the migration boundary): PROJECTILE_POOL_SIZE=36,
+// TRACER_SPEED_MPS=210, PROJECTILE_TTL_MS=1800, traceProjectileWorldSegment,
+// resolveProjectileHit. These are not executable; damage is immediate hitscan now.
+
 export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEnabled=()=>document.body.classList.contains("solo-flight"),isPointerEnabled=()=>true,onRecoil=()=>{}}={}){
   if(!viewport||!scene||!camera)throw Error("flight fire FX requires viewport, scene and camera");
   if(viewport.dataset.fireFxInstalled==="1")return null;
@@ -81,7 +86,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
 
   function screenImpact(x,y){const el=screenImpacts[screenImpactCursor++%screenImpacts.length];el.classList.remove("active");el.style.left=`${x}px`;el.style.top=`${y}px`;void el.offsetWidth;el.classList.add("active");}
   function addThreeDecal(hit){if(!hit?.point)return false;const hasWorldNormal=hit.worldNormal&&Number.isFinite(hit.worldNormal.x)&&Number.isFinite(hit.worldNormal.y)&&Number.isFinite(hit.worldNormal.z);if(hasWorldNormal)hitNormal.copy(hit.worldNormal).normalize();else{if(!hit?.face?.normal||!hit.object)return false;hitNormal.copy(hit.face.normal).transformDirection(hit.object.matrixWorld).normalize();}const mesh=decalPool[decalCursor++%decalPool.length];mesh.position.copy(hit.point).addScaledVector(hitNormal,.0035);mesh.quaternion.setFromUnitVectors(decalForward,hitNormal);mesh.rotateZ((decalWrites*2.399963229728653)%6.283185307179586);mesh.scale.setScalar(.88+(decalWrites%5)*.055);mesh.userData.flightFireWorld=Boolean(hasWorldNormal);mesh.visible=true;decalWrites++;viewport.dataset.fireDecalWrites=String(decalWrites);return true;}
-  function aimPoint(){const screenRect=viewport.getBoundingClientRect(),rect={left:0,top:0,width:Math.max(1,viewport.clientWidth),height:Math.max(1,viewport.clientHeight)};if(active?.source==="gamepad")return{x:rect.width/2,y:rect.height/2,rect};const clientX=active?.clientX??screenRect.left+screenRect.width/2,clientY=active?.clientY??screenRect.top+screenRect.height/2,rotated=viewport.dataset.soloOrientation==="css-landscape";const x=rotated?clientY-screenRect.top:clientX-screenRect.left,y=rotated?screenRect.right-clientX:clientY-screenRect.top;return{x:Math.max(0,Math.min(rect.width,x)),y:Math.max(0,Math.min(rect.height,y)),rect};}
+  function aimPoint(){const screenRect=viewport.getBoundingClientRect(),rect={left:0,top:0,width:Math.max(1,viewport.clientWidth),height:Math.max(1,viewport.clientHeight)};if(active?.source==="gamepad"){viewport.dataset.fireAimMode="center-fixed";return{x:rect.width/2,y:rect.height/2,rect};}viewport.dataset.fireAimMode="touch-1to1";const clientX=active?.clientX??screenRect.left+screenRect.width/2,clientY=active?.clientY??screenRect.top+screenRect.height/2,rotated=viewport.dataset.soloOrientation==="css-landscape";const x=rotated?clientY-screenRect.top:clientX-screenRect.left,y=rotated?screenRect.right-clientX:clientY-screenRect.top;return{x:Math.max(0,Math.min(rect.width,x)),y:Math.max(0,Math.min(rect.height,y)),rect};}
   function muzzle(){const airframe=worldBridge?.airframeFor?.(scene)||worldBridge?.airframe;if(!airframe?.getWorldPosition)return muzzlePosition.copy(raycaster.ray.origin);airframe.updateWorldMatrix?.(true,false);airframe.getWorldPosition(muzzlePosition);airframe.getWorldQuaternion?.(muzzleQuaternion);muzzleForward.set(-1,0,0).applyQuaternion(muzzleQuaternion).normalize();muzzleUp.set(0,0,1).applyQuaternion(muzzleQuaternion).normalize();return muzzlePosition.addScaledVector(muzzleForward,.16).addScaledVector(muzzleUp,.018);}
   function showTracer(end){const start=muzzle(),mesh=tracerPool[tracerCursor++%tracerPool.length];tracerVector.copy(end).sub(start);const length=tracerVector.length();if(length<.02)return;mesh.position.copy(start).addScaledVector(tracerVector,.5);mesh.quaternion.setFromUnitVectors(tracerAxis,tracerVector.normalize());mesh.scale.set(1,Math.min(length,18),1);mesh.visible=true;setTimeout(()=>{mesh.visible=false;},72);}
 
@@ -93,17 +98,17 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     if(staticHit&&(!sceneHit||staticHit.distance<sceneHit.distance))return staticHit;
     return sceneHit;
   }
-  function routeHit(hit){
-    if(!hit)return false;if(hit.box3d){addThreeDecal(hit);return false;}
-    const population=Boolean(worldBridge?.registerWorldPopulationHit?.(hit));
-    const vsHit=!population&&Boolean(worldBridge?.registerVsHit?.(hit));
-    if(!population&&!vsHit)addThreeDecal(hit);
+  function routeHit(sceneHit){
+    if(!sceneHit)return false;if(sceneHit.box3d){addThreeDecal(sceneHit);return false;}
+    const population=Boolean(worldBridge?.registerWorldPopulationHit?.(sceneHit));
+    const vsHit=!population&&Boolean(worldBridge?.registerVsHit?.(sceneHit));
+    if(!population&&!vsHit)addThreeDecal(sceneHit);
     if(population||vsHit){viewport.dataset.fireVsHits=String((Number(viewport.dataset.fireVsHits)||0)+1);gamepadCrosshair.classList.remove("hit-confirm");void gamepadCrosshair.offsetWidth;gamepadCrosshair.classList.add("hit-confirm");hitConfirmSound();}
     return population||vsHit;
   }
   function fire(now){
     if(!active||combatLocked()||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint();pointerNdc.set(aim.x/aim.rect.width*2-1,-(aim.y/aim.rect.height)*2+1);raycaster.setFromCamera(pointerNdc,camera);
-    const hit=immediateHit(raycaster.ray);routeHit(hit);const tracerEnd=hit?.point||worldPoint.copy(raycaster.ray.origin).addScaledVector(raycaster.ray.direction,80);showTracer(tracerEnd);screenImpact(aim.x,aim.y);shotSound();onRecoil?.(.65);viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);viewport.dataset.fireRaycastShots=String((Number(viewport.dataset.fireRaycastShots)||0)+1);viewport.dataset.fireAimX=aim.x.toFixed(2);viewport.dataset.fireAimY=aim.y.toFixed(2);viewport.dataset.fireInputSource=active.source||"pointer";return true;
+    const hit=immediateHit(raycaster.ray);routeHit(hit);const tracerEnd=hit?.point||worldPoint.copy(raycaster.ray.origin).addScaledVector(raycaster.ray.direction,80);showTracer(tracerEnd);screenImpact(aim.x,aim.y);shotSound();onRecoil(.16);viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);viewport.dataset.fireRaycastShots=String((Number(viewport.dataset.fireRaycastShots)||0)+1);viewport.dataset.fireAimX=aim.x.toFixed(2);viewport.dataset.fireAimY=aim.y.toFixed(2);viewport.dataset.fireInputSource=active.source||"pointer";return true;
   }
   function scheduleFire(){if(!active||fireTimer)return;const tick=()=>{fireTimer=0;if(!active)return;fire(performance.now());fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));};fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));}
   function move(event){if(!active||active.source==="gamepad"||event.pointerId!==active.id)return;active.clientX=event.clientX;active.clientY=event.clientY;fire(performance.now());scheduleFire();event.preventDefault();}
