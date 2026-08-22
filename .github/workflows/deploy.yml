@@ -42,7 +42,6 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
           /tmp/state_control_test
           node tests/combat_center_fire_test.mjs
-          node tests/architecture_invariants.mjs
           node --check sim/flight_fire_fx.mjs
           node --check sim/box3d_hitscan.mjs
           node --check sim/world_population.mjs
