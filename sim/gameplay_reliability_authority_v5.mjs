@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import {wantedLineBlockedByPrisms,wantedPointInRing} from "./wanted_system_logic.mjs";
 
 const pedSafe=new WeakMap();
@@ -48,7 +49,7 @@ function playerTarget(out){
   const camera=b?.threeCamera;if(camera?.getWorldPosition){camera.getWorldPosition(out);return out;}
   return null;
 }
-const chaseTarget={x:0,y:0,z:0};
+const chaseTarget=new THREE.Vector3();
 function restorePoliceChase(now){
   const system=wanted(),state=system?.state,drones=system?.drones,physics=rigid();
   if(!state||!Array.isArray(drones)||!physics?.setTarget||Number(state.stars)<=0)return 0;
