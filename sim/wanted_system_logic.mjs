@@ -2,6 +2,7 @@ export const WANTED_MAX_STARS=5;
 export const WANTED_HEAT_THRESHOLDS=Object.freeze([2,4,7,11,16]);
 export const WANTED_EMP_RANGE_M=30;
 export const WANTED_EMP_COOLDOWN_MS=18000;
+export const WANTED_POLICE_MAX_FIRE_RANGE_M=35;
 
 const CRIME_SEVERITY=Object.freeze({
   person:2,
@@ -46,6 +47,11 @@ export function wantedPoliceSpawnRadiusM(index=0){
   return 58+Math.max(0,Math.floor(Number(index)||0)%3)*8;
 }
 
+export function wantedPoliceArrivalDelayMs(stars){
+  const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
+  return Math.max(3000,3900-level*160);
+}
+
 export function wantedPoliceEngageDelayMs(stars){
   const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
   return Math.max(2500,3300-level*130);
@@ -54,6 +60,11 @@ export function wantedPoliceEngageDelayMs(stars){
 export function wantedPoliceWaveBreakMs(stars){
   const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
   return 5600-level*240;
+}
+
+export function wantedPoliceFireRangeM(stars){
+  const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
+  return Math.min(WANTED_POLICE_MAX_FIRE_RANGE_M,28+level*1.4);
 }
 
 export function wantedPoliceShotIntervalMs(stars){
