@@ -35,6 +35,20 @@ export function wantedEscapeDurationMs(stars){
   return level?7000+level*1500:0;
 }
 
+export function wantedPoliceDamage(stars){
+  const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
+  return Math.min(6,4+Math.floor((level-1)/2));
+}
+
+export function wantedPoliceSpawnRadiusM(index=0){
+  return 58+Math.max(0,Math.floor(Number(index)||0)%3)*8;
+}
+
+export function wantedPoliceEngageDelayMs(stars){
+  const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
+  return Math.max(1900,2500-level*90);
+}
+
 export function wantedPointInRing(x,y,ring){
   let inside=false;if(!Array.isArray(ring)||ring.length<3)return false;
   for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],b=ring[j],ax=Number(a?.[0]),ay=Number(a?.[1]),bx=Number(b?.[0]),by=Number(b?.[1]);if(!Number.isFinite(ax+ay+bx+by))continue;const crosses=(ay>y)!==(by>y)&&x<(bx-ax)*(y-ay)/((by-ay)||1e-12)+ax;if(crosses)inside=!inside;}

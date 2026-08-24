@@ -1,5 +1,5 @@
-const PROFILE="cod-full-viewport-v6";
-const LOOK="cod-full-viewport-delta-v6";
+const PROFILE="cod-dynamic-assist-bob-v7";
+const LOOK="fps-balanced-dynamic-v7";
 let observer=null;
 
 function enforce(){
@@ -7,7 +7,7 @@ function enforce(){
   if(!v)return false;
   if(v.dataset.walkControlProfile!==PROFILE)v.dataset.walkControlProfile=PROFILE;
   if(v.dataset.walkLookModel!==LOOK)v.dataset.walkLookModel=LOOK;
-  v.dataset.walkControlProfileOwner="walk-profile-contract-v1";
+  v.dataset.walkControlProfileOwner="walk-profile-contract-v2";
   return true;
 }
 

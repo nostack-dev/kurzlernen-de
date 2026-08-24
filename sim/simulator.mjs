@@ -336,6 +336,7 @@ class SimSbusReceiver {
 }
 
 const b3 = await Box3DFactory();
+globalThis.__arondightBox3dRuntime=Object.freeze({b3,profile:"box3d-0.1-rigid-world-v1"});
 
 function componentMassInputs(span,propD){
   return deriveQuadMassProperties({

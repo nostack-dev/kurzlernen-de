@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {WANTED_HEAT_THRESHOLDS,wantedCrimeSeverity,wantedDetectionRadiusM,wantedEscapeDurationMs,wantedLineBlockedByPrisms,wantedPoliceCount,wantedSearchState,wantedStarsForHeat} from "../sim/wanted_system_logic.mjs";
+import {WANTED_HEAT_THRESHOLDS,wantedCrimeSeverity,wantedDetectionRadiusM,wantedEscapeDurationMs,wantedLineBlockedByPrisms,wantedPoliceCount,wantedPoliceDamage,wantedPoliceEngageDelayMs,wantedPoliceSpawnRadiusM,wantedSearchState,wantedStarsForHeat} from "../sim/wanted_system_logic.mjs";
 
 assert.deepEqual(WANTED_HEAT_THRESHOLDS,[2,4,7,11,16]);
 assert.deepEqual([0,1,2,3,4,6,7,10,11,15,16,99].map(wantedStarsForHeat),[0,0,1,1,2,2,3,3,4,4,5,5]);
@@ -12,6 +12,9 @@ assert.equal(wantedPoliceCount(5),5);
 assert.equal(wantedPoliceCount(9),5);
 assert.ok(wantedDetectionRadiusM(5)>wantedDetectionRadiusM(1));
 assert.ok(wantedEscapeDurationMs(5)>wantedEscapeDurationMs(1));
+assert.deepEqual([1,2,3,4,5].map(wantedPoliceDamage),[4,4,5,5,6]);
+assert.ok(wantedPoliceSpawnRadiusM(0)>=58&&wantedPoliceSpawnRadiusM(2)>wantedPoliceSpawnRadiusM(0));
+assert.ok(wantedPoliceEngageDelayMs(1)>=2300&&wantedPoliceEngageDelayMs(5)>=1900);
 
 const building=[{base:0,top:10,points:[[-1,-2],[1,-2],[1,2],[-1,2]]}];
 assert.equal(wantedLineBlockedByPrisms({x:-5,y:0,z:2},{x:5,y:0,z:2},building),true);
@@ -33,4 +36,4 @@ assert.equal(escaped.phase,"escaped");
 assert.equal(escaped.escaped,true);
 assert.equal(escaped.remainingMs,0);
 
-console.log("Wanted-system logic passed: heat thresholds, police strength, searching and escapable pursuit are deterministic.");
+console.log("Wanted-system logic passed: heat thresholds, far police spawn, fair 4-6 HP damage, inbound grace, searching and escapable pursuit are deterministic.");

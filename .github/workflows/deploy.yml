@@ -42,12 +42,22 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
           /tmp/state_control_test
           node tests/combat_center_fire_test.mjs
+          node tests/fps_control_test.mjs
+          node tests/critical_damage_logic_test.mjs
           node tests/wanted_system_test.mjs
           node --check sim/flight_fire_fx.mjs
           node --check sim/box3d_hitscan.mjs
           node --check sim/world_procedural_population.mjs
+          node --check sim/fps_control_math.mjs
+          node --check sim/player_walk_mode_v4.mjs
+          node --check sim/foot_look_capture.mjs
+          node --check sim/critical_damage_logic.mjs
+          node --check sim/world_critical_damage_fx.mjs
+          node --check sim/world_rigid_body_physics.mjs
+          node --check sim/world_rigid_body_runtime.mjs
           node --check sim/wanted_system_logic.mjs
           node --check sim/wanted_police_drones.mjs
+          node --check tests/fps_first_person_browser_smoke.mjs
           node --check tests/wanted_police_browser_smoke.mjs
           grep -q 'kMaxHorizontalAccelerationMps2 = 7.5f' esp32/Arondight45_StateControl.hpp
           grep -q 'commanded_forward_mps_ = intent.forward_mps' esp32/Arondight45_StateControl.hpp
@@ -91,6 +101,7 @@ jobs:
           ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
           cd "$GITHUB_WORKSPACE"
           node tests/world_building_collision_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
+          node tests/world_rigid_body_physics_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
           ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
           python3 - <<'PY'
@@ -123,6 +134,7 @@ jobs:
           trap cleanup EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/combat_center_fire_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/procedural_population_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/wanted_police_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
 
@@ -187,6 +199,7 @@ jobs:
           done
           test "$fetched" = 1
           CHROME_BIN="$CHROME_BIN" node tests/combat_center_fire_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/procedural_population_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/wanted_police_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
 
