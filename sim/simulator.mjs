@@ -802,6 +802,7 @@ addEventListener("gamepadconnected",event=>{if(rememberXboxGamepad(event.gamepad
 addEventListener("gamepaddisconnected",event=>{if(xboxObservedGamepad&&Number(xboxObservedGamepad.index)===Number(event.gamepad?.index))xboxObservedGamepad=null;if(soloMode)pollXboxGamepad(performance.now());});
 addEventListener("focus",()=>{if(soloMode)pollXboxGamepad(performance.now());});
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&soloMode)pollXboxGamepad(performance.now());});
+globalThis.setInterval(()=>{if(soloMode)pollXboxGamepad(performance.now());},16);$("viewport").dataset.gamepadPollLoop="dedicated-60hz-v1";
 async function enterSolo(){
   soloMode=true;resetPresentationTiming();soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;setXboxControlPreference(phoneSettings.xboxControllerEnabled);inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
   try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}
@@ -981,7 +982,7 @@ function updatePresentationQuality(now){
 }
 function render(){
   requestAnimationFrame(render);
-  const renderNow=performance.now(),fcState=latest.state;pollXboxGamepad(renderNow);updatePresentationQuality(renderNow);
+  const renderNow=performance.now(),fcState=latest.state;updatePresentationQuality(renderNow);
   motorSound.syncFcState(fcState,arm);
   if(renderNow-lastPresentationAudioMs>=PRESENTATION_AUDIO_INTERVAL_MS){
     lastPresentationAudioMs=renderNow;
