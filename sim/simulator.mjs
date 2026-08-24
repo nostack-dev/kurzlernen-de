@@ -660,7 +660,7 @@ $("camFollow").onclick=()=>setCameraMode("follow");$("camFpv").onclick=()=>setCa
 
 const soloHud=document.createElement("div");soloHud.id="soloHud";soloHud.hidden=true;
 soloHud.innerHTML=`
-  <div id="soloTopbar"><button id="soloExit" type="button">EXIT</button><button id="soloReset" type="button">RESET SIM</button><span id="soloState">DISARMED</span><span id="soloAlt">0.0 m</span><span id="soloGamepadStatus" hidden>XBOX</span><button id="soloCamera" type="button">FOLLOW</button></div>
+  <div id="soloTopbar" data-toolbar-layout="actions-status-v1"><div id="soloTopbarActions" role="toolbar" aria-label="Simulator actions"><button id="soloExit" type="button">EXIT</button><button id="soloReset" type="button">RESET</button><button id="soloCamera" type="button">FOLLOW</button></div><div id="soloTopbarStatus" role="status" aria-label="Flight status"><span id="soloState">DISARMED</span><span id="soloAlt">AGL 0.0 m</span><span id="soloGamepadStatus" hidden>XBOX</span></div></div>
   <div id="soloRaceHud"><span id="soloLap">READY · 3 LAPS</span><strong id="soloRaceTime">00:00.000</strong><span id="soloGate">NEXT · START / FINISH</span><span id="soloBest">BEST —</span></div>
   <div id="soloLeft" class="solo-stick"><div class="solo-ring"></div><div class="solo-knob"></div><span>FWD / STRAFE</span></div>
   <div id="soloClearance"><small>ALT TARGET</small><strong id="soloClearanceValue">1.2 m</strong><div id="soloHeightPad" class="solo-height-pad" aria-label="Climb or descend altitude target"><span class="solo-height-up">CLIMB</span><div class="solo-height-track"></div><div id="soloHeightKnob" class="solo-height-knob"></div><span class="solo-height-hold">HOLD</span><span class="solo-height-down">DESCEND</span></div><span id="soloRangeStatus">AGL —</span></div>
@@ -752,7 +752,7 @@ function soloStick(el,kind){
 }
 soloStick($("soloLeft"),"left");soloStick($("soloRight"),"right");updateSoloSticks();
 const soloSettingsMount=mountPlayerControlSettings({
-  parent:$("soloTopbar"),
+  parent:$("soloTopbarActions"),
   buttonText:"SETTINGS",
   xboxControllerToggle:true,
   getActiveControlProfile:()=>globalThis.__arondightOnFootMode===true?"first-person":"drone",
@@ -761,7 +761,7 @@ const soloSettingsMount=mountPlayerControlSettings({
   onChange:next=>{const xboxChanged=phoneSettings.xboxControllerEnabled!==next.xboxControllerEnabled;phoneSettings=next;const keepArm=soloControls.arm;if(!keepArm)soloGroundClearance=next.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();soloControls.arm=keepArm;updateSoloSticks();arm=keepArm;throttle=0;if(xboxChanged)setXboxControlPreference(next.xboxControllerEnabled);},
 });
 mountCameraSettings({dialog:soloSettingsMount.dialog,onChange:applyCameraSettings});
-const flightLogbook=new FlightLogbook({parent:$("soloTopbar")});globalThis.__arondightFlightLogbook=flightLogbook;
+const flightLogbook=new FlightLogbook({parent:$("soloTopbarActions")});globalThis.__arondightFlightLogbook=flightLogbook;
 let latest={motors:[1000,1000,1000,1000],attitude:[0,0,0],state:0,processingUs:0};
 const flightFireFx=installFlightFireFx({viewport:$("viewport"),scene,camera,worldBridge:globalThis.__arondightRealWorld,isEnabled:()=>soloMode&&globalThis.__arondightOnFootMode!==true,isArmed:()=>Boolean(latest.state&STATE_ARMED),isPointerEnabled:()=>$("viewport").dataset.controlSource!=="xbox",onRecoil:addFireCameraKick});
 const flightSelectionBlocked=target=>target instanceof Element&&Boolean(target.closest("dialog,input,textarea,select,option"));for(const type of ["selectstart","contextmenu","dragstart"])document.addEventListener(type,event=>{if(soloMode&&event.target instanceof Element&&event.target.closest("#viewport")&&!flightSelectionBlocked(event.target))event.preventDefault();},{passive:false});

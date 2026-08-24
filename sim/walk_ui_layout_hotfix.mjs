@@ -15,7 +15,7 @@ function installStyle(){
     body.solo-flight.on-foot-mode #geoViewport .geo-attribution{left:max(8px,var(--solo-safe-left,env(safe-area-inset-left)))!important;right:auto!important;top:max(94px,calc(var(--solo-safe-top,env(safe-area-inset-top)) + 88px))!important;bottom:auto!important;max-width:min(48vw,420px)!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:6.5px!important;opacity:.72}
 
     @media(max-width:1100px){
-      body.solo-flight.on-foot-mode #soloTopbar{gap:4px!important;left:max(5px,var(--solo-safe-left))!important;right:max(5px,var(--solo-safe-right))!important}
+      body.solo-flight.on-foot-mode #soloTopbar{gap:3px!important}
       body.solo-flight.on-foot-mode #soloTopbar span,body.solo-flight.on-foot-mode #soloTopbar button{padding:4px 6px!important;font-size:9.5px!important;border-radius:7px!important;min-height:25px!important}
       body.solo-flight.on-foot-mode #soloTopbar #soloCamera,body.solo-flight.on-foot-mode #soloTopbar .phone-settings-button,body.solo-flight.on-foot-mode #soloTopbar #lanVsButton{min-width:48px!important}
       body.solo-flight.on-foot-mode #soloTopbar #vsCombatHud{min-width:88px!important;font-size:8.5px!important;padding-left:5px!important;padding-right:5px!important}

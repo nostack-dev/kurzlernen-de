@@ -49,6 +49,8 @@ jobs:
           node tests/critical_damage_logic_test.mjs
           node tests/wanted_system_test.mjs
           node tests/player_vitals_logic_test.mjs
+          node tests/combat_audio_bank_test.mjs
+          node --check sim/combat_audio_bank.mjs
           node --check sim/flight_fire_fx.mjs
           node --check sim/box3d_hitscan.mjs
           node --check sim/world_procedural_population.mjs
@@ -75,6 +77,7 @@ jobs:
           node --check tests/fps_first_person_browser_smoke.mjs
           node --check tests/player_vehicle_browser_smoke.mjs
           node --check tests/player_vitals_browser_smoke.mjs
+          node --check tests/solo_layout_smoke.mjs
           node --check tests/real_world_ui_smoke.mjs
           node --check tests/procedural_population_browser_smoke.mjs
           node --check tests/wanted_police_browser_smoke.mjs
@@ -159,6 +162,7 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/player_vehicle_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/player_vitals_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/procedural_population_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/wanted_police_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
@@ -228,6 +232,7 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/player_vehicle_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/player_vitals_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/procedural_population_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/wanted_police_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
 

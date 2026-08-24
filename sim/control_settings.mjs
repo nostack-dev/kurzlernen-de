@@ -58,7 +58,7 @@ function installStyle(){
 }
 
 function mountSoloWorldSettings({parent,dialog,settingsButton}){
-  if(parent?.id!=="soloTopbar"||!dialog)return null;
+  if(!parent?.closest?.("#soloTopbar")||!dialog)return null;
   const bridge=globalThis.__arondightRealWorld;if(!bridge)return null;
   const section=document.createElement("section");section.className="world-settings-section";section.dataset.worldSettings="openfreemap-osm-3d";section.innerHTML=`
     <h4>REAL WORLD</h4>
