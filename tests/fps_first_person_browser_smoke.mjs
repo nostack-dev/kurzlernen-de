@@ -11,7 +11,7 @@ const pause=ms=>page.evaluate(delay=>new Promise(resolve=>setTimeout(resolve,del
 
 try{
   await page.setViewport({width:960,height:540,deviceScaleFactor:1});await page.goto(url.href,{waitUntil:"load",timeout:30000});await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&globalThis.__arondightWalkMode&&document.querySelector("#playerModeButton"),{timeout:30000});
-  await page.evaluate(()=>globalThis.__arondightWalkMode.setMode("foot",{persist:false}));await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.playerMode==="foot",{timeout:5000});
+  await page.evaluate(()=>globalThis.__arondightWalkMode.setMode("foot",{persist:false}));await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.playerMode==="foot"&&v.dataset.playerVehicleMode==="human";},{timeout:5000});
   const contract=await page.$eval("#viewport",v=>({profile:v.dataset.walkControlProfile,look:v.dataset.walkLookModel,curve:v.dataset.walkControllerCurve,assist:v.dataset.walkAimAssist,bob:v.dataset.walkViewBob,shake:v.dataset.walkCameraShake}));
   if(contract.profile!=="cod-dynamic-assist-bob-v7"||contract.look!=="fps-balanced-dynamic-v7"||contract.curve!=="radial-dynamic-reverse-s-v1"||contract.assist!=="friction+right-stick-tracking-v1"||contract.bob!=="bounded-stride-v1"||contract.shake!=="shot-impulse-damped-v1")throw new Error(`FPS controller contract missing: ${JSON.stringify(contract)}`);
 
