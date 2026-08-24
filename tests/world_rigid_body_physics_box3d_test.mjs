@@ -28,7 +28,7 @@ assert.equal(physics.applyImpulse("police-drone-test",[18,0,0],{point:[0,20.4,4]
 physics.step(1/60,4,11000);const kicked=physics.pose("police-drone-test");
 assert.ok(kicked.velocity[0]>.65,`shot impulse did not change police-drone rigid-body velocity: ${JSON.stringify(kicked)}`);
 assert.ok(Math.abs(kicked.angularVelocity[2])>.01,`off-center shot impulse did not create physical torque: ${JSON.stringify(kicked)}`);
-assert.ok(physics.impactCount>=1&&impacts.length>=1,"contact solver produced no world impact evidence");
+assert.ok(physics.impactCount>=1&&impacts.some(event=>event.nativeContactEvent&&event.approachSpeedMps>1),`native Box3D contact-hit events produced no impact evidence: ${JSON.stringify(impacts.slice(-3))}`);
 
 physics.destroy();
 console.log("WORLD rigid-body Box3D passed: force-driven car stopped at a building, dynamic cars resolved contact, and a police drone accepted an off-center shot impulse.");
