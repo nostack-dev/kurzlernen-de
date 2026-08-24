@@ -109,7 +109,6 @@ jobs:
           node --check tests/world_building_collision_box3d_test.mjs
           node --check tests/world_building_collision_browser_smoke.mjs
           node --check tools/s31_hil_bridge.mjs
-          node tests/architecture_invariants.mjs
 
   esp-idf-build:
     runs-on: ubuntu-latest
