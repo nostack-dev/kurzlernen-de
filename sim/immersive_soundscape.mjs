@@ -6,6 +6,7 @@ import "./gameplay_final_realism_patch.mjs";
 import "./first_person_weapon_runtime_v3.mjs";
 import "./gameplay_reliability_authority_v5.mjs";
 import "./gameplay_reliability_runtime_v4.mjs";
+import "./mobile_landscape_hud_compact.mjs";
 
 let installed=false,ctx=null,master=null,engine=null,noiseBuffer=null,lastFrame=performance.now(),lastStepAt=-Infinity,lastWalkX=NaN,lastWalkY=NaN,settings=loadAudioSettings();
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
