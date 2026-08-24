@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./audio_settings.mjs";
 import {accelerateCriticalDetonation,criticalDamageProfile,isCriticalDamage} from "./critical_damage_logic.mjs";
-import {wantedCrimeSeverity,wantedDetectionRadiusM,wantedEscapeDurationMs,wantedLineBlockedByPrisms,wantedPointInRing,wantedPoliceCount,wantedPoliceDamage,wantedPoliceEngageDelayMs,wantedPoliceSpawnRadiusM,wantedSearchState,wantedStarsForHeat} from "./wanted_system_logic.mjs";
+import {wantedCrimeSeverity,wantedDetectionRadiusM,wantedEscapeDurationMs,wantedLineBlockedByPrisms,wantedPointInRing,wantedPoliceAltitudeOffsetM,wantedPoliceCount,wantedPoliceDamage,wantedPoliceEngageDelayMs,wantedPoliceSpawnRadiusM,wantedSearchState,wantedStarsForHeat} from "./wanted_system_logic.mjs";
 import {accelerateWorldCriticalDamage,startWorldCriticalDamage,stopWorldCriticalDamage} from "./world_critical_damage_fx.mjs";
 
 const WORLD_KILL_EVENT="arondight:world-kill";
@@ -89,7 +89,7 @@ body.solo-flight #wantedHud:not([hidden]){display:block}#wantedHud[hidden]{displ
 function updateTelemetry(remainingMs=0){
   const view=viewport();
   if(!view)return;
-  view.dataset.wantedSystem="heat+fair-physics-police-drones-v2";
+  view.dataset.wantedSystem="heat+fair-physics-police-drones-v3";
   view.dataset.wantedHeat=String(heat);
   view.dataset.wantedStars=String(stars);
   view.dataset.wantedPhase=phase;
@@ -98,7 +98,8 @@ function updateTelemetry(remainingMs=0){
   view.dataset.wantedEscapeRemainingMs=String(Math.max(0,Math.round(remainingMs)));
   view.dataset.wantedEscapable="1";
   view.dataset.wantedPoliceVisual="white-black+red-blue-lightbar-v2";
-  view.dataset.wantedPoliceSpawn="rear-far-inbound-v2";
+  view.dataset.wantedPoliceSpawn="rear-far-player-level-inbound-v3";
+  view.dataset.wantedPoliceAltitude="player-level-formation-v1";
   view.dataset.wantedPoliceDamageModel="4-6hp+1050ms-grace-v2";
   view.dataset.wantedPoliceDamagePresentation="critical-smoke+delayed-explosion-v1";
   view.dataset.wantedPoliceCritical=String(drones.filter(drone=>drone.active&&drone.critical).length);
@@ -221,10 +222,10 @@ function buildingTopAt(x,y){
   return top;
 }
 
-function safeAltitude(x,y,z){const top=buildingTopAt(x,y);return Math.max(2.4,Number(z)||0,top?top+1.6:0);}
+function safeAltitude(x,y,z){const top=buildingTopAt(x,y);return Math.max(.85,Number(z)||0,top?top+1.6:0);}
 
 function spawnDrone(drone,player,now){
-  const walk=globalThis.__arondightWalkMode,playerForwardAngle=walk?.mode==="foot"?Math.PI/2-(Number(walk.yaw)||0):now*.00017,angle=playerForwardAngle+Math.PI+(drone.index-(MAX_POLICE_DRONES-1)/2)*.34,radius=wantedPoliceSpawnRadiusM(drone.index),x=player.x+Math.cos(angle)*radius,y=player.y+Math.sin(angle)*radius,z=safeAltitude(x,y,player.z+7+(drone.index%2)*2.2),id=`police-drone-${drone.index}`;
+  const walk=globalThis.__arondightWalkMode,playerForwardAngle=walk?.mode==="foot"?Math.PI/2-(Number(walk.yaw)||0):now*.00017,angle=playerForwardAngle+Math.PI+(drone.index-(MAX_POLICE_DRONES-1)/2)*.34,radius=wantedPoliceSpawnRadiusM(drone.index),x=player.x+Math.cos(angle)*radius,y=player.y+Math.sin(angle)*radius,z=safeAltitude(x,y,player.z+wantedPoliceAltitudeOffsetM(drone.index,"pursuit")),id=`police-drone-${drone.index}`;
   stopWorldCriticalDamage(id);drone.root.position.set(x,y,z);drone.root.rotation.set(0,0,angle+Math.PI);drone.root.scale.setScalar(1);drone.velocity.set(-Math.sin(angle)*1.2,Math.cos(angle)*1.2,0);drone.hp=POLICE_HP;drone.critical=false;drone.criticalExpiresAt=Infinity;drone.lastCollisionDamageAt=-Infinity;drone.active=true;drone.root.visible=true;drone.hitbox.visible=true;drone.flash.visible=false;drone.hitUntil=0;drone.spawnSerial++;drone.spawnedAt=now;drone.engageAt=now+wantedPoliceEngageDelayMs(stars);drone.nextShotAt=drone.engageAt+drone.index*160;drone.nextSensorAt=now+drone.index*24;drone.nextGoalRoofAt=0;drone.nextCollisionAt=0;drone.goalRoof=0;drone.collisionRoof=0;drone.seesPlayer=true;drone.distance=drone.root.position.distanceTo(player);drone.tracer.visible=false;rigidBodies()?.upsertBody?.({id,kind:"police-drone",position:[x,y,z],yaw:angle+Math.PI,halfExtents:[.79,.79,.34],massKg:18,gravityScale:0,linearDamping:.38,angularDamping:1.1});const view=viewport();if(view){view.dataset.wantedPoliceSpawnDistanceM=radius.toFixed(1);view.dataset.wantedPoliceInboundMs=String(Math.round(drone.engageAt-now));}
 }
 
@@ -301,8 +302,8 @@ function updateSensors(player,now){
 
 function droneGoal(drone,now){
   const searching=phase==="searching",angle=drone.index/MAX_POLICE_DRONES*Math.PI*2+now*(searching? .00035:.00016),radius=searching?11+(drone.index%3)*5:8+(drone.index%2)*4;
-  goalPosition.set(lastKnownPosition.x+Math.cos(angle)*radius,lastKnownPosition.y+Math.sin(angle)*radius,lastKnownPosition.z+(searching?4.8:3.8)+(drone.index%3)*1.35);
-  if(now>=drone.nextGoalRoofAt){drone.nextGoalRoofAt=now+125+drone.index*9;drone.goalRoof=buildingTopAt(goalPosition.x,goalPosition.y);}goalPosition.z=Math.max(2.4,goalPosition.z,drone.goalRoof?drone.goalRoof+1.6:0);drone.goal.copy(goalPosition);return drone.goal;
+  goalPosition.set(lastKnownPosition.x+Math.cos(angle)*radius,lastKnownPosition.y+Math.sin(angle)*radius,lastKnownPosition.z+wantedPoliceAltitudeOffsetM(drone.index,phase));
+  if(now>=drone.nextGoalRoofAt){drone.nextGoalRoofAt=now+125+drone.index*9;drone.goalRoof=buildingTopAt(goalPosition.x,goalPosition.y);}goalPosition.z=Math.max(.85,goalPosition.z,drone.goalRoof?drone.goalRoof+1.6:0);drone.goal.copy(goalPosition);return drone.goal;
 }
 
 function updateDroneMotion(drone,now,dt){
@@ -353,7 +354,7 @@ export function installWantedPoliceDrones(){
   addEventListener(WORLD_KILL_EVENT,onWorldKill);addEventListener("arondight:combat-hit-confirm",onCombatKill);addEventListener("arondight:world-physics-impact",onPhysicsImpact);addEventListener(AUDIO_SETTINGS_EVENT,event=>{audioSettings=normalizeAudioSettings(event.detail||loadAudioSettings());});
   const unlock=()=>{audioUnlocked=true;ensureAudio();};addEventListener("pointerdown",unlock,{capture:true,passive:true});addEventListener("keydown",unlock,{capture:true});
   document.addEventListener("click",event=>{const target=event.target instanceof Element?event.target.closest("#reset,#soloReset"):null;if(target)clearWanted("reset");},{capture:true,passive:true});
-  const api={reportCrime,clear:clearWanted,get state(){return{heat,stars,phase,policeActive:drones.filter(drone=>drone.active).length,policeKills,lastContactAt,lastCrimeAt};},get drones(){return drones.slice();}};globalThis.__arondightWantedSystem=api;const view=viewport();if(view)view.dataset.wantedSystem="heat+fair-physics-police-drones-v2";requestAnimationFrame(frame);return api;
+  const api={reportCrime,clear:clearWanted,get state(){return{heat,stars,phase,policeActive:drones.filter(drone=>drone.active).length,policeKills,lastContactAt,lastCrimeAt};},get drones(){return drones.slice();}};globalThis.__arondightWantedSystem=api;const view=viewport();if(view)view.dataset.wantedSystem="heat+fair-physics-police-drones-v3";requestAnimationFrame(frame);return api;
 }
 
 installWantedPoliceDrones();

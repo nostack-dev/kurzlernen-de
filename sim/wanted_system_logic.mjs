@@ -49,6 +49,13 @@ export function wantedPoliceEngageDelayMs(stars){
   return Math.max(1900,2500-level*90);
 }
 
+const POLICE_ALTITUDE_FORMATION_M=Object.freeze([0,.18,-.18,.34,-.34]);
+
+export function wantedPoliceAltitudeOffsetM(index=0,phase="pursuit"){
+  const slot=POLICE_ALTITUDE_FORMATION_M[Math.max(0,Math.floor(Number(index)||0))%POLICE_ALTITUDE_FORMATION_M.length];
+  return (String(phase)==="searching"?.70:.35)+slot;
+}
+
 export function wantedPointInRing(x,y,ring){
   let inside=false;if(!Array.isArray(ring)||ring.length<3)return false;
   for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],b=ring[j],ax=Number(a?.[0]),ay=Number(a?.[1]),bx=Number(b?.[0]),by=Number(b?.[1]);if(!Number.isFinite(ax+ay+bx+by))continue;const crosses=(ay>y)!==(by>y)&&x<(bx-ax)*(y-ay)/((by-ay)||1e-12)+ax;if(crosses)inside=!inside;}
