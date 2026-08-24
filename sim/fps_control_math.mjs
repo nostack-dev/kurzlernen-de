@@ -41,9 +41,13 @@ export function fpsStickVelocity(stick,profile=FPS_CONTROL_PROFILE,{touch=false}
 }
 
 export function dampFpsLookVelocity(current,target,dt,profile=FPS_CONTROL_PROFILE){
-  const from=Number(current)||0,to=Number(target)||0,delta=Math.max(0,Math.min(.05,Number(dt)||0));if(delta<=0)return from;
-  const reversing=from*to<0,growing=Math.abs(to)>Math.abs(from),rate=reversing?profile.lookReleaseRate:growing?profile.lookAccelerationRate:profile.lookReleaseRate;
-  return to+(from-to)*Math.exp(-Math.max(1,Number(rate)||1)*delta);
+  return integrateFpsLookVelocity(current,target,Math.min(.05,Math.max(0,Number(dt)||0)),profile).velocity;
+}
+
+export function integrateFpsLookVelocity(current,target,dt,profile=FPS_CONTROL_PROFILE){
+  const from=Number(current)||0,to=Number(target)||0,delta=Math.max(0,Math.min(.25,Number(dt)||0));if(delta<=0)return{velocity:from,angleDelta:0};
+  const reversing=from*to<0,growing=Math.abs(to)>Math.abs(from),rate=Math.max(1,Number(reversing?profile.lookReleaseRate:growing?profile.lookAccelerationRate:profile.lookReleaseRate)||1),decay=Math.exp(-rate*delta);
+  return{velocity:to+(from-to)*decay,angleDelta:to*delta+(from-to)*(1-decay)/rate};
 }
 
 export function fpsAimAssist({yawError=0,pitchError=0,distanceM=0,stickMagnitude=0,inputYaw=0,inputPitch=0}={},profile=FPS_CONTROL_PROFILE){

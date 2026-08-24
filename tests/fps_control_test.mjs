@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {FPS_CONTROL_PROFILE,FPS_HORIZONTAL_FOV_DEG,FPS_PITCH_LIMIT_RAD,FPS_WORLD_MAP_MAX_PITCH_DEG,FPS_WORLD_MAP_MIN_PITCH_DEG,addFpsShotImpulse,createFpsCameraMotionState,dampFpsLookVelocity,fpsAimAssist,fpsPitchRadToWorldMapPitchDeg,fpsStickVelocity,fpsTouchLookDelta,fpsVerticalFovDegForAspect,shapeFpsStick,stepFpsCameraMotion,wrapFpsAngleRad} from "../sim/fps_control_math.mjs";
+import {FPS_CONTROL_PROFILE,FPS_HORIZONTAL_FOV_DEG,FPS_PITCH_LIMIT_RAD,FPS_WORLD_MAP_MAX_PITCH_DEG,FPS_WORLD_MAP_MIN_PITCH_DEG,addFpsShotImpulse,createFpsCameraMotionState,dampFpsLookVelocity,fpsAimAssist,fpsPitchRadToWorldMapPitchDeg,fpsStickVelocity,fpsTouchLookDelta,fpsVerticalFovDegForAspect,integrateFpsLookVelocity,shapeFpsStick,stepFpsCameraMotion,wrapFpsAngleRad} from "../sim/fps_control_math.mjs";
 
 const near=(actual,expected,tolerance=1e-6,message="")=>assert.ok(Math.abs(actual-expected)<=tolerance,`${message} expected ${expected}, got ${actual}`);
 
@@ -13,7 +13,7 @@ assert.ok(FPS_WORLD_MAP_MAX_PITCH_DEG>179.5&&FPS_WORLD_MAP_MAX_PITCH_DEG<180&&FP
 near(fpsPitchRadToWorldMapPitchDeg(FPS_PITCH_LIMIT_RAD),90+FPS_PITCH_LIMIT_RAD*180/Math.PI,1e-10,"FPS/WORLD pitch conversion drifted");
 assert.equal(FPS_HORIZONTAL_FOV_DEG,90);near(fpsVerticalFovDegForAspect(16/9),58.715507,1e-5,"FPS horizontal-to-vertical FOV conversion drifted");
 
-const integrateVelocity=hz=>{let current=0,total=0;const dt=1/hz;for(let i=0;i<hz;i++){current=dampFpsLookVelocity(current,3,dt);total+=current*dt;}return total;};near(integrateVelocity(30),integrateVelocity(120),.035,"look acceleration depends on display rate");
+const integrateVelocity=(hz,duration=1)=>{let current=0,total=0;const dt=1/hz;for(let i=0;i<Math.round(hz*duration);i++){const step=integrateFpsLookVelocity(current,3,dt);current=step.velocity;total+=step.angleDelta;}return{current,total};};const integrated30=integrateVelocity(30),integrated120=integrateVelocity(120),stalled=integrateFpsLookVelocity(0,3,.2),smoothCatchup=integrateVelocity(120,.2);near(integrated30.current,integrated120.current,1e-12,"look velocity depends on display rate");near(integrated30.total,integrated120.total,1e-12,"look rotation depends on display rate");near(stalled.velocity,smoothCatchup.current,1e-12,"stalled-frame velocity catch-up drifted");near(stalled.angleDelta,smoothCatchup.total,1e-12,"stalled-frame rotation catch-up drifted");
 assert.ok(dampFpsLookVelocity(3,0,1/60)<1.7,"stick release does not stop promptly");
 
 const idleAssist=fpsAimAssist({yawError:.03,pitchError:.01,distanceM:20,stickMagnitude:0,inputYaw:0,inputPitch:0});assert.equal(idleAssist.active,false,"aim assist must never pull without right-stick input");
