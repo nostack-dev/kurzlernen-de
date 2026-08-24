@@ -40,6 +40,7 @@ function gamepad(){return findXboxGamepad(navigator.getGamepads?.());}
 function axis(v,d=.10){const x=clamp(v,-1,1),a=Math.abs(x);if(a<=d)return 0;const n=(a-d)/(1-d);return Math.sign(x)*Math.pow(n,1.28);}
 function button(pad,index){const b=pad?.buttons?.[index];return clamp(typeof b==="number"?b:(b?.value??(b?.pressed?1:0)),0,1);}
 function effectiveVisible(node){for(let current=node;current;current=current.parent)if(current.visible===false)return false;return true;}
+function aimAssistExcluded(node){for(let current=node;current;current=current.parent)if(current.userData?.worldPopulationClone||current.userData?.aimAssistDisabled)return true;return false;}
 function ownPlayerId(){try{return String(bridge()?.vsSession?.getSelfId?.()||bridge()?.vsSession?.active?.getSelfId?.()||"");}catch{return"";}}
 function isOwnAimMesh(node){const self=ownPlayerId();for(let current=node;current;current=current.parent){if(current.userData?.localHumanAvatar||current.name==="LOCAL_HUMAN_VR")return true;if(self&&String(current.userData?.vsPlayerId||"")===self)return true;}return false;}
 function targetAngles(point){aimOffset.copy(point).sub(state.position);const horizontal=Math.hypot(aimOffset.x,aimOffset.y);return{yaw:Math.atan2(aimOffset.x,aimOffset.y),pitch:Math.atan2(aimOffset.z,horizontal),distance:Math.hypot(horizontal,aimOffset.z)};}
@@ -83,7 +84,7 @@ function scanAimTarget(now){
   if(now-lastAimScan<AIM_SCAN_INTERVAL_MS&&aimTarget&&effectiveVisible(aimTarget.root))return aimTarget;lastAimScan=now;aimTarget=null;
   const scene=bridge()?.threeScene;if(!scene)return null;const seen=new Set(),prisms=bridge()?.buildingCollisionSnapshot?.prisms;let bestScore=Infinity;
   scene.traverse(obj=>{
-    const data=obj?.userData||{},kind=String(data.worldPopulationKind||"");if(!obj?.isMesh||data.worldPopulationClone||!(kind==="person"||kind==="police-drone"||kind==="vs-player")||!effectiveVisible(obj)||isOwnAimMesh(obj))return;
+    const data=obj?.userData||{},kind=String(data.worldPopulationKind||"");if(!obj?.isMesh||aimAssistExcluded(obj)||!(kind==="person"||kind==="police-drone"||kind==="vs-player")||!effectiveVisible(obj)||isOwnAimMesh(obj))return;
     const id=String(data.worldPopulationId||data.worldProceduralId||data.vsPlayerId||"");if(!id||seen.has(id))return;seen.add(id);const root=aimRootFor(obj,kind,id),offsetZ=kind==="person"||kind==="vs-player"?1.24:0,record={id,kind,root,offsetZ};aimPointFor(record,aimWorld);const angles=targetAngles(aimWorld),yawError=wrapFpsAngleRad(angles.yaw-state.yaw),pitchError=angles.pitch-state.pitch,yawN=yawError/FPS_CONTROL_PROFILE.assistYawWindowRad,pitchN=pitchError/FPS_CONTROL_PROFILE.assistPitchWindowRad,ellipse=Math.hypot(yawN,pitchN);
     if(ellipse>=1||angles.distance>FPS_CONTROL_PROFILE.assistMaxDistanceM||wantedLineBlockedByPrisms(state.position,aimWorld,prisms))return;const score=ellipse+angles.distance/FPS_CONTROL_PROFILE.assistMaxDistanceM*.12;if(score<bestScore){bestScore=score;aimTarget={...record,distance:angles.distance};}
   });
