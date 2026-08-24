@@ -106,6 +106,13 @@ try{
   });
   if(Math.abs(eyeHeights.low.eye-5)>.01||Math.abs(eyeHeights.high.eye-50)>.01||eyeHeights.low.sync!=="rigid-eye-target"||eyeHeights.high.sync!=="rigid-eye-target"||eyeHeights.high.eye-eyeHeights.low.eye<44.9)throw new Error(`FPV eye altitude not preserved: ${JSON.stringify(eyeHeights)}`);
 
+  const verticalWorldRange=await page.evaluate(()=>{
+    const b=globalThis.__arondightRealWorld,c=b.threeCamera,v=document.querySelector("#viewport"),saved={p:c.position.clone(),q:c.quaternion.clone(),u:c.up.clone(),mode:v.dataset.cameraMode,worldMode:v.dataset.worldCameraMode,lastSerial:b.lastMapSyncFrameSerial};
+    const run=pitch=>{const target=c.position.clone(),cp=Math.cos(pitch);target.y+=cp;target.z+=Math.sin(pitch);c.up.set(0,0,1);c.lookAt(target);v.dataset.cameraMode="follow";v.dataset.worldCameraMode="follow";b.lastMapSyncMs=-Infinity;b.lastMapSyncFrameSerial=-1;b.syncMapCamera(c);return{reported:Number(v.dataset.worldMapPitch),actual:Number(b.map.getPitch()),contract:v.dataset.worldMapPitchContract,max:Number(v.dataset.worldMapMaxPitchDeg)};};
+    c.position.set(12,-7,1.68);const up=run(89.3*Math.PI/180),down=run(-89.3*Math.PI/180);c.position.copy(saved.p);c.quaternion.copy(saved.q);c.up.copy(saved.u);v.dataset.cameraMode=saved.mode;if(saved.worldMode===undefined)delete v.dataset.worldCameraMode;else v.dataset.worldCameraMode=saved.worldMode;b.lastMapSyncMs=-Infinity;b.lastMapSyncFrameSerial=saved.lastSerial;return{up,down};
+  });
+  if(verticalWorldRange.up.actual<178||verticalWorldRange.up.reported<178||verticalWorldRange.down.actual>2||verticalWorldRange.down.reported>2||verticalWorldRange.up.contract!=="fps-display-near-vertical-v1"||verticalWorldRange.down.contract!=="fps-display-near-vertical-v1"||verticalWorldRange.up.max<179.5||verticalWorldRange.up.max>=180)throw new Error(`WORLD background clipped first-person vertical range: ${JSON.stringify(verticalWorldRange)}`);
+
   const cameraCadence=await page.evaluate(()=>{
     const b=globalThis.__arondightRealWorld,c=b.threeCamera,v=document.querySelector("#viewport"),saved={p:c.position.clone(),q:c.quaternion.clone(),u:c.up.clone(),mode:v.dataset.cameraMode,worldMode:v.dataset.worldCameraMode,lastSerial:b.lastMapSyncFrameSerial};
     c.position.set(12,-7,18);c.quaternion.set(0,0,0,1);c.up.set(0,1,0);const modes={};let serial=400;

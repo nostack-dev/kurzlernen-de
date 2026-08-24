@@ -43,13 +43,20 @@ jobs:
           /tmp/state_control_test
           node tests/combat_center_fire_test.mjs
           node tests/fps_control_test.mjs
+          node tests/first_person_control_settings_test.mjs
+          node tests/player_camera_mode_policy_test.mjs
+          node tests/xbox_gamepad_test.mjs
           node tests/critical_damage_logic_test.mjs
           node tests/wanted_system_test.mjs
           node --check sim/flight_fire_fx.mjs
           node --check sim/box3d_hitscan.mjs
           node --check sim/world_procedural_population.mjs
           node --check sim/fps_control_math.mjs
+          node --check sim/camera_pitch_contract.mjs
+          node --check sim/drone_control_settings.mjs
+          node --check sim/first_person_control_settings.mjs
           node --check sim/player_walk_mode_v4.mjs
+          node --check sim/player_camera_mode_policy.mjs
           node --check sim/foot_look_capture.mjs
           node --check sim/critical_damage_logic.mjs
           node --check sim/world_critical_damage_fx.mjs
@@ -59,6 +66,7 @@ jobs:
           node --check sim/wanted_police_drones.mjs
           node --check tests/fps_first_person_browser_smoke.mjs
           node --check tests/player_vehicle_browser_smoke.mjs
+          node --check tests/real_world_ui_smoke.mjs
           node --check tests/wanted_police_browser_smoke.mjs
           grep -q 'kMaxHorizontalAccelerationMps2 = 7.5f' esp32/Arondight45_StateControl.hpp
           grep -q 'commanded_forward_mps_ = intent.forward_mps' esp32/Arondight45_StateControl.hpp
@@ -124,9 +132,11 @@ jobs:
           rm -rf generated
 
       - name: Minimal browser smoke
-        timeout-minutes: 5
+        timeout-minutes: 9
         run: |
           set -euxo pipefail
+          # The WORLD fixture intercepts the production imagery origin:
+          # https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
           python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
@@ -135,8 +145,10 @@ jobs:
           trap cleanup EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/combat_center_fire_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/player_vehicle_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/procedural_population_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/wanted_police_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
 
@@ -173,7 +185,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Minimal exact-live smoke
         id: live_probes
-        timeout-minutes: 5
+        timeout-minutes: 7
         run: |
           set -euxo pipefail
           BUILD_DIR=/tmp/arondight45-live-e2e-tools
@@ -201,6 +213,7 @@ jobs:
           done
           test "$fetched" = 1
           CHROME_BIN="$CHROME_BIN" node tests/combat_center_fire_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/player_vehicle_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/procedural_population_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"

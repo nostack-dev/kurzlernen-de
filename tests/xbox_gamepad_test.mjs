@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import {XBOX_STANDARD_BUTTON,XBOX_CONTROL_SCHEMES,findXboxGamepad,gamepadAxis,isXboxCompatibleGamepad,loadXboxControlScheme,saveXboxControlScheme,sampleXboxGamepad} from "../sim/xbox_gamepad.mjs";
+import {XBOX_STANDARD_BUTTON,XBOX_CONTROL_SCHEMES,findXboxGamepad,gamepadAxis,isXboxCompatibleGamepad,loadXboxControlScheme,saveXboxControlScheme,sampleXboxGamepad,standardGamepadFamily} from "../sim/xbox_gamepad.mjs";
 
 const store=new Map();globalThis.localStorage={getItem:key=>store.has(key)?store.get(key):null,setItem:(key,value)=>store.set(key,String(value)),removeItem:key=>store.delete(key)};
 const buttons=Array.from({length:17},()=>({pressed:false,value:0}));
 const pad={id:"Xbox Wireless Controller (Vendor: 045e)",index:0,connected:true,mapping:"standard",axes:[.08,-.70,.55,-.40],buttons};
 assert.equal(isXboxCompatibleGamepad(pad),true);
 assert.equal(findXboxGamepad([null,pad]),pad);
+assert.equal(standardGamepadFamily(pad),"xbox-standard");
 assert.equal(gamepadAxis(.08),0);
 assert.ok(gamepadAxis(-.70)<-.60);
 assert.equal(loadXboxControlScheme(),XBOX_CONTROL_SCHEMES.CLASSIC,"classic flight must be the Xbox default");

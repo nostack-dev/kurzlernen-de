@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import {Map as MapLibreMap,LngLat} from "maplibre-gl";
 import {CAMERA_SETTINGS_EVENT,loadCameraSettings,setCameraFovDeg} from "./camera_settings.mjs";
+import {FPS_WORLD_MAP_MAX_PITCH_DEG} from "./camera_pitch_contract.mjs";
 import {fpvTargetDistanceMeters,forwardTarget} from "./world_camera_math.mjs";
 import {LanVsFinder,discoveryRoomKeys} from "./lan_vs.mjs";
 import {VsPoseTimeline,normalizeVsOrigin,chooseCanonicalVsOrigin,poseMatchesVsFrame,vsFrameId,vsOriginKey} from "./vs_pose_sync.mjs";
@@ -21,7 +22,7 @@ const WORLD_FPS_CONSTRAINED=50;
 const WORLD_FPS_CRITICAL=36;
 const WORLD_FPS_RECOVER=57;
 const WORLD_MAP_MAX_ZOOM=20;
-const WORLD_MAP_MAX_PITCH=120;
+const WORLD_MAP_MAX_PITCH=FPS_WORLD_MAP_MAX_PITCH_DEG;
 const WORLD_MAP_PIXEL_RATIO=1.0;
 const WORLD_MAP_SOFTWARE_PIXEL_RATIO=.50;
 const WORLD_FLIGHT_PIXEL_RATIO=1.25;
@@ -73,7 +74,7 @@ class RealWorldBridge{
   constructor(){
     this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.flightPixelRatio=null;this.flightShadowEnabled=null;this.mapPixelRatio=WORLD_MAP_PIXEL_RATIO;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";this.lastMapSyncMs=-Infinity;this.lastMapView=null;this.realFrames=0;this.presentationFrameSerial=0;this.lastMapSyncFrameSerial=-1;this.mapUpdates=0;this.gridEnabled=loadBool(WORLD_GRID_STORAGE,true);this.keepLookOrientation=loadBool(WORLD_KEEP_LOOK_STORAGE,false);this.minimapAxisLocked=loadBool(WORLD_MINIMAP_AXIS_LOCK_STORAGE,true);this.imageryEnabled=loadBool(WORLD_IMAGERY_STORAGE,true);this.lookYawDeg=0;this.lookPitchDeg=0;this.lookDragging=false;this.gamepadLookActive=false;this.lookSnapping=false;this.lookPointer=null;this.lookFrameMs=performance.now();this.lookHud=null;this.lookReadout=null;this.minimapTitle=null;this.mapLegend=null;this.minimapCanvas=null;this.minimapCtx=null;this.minimapFeatures=[];this.minimapLayerIds=[];this.minimapImageryTiles=new Map();this.minimapLastQueryMs=-Infinity;this.minimapLastDrawMs=-Infinity;this.minimapQueries=0;this.minimapExpanded=false;this.minimapZoom=1;this.minimapPointers=new Map();this.minimapPinch=null;this.lastMinimapTapMs=0;this.viewFovDeg=loadCameraSettings().fpvFovDeg;this.lookSurfaceInstalled=false;this.worldShotPoint=new THREE.Vector3();this.worldShotNormal=new THREE.Vector3(0,0,1);this.worldShotHit={point:this.worldShotPoint,worldNormal:this.worldShotNormal};this.worldShotQueries=0;this.airframe=null;this.perfMode="nominal";this.perfWindowStart=performance.now();this.perfFrames=0;this.perfGoodWindows=0;this.flightFps=60;
     this.vsSession=null;this.vsPeerMesh=null;this.vsConnected=false;this.vsStarting=false;this.vsSharedOrigin=null;this.vsLocalOriginCandidate=null;this.vsSharedWorldAttempted=false;this.vsWorldFromMate=false;this.vsPeerTimeline=new VsPoseTimeline();this.vsPeerLastPoseMs=-Infinity;this.vsLocalPoseSample=null;this.vsCombatHud=null;this.vsLocalHealth=100;this.vsPeerHealth=100;this.vsKills=0;this.vsDeaths=0;this.vsCombatSeq=0;this.vsSeenHits=new Set();this.vsPendingHits=new Set();this.vsRespawnTimer=0;this.vsLocalDead=false;this.vsPeerDead=false;this.vsExplosion=null;this.vsExplosionStartedMs=-Infinity;this.installUi();this.installLookHud();this.installFreeLookSurface();this.installVsUi();window.addEventListener(CAMERA_SETTINGS_EVENT,event=>{const value=Number(event.detail?.fpvFovDeg);if(Number.isFinite(value)){this.viewFovDeg=clamp(value,50,120);this.minimapLastDrawMs=-Infinity;}});document.addEventListener("fullscreenchange",()=>{this.minimapLastDrawMs=-Infinity;this.renderLookHud();this.drawMinimap(performance.now());});
-    this.buildingSourceId=null;this.buildingCollisionSink=null;this.buildingCollisionSnapshot=Object.freeze({hash:"",footprintCount:0,prismCount:0,prisms:[]});this.buildingCollisionDirty=true;this.buildingCollisionLastSyncMs=-Infinity;this.buildingCollisionLastCenter=[Infinity,Infinity];this.buildingCollisionRevisions=0;this.cameraCollisionResolver=null;
+    this.buildingSourceId=null;this.buildingCollisionSink=null;this.buildingCollisionSnapshot=Object.freeze({hash:"",footprintCount:0,prismCount:0,prisms:[]});this.buildingCollisionDirty=true;this.buildingCollisionLastSyncMs=-Infinity;this.buildingCollisionLastCenter=[Infinity,Infinity];this.buildingCollisionRevisions=0;this.cameraCollisionResolver=null;this.presentationCameraProvider=null;
   }
   installUi(){
     const panel=document.querySelector(".panel");if(!panel)return;
@@ -221,6 +222,7 @@ class RealWorldBridge{
   stepLook(now){const dt=clamp((now-this.lookFrameMs)/1000,0,.05);this.lookFrameMs=now;if(this.lookSnapping&&!this.lookDragging&&!this.gamepadLookActive){const decay=Math.exp(-WORLD_LOOK_SNAP_RATE*dt);this.lookYawDeg*=decay;this.lookPitchDeg*=decay;if(Math.abs(this.lookYawDeg)<.08&&Math.abs(this.lookPitchDeg)<.08){this.lookYawDeg=0;this.lookPitchDeg=0;this.lookSnapping=false;}this.renderLookHud();}}
   airframeFor(scene){if(this.airframe?.parent)return this.airframe;this.airframe=null;scene.traverse(node=>{if(!this.airframe&&node.userData?.arondightAirframe)this.airframe=node;});return this.airframe;}
   attachCameraCollisionResolver(resolver){this.cameraCollisionResolver=typeof resolver==="function"?resolver:null;}
+  attachPresentationCameraProvider(provider){this.presentationCameraProvider=provider&&typeof provider.isActive==="function"&&typeof provider.apply==="function"?provider:null;}
   constrainCameraToPhysics(anchor,camera){
     if(typeof this.cameraCollisionResolver!=="function"||!anchor||!camera?.position)return false;let result=null;try{result=this.cameraCollisionResolver([anchor.x,anchor.y,anchor.z],[camera.position.x,camera.position.y,camera.position.z]);}catch{return false;}const position=result?.position;if(Array.isArray(position)&&position.length===3&&position.every(Number.isFinite))camera.position.set(...position);const viewport=$("viewport");if(viewport){viewport.dataset.cameraCollision=result?.collided?"blocked":"clear";viewport.dataset.cameraCollisionHitDistanceM=Number(result?.hitDistanceM||0).toFixed(3);}return Boolean(result?.collided);
   }
@@ -392,9 +394,9 @@ class RealWorldBridge{
     this.perfFrames++;const elapsed=now-this.perfWindowStart;if(elapsed<WORLD_PERF_WINDOW_MS)return;this.flightFps=this.perfFrames*1000/Math.max(1,elapsed);this.perfFrames=0;this.perfWindowStart=now;const viewport=$("viewport");if(viewport)viewport.dataset.worldFlightFps=this.flightFps.toFixed(1);
     if(this.flightFps<WORLD_FPS_CRITICAL){this.perfGoodWindows=0;this.setPerfMode("critical");return;}if(this.flightFps<WORLD_FPS_CONSTRAINED){this.perfGoodWindows=0;this.setPerfMode("constrained");return;}if(this.flightFps>WORLD_FPS_RECOVER){this.perfGoodWindows++;if(this.perfGoodWindows>=3)this.setPerfMode("nominal");}else this.perfGoodWindows=0;
   }
-  syncMapCamera(camera,frameSerial=null){
+  syncMapCamera(camera,frameSerial=null,cameraModeOverride=null){
     if(!this.active||!this.map||!Number.isFinite(this.originLon)||!Number.isFinite(this.originLat))return;
-    const now=performance.now(),viewport=$("viewport"),cameraMode=viewport.dataset.cameraMode||"follow",forceMode=cameraMode!==(viewport.dataset.worldCameraMode||""),fpv=cameraMode==="fpv";
+    const now=performance.now(),viewport=$("viewport"),cameraMode=cameraModeOverride||viewport.dataset.cameraMode||"follow",forceMode=cameraMode!==(viewport.dataset.worldCameraMode||""),fpv=cameraMode==="fpv";
     if(forceMode&&viewport.dataset.worldCameraMode)this.resetLook(true);
     if(frameSerial!==null){if(!forceMode&&frameSerial===this.lastMapSyncFrameSerial)return;this.lastMapSyncFrameSerial=frameSerial;}
     else if(!forceMode&&now-this.lastMapSyncMs<WORLD_MAP_DIRECT_DEDUP_MS)return;
@@ -405,21 +407,22 @@ class RealWorldBridge{
     const bearing=THREE.MathUtils.radToDeg(Math.atan2(dir.x,dir.y)),pitch=clamp(90+THREE.MathUtils.radToDeg(Math.atan2(dir.z,Math.max(1e-6,horizontal))),0,WORLD_MAP_MAX_PITCH);let roll=0;if(horizontal>.02){const worldUp=new THREE.Vector3(0,0,1),right0=new THREE.Vector3().crossVectors(dir,worldUp).normalize(),up0=new THREE.Vector3().crossVectors(right0,dir).normalize();roll=THREE.MathUtils.radToDeg(Math.atan2(dir.dot(new THREE.Vector3().crossVectors(up0,actualUp)),up0.dot(actualUp)));}
     const size=`${Math.round(rect.width)}x${Math.round(rect.height)}`;if(size!==this.lastViewportSize){this.lastViewportSize=size;this.map.resize();}
     if(typeof this.map.calculateCameraOptionsFromTo!=="function")throw Error("MapLibre eye/target camera API unavailable");const eye=metersToLngLat(this.originLon,this.originLat,p.x,p.y),options=this.map.calculateCameraOptionsFromTo(new LngLat(eye[0],eye[1]),p.z,new LngLat(center[0],center[1]),target.z),zoom=Number(options.zoom),view={...options,center,elevation:target.z,roll:clamp(roll,-85,85)};viewport.dataset.worldMapEye=`${eye[0].toFixed(7)},${eye[1].toFixed(7)}`;viewport.dataset.worldMapEyeElevation=p.z.toFixed(3);
-    this.lastMapSyncMs=now;this.lastMapView={...view,center:[...center]};this.map.jumpTo(view);this.mapUpdates++;viewport.dataset.worldCameraMode=cameraMode;viewport.dataset.worldMapSyncMode=fpv?"rigid-eye-target":"stabilized-eye-target";viewport.dataset.worldMapCenter=`${center[0].toFixed(7)},${center[1].toFixed(7)}`;viewport.dataset.worldMapTargetElevation=Number(view.elevation||0).toFixed(3);viewport.dataset.worldMapZoom=Number(view.zoom||zoom||0).toFixed(4);viewport.dataset.worldMapPitch=Number(view.pitch??pitch).toFixed(3);viewport.dataset.worldMapBearing=Number(view.bearing??bearing).toFixed(3);viewport.dataset.worldMapUpdates=String(this.mapUpdates);
+    this.lastMapSyncMs=now;this.lastMapView={...view,center:[...center]};this.map.jumpTo(view);this.mapUpdates++;viewport.dataset.worldCameraMode=cameraMode;viewport.dataset.worldMapSyncMode=cameraMode==="walk"?"player-eye-target":fpv?"rigid-eye-target":"stabilized-eye-target";viewport.dataset.worldMapPitchContract="fps-display-near-vertical-v1";viewport.dataset.worldMapMaxPitchDeg=WORLD_MAP_MAX_PITCH.toFixed(3);viewport.dataset.worldMapCenter=`${center[0].toFixed(7)},${center[1].toFixed(7)}`;viewport.dataset.worldMapTargetElevation=Number(view.elevation||0).toFixed(3);viewport.dataset.worldMapZoom=Number(view.zoom||zoom||0).toFixed(4);viewport.dataset.worldMapPitch=Number(view.pitch??pitch).toFixed(3);viewport.dataset.worldMapBearing=Number(view.bearing??bearing).toFixed(3);viewport.dataset.worldMapUpdates=String(this.mapUpdates);
   }
-  renderReal(scene,camera){
+  renderReal(scene,camera,{cameraMode=null,skipFreeLook=false}={}){
     this.presentationFrameSerial++;this.trackFlightPerformance(performance.now());const basePosition=camera.position.clone(),baseQuaternion=camera.quaternion.clone(),baseUp=camera.up.clone();
-    this.applyLookCamera(scene,camera);this.syncMapCamera(camera,this.presentationFrameSerial);this.drawMinimap(performance.now());const renderer=this.threeRenderer;if(!renderer){camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);return;}
+    if(!skipFreeLook)this.applyLookCamera(scene,camera);this.syncMapCamera(camera,this.presentationFrameSerial,cameraMode);this.drawMinimap(performance.now());const renderer=this.threeRenderer;if(!renderer){camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);return;}
     this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;
     const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);
     try{renderer.render(scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);camera.updateMatrixWorld();}
   }
   renderFrame(renderer,scene,camera){
     this.attachThree(renderer,scene,camera);this.updateVsPose();
-    if(!this.active)return false;
-    this.syncBuildingCollisions();
-    this.renderReal(scene,camera);
-    return true;
+    const provider=this.presentationCameraProvider,providerActive=Boolean(provider?.isActive()),viewport=$("viewport");
+    if(!providerActive){if(viewport)viewport.dataset.presentationCameraMode=viewport.dataset.cameraMode||"follow";if(!this.active){this.applyLookCamera(scene,camera);return false;}this.syncBuildingCollisions();this.renderReal(scene,camera);return true;}
+    const basePosition=camera.position.clone(),baseQuaternion=camera.quaternion.clone(),baseUp=camera.up.clone(),baseFov=camera.fov;
+    try{const presentation=provider.apply({camera,scene,now:performance.now()}),owned=Boolean(presentation?.active);if(viewport)viewport.dataset.presentationCameraMode=owned?String(presentation.mode||"player"):viewport.dataset.cameraMode||"follow";if(!owned)throw Error("Active presentation camera provider did not supply a camera pose");if(!this.active){renderer.render(scene,camera);return true;}this.syncBuildingCollisions();this.renderReal(scene,camera,{cameraMode:String(presentation.mode||"player"),skipFreeLook:true});return true;}
+    finally{camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);if(camera.fov!==baseFov){camera.fov=baseFov;camera.updateProjectionMatrix();}camera.updateMatrixWorld();}
   }
 }
 

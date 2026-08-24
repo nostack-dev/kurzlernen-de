@@ -6,6 +6,7 @@ function buttonPressed(gamepad,index){const button=gamepad?.buttons?.[index];ret
 function focusable(dialog){return Array.from(dialog?.querySelectorAll?.('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"]):not([disabled])')||[]).filter(element=>element.offsetParent!==null&&!element.closest('[hidden]'));}
 function dispatchInput(element){element.dispatchEvent(new Event("input",{bubbles:true}));element.dispatchEvent(new Event("change",{bubbles:true}));}
 function adjustRange(input,direction){const min=Number(input.min),max=Number(input.max),step=Number(input.step)||1,current=Number(input.value)||0,next=clamp(current+direction*step,Number.isFinite(min)?min:-Infinity,Number.isFinite(max)?max:Infinity);if(next===current)return false;input.value=String(next);dispatchInput(input);return true;}
+function adjustSelect(select,direction){const options=Array.from(select.options||[]).filter(option=>!option.disabled);if(options.length<2)return false;const current=Math.max(0,options.indexOf(select.selectedOptions?.[0])),next=(current+direction+options.length)%options.length;if(next===current)return false;select.value=options[next].value;dispatchInput(select);return true;}
 function latchFlightRelease(){globalThis.__arondightSettingsGamepadBlockUntilRelease=true;}
 function clickSoloAction(selector,datasetKey){const button=document.querySelector(selector),viewport=document.getElementById("viewport");if(!document.body.classList.contains("solo-flight")||!(button instanceof HTMLElement))return false;latchFlightRelease();button.click();if(viewport)viewport.dataset[datasetKey]=String((Number(viewport.dataset[datasetKey])||0)+1);return true;}
 
@@ -14,7 +15,7 @@ export function createSettingsGamepadNavigator({dialog,openDialog,closeDialog,ge
   let previous=Array(16).fill(false),stickLatchY=0,stickLatchX=0,running=true;
   const setFocus=(delta=0)=>{const items=focusable(dialog);if(!items.length)return null;let index=items.indexOf(document.activeElement);if(index<0)index=0;else index=(index+delta+items.length)%items.length;const target=items[index];target.focus({preventScroll:true});target.scrollIntoView({block:"nearest",inline:"nearest"});return target;};
   const activate=()=>{const target=document.activeElement;if(!(target instanceof HTMLElement)||!dialog.contains(target))return false;if(target instanceof HTMLInputElement&&target.type==="range")return false;latchFlightRelease();target.click();return true;};
-  const horizontal=direction=>{const target=document.activeElement;if(target instanceof HTMLInputElement&&dialog.contains(target)){if(target.type==="range")return adjustRange(target,direction);if(target.type==="checkbox"){latchFlightRelease();target.click();return true;}}return false;};
+  const horizontal=direction=>{const target=document.activeElement;if(target instanceof HTMLSelectElement&&dialog.contains(target))return adjustSelect(target,direction);if(target instanceof HTMLInputElement&&dialog.contains(target)){if(target.type==="range")return adjustRange(target,direction);if(target.type==="checkbox"){latchFlightRelease();target.click();return true;}}return false;};
   const frame=()=>{
     if(!running)return;let pad=null;try{pad=getGamepad?.()||null;}catch{}
     if(!pad){previous.fill(false);stickLatchX=stickLatchY=0;requestAnimationFrame(frame);return;}

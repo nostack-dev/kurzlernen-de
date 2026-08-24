@@ -161,6 +161,7 @@ try{
   await page.click("#soloTopbar .phone-settings-button");
   await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
   const defaults=await page.evaluate(()=>({
+    profile:document.querySelector('.phone-settings-dialog [data-control-profile]')?.value,
     left:document.querySelector('.phone-settings-dialog [data-slider="left"]')?.value,
     right:document.querySelector('.phone-settings-dialog [data-slider="right"]')?.value,
     debugGrid:document.querySelector('.phone-settings-dialog [data-debug-grid]')?.checked,
@@ -182,7 +183,7 @@ try{
     v3:localStorage.getItem("arondight45PhoneControlSettingsV3"),
     v4:localStorage.getItem("arondight45PhoneControlSettingsV4"),
   }));
-  if(defaults.left!=="10"||defaults.right!=="10"||defaults.debugGrid!==false||defaults.debugGridRuntime!=="0"||defaults.hover!=="1.2"||defaults.hoverMax!=="50"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.xbox!==false||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
+  if(defaults.profile!=="drone"||defaults.left!=="10"||defaults.right!=="10"||defaults.debugGrid!==false||defaults.debugGridRuntime!=="0"||defaults.hover!=="1.2"||defaults.hoverMax!=="50"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.xbox!==false||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
     throw new Error(`clean V5 requested defaults/settings labels wrong: ${JSON.stringify(defaults)}`);
   if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null||defaults.v4!==null)
     throw new Error(`obsolete phone settings V1-V4 not wiped: ${JSON.stringify(defaults)}`);

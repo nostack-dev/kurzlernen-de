@@ -45,7 +45,8 @@ function releaseLatchButtonActive(gamepad){return RELEASE_LATCH_BUTTONS.some(ind
 function settingsModalOpen(){const flagged=globalThis.__arondightSettingsModalOpen===true;if(!flagged)return false;const dialog=globalThis.document?.querySelector?.(".phone-settings-dialog");if(dialog&&dialog.open!==true){globalThis.__arondightSettingsModalOpen=false;return false;}return true;}
 function neutralSample(gamepad){return Object.freeze({id:String(gamepad.id||"Xbox controller"),index:Number(gamepad.index)||0,left:Object.freeze({x:0,y:0}),right:Object.freeze({x:0,y:0}),leftTrigger:0,rightTrigger:0,heightAxis:0,aim:false,fire:false,arm:false,kill:false,camera:false,scheme:loadXboxControlScheme()});}
 
-export function isXboxCompatibleGamepad(gamepad){if(!gamepad?.connected)return false;return gamepad.mapping==="standard"||/xbox|xinput|045e/i.test(String(gamepad.id||""));}
+export function standardGamepadFamily(gamepad){if(!gamepad?.connected)return"none";const id=String(gamepad.id||"");if(/xbox|xinput|045e/i.test(id))return"xbox-standard";return gamepad.mapping==="standard"?"standard-gamepad":"none";}
+export function isXboxCompatibleGamepad(gamepad){return standardGamepadFamily(gamepad)!=="none";}
 export function findXboxGamepad(gamepads){return Array.from(gamepads||[]).find(isXboxCompatibleGamepad)||null;}
 
 export function sampleXboxGamepad(gamepad){

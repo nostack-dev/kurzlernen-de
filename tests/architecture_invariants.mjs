@@ -238,7 +238,7 @@ requireText("sim/simulator.mjs",'import {installFlightFireFx} from "./flight_fir
 requireText("sim/simulator.mjs",'import {findXboxGamepad,isXboxCompatibleGamepad,sampleXboxGamepad} from "./xbox_gamepad.mjs";');
 for(const marker of ["RB FIRE","data-control-source=\"xbox\"","data-gamepad-enabled=\"1\"","pollXboxGamepad(renderNow)","setGamepadLook?.(sample.aim","setGamepadFire(sample.fire","xboxControllerToggle:true","phoneSettings.xboxControllerEnabled===true","deactivateXboxGamepad(true)"])
   requireText("sim/simulator.mjs",marker);
-for(const marker of ["XBOX CONTROLLER","data-xbox-controller","xboxControllerEnabled:xboxControllerInput?xboxControllerInput.checked:settings.xboxControllerEnabled"])
+for(const marker of ["XBOX CONTROLLER","data-xbox-controller","xboxControllerEnabled:xboxControllerInput?xboxControllerInput.checked:droneSettings.xboxControllerEnabled"])
   requireText("sim/control_settings.mjs",marker);
 requireText("sim/control_semantics.mjs","xboxControllerEnabled:false");
 for(const marker of ["RIGHT_SHOULDER:5","LEFT_TRIGGER:6","RIGHT_TRIGGER:7","heightAxis:","fire:rightShoulder"])
@@ -310,15 +310,33 @@ requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_M=50.0");
 requireText("sim/control_semantics.mjs","MAX_GAME_CLEARANCE_RATE_MPS=5.0");
 requireText("sim/control_semantics.mjs","stepGroundClearanceTarget");
 requireText("esp32/Arondight45_StateControl.hpp","kStateMaxClearanceM = 50.00f");
-for(const marker of ["WORLD_MAP_DIRECT_DEDUP_MS=8","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_MAP_SOFTWARE_PIXEL_RATIO=.50","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\"sky-color\":\"#071b2e\"","WORLD_MAP_MAX_PITCH=120","fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)","setVerticalFieldOfView(verticalFov)","presentationFrameSerial","lastMapSyncFrameSerial","frameSerial===this.lastMapSyncFrameSerial","worldMapFpsCap=\"presentation\"","worldMapEyeElevation","worldMapUpdates","worldFlightFps","setPerfMode(mode)","applyFlightPalette()","crossSourceCollisions:false","stabilized-eye-target","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","WORLD_MINIMAP_QUERY_MS=1000","queryRenderedFeatures(undefined,{layers:this.minimapLayerIds})","world-mini-canvas","worldMinimapMode","installLookHud()","installFreeLookSurface()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","if(child.isGridHelper){child.visible=this.gridEnabled;continue;}"])requireText("sim/real_world_bootstrap.mjs",marker);
+for(const marker of ["WORLD_MAP_DIRECT_DEDUP_MS=8","WORLD_MAP_PIXEL_RATIO=1.0","WORLD_MAP_SOFTWARE_PIXEL_RATIO=.50","WORLD_FLIGHT_PIXEL_RATIO=1.25","maxTileCacheZoomLevels:2","refreshExpiredTiles:false","validateStyle:false","crossSourceCollisions:false","trackResize:false","setSky({\"sky-color\":\"#071b2e\"","WORLD_MAP_MAX_PITCH=FPS_WORLD_MAP_MAX_PITCH_DEG","worldMapPitchContract=\"fps-display-near-vertical-v1\"","fpvTargetDistanceMeters(this.originLat,height,verticalFov,WORLD_MAP_MAX_ZOOM)","setVerticalFieldOfView(verticalFov)","presentationFrameSerial","lastMapSyncFrameSerial","frameSerial===this.lastMapSyncFrameSerial","worldMapFpsCap=\"presentation\"","worldMapEyeElevation","worldMapUpdates","worldFlightFps","setPerfMode(mode)","applyFlightPalette()","crossSourceCollisions:false","stabilized-eye-target","player-eye-target","attachPresentationCameraProvider(provider)","presentationCameraProvider","WORLD_GRID_STORAGE","WORLD_KEEP_LOOK_STORAGE","WORLD_MINIMAP_QUERY_MS=1000","queryRenderedFeatures(undefined,{layers:this.minimapLayerIds})","world-mini-canvas","worldMinimapMode","installLookHud()","installFreeLookSurface()","applyLookCamera(scene,camera)","camera.position.copy(basePosition)","this.airframe=null;scene.traverse","if(child.isGridHelper){child.visible=this.gridEnabled;continue;}"])requireText("sim/real_world_bootstrap.mjs",marker);
 for(const forbidden of ["WORLD_MAP_FRAME_MS","WORLD_MAP_FRAME_MS_CONSTRAINED","WORLD_MAP_FRAME_MS_CRITICAL","WORLD_MAP_CENTER_EPS_M","WORLD_MAP_ZOOM_EPS","WORLD_MAP_ANGLE_EPS_DEG","angularDistanceDeg","budgeted-ground-target","lastFpvSyncFrameSerial","mapFrameMs"])
   forbidText("sim/real_world_bootstrap.mjs",forbidden,`WORLD camera registration must be presentation-frame exact: ${forbidden}`);
-const worldSource=read("sim/real_world_bootstrap.mjs"),worldSyncStart=worldSource.indexOf("syncMapCamera(camera,frameSerial=null)"),worldSyncEnd=worldSource.indexOf("renderReal(scene,camera)",worldSyncStart),worldSyncSource=worldSource.slice(worldSyncStart,worldSyncEnd);
+const worldSource=read("sim/real_world_bootstrap.mjs"),worldSyncStart=worldSource.indexOf("syncMapCamera(camera,frameSerial=null,cameraModeOverride=null)"),worldSyncEnd=worldSource.indexOf("renderReal(scene,camera",worldSyncStart),worldSyncSource=worldSource.slice(worldSyncStart,worldSyncEnd);
 if(worldSyncStart<0||worldSyncEnd<=worldSyncStart)fail("cannot isolate WORLD camera synchronization boundary");
 if((worldSyncSource.match(/calculateCameraOptionsFromTo/g)||[]).length!==2)fail("WORLD camera must use one exact eye/target MapLibre solve for every camera mode");
 forbidText("sim/real_world_bootstrap.mjs","}else if(!forceMode&&now-this.lastMapSyncMs<this.mapFrameMs)return;","external cameras must not run on a slower map clock");
 for(const marker of ['import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";','import {StabilizedExternalAirframeVisual,EXTERNAL_AIRFRAME_VISUAL_PROFILES} from "./visual_pose_stabilization.mjs";',"capturePresentationStep()","capturePresentationCurrent()","presentationPose(alpha=1)","stabilized-inertial-anchor","presentationPoseInterpolation","physics.render(presentationPose,presentationDt,visualPose)","this.visualGroup","externalAirframeVisualRig.update"])
   requireText("sim/simulator.mjs",marker);
+for(const marker of ['import {PlayerCameraModePolicy} from "./player_camera_mode_policy.mjs";',"droneCameraPreference","playerCameraPolicy=\"walk-owned-eye-origin-v1\"","setPlayerCameraMode(mode)"])
+  requireText("sim/simulator.mjs",marker);
+for(const forbidden of ["cameraModeBeforeWalk","syncWalkCameraBase","if(globalThis.__arondightOnFootMode===true){if(cameraMode"])
+  forbidText("sim/simulator.mjs",forbidden,`WALK camera ownership must use the explicit camera policy, not render-loop repair: ${forbidden}`);
+for(const marker of ["attachPresentationCameraProvider(walkCameraProvider)","owned-pose-provider-v1","player-eye-v1","fpsVerticalFovDegForAspect(camera.aspect)"])
+  requireText("sim/player_walk_mode_v4.mjs",marker);
+for(const marker of ["FIRST_PERSON_CONTROL_SETTINGS_EVENT","first-person-independent-v1","buildFirstPersonLookProfile","standardGamepadFamily","aimAssistForInput","applyTouchLook:applyTouchLookPixels","applyTouchLookStick","friction+input-tracking-xbox-touch-v2"])
+  requireText("sim/player_walk_mode_v4.mjs",marker);
+for(const marker of ["beginTouchLook","applyTouchLook?.","applyTouchLookStick?.","fps-touch-profiled-dynamic-v12"])
+  requireText("sim/foot_look_capture.mjs",marker);
+for(const marker of ["CONTROL PROFILE","FIRST PERSON","data-control-profile","LIGHT AIM ASSIST","RIGHT STICK DEADZONE"])
+  requireText("sim/control_settings.mjs",marker);
+requireText("sim/simulator.mjs","firstPersonProfile:true");
+requireText("sim/drone_control_settings.mjs",'PHONE_SETTINGS_KEY="arondight45PhoneControlSettingsV5"');
+requireText("sim/first_person_control_settings.mjs",'FIRST_PERSON_CONTROL_SETTINGS_KEY="arondight45FirstPersonControlSettingsV1"');
+forbidText("sim/first_person_control_settings.mjs","PHONE_SETTINGS_KEY","FIRST PERSON storage must not depend on DRONE storage");
+for(const forbidden of ["wrapBridge()","b.renderFrame=(renderer,scene,camera)","b.applyLookCamera=(scene,camera)"])
+  forbidText("sim/player_walk_mode_v4.mjs",forbidden,`WALK must supply a camera pose through the provider API instead of monkey-patching the renderer: ${forbidden}`);
 for(const forbidden of ["camera.position.lerp(desired","cameraFollowInitialized","followHeading","thirdHeading"])
   forbidText("sim/simulator.mjs",forbidden,`external camera reintroduced split-frame smoothing: ${forbidden}`);
 for(const marker of ["TorusGeometry(.15","worldHaloBack","worldHeadingCue","showWorldMarker=worldActive&&cameraMode!==\"fpv\""])requireText("sim/simulator.mjs",marker);

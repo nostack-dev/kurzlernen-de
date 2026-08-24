@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {FPS_CONTROL_PROFILE,FPS_PITCH_LIMIT_RAD,addFpsShotImpulse,createFpsCameraMotionState,dampFpsLookVelocity,fpsAimAssist,fpsStickVelocity,fpsTouchLookDelta,shapeFpsStick,stepFpsCameraMotion,wrapFpsAngleRad} from "../sim/fps_control_math.mjs";
+import {FPS_CONTROL_PROFILE,FPS_HORIZONTAL_FOV_DEG,FPS_PITCH_LIMIT_RAD,FPS_WORLD_MAP_MAX_PITCH_DEG,FPS_WORLD_MAP_MIN_PITCH_DEG,addFpsShotImpulse,createFpsCameraMotionState,dampFpsLookVelocity,fpsAimAssist,fpsPitchRadToWorldMapPitchDeg,fpsStickVelocity,fpsTouchLookDelta,fpsVerticalFovDegForAspect,shapeFpsStick,stepFpsCameraMotion,wrapFpsAngleRad} from "../sim/fps_control_math.mjs";
 
 const near=(actual,expected,tolerance=1e-6,message="")=>assert.ok(Math.abs(actual-expected)<=tolerance,`${message} expected ${expected}, got ${actual}`);
 
@@ -9,6 +9,9 @@ let previous=0;for(let i=0;i<=100;i++){const shaped=shapeFpsStick(i/100,0);asser
 const quarter=shapeFpsStick(FPS_CONTROL_PROFILE.innerDeadzone+(FPS_CONTROL_PROFILE.outerDeadzone-FPS_CONTROL_PROFILE.innerDeadzone)*.25,0);assert.ok(quarter.magnitude>.25,"dynamic reverse-S must respond above linear near the inner range");
 const velocity=fpsStickVelocity(shapeFpsStick(1,-1));assert.ok(velocity.yaw>3.6&&velocity.pitch>3.2,"balanced X/Y controller rates missing");assert.ok(velocity.pitch/velocity.yaw>.84,"vertical aim remains disproportionately slow");
 assert.ok(FPS_PITCH_LIMIT_RAD>1.55&&FPS_PITCH_LIMIT_RAD<Math.PI/2,"first-person pitch must reach a safe near-vertical limit");
+assert.ok(FPS_WORLD_MAP_MAX_PITCH_DEG>179.5&&FPS_WORLD_MAP_MAX_PITCH_DEG<180&&FPS_WORLD_MAP_MIN_PITCH_DEG>0&&FPS_WORLD_MAP_MIN_PITCH_DEG<.5,"WORLD renderer must share the near-vertical FPS pitch contract");
+near(fpsPitchRadToWorldMapPitchDeg(FPS_PITCH_LIMIT_RAD),90+FPS_PITCH_LIMIT_RAD*180/Math.PI,1e-10,"FPS/WORLD pitch conversion drifted");
+assert.equal(FPS_HORIZONTAL_FOV_DEG,90);near(fpsVerticalFovDegForAspect(16/9),58.715507,1e-5,"FPS horizontal-to-vertical FOV conversion drifted");
 
 const integrateVelocity=hz=>{let current=0,total=0;const dt=1/hz;for(let i=0;i<hz;i++){current=dampFpsLookVelocity(current,3,dt);total+=current*dt;}return total;};near(integrateVelocity(30),integrateVelocity(120),.035,"look acceleration depends on display rate");
 assert.ok(dampFpsLookVelocity(3,0,1/60)<1.7,"stick release does not stop promptly");

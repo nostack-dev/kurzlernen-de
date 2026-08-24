@@ -20,6 +20,7 @@ import {Box3dColliderDebugDraw} from "./box3d_collider_debug.mjs";
 import {addPropellerSweepColliders} from "./airframe_collision_envelope.mjs";
 import {deriveQuadMassProperties} from "./component_mass_model.mjs";
 import {batteryOcvVoltage,batteryVoltageUnderLoad,scaleCurrentsToPackLimit,solveStaticPropulsionAuthority,MOTOR_BEARING_DRAG_NM_PER_RAD_S} from "./propulsion_authority.mjs";
+import {PlayerCameraModePolicy} from "./player_camera_mode_policy.mjs";
 
 const DT = 0.001;
 const G = 9.80665;
@@ -600,7 +601,8 @@ const navigationSensors=new SimNavigationSensors();
 const sbusReceiver=new SimSbusReceiver();
 let latestNavigation={vx:0,vy:0,vz:0,agl:0,valid:false,velocityValid:false,aglValid:false,headingDeg:0,headingValid:false};
 const savedCameraMode=localStorage.getItem("arondight45CameraMode");
-let cameraMode=["follow","fpv","third"].includes(savedCameraMode)?savedCameraMode:"follow",cameraFrameMs=performance.now();
+const playerCameraModePolicy=new PlayerCameraModePolicy({dronePreference:savedCameraMode,playerMode:globalThis.__arondightOnFootMode===true?"foot":"drone"});
+let cameraMode=playerCameraModePolicy.effectiveMode,cameraFrameMs=performance.now();
 const externalCameraRig=new StabilizedExternalCameraRig();
 const externalAirframeVisualRig=new StabilizedExternalAirframeVisual(EXTERNAL_AIRFRAME_VISUAL_PROFILES),externalVisualPosition=new THREE.Vector3(),externalVisualQuaternion=new THREE.Quaternion(),externalVisualVelocity=new THREE.Vector3(),externalVisualPose={position:externalVisualPosition,quaternion:externalVisualQuaternion,velocity:externalVisualVelocity};
 const cameraLookTarget=new THREE.Vector3();
@@ -610,12 +612,18 @@ function applyFireCameraShake(dt){if(!(fireCameraKick>.0001))return;const step=c
 let cameraSettings=loadCameraSettings();
 function applyCameraSettings(next){cameraSettings=next;externalCameraRig.invalidate();externalAirframeVisualRig.invalidate();$("viewport").dataset.fpvTiltDeg=String(cameraSettings.fpvTiltDeg);$("viewport").dataset.fpvFovDeg=String(cameraSettings.fpvFovDeg);$("viewport").dataset.thirdCameraDistanceM=String(cameraSettings.thirdDistanceM);}
 applyCameraSettings(cameraSettings);
-function setCameraMode(next){
-  cameraMode=["follow","fpv","third"].includes(next)?next:"follow";externalCameraRig.invalidate();externalAirframeVisualRig.invalidate();cameraFrameMs=performance.now();localStorage.setItem("arondight45CameraMode",cameraMode);$("viewport").dataset.cameraMode=cameraMode;
+function renderCameraModeUi(snapshot=playerCameraModePolicy.snapshot()){
+  const soloCamera=$("soloCamera");if(soloCamera){const walk=snapshot.playerMode==="foot";soloCamera.disabled=walk;soloCamera.textContent=walk?"WALK CAM":snapshot.effectiveMode.toUpperCase();soloCamera.setAttribute("aria-label",walk?"First-person camera rotates from player eye origin":"Change drone camera");}
   for(const [id,value] of [["camFollow","follow"],["camFpv","fpv"],["camThird","third"]]){
-    const button=$(id),active=cameraMode===value;button.dataset.active=active?"1":"0";button.style.background=active?"#17694f":"rgba(17,29,43,.82)";button.style.borderColor=active?"#62d6aa":"rgba(255,255,255,.3)";
+    const button=$(id),active=snapshot.dronePreference===value;button.dataset.active=active?"1":"0";button.style.background=active?"#17694f":"rgba(17,29,43,.82)";button.style.borderColor=active?"#62d6aa":"rgba(255,255,255,.3)";
   }
 }
+function applyPlayerCameraMode({persistPreference=false}={}){
+  const snapshot=playerCameraModePolicy.snapshot(),changed=cameraMode!==snapshot.effectiveMode;cameraMode=snapshot.effectiveMode;if(changed){externalCameraRig.invalidate();externalAirframeVisualRig.invalidate();cameraFrameMs=performance.now();}if(persistPreference)localStorage.setItem("arondight45CameraMode",snapshot.dronePreference);
+  const viewport=$("viewport");viewport.dataset.cameraMode=cameraMode;viewport.dataset.droneCameraPreference=snapshot.dronePreference;viewport.dataset.playerCameraPolicy="walk-owned-eye-origin-v1";viewport.dataset.walkCameraBase=snapshot.playerMode==="foot"?"player-eye-origin-v1":"drone-preference-v1";renderCameraModeUi(snapshot);return snapshot;
+}
+function setCameraMode(next,{persist=true}={}){playerCameraModePolicy.setDronePreference(next);return applyPlayerCameraMode({persistPreference:persist});}
+function setPlayerCameraMode(mode){playerCameraModePolicy.setPlayerMode(mode);return applyPlayerCameraMode();}
 function updateCamera(pose,now=performance.now()){
   const position=pose.position,q=pose.quaternion,velocity=pose.velocity,dt=clamp((now-cameraFrameMs)/1000,0,.1);cameraFrameMs=now;
   const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize(),showFpvSelfCamera=cameraMode!=="fpv";
@@ -648,7 +656,7 @@ function updateCamera(pose,now=performance.now()){
   const followFov=clamp(52*(cameraSettings.fpvFovDeg/105),30,90);if(Math.abs(camera.fov-followFov)>.01){camera.fov=followFov;camera.updateProjectionMatrix();}
   applyFireCameraShake(dt);viewport.dataset.cameraFov=String(camera.fov);return rig;
 }
-$("camFollow").onclick=()=>setCameraMode("follow");$("camFpv").onclick=()=>setCameraMode("fpv");$("camThird").onclick=()=>setCameraMode("third");setCameraMode(cameraMode);
+$("camFollow").onclick=()=>setCameraMode("follow");$("camFpv").onclick=()=>setCameraMode("fpv");$("camThird").onclick=()=>setCameraMode("third");applyPlayerCameraMode();
 
 const soloHud=document.createElement("div");soloHud.id="soloHud";soloHud.hidden=true;
 soloHud.innerHTML=`
@@ -726,7 +734,8 @@ soloHeightPad.addEventListener("pointermove",event=>{if(event.pointerId===soloHe
 const releaseSoloHeight=event=>{if(soloHeightPointer===null||(event?.pointerId!=null&&event.pointerId!==soloHeightPointer))return;const released=soloHeightPointer;soloHeightPointer=null;setSoloHeightAxis(0);try{soloHeightPad.releasePointerCapture?.(released);}catch{}event?.preventDefault();};
 soloHeightPad.addEventListener("pointerup",releaseSoloHeight);soloHeightPad.addEventListener("pointercancel",releaseSoloHeight);soloHeightPad.addEventListener("lostpointercapture",releaseSoloHeight);
 function lockSoloHeightForFoot(){if(globalThis.__arondightOnFootMode!==true)return false;if(soloHeightPointer!==null)releaseSoloHeight();else if(Math.abs(soloHeightAxis)>1e-6)setSoloHeightAxis(0);soloControls.groundClearance=soloGroundClearance;const viewport=$("viewport");if(viewport){viewport.dataset.gamepadHeightAxis="0.000";viewport.dataset.fpsAltitudeLock="eye-fixed-v1";}return true;}
-addEventListener("arondight:player-mode",event=>{if(event.detail?.mode==="foot"){lockSoloHeightForFoot();neutralizeSoloMotion();}});
+setPlayerCameraMode(globalThis.__arondightOnFootMode===true?"foot":"drone");
+addEventListener("arondight:player-mode",event=>{const mode=event.detail?.mode;if(mode==="foot"){lockSoloHeightForFoot();neutralizeSoloMotion();}setPlayerCameraMode(mode);});
 function updateSoloSticks(){
   const left=gameKnobAxes(soloControls,"left",phoneSettings);
   const right=gameKnobAxes(soloControls,"right",phoneSettings);
@@ -746,6 +755,8 @@ const soloSettingsMount=mountPhoneControlSettings({
   parent:$("soloTopbar"),
   buttonText:"SETTINGS",
   xboxControllerToggle:true,
+  firstPersonProfile:true,
+  getActiveControlProfile:()=>globalThis.__arondightOnFootMode===true?"first-person":"drone",
   debugGrid:{get:()=>debugGridEnabled,set:setDebugGridEnabled,defaultValue:false},
   box3dColliderDebug:{get:()=>box3dColliderDebugEnabled,set:setBox3dColliderDebugEnabled,defaultValue:false},
   onChange:next=>{const xboxChanged=phoneSettings.xboxControllerEnabled!==next.xboxControllerEnabled;phoneSettings=next;const keepArm=soloControls.arm;if(!keepArm)soloGroundClearance=next.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();soloControls.arm=keepArm;updateSoloSticks();arm=keepArm;throttle=0;if(xboxChanged)setXboxControlPreference(next.xboxControllerEnabled);},
@@ -768,7 +779,7 @@ function currentXboxGamepad(){
 function neutralizeSoloMotion(){const keepArm=soloControls.arm;soloControls=neutralSoloControls();soloControls.arm=keepArm;setSoloHeightAxis(0);updateSoloSticks();}
 function toggleSoloArm(){if(soloControls.arm){soloControls.arm=false;return;}if((latest.state&STATE_NAVIGATION_VALID)&&sharedArmReady(currentFcStateText(),soloControls,true,phoneSettings))soloControls.arm=true;}
 function killSolo(){pendingDisarmReason="KILL_SWITCH";setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();arm=false;throttle=0;}
-function cycleSoloCamera(){const next=cameraMode==="follow"?"third":cameraMode==="third"?"fpv":"follow";setCameraMode(next);$("soloCamera").textContent=cameraMode.toUpperCase();}
+function cycleSoloCamera(){if(playerCameraModePolicy.playerMode==="foot")return;playerCameraModePolicy.cycleDronePreference();applyPlayerCameraMode({persistPreference:true});}
 function deactivateXboxGamepad(keepXboxMode=false){
   const viewport=$("viewport"),source=keepXboxMode?"xbox":"touch";if(!xboxGamepadActive&&viewport.dataset.controlSource===source&&viewport.dataset.gamepadConnected==="0")return;if(xboxGamepadActive)neutralizeSoloMotion();xboxGamepadActive=false;xboxPrevious=null;flightFireFx?.setGamepadFire(false);flightFireFx?.setGamepadAim(false);globalThis.__arondightRealWorld?.setGamepadLook?.(false);viewport.dataset.controlSource=source;viewport.dataset.gamepadConnected="0";viewport.dataset.gamepadAim="0";viewport.dataset.gamepadFire="0";viewport.dataset.gamepadHeightAxis="0.000";delete viewport.dataset.gamepadId;$("soloGamepadStatus").hidden=true;$("soloGamepadHelp").hidden=true;
 }
@@ -1009,9 +1020,6 @@ function render(){
     const viewport=$("viewport");
     if(viewport){viewport.dataset.presentationDraws=String(presentationDraws);viewport.dataset.presentationBacklogMs=backlog.toFixed(2);viewport.dataset.presentationPoseInterpolation=presentationAlpha.toFixed(4);}
     const worldBridge=globalThis.__arondightRealWorld;
-    // WORLD applies free-look inside renderReal(). Training has no render adapter,
-    // so apply the same camera-only Xbox/free-look transform before its normal draw.
-    if(!worldBridge?.active)worldBridge?.applyLookCamera?.(scene,camera);
     if(!worldBridge?.renderFrame?.(renderer,scene,camera))renderer.render(scene,camera);
   }
 }

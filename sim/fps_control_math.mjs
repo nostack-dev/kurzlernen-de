@@ -1,11 +1,10 @@
+import {FPS_DISPLAY_PITCH_LIMIT_RAD,FPS_HORIZONTAL_FOV_DEG,FPS_PITCH_LIMIT_RAD,FPS_WORLD_MAP_MAX_PITCH_DEG,FPS_WORLD_MAP_MIN_PITCH_DEG,fpsPitchRadToWorldMapPitchDeg,fpsVerticalFovDegForAspect} from "./camera_pitch_contract.mjs";
+
 const TAU=Math.PI*2;
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 const smoothstep=value=>{const t=clamp(value,0,1);return t*t*(3-2*t);};
 
-// Leave a tiny margin below 90 degrees so THREE.Camera.lookAt never becomes
-// collinear with the Z-up vector, while still allowing a practically vertical view.
-export const FPS_PITCH_LIMIT_RAD=Math.PI/2-.012;
-export const FPS_DISPLAY_PITCH_LIMIT_RAD=Math.PI/2-.006;
+export {FPS_DISPLAY_PITCH_LIMIT_RAD,FPS_HORIZONTAL_FOV_DEG,FPS_PITCH_LIMIT_RAD,FPS_WORLD_MAP_MAX_PITCH_DEG,FPS_WORLD_MAP_MIN_PITCH_DEG,fpsPitchRadToWorldMapPitchDeg,fpsVerticalFovDegForAspect};
 
 export const FPS_CONTROL_PROFILE=Object.freeze({
   innerDeadzone:.075,
