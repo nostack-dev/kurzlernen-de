@@ -3,6 +3,7 @@ import "./walk_input_lifecycle_guard.mjs";
 import "./gameplay_final_runtime_v2.mjs";
 import "./gameplay_final_ui_dock.mjs";
 import "./gameplay_final_realism_patch.mjs";
+import "./first_person_weapon_runtime_v3.mjs";
 
 let installed=false,ctx=null,master=null,engine=null,noiseBuffer=null,lastFrame=performance.now(),lastStepAt=-Infinity,lastWalkX=NaN,lastWalkY=NaN,settings=loadAudioSettings();
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
