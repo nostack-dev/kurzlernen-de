@@ -42,9 +42,13 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
           /tmp/state_control_test
           node tests/combat_center_fire_test.mjs
+          node tests/wanted_system_test.mjs
           node --check sim/flight_fire_fx.mjs
           node --check sim/box3d_hitscan.mjs
           node --check sim/world_procedural_population.mjs
+          node --check sim/wanted_system_logic.mjs
+          node --check sim/wanted_police_drones.mjs
+          node --check tests/wanted_police_browser_smoke.mjs
           grep -q 'kMaxHorizontalAccelerationMps2 = 7.5f' esp32/Arondight45_StateControl.hpp
           grep -q 'commanded_forward_mps_ = intent.forward_mps' esp32/Arondight45_StateControl.hpp
           grep -q 'commanded_right_mps_ = intent.right_mps' esp32/Arondight45_StateControl.hpp
@@ -120,6 +124,7 @@ jobs:
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/combat_center_fire_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/procedural_population_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/wanted_police_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -183,6 +188,7 @@ jobs:
           test "$fetched" = 1
           CHROME_BIN="$CHROME_BIN" node tests/combat_center_fire_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/procedural_population_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/wanted_police_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
 
       - name: Report live E2E final
         if: always()

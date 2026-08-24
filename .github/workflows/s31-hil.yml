@@ -66,6 +66,7 @@ jobs:
           node tests/xbox_gamepad_test.mjs
           node tests/visual_pose_stabilization_test.mjs
           node tests/combat_center_fire_test.mjs
+          node tests/wanted_system_test.mjs
           node tests/render_stability_test.mjs
           node tests/vs_pose_sync_test.mjs
           node tests/physics_validation_test.mjs
@@ -89,6 +90,8 @@ jobs:
           node --check sim/vs_pose_sync.mjs
           node --check sim/flight_logbook.mjs
           node --check sim/physics_validation.mjs
+          node --check sim/wanted_system_logic.mjs
+          node --check sim/wanted_police_drones.mjs
           node --check sim/lan_vs.mjs
           node --check tests/architecture_invariants.mjs
           node --check tests/p2p_link_test.mjs
@@ -108,6 +111,7 @@ jobs:
           node --check tests/world_building_collisions_test.mjs
           node --check tests/world_building_collision_box3d_test.mjs
           node --check tests/world_building_collision_browser_smoke.mjs
+          node --check tests/wanted_police_browser_smoke.mjs
           node --check tools/s31_hil_bridge.mjs
 
   esp-idf-build:

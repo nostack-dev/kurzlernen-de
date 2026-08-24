@@ -4,6 +4,7 @@ import "./mobile_zoom_guard.mjs";
 import "./world_action_feedback.mjs";
 import "./foot_look_capture.mjs";
 import "./walk_world_experience_hotfix.mjs";
+import "./wanted_police_drones.mjs";
 import "./walk_ui_layout_hotfix.mjs";
 import "./combat_hit_stack_guard.mjs";
 import {buildingLaunchPointClear} from "./world_building_collision_physics.mjs";

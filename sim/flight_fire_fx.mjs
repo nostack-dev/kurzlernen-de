@@ -100,11 +100,12 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   }
   function routeHit(sceneHit){
     if(!sceneHit)return false;if(sceneHit.box3d){addThreeDecal(sceneHit);return false;}
-    const population=Boolean(worldBridge?.registerWorldPopulationHit?.(sceneHit));
-    const vsHit=!population&&Boolean(worldBridge?.registerVsHit?.(sceneHit));
-    if(!population&&!vsHit)addThreeDecal(sceneHit);
-    if(population||vsHit){viewport.dataset.fireVsHits=String((Number(viewport.dataset.fireVsHits)||0)+1);gamepadCrosshair.classList.remove("hit-confirm");void gamepadCrosshair.offsetWidth;gamepadCrosshair.classList.add("hit-confirm");hitConfirmSound();}
-    return population||vsHit;
+    const police=Boolean(worldBridge?.registerPoliceHit?.(sceneHit));
+    const population=!police&&Boolean(worldBridge?.registerWorldPopulationHit?.(sceneHit));
+    const vsHit=!police&&!population&&Boolean(worldBridge?.registerVsHit?.(sceneHit));
+    if(!police&&!population&&!vsHit)addThreeDecal(sceneHit);
+    if(police||population||vsHit){viewport.dataset.fireVsHits=String((Number(viewport.dataset.fireVsHits)||0)+1);gamepadCrosshair.classList.remove("hit-confirm");void gamepadCrosshair.offsetWidth;gamepadCrosshair.classList.add("hit-confirm");hitConfirmSound();}
+    return police||population||vsHit;
   }
   function fire(now){
     if(!active||combatLocked()||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint();pointerNdc.set(aim.x/aim.rect.width*2-1,-(aim.y/aim.rect.height)*2+1);raycaster.setFromCamera(pointerNdc,camera);

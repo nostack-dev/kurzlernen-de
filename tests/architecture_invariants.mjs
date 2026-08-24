@@ -434,3 +434,8 @@ requireText("sim/visual_pose_stabilization.mjs","class StabilizedExternalAirfram
 requireText(".github/workflows/deploy.yml","node tests/visual_pose_stabilization_test.mjs");
 requireText(".github/workflows/deploy.yml","node tests/combat_center_fire_test.mjs");
 requireText(".github/workflows/deploy.yml","node tests/combat_center_fire_browser_smoke.mjs");
+requireText("sim/world_spawn_guard.mjs",'import "./wanted_police_drones.mjs";');
+requireText("sim/world_procedural_population.mjs",'new CustomEvent("arondight:world-kill"');
+for(const marker of ["registerPoliceHit","wantedEscapable=\"1\"","wantedLineBlockedByPrisms","clearWanted(\"escaped\")"])requireText("sim/wanted_police_drones.mjs",marker);
+requireText(".github/workflows/deploy.yml","node tests/wanted_system_test.mjs");
+requireText(".github/workflows/deploy.yml","node tests/wanted_police_browser_smoke.mjs");
