@@ -6,10 +6,20 @@ function bridge(){return globalThis.__arondightRealWorld||null;}
 function viewport(){return document.getElementById("viewport");}
 function bump(name){const v=viewport();if(v)v.dataset[name]=String((Number(v.dataset[name])||0)+1);}
 function inheritMarkers(next,previous,markers){if(typeof next!=="function")return next;for(const marker of markers)if(previous?.[marker])next[marker]=true;return next;}
+function rehydrateWorldMarkers(b,fn){
+  if(typeof fn!=="function")return fn;const v=viewport();
+  if(v?.dataset.gameplayWorldHitAudio==="1")fn.__gameplayPolishLiteWrapper=true;
+  if(v?.dataset.worldDamageModel==="pistol-hp-v2")fn.__realityDamageTop=true;
+  if(typeof b?.__proceduralPopulationHit==="function"){fn.__proceduralPopulationProvider=true;fn.__worldLivelinessWrapper=true;fn.__gameplayPolishLiteWrapper=true;}
+  if(v?.dataset.walkVsHitRouting==="1"){fn.__playerVehicleHitRouterV2=true;fn.__worldLivelinessWrapper=true;fn.__gameplayPolishLiteWrapper=true;}
+  return fn;
+}
+function rehydrateVsMarkers(fn){if(typeof fn!=="function")return fn;const v=viewport();if(v?.dataset.worldHitRouting)fn.__worldActionFeedbackWrapper=true;return fn;}
 function installAccessor(b,name,markers,kind){
   const descriptor=Object.getOwnPropertyDescriptor(b,name);if(descriptor&&!descriptor.configurable)return false;
   let current=b[name];if(typeof current!=="function")return false;
-  Object.defineProperty(b,name,{configurable:true,enumerable:descriptor?.enumerable??true,get(){return current;},set(next){const previous=current;current=inheritMarkers(next,previous,markers);stableFrames=0;bump(kind==="world"?"combatHitStackAssignments":"combatVsHitAssignments");}});
+  if(kind==="world")rehydrateWorldMarkers(b,current);else rehydrateVsMarkers(current);
+  Object.defineProperty(b,name,{configurable:true,enumerable:descriptor?.enumerable??true,get(){return current;},set(next){const previous=current;current=inheritMarkers(next,previous,markers);if(kind==="world")rehydrateWorldMarkers(b,current);else rehydrateVsMarkers(current);stableFrames=0;bump(kind==="world"?"combatHitStackAssignments":"combatVsHitAssignments");}});
   return true;
 }
 function installRegistry(){
@@ -18,7 +28,7 @@ function installRegistry(){
   if(!worldInstalled&&typeof b.registerWorldPopulationHit==="function")worldInstalled=installAccessor(b,"registerWorldPopulationHit",WORLD_MARKERS,"world");
   if(!vsInstalled&&typeof b.registerVsHit==="function")vsInstalled=installAccessor(b,"registerVsHit",VS_MARKERS,"vs");
   if(!worldInstalled)return false;
-  stableFrames++;const v=viewport();if(v){v.dataset.combatHitStackRegistry="marker-union-v1";v.dataset.combatHitStackStableFrames=String(stableFrames);v.dataset.combatHitStackWorldMarkers=WORLD_MARKERS.filter(marker=>b.registerWorldPopulationHit?.[marker]).join(",");}return true;
+  rehydrateWorldMarkers(b,b.registerWorldPopulationHit);rehydrateVsMarkers(b.registerVsHit);stableFrames++;const v=viewport();if(v){v.dataset.combatHitStackRegistry="marker-union-v2";v.dataset.combatHitStackStableFrames=String(stableFrames);v.dataset.combatHitStackWorldMarkers=WORLD_MARKERS.filter(marker=>b.registerWorldPopulationHit?.[marker]).join(",");}return true;
 }
 function loop(){installRegistry();requestAnimationFrame(loop);}
 
