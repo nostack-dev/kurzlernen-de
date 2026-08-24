@@ -47,10 +47,10 @@ function stepStick(now){
 export function installFootLookCapture(){
   if(installed)return;installed=true;
   window.addEventListener("pointerdown",event=>{
-    if(walk()?.mode!=="foot"||walk()?.dead||pointer!==null||reservedControlAt(event))return;
+    if(walk()?.mode!=="foot"||walk()?.dead||reservedControlAt(event))return;
     const target=event.target instanceof Element?event.target:null;
     if(target?.closest("#footLook")){
-      if(event.pointerType==="mouse"&&event.button!==0)return;syncAim();pointer=event.pointerId;captureEl=target.closest("#footLook")||target;try{captureEl?.setPointerCapture?.(pointer);}catch{}walk()?.beginTouchLook?.("touch-stick");stickEl=captureEl;stickKnob=stickEl?.querySelector(".knob")||null;stickFrameMs=performance.now();updateStick(event.clientX,event.clientY);const v=viewport();if(v){v.dataset.walkAimStickCapture="rate-v6";v.dataset.walkAimStickMode="rate-edge-hold-v5";v.dataset.walkTouchLookActive="1";}consume(event);return;
+      if(pointer!==null)return;if(event.pointerType==="mouse"&&event.button!==0)return;syncAim();pointer=event.pointerId;captureEl=target.closest("#footLook")||target;try{captureEl?.setPointerCapture?.(pointer);}catch{}walk()?.beginTouchLook?.("touch-stick");stickEl=captureEl;stickKnob=stickEl?.querySelector(".knob")||null;stickFrameMs=performance.now();updateStick(event.clientX,event.clientY);const v=viewport();if(v){v.dataset.walkAimStickCapture="rate-v6";v.dataset.walkAimStickMode="rate-edge-hold-v5";v.dataset.walkTouchLookActive="1";}consume(event);return;
     }
     if(!target?.closest("#footLookZone"))return;
     if(event.pointerType==="mouse"){
