@@ -32,7 +32,7 @@ try{
     scene.traverse(node=>{if(node?.isMesh)node.userData.flightFireIgnore=true;});
     const target=source.clone(false),dir=camera.position.clone();camera.getWorldDirection(dir);
     target.name="TARGET_FIRE_STRESS";target.userData={worldPopulationKind:"person",worldPopulationId:"target-fire-stress",flightFireIgnore:false};
-    target.position.copy(camera.position).addScaledVector(dir,3);target.quaternion.copy(camera.quaternion);target.scale.setScalar(8);target.visible=true;target.frustumCulled=false;scene.add(target);scene.updateMatrixWorld(true);target.updateMatrixWorld(true);
+    target.position.copy(camera.position).addScaledVector(dir,3);target.quaternion.copy(camera.quaternion);target.scale.setScalar(120);target.visible=true;target.frustumCulled=false;scene.add(target);scene.updateMatrixWorld(true);target.updateMatrixWorld(true);
     const base=b.registerWorldPopulationHit;let hits=0;
     b.registerWorldPopulationHit=hit=>{if(hit?.object===target){hits++;v.dataset.testTargetHitCalls=String(hits);return true;}return Boolean(base(hit));};
     await wait(250);
