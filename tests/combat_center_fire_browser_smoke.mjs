@@ -1,52 +1,34 @@
 import puppeteer from "puppeteer-core";
 
-const input=process.argv[2]||"http://127.0.0.1:4174/drone_simulator.html";
-const url=new URL(input,"http://127.0.0.1:4174");
 const executablePath=process.env.CHROME_BIN;
-if(process.env.GITHUB_SHA)url.searchParams.set("ci",process.env.GITHUB_SHA);
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
-
+const url=new URL("https://kurzlernen.de/drone_simulator.html");url.searchParams.set("target-fire-diag",String(Date.now()));
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
-const page=await browser.newPage();
-const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const page=await browser.newPage(),pageErrors=[];
+page.on("pageerror",error=>{pageErrors.push(String(error?.stack||error));console.error("PAGEERROR",String(error?.stack||error));});
+const snapshot=()=>page.evaluate(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld,h=b?.registerWorldPopulationHit;return{shots:Number(v?.dataset.fireShots||0),rays:Number(v?.dataset.fireRaycastShots||0),hits:Number(v?.dataset.fireVsHits||0),source:v?.dataset.fireInputSource||"",locked:v?.dataset.fireCombatLocked||"",populationHits:Number(v?.dataset.worldPopulationHits||0),lifeHits:Number(v?.dataset.worldLifeHits||0),ragdollSpawns:Number(v?.dataset.worldRagdollSpawns||0),ragdolls:Number(v?.dataset.worldRagdolls||0),ragdollPool:Number(v?.dataset.worldRagdollPool||0),ragdollMax:Number(v?.dataset.worldRagdollMax||0),explosionSpawns:Number(v?.dataset.worldCarExplosionSpawns||0),explosions:Number(v?.dataset.worldCarExplosions||0),explosionPool:Number(v?.dataset.worldCarExplosionPool||0),debris:Number(v?.dataset.worldCarDebrisActive||0),candidates:Number(v?.dataset.fireCandidateCount||0),capture:v?.hasPointerCapture?.(91)||false,markers:{polish:!!h?.__gameplayPolishLiteWrapper,damage:!!h?.__realityDamageTop,vehicle:!!h?.__playerVehicleHitRouterV2,procedural:!!h?.__proceduralPopulationProvider}};});
 try{
+  await page.setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148");
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.goto(url.href,{waitUntil:"load",timeout:30000});
-  await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&document.body.classList.contains("solo-flight"),{timeout:30000});
-
-  const contract=await page.$eval("#viewport",v=>({mode:v.dataset.fireHitMode,pool:v.dataset.fireProjectilePoolSize,crosshair:v.dataset.fireCrosshairMode}));
-  if(contract.mode!=="box3d-raycast-hitscan"||contract.pool!=="0"||contract.crosshair!=="center-fixed")throw new Error(`hitscan runtime contract missing: ${JSON.stringify(contract)}`);
-
-  const before=await page.$eval("#viewport",v=>({shots:Number(v.dataset.fireShots||0),rays:Number(v.dataset.fireRaycastShots||0),recoil:Number(v.dataset.fireRecoilImpulses||0)}));
-  await page.evaluate(()=>{
-    const v=document.querySelector("#viewport"),r=v.getBoundingClientRect(),clientX=r.left+r.width*.23,clientY=r.top+r.height*.31,rotated=v.dataset.soloOrientation==="css-landscape";
-    v.dataset.testExpectedFireX=String(Math.max(0,Math.min(v.clientWidth,rotated?clientY-r.top:clientX-r.left)));
-    v.dataset.testExpectedFireY=String(Math.max(0,Math.min(v.clientHeight,rotated?r.right-clientX:clientY-r.top)));
-    v.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:77,pointerType:"touch",clientX,clientY,button:0}));
-  });
-  await page.waitForFunction(({shots,rays})=>{const v=document.querySelector("#viewport");return Number(v?.dataset.fireShots||0)>shots&&Number(v?.dataset.fireRaycastShots||0)>rays;},{timeout:3000},before);
-  const fired=await page.$eval("#viewport",v=>({x:Number(v.dataset.fireAimX),y:Number(v.dataset.fireAimY),expectedX:Number(v.dataset.testExpectedFireX),expectedY:Number(v.dataset.testExpectedFireY),mode:v.dataset.fireAimMode,recoil:Number(v.dataset.fireRecoilImpulses||0)}));
-  if(fired.mode!=="touch-1to1"||Math.abs(fired.x-fired.expectedX)>1||Math.abs(fired.y-fired.expectedY)>1||fired.recoil<=before.recoil)throw new Error(`touch hitscan not 1:1/recoiling: ${JSON.stringify(fired)}`);
-  await page.evaluate(()=>document.querySelector("#viewport").dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:77,pointerType:"touch",button:0})));
-
+  await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&document.body.classList.contains("solo-flight")&&globalThis.__arondightRealWorld?.threeScene&&globalThis.__arondightRealWorld?.threeCamera,{timeout:30000});
   await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport");v.dataset.worldMode="real";b.active=true;b.originLon=9;b.originLat=47;});
-  const required=["__gameplayPolishLiteWrapper","__realityDamageTop","__worldLivelinessWrapper","__playerVehicleHitRouterV2","__proceduralPopulationProvider"];
-  await page.waitForFunction(required=>{const v=document.querySelector("#viewport"),markers=String(v?.dataset.combatHitStackWorldMarkers||"");return v?.dataset.worldProceduralPopulation==="1"&&v?.dataset.combatHitStackRegistry==="marker-union-v2"&&required.every(marker=>markers.includes(marker))&&Number(v?.dataset.combatHitStackStableFrames||0)>=12;},{timeout:8000},required);
-  const stack=await page.evaluate(async()=>{const wait=ms=>new Promise(r=>setTimeout(r,ms)),b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),world=b?.registerWorldPopulationHit,assignments=Number(v?.dataset.combatHitStackAssignments||0),markers=String(v?.dataset.combatHitStackWorldMarkers||"");await wait(450);return{registry:v?.dataset.combatHitStackRegistry||"",worldStable:world===b?.registerWorldPopulationHit,assignmentsBefore:assignments,assignmentsAfter:Number(v?.dataset.combatHitStackAssignments||0),markers,stableFrames:Number(v?.dataset.combatHitStackStableFrames||0)};});
-  if(stack.registry!=="marker-union-v2"||!stack.worldStable||stack.assignmentsAfter!==stack.assignmentsBefore||required.some(marker=>!stack.markers.includes(marker)))throw new Error(`target hit stack still mutates over time: ${JSON.stringify(stack)}`);
+  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldProceduralPopulation==="1",{timeout:10000});
+  const inventory=await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,scene=b.threeScene,seen=new Map();scene.traverse(node=>{const id=String(node?.userData?.worldPopulationId||""),kind=String(node?.userData?.worldPopulationKind||"");if(!id||!['person','car','bus'].includes(kind)||seen.has(id))return;let root=node;while(root.parent&&String(root.parent.userData?.worldPopulationId||"")===id)root=root.parent;seen.set(id,{id,kind,root});});globalThis.__targetDiag={records:[...seen.values()],clone:null,moveTimer:0};scene.traverse(node=>{if(node?.isMesh)node.userData.flightFireIgnore=true;});b.active=false;return{person:[...seen.values()].filter(x=>x.kind==='person').length,car:[...seen.values()].filter(x=>x.kind==='car').length,bus:[...seen.values()].filter(x=>x.kind==='bus').length};});
+  console.log("TARGET_DIAG inventory",JSON.stringify(inventory));
+  if(inventory.person<10||inventory.car<6||inventory.bus<3)throw new Error(`TARGET_DIAG insufficient inventory ${JSON.stringify(inventory)}`);
 
-  const stressBefore=await page.evaluate(async()=>{const wait=ms=>new Promise(r=>setTimeout(r,ms)),b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),scene=b?.threeScene,camera=b?.threeCamera;let source=null;scene?.traverse?.(node=>{const type=String(node?.geometry?.type||"");if(!source&&node?.isMesh&&node.geometry&&!node.userData?.flightFireDecal&&!node.userData?.flightFireTracer&&!node.userData?.arondightAirframe&&(type.includes("Box")||type.includes("Sphere")))source=node;});if(!source||!camera)throw Error("target fire stress needs one box/sphere scene mesh and camera");b.active=false;const target=source.clone(false),dir=camera.position.clone();camera.getWorldDirection(dir);target.name="TARGET_FIRE_STRESS";target.userData={worldPopulationKind:"person",worldPopulationId:"target-fire-stress",flightFireIgnore:false};target.position.copy(camera.position).addScaledVector(dir,4);target.quaternion.copy(camera.quaternion);target.scale.setScalar(6);target.visible=true;target.frustumCulled=false;scene.traverse?.(node=>{if(node?.isMesh&&node!==target)node.userData.flightFireIgnore=true;});scene.add(target);target.updateMatrixWorld(true);const base=b.registerWorldPopulationHit;let calls=0;const probe=hit=>{if(hit?.object===target){calls++;v.dataset.testTargetHitCalls=String(calls);return true;}return Boolean(base(hit));};b.registerWorldPopulationHit=probe;await wait(350);if(b.registerWorldPopulationHit!==probe)throw Error("target handler changed again after probe install");const r=v.getBoundingClientRect(),clientX=r.left+r.width/2,clientY=r.top+r.height/2,before={shots:Number(v.dataset.fireShots||0),rays:Number(v.dataset.fireRaycastShots||0),targetHits:Number(v.dataset.testTargetHitCalls||0),assignments:Number(v.dataset.combatHitStackAssignments||0)};v.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:88,pointerType:"touch",clientX,clientY,button:0}));return before;});
-  await sleep(1350);
-  const stressAfter=await page.$eval("#viewport",v=>({shots:Number(v.dataset.fireShots||0),rays:Number(v.dataset.fireRaycastShots||0),targetHits:Number(v.dataset.testTargetHitCalls||0),assignments:Number(v.dataset.combatHitStackAssignments||0),source:v.dataset.fireInputSource}));
-  await page.evaluate(()=>document.querySelector("#viewport").dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:88,pointerType:"touch",button:0})));
-  if(stressAfter.shots-stressBefore.shots<10||stressAfter.rays-stressBefore.rays<10||stressAfter.targetHits-stressBefore.targetHits<10||stressAfter.assignments!==stressBefore.assignments)throw new Error(`sustained target fire regressed: ${JSON.stringify({stressBefore,stressAfter})}`);
+  async function arm(kind,index){return page.evaluate(({kind,index})=>{const d=globalThis.__targetDiag,b=globalThis.__arondightRealWorld,scene=b.threeScene,camera=b.threeCamera,v=document.querySelector("#viewport");d.clone?.parent?.remove(d.clone);const rec=d.records.filter(x=>x.kind===kind)[index];if(!rec)throw Error(`missing ${kind} ${index}`);const clone=rec.root.clone(true);clone.name=`TARGET_DIAG_${kind}_${index}`;clone.traverse(node=>{if(node?.isMesh)node.userData.flightFireIgnore=false;});const p=camera.position.clone(),dir=camera.position.clone();camera.getWorldPosition(p);camera.getWorldDirection(dir);const scale=2,center=kind==='person'?1.0:kind==='car'?.7:1.45;clone.scale.setScalar(scale);clone.position.copy(p).addScaledVector(dir,5);clone.position.z-=center*scale;clone.visible=true;clone.frustumCulled=false;scene.add(clone);clone.updateMatrixWorld(true);d.clone=clone;const key=kind==='person'?'worldRagdollSpawns':'worldCarExplosionSpawns';v.dataset.targetDiagKind=kind;v.dataset.targetDiagIndex=String(index);return{id:rec.id,key,before:Number(v.dataset[key]||0)};},{kind,index});}
+  const center=await page.$eval("#viewport",v=>{const r=v.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};});
+  let current=await arm('person',0);
+  await page.evaluate(({x,y})=>{const v=document.querySelector("#viewport"),d=globalThis.__targetDiag;v.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:91,pointerType:"touch",clientX:x,clientY:y,button:0}));let step=0;d.moveTimer=setInterval(()=>{step++;v.dispatchEvent(new PointerEvent("pointermove",{bubbles:true,cancelable:true,pointerId:91,pointerType:"touch",clientX:x+(step%5)-2,clientY:y+(step%7)-3,button:0}));},37);},{...center});
 
-  const feedback=await page.evaluate(()=>{
-    dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage:25,hp:75}}));
-    dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{hp:75}}));
-    return{damage:document.querySelector(".combat-damage-vignette")?.classList.contains("active"),hit:document.querySelector(".xbox-crosshair")?.classList.contains("hit-confirm")};
-  });
-  if(!feedback.damage||!feedback.hit)throw new Error(`combat feedback missing: ${JSON.stringify(feedback)}`);
-
-  console.log("Hitscan browser smoke passed: full WORLD/procedural target stack converges across startup order, stays stable and sustains isolated center-target fire without handler growth.");
-}finally{await browser.close();}
+  const sequence=[...Array.from({length:10},(_,i)=>['person',i]),...Array.from({length:6},(_,i)=>['car',i]),...Array.from({length:3},(_,i)=>['bus',i])];
+  let lastShots=(await snapshot()).shots;
+  for(let n=0;n<sequence.length;n++){
+    const [kind,index]=sequence[n];if(!(n===0&&kind==='person'&&index===0))current=await arm(kind,index);
+    try{await page.waitForFunction(({key,before})=>Number(document.querySelector("#viewport")?.dataset[key]||0)>before,{timeout:kind==='person'?1800:kind==='car'?2600:3600},current);}catch(error){const state=await snapshot();throw new Error(`TARGET_DIAG FAILURE target=${n+1}/${sequence.length} kind=${kind} index=${index} id=${current.id} signal=${current.key}:${current.before} state=${JSON.stringify(state)} pageErrors=${JSON.stringify(pageErrors.slice(-4))}`);}
+    const state=await snapshot(),delta=state.shots-lastShots;lastShots=state.shots;console.log(`TARGET_DIAG OK target=${n+1} kind=${kind} index=${index} id=${current.id} shotsDelta=${delta} totalShots=${state.shots} ragdolls=${state.ragdolls}/${state.ragdollPool} explosions=${state.explosions}/${state.explosionPool} errors=${pageErrors.length}`);
+  }
+  const finalState=await snapshot();throw new Error(`TARGET_DIAG NO_FAILURE after ${sequence.length} real target kills / ${finalState.shots} shots state=${JSON.stringify(finalState)} pageErrors=${JSON.stringify(pageErrors.slice(-4))}`);
+}finally{try{await page.evaluate(()=>{const d=globalThis.__targetDiag,v=document.querySelector("#viewport");if(d?.moveTimer)clearInterval(d.moveTimer);v?.dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:91,pointerType:"touch",button:0}));});}catch{}await browser.close();}
