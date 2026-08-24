@@ -14,6 +14,7 @@ function ensureEngine(){
 function upsertBody(config={}){const id=String(config.id||"");if(!id)return false;pendingBodies.set(id,{...config,id});const current=ensureEngine();if(current&&!current.records.has(id))current.addBody(pendingBodies.get(id));const target=pendingTargets.get(id);if(current&&target)current.setTarget(id,target);return true;}
 function setTarget(id,target={}){const key=String(id||"");if(!key)return false;pendingTargets.set(key,{...target,position:Array.isArray(target.position)?[...target.position]:target.position});return ensureEngine()?.setTarget(key,pendingTargets.get(key))??true;}
 function clearTarget(id){const key=String(id||"");pendingTargets.delete(key);return ensureEngine()?.clearTarget(key)??false;}
+function setPose(id,pose={}){const key=String(id||""),config=pendingBodies.get(key),position=pose?.position;if(!key||!config||!Array.isArray(position)||position.length!==3||!position.every(Number.isFinite))return false;const current=ensureEngine();if(!current?.setPose(key,pose))return false;pendingBodies.set(key,{...config,position:[...position],...(Number.isFinite(pose.yaw)?{yaw:Number(pose.yaw)}:{})});return true;}
 function setGravityScale(id,gravityScale=1){const key=String(id||""),value=Number(gravityScale),config=pendingBodies.get(key);if(!key||!Number.isFinite(value)||!config)return false;pendingBodies.set(key,{...config,gravityScale:value});return ensureEngine()?.setGravityScale(key,value)??true;}
 function removeBody(id){const key=String(id||"");pendingBodies.delete(key);pendingTargets.delete(key);return ensureEngine()?.removeBody(key)??false;}
 function applyImpulse(id,impulse,options){return ensureEngine()?.applyImpulse(String(id||""),impulse,options)??false;}
@@ -24,6 +25,6 @@ function frame(now=performance.now()){
   requestAnimationFrame(frame);const current=ensureEngine(),elapsed=Math.max(0,Math.min(.10,(now-lastFrame)/1000));lastFrame=now;if(!current){updateTelemetry(now);return;}if(now-lastBuildingSync>350){lastBuildingSync=now;current.syncBuildings(bridge()?.buildingCollisionSnapshot);}if(current.records.size){accumulator=Math.min(.075,accumulator+elapsed);let steps=0;while(accumulator>=FIXED_DT&&steps<MAX_STEPS_PER_FRAME){current.step(FIXED_DT,4,now);accumulator-=FIXED_DT;steps++;}}else accumulator=0;updateTelemetry(now);
 }
 
-export const worldRigidBodyRuntime=Object.freeze({upsertBody,setTarget,clearTarget,setGravityScale,removeBody,applyImpulse,pose,get ready(){return Boolean(ensureEngine());},get engine(){return ensureEngine();}});
+export const worldRigidBodyRuntime=Object.freeze({upsertBody,setTarget,clearTarget,setPose,setGravityScale,removeBody,applyImpulse,pose,get ready(){return Boolean(ensureEngine());},get engine(){return ensureEngine();}});
 globalThis.__arondightWorldRigidBodies=worldRigidBodyRuntime;
 requestAnimationFrame(frame);

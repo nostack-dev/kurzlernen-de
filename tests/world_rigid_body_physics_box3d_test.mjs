@@ -34,6 +34,9 @@ assert.ok(carA.position[0]>-5&&carB.position[0]<5,`force-driven vehicles never r
 assert.ok(carA.position[0]<carB.position[0],`dynamic vehicles passed through each other instead of resolving contact: ${JSON.stringify({carA,carB})}`);
 
 physics.addBody({id:"police-drone-test",kind:"police-drone",position:[0,20,4],yaw:0,halfExtents:[.79,.79,.34],massKg:18,gravityScale:0});
+assert.equal(physics.setPose("police-drone-test",{position:[0,20,4],yaw:.35,velocity:[0,0,0],angularVelocity:[0,0,0]}),true);const resetPose=physics.pose("police-drone-test");
+assert.ok(Math.abs(resetPose.position[0])<.001&&Math.abs(resetPose.position[1]-20)<.001&&Math.abs(resetPose.position[2]-4)<.001&&Math.abs(resetPose.yaw-.35)<.001,`rigid-body pose reset was not applied by Box3D: ${JSON.stringify(resetPose)}`);
+assert.equal(physics.setPose("police-drone-test",{position:[NaN,20,4]}),false);
 assert.equal(physics.applyImpulse("police-drone-test",[18,0,0],{point:[0,20.4,4]}),true);
 physics.step(1/60,4,11000);const kicked=physics.pose("police-drone-test");
 assert.ok(kicked.velocity[0]>.65,`shot impulse did not change police-drone rigid-body velocity: ${JSON.stringify(kicked)}`);
