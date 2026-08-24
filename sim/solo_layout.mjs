@@ -11,6 +11,12 @@ import {installPlayerVehicleRuntime} from "./player_vehicle_runtime_v2.mjs";
 import {installPlayerRuntimeHotfix} from "./player_runtime_hotfix.mjs";
 import "./world_procedural_population.mjs";
 import "./gameplay_fun_runtime.mjs";
+import "./player_car_mode.mjs";
+import "./camera_collision_guard.mjs";
+import "./wanted_dispatch_guard.mjs";
+import "./training_showcase.mjs";
+import "./immersive_soundscape.mjs";
+import "./player_settings_sections.mjs";
 import {installInitialAirframeGroundPose} from "./start_pose_guard.mjs";
 import {installFpvViewHeight} from "./fpv_view_height.mjs";
 
