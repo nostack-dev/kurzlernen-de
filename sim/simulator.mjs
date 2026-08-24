@@ -725,6 +725,8 @@ soloHeightPad.addEventListener("pointerdown",event=>{if(soloHeightPointer!==null
 soloHeightPad.addEventListener("pointermove",event=>{if(event.pointerId===soloHeightPointer)applySoloHeightPointer(event);});
 const releaseSoloHeight=event=>{if(soloHeightPointer===null||(event?.pointerId!=null&&event.pointerId!==soloHeightPointer))return;const released=soloHeightPointer;soloHeightPointer=null;setSoloHeightAxis(0);try{soloHeightPad.releasePointerCapture?.(released);}catch{}event?.preventDefault();};
 soloHeightPad.addEventListener("pointerup",releaseSoloHeight);soloHeightPad.addEventListener("pointercancel",releaseSoloHeight);soloHeightPad.addEventListener("lostpointercapture",releaseSoloHeight);
+function lockSoloHeightForFoot(){if(globalThis.__arondightOnFootMode!==true)return false;if(soloHeightPointer!==null)releaseSoloHeight();else if(Math.abs(soloHeightAxis)>1e-6)setSoloHeightAxis(0);soloControls.groundClearance=soloGroundClearance;const viewport=$("viewport");if(viewport){viewport.dataset.gamepadHeightAxis="0.000";viewport.dataset.fpsAltitudeLock="eye-fixed-v1";}return true;}
+addEventListener("arondight:player-mode",event=>{if(event.detail?.mode==="foot"){lockSoloHeightForFoot();neutralizeSoloMotion();}});
 function updateSoloSticks(){
   const left=gameKnobAxes(soloControls,"left",phoneSettings);
   const right=gameKnobAxes(soloControls,"right",phoneSettings);
@@ -778,6 +780,7 @@ function pollXboxGamepad(now){
   if(!soloMode){deactivateXboxGamepad(false);return;}
   const pad=currentXboxGamepad();
   if(!enabled){deactivateXboxGamepad(false);if(pad){viewport.dataset.gamepadExposed="1";status.hidden=false;status.textContent="XBOX DETECTED · ENABLE IN SETTINGS";help.hidden=true;}return;}
+  if(globalThis.__arondightOnFootMode===true){lockSoloHeightForFoot();flightFireFx?.setGamepadFire(false);flightFireFx?.setGamepadAim(false);globalThis.__arondightRealWorld?.setGamepadLook?.(false);viewport.dataset.controlSource="xbox";viewport.dataset.gamepadConnected=pad?"1":"0";viewport.dataset.gamepadAim="0";viewport.dataset.gamepadFire="0";viewport.dataset.gamepadHeightAxis="0.000";status.hidden=false;status.textContent=pad?"XBOX · WALK":"XBOX CONNECTING…";help.hidden=!pad;if(pad)help.textContent="LS MOVE · RS LOOK UP/DOWN/LEFT/RIGHT · RT FIRE · Y DRONE";xboxPrevious=null;return;}
   const sample=sampleXboxGamepad(pad);if(!sample){deactivateXboxGamepad(true);status.hidden=false;status.textContent=xboxObservedGamepad?"XBOX CONNECTING…":"XBOX ON · PRESS ANY BUTTON";help.hidden=true;return;}
   const justActivated=!xboxGamepadActive,dt=justActivated?0:clamp((now-xboxLastPollMs)/1000,0,.05);xboxLastPollMs=now;xboxGamepadActive=true;viewport.dataset.controlSource="xbox";viewport.dataset.gamepadConnected="1";viewport.dataset.gamepadExposed="1";viewport.dataset.gamepadId=sample.id;status.hidden=false;help.hidden=false;
   applyGameStick(soloControls,"left",sample.left,phoneSettings);if(sample.aim){soloControls.yaw=0;soloControls.bodyPitch=0;}else applyGameStick(soloControls,"right",sample.right,phoneSettings);soloHeightAxis=clamp(sample.heightAxis,-1,1);globalThis.__arondightRealWorld?.setGamepadLook?.(sample.aim,sample.right.x,sample.right.y,dt);
@@ -850,7 +853,7 @@ function activeControlState(){
   arm=effectiveInput.arm;throttle=effectiveInput.throttle;return effectiveInput;
 }
 function controls(){
-  if(soloMode&&Math.abs(soloHeightAxis)>1e-4){const next=stepGroundClearanceTarget(soloGroundClearance,soloHeightAxis,.01);soloGroundClearance=next;soloControls.groundClearance=next;}
+  if(globalThis.__arondightOnFootMode===true)lockSoloHeightForFoot();else if(soloMode&&Math.abs(soloHeightAxis)>1e-4){const next=stepGroundClearanceTarget(soloGroundClearance,soloHeightAxis,.01);soloGroundClearance=next;soloControls.groundClearance=next;}
   const c=activeControlState(),channels=new Array(16).fill(992);
   channels[0]=Math.round(992+820*clamp(c.roll||0,-1,1));channels[1]=Math.round(992+820*clamp(c.pitch||0,-1,1));channels[3]=Math.round(992+820*clamp(c.yaw||0,-1,1));channels[4]=c.arm?1811:172;
   if(c.gameMode){channels[2]=172;const clearance=clamp(Number(c.groundClearance)||2,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M),normalized=(clearance-MIN_GAME_CLEARANCE_M)/(MAX_GAME_CLEARANCE_M-MIN_GAME_CLEARANCE_M);channels[5]=Math.round(172+1639*normalized);channels[6]=1811;channels[7]=Math.round(992+820*clamp(c.bodyPitch||0,-1,1));}else channels[2]=Math.round(172+1639*clamp(c.throttle||0,0,1));

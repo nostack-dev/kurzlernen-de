@@ -1,4 +1,4 @@
-import {fpsStickVelocity,fpsTouchLookDelta,shapeFpsStick} from "./fps_control_math.mjs";
+import {FPS_PITCH_LIMIT_RAD,fpsStickVelocity,fpsTouchLookDelta,shapeFpsStick} from "./fps_control_math.mjs";
 
 const MOUSE_YAW_PER_PX=.0028;
 const MOUSE_PITCH_PER_PX=.00235;
@@ -11,7 +11,7 @@ const walk=()=>globalThis.__arondightWalkMode||null;
 const lookSurface=target=>{if(!(target instanceof Element))return null;if(target.closest("#footLook"))return"stick";if(target.closest("#footLookZone"))return"zone";return null;};
 function currentAim(){const v=viewport();return{yaw:Number(v?.dataset.walkYaw)||0,pitch:Number(v?.dataset.walkPitch)||0};}
 function syncAim(){const a=currentAim();aimYaw=a.yaw;aimPitch=a.pitch;}
-function writeAim(yaw,pitch,mode){const w=walk(),v=viewport();if(w?.mode!=="foot"||!v)return false;aimYaw=Number(yaw)||0;aimPitch=clamp(pitch,-1.30,1.30);w.setPose?.({yaw:aimYaw,pitch:aimPitch});v.dataset.walkAimCapture="fps-authoritative-v11";v.dataset.walkLookInput=mode;v.dataset.walkAimEvents=String((Number(v.dataset.walkAimEvents)||0)+1);return true;}
+function writeAim(yaw,pitch,mode){const w=walk(),v=viewport();if(w?.mode!=="foot"||!v)return false;aimYaw=Number(yaw)||0;aimPitch=clamp(pitch,-FPS_PITCH_LIMIT_RAD,FPS_PITCH_LIMIT_RAD);w.setPose?.({yaw:aimYaw,pitch:aimPitch});v.dataset.walkAimCapture="fps-authoritative-v11";v.dataset.walkLookInput=mode;v.dataset.walkAimEvents=String((Number(v.dataset.walkAimEvents)||0)+1);return true;}
 function applyDelta(dx,dy,{mouse=false}={}){if(mouse)return writeAim(aimYaw+Number(dx||0)*MOUSE_YAW_PER_PX,aimPitch-Number(dy||0)*MOUSE_PITCH_PER_PX,"fps-pointerlock-raw-v11");const delta=fpsTouchLookDelta(dx,dy);return writeAim(aimYaw+delta.yaw,aimPitch+delta.pitch,"fps-touch-dynamic-v11");}
 function consume(event){event.preventDefault();event.stopImmediatePropagation();}
 

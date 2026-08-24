@@ -2,6 +2,11 @@ const TAU=Math.PI*2;
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 const smoothstep=value=>{const t=clamp(value,0,1);return t*t*(3-2*t);};
 
+// Leave a tiny margin below 90 degrees so THREE.Camera.lookAt never becomes
+// collinear with the Z-up vector, while still allowing a practically vertical view.
+export const FPS_PITCH_LIMIT_RAD=Math.PI/2-.012;
+export const FPS_DISPLAY_PITCH_LIMIT_RAD=Math.PI/2-.006;
+
 export const FPS_CONTROL_PROFILE=Object.freeze({
   innerDeadzone:.075,
   outerDeadzone:.98,

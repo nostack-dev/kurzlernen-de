@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import {VS_GAME_EVENT,VS_PEER_EVENT} from "./lan_vs.mjs";
+import {FPS_PITCH_LIMIT_RAD} from "./fps_control_math.mjs";
 
 const INDEX_REFRESH_MS=3200;
 const AIM_YAW_PER_PX=.0062;
@@ -93,7 +94,7 @@ function patchSelfHitRouting(){
   const base=current.bind(b),wrapper=hit=>isLocalHumanHit(hit)?sendSelfHit(hit):Boolean(base(hit));wrapper.__playerRuntimeSelfHit=true;wrapper.__worldActionFeedbackWrapper=true;wrapper.__worldActionFeedbackBase=current.__worldActionFeedbackBase||current;patchedRegister=wrapper;b.registerVsHit=wrapper;const v=viewport();if(v)v.dataset.selfHitRouting="local-authoritative-v2";
 }
 
-function applyAimDelta(dx,dy){const w=walk(),v=viewport();if(w?.mode!=="foot"||!v)return false;const yaw=Number(v.dataset.walkYaw)||0,pitch=Number(v.dataset.walkPitch)||0;w.setPose?.({yaw:yaw+Number(dx||0)*AIM_YAW_PER_PX,pitch:clamp(pitch-Number(dy||0)*AIM_PITCH_PER_PX,-1.30,1.30)});v.dataset.walkAimEvents=String((Number(v.dataset.walkAimEvents)||0)+1);return true;}
+function applyAimDelta(dx,dy){const w=walk(),v=viewport();if(w?.mode!=="foot"||!v)return false;const yaw=Number(v.dataset.walkYaw)||0,pitch=Number(v.dataset.walkPitch)||0;w.setPose?.({yaw:yaw+Number(dx||0)*AIM_YAW_PER_PX,pitch:clamp(pitch-Number(dy||0)*AIM_PITCH_PER_PX,-FPS_PITCH_LIMIT_RAD,FPS_PITCH_LIMIT_RAD)});v.dataset.walkAimEvents=String((Number(v.dataset.walkAimEvents)||0)+1);return true;}
 function installAim(){
   window.addEventListener("pointerdown",event=>{
     const v=viewport(),w=walk();if(w?.mode!=="foot"||!v||!gameplayTarget(event.target))return;if(event.pointerType==="mouse"&&event.button!==0)return;

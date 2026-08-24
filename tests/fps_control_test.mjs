@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {FPS_CONTROL_PROFILE,addFpsShotImpulse,createFpsCameraMotionState,dampFpsLookVelocity,fpsAimAssist,fpsStickVelocity,fpsTouchLookDelta,shapeFpsStick,stepFpsCameraMotion,wrapFpsAngleRad} from "../sim/fps_control_math.mjs";
+import {FPS_CONTROL_PROFILE,FPS_PITCH_LIMIT_RAD,addFpsShotImpulse,createFpsCameraMotionState,dampFpsLookVelocity,fpsAimAssist,fpsStickVelocity,fpsTouchLookDelta,shapeFpsStick,stepFpsCameraMotion,wrapFpsAngleRad} from "../sim/fps_control_math.mjs";
 
 const near=(actual,expected,tolerance=1e-6,message="")=>assert.ok(Math.abs(actual-expected)<=tolerance,`${message} expected ${expected}, got ${actual}`);
 
@@ -8,6 +8,7 @@ const diagonal=shapeFpsStick(.55,.55);near(diagonal.x,diagonal.y,1e-12,"radial c
 let previous=0;for(let i=0;i<=100;i++){const shaped=shapeFpsStick(i/100,0);assert.ok(shaped.magnitude+1e-9>=previous,"dynamic response curve is not monotonic");previous=shaped.magnitude;}assert.equal(shapeFpsStick(1,0).magnitude,1);
 const quarter=shapeFpsStick(FPS_CONTROL_PROFILE.innerDeadzone+(FPS_CONTROL_PROFILE.outerDeadzone-FPS_CONTROL_PROFILE.innerDeadzone)*.25,0);assert.ok(quarter.magnitude>.25,"dynamic reverse-S must respond above linear near the inner range");
 const velocity=fpsStickVelocity(shapeFpsStick(1,-1));assert.ok(velocity.yaw>3.6&&velocity.pitch>3.2,"balanced X/Y controller rates missing");assert.ok(velocity.pitch/velocity.yaw>.84,"vertical aim remains disproportionately slow");
+assert.ok(FPS_PITCH_LIMIT_RAD>1.55&&FPS_PITCH_LIMIT_RAD<Math.PI/2,"first-person pitch must reach a safe near-vertical limit");
 
 const integrateVelocity=hz=>{let current=0,total=0;const dt=1/hz;for(let i=0;i<hz;i++){current=dampFpsLookVelocity(current,3,dt);total+=current*dt;}return total;};near(integrateVelocity(30),integrateVelocity(120),.035,"look acceleration depends on display rate");
 assert.ok(dampFpsLookVelocity(3,0,1/60)<1.7,"stick release does not stop promptly");
