@@ -1,6 +1,6 @@
 const WORLD_MARKERS=["__gameplayPolishLiteWrapper","__gameplayPolishWrapper","__realityDamageTop","__worldLivelinessWrapper","__playerVehicleHitRouterV2","__proceduralPopulationProvider"];
 const VS_MARKERS=["__worldActionFeedbackWrapper","__vsCombatHitRouter","__playerVehicleHitRouterV2"];
-let installed=false,lastBridge=null,worldCurrent=null,vsCurrent=null,worldInstalled=false,vsInstalled=false,stableFrames=0;
+let installed=false,lastBridge=null,worldInstalled=false,vsInstalled=false,stableFrames=0;
 
 function bridge(){return globalThis.__arondightRealWorld||null;}
 function viewport(){return document.getElementById("viewport");}
@@ -9,12 +9,12 @@ function inheritMarkers(next,previous,markers){if(typeof next!=="function")retur
 function installAccessor(b,name,markers,kind){
   const descriptor=Object.getOwnPropertyDescriptor(b,name);if(descriptor&&!descriptor.configurable)return false;
   let current=b[name];if(typeof current!=="function")return false;
-  Object.defineProperty(b,name,{configurable:true,enumerable:descriptor?.enumerable??true,get(){return current;},set(next){const previous=current;current=inheritMarkers(next,previous,markers);bump(kind==="world"?"combatHitStackAssignments":"combatVsHitAssignments");}});
-  if(kind==="world")worldCurrent=()=>current;else vsCurrent=()=>current;return true;
+  Object.defineProperty(b,name,{configurable:true,enumerable:descriptor?.enumerable??true,get(){return current;},set(next){const previous=current;current=inheritMarkers(next,previous,markers);stableFrames=0;bump(kind==="world"?"combatHitStackAssignments":"combatVsHitAssignments");}});
+  return true;
 }
 function installRegistry(){
   const b=bridge();if(!b)return false;
-  if(b!==lastBridge){lastBridge=b;worldCurrent=null;vsCurrent=null;worldInstalled=false;vsInstalled=false;stableFrames=0;}
+  if(b!==lastBridge){lastBridge=b;worldInstalled=false;vsInstalled=false;stableFrames=0;}
   if(!worldInstalled&&typeof b.registerWorldPopulationHit==="function")worldInstalled=installAccessor(b,"registerWorldPopulationHit",WORLD_MARKERS,"world");
   if(!vsInstalled&&typeof b.registerVsHit==="function")vsInstalled=installAccessor(b,"registerVsHit",VS_MARKERS,"vs");
   if(!worldInstalled)return false;
