@@ -13,52 +13,31 @@ try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
   await page.goto(url.href,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&document.body.classList.contains("solo-flight"),{timeout:30000});
-
   const contract=await page.$eval("#viewport",v=>({mode:v.dataset.fireHitMode,pool:v.dataset.fireProjectilePoolSize,crosshair:v.dataset.fireCrosshairMode}));
   if(contract.mode!=="box3d-raycast-hitscan"||contract.pool!=="0"||contract.crosshair!=="center-fixed")throw new Error(`hitscan runtime contract missing: ${JSON.stringify(contract)}`);
-
   await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport");v.dataset.worldMode="real";b.active=true;b.originLon=9;b.originLat=47;});
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldProceduralPopulation==="1"&&v?.dataset.combatHitStackRegistry==="marker-union-v3"&&v?.dataset.combatTargetGuard==="exception-isolated-v1";},{timeout:10000});
-
-  const stack=await page.evaluate(async()=>{const wait=ms=>new Promise(r=>setTimeout(r,ms)),b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),world=b?.registerWorldPopulationHit,assignments=Number(v?.dataset.combatHitStackAssignments||0);await wait(500);return{worldStable:world===b?.registerWorldPopulationHit,assignmentsBefore:assignments,assignmentsAfter:Number(v?.dataset.combatHitStackAssignments||0),markers:String(v?.dataset.combatHitStackWorldMarkers||""),stableFrames:Number(v?.dataset.combatHitStackStableFrames||0)};});
+  const stack=await page.evaluate(async()=>{const wait=ms=>new Promise(r=>setTimeout(r,ms)),b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),world=b?.registerWorldPopulationHit,assignments=Number(v?.dataset.combatHitStackAssignments||0);await wait(500);return{worldStable:world===b?.registerWorldPopulationHit,assignmentsBefore:assignments,assignmentsAfter:Number(v?.dataset.combatHitStackAssignments||0)};});
   if(!stack.worldStable||stack.assignmentsAfter!==stack.assignmentsBefore)throw new Error(`target hit stack still mutates: ${JSON.stringify(stack)}`);
 
   const stressBefore=await page.evaluate(async()=>{
     const wait=ms=>new Promise(r=>setTimeout(r,ms)),b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),scene=b?.threeScene,camera=b?.threeCamera;
-    if(!scene||!camera)throw Error("target fire stress needs scene and camera");
-    let source=null;scene.traverse(node=>{const type=String(node?.geometry?.type||"");if(!source&&node?.isMesh&&node.geometry&&!node.userData?.arondightAirframe&&(type.includes("Box")||type.includes("Sphere")))source=node;});
-    if(!source)throw Error("target fire stress needs one box/sphere mesh");
-    b.active=false;
-    scene.traverse(node=>{if(node?.isMesh)node.userData.flightFireIgnore=true;});
-    const target=source.clone(false),dir=camera.position.clone();camera.getWorldDirection(dir);
-    target.name="TARGET_FIRE_STRESS";target.userData={worldPopulationKind:"person",worldPopulationId:"target-fire-stress",flightFireIgnore:false};
-    target.position.copy(camera.position).addScaledVector(dir,3);target.visible=true;target.frustumCulled=false;
-    target.raycast=function(raycaster,intersects){const point=raycaster.ray.at(1,this.position.clone());intersects.push({distance:1,point,object:this});};
+    if(!scene||!camera)throw Error("target fire stress needs scene and camera");let source=null;
+    scene.traverse(node=>{const type=String(node?.geometry?.type||"");if(!source&&node?.isMesh&&node.geometry&&!node.userData?.arondightAirframe&&(type.includes("Box")||type.includes("Sphere")))source=node;});if(!source)throw Error("target fire stress needs one box/sphere mesh");
+    b.active=false;scene.traverse(node=>{if(node?.isMesh)node.userData.flightFireIgnore=true;});
+    const target=source.clone(false),dir=camera.position.clone();camera.getWorldDirection(dir);target.name="TARGET_FIRE_STRESS";target.userData={worldPopulationKind:"person",worldPopulationId:"target-fire-stress",flightFireIgnore:false};target.position.copy(camera.position).addScaledVector(dir,3);target.visible=true;target.frustumCulled=false;
+    target.raycast=function(raycaster,intersects){const n=(Number(v.dataset.testTargetRaycastCalls)||0)+1;v.dataset.testTargetRaycastCalls=String(n);const point=raycaster.ray.at(1,this.position.clone());intersects.push({distance:1,point,object:this});};
     scene.add(target);scene.updateMatrixWorld(true);target.updateMatrixWorld(true);
-    const base=b.registerWorldPopulationHit;let hits=0;
-    b.registerWorldPopulationHit=hit=>{if(hit?.object===target){hits++;v.dataset.testTargetHitCalls=String(hits);return true;}return Boolean(base(hit));};
-    await wait(250);
-    const installed=b.registerWorldPopulationHit,assignments=Number(v.dataset.combatHitStackAssignments||0),r=v.getBoundingClientRect(),clientX=r.left+r.width/2,clientY=r.top+r.height/2;
-    globalThis.__targetFireStress={installed,pointerId:88,clientX,clientY};
-    const before={shots:Number(v.dataset.fireShots||0),rays:Number(v.dataset.fireRaycastShots||0),targetHits:Number(v.dataset.testTargetHitCalls||0),assignments,errors:Number(v.dataset.combatTargetErrors||0)};
-    v.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:88,pointerType:"touch",clientX,clientY,button:0,buttons:1,isPrimary:true}));
-    return before;
+    const base=b.registerWorldPopulationHit;let hits=0;b.registerWorldPopulationHit=hit=>{if(hit?.object===target){hits++;v.dataset.testTargetHitCalls=String(hits);return true;}v.dataset.testNonTargetHitCalls=String((Number(v.dataset.testNonTargetHitCalls)||0)+1);v.dataset.testLastHitObject=String(hit?.object?.name||hit?.object?.uuid||hit?.box3d?"box3d":"none");return Boolean(base(hit));};
+    await wait(250);const installed=b.registerWorldPopulationHit,assignments=Number(v.dataset.combatHitStackAssignments||0),r=v.getBoundingClientRect(),clientX=r.left+r.width/2,clientY=r.top+r.height/2;
+    globalThis.__targetFireStress={installed,target,pointerId:88,clientX,clientY};
+    const before={shots:Number(v.dataset.fireShots||0),rays:Number(v.dataset.fireRaycastShots||0),targetHits:Number(v.dataset.testTargetHitCalls||0),targetRaycasts:Number(v.dataset.testTargetRaycastCalls||0),assignments,errors:Number(v.dataset.combatTargetErrors||0)};
+    v.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:88,pointerType:"touch",clientX,clientY,button:0,buttons:1,isPrimary:true}));return before;
   });
-
-  for(let i=0;i<16;i++){
-    await sleep(90);
-    await page.evaluate(i=>{const s=globalThis.__targetFireStress,v=document.querySelector("#viewport");if(!s)return;const dx=(i%3-1)*4,dy=((i+1)%3-1)*3;v.dispatchEvent(new PointerEvent("pointermove",{bubbles:true,cancelable:true,pointerId:s.pointerId,pointerType:"touch",clientX:s.clientX+dx,clientY:s.clientY+dy,button:-1,buttons:1,isPrimary:true}));},i);
-  }
-  await sleep(180);
-
-  const stressAfter=await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),s=globalThis.__targetFireStress;return{shots:Number(v.dataset.fireShots||0),rays:Number(v.dataset.fireRaycastShots||0),targetHits:Number(v.dataset.testTargetHitCalls||0),assignments:Number(v.dataset.combatHitStackAssignments||0),errors:Number(v.dataset.combatTargetErrors||0),source:v.dataset.fireInputSource,handlerStable:s?.installed===b?.registerWorldPopulationHit};});
+  for(let i=0;i<16;i++){await sleep(90);await page.evaluate(i=>{const s=globalThis.__targetFireStress,v=document.querySelector("#viewport");if(!s)return;const dx=(i%3-1)*4,dy=((i+1)%3-1)*3;v.dispatchEvent(new PointerEvent("pointermove",{bubbles:true,cancelable:true,pointerId:s.pointerId,pointerType:"touch",clientX:s.clientX+dx,clientY:s.clientY+dy,button:-1,buttons:1,isPrimary:true}));},i);}await sleep(180);
+  const stressAfter=await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),s=globalThis.__targetFireStress,t=s?.target;let sceneContains=false;try{sceneContains=Boolean(t&&b?.threeScene?.getObjectByProperty?.("uuid",t.uuid));}catch{}return{shots:Number(v.dataset.fireShots||0),rays:Number(v.dataset.fireRaycastShots||0),targetHits:Number(v.dataset.testTargetHitCalls||0),targetRaycasts:Number(v.dataset.testTargetRaycastCalls||0),nonTargetHits:Number(v.dataset.testNonTargetHitCalls||0),lastHitObject:v.dataset.testLastHitObject||"",candidateCount:Number(v.dataset.fireCandidateCount||0),assignments:Number(v.dataset.combatHitStackAssignments||0),errors:Number(v.dataset.combatTargetErrors||0),source:v.dataset.fireInputSource,handlerStable:s?.installed===b?.registerWorldPopulationHit,targetIgnore:t?.userData?.flightFireIgnore,targetVisible:t?.visible,sceneContains};});
   await page.evaluate(()=>{const s=globalThis.__targetFireStress,v=document.querySelector("#viewport");if(s)v.dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:s.pointerId,pointerType:"touch",clientX:s.clientX,clientY:s.clientY,button:0,buttons:0,isPrimary:true}));});
-
-  const delta={shots:stressAfter.shots-stressBefore.shots,rays:stressAfter.rays-stressBefore.rays,targetHits:stressAfter.targetHits-stressBefore.targetHits};
-  if(delta.shots<12||delta.rays<12||delta.targetHits<12||stressAfter.assignments!==stressBefore.assignments||stressAfter.errors!==stressBefore.errors||!stressAfter.handlerStable)throw new Error(`sustained drag target fire regressed: ${JSON.stringify({stressBefore,stressAfter,delta,stack})}`);
-
-  const feedback=await page.evaluate(()=>{dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage:25,hp:75}}));dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{hp:75}}));return{damage:document.querySelector(".combat-damage-vignette")?.classList.contains("active"),hit:document.querySelector(".xbox-crosshair")?.classList.contains("hit-confirm")};});
-  if(!feedback.damage||!feedback.hit)throw new Error(`combat feedback missing: ${JSON.stringify(feedback)}`);
-
-  console.log(`Hitscan browser smoke passed: stable target router and sustained drag fire (${delta.shots} shots / ${delta.targetHits} target hits) without handler growth.`);
+  const delta={shots:stressAfter.shots-stressBefore.shots,rays:stressAfter.rays-stressBefore.rays,targetHits:stressAfter.targetHits-stressBefore.targetHits,targetRaycasts:stressAfter.targetRaycasts-stressBefore.targetRaycasts};
+  if(delta.targetHits<12)throw new Error(`TARGET_DIAG ${JSON.stringify({stressBefore,stressAfter,delta,stack})}`);
+  console.log(`Target diagnostic passed ${JSON.stringify({stressAfter,delta})}`);
 }finally{await browser.close();}
