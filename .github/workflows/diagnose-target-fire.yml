@@ -1,0 +1,35 @@
+name: Diagnose target fire
+
+on:
+  push:
+    branches: ["test/target-fire-isolated-ray"]
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install browser test deps
+        run: |
+          npm init -y >/dev/null 2>&1 || true
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 mqtt@5.15.2 nostr-tools@2.24.1 qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.3 @trystero-p2p/mqtt@0.25.3 @trystero-p2p/torrent@0.25.3
+      - name: Bundle simulator
+        run: |
+          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/simulator.bundle.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('drone_simulator.html'); h=p.read_text(); marker='<script type="module" src="./sim/real_world_bootstrap.mjs"></script>'
+          b=Path('/tmp/simulator.bundle.mjs').read_text().replace('</script','<\\/script')
+          assert marker in h
+          p.write_text(h.replace(marker,'<script type="module">\n'+b+'\n</script>'))
+          PY
+      - name: Run isolated target-fire diagnostic
+        timeout-minutes: 4
+        run: |
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/target-fire-http.log 2>&1 &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/combat_center_fire_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
