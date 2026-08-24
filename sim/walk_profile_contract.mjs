@@ -1,3 +1,5 @@
+import "./gta_runtime_v1.mjs";
+
 const PROFILE="cod-dynamic-assist-bob-v7";
 const LOOK="fps-balanced-dynamic-v7";
 let observer=null;
