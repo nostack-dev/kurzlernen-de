@@ -35,6 +35,9 @@ for(const marker of ["#086a9d","#ffd34f","#dbe4e9","AERIAL","ROADS","3D BUILDING
 
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
 const page=await browser.newPage();
+const pageErrors=[],consoleErrors=[];
+page.on("pageerror",error=>pageErrors.push(String(error?.stack||error)));
+page.on("console",message=>{if(["error","warning"].includes(message.type()))consoleErrors.push(message.text());});
 const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
 const WORLD_IMAGERY_PREFIX="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/";
 const fixtureTile=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
@@ -54,7 +57,10 @@ page.on("request",request=>{
   request.abort();
 });
 
-const waitWorld=()=>page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-imagery"&&v?.dataset.worldImageryLayer==="ready"&&Number(v?.dataset.worldMinimapImageryTiles||0)>0&&Number(v?.dataset.worldThreeFrames||0)>4;},{timeout:20000});
+const waitWorld=async()=>{
+  try{await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldMode==="real"&&v?.dataset.worldProvider==="openfreemap-esri-imagery"&&v?.dataset.worldImageryLayer==="ready"&&Number(v?.dataset.worldMinimapImageryTiles||0)>0&&Number(v?.dataset.worldThreeFrames||0)>4;},{timeout:20000});}
+  catch(error){const state=await page.evaluate(()=>{const v=document.querySelector("#viewport"),b=globalThis.__arondightRealWorld;return{status:document.querySelector("#realWorldStatus")?.textContent||"",mode:v?.dataset.worldMode||"",provider:v?.dataset.worldProvider||"",imagery:v?.dataset.worldImageryLayer||"",miniTiles:Number(v?.dataset.worldMinimapImageryTiles||0),frames:Number(v?.dataset.worldThreeFrames||0),autoSource:v?.dataset.autoWorldLocationSource||"",active:Boolean(b?.active),loading:Boolean(b?.loading),hasMap:Boolean(b?.map),mapLoaded:Boolean(b?.map?.loaded?.()),hasRenderer:Boolean(b?.threeRenderer)};});throw new Error(`WORLD startup timeout: ${JSON.stringify({state,providerRequests,imageryRequests:imageryRequests.length,external:external.slice(-8),pageErrors:pageErrors.slice(-8),consoleErrors:consoleErrors.slice(-8)})}`,{cause:error});}
+};
 
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
