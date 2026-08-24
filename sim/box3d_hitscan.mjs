@@ -1,4 +1,4 @@
-import Box3DFactory from "box3d.js/dist/box3d.inline.mjs";
+import Box3DFactory from "box3d.js/inline";
 import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies} from "./world_building_collision_physics.mjs";
 
 const QUERY_HITSCAN=16n;
