@@ -1,5 +1,6 @@
 import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./audio_settings.mjs";
 import "./gameplay_final_runtime.mjs";
+import "./gameplay_final_ui_dock.mjs";
 
 let installed=false,ctx=null,master=null,engine=null,noiseBuffer=null,lastFrame=performance.now(),lastStepAt=-Infinity,lastWalkX=NaN,lastWalkY=NaN,settings=loadAudioSettings();
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
