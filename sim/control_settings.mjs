@@ -86,14 +86,14 @@ function mountSoloWorldSettings({parent,dialog,settingsButton}){
   renderButton();return{section,button:worldButton,activate};
 }
 
-export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange=()=>{},onFirstPersonChange=()=>{},debugGrid=null,box3dColliderDebug=null,xboxControllerToggle=false,firstPersonProfile=false,getActiveControlProfile=()=>CONTROL_PROFILE_DRONE}={}){
+function mountControlSettings({parent,buttonText="SETTINGS",onChange=()=>{},onFirstPersonChange=()=>{},debugGrid=null,box3dColliderDebug=null,xboxControllerToggle=false,getActiveControlProfile=()=>CONTROL_PROFILE_DRONE}={},firstPersonProfile=false){
   if(!parent)throw Error("settings parent required");
   installStyle();
   let activeProfile=CONTROL_PROFILE_DRONE,droneSettings=loadPhoneControlSettings(),firstPersonSettings=loadFirstPersonControlSettings();
   const resolveProfile=value=>firstPersonProfile&&value===CONTROL_PROFILE_FIRST_PERSON?CONTROL_PROFILE_FIRST_PERSON:CONTROL_PROFILE_DRONE;
   const button=document.createElement("button");
-  button.type="button";button.className="phone-settings-button";button.textContent=buttonText;button.setAttribute("aria-label","Phone control settings");
-  const dialog=document.createElement("dialog");dialog.className="phone-settings-dialog";
+  button.type="button";button.className="phone-settings-button";button.textContent=buttonText;button.setAttribute("aria-label","Phone control settings");button.dataset.controlProfiles=firstPersonProfile?"drone+first-person":"drone";
+  const dialog=document.createElement("dialog");dialog.className="phone-settings-dialog";dialog.dataset.controlProfiles=button.dataset.controlProfiles;
   dialog.innerHTML=`
     <div class="phone-settings-titlebar"><h3>PHONE CONTROLS</h3><button type="button" class="phone-settings-close-top" data-close-top aria-label="Close settings">×</button></div>
     ${firstPersonProfile?`<div class="phone-settings-profile"><label for="controlProfileSelect">CONTROL PROFILE</label><select id="controlProfileSelect" data-control-profile><option value="${CONTROL_PROFILE_DRONE}">DRONE</option><option value="${CONTROL_PROFILE_FIRST_PERSON}">FIRST PERSON</option></select><p data-control-profile-note></p></div>`:""}
@@ -158,3 +158,6 @@ export function mountPhoneControlSettings({parent,buttonText="SETTINGS",onChange
   render();
   return{button,dialog,world,gamepadNavigator,get settings(){return{...droneSettings};},get firstPersonSettings(){return{...firstPersonSettings};},get activeProfile(){return activeProfile;},reload(){droneSettings=loadPhoneControlSettings();firstPersonSettings=loadFirstPersonControlSettings();render();return{...droneSettings};}};
 }
+
+export function mountPhoneControlSettings(options={}){return mountControlSettings(options,false);}
+export function mountPlayerControlSettings(options={}){return mountControlSettings(options,true);}

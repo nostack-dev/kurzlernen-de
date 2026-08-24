@@ -5,7 +5,7 @@ import {ViewPeerLink,copySignal,shareSignal} from "./p2p_link.mjs";
 import {QrScanner,renderQr} from "./qr_pairing.mjs";
 import {neutralControls,copyControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M,MIN_GAME_AGL_SENSOR_SLANT_RANGE_M,clearanceRateMps,stepGroundClearanceTarget} from "./control_semantics.mjs";
 import {RaceTrack} from "./race_track.mjs";
-import {loadPhoneControlSettings,mountPhoneControlSettings} from "./control_settings.mjs";
+import {loadPhoneControlSettings,mountPlayerControlSettings} from "./control_settings.mjs";
 import {loadCameraSettings,mountCameraSettings} from "./camera_settings.mjs";
 import {HybridMotorSound} from "./motor_sound.mjs";
 import {FlightLogbook} from "./flight_logbook.mjs";
@@ -751,11 +751,10 @@ function soloStick(el,kind){
   el.addEventListener("pointerup",release);el.addEventListener("pointercancel",release);
 }
 soloStick($("soloLeft"),"left");soloStick($("soloRight"),"right");updateSoloSticks();
-const soloSettingsMount=mountPhoneControlSettings({
+const soloSettingsMount=mountPlayerControlSettings({
   parent:$("soloTopbar"),
   buttonText:"SETTINGS",
   xboxControllerToggle:true,
-  firstPersonProfile:true,
   getActiveControlProfile:()=>globalThis.__arondightOnFootMode===true?"first-person":"drone",
   debugGrid:{get:()=>debugGridEnabled,set:setDebugGridEnabled,defaultValue:false},
   box3dColliderDebug:{get:()=>box3dColliderDebugEnabled,set:setBox3dColliderDebugEnabled,defaultValue:false},

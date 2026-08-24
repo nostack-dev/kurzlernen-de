@@ -331,7 +331,10 @@ for(const marker of ["beginTouchLook","applyTouchLook?.","applyTouchLookStick?."
   requireText("sim/foot_look_capture.mjs",marker);
 for(const marker of ["CONTROL PROFILE","FIRST PERSON","data-control-profile","LIGHT AIM ASSIST","RIGHT STICK DEADZONE"])
   requireText("sim/control_settings.mjs",marker);
-requireText("sim/simulator.mjs","firstPersonProfile:true");
+requireText("sim/simulator.mjs",'import {loadPhoneControlSettings,mountPlayerControlSettings} from "./control_settings.mjs";');
+requireText("sim/simulator.mjs","mountPlayerControlSettings({");
+for(const marker of ["mountControlSettings(options,false)","mountControlSettings(options,true)","drone+first-person"])
+  requireText("sim/control_settings.mjs",marker);
 requireText("sim/drone_control_settings.mjs",'PHONE_SETTINGS_KEY="arondight45PhoneControlSettingsV5"');
 requireText("sim/first_person_control_settings.mjs",'FIRST_PERSON_CONTROL_SETTINGS_KEY="arondight45FirstPersonControlSettingsV1"');
 forbidText("sim/first_person_control_settings.mjs","PHONE_SETTINGS_KEY","FIRST PERSON storage must not depend on DRONE storage");
