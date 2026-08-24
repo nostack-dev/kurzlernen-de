@@ -5,6 +5,7 @@ import "./world_action_feedback.mjs";
 import "./foot_look_capture.mjs";
 import "./player_vitals_runtime.mjs";
 import "./walk_world_experience_hotfix.mjs";
+import "./wanted_police_pre_guard.mjs";
 import "./wanted_police_drones.mjs";
 import "./world_rigid_body_runtime.mjs";
 import "./walk_ui_layout_hotfix.mjs";
