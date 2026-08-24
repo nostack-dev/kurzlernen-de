@@ -3,7 +3,8 @@ import "./camera_collision_guard.mjs";
 import "./player_settings_sections.mjs";
 import "./immersive_soundscape.mjs";
 import "./training_showcase.mjs";
-import "./wanted_police_fairness_v5.mjs";
+import "./wanted_police_pre_guard.mjs";
+import "./wanted_dispatch_guard.mjs";
 
 const PROFILE="cod-dynamic-assist-bob-v7";
 const LOOK="fps-balanced-dynamic-v7";
