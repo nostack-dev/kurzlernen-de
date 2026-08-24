@@ -2,7 +2,7 @@ export const COMBAT_AUDIO_BANK_VERSION="prebaked-pcm-buffer-bank-v1";
 export const COMBAT_AUDIO_SAMPLE_RATE=44100;
 
 const TAU=Math.PI*2;
-const BANK_VARIANTS=Object.freeze({shot:3,hit:4,damage:2,scream:4,explosion:2,step:3});
+const BANK_VARIANTS=Object.freeze({shot:3,hit:4,damage:2,scream:4,explosion:2,step:3,reward:3,fail:2});
 const contextBanks=new WeakMap();
 let sharedContext=null;
 
@@ -65,7 +65,19 @@ function renderStep(sampleRate,variant){
   return finish(data,.72);
 }
 
-const renderers={shot:renderShot,hit:renderHit,damage:renderDamage,scream:renderScream,explosion:renderExplosion,step:renderStep};
+function renderReward(sampleRate,variant){
+  const duration=.42+variant*.035,data=new Float32Array(Math.ceil(duration*sampleRate)),notes=[[392,494,659],[440,554,698],[494,622,784]][variant%3],phases=[0,0,0];
+  for(let i=0;i<data.length;i++){const t=i/sampleRate,p=t/duration;let value=0;for(let n=0;n<notes.length;n++){const onset=n*.072,age=t-onset;if(age<0)continue;const frequency=notes[n]*(1+.008*Math.exp(-age*18));phases[n]+=TAU*frequency/sampleRate;const amp=Math.min(1,age/.008)*Math.exp(-age*(5.4+n*.35));value+=(Math.sin(phases[n])+.24*Math.sin(phases[n]*2))*amp;}const shimmer=Math.sin(TAU*(1450+variant*120)*t)*Math.exp(-t*10)*.12;data[i]=(value*.42+shimmer)*Math.min(1,t/.006)*Math.min(1,(duration-t)/.055)*(1-.12*p);}
+  return finish(data,.82);
+}
+
+function renderFail(sampleRate,variant){
+  const duration=.31+variant*.04,data=new Float32Array(Math.ceil(duration*sampleRate)),random=rng(0xfa11ed+variant*821);let phase=0,low=0;
+  for(let i=0;i<data.length;i++){const t=i/sampleRate,p=t/duration,white=random()*2-1;low+=.055*(white-low);const frequency=(210+variant*26)*(1-p*.72)+42;phase+=TAU*frequency/sampleRate;data[i]=(Math.sin(phase)*.58+low*.48)*Math.min(1,t/.012)*Math.min(1,(duration-t)/.09)*Math.exp(-t*2.8);}
+  return finish(data,.78);
+}
+
+const renderers={shot:renderShot,hit:renderHit,damage:renderDamage,scream:renderScream,explosion:renderExplosion,step:renderStep,reward:renderReward,fail:renderFail};
 export function createCombatPcmBank(sampleRate=COMBAT_AUDIO_SAMPLE_RATE){
   const rate=Math.max(8000,Math.round(Number(sampleRate)||COMBAT_AUDIO_SAMPLE_RATE)),bank={};
   for(const [kind,count] of Object.entries(BANK_VARIANTS))bank[kind]=Array.from({length:count},(_,variant)=>renderers[kind](rate,variant));

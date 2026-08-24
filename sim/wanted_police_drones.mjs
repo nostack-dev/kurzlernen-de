@@ -332,7 +332,7 @@ function explodeDrone(drone,now){
 }
 
 function destroyPoliceDrone(drone,now=performance.now()){
-  if(!drone?.active)return false;const crimeId=`police:${drone.index}:${drone.spawnSerial}`,empDisabled=drone.empDisabled;explodeDrone(drone,now);deactivateDrone(drone);drone.destroyedUntil=now+(empDisabled?EMP_RESPAWN_MS:POLICE_RESPAWN_MS);policeKills++;reportCrime({id:crimeId,kind:"police-drone",revealPlayer:false});const view=viewport();if(view){view.dataset.wantedPoliceCriticalExplosions=String((Number(view.dataset.wantedPoliceCriticalExplosions)||0)+1);view.dataset.wantedPoliceLastHp="0";}return true;
+  if(!drone?.active)return false;const crimeId=`police:${drone.index}:${drone.spawnSerial}`,empDisabled=drone.empDisabled,position=[drone.root.position.x,drone.root.position.y,drone.root.position.z];explodeDrone(drone,now);deactivateDrone(drone);drone.destroyedUntil=now+(empDisabled?EMP_RESPAWN_MS:POLICE_RESPAWN_MS);policeKills++;reportCrime({id:crimeId,kind:"police-drone",revealPlayer:false});window.dispatchEvent(new CustomEvent("arondight:police-drone-destroyed",{detail:{id:crimeId,index:drone.index,empDisabled,position,stars}}));const view=viewport();if(view){view.dataset.wantedPoliceCriticalExplosions=String((Number(view.dataset.wantedPoliceCriticalExplosions)||0)+1);view.dataset.wantedPoliceLastHp="0";}return true;
 }
 
 function armPoliceCritical(drone,now=performance.now(),accelerate=false){
@@ -358,10 +358,10 @@ function reportCrime(detail={}){
 }
 
 function clearWanted(reason="escaped"){
-  const now=performance.now(),hadWanted=stars>0;heat=0;stars=0;phase="clear";clearReason=String(reason||"clear");lastContactAt=-Infinity;lastCrimeAt=-Infinity;for(const drone of drones){if(reason==="escaped"&&drone.active&&!drone.empDisabled)beginPoliceRetreat(drone,now);else deactivateDrone(drone);}
+  const now=performance.now(),hadWanted=stars>0,clearedStars=stars;heat=0;stars=0;phase="clear";clearReason=String(reason||"clear");lastContactAt=-Infinity;lastCrimeAt=-Infinity;for(const drone of drones){if(reason==="escaped"&&drone.active&&!drone.empDisabled)beginPoliceRetreat(drone,now);else deactivateDrone(drone);}
   lastTargetDamageAt.player=-Infinity;lastTargetDamageAt.drone=-Infinity;waveNumber=0;waveStartedAt=-Infinity;nextWaveAt=-Infinity;playerSpeedMps=0;playerSampleAt=-Infinity;
   if(reason==="reset"){seenCrimes.clear();empReadyAt=-Infinity;empFeedbackUntil=-Infinity;empActivations=0;empLastAffected=0;empInRangeCount=0;}
-  escapedBannerUntil=hadWanted&&reason!=="reset"?now+2100:-Infinity;if(hadWanted&&reason==="escaped")playTone({frequency:660,endFrequency:1040,duration:.22,gain:.023,type:"sine"});renderHud(0);return hadWanted;
+  escapedBannerUntil=hadWanted&&reason!=="reset"?now+2100:-Infinity;if(hadWanted&&reason==="escaped")playTone({frequency:660,endFrequency:1040,duration:.22,gain:.023,type:"sine"});renderHud(0);if(reason!=="reset")window.dispatchEvent(new CustomEvent("arondight:wanted-cleared",{detail:{reason:clearReason,hadWanted,stars:clearedStars}}));return hadWanted;
 }
 
 function findDrone(hit){
@@ -413,7 +413,7 @@ function showTracer(drone,from,to,now){
 }
 
 function applyTargetDamage(drone,target,now){
-  if(!target||now-lastTargetDamageAt[target.kind]<PLAYER_DAMAGE_COOLDOWN_MS||target.hp<=0)return false;lastTargetDamageAt[target.kind]=now;const amount=wantedPoliceDamage(stars),before=Number(target.hp);let after=typeof target.model?.damage==="function"?Number(target.model.damage(amount,"police-drone")):NaN;
+  if(!target||now-lastTargetDamageAt[target.kind]<PLAYER_DAMAGE_COOLDOWN_MS||target.hp<=0)return false;lastTargetDamageAt[target.kind]=now;const assistScale=clamp(Number(globalThis.__arondightGameplayDirector?.policeDamageScale)||1,.70,1),amount=Math.max(3,Math.round(wantedPoliceDamage(stars)*assistScale)),before=Number(target.hp);let after=typeof target.model?.damage==="function"?Number(target.model.damage(amount,"police-drone")):NaN;
   if(!Number.isFinite(after)){window.dispatchEvent(new CustomEvent(target.kind==="drone"?"arondight:drone-damage":"arondight:player-damage",{detail:{damage:amount,source:"police-drone",policeDrone:drone.index,target:target.kind}}));after=Number(target.model?.hp);}
   window.dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage:amount,hp:Number.isFinite(after)?after:Math.max(0,before-amount),source:"police-drone",target:target.kind}}));
   const view=viewport();if(view){view.dataset.wantedPoliceDamage=String((Number(view.dataset.wantedPoliceDamage)||0)+amount);view.dataset.wantedPoliceShotsHit=String((Number(view.dataset.wantedPoliceShotsHit)||0)+1);view.dataset.wantedPoliceLastDamage=String(amount);view.dataset.wantedPoliceHitGraceMs=String(PLAYER_DAMAGE_COOLDOWN_MS);view.dataset.wantedPoliceDamageTarget=target.kind;}return true;

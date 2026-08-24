@@ -3,7 +3,7 @@ import fs from "node:fs";
 import {COMBAT_AUDIO_BANK_VERSION,combatPcmSummary,createCombatPcmBank} from "../sim/combat_audio_bank.mjs";
 
 assert.equal(COMBAT_AUDIO_BANK_VERSION,"prebaked-pcm-buffer-bank-v1");
-const bank=createCombatPcmBank(12000),expected={shot:3,hit:4,damage:2,scream:4,explosion:2,step:3};
+const bank=createCombatPcmBank(12000),expected={shot:3,hit:4,damage:2,scream:4,explosion:2,step:3,reward:3,fail:2};
 for(const [kind,count] of Object.entries(expected)){
   assert.equal(bank.samples[kind].length,count,`${kind} variant count`);
   for(const samples of bank.samples[kind]){
@@ -14,7 +14,7 @@ for(const [kind,count] of Object.entries(expected)){
   assert.notDeepEqual([...bank.samples[kind][0].slice(0,128)],[...bank.samples[kind][1].slice(0,128)],`${kind} variants are identical`);
 }
 assert.equal(combatPcmSummary().sampleRate,44100);
-for(const file of ["sim/flight_fire_fx.mjs","sim/gameplay_polish_lite.mjs","sim/walk_world_experience_hotfix.mjs","sim/player_vehicle_runtime_v2.mjs"]){
+for(const file of ["sim/flight_fire_fx.mjs","sim/gameplay_polish_lite.mjs","sim/walk_world_experience_hotfix.mjs","sim/player_vehicle_runtime_v2.mjs","sim/gameplay_fun_runtime.mjs"]){
   const source=fs.readFileSync(new URL(`../${file}`,import.meta.url),"utf8");assert.ok(source.includes("combat_audio_bank.mjs"),`${file} does not use the shared buffer bank`);assert.ok(!source.includes("createOscillator()"),`${file} still synthesizes oscillators during gameplay`);
 }
 console.log("Combat audio bank passed: finite multi-variant PCM, human-voice buffers, and zero runtime oscillators on active hit/shot paths.");

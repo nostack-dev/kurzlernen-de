@@ -50,6 +50,7 @@ jobs:
           node tests/wanted_system_test.mjs
           node tests/player_vitals_logic_test.mjs
           node tests/combat_audio_bank_test.mjs
+          node tests/gameplay_fun_logic_test.mjs
           node --check sim/combat_audio_bank.mjs
           node --check sim/flight_fire_fx.mjs
           node --check sim/box3d_hitscan.mjs
@@ -71,6 +72,8 @@ jobs:
           node --check sim/player_vitals_runtime.mjs
           node --check sim/player_vehicle_runtime_v2.mjs
           node --check sim/player_runtime_hotfix.mjs
+          node --check sim/gameplay_fun_logic.mjs
+          node --check sim/gameplay_fun_runtime.mjs
           node --check sim/simulator.mjs
           node --check tests/combat_center_fire_browser_smoke.mjs
           node --check tests/xbox_gamepad_browser_smoke.mjs
@@ -81,6 +84,7 @@ jobs:
           node --check tests/real_world_ui_smoke.mjs
           node --check tests/procedural_population_browser_smoke.mjs
           node --check tests/wanted_police_browser_smoke.mjs
+          node --check tests/gameplay_fun_browser_smoke.mjs
           grep -q 'kMaxHorizontalAccelerationMps2 = 7.5f' esp32/Arondight45_StateControl.hpp
           grep -q 'commanded_forward_mps_ = intent.forward_mps' esp32/Arondight45_StateControl.hpp
           grep -q 'commanded_right_mps_ = intent.right_mps' esp32/Arondight45_StateControl.hpp
@@ -166,6 +170,7 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/procedural_population_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/wanted_police_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/gameplay_fun_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -235,6 +240,7 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/procedural_population_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/wanted_police_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/gameplay_fun_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
 
       - name: Report live E2E final
         if: always()
