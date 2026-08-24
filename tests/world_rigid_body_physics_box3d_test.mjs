@@ -12,6 +12,7 @@ physics.addBody({id:"car-wall",kind:"car",position:[0,0,.42],yaw:0,halfExtents:[
 physics.setTarget("car-wall",{position:[14,0,.42],yaw:0,speedMps:12,response:2.8,maxAccelerationMps2:5.2});
 for(let index=0;index<360;index++)physics.step(1/60,4,index*1000/60);
 const blocked=physics.pose("car-wall");
+assert.ok(blocked.position[0]>1.5,`force-driven vehicle never reached the building: ${JSON.stringify(blocked)}`);
 assert.ok(blocked.position[0]<2.35,`dynamic vehicle tunneled through static Box3D building: ${JSON.stringify(blocked)}`);
 assert.ok(blocked.position.every(Number.isFinite));
 
@@ -21,6 +22,7 @@ physics.addBody({id:"car-b",kind:"car",position:[7,8,.42],yaw:Math.PI,halfExtent
 physics.setTarget("car-a",{position:[12,8,.42],yaw:0,speedMps:8});physics.setTarget("car-b",{position:[-12,8,.42],yaw:Math.PI,speedMps:8});
 for(let index=0;index<180;index++)physics.step(1/60,4,7000+index*1000/60);
 const carA=physics.pose("car-a"),carB=physics.pose("car-b");
+assert.ok(carA.position[0]>-5&&carB.position[0]<5,`force-driven vehicles never reached each other: ${JSON.stringify({carA,carB})}`);
 assert.ok(carA.position[0]<carB.position[0],`dynamic vehicles passed through each other instead of resolving contact: ${JSON.stringify({carA,carB})}`);
 
 physics.addBody({id:"police-drone-test",kind:"police-drone",position:[0,20,4],yaw:0,halfExtents:[.79,.79,.34],massKg:18,gravityScale:0});
