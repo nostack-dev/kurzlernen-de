@@ -1,4 +1,5 @@
 import "./gta_runtime_v1.mjs";
+import "./wanted_police_fairness_v5.mjs";
 
 const PROFILE="cod-dynamic-assist-bob-v7";
 const LOOK="fps-balanced-dynamic-v7";
