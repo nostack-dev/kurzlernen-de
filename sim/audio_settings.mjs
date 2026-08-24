@@ -2,7 +2,7 @@ import "./impact_explosion_overlay.mjs";
 
 export const AUDIO_SETTINGS_KEY="arondight45AudioSettingsV1";
 export const AUDIO_SETTINGS_EVENT="arondight45-audio-settings-change";
-export const DEFAULT_AUDIO_SETTINGS=Object.freeze({soundEnabled:true,droneVolume:100,shotsVolume:100,fxVolume:100});
+export const DEFAULT_AUDIO_SETTINGS=Object.freeze({soundEnabled:true,droneVolume:55,shotsVolume:85,fxVolume:75,footstepsVolume:42,vehicleVolume:68,ambientVolume:55});
 const clampPercent=value=>Math.max(0,Math.min(100,Math.round(Number(value)||0)));
 export function normalizeAudioSettings(value={}){
   return{
@@ -10,6 +10,9 @@ export function normalizeAudioSettings(value={}){
     droneVolume:clampPercent(value.droneVolume??DEFAULT_AUDIO_SETTINGS.droneVolume),
     shotsVolume:clampPercent(value.shotsVolume??DEFAULT_AUDIO_SETTINGS.shotsVolume),
     fxVolume:clampPercent(value.fxVolume??DEFAULT_AUDIO_SETTINGS.fxVolume),
+    footstepsVolume:clampPercent(value.footstepsVolume??DEFAULT_AUDIO_SETTINGS.footstepsVolume),
+    vehicleVolume:clampPercent(value.vehicleVolume??DEFAULT_AUDIO_SETTINGS.vehicleVolume),
+    ambientVolume:clampPercent(value.ambientVolume??DEFAULT_AUDIO_SETTINGS.ambientVolume),
   };
 }
 export function loadAudioSettings(){
@@ -25,26 +28,18 @@ export function saveAudioSettings(settings,{notify=true}={}){
   if(notify&&typeof window!=="undefined")window.dispatchEvent(new CustomEvent(AUDIO_SETTINGS_EVENT,{detail:{...next}}));
   return next;
 }
+function slider(label,key){return `<div class="phone-settings-row"><label>${label}</label><output data-audio-out="${key}"></output><input data-audio-slider="${key}" type="range" min="0" max="100" step="1"><div class="phone-settings-scale"><span>MUTE</span><span>100%</span></div></div>`;}
 export function mountAudioSettings({dialog,onChange=()=>{}}={}){
   if(!dialog)throw Error("audio settings dialog required");
   let settings=loadAudioSettings();
-  const section=document.createElement("section");section.className="camera-settings-section audio-settings-section";section.dataset.audioSettings="1";
-  section.innerHTML=`
-    <h4>AUDIO</h4>
-    <label class="phone-settings-toggle"><span>SOUND</span><input data-audio-enabled type="checkbox"></label>
-    <div class="phone-settings-row"><label>DRONE VOLUME</label><output data-audio-out="drone"></output><input data-audio-slider="drone" type="range" min="0" max="100" step="1"><div class="phone-settings-scale"><span>MUTE</span><span>100%</span></div></div>
-    <div class="phone-settings-row"><label>SHOTS VOLUME</label><output data-audio-out="shots"></output><input data-audio-slider="shots" type="range" min="0" max="100" step="1"><div class="phone-settings-scale"><span>MUTE</span><span>100%</span></div></div>
-    <div class="phone-settings-row"><label>FX VOLUME</label><output data-audio-out="fx"></output><input data-audio-slider="fx" type="range" min="0" max="100" step="1"><div class="phone-settings-scale"><span>MUTE</span><span>100%</span></div></div>
-    <p class="phone-settings-note">SOUND is the master mute. DRONE controls motors + ESC tones, SHOTS controls weapon fire, and FX controls hit-confirm / incoming-hit audio. Visual hit feedback stays active when sound is muted.</p>`;
+  const section=document.createElement("section");section.className="camera-settings-section audio-settings-section";section.dataset.audioSettings="2";
+  section.innerHTML=`<h4>AUDIO MIXER</h4><label class="phone-settings-toggle"><span>SOUND</span><input data-audio-enabled type="checkbox"></label>${slider("DRONE","drone")}${slider("SHOTS","shots")}${slider("FX / EXPLOSIONS","fx")}${slider("FOOTSTEPS","footsteps")}${slider("VEHICLE","vehicle")}${slider("AMBIENT / OTHER","ambient")}<p class="phone-settings-note">Independent mix. Drone and footsteps are intentionally quieter by default.</p>`;
   const actions=dialog.querySelector(".phone-settings-actions");dialog.insertBefore(section,actions);
-  const enabled=section.querySelector("[data-audio-enabled]"),drone=section.querySelector('[data-audio-slider="drone"]'),shots=section.querySelector('[data-audio-slider="shots"]'),fx=section.querySelector('[data-audio-slider="fx"]');
-  const droneOut=section.querySelector('[data-audio-out="drone"]'),shotsOut=section.querySelector('[data-audio-out="shots"]'),fxOut=section.querySelector('[data-audio-out="fx"]');
-  const render=()=>{enabled.checked=settings.soundEnabled;drone.value=String(settings.droneVolume);shots.value=String(settings.shotsVolume);fx.value=String(settings.fxVolume);droneOut.value=`${settings.droneVolume}%`;shotsOut.value=`${settings.shotsVolume}%`;fxOut.value=`${settings.fxVolume}%`;section.dataset.masterEnabled=settings.soundEnabled?"1":"0";};
-  const apply=()=>{settings=saveAudioSettings({soundEnabled:enabled.checked,droneVolume:+drone.value,shotsVolume:+shots.value,fxVolume:+fx.value});render();onChange({...settings});};
-  enabled.addEventListener("change",apply);for(const input of [drone,shots,fx])input.addEventListener("input",apply);
+  const enabled=section.querySelector("[data-audio-enabled]"),inputs=Object.fromEntries(["drone","shots","fx","footsteps","vehicle","ambient"].map(key=>[key,section.querySelector(`[data-audio-slider="${key}"]`)]));
+  const render=()=>{enabled.checked=settings.soundEnabled;for(const[key,input]of Object.entries(inputs)){const prop=`${key}Volume`;input.value=String(settings[prop]);section.querySelector(`[data-audio-out="${key}"]`).value=`${settings[prop]}%`;}section.dataset.masterEnabled=settings.soundEnabled?"1":"0";};
+  const apply=()=>{settings=saveAudioSettings({soundEnabled:enabled.checked,droneVolume:+inputs.drone.value,shotsVolume:+inputs.shots.value,fxVolume:+inputs.fx.value,footstepsVolume:+inputs.footsteps.value,vehicleVolume:+inputs.vehicle.value,ambientVolume:+inputs.ambient.value});render();onChange({...settings});};
+  enabled.addEventListener("change",apply);for(const input of Object.values(inputs))input.addEventListener("input",apply);
   const external=event=>{settings=normalizeAudioSettings(event.detail||loadAudioSettings());render();onChange({...settings});};window.addEventListener(AUDIO_SETTINGS_EVENT,external);
-  dialog.addEventListener("close",()=>{settings=loadAudioSettings();render();});
-  dialog.querySelector("[data-reset]")?.addEventListener("click",()=>{settings=saveAudioSettings(DEFAULT_AUDIO_SETTINGS);render();onChange({...settings});});
-  render();onChange({...settings});
-  return{section,get settings(){return{...settings};},reload(){settings=loadAudioSettings();render();onChange({...settings});return{...settings};}};
+  dialog.addEventListener("close",()=>{settings=loadAudioSettings();render();});dialog.querySelector("[data-reset]")?.addEventListener("click",()=>{settings=saveAudioSettings(DEFAULT_AUDIO_SETTINGS);render();onChange({...settings});});
+  render();onChange({...settings});return{section,get settings(){return{...settings};},reload(){settings=loadAudioSettings();render();onChange({...settings});return{...settings};}};
 }
