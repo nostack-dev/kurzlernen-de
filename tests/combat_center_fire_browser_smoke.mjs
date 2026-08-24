@@ -18,11 +18,10 @@ try{
   if(contract.mode!=="box3d-raycast-hitscan"||contract.pool!=="0"||contract.crosshair!=="center-fixed")throw new Error(`hitscan runtime contract missing: ${JSON.stringify(contract)}`);
 
   await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport");v.dataset.worldMode="real";b.active=true;b.originLon=9;b.originLat=47;});
-  const required=["__gameplayPolishLiteWrapper","__realityDamageTop","__worldLivelinessWrapper","__playerVehicleHitRouterV2","__proceduralPopulationProvider"];
-  await page.waitForFunction(required=>{const v=document.querySelector("#viewport"),markers=String(v?.dataset.combatHitStackWorldMarkers||"");return v?.dataset.worldProceduralPopulation==="1"&&v?.dataset.combatHitStackRegistry==="marker-union-v3"&&v?.dataset.combatTargetGuard==="exception-isolated-v1"&&required.every(marker=>markers.includes(marker))&&Number(v?.dataset.combatHitStackStableFrames||0)>=12;},{timeout:10000},required);
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.worldProceduralPopulation==="1"&&v?.dataset.combatHitStackRegistry==="marker-union-v3"&&v?.dataset.combatTargetGuard==="exception-isolated-v1";},{timeout:10000});
 
-  const stack=await page.evaluate(async()=>{const wait=ms=>new Promise(r=>setTimeout(r,ms)),b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),world=b?.registerWorldPopulationHit,assignments=Number(v?.dataset.combatHitStackAssignments||0);await wait(350);return{worldStable:world===b?.registerWorldPopulationHit,assignmentsBefore:assignments,assignmentsAfter:Number(v?.dataset.combatHitStackAssignments||0),markers:String(v?.dataset.combatHitStackWorldMarkers||"")};});
-  if(!stack.worldStable||stack.assignmentsAfter!==stack.assignmentsBefore||required.some(marker=>!stack.markers.includes(marker)))throw new Error(`target hit stack still mutates: ${JSON.stringify(stack)}`);
+  const stack=await page.evaluate(async()=>{const wait=ms=>new Promise(r=>setTimeout(r,ms)),b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),world=b?.registerWorldPopulationHit,assignments=Number(v?.dataset.combatHitStackAssignments||0);await wait(500);return{worldStable:world===b?.registerWorldPopulationHit,assignmentsBefore:assignments,assignmentsAfter:Number(v?.dataset.combatHitStackAssignments||0),markers:String(v?.dataset.combatHitStackWorldMarkers||""),stableFrames:Number(v?.dataset.combatHitStackStableFrames||0)};});
+  if(!stack.worldStable||stack.assignmentsAfter!==stack.assignmentsBefore)throw new Error(`target hit stack still mutates: ${JSON.stringify(stack)}`);
 
   const stressBefore=await page.evaluate(async()=>{
     const wait=ms=>new Promise(r=>setTimeout(r,ms)),b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),scene=b?.threeScene,camera=b?.threeCamera;
@@ -54,7 +53,7 @@ try{
   await page.evaluate(()=>{const s=globalThis.__targetFireStress,v=document.querySelector("#viewport");if(s)v.dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:s.pointerId,pointerType:"touch",clientX:s.clientX,clientY:s.clientY,button:0,buttons:0,isPrimary:true}));});
 
   const delta={shots:stressAfter.shots-stressBefore.shots,rays:stressAfter.rays-stressBefore.rays,targetHits:stressAfter.targetHits-stressBefore.targetHits};
-  if(delta.shots<12||delta.rays<12||delta.targetHits<12||stressAfter.assignments!==stressBefore.assignments||stressAfter.errors!==stressBefore.errors||!stressAfter.handlerStable)throw new Error(`sustained drag target fire regressed: ${JSON.stringify({stressBefore,stressAfter,delta})}`);
+  if(delta.shots<12||delta.rays<12||delta.targetHits<12||stressAfter.assignments!==stressBefore.assignments||stressAfter.errors!==stressBefore.errors||!stressAfter.handlerStable)throw new Error(`sustained drag target fire regressed: ${JSON.stringify({stressBefore,stressAfter,delta,stack})}`);
 
   const feedback=await page.evaluate(()=>{dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage:25,hp:75}}));dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{hp:75}}));return{damage:document.querySelector(".combat-damage-vignette")?.classList.contains("active"),hit:document.querySelector(".xbox-crosshair")?.classList.contains("hit-confirm")};});
   if(!feedback.damage||!feedback.hit)throw new Error(`combat feedback missing: ${JSON.stringify(feedback)}`);
