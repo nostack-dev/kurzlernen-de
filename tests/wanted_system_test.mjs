@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {WANTED_HEAT_THRESHOLDS,wantedCrimeSeverity,wantedDetectionRadiusM,wantedEscapeDurationMs,wantedLineBlockedByPrisms,wantedPoliceAltitudeOffsetM,wantedPoliceCount,wantedPoliceDamage,wantedPoliceEngageDelayMs,wantedPoliceSpawnRadiusM,wantedSearchState,wantedStarsForHeat} from "../sim/wanted_system_logic.mjs";
+import {WANTED_EMP_COOLDOWN_MS,WANTED_EMP_RANGE_M,WANTED_HEAT_THRESHOLDS,wantedCrimeSeverity,wantedDetectionRadiusM,wantedEmpImpulseNs,wantedEscapeDurationMs,wantedLineBlockedByPrisms,wantedPoliceAltitudeOffsetM,wantedPoliceCount,wantedPoliceDamage,wantedPoliceEngageDelayMs,wantedPoliceHitChance,wantedPoliceShotIntervalMs,wantedPoliceSpawnRadiusM,wantedPoliceWaveBreakMs,wantedSearchState,wantedStarsForHeat} from "../sim/wanted_system_logic.mjs";
 
 assert.deepEqual(WANTED_HEAT_THRESHOLDS,[2,4,7,11,16]);
 assert.deepEqual([0,1,2,3,4,6,7,10,11,15,16,99].map(wantedStarsForHeat),[0,0,1,1,2,2,3,3,4,4,5,5]);
@@ -12,9 +12,18 @@ assert.equal(wantedPoliceCount(5),5);
 assert.equal(wantedPoliceCount(9),5);
 assert.ok(wantedDetectionRadiusM(5)>wantedDetectionRadiusM(1));
 assert.ok(wantedEscapeDurationMs(5)>wantedEscapeDurationMs(1));
+assert.ok(wantedEscapeDurationMs(1)<=7000&&wantedEscapeDurationMs(5)<=10500);
 assert.deepEqual([1,2,3,4,5].map(wantedPoliceDamage),[4,4,5,5,6]);
 assert.ok(wantedPoliceSpawnRadiusM(0)>=58&&wantedPoliceSpawnRadiusM(2)>wantedPoliceSpawnRadiusM(0));
-assert.ok(wantedPoliceEngageDelayMs(1)>=2300&&wantedPoliceEngageDelayMs(5)>=1900);
+assert.ok(wantedPoliceEngageDelayMs(1)>=3000&&wantedPoliceEngageDelayMs(5)>=2500);
+assert.ok(wantedPoliceWaveBreakMs(1)>wantedPoliceWaveBreakMs(5)&&wantedPoliceWaveBreakMs(5)>=4000);
+assert.ok(wantedPoliceShotIntervalMs(1)>wantedPoliceShotIntervalMs(5)&&wantedPoliceShotIntervalMs(5)>=1800);
+const stationaryChance=wantedPoliceHitChance({stars:2,distanceM:18,playerSpeedMps:0}),movingChance=wantedPoliceHitChance({stars:2,distanceM:18,playerSpeedMps:7.2}),farChance=wantedPoliceHitChance({stars:2,distanceM:34,playerSpeedMps:0});
+assert.ok(stationaryChance<.68&&stationaryChance>.3&&movingChance<stationaryChance&&farChance<stationaryChance&&movingChance>=.2);
+assert.equal(WANTED_EMP_RANGE_M,30);
+assert.equal(WANTED_EMP_COOLDOWN_MS,18000);
+assert.ok(wantedEmpImpulseNs(0)>wantedEmpImpulseNs(15)&&wantedEmpImpulseNs(15)>wantedEmpImpulseNs(30)&&wantedEmpImpulseNs(30)>0);
+assert.equal(wantedEmpImpulseNs(30.01),0);
 const pursuitAltitudes=Array.from({length:5},(_,index)=>wantedPoliceAltitudeOffsetM(index,"pursuit")),searchAltitudes=Array.from({length:5},(_,index)=>wantedPoliceAltitudeOffsetM(index,"searching"));
 assert.ok(Math.min(...pursuitAltitudes)>=0&&Math.max(...pursuitAltitudes)<=.7&&Math.max(...pursuitAltitudes)-Math.min(...pursuitAltitudes)<.7);
 assert.equal(new Set(pursuitAltitudes).size,5);
@@ -40,4 +49,4 @@ assert.equal(escaped.phase,"escaped");
 assert.equal(escaped.escaped,true);
 assert.equal(escaped.remainingMs,0);
 
-console.log("Wanted-system logic passed: heat thresholds, far player-level police formation, fair 4-6 HP damage, inbound grace, searching and escapable pursuit are deterministic.");
+console.log("Wanted-system logic passed: heat, 30 m EMP, staggered police altitude, wave breaks, imperfect movement-aware accuracy and escape are deterministic.");

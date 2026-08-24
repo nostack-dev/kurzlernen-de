@@ -7,19 +7,19 @@ const smoothstep=value=>{const t=clamp(value,0,1);return t*t*(3-2*t);};
 export {FPS_DISPLAY_PITCH_LIMIT_RAD,FPS_HORIZONTAL_FOV_DEG,FPS_PITCH_LIMIT_RAD,FPS_WORLD_MAP_MAX_PITCH_DEG,FPS_WORLD_MAP_MIN_PITCH_DEG,fpsPitchRadToWorldMapPitchDeg,fpsVerticalFovDegForAspect};
 
 export const FPS_CONTROL_PROFILE=Object.freeze({
-  innerDeadzone:.075,
+  innerDeadzone:.06,
   outerDeadzone:.98,
-  dynamicCurveStrength:.045,
-  yawRateRadS:3.80,
-  pitchRateRadS:3.42,
-  touchStickYawRateRadS:2.88,
-  touchStickPitchRateRadS:2.58,
-  lookAccelerationRate:20,
-  lookReleaseRate:38,
-  assistYawWindowRad:6.5*Math.PI/180,
-  assistPitchWindowRad:5.0*Math.PI/180,
+  dynamicCurveStrength:.30,
+  yawRateRadS:3.65,
+  pitchRateRadS:3.34,
+  touchStickYawRateRadS:2.70,
+  touchStickPitchRateRadS:2.48,
+  lookAccelerationRate:14,
+  lookReleaseRate:36,
+  assistYawWindowRad:7.0*Math.PI/180,
+  assistPitchWindowRad:5.6*Math.PI/180,
   assistMaxDistanceM:90,
-  assistSlowdownStrength:.34,
+  assistSlowdownStrength:.38,
   assistCorrectionGain:4.0,
   assistMaxCorrectionRadS:.38,
 });
@@ -31,7 +31,7 @@ export function wrapFpsAngleRad(value){
 export function shapeFpsStick(x,y,profile=FPS_CONTROL_PROFILE){
   const rawX=clamp(x,-1,1),rawY=clamp(y,-1,1),rawMagnitude=Math.min(1,Math.hypot(rawX,rawY)),inner=clamp(profile.innerDeadzone,0,.45),outer=clamp(profile.outerDeadzone,inner+.01,1);
   if(rawMagnitude<=inner)return{x:0,y:0,magnitude:0,rawMagnitude};
-  const normalized=clamp((rawMagnitude-inner)/(outer-inner),0,1),strength=clamp(profile.dynamicCurveStrength,0,.12),curved=clamp(normalized+Math.sin(normalized*TAU)*strength,0,1),scale=curved/Math.max(rawMagnitude,1e-9);
+  const normalized=clamp((rawMagnitude-inner)/(outer-inner),0,1),strength=clamp(profile.dynamicCurveStrength,0,.60),powered=Math.pow(normalized,1+strength*1.35),outerBlend=smoothstep((normalized-.72)/.28),curved=clamp(powered+(normalized-powered)*outerBlend,0,1),scale=curved/Math.max(rawMagnitude,1e-9);
   return{x:rawX*scale,y:rawY*scale,magnitude:curved,rawMagnitude};
 }
 

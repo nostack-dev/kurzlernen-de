@@ -56,6 +56,9 @@ try{
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="xbox"&&v.dataset.gamepadEnabled==="1";},{timeout:3000});
 
+  const unarmedBaseline=await page.$eval("#viewport",v=>Number(v.dataset.fireShots||0));await setButton(5,1);await pause(220);const unarmed=await page.$eval("#viewport",v=>({shots:Number(v.dataset.fireShots||0),armed:v.dataset.fireArmed,reason:v.dataset.fireLockReason}));await setButton(5,0);if(unarmed.shots!==unarmedBaseline||unarmed.armed!=="0"||unarmed.reason!=="unarmed")throw new Error(`Xbox RB fired while FC was DISARMED: ${JSON.stringify({unarmedBaseline,unarmed})}`);
+  await page.waitForFunction(()=>{const button=document.querySelector("#soloArm");return button&&!button.disabled&&button.textContent.trim()==="ARM";},{timeout:20000});await setButton(0,1);await pause(120);await setButton(0,0);await page.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED"&&document.querySelector("#viewport")?.dataset.fireArmed==="1",{timeout:65000});
+
   await setButton(6,.85);
   await page.waitForFunction(()=>Number(document.querySelector("#viewport")?.dataset.gamepadHeightAxis)<-.80,{timeout:3000});
   const lt=await page.$eval("#viewport",v=>Number(v.dataset.gamepadHeightAxis));
@@ -112,5 +115,5 @@ try{
   await page.click("#soloTopbar .phone-settings-button");await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});await page.click('.phone-settings-dialog [data-xbox-controller]');await page.click('.phone-settings-dialog [data-close]');
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.controlSource==="touch"&&v.dataset.gamepadEnabled==="0"&&getComputedStyle(document.querySelector("#soloLeft")).display!=="none";},{timeout:3000});
 
-  console.log("Xbox browser E2E passed: default CLASSIC direct RS with hidden crosshair, optional AIM/LB look crosshair, independent RB fire, altitude, MENU/Y/VIEW recovery controls.");
+  console.log("Xbox browser E2E passed: RB is blocked while DISARMED, then fires only after authoritative FC arming; CLASSIC/AIM, altitude, and recovery controls remain intact.");
 }finally{await browser.close();}

@@ -48,6 +48,7 @@ jobs:
           node tests/xbox_gamepad_test.mjs
           node tests/critical_damage_logic_test.mjs
           node tests/wanted_system_test.mjs
+          node tests/player_vitals_logic_test.mjs
           node --check sim/flight_fire_fx.mjs
           node --check sim/box3d_hitscan.mjs
           node --check sim/world_procedural_population.mjs
@@ -64,9 +65,18 @@ jobs:
           node --check sim/world_rigid_body_runtime.mjs
           node --check sim/wanted_system_logic.mjs
           node --check sim/wanted_police_drones.mjs
+          node --check sim/player_vitals_logic.mjs
+          node --check sim/player_vitals_runtime.mjs
+          node --check sim/player_vehicle_runtime_v2.mjs
+          node --check sim/player_runtime_hotfix.mjs
+          node --check sim/simulator.mjs
+          node --check tests/combat_center_fire_browser_smoke.mjs
+          node --check tests/xbox_gamepad_browser_smoke.mjs
           node --check tests/fps_first_person_browser_smoke.mjs
           node --check tests/player_vehicle_browser_smoke.mjs
+          node --check tests/player_vitals_browser_smoke.mjs
           node --check tests/real_world_ui_smoke.mjs
+          node --check tests/procedural_population_browser_smoke.mjs
           node --check tests/wanted_police_browser_smoke.mjs
           grep -q 'kMaxHorizontalAccelerationMps2 = 7.5f' esp32/Arondight45_StateControl.hpp
           grep -q 'commanded_forward_mps_ = intent.forward_mps' esp32/Arondight45_StateControl.hpp
@@ -148,6 +158,7 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/player_vehicle_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/player_vitals_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/real_world_ui_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/procedural_population_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/wanted_police_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
@@ -216,6 +227,7 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/xbox_gamepad_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/player_vehicle_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/player_vitals_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/procedural_population_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
           CHROME_BIN="$CHROME_BIN" node tests/wanted_police_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}"
 

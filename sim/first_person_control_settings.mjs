@@ -12,7 +12,7 @@ export const DEFAULT_FIRST_PERSON_CONTROL_SETTINGS=Object.freeze({
   lookFineness:6,
   horizontalLookSensitivityPercent:100,
   verticalLookSensitivityPercent:100,
-  lookDeadzonePercent:8,
+  lookDeadzonePercent:6,
   aimAssistStrengthPercent:55,
   invertMoveHorizontal:false,
   invertLookHorizontal:false,
@@ -90,7 +90,7 @@ export function firstPersonLookSensitivity(settings=DEFAULT_FIRST_PERSON_CONTROL
 }
 
 export function firstPersonLookCurveStrength(settings=DEFAULT_FIRST_PERSON_CONTROL_SETTINGS){
-  return .08*((normalizeFirstPersonControlSettings(settings).lookFineness-1)/9);
+  return .48*((normalizeFirstPersonControlSettings(settings).lookFineness-1)/9);
 }
 
 export function firstPersonLookDeadzone(settings=DEFAULT_FIRST_PERSON_CONTROL_SETTINGS){

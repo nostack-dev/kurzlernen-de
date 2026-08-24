@@ -22,12 +22,12 @@ function updateStick(clientX,clientY){
   const v=viewport();if(v){v.dataset.walkAimStickX=stickX.toFixed(3);v.dataset.walkAimStickY=stickY.toFixed(3);}
 }
 function resetStick(){stickX=0;stickY=0;stickEl=null;if(stickKnob){stickKnob.style.left="50%";stickKnob.style.top="50%";}stickKnob=null;const v=viewport();if(v){v.dataset.walkAimStickX="0.000";v.dataset.walkAimStickY="0.000";}}
-function stepStick(now){const dt=clamp((now-stickFrameMs)/1000,0,.04);stickFrameMs=now;if(pointer!==null&&surface==="stick"&&dt>0&&walk()?.mode==="foot"){const w=walk(),profiled=w?.applyTouchLookStick?.({x:stickX,y:stickY,dt,now,source:"touch-stick"});let yawRate=0;if(profiled){yawRate=wrapFpsAngleRad(profiled.yaw-aimYaw)/dt;aimYaw=profiled.yaw;aimPitch=profiled.pitch;}else{const shaped=shapeFpsStick(stickX,stickY),velocity=fpsStickVelocity(shaped,undefined,{touch:true});yawRate=velocity.yaw;writeAim(aimYaw+velocity.yaw*dt,aimPitch+velocity.pitch*dt,"fps-stick-dynamic-rate-v11");}const v=viewport();if(v){v.dataset.walkAimStickMode="rate-edge-hold-v2";v.dataset.walkAimStickRate=Math.abs(yawRate).toFixed(2);v.dataset.walkAimStickCurve="radial-dynamic-reverse-s-v1";}}requestAnimationFrame(stepStick);}
+function stepStick(now){const dt=clamp((now-stickFrameMs)/1000,0,.04);stickFrameMs=now;if(pointer!==null&&surface==="stick"&&dt>0&&walk()?.mode==="foot"&&!walk()?.dead){const w=walk(),profiled=w?.applyTouchLookStick?.({x:stickX,y:stickY,dt,now,source:"touch-stick"});let yawRate=0;if(profiled){yawRate=wrapFpsAngleRad(profiled.yaw-aimYaw)/dt;aimYaw=profiled.yaw;aimPitch=profiled.pitch;}else{const shaped=shapeFpsStick(stickX,stickY),velocity=fpsStickVelocity(shaped,undefined,{touch:true});yawRate=velocity.yaw;writeAim(aimYaw+velocity.yaw*dt,aimPitch+velocity.pitch*dt,"fps-stick-precision-rate-v13");}const v=viewport();if(v){v.dataset.walkAimStickMode="rate-edge-hold-v2";v.dataset.walkAimStickRate=Math.abs(yawRate).toFixed(2);v.dataset.walkAimStickCurve="radial-precision-centre-fast-edge-v2";}}requestAnimationFrame(stepStick);}
 
 export function installFootLookCapture(){
   if(installed)return;installed=true;
   window.addEventListener("pointerdown",event=>{
-    if(walk()?.mode!=="foot"||pointer!==null)return;const nextSurface=lookSurface(event.target);if(!nextSurface)return;if(event.pointerType==="mouse"&&event.button!==0)return;syncAim();surface=nextSurface;
+    if(walk()?.mode!=="foot"||walk()?.dead||pointer!==null)return;const nextSurface=lookSurface(event.target);if(!nextSurface)return;if(event.pointerType==="mouse"&&event.button!==0)return;syncAim();surface=nextSurface;
     if(nextSurface==="zone"&&event.pointerType==="mouse"){
       const v=viewport();if(document.pointerLockElement!==v)try{v?.requestPointerLock?.({unadjustedMovement:true});}catch{try{v?.requestPointerLock?.();}catch{}}if(v)v.dataset.walkAimMouse="pointerlock-v11";consume(event);return;
     }
@@ -45,7 +45,7 @@ export function installFootLookCapture(){
   window.addEventListener("pointerup",release,{capture:true,passive:false});window.addEventListener("pointercancel",release,{capture:true,passive:false});
   document.addEventListener("pointerlockchange",()=>{if(document.pointerLockElement===viewport())syncAim();});
   window.addEventListener("contextmenu",event=>{if(walk()?.mode==="foot"&&viewport()?.contains(event.target))event.preventDefault();},{capture:true});
-  const v=viewport();if(v){v.dataset.walkAimCapture="fps-authoritative-v12";v.dataset.walkAimStickMode="rate-edge-hold-v2";v.dataset.walkAimProfile="mouse-lock+profiled-touch+radial-rate-stick-v12";v.dataset.walkAimStickCurve="radial-dynamic-reverse-s-v1";}
+  const v=viewport();if(v){v.dataset.walkAimCapture="fps-authoritative-v12";v.dataset.walkAimStickMode="rate-edge-hold-v2";v.dataset.walkAimProfile="mouse-lock+profiled-touch+radial-rate-stick-v13";v.dataset.walkAimStickCurve="radial-precision-centre-fast-edge-v2";}
   requestAnimationFrame(stepStick);
 }
 

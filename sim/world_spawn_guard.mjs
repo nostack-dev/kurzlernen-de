@@ -3,6 +3,7 @@ import "./combat_visual_polish.mjs";
 import "./mobile_zoom_guard.mjs";
 import "./world_action_feedback.mjs";
 import "./foot_look_capture.mjs";
+import "./player_vitals_runtime.mjs";
 import "./walk_world_experience_hotfix.mjs";
 import "./wanted_police_drones.mjs";
 import "./world_rigid_body_runtime.mjs";

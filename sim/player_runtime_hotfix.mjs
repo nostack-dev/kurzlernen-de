@@ -77,7 +77,7 @@ function makeLocalAvatarShootable(scene){
   const v=viewport();if(v){v.dataset.selfHarm="enabled-v2";v.dataset.selfHitMeshes=String(count);}return count>0;
 }
 function isLocalHumanHit(hit){for(let n=hit?.object;n;n=n.parent)if(n.userData?.localHumanAvatar||n.name==="LOCAL_HUMAN_VR")return true;return false;}
-function fallbackSelfDamage(b,damage=25){const v=viewport(),old=clamp(Number(b?.vsLocalHealth??v?.dataset.selfHp??100),0,100),hp=Math.max(0,old-damage);if(b){b.vsLocalHealth=hp;b.vsLocalDead=hp<=0;b.updateVsCombatHud?.(true);}if(v){v.dataset.selfHp=String(hp);v.dataset.selfHits=String((Number(v.dataset.selfHits)||0)+1);}window.dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{self:true,damage,hp}}));return true;}
+function fallbackSelfDamage(b,damage=25){const v=viewport(),model=globalThis.__arondightPlayerDamageModel,old=clamp(Number(model?.hp??b?.vsLocalHealth??v?.dataset.selfHp??100),0,100),result=typeof model?.damage==="function"?model.damage(damage,"self-hit"):Math.max(0,old-damage),hp=clamp(Number(result),0,100);if(b&&typeof model?.damage!=="function"){b.vsLocalHealth=hp;b.vsLocalDead=hp<=0;b.updateVsCombatHud?.(true);}if(v){v.dataset.selfHp=String(hp);v.dataset.selfHits=String((Number(v.dataset.selfHits)||0)+1);}window.dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{self:true,damage:old-hp,hp}}));return true;}
 function sendSelfHit(hit){
   const b=bridge(),s=ownSession(),sid=selfId(),v=viewport(),damage=25;if(!b)return false;
   if(sid&&typeof s?.sendGame==="function"){
