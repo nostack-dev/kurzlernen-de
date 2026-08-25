@@ -1,0 +1,31 @@
+name: Fix pedestrian panic bundle once
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-pedestrian-panic-bundle-once.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Fix panic obstacle branch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/world_procedural_population.mjs'); s=p.read_text()
+          old='if(panicBlocked(nx,ny)){const sign=record.index&1?1:-1,alternate=record.panicHeading+sign*1.18,nx=record.panicX+Math.cos(alternate)*record.panicSpeed*dt,ny=record.panicY+Math.sin(alternate)*record.panicSpeed*dt;if(!panicBlocked(nx,ny))record.panicHeading=alternate;else{nx=record.panicX;ny=record.panicY;record.panicHeading+=sign*.55;}}'
+          new='if(panicBlocked(nx,ny)){const sign=record.index&1?1:-1,alternate=record.panicHeading+sign*1.18,altX=record.panicX+Math.cos(alternate)*record.panicSpeed*dt,altY=record.panicY+Math.sin(alternate)*record.panicSpeed*dt;if(!panicBlocked(altX,altY)){nx=altX;ny=altY;record.panicHeading=alternate;}else{nx=record.panicX;ny=record.panicY;record.panicHeading+=sign*.55;}}'
+          if old not in s: raise SystemExit('panic obstacle marker missing')
+          p.write_text(s.replace(old,new,1))
+          PY
+          node --check sim/world_procedural_population.mjs
+          node tests/pedestrian_panic_contract_test.mjs
+          git config user.name 'Christian Heinrich Hohlfeld'
+          git config user.email 'chris.hohlfeld@gmail.com'
+          git add sim/world_procedural_population.mjs
+          git commit -m 'Fix pedestrian panic obstacle steering'
+          git push origin HEAD:main
