@@ -1,4 +1,4 @@
-name: Repair FPS main camera identity once
+name: Repair FPS exact visible hip grip once
 on:
   push:
     branches: [main]
@@ -10,23 +10,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Gate FPS presentation to exact player camera
+      - name: Latch exact visible hip grip before aim
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           p=Path('sim/first_person_weapon_runtime_v3.mjs')
           s=p.read_text()
-          old='const camera=args[2];if(!camera?.isPerspectiveCamera)return;'
-          new='const camera=args[2],mainCamera=bridge()?.threeCamera;if(!camera||camera!==mainCamera)return;'
-          assert old in s, 'perspective-only render camera gate changed'
+          old='if(!aimPivotLatched||aimPivotMode!==mode)latchAimPivot(gun,pivot,camera,mode);'
+          new='if(!aimPivotLatched||aimPivotMode!==mode){lastHipPivotValid=false;latchAimPivot(gun,pivot,camera,mode);}'
+          assert old in s, 'visible pivot latch contract changed'
           s=s.replace(old,new,1)
-          s=s.replace('player-perspective-render-camera-v3','player-main-render-camera-identity-v4',1)
+          old_aim='if(updateScreenVector(d,d.source||"touch-screen-drag",true))document.body.classList.add("foot-ads-active");'
+          new_aim='latchVisibleAimPivot();if(updateScreenVector(d,d.source||"touch-screen-drag",true))document.body.classList.add("foot-ads-active");'
+          assert old_aim in s, 'screen aim start contract changed'
+          s=s.replace(old_aim,new_aim,1)
           p.write_text(s)
           PY
           node --check sim/first_person_weapon_runtime_v3.mjs
-          grep -q 'camera!==mainCamera' sim/first_person_weapon_runtime_v3.mjs
-          ! grep -q 'camera?.isPerspectiveCamera' sim/first_person_weapon_runtime_v3.mjs
+          grep -q 'lastHipPivotValid=false;latchAimPivot' sim/first_person_weapon_runtime_v3.mjs
+          grep -q 'latchVisibleAimPivot();if(updateScreenVector' sim/first_person_weapon_runtime_v3.mjs
       - name: Commit repair
         run: |
           set -euo pipefail
@@ -34,5 +37,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add sim/first_person_weapon_runtime_v3.mjs
           git diff --cached --quiet && exit 0
-          git commit -m 'Gate FPS aim presentation to player camera'
+          git commit -m 'Latch exact visible FPS hip grip on aim start'
           git push origin HEAD:main
