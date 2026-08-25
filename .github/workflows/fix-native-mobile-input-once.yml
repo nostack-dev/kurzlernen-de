@@ -1,0 +1,59 @@
+name: Apply native mobile touch input fix once
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/fix-native-mobile-input-once.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch and verify
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('sim/simulator.mjs')
+          s=p.read_text()
+          old='''  /* iOS ignores Screen Orientation lock in normal browser tabs. Rotate the complete\n     simulator as a deterministic fallback so the flight UI is always landscape. */\n  @media(orientation:portrait){\n    body.solo-flight #viewport{inset:0 auto auto 100vw!important;width:100dvh!important;height:100vw!important;transform:rotate(90deg)!important;--solo-safe-top:env(safe-area-inset-right,0px);--solo-safe-right:env(safe-area-inset-bottom,0px);--solo-safe-bottom:env(safe-area-inset-left,0px);--solo-safe-left:env(safe-area-inset-top,0px)}\n    html.android-stable-webgl body.solo-flight #viewport{width:100svh!important;height:100vw!important}\n    body.solo-flight dialog[open]{transform:rotate(90deg);transform-origin:50% 50%}\n  }\n'''
+          if old not in s: raise SystemExit('portrait rotate block not found')
+          s=s.replace(old,'''  /* Native orientation only. The simulator never rotates itself with CSS. */\n''',1)
+          old_fn='''function syncSoloPresentationOrientation(){\n  const viewport=$("viewport"),solo=document.body.classList.contains("solo-flight");\n  if(!solo){delete viewport.dataset.soloOrientation;delete viewport.dataset.orientationPolicy;return false;}\n  const cssLandscape=globalThis.matchMedia?.("(orientation: portrait)")?.matches===true;\n  viewport.dataset.orientationPolicy="landscape";\n  viewport.dataset.soloOrientation=cssLandscape?"css-landscape":"native-landscape";\n  return cssLandscape;\n}'''
+          new_fn='''function syncSoloPresentationOrientation(){\n  const viewport=$("viewport"),solo=document.body.classList.contains("solo-flight");\n  if(!solo){delete viewport.dataset.soloOrientation;delete viewport.dataset.orientationPolicy;return false;}\n  viewport.dataset.orientationPolicy="native-never-rotate-v1";\n  viewport.dataset.soloOrientation="native";\n  return false;\n}'''
+          if old_fn not in s: raise SystemExit('orientation function not found')
+          s=s.replace(old_fn,new_fn,1)
+          old_height='''function applySoloHeightPointer(event){const r=soloHeightPad.getBoundingClientRect(),rotated=$("viewport").dataset.soloOrientation==="css-landscape";const center=rotated?r.left+r.width/2:r.top+r.height/2,span=Math.max(1,(rotated?r.width:r.height)*.40),position=rotated?event.clientX:event.clientY;setSoloHeightAxis((rotated?position-center:center-position)/span);event.preventDefault();}'''
+          new_height='''function applySoloHeightPointer(event){const r=soloHeightPad.getBoundingClientRect(),center=r.top+r.height/2,span=Math.max(1,r.height*.40);setSoloHeightAxis((center-event.clientY)/span);event.preventDefault();}'''
+          if old_height not in s: raise SystemExit('height pointer function not found')
+          s=s.replace(old_height,new_height,1)
+          p.write_text(s)
+
+          p=Path('sim/control_semantics.mjs')
+          s=p.read_text()
+          start=s.index('const pointerDrags=new WeakMap();')
+          end=s.index('\nexport function applyGameStick',start)
+          replacement='''export function normalizedPointer(element,event){\n  const rect=element.getBoundingClientRect();\n  const radius=Math.max(1,Math.min(rect.width,rect.height)*.42);\n  const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;\n  return constrainUnit((Number(event.clientX)-cx)/radius,(Number(event.clientY)-cy)/radius);\n}\nexport function endPointerDrag(_element,_pointerId){}\n'''
+          s=s[:start]+replacement+s[end:]
+          p.write_text(s)
+
+          Path('tests/mobile_native_touch_contract_test.mjs').write_text('''import assert from "node:assert/strict";\nimport {normalizedPointer} from "../sim/control_semantics.mjs";\nimport {readFileSync} from "node:fs";\nconst element={getBoundingClientRect(){return{left:100,top:50,width:200,height:200};}};\nconst center=normalizedPointer(element,{type:"pointerdown",pointerId:1,clientX:200,clientY:150});\nassert.ok(Math.abs(center.x)<1e-9&&Math.abs(center.y)<1e-9);\nconst right=normalizedPointer(element,{type:"pointerdown",pointerId:2,clientX:284,clientY:150});\nassert.ok(right.x>.99&&Math.abs(right.y)<.01,"pointerdown must immediately use touched position");\nconst upperLeft=normalizedPointer(element,{type:"pointermove",pointerId:2,clientX:140,clientY:90});\nassert.ok(upperLeft.x<-.49&&upperLeft.y<-.49,"drag must track absolute finger position");\nconst sim=readFileSync("sim/simulator.mjs","utf8");\nassert.ok(!sim.includes("transform:rotate(90deg)!important"));\nassert.ok(sim.includes('orientationPolicy="native-never-rotate-v1"'));\nassert.ok(sim.includes('soloOrientation="native"'));\nconsole.log("Mobile native touch contract passed.");\n''')
+
+          Path('tests/mobile_native_touch_browser_smoke.mjs').write_text('''import puppeteer from "puppeteer-core";\nconst input=process.argv[2]||"http://127.0.0.1:4174/drone_simulator.html",executablePath=process.env.CHROME_BIN;if(!executablePath)throw Error("CHROME_BIN required");\nconst browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});\nconst page=await browser.newPage();\ntry{\n await page.setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Version/18.6 Mobile/15E148 Safari/604.1");\n await page.setViewport({width:390,height:844,deviceScaleFactor:1,hasTouch:true,isMobile:true});\n await page.goto(input,{waitUntil:"load",timeout:40000});\n await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&document.body.classList.contains("solo-flight"),{timeout:40000});\n const initial=await page.evaluate(()=>{const v=document.querySelector("#viewport"),r=v.getBoundingClientRect();return{orientation:v.dataset.soloOrientation,policy:v.dataset.orientationPolicy,transform:getComputedStyle(v).transform,w:r.width,h:r.height};});\n if(initial.orientation!=="native"||initial.policy!=="native-never-rotate-v1"||initial.transform!=="none"||initial.h<=initial.w)throw Error(`viewport rotated or wrong native geometry: ${JSON.stringify(initial)}`);\n const box=await page.$eval("#soloLeft",e=>{const r=e.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};});\n const x=box.x+box.w*.84,y=box.y+box.h*.5;\n await page.evaluate(({x,y})=>{const e=document.querySelector("#soloLeft");e.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:77,pointerType:"touch",clientX:x,clientY:y,button:0}));},{x,y});\n const moved=await page.$eval("#soloLeft .solo-knob",e=>({left:parseFloat(e.style.left),top:parseFloat(e.style.top)}));\n if(!(moved.left>75&&Math.abs(moved.top-50)<3))throw Error(`stick did not jump to touched point: ${JSON.stringify(moved)}`);\n await page.evaluate(({x,y})=>document.querySelector("#soloLeft").dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:77,pointerType:"touch",clientX:x,clientY:y,button:0})),{x,y});\n const settings=await page.$(".phone-settings-button");if(!settings)throw Error("settings button missing");await settings.click();await page.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:3000});\n console.log(`Native portrait touch smoke passed: ${initial.w}x${initial.h}, stick left=${moved.left.toFixed(1)}%.`);\n}finally{await browser.close();}\n''')
+          PY
+          node --check sim/simulator.mjs
+          node --check sim/control_semantics.mjs
+          node tests/mobile_native_touch_contract_test.mjs
+          node tests/control_semantics_test.mjs
+          node tests/player_car_touch_contract_test.mjs
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/simulator.mjs sim/control_semantics.mjs tests/mobile_native_touch_contract_test.mjs tests/mobile_native_touch_browser_smoke.mjs
+          git commit -m 'Use native absolute touch coordinates on mobile'
+          git push origin HEAD:main
