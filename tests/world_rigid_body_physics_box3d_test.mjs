@@ -48,6 +48,7 @@ for(let index=0;index<110;index++)physics.step(1/60,4,6600+index*1000/60);
 const stableSteer=physics.pose("car-steer-stability");
 assert.ok(stableSteer.yaw<-.06&&stableSteer.yaw>-2.2,`sustained right steer did not produce bounded clockwise chassis yaw: ${JSON.stringify(stableSteer)}`);
 assert.ok((stableSteer.uprightError||0)<.10,`steering tipped the chassis instead of rotating it around Z: ${JSON.stringify(stableSteer)}`);
+assert.ok(Math.abs(stableSteer.rotation[0])<.001&&Math.abs(stableSteer.rotation[1])<.001,`road vehicle escaped planar yaw constraint: ${JSON.stringify(stableSteer)}`);
 assert.ok(Math.abs(stableSteer.angularVelocity[0])<1.2&&Math.abs(stableSteer.angularVelocity[1])<1.2,`vehicle accumulated unstable roll/pitch angular velocity: ${JSON.stringify(stableSteer)}`);
 physics.removeBody("car-steer-stability");
 
