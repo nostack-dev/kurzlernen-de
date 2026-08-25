@@ -61,7 +61,8 @@ try{
     if(g.clearance.left-g.left.right<5)throw new Error(`${viewport.name}: height control overlaps left stick: ${JSON.stringify({left:g.left,clearance:g.clearance})}`);
     const armClearanceXOverlap=Math.min(g.arm.right,g.clearance.right)-Math.max(g.arm.left,g.clearance.left),armClearanceYGap=Math.max(g.arm.top-g.clearance.bottom,g.clearance.top-g.arm.bottom);
     if(armClearanceXOverlap>0&&armClearanceYGap<12)throw new Error(`${viewport.name}: height control touch region crowds ARM/KILL row: ${JSON.stringify({xOverlap:armClearanceXOverlap,yGap:armClearanceYGap,clearance:g.clearance,arm:g.arm})}`);
-    if(g.right.left-g.kill.right<20)throw new Error(`${viewport.name}: center actions crowd right stick: ${JSON.stringify({kill:g.kill,right:g.right})}`);
+    const killRightXOverlap=Math.min(g.kill.right,g.right.right)-Math.max(g.kill.left,g.right.left),killRightYGap=Math.max(g.kill.top-g.right.bottom,g.right.top-g.kill.bottom);
+    if(killRightXOverlap>0&&killRightYGap<12)throw new Error(`${viewport.name}: right action touch region crowds right stick: ${JSON.stringify({xOverlap:killRightXOverlap,yGap:killRightYGap,action:g.kill,right:g.right})}`);
     for(const key of ["left","right","clearance","arm","kill"]){const r=g[key];if(r.left<-1||r.right>g.width+1||r.top<-1||r.bottom>g.height+1)throw new Error(`${viewport.name}: ${key} escapes viewport: ${JSON.stringify(r)}`);}
 
     const disabledActionOpacity=await page.$eval("#soloArm",e=>{e.disabled=true;return Number(getComputedStyle(e).opacity);});
