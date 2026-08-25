@@ -77,8 +77,17 @@ export function installSoloFlightLayout(){
     }
 
     /* Native portrait: keep every touch target in the browser coordinate system.
-       ARM/KILL get their own row above the lower stick/height-control rail. */
+       The action rail wraps instead of shrinking controls to zero-width hit boxes. */
     @media(orientation:portrait){
+      body.solo-flight #soloTopbar{width:calc(100% - max(16px,calc(var(--solo-safe-left) + var(--solo-safe-right))));gap:4px}
+      body.solo-flight #viewport[data-world-mode="real"] #soloTopbar{left:50%;width:calc(100% - max(16px,calc(var(--solo-safe-left) + var(--solo-safe-right))));transform:translateX(-50%)}
+      body.solo-flight #soloTopbarActions{flex-wrap:wrap;justify-content:center;align-content:center;overflow:visible}
+      body.solo-flight #soloTopbarActions>button{flex:0 0 auto;min-width:48px!important;min-height:32px}
+      body.solo-flight #soloTopbarActions>#soloExit,body.solo-flight #soloTopbarActions>#soloReset{min-width:56px!important}
+      body.solo-flight #soloTopbarActions>#lanVsButton,body.solo-flight #soloTopbarActions>.phone-settings-button{min-width:72px!important}
+      body.solo-flight #soloTopbarStatus{flex-wrap:wrap;min-height:24px}
+      body.solo-flight #gameplayContractHud{top:max(150px,calc(var(--solo-safe-top) + 142px))!important}
+      body.solo-flight #worldLookHud{top:max(205px,calc(var(--solo-safe-top) + 197px))!important}
       body.solo-flight .solo-stick{width:min(25%,150px)}
       body.solo-flight #soloClearance{left:calc(max(12px,var(--solo-safe-left)) + min(25%,150px) + 10px)}
       body.solo-flight .solo-action{bottom:max(170px,calc(var(--solo-safe-bottom) + 158px))}
