@@ -28,7 +28,7 @@ function constrain(args,result){
 function wrapCurrentProvider(){
   const b=bridge(),current=b?.presentationCameraProvider;if(!b||typeof b.attachPresentationCameraProvider!=="function"||!current)return false;
   if(current===lastWrapper||current.__geometricCameraCollisionGuard)return true;
-  const base=current,wrapper={__collisionGuard:true,__geometricCameraCollisionGuard:true,isActive:()=>Boolean(base?.isActive?.()),apply:args=>constrain(args,base?.apply?.(args))};
+  const base=current,wrapper={__collisionGuard:true,__geometricCameraCollisionGuard:true,isActive:()=>Boolean(base?.isActive?.()),apply:args=>{const result=base?.apply?.(args);const constrained=constrain(args,result);base?.afterCameraCollision?.(args);return constrained;}};
   lastWrappedProvider=base;lastWrapper=wrapper;b.attachPresentationCameraProvider(wrapper);return true;
 }
 function frame(){wrapCurrentProvider();requestAnimationFrame(frame);}
