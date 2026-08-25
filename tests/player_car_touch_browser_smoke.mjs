@@ -47,12 +47,16 @@ try{
   const gas={x:boxes.gas.x+boxes.gas.w*.5,y:boxes.gas.y+boxes.gas.h*.5,id:901,radiusX:3,radiusY:3,force:1};
   const steer={x:boxes.steer.x+boxes.steer.w*.84,y:boxes.steer.y+boxes.steer.h*.5,id:902,radiusX:3,radiusY:3,force:1};
   await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[gas,steer]});
-  await sleep(1200);
-  const during=await page.evaluate(()=>{const v=document.querySelector("#viewport"),d=globalThis.__arondightVehicleDrive,p=d?.physicsPose;return{throttle:Number(v?.dataset.vehicleDriveThrottle||0),steer:Number(v?.dataset.vehicleDriveSteer||0),touchThrottle:v?.dataset.vehicleTouchThrottle||"",touchSteer:v?.dataset.vehicleTouchSteer||"",speedKmh:Number(v?.dataset.vehicleDriveSpeedKmh||0),active:Boolean(d?.active),gasHeld:document.getElementById("vehicleGas")?.classList.contains("held"),bodyYaw:Number(p?.yaw),headingSource:v?.dataset.vehicleDriveHeadingSource||"",steeringPhysics:v?.dataset.vehicleDriveSteeringPhysics||""};});
-  const yaw0=Number(beforePose?.yaw),yawDelta=Math.atan2(Math.sin(during.bodyYaw-yaw0),Math.cos(during.bodyYaw-yaw0));
+  const samples=[];
+  for(let index=0;index<8;index++){
+    await sleep(150);
+    samples.push(await page.evaluate(()=>{const v=document.querySelector("#viewport"),d=globalThis.__arondightVehicleDrive,p=d?.physicsPose;return{throttle:Number(v?.dataset.vehicleDriveThrottle||0),steer:Number(v?.dataset.vehicleDriveSteer||0),speedKmh:Number(v?.dataset.vehicleDriveSpeedKmh||0),active:Boolean(d?.active),gasHeld:document.getElementById("vehicleGas")?.classList.contains("held"),bodyYaw:Number(p?.yaw),angularZ:Number(p?.angularVelocity?.[2]),headingSource:v?.dataset.vehicleDriveHeadingSource||"",steeringPhysics:v?.dataset.vehicleDriveSteeringPhysics||""};}));
+  }
+  let previousYaw=Number(beforePose?.yaw),cumulativeYaw=0;for(const sample of samples){if(Number.isFinite(previousYaw)&&Number.isFinite(sample.bodyYaw))cumulativeYaw+=Math.atan2(Math.sin(sample.bodyYaw-previousYaw),Math.cos(sample.bodyYaw-previousYaw));previousYaw=sample.bodyYaw;}
+  const during=samples.at(-1)||{},clockwiseSamples=samples.filter(sample=>sample.angularZ<-.02).length,maxAbsAngularZ=Math.max(0,...samples.map(sample=>Math.abs(sample.angularZ)||0));
   await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});await sleep(120);
   const released=await page.evaluate(()=>({throttle:document.querySelector("#viewport")?.dataset.vehicleTouchThrottle,steer:document.querySelector("#viewport")?.dataset.vehicleTouchSteer,gasHeld:document.getElementById("vehicleGas")?.classList.contains("held")}));
-  if(!during.active||during.throttle<.45||during.steer<.2||during.speedKmh<=0||!during.gasHeld||!Number.isFinite(yaw0)||!Number.isFinite(during.bodyYaw)||yawDelta>-.035||during.headingSource!=="box3d-body-yaw-v1"||during.steeringPhysics!=="box3d-bicycle-yaw-rate-v1")throw new Error(`right touch steer did not rotate the isolated real Box3D car clockwise: ${JSON.stringify({setup,boxes,beforePose,during,yawDelta})}`);
+  if(!during.active||during.throttle<.45||during.steer<.2||during.speedKmh<=0||!during.gasHeld||!Number.isFinite(Number(beforePose?.yaw))||clockwiseSamples<4||cumulativeYaw>-.035||cumulativeYaw< -2.2||maxAbsAngularZ>2.2||during.headingSource!=="box3d-body-yaw-v1"||during.steeringPhysics!=="box3d-bicycle-yaw-rate-v1")throw new Error(`right touch steer did not produce stable clockwise Box3D steering: ${JSON.stringify({setup,boxes,beforePose,samples,cumulativeYaw,clockwiseSamples,maxAbsAngularZ})}`);
   if(released.throttle!=="0"||Math.abs(Number(released.steer||0))>.02||released.gasHeld)throw new Error(`vehicle touch input stuck after release: ${JSON.stringify(released)}`);
-  console.log(`Mobile car touch smoke passed: ${during.speedKmh.toFixed(1)} km/h, right-steer=${during.steer.toFixed(2)}, clockwise physicalYawDelta=${yawDelta.toFixed(3)} rad, protectedPoolCars=${setup.protectedCount}.`);
+  console.log(`Mobile car touch smoke passed: ${during.speedKmh.toFixed(1)} km/h, right-steer=${during.steer.toFixed(2)}, unwrappedYaw=${cumulativeYaw.toFixed(3)} rad, clockwiseSamples=${clockwiseSamples}/${samples.length}, maxYawRate=${maxAbsAngularZ.toFixed(3)} rad/s, protectedPoolCars=${setup.protectedCount}.`);
 }finally{await browser.close();}
