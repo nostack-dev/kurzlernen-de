@@ -8,6 +8,7 @@ import "./walk_world_experience_hotfix.mjs";
 import "./wanted_police_pre_guard.mjs";
 import "./wanted_police_drones.mjs";
 import "./world_rigid_body_runtime.mjs";
+import "./camera_collision_guard.mjs";
 import "./world_network_physics_sync.mjs";
 import "./world_explosion_acoustics.mjs";
 import "./walk_ui_layout_hotfix.mjs";
