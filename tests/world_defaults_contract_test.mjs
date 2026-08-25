@@ -7,5 +7,7 @@ assert.ok(world.includes("this.imageryEnabled=Boolean(value);try{localStorage.re
 assert.ok(settings.includes("bridge.setImageryEnabled?.(false);bridge.setGridEnabled?.(true)"));
 assert.ok(car.includes("box3d-body-yaw-v1"));
 assert.ok(car.includes("signedSpeedMps:commandSpeed,steer:input.steer"));
-assert.ok(physics.includes("desiredYawRate=driveSpeed/wheelbase*Math.tan(steerAngle)"));
-console.log("World defaults contract passed: satellite starts OFF and player steering is rigid-body authoritative.");
+assert.ok(physics.includes("desiredYawRate=effectiveDriveSpeed/wheelbase*Math.tan(steerAngle)"));
+assert.ok(physics.includes("frontAxlePoint=[position[0]+forwardX*frontLever"));
+assert.ok(physics.includes("b3.b3Body_ApplyForce(body,[leftX*record.massKg*steeringLateralAccel"));
+console.log("World defaults contract passed: satellite starts OFF and player steering is rigid-body authoritative with a physical front-axle force model.");
