@@ -36,3 +36,4 @@ jobs:
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
           CHROME_BIN="$CHROME_BIN" node tests/pedestrian_panic_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?panic-ci=${GITHUB_SHA}"
+# retrigger after bundle fix + hardened runtime smoke
