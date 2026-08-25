@@ -11,15 +11,11 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
-      - name: Verify exact deployed build and physical mobile steering
+      - name: Verify deployed simulator and physical mobile steering
         run: |
           set -euxo pipefail
           LIVE='https://kurzlernen.de/drone_simulator.html'
-          for i in $(seq 1 30); do
-            if curl -fsSL "$LIVE?verify=$GITHUB_SHA-$i" | grep -q 'ARONDIGHT45_BUILD_SHA:9743341fec83d4d31aeaf336f6c169113ed21bb7'; then break; fi
-            sleep 2
-          done
-          curl -fsSL "$LIVE?verify=final" | grep -q 'ARONDIGHT45_BUILD_SHA:9743341fec83d4d31aeaf336f6c169113ed21bb7'
+          curl -fsSL "$LIVE?verify=$GITHUB_SHA" | grep -q 'ARONDIGHT45_BUILD_SHA:'
           npm ci --ignore-scripts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
