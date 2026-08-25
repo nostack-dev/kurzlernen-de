@@ -1,5 +1,5 @@
 let installed=false;
-function installStyle(){if(document.querySelector("style[data-mobile-landscape-hud-compact]"))return;const style=document.createElement("style");style.dataset.mobileLandscapeHudCompact="v1";style.textContent=`
+function installStyle(){if(document.querySelector("style[data-mobile-landscape-hud-compact]"))return;const style=document.createElement("style");style.dataset.mobileLandscapeHudCompact="v2";style.textContent=`
 @media (pointer:coarse) and (max-height:760px){
   body.solo-flight #soloTopbar{top:max(2px,var(--solo-safe-top))!important;gap:2px!important;width:min(calc(100% - max(12px,calc(var(--solo-safe-left) + var(--solo-safe-right)))),1060px)!important}
   body.solo-flight #viewport[data-world-mode="real"] #soloTopbar{left:max(6px,var(--solo-safe-left))!important;width:min(calc(100% - max(116px,calc(var(--solo-safe-right) + 110px))),1010px)!important}
@@ -39,10 +39,13 @@ function installStyle(){if(document.querySelector("style[data-mobile-landscape-h
   body.on-foot-mode #footMove{left:max(10px,var(--solo-safe-left))!important}body.on-foot-mode #footLook{right:max(10px,var(--solo-safe-right))!important}
   body.on-foot-mode #footFire{display:none!important}
   body.on-foot-mode #footReticle{display:none!important}
+  body.on-foot-mode #footReticle.screen-aim-active{display:block!important;width:22px!important;height:22px!important;border:1px solid #ffe5a6e8!important;border-radius:50%!important;background:#06121b24!important;box-shadow:0 0 0 1px #0009,0 0 8px #ffd67866!important;opacity:1!important;transform:translate(-50%,-50%)!important;pointer-events:none!important}
+  body.on-foot-mode #footReticle.screen-aim-active::before,body.on-foot-mode #footReticle.screen-aim-active::after{content:"";position:absolute;left:50%;top:50%;background:#fff0c7e8;box-shadow:0 0 3px #000;transform:translate(-50%,-50%)}
+  body.on-foot-mode #footReticle.screen-aim-active::before{width:10px;height:1px}body.on-foot-mode #footReticle.screen-aim-active::after{width:1px;height:10px}
   body.on-foot-mode #footReadout{top:max(51px,calc(var(--solo-safe-top) + 47px))!important;padding:3px 6px!important;font-size:7px!important;opacity:.72!important}
   body.on-foot-mode #footWeaponToggle{bottom:max(10px,var(--solo-safe-bottom))!important;height:27px!important;min-width:88px!important;font-size:7px!important}
 }
 `;document.head.appendChild(style);}
-function frame(){const view=document.getElementById("viewport");if(view)view.dataset.mobileLandscapeHud="compact-real-estate-v1";requestAnimationFrame(frame);}
+function frame(){const view=document.getElementById("viewport");if(view){view.dataset.mobileLandscapeHud="compact-real-estate-v1";view.dataset.mobileDragAim="live-reticle-while-held-v1";}requestAnimationFrame(frame);}
 export function installMobileLandscapeHudCompact(){if(installed)return;installed=true;installStyle();requestAnimationFrame(frame);}
 installMobileLandscapeHudCompact();
