@@ -1,0 +1,59 @@
+name: Repair vehicle pose authority once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/repair_vehicle_pose_authority_once.yml']
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce rigid-body pose authority
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('sim/world_rigid_body_runtime.mjs')
+          s=p.read_text()
+          old='function setPose(id,pose={}){const key=String(id||""),config=pendingBodies.get(key),position=pose?.position;if(!key||!config||!Array.isArray(position)||position.length!==3||!position.every(Number.isFinite))return false;const current=ensureEngine();if(!current?.setPose(key,pose))return false;pendingBodies.set(key,{...config,position:[...position],...(Number.isFinite(pose.yaw)?{yaw:Number(pose.yaw)}:{})});return true;}'
+          new='function setPose(id,pose={}){const key=String(id||""),config=pendingBodies.get(key),position=pose?.position;if(!key||!config||!Array.isArray(position)||position.length!==3||!position.every(Number.isFinite))return false;const now=performance.now(),force=pose?.force===true,owner=String(pose?.owner||""),activeLease=targetLeases.get(key);let lease=null;if(force){targetLeases.delete(key);}else if(owner){lease=leaseFor(key,pose);if(!lease)return false;}else if(activeLease&&activeLease.expiresAt>now){targetRejects++;const v=viewport();if(v){v.dataset.worldPhysicsPoseRejects=String((Number(v.dataset.worldPhysicsPoseRejects)||0)+1);v.dataset.worldPhysicsPoseBlocked=`unowned->${activeLease.owner}`;v.dataset.worldPhysicsPoseBlockedId=key;}return false;}const payload=targetPayload(pose),current=ensureEngine();if(!current?.setPose(key,payload))return false;pendingBodies.set(key,{...config,position:[...position],...(Number.isFinite(pose.yaw)?{yaw:Number(pose.yaw)}:{})});const v=viewport();if(v){v.dataset.worldPhysicsLastPoseOwner=force?"force":owner||"unowned";v.dataset.worldPhysicsLastPoseId=key;v.dataset.worldPhysicsLastPoseYaw=Number.isFinite(pose.yaw)?Number(pose.yaw).toFixed(6):"keep";}return true;}'
+          assert old in s, 'runtime setPose signature changed'
+          s=s.replace(old,new,1)
+          s=s.replace('v.dataset.worldPhysicsControlDetail="force+torque+impulse+authority-lease-v2";','v.dataset.worldPhysicsControlDetail="force+torque+impulse+target+pose-authority-lease-v3";',1)
+          p.write_text(s)
+
+          p=Path('sim/player_car_mode.mjs')
+          s=p.read_text()
+          old='p?.setPose?.(vehicle.id,{position:[...pose.position],yaw:heading,velocity,angularVelocity:[0,0,0]});'
+          new='p?.setPose?.(vehicle.id,{position:[...pose.position],yaw:heading,velocity,angularVelocity:[0,0,0],owner:DRIVE_OWNER,priority:100,leaseMs:DRIVE_LEASE_MS});'
+          assert old in s, 'player car enter pose handoff changed'
+          s=s.replace(old,new,1)
+          s=s.replace('v.dataset.vehicleEnterAuthority="box3d-player-handoff-v2"','v.dataset.vehicleEnterAuthority="box3d-player-exclusive-pose+target-lease-v3"')
+          p.write_text(s)
+
+          p=Path('sim/world_network_physics_sync.mjs')
+          s=p.read_text()
+          old='if(!current||error>SNAP_ERROR_M)p?.setPose?.(id,{position,yaw,velocity:[...cv.v],angularVelocity:[...cv.w]});else{'
+          new='if(!current||error>SNAP_ERROR_M)p?.setPose?.(id,{position,yaw,velocity:[...cv.v],angularVelocity:[...cv.w],owner,priority:90,leaseMs:REMOTE_LEASE_MS});else{'
+          assert old in s, 'remote vehicle snap changed'
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          node --check sim/world_rigid_body_runtime.mjs
+          node --check sim/player_car_mode.mjs
+          node --check sim/world_network_physics_sync.mjs
+          grep -q 'worldPhysicsPoseBlocked' sim/world_rigid_body_runtime.mjs
+          grep -q 'owner:DRIVE_OWNER,priority:100,leaseMs:DRIVE_LEASE_MS' sim/player_car_mode.mjs
+          grep -q 'owner,priority:90,leaseMs:REMOTE_LEASE_MS' sim/world_network_physics_sync.mjs
+      - name: Commit repair
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/world_rigid_body_runtime.mjs sim/player_car_mode.mjs sim/world_network_physics_sync.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m 'Enforce exclusive vehicle pose authority'
+          git push origin HEAD:main
