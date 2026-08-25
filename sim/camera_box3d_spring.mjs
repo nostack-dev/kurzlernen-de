@@ -55,7 +55,10 @@ export class CameraBox3dSpring{
   }
   update({anchor,desired,now=performance.now?.()??Date.now(),mode="camera"}={}){
     if(!finite3(desired))return null;const safeAnchor=finite3(anchor)?anchor:desired,nextMode=String(mode||"camera"),sampleNow=Number(now)||0;
-    if(!this.valid()){this.create(desired);this.lastDesired=[...desired];this.lastNow=sampleNow;this.mode=nextMode;this.presentedPosition=[...desired];this.presentationNow=sampleNow;return this.result(desired,{anchor:safeAnchor,now:sampleNow,positionOverride:desired,freeFollow:true});}
+    if(!this.valid()){
+      const initialClear=this.pathClear(safeAnchor,desired),seed=initialClear?desired:safeAnchor;this.create(seed);this.blocked=!initialClear;this.clearFrames=0;this.lastDesired=[...desired];this.lastNow=sampleNow;this.mode=nextMode;this.presentedPosition=[...seed];this.presentationNow=sampleNow;
+      if(initialClear)return this.result(desired,{anchor:safeAnchor,now:sampleNow,positionOverride:desired,freeFollow:true});
+    }
     let current=this.pose();const modeChanged=this.mode&&this.mode!==nextMode;if(modeChanged){this.blocked=false;this.clearFrames=0;this.presentedPosition=null;}
     const anchorClear=this.pathClear(safeAnchor,desired),bodyClear=current?this.pathClear(current.position,desired):anchorClear,obstructed=!anchorClear||!bodyClear;
     if(!this.blocked&&!obstructed){
@@ -63,7 +66,7 @@ export class CameraBox3dSpring{
       this.lastDesired=[...desired];this.lastNow=sampleNow;this.mode=nextMode;this.clearFrames=0;this.presentedPosition=[...desired];this.presentationNow=sampleNow;return this.result(desired,{anchor:safeAnchor,now:sampleNow,positionOverride:desired,freeFollow:true});
     }
     if(obstructed){this.blocked=true;this.clearFrames=0;}else this.clearFrames++;
-    current=this.pose();const desiredJump=this.lastDesired?length3(sub3(desired,this.lastDesired)):0,actualError=current?length3(sub3(desired,current.position)):0;
+    current=this.pose();const desiredJump=this.lastDesired?length3(sub3(desired,this.lastDesired)):0;
     if(desiredJump>=this.profile.teleportResetDistanceM&&this.pathClear(current?.position||safeAnchor,desired)&&anchorClear){this.blocked=false;this.clearFrames=0;this.setPose(desired);this.lastDesired=[...desired];this.lastNow=sampleNow;this.mode=nextMode;this.presentedPosition=[...desired];this.presentationNow=sampleNow;return this.result(desired,{anchor:safeAnchor,now:sampleNow,positionOverride:desired,freeFollow:true});}
     const dt=clamp((sampleNow-this.lastNow)/1000,1/240,.05),desiredVelocity=this.lastDesired?sub3(desired,this.lastDesired).map(value=>clamp(value/dt,-this.profile.maxTargetVelocityMps,this.profile.maxTargetVelocityMps)):[0,0,0],velocity=current?.velocity||[0,0,0],error=sub3(desired,current?.position||desired),velocityError=sub3(desiredVelocity,velocity),acceleration=cameraSpringAcceleration(error,velocityError,this.profile),force=acceleration.map(value=>value*this.profile.massKg);
     this.b3.b3Body_ApplyForceToCenter(this.body,force,true);this.lastDesired=[...desired];this.lastNow=sampleNow;this.mode=nextMode;this.updates++;
