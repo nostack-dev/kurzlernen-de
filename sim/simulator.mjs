@@ -748,7 +748,7 @@ function renderSoloHeightControl(){
 }
 function setSoloHeightAxis(value){soloHeightAxis=clamp(Number(value)||0,-1,1);renderSoloHeightControl();}
 function applySoloHeightPointer(event){const r=soloHeightPad.getBoundingClientRect(),center=r.top+r.height/2,span=Math.max(1,r.height*.40);setSoloHeightAxis((center-event.clientY)/span);event.preventDefault();}
-soloHeightPad.addEventListener("pointerdown",event=>{if(soloHeightPointer!==null)return;soloHeightPointer=event.pointerId;soloHeightPad.setPointerCapture?.(soloHeightPointer);applySoloHeightPointer(event);});
+soloHeightPad.addEventListener("pointerdown",event=>{if(soloHeightPointer!==null)return;soloHeightPointer=event.pointerId;applySoloHeightPointer(event);try{soloHeightPad.setPointerCapture?.(soloHeightPointer);}catch{}});
 soloHeightPad.addEventListener("pointermove",event=>{if(event.pointerId===soloHeightPointer)applySoloHeightPointer(event);});
 const releaseSoloHeight=event=>{if(soloHeightPointer===null||(event?.pointerId!=null&&event.pointerId!==soloHeightPointer))return;const released=soloHeightPointer;soloHeightPointer=null;setSoloHeightAxis(0);try{soloHeightPad.releasePointerCapture?.(released);}catch{}event?.preventDefault();};
 soloHeightPad.addEventListener("pointerup",releaseSoloHeight);soloHeightPad.addEventListener("pointercancel",releaseSoloHeight);soloHeightPad.addEventListener("lostpointercapture",releaseSoloHeight);
@@ -764,7 +764,7 @@ function updateSoloSticks(){
 function soloStick(el,kind){
   let pointer=null;
   const apply=e=>{const point=normalizedPointer(el,e);applyGameStick(soloControls,kind,point,phoneSettings);updateSoloSticks();e.preventDefault();};
-  el.addEventListener("pointerdown",e=>{pointer=e.pointerId;el.setPointerCapture(pointer);apply(e);});
+  el.addEventListener("pointerdown",e=>{pointer=e.pointerId;apply(e);try{el.setPointerCapture?.(pointer);}catch{}});
   el.addEventListener("pointermove",e=>{if(e.pointerId===pointer)apply(e);});
   const release=e=>{if(e.pointerId!==pointer)return;endPointerDrag(el,e.pointerId);pointer=null;if(kind==="left"){soloControls.roll=0;soloControls.pitch=0;soloControls.throttle=0;}else{soloControls.yaw=0;soloControls.bodyPitch=0;}updateSoloSticks();e.preventDefault();};
   el.addEventListener("pointerup",release);el.addEventListener("pointercancel",release);

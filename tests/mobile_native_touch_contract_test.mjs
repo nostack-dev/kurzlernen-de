@@ -15,4 +15,12 @@ assert.ok(sim.includes('orientationPolicy="native-never-rotate-v1"'));
 assert.ok(sim.includes('soloOrientation="native"'));
 assert.ok(!semantics.includes("cssLandscapeQuarterTurn"),"touch semantics must not contain rotated-coordinate remapping");
 assert.ok(!semantics.includes("pointerDrags=new WeakMap"),"sticks must not use relative drag state");
-console.log("Mobile native touch contract passed: no display rotation and absolute touch mapping.");
+
+const simulator=readFileSync("sim/simulator.mjs","utf8");
+const walk=readFileSync("sim/player_walk_mode_v4.mjs","utf8");
+const car=readFileSync("sim/player_car_mode.mjs","utf8");
+assert.ok(simulator.includes('pointer=e.pointerId;apply(e);try{el.setPointerCapture?.(pointer);}catch{}'),"drone stick must apply before capture");
+assert.ok(simulator.includes('soloHeightPointer=event.pointerId;applySoloHeightPointer(event);try{soloHeightPad.setPointerCapture?.(soloHeightPointer);}catch{}'),"height pad must apply before capture");
+assert.ok(walk.includes('pointer=e.pointerId;apply(e);try{el.setPointerCapture?.(pointer);}catch{}'),"walk stick must apply before capture");
+assert.ok(car.includes('try{el.setPointerCapture?.(pointer);}catch{}apply(e);'),"car capture failure must not block touch input");
+console.log("Mobile native touch contract passed: native display, absolute touch and non-blocking pointer capture.");
