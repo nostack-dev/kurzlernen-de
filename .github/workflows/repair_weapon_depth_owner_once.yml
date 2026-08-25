@@ -1,0 +1,45 @@
+name: Repair weapon depth owner once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/repair_weapon_depth_owner_once.yml']
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make viewmodel depth invariant owner-native
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/player_walk_mode_v4.mjs')
+          s=p.read_text()
+          old='function ensureWeapon(scene){\n  if(weaponGroup&&weaponScene===scene)return weaponGroup;if(weaponGroup?.parent)weaponGroup.parent.remove(weaponGroup);'
+          new='function ensureWeapon(scene){\n  if(weaponGroup&&weaponScene===scene){const view=viewport();if(view)view.dataset.walkMuzzleDepth="depth-tested-viewmodel-occlusion-v2";return weaponGroup;}if(weaponGroup?.parent)weaponGroup.parent.remove(weaponGroup);'
+          assert old in s, 'ensureWeapon reuse branch changed'
+          s=s.replace(old,new,1)
+          old='const flashMat=new THREE.MeshBasicMaterial({color:0xffd36b,transparent:true,opacity:.95,depthTest:false,depthWrite:false,blending:THREE.AdditiveBlending})'
+          new='const flashMat=new THREE.MeshBasicMaterial({color:0xffd36b,transparent:true,opacity:.95,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending})'
+          assert old in s, 'legacy muzzle material changed'
+          s=s.replace(old,new,1)
+          old='if(view){view.dataset.walkWeapon3d="1";view.dataset.walkWeaponViewmodel="compact-pistol-gloves-v2";view.dataset.walkWeaponParts=String(parts.length);}return gun;'
+          new='if(view){view.dataset.walkWeapon3d="1";view.dataset.walkWeaponViewmodel="compact-pistol-gloves-v2";view.dataset.walkWeaponParts=String(parts.length);view.dataset.walkMuzzleDepth="depth-tested-viewmodel-occlusion-v2";view.dataset.walkMuzzleDepthOwner="player-walk-viewmodel-v4";}return gun;'
+          assert old in s, 'weapon ready dataset branch changed'
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          node --check sim/player_walk_mode_v4.mjs
+          grep -q 'depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending' sim/player_walk_mode_v4.mjs
+          grep -q 'walkMuzzleDepthOwner="player-walk-viewmodel-v4"' sim/player_walk_mode_v4.mjs
+      - name: Commit repair
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/player_walk_mode_v4.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m 'Own weapon depth invariant at viewmodel creation'
+          git push origin HEAD:main
