@@ -1,0 +1,39 @@
+name: Repair FPS depth anchor once
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/repair_fps_depth_anchor_once.yml
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct fixed grip from NDC and camera depth
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/first_person_weapon_runtime_v3.mjs')
+          s=p.read_text()
+          old='camera.getWorldPosition(rootWorldPosition);desiredPivotWorld.set(latchedPivotNdc.x,latchedPivotNdc.y,.5).unproject(camera).sub(rootWorldPosition).normalize().multiplyScalar(Math.max(.05,latchedPivotCameraLocal.length())).add(rootWorldPosition);desiredPivotCameraLocal.copy(desiredPivotWorld);camera.worldToLocal(desiredPivotCameraLocal);keepPivotAt(gun,pivot,desiredPivotWorld);'
+          new='const anchorHalfHeight=Math.tan(Number(camera.fov)*Math.PI/360)*latchedPivotDepthM;desiredPivotCameraLocal.set(latchedPivotNdc.x*anchorHalfHeight*Number(camera.aspect||1),latchedPivotNdc.y*anchorHalfHeight,-latchedPivotDepthM);desiredPivotWorld.copy(desiredPivotCameraLocal);camera.localToWorld(desiredPivotWorld);keepPivotAt(gun,pivot,desiredPivotWorld);'
+          assert s.count(old)==1, f'world-origin anchor occurrences={s.count(old)}'
+          p.write_text(s.replace(old,new,1))
+          PY
+          node --check sim/first_person_weapon_runtime_v3.mjs
+          grep -q 'anchorHalfHeight=Math.tan' sim/first_person_weapon_runtime_v3.mjs
+          grep -q 'latchedPivotNdc.x\*anchorHalfHeight' sim/first_person_weapon_runtime_v3.mjs
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/first_person_weapon_runtime_v3.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m 'Keep FPS aim grip fixed by camera depth'
+          git push origin HEAD:main
