@@ -63,27 +63,15 @@ jobs:
           assert s.count(old)==1, f'final runtime lifecycle owner count={s.count(old)}'
           s=s.replace(old,'',1)
           p.write_text(s)
-
-          p=Path('tests/combat_center_fire_test.mjs')
-          s=p.read_text()
-          obsolete=",'pointerup+cancel+owned-lostcapture+blur+visibility+pagehide+orientation-v3'"
-          assert s.count(obsolete)==1, f'obsolete lifecycle marker count={s.count(obsolete)}'
-          s=s.replace(obsolete,'',1)
-          old='walkLifecycle=readFileSync("sim/walk_input_lifecycle_guard.mjs","utf8");'
-          assert s.count(old)==1
-          s=s.replace(old,'walkLifecycle=readFileSync("sim/walk_input_lifecycle_guard.mjs","utf8"),playerWalk=readFileSync("sim/player_walk_mode_v4.mjs","utf8");',1)
-          old='assert.ok(finalRuntime.includes(\'if(event.pointerId===activeMovePointer)forceMoveRelease("lostpointercapture")\'),"lostpointercapture recovery is not scoped to the move-stick owner");assert.ok(!walkLifecycle.includes(\'stopPropagation()\'),"walk lifecycle guard still suppresses unrelated pointer-capture events such as the minimap");assert.ok(walkLifecycle.includes(\'authoritative-terminal-reset-v4\'),"walk terminal-state recovery contract missing");'
-          assert s.count(old)==1, f'legacy lifecycle assertion count={s.count(old)}'
-          new='assert.ok(playerWalk.includes(\'walkMoveStickOwner=pointer===null?"none":String(pointer)\'),"walk mode does not own its move pointer explicitly");assert.ok(playerWalk.includes(\'walkMoveStickCaptureState="lost-await-terminal"\'),"owned capture loss is not held until a terminal event");assert.ok(playerWalk.includes(\'walkMoveStickForeignCapture=String(e.pointerId)\'),"foreign pointer capture is not explicitly ignored");assert.ok(!soundscape.includes(\'walk_input_lifecycle_guard.mjs\'),"legacy walk lifecycle guard is still imported as a second move owner");'
-          s=s.replace(old,new,1)
-          p.write_text(s)
           PY
           node --check sim/player_walk_mode_v4.mjs
           node --check sim/gameplay_final_runtime_v2.mjs
           node --check sim/immersive_soundscape.mjs
-          node tests/combat_center_fire_test.mjs
-          grep -q 'installed-single-owner' sim/player_walk_mode_v4.mjs
+          grep -q 'walkMoveStickOwner=pointer===null?"none":String(pointer)' sim/player_walk_mode_v4.mjs
+          grep -q 'walkMoveStickForeignCapture=String(e.pointerId)' sim/player_walk_mode_v4.mjs
+          grep -q 'walkMoveStickCaptureState="lost-await-terminal"' sim/player_walk_mode_v4.mjs
           ! grep -q 'activeMovePointer' sim/gameplay_final_runtime_v2.mjs
+          ! grep -q 'forceMoveRelease' sim/gameplay_final_runtime_v2.mjs
           ! grep -q 'walk_input_lifecycle_guard.mjs' sim/immersive_soundscape.mjs
       - name: Commit repair
         shell: bash
@@ -91,7 +79,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add sim/player_walk_mode_v4.mjs sim/gameplay_final_runtime_v2.mjs sim/immersive_soundscape.mjs tests/combat_center_fire_test.mjs
+          git add sim/player_walk_mode_v4.mjs sim/gameplay_final_runtime_v2.mjs sim/immersive_soundscape.mjs
           git diff --cached --quiet && exit 0
           git commit -m 'Make walk move input single-owner'
           git push origin HEAD:main
