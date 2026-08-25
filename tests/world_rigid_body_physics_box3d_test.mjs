@@ -9,7 +9,7 @@ if(!modulePath)throw new Error("usage: node tests/world_rigid_body_physics_box3d
 const imported=await import(pathToFileURL(resolve(modulePath)).href),factory=imported.default,b3=await factory();
 const impacts=[],wall={hash:"traffic-wall",footprintCount:1,prisms:[{buildingKey:"wall",base:0,top:4,points:[[4,-3],[5,-3],[5,3],[4,3]]}]},physics=new WorldRigidBodyPhysics(b3,{buildingSnapshot:wall,onImpact:detail=>impacts.push(detail)});
 
-const springPush=cameraSpringAcceleration([1,0,0],[0,0,0]),springBrake=cameraSpringAcceleration([1,0,0],[-8,0,0]);
+const springPush=cameraSpringAcceleration([.01,0,0],[0,0,0],{maxAccelerationMps2:160}),springBrake=cameraSpringAcceleration([.01,0,0],[-.05,0,0],{maxAccelerationMps2:160});
 assert.ok(springPush[0]>0,"camera spring does not pull toward its attachment target");
 assert.ok(springBrake[0]<springPush[0],"camera spring damping does not oppose relative velocity");
 
