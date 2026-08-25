@@ -1,0 +1,60 @@
+name: Repair vehicle upright once
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/repair_vehicle_upright_once.yml'
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch rigid-body vehicle stability
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/world_rigid_body_physics.mjs')
+          s=p.read_text()
+          old='bodyDef.angularDamping=Number.isFinite(angularDamping)?angularDamping:drone?1.15:.58;'
+          new='bodyDef.angularDamping=Number.isFinite(angularDamping)?angularDamping:drone?1.15:1.35;'
+          assert old in s
+          s=s.replace(old,new,1)
+          old='const leftX=-Math.sin(currentYaw),leftY=Math.cos(currentYaw),lateralSpeed=velocity[0]*leftX+velocity[1]*leftY,speed=Math.hypot(velocity[0],velocity[1]),maxGripAccel=clamp(7.2+speed*.20,7.2,11.5),lateralAccel=clamp(-lateralSpeed*9.5,-maxGripAccel,maxGripAccel);record.lateralSlipMps=lateralSpeed;b3.b3Body_ApplyForceToCenter(body,[leftX*record.massKg*lateralAccel,leftY*record.massKg*lateralAccel,0],true);b3.b3Body_ApplyTorque(body,[0,0,torqueZ],true);'
+          new='const leftX=-Math.sin(currentYaw),leftY=Math.cos(currentYaw),lateralSpeed=velocity[0]*leftX+velocity[1]*leftY,speed=Math.hypot(velocity[0],velocity[1]),maxGripAccel=clamp(7.2+speed*.20,7.2,11.5),lateralAccel=clamp(-lateralSpeed*9.5,-maxGripAccel,maxGripAccel);record.lateralSlipMps=lateralSpeed;b3.b3Body_ApplyForceToCenter(body,[leftX*record.massKg*lateralAccel,leftY*record.massKg*lateralAccel,0],true);const[qx,qy,qz,qw]=rotation,upX=2*(qx*qz+qw*qy),upY=2*(qy*qz-qw*qx),upZ=1-2*(qx*qx+qy*qy),uprightGain=24,uprightDamping=8,torqueX=clamp((upY*uprightGain-angular[0]*uprightDamping)*record.massKg,-record.massKg*28,record.massKg*28),torqueY=clamp((-upX*uprightGain-angular[1]*uprightDamping)*record.massKg,-record.massKg*28,record.massKg*28);record.uprightError=1-clamp(upZ,-1,1);b3.b3Body_ApplyTorque(body,[torqueX,torqueY,torqueZ],true);'
+          assert old in s
+          s=s.replace(old,new,1)
+          s=s.replace('impactCount:0,lateralSlipMps:0};','impactCount:0,lateralSlipMps:0,uprightError:0};',1)
+          s=s.replace('yaw:quaternionYaw(rotation),lateralSlipMps:record.lateralSlipMps||0};','yaw:quaternionYaw(rotation),lateralSlipMps:record.lateralSlipMps||0,uprightError:record.uprightError||0};',1)
+          p.write_text(s)
+
+          p=Path('tests/world_rigid_body_physics_box3d_test.mjs')
+          s=p.read_text()
+          marker='physics.removeBody("car-steer");\n\nphysics.syncBuildings({hash:"vehicle-passage"'
+          insert='''physics.removeBody("car-steer");\n\nphysics.addBody({id:"car-steer-stability",kind:"car",position:[0,-24,.42],yaw:0,halfExtents:[1.78,.82,.42],massKg:1420});\nphysics.setTarget("car-steer-stability",{position:[20,-24,.42],yaw:0,speedMps:2.2,signedSpeedMps:2.2,steer:.895,maxSteerAngleRad:.5585,response:4.4,maxAccelerationMps2:11.5});\nfor(let index=0;index<110;index++)physics.step(1/60,4,6600+index*1000/60);\nconst stableSteer=physics.pose("car-steer-stability");\nassert.ok(stableSteer.yaw<-.06&&stableSteer.yaw>-2.2,`sustained right steer did not produce bounded clockwise chassis yaw: ${JSON.stringify(stableSteer)}`);\nassert.ok((stableSteer.uprightError||0)<.10,`steering tipped the chassis instead of rotating it around Z: ${JSON.stringify(stableSteer)}`);\nassert.ok(Math.abs(stableSteer.angularVelocity[0])<1.2&&Math.abs(stableSteer.angularVelocity[1])<1.2,`vehicle accumulated unstable roll/pitch angular velocity: ${JSON.stringify(stableSteer)}`);\nphysics.removeBody("car-steer-stability");\n\nphysics.syncBuildings({hash:"vehicle-passage"'''
+          assert marker in s
+          s=s.replace(marker,insert,1)
+          p.write_text(s)
+          PY
+          node --check sim/world_rigid_body_physics.mjs
+          node --check tests/world_rigid_body_physics_box3d_test.mjs
+      - name: Run exact Box3D vehicle physics regression
+        run: |
+          set -euo pipefail
+          TMP=/tmp/box3d-vehicle-repair
+          rm -rf "$TMP" && mkdir -p "$TMP" && cd "$TMP"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund box3d.js@0.1.1 >/dev/null
+          cd "$GITHUB_WORKSPACE"
+          node tests/world_rigid_body_physics_box3d_test.mjs "$TMP/node_modules/box3d.js/dist/box3d.inline.mjs"
+      - name: Commit repair
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/world_rigid_body_physics.mjs tests/world_rigid_body_physics_box3d_test.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m 'Stabilize physical vehicle steering chassis'
+          git push origin HEAD:main
