@@ -23,8 +23,18 @@ jobs:
           p=Path('sim/player_vehicle_runtime_v2.mjs');s=p.read_text()
           if 'function updateHumanVelocity(now){' in s:s=s.replace('function updateHumanVelocity(now){','function updateHumanVelocity(now=performance.now()){',1)
           p.write_text(s)
+          s=Path('sim/world_rigid_body_physics.mjs').read_text();a=s.index('  controlBody(record,dt){');b=s.index('  step(dt=1/60',a);Path('/tmp/original-control-body.txt').write_text(s[a:b])
           PY
           python3 .github/repair_gameplay_physics_once.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/world_rigid_body_physics.mjs');s=p.read_text();a=s.index('  controlBody(record,dt){');b=s.index('  step(dt=1/60',a)
+          original=Path('/tmp/original-control-body.txt').read_text()
+          injection='''  controlBody(record,dt){\n    if(record.vehicleRig&&record.target&&Number.isFinite(record.target.steer)){const b3=this.b3,body=record.body,velocity=b3.b3Body_GetLinearVelocity([0,0,0],body);record.preVelocity=[...velocity];this.updateVehicleRig(record);record.lateralSlipMps=0;if(length3(record.pendingImpulse)>.0001){const force=record.pendingImpulse.map(value=>value/Math.max(.001,dt));if(record.impulsePoint)b3.b3Body_ApplyForce(body,force,record.impulsePoint,true);else b3.b3Body_ApplyForceToCenter(body,force,true);record.pendingImpulse=[0,0,0];record.impulsePoint=null;}return;}\n'''
+          assert original.startswith('  controlBody(record,dt){\n')
+          preserved=injection+original[len('  controlBody(record,dt){\n'):]
+          p.write_text(s[:a]+preserved+s[b:])
+          PY
           node --check sim/world_rigid_body_physics.mjs
           node --check sim/world_rigid_body_runtime.mjs
           node --check sim/player_car_mode.mjs
