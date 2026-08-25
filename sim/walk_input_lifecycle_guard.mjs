@@ -2,7 +2,7 @@ let installed=false,activePointer=null,activeElement=null,lastPointer=null,lastE
 function viewport(){return document.getElementById("viewport");}
 function isMoveTarget(target){return target instanceof Element?target.closest("#footMove"):null;}
 function publish(reason="active"){
-  const view=viewport();if(!view)return;view.dataset.walkInputLifecycleGuard="exclusive-move-pointer-v4";view.dataset.walkMoveStickOwner=activePointer===null?"none":String(activePointer);if(reason)view.dataset.walkMoveStickLifecycle=reason;
+  const view=viewport();if(!view)return;view.dataset.walkInputLifecycleGuard="exclusive-move-pointer-v3";view.dataset.walkInputLifecycleRelease="authoritative-terminal-reset-v4";view.dataset.walkMoveStickOwner=activePointer===null?"none":String(activePointer);if(reason)view.dataset.walkMoveStickLifecycle=reason;
 }
 function cancelMoveElement(element,id,reason){
   if(!element||id===null||id===undefined)return false;
@@ -12,9 +12,12 @@ function cancelMoveElement(element,id,reason){
 }
 function release(reason="lifecycle"){
   const id=activePointer??lastPointer,element=activeElement||lastElement;if(id===null||!element)return false;
+  // Drop guard ownership before synthesizing the terminal event so the control's
+  // own pointercancel handler can reset movement without recursively re-entering us.
+  activePointer=null;activeElement=null;lastPointer=id;lastElement=element;
   cancelMoveElement(element,id,reason);
   try{if(element.hasPointerCapture?.(id))element.releasePointerCapture?.(id);}catch{}
-  activePointer=null;activeElement=null;lastPointer=id;lastElement=element;publish(reason);return true;
+  publish(reason);return true;
 }
 function remember(event){
   const move=isMoveTarget(event.target);
