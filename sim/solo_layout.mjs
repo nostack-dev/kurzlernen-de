@@ -1,3 +1,4 @@
+import "./landscape_only_gate.mjs";
 import "./world_spawn_guard.mjs";
 import "./player_walk_mode_v4.mjs";
 import "./walk_profile_contract.mjs";
@@ -27,9 +28,9 @@ let installed=false;
 export function installSoloFlightLayout(){
   if(installed)return;installed=true;
   const style=document.createElement("style");
-  style.dataset.soloFlightLayout="compact-v6-two-tier-toolbar";
+  style.dataset.soloFlightLayout="compact-v7-landscape-only";
   style.textContent=`
-    /* 1-phone mode must remain usable even when iOS Safari cannot enter true fullscreen. */
+    /* The entire app is landscape-only. Portrait is blocked globally by landscape_only_gate.mjs. */
     body.solo-flight #cameraModes{display:none!important}
     body.solo-flight #soloTopbar{top:max(5px,var(--solo-safe-top));left:50%;right:auto;width:min(calc(100% - max(16px,calc(var(--solo-safe-left) + var(--solo-safe-right)))),980px);transform:translateX(-50%);display:grid;grid-template-rows:auto auto;gap:4px;min-width:0;overflow:visible;pointer-events:none}
     body.solo-flight #viewport[data-world-mode="real"] #soloTopbar{left:max(8px,var(--solo-safe-left));width:min(calc(100% - max(154px,calc(var(--solo-safe-right) + 146px))),920px);transform:none}
@@ -44,7 +45,6 @@ export function installSoloFlightLayout(){
     body.solo-flight #soloTopbar #soloCamera,body.solo-flight #soloTopbar .phone-settings-button,body.solo-flight #soloTopbar #lanVsButton{min-width:54px}
     body.solo-flight #soloTopbar #vsCombatHud{display:inline-flex;align-items:center;justify-content:center;min-width:112px;font-size:9px;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
     body.solo-flight #soloTopbar #vsCombatHud[hidden]{display:none!important}
-    /* Lap/time telemetry is intentionally not drawn over the flight image. */
     body.solo-flight #soloRaceHud{display:none!important}
     body.solo-flight .solo-stick{width:min(25vw,150px);bottom:max(20px,var(--solo-safe-bottom))}
     body.solo-flight #soloLeft{left:max(12px,var(--solo-safe-left))}
@@ -54,9 +54,7 @@ export function installSoloFlightLayout(){
     body.solo-flight #soloClearance small{font-size:6.5px;line-height:1.05;letter-spacing:.04em}
     body.solo-flight #soloClearance strong{font-size:11px}
     body.solo-flight #soloClearance span{font-size:7px}
-    /* Keep the visible rail slim but make the actual iOS touch target finger-sized. */
     body.solo-flight .solo-height-pad{height:72px;width:58px;margin-left:-5px;margin-right:-5px;touch-action:none;overflow:hidden}
-    /* State labels such as CALIBRATING… / ARMING… / ARMED ✓ must stay inside the action pill. */
     body.solo-flight .solo-action{bottom:max(22px,calc(var(--solo-safe-bottom) + 8px));width:104px;height:44px;padding:0 10px;font-size:12px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:clip}
 
     @media(max-height:340px){
@@ -74,38 +72,6 @@ export function installSoloFlightLayout(){
       body.solo-flight #soloClearance span{font-size:6.5px}
       body.solo-flight .solo-height-pad{height:58px;width:54px;margin-left:-6px;margin-right:-6px}
       body.solo-flight .solo-action{bottom:max(16px,var(--solo-safe-bottom));width:92px;height:40px;padding:0 8px;font-size:10px}
-    }
-
-    /* Native portrait: keep every touch target in the browser coordinate system.
-       The action rail wraps instead of shrinking controls to zero-width hit boxes. */
-    @media(orientation:portrait){
-      body.solo-flight #soloTopbar{width:calc(100% - max(16px,calc(var(--solo-safe-left) + var(--solo-safe-right))));gap:4px}
-      body.solo-flight #viewport[data-world-mode="real"] #soloTopbar{left:50%;width:calc(100% - max(16px,calc(var(--solo-safe-left) + var(--solo-safe-right))));transform:translateX(-50%)}
-      body.solo-flight #soloTopbarActions{flex-wrap:wrap;justify-content:center;align-content:center;overflow:visible}
-      body.solo-flight #soloTopbarActions>button{flex:0 0 auto;min-width:48px!important;min-height:32px}
-      body.solo-flight #soloTopbarActions>#soloExit,body.solo-flight #soloTopbarActions>#soloReset{min-width:56px!important}
-      body.solo-flight #soloTopbarActions>#lanVsButton,body.solo-flight #soloTopbarActions>.phone-settings-button{min-width:72px!important}
-      body.solo-flight #soloTopbarStatus{flex-wrap:wrap;min-height:24px}
-      body.solo-flight #gameplayContractHud{top:max(150px,calc(var(--solo-safe-top) + 142px))!important}
-      body.solo-flight #worldLookHud{top:max(205px,calc(var(--solo-safe-top) + 197px))!important}
-      body.solo-flight .solo-stick{width:min(25%,150px)}
-      body.solo-flight #soloClearance{left:calc(max(12px,var(--solo-safe-left)) + min(25%,150px) + 10px)}
-      body.solo-flight .solo-action{bottom:max(170px,calc(var(--solo-safe-bottom) + 158px))}
-    }
-    @media(orientation:portrait) and (max-width:340px){
-      body.solo-flight #soloTopbar{top:max(3px,var(--solo-safe-top));gap:2px}
-      body.solo-flight #soloTopbarActions{gap:3px;padding:3px;border-radius:9px}
-      body.solo-flight #soloTopbar span,body.solo-flight #soloTopbar button{padding:4px 6px;font-size:9px;border-radius:6px}
-      body.solo-flight #soloTopbar button{min-height:25px}
-      body.solo-flight #soloTopbar #soloCamera,body.solo-flight #soloTopbar .phone-settings-button,body.solo-flight #soloTopbar #lanVsButton{min-width:46px}
-      body.solo-flight #soloTopbar #vsCombatHud{min-width:94px;font-size:8px;padding-left:5px;padding-right:5px}
-      body.solo-flight .solo-stick{width:min(22%,128px);bottom:max(16px,var(--solo-safe-bottom))}
-      body.solo-flight #soloClearance{left:calc(max(10px,var(--solo-safe-left)) + min(22%,128px) + 8px);bottom:max(16px,var(--solo-safe-bottom));width:42px;height:112px;padding:5px 2px}
-      body.solo-flight #soloClearance small{font-size:5.8px}
-      body.solo-flight #soloClearance strong{font-size:10px}
-      body.solo-flight #soloClearance span{font-size:6.5px}
-      body.solo-flight .solo-height-pad{height:58px;width:54px;margin-left:-6px;margin-right:-6px}
-      body.solo-flight .solo-action{bottom:max(150px,calc(var(--solo-safe-bottom) + 140px));width:92px;height:40px;padding:0 8px;font-size:10px}
     }
   `;
   document.head.appendChild(style);
