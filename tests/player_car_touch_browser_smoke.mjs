@@ -16,27 +16,28 @@ try{
   const setup=await page.evaluate(()=>{
     const scene=globalThis.__arondightRealWorld?.threeScene,physics=globalThis.__arondightWorldRigidBodies,walk=globalThis.__arondightWalkMode,drive=globalThis.__arondightVehicleDrive;
     if(!scene||!physics||!walk||!drive)return null;
-    const candidates=[];
+    const vehicles=[];
     scene.traverse(node=>{
-      if(!node?.isGroup||node.userData?.worldPopulationKind!=="car"||node.userData?.remotePlayerDriven)return;
+      if(!node?.isGroup||node.userData?.remotePlayerDriven)return;
+      const kind=String(node.userData?.worldPopulationKind||"");if(kind!=="car"&&kind!=="bus")return;
       const id=String(node.userData?.worldPopulationId||node.userData?.worldProceduralId||""),pose=id?physics.pose?.(id):null;
-      if(id&&pose?.position)candidates.push({id,root:node,pose,parked:Boolean(node.userData?.worldParked),visible:node.visible!==false});
+      if(id&&pose?.position)vehicles.push({id,root:node,kind,pose,parked:Boolean(node.userData?.worldParked),visible:node.visible!==false});
     });
-    const chosen=candidates.find(candidate=>candidate.visible)||candidates[0];if(!chosen)return null;
-    let protectedCount=0;
-    for(const candidate of candidates){
+    const cars=vehicles.filter(vehicle=>vehicle.kind==="car"),chosen=cars.find(candidate=>candidate.visible)||cars[0];if(!chosen)return null;
+    let protectedCount=0,protectedCars=0,protectedBuses=0;
+    for(const candidate of vehicles){
       if(candidate===chosen)continue;
       candidate.root.userData.remotePlayerDriven="browser-smoke-isolation";
       candidate.root.userData.worldTrafficControlOwner="browser-smoke-isolation";
       physics.clearTarget?.(candidate.id,{force:true});
-      protectedCount++;
+      protectedCount++;if(candidate.kind==="bus")protectedBuses++;else protectedCars++;
     }
     const position=[640,640,Math.max(.42,Number(chosen.pose.position[2])||.42)],yaw=0;
     physics.clearTarget?.(chosen.id,{force:true});
     physics.setPose?.(chosen.id,{position,yaw,velocity:[0,0,0],angularVelocity:[0,0,0]});
     walk.setPose?.({x:position[0],y:position[1],yaw:0,pitch:0});
     const nearest=drive.nearestVehicle?.(performance.now()+1000),entered=nearest?.id===chosen.id&&drive.enterNearest?.()===true;
-    return{id:chosen.id,position,parked:chosen.parked,nearestId:nearest?.id||"",entered:Boolean(entered),isolated:true,protectedCount};
+    return{id:chosen.id,position,parked:chosen.parked,nearestId:nearest?.id||"",entered:Boolean(entered),isolated:true,protectedCount,protectedCars,protectedBuses};
   });
   if(!setup)throw new Error("no physical car available for mobile touch smoke");
   if(!setup.entered)throw new Error(`could not enter isolated physical car: ${JSON.stringify(setup)}`);
@@ -58,5 +59,5 @@ try{
   const released=await page.evaluate(()=>({throttle:document.querySelector("#viewport")?.dataset.vehicleTouchThrottle,steer:document.querySelector("#viewport")?.dataset.vehicleTouchSteer,gasHeld:document.getElementById("vehicleGas")?.classList.contains("held")}));
   if(!during.active||during.throttle<.45||during.steer<.2||during.speedKmh<=0||!during.gasHeld||!Number.isFinite(Number(beforePose?.yaw))||clockwiseSamples<4||cumulativeYaw>-.035||cumulativeYaw< -2.2||maxAbsAngularZ>2.2||during.headingSource!=="box3d-body-yaw-v1"||during.steeringPhysics!=="box3d-bicycle-yaw-rate-v1")throw new Error(`right touch steer did not produce stable clockwise Box3D steering: ${JSON.stringify({setup,boxes,beforePose,samples,cumulativeYaw,clockwiseSamples,maxAbsAngularZ})}`);
   if(released.throttle!=="0"||Math.abs(Number(released.steer||0))>.02||released.gasHeld)throw new Error(`vehicle touch input stuck after release: ${JSON.stringify(released)}`);
-  console.log(`Mobile car touch smoke passed: ${during.speedKmh.toFixed(1)} km/h, right-steer=${during.steer.toFixed(2)}, unwrappedYaw=${cumulativeYaw.toFixed(3)} rad, clockwiseSamples=${clockwiseSamples}/${samples.length}, maxYawRate=${maxAbsAngularZ.toFixed(3)} rad/s, protectedPoolCars=${setup.protectedCount}.`);
+  console.log(`Mobile car touch smoke passed: ${during.speedKmh.toFixed(1)} km/h, right-steer=${during.steer.toFixed(2)}, unwrappedYaw=${cumulativeYaw.toFixed(3)} rad, clockwiseSamples=${clockwiseSamples}/${samples.length}, maxYawRate=${maxAbsAngularZ.toFixed(3)} rad/s, isolated=${setup.protectedCars} cars + ${setup.protectedBuses} buses.`);
 }finally{await browser.close();}
