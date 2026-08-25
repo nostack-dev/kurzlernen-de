@@ -1,0 +1,32 @@
+name: Update touch semantics test once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/update-touch-semantics-test-once.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch semantics test
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/control_semantics_test.mjs'); s=p.read_text()
+          old='''const knob={style:{left:"50%",top:"71%"}};\nconst element={\n  querySelector:()=>knob,\n  getBoundingClientRect:()=>({left:0,top:0,width:180,height:180}),\n};\nconst down=normalizedPointer(element,{type:"pointerdown",pointerId:1,clientX:90,clientY:90});\nnear(down.x,0);near(down.y,.5);\nconst move=normalizedPointer(element,{type:"pointermove",pointerId:1,clientX:90,clientY:52.2});\nnear(move.x,0);near(move.y,0,1e-6,"relative drag should move by half radius, not jump absolute");\nendPointerDrag(element,1);\n\nconst rotatedElement={\n  ...element,\n  closest:()=>({dataset:{soloOrientation:"css-landscape"}}),\n};\nconst rotatedDown=normalizedPointer(rotatedElement,{type:"pointerdown",pointerId:2,clientX:90,clientY:90});\nnear(rotatedDown.x,0);near(rotatedDown.y,.5);\nconst rotatedMove=normalizedPointer(rotatedElement,{type:"pointermove",pointerId:2,clientX:127.8,clientY:90});\nnear(rotatedMove.x,0);near(rotatedMove.y,0,1e-6,"clockwise landscape fallback must map screen-right drag to local stick-up");\nendPointerDrag(rotatedElement,2);'''
+          new='''const element={getBoundingClientRect:()=>({left:0,top:0,width:180,height:180})};\nconst down=normalizedPointer(element,{type:"pointerdown",pointerId:1,clientX:90,clientY:90});\nnear(down.x,0);near(down.y,0,1e-9,"centre touch must centre the stick immediately");\nconst rightDown=normalizedPointer(element,{type:"pointerdown",pointerId:2,clientX:165.6,clientY:90});\nnear(rightDown.x,1,1e-6,"pointerdown must immediately use the touched right-edge position");near(rightDown.y,0);\nconst move=normalizedPointer(element,{type:"pointermove",pointerId:2,clientX:90,clientY:52.2});\nnear(move.x,0);near(move.y,-.5,1e-6,"drag must follow the absolute native finger position");\nendPointerDrag(element,2);'''
+          if old not in s: raise SystemExit('legacy relative/rotated pointer test block not found')
+          s=s.replace(old,new,1)
+          s=s.replace('''console.log("Phone controls passed: radial 5-90 km/h GAME velocity envelope, semantic inversion, axis locks, relative drag, pooled fire FX, and FC-authoritative arming.");''','''console.log("Phone controls passed: radial 5-90 km/h GAME velocity envelope, semantic inversion, axis locks, absolute native touch, pooled fire FX, and FC-authoritative arming.");''')
+          p.write_text(s)
+          PY
+          node --check tests/control_semantics_test.mjs
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/control_semantics_test.mjs
+          git commit -m 'Test absolute native touch semantics'
+          git push origin HEAD:main
