@@ -31,22 +31,26 @@ jobs:
           p=Path('sim/world_rigid_body_physics.mjs');s=p.read_text();a=s.index('  controlBody(record,dt){');b=s.index('  step(dt=1/60',a)
           original=Path('/tmp/original-control-body.txt').read_text()
           injection='''  controlBody(record,dt){\n    if(record.vehicleRig&&record.target&&Number.isFinite(record.target.steer)){const b3=this.b3,body=record.body,velocity=b3.b3Body_GetLinearVelocity([0,0,0],body);record.preVelocity=[...velocity];this.updateVehicleRig(record);record.lateralSlipMps=0;if(length3(record.pendingImpulse)>.0001){const force=record.pendingImpulse.map(value=>value/Math.max(.001,dt));if(record.impulsePoint)b3.b3Body_ApplyForce(body,force,record.impulsePoint,true);else b3.b3Body_ApplyForceToCenter(body,force,true);record.pendingImpulse=[0,0,0];record.impulsePoint=null;}return;}\n'''
-          assert original.startswith('  controlBody(record,dt){\n')
-          preserved=injection+original[len('  controlBody(record,dt){\n'):]
-          p.write_text(s[:a]+preserved+s[b:])
+          assert original.startswith('  controlBody(record,dt){\n');preserved=injection+original[len('  controlBody(record,dt){\n'):];p.write_text(s[:a]+preserved+s[b:])
           PY
           node --check sim/world_rigid_body_physics.mjs
           node --check sim/world_rigid_body_runtime.mjs
           node --check sim/player_car_mode.mjs
           node --check sim/player_vehicle_runtime_v2.mjs
           node tests/player_car_physics_contract_test.mjs
-      - name: Run Box3D wheel-joint regression
+      - name: Inspect and run Box3D regression
         run: |
           set -euxo pipefail
           TMP=/tmp/box3d-test
           rm -rf "$TMP" && mkdir -p "$TMP" && cd "$TMP"
           npm init -y >/dev/null
           npm install --ignore-scripts --no-audit --no-fund box3d.js@0.1.1 >/dev/null
+          node --input-type=module - "$TMP/node_modules/box3d.js/dist/box3d.inline.mjs" <<'JS'
+          import {pathToFileURL} from 'node:url';
+          const p=process.argv[2],m=await import(pathToFileURL(p).href),b3=await m.default();
+          console.log('BOX3D_JOINT_EXPORTS='+Object.keys(b3).filter(k=>/joint/i.test(k)).sort().join(','));
+          console.log('BOX3D_SHAPE_EXPORTS='+Object.keys(b3).filter(k=>/capsule|cylinder|hull/i.test(k)).sort().join(','));
+          JS
           cd "$GITHUB_WORKSPACE"
           node tests/world_rigid_body_physics_box3d_test.mjs "$TMP/node_modules/box3d.js/dist/box3d.inline.mjs"
       - name: Commit runtime
