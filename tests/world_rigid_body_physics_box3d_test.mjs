@@ -25,6 +25,15 @@ assert.ok(blocked.position[0]<2.35,`dynamic vehicle tunneled through static Box3
 assert.ok(blocked.position.every(Number.isFinite));
 
 physics.syncBuildings({hash:"clear",footprintCount:0,prisms:[]});physics.removeBody("car-wall");
+physics.addBody({id:"car-slip",kind:"car",position:[0,-12,.42],yaw:0,halfExtents:[1.78,.82,.42],massKg:1420});
+physics.setPose("car-slip",{position:[0,-12,.42],yaw:0,velocity:[8,5,0],angularVelocity:[0,0,0]});
+physics.setTarget("car-slip",{position:[35,-12,.42],yaw:0,speedMps:9,response:3.8,maxAccelerationMps2:8});
+for(let index=0;index<75;index++)physics.step(1/60,4,6000+index*1000/60);
+const gripped=physics.pose("car-slip");
+assert.ok(Math.abs(gripped.lateralSlipMps)<1.25,`vehicle retained unrealistic lateral slide instead of tire side-force: ${JSON.stringify(gripped)}`);
+assert.ok(gripped.position[0]>6,`tire side-force killed longitudinal vehicle travel: ${JSON.stringify(gripped)}`);
+physics.removeBody("car-slip");
+
 physics.addBody({id:"car-a",kind:"car",position:[-7,8,.42],yaw:0,halfExtents:[1.78,.82,.42],massKg:1420});
 physics.addBody({id:"car-b",kind:"car",position:[7,8,.42],yaw:Math.PI,halfExtents:[1.78,.82,.42],massKg:1420});
 physics.setTarget("car-a",{position:[12,8,.42],yaw:0,speedMps:8});physics.setTarget("car-b",{position:[-12,8,.42],yaw:Math.PI,speedMps:8});
@@ -47,4 +56,4 @@ const falling=physics.pose("police-drone-test");assert.ok(falling.position[2]<ai
 assert.ok(physics.impactCount>=1&&impacts.some(event=>event.nativeContactEvent&&event.approachSpeedMps>1),`native Box3D contact-hit events produced no impact evidence: ${JSON.stringify(impacts.slice(-3))}`);
 
 physics.destroy();
-console.log("WORLD rigid-body Box3D passed: cars and buses stayed on the static ground, vehicles resolved contacts, and EMP gravity made a police drone fall.");
+console.log("WORLD rigid-body Box3D passed: vehicles stay grounded, reject lateral tire slip, resolve contacts, and EMP gravity makes a police drone fall.");
