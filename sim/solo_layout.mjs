@@ -76,11 +76,12 @@ export function installSoloFlightLayout(){
       body.solo-flight .solo-action{bottom:max(16px,var(--solo-safe-bottom));width:92px;height:40px;padding:0 8px;font-size:10px}
     }
 
-    /* In portrait the whole viewport is rotated by simulator.mjs. Percentages
-       therefore size against the resulting logical landscape canvas, not vw. */
+    /* Native portrait: keep every touch target in the browser coordinate system.
+       ARM/KILL get their own row above the lower stick/height-control rail. */
     @media(orientation:portrait){
       body.solo-flight .solo-stick{width:min(25%,150px)}
       body.solo-flight #soloClearance{left:calc(max(12px,var(--solo-safe-left)) + min(25%,150px) + 10px)}
+      body.solo-flight .solo-action{bottom:max(170px,calc(var(--solo-safe-bottom) + 158px))}
     }
     @media(orientation:portrait) and (max-width:340px){
       body.solo-flight #soloTopbar{top:max(3px,var(--solo-safe-top));gap:2px}
@@ -95,7 +96,7 @@ export function installSoloFlightLayout(){
       body.solo-flight #soloClearance strong{font-size:10px}
       body.solo-flight #soloClearance span{font-size:6.5px}
       body.solo-flight .solo-height-pad{height:58px;width:54px;margin-left:-6px;margin-right:-6px}
-      body.solo-flight .solo-action{bottom:max(16px,var(--solo-safe-bottom));width:92px;height:40px;padding:0 8px;font-size:10px}
+      body.solo-flight .solo-action{bottom:max(150px,calc(var(--solo-safe-bottom) + 140px));width:92px;height:40px;padding:0 8px;font-size:10px}
     }
   `;
   document.head.appendChild(style);
