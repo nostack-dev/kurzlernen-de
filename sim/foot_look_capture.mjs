@@ -1,4 +1,3 @@
-import "./aim_magnifier_overlay.mjs";
 import {FPS_PITCH_LIMIT_RAD,fpsStickVelocity,shapeFpsStick,wrapFpsAngleRad} from "./fps_control_math.mjs";
 
 const MOUSE_YAW_PER_PX=.0028;
