@@ -125,22 +125,22 @@ jobs:
           grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" drone_simulator.html
           rm -rf generated
 
-      - name: Fast browser boot + takeoff + physical car steering gate
-        timeout-minutes: 5
+      - name: Fast browser boot + takeoff + physical car steering + imagery gate
+        timeout-minutes: 6
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
           python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
           HTTP_PID=$!
-          trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true; rm -f node_modules' EXIT
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true' EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
           CHROME_BIN="$CHROME_BIN" node tests/takeoff_agl_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/player_car_touch_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/world_imagery_default_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
 
-      - name: Advisory FPS regression smoke
-        continue-on-error: true
+      - name: FPS regression smoke
         timeout-minutes: 4
         run: |
           set -euxo pipefail
