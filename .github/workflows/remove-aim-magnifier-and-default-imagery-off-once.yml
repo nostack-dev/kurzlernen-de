@@ -34,9 +34,15 @@ jobs:
 
           # Remove the old one-shot migration that could overwrite a stored preference.
           p=Path('sim/world_liveliness.mjs'); s=p.read_text()
-          s=s.replace('const IMAGERY_DEFAULT_OFF_MIGRATION="arondight45WorldImageryDefaultOffV3";\n','')
-          s=s.replace(',forcedDefaultOff=false;',';')
-          s=re.sub(r'\nfunction forceSatelliteDefaultOff\(\)\{.*?\n\}\nforceSatelliteDefaultOff\(\);\n','\n',s,count=1,flags=re.S)
+          s=re.sub(r'^const IMAGERY_DEFAULT_OFF_MIGRATION=.*\n','',s,count=1,flags=re.M)
+          s=s.replace(',forcedDefaultOff=false','')
+          start=s.find('function forceSatelliteDefaultOff(){')
+          call=s.find('forceSatelliteDefaultOff();',start)
+          if start<0 or call<0:
+              raise SystemExit('legacy imagery migration function markers missing')
+          end=call+len('forceSatelliteDefaultOff();')
+          if end<len(s) and s[end]=='\n': end+=1
+          s=s[:start]+s[end:]
           if 'IMAGERY_DEFAULT_OFF_MIGRATION' in s or 'forceSatelliteDefaultOff' in s or 'forcedDefaultOff' in s:
               raise SystemExit('legacy imagery default migration still present')
           p.write_text(s)
