@@ -419,7 +419,14 @@ class PhysicsModel {
     if(offset<=.01)return false;
     b3.b3Body_SetTransform(this.body,[safe[0],safe[1],AIRFRAME_SPAWN_Z_M],this.rotation());b3.b3Body_SetLinearVelocity(this.body,[0,0,0]);b3.b3Body_SetAngularVelocity(this.body,[0,0,0]);this.syncPresentationSnapshots();return true;
   }
-  rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.resolveWorldBuildingLaunch();this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,launchExclusionPoint:this.worldBuildingLaunchPoint||[Infinity,Infinity]});this.worldBuildingCollisionRevision++;}
+  rebuildWorldBuildingCollisions(){
+  if(!this.world)return;
+  destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);
+  this.resolveWorldBuildingLaunch();
+  this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,launchExclusionPoint:this.worldBuildingLaunchPoint||[Infinity,Infinity]});
+  this.snapSpawnToGround();
+  this.worldBuildingCollisionRevision++;
+}
   buildGraphics(){
     if(this.group)this.scene.remove(this.group);
     this.group=new THREE.Group();this.group.userData.arondightAirframe=true;this.scene.add(this.group);this.rotors=[];
@@ -473,6 +480,25 @@ class PhysicsModel {
     this.renderRotation.set(q0[0],q0[1],q0[2],q0[3]).slerp(this.renderCurrentQuaternion.set(q1[0],q1[1],q1[2],q1[3]),a).normalize();
     return this.presentationPoseCache;
   }
+  spawnGroundRaycast(point=this.position()){
+  const x=Number(point?.[0])||0,y=Number(point?.[1])||0,currentZ=Number(point?.[2])||0,top=Math.max(256,currentZ+128),bottom=-256,translation=[0,0,bottom-top],filter=b3.b3DefaultQueryFilter();
+  filter.categoryBits=QUERY_CAMERA;filter.maskBits=COLLISION_TERRAIN;
+  const hit=b3.b3World_CastRayClosest(this.world,[x,y,top],translation,filter),fraction=Number(hit?.fraction);
+  if(!hit?.hit||!Number.isFinite(fraction)||fraction<0||fraction>1)return{valid:false,groundZ:0,spawnZ:AIRFRAME_SPAWN_Z_M,fraction:1};
+  const groundZ=top+translation[2]*fraction,spawnZ=groundZ+AIRFRAME_GROUND_SUPPORT_M+AIRFRAME_SPAWN_SEPARATION_M;
+  return{valid:Number.isFinite(groundZ)&&Number.isFinite(spawnZ),groundZ,spawnZ,fraction};
+}
+snapSpawnToGround(){
+  if(!this.body)return false;
+  const position=this.position(),velocity=this.linear(),angular=this.angular(),reference=Array.isArray(this.worldBuildingLaunchPoint)&&this.worldBuildingLaunchPoint.length===2&&this.worldBuildingLaunchPoint.every(Number.isFinite)?this.worldBuildingLaunchPoint:[position[0],position[1]],nearLaunch=Math.hypot(position[0]-reference[0],position[1]-reference[1])<.14,idle=norm(velocity)<.20&&norm(angular)<.80;
+  if(!nearLaunch||!idle)return false;
+  const ray=this.spawnGroundRaycast(position),viewport=$("viewport");
+  if(!ray.valid){if(viewport)viewport.dataset.airframeSpawnGroundRaycast="miss";return false;}
+  const moved=Math.abs(position[2]-ray.spawnZ)>.0005;
+  if(moved){b3.b3Body_SetTransform(this.body,[position[0],position[1],ray.spawnZ],this.rotation());b3.b3Body_SetLinearVelocity(this.body,[0,0,0]);b3.b3Body_SetAngularVelocity(this.body,[0,0,0]);this.syncPresentationSnapshots();}
+  if(viewport){viewport.dataset.airframeSpawnGroundRaycast="hit";viewport.dataset.airframeSpawnGroundZ=ray.groundZ.toFixed(4);viewport.dataset.airframeSpawnZ=ray.spawnZ.toFixed(4);viewport.dataset.airframeSpawnGroundClearanceM=(ray.spawnZ-ray.groundZ).toFixed(4);viewport.dataset.airframeSpawnGroundAdjusted=moved?"1":"0";}
+  return moved;
+}
   groundRange(maxRange=12){
     const range=clamp(Number(maxRange)||12,.05,NAV_AGL_RAY_MAX_M),origin=this.worldPoint([0,0,-.018]),down=this.worldVector([0,0,-1]),verticalProjection=-down[2];
     if(!(verticalProjection>.55))return{valid:false,slant:0,agl:0,verticalProjection};
