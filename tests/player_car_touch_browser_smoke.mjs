@@ -30,7 +30,7 @@ try{
   const yaw0=Number(beforePose?.yaw),yawDelta=Math.atan2(Math.sin(during.bodyYaw-yaw0),Math.cos(during.bodyYaw-yaw0));
   await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});await sleep(120);
   const released=await page.evaluate(()=>({throttle:document.querySelector("#viewport")?.dataset.vehicleTouchThrottle,steer:document.querySelector("#viewport")?.dataset.vehicleTouchSteer,gasHeld:document.getElementById("vehicleGas")?.classList.contains("held")}));
-  if(!during.active||during.throttle<.45||during.steer<.2||during.speedKmh<=0||!during.gasHeld||!Number.isFinite(yaw0)||!Number.isFinite(during.bodyYaw)||Math.abs(yawDelta)<.035||during.headingSource!=="box3d-body-yaw-v1"||during.steeringPhysics!=="box3d-bicycle-yaw-rate-v1")throw new Error(`real multitouch driving did not physically steer the Box3D car: ${JSON.stringify({positioned,boxes,beforePose,during,yawDelta})}`);
+  if(!during.active||during.throttle<.45||during.steer<.2||during.speedKmh<=0||!during.gasHeld||!Number.isFinite(yaw0)||!Number.isFinite(during.bodyYaw)||yawDelta>-.035||during.headingSource!=="box3d-body-yaw-v1"||during.steeringPhysics!=="box3d-bicycle-yaw-rate-v1")throw new Error(`right touch steer did not rotate the real Box3D car clockwise: ${JSON.stringify({positioned,boxes,beforePose,during,yawDelta})}`);
   if(released.throttle!=="0"||Math.abs(Number(released.steer||0))>.02||released.gasHeld)throw new Error(`vehicle touch input stuck after release: ${JSON.stringify(released)}`);
-  console.log(`Mobile car touch smoke passed: ${during.speedKmh.toFixed(1)} km/h, steer=${during.steer.toFixed(2)}, physicalYawDelta=${yawDelta.toFixed(3)} rad, parkedSource=${positioned.parked}.`);
+  console.log(`Mobile car touch smoke passed: ${during.speedKmh.toFixed(1)} km/h, right-steer=${during.steer.toFixed(2)}, clockwise physicalYawDelta=${yawDelta.toFixed(3)} rad, parkedSource=${positioned.parked}.`);
 }finally{await browser.close();}
