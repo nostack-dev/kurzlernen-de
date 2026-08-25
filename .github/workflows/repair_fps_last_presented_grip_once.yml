@@ -1,0 +1,51 @@
+name: Repair FPS last-presented grip once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/repair_fps_last_presented_grip_once.yml']
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Latch aim from last presented hip grip
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/first_person_weapon_runtime_v3.mjs')
+          s=p.read_text()
+          old='const lastBasePosition=new THREE.Vector3(),lastOutputPosition=new THREE.Vector3();'
+          new='const lastBasePosition=new THREE.Vector3(),lastOutputPosition=new THREE.Vector3(),lastHipPivotCameraLocal=new THREE.Vector3(),lastHipPivotNdc=new THREE.Vector2();'
+          assert old in s
+          s=s.replace(old,new,1)
+          old='let aimPivotLatched=false,aimPivotMode="",latchedPivotDepthM=.7,lastLatchContinuityM=0;'
+          new='let aimPivotLatched=false,aimPivotMode="",latchedPivotDepthM=.7,lastLatchContinuityM=0,lastHipPivotValid=false,lastHipPivotMode="";'
+          assert old in s
+          s=s.replace(old,new,1)
+          old_func='function latchAimPivot(gun,pivot,camera,mode){gun.updateMatrixWorld(true);camera.updateMatrixWorld?.(true);pivot.getWorldPosition(pivotWorld);latchedPivotCameraLocal.copy(pivotWorld);camera.worldToLocal(latchedPivotCameraLocal);latchedPivotDepthM=Math.max(.05,-latchedPivotCameraLocal.z);projectedPivot.copy(pivotWorld).project(camera);latchedPivotNdc.set(projectedPivot.x,projectedPivot.y);desiredPivotCameraLocal.copy(latchedPivotCameraLocal);desiredPivotWorld.copy(desiredPivotCameraLocal);camera.localToWorld(desiredPivotWorld);lastLatchContinuityM=desiredPivotWorld.distanceTo(pivotWorld);aimPivotLatched=true;aimPivotMode=mode;const view=viewport();if(view){view.dataset.walkWeaponGripLatchActive="1";view.dataset.walkWeaponGripLatchMode=mode;view.dataset.walkWeaponGripLatchNdc=`${latchedPivotNdc.x.toFixed(4)},${latchedPivotNdc.y.toFixed(4)}`;view.dataset.walkWeaponGripLatchDepthM=latchedPivotDepthM.toFixed(4);view.dataset.walkWeaponAimStartContinuityM=lastLatchContinuityM.toFixed(6);}}'
+          new_func='function latchAimPivot(gun,pivot,camera,mode){gun.updateMatrixWorld(true);camera.updateMatrixWorld?.(true);pivot.getWorldPosition(pivotWorld);const usePresented=lastHipPivotValid&&lastHipPivotMode===mode;if(usePresented){latchedPivotCameraLocal.copy(lastHipPivotCameraLocal);desiredPivotWorld.copy(latchedPivotCameraLocal);camera.localToWorld(desiredPivotWorld);projectedPivot.copy(desiredPivotWorld).project(camera);lastLatchContinuityM=0;}else{latchedPivotCameraLocal.copy(pivotWorld);camera.worldToLocal(latchedPivotCameraLocal);desiredPivotWorld.copy(latchedPivotCameraLocal);camera.localToWorld(desiredPivotWorld);projectedPivot.copy(pivotWorld).project(camera);lastLatchContinuityM=desiredPivotWorld.distanceTo(pivotWorld);}latchedPivotDepthM=Math.max(.05,-latchedPivotCameraLocal.z);latchedPivotNdc.set(projectedPivot.x,projectedPivot.y);desiredPivotCameraLocal.copy(latchedPivotCameraLocal);aimPivotLatched=true;aimPivotMode=mode;const view=viewport();if(view){view.dataset.walkWeaponGripLatchActive="1";view.dataset.walkWeaponGripLatchMode=mode;view.dataset.walkWeaponGripLatchSource=usePresented?"last-presented-hip-v1":"current-hip-fallback";view.dataset.walkWeaponGripLatchNdc=`${latchedPivotNdc.x.toFixed(4)},${latchedPivotNdc.y.toFixed(4)}`;view.dataset.walkWeaponGripLatchDepthM=latchedPivotDepthM.toFixed(4);view.dataset.walkWeaponAimStartContinuityM=lastLatchContinuityM.toFixed(6);}}\nfunction capturePresentedHipPivot(gun,camera,mode){const pivot=pivotNode(gun,mode);if(!pivot||!camera)return false;gun.updateMatrixWorld(true);camera.updateMatrixWorld?.(true);pivot.getWorldPosition(pivotWorld);lastHipPivotCameraLocal.copy(pivotWorld);camera.worldToLocal(lastHipPivotCameraLocal);projectedPivot.copy(pivotWorld).project(camera);lastHipPivotNdc.set(projectedPivot.x,projectedPivot.y);lastHipPivotMode=mode;lastHipPivotValid=true;const view=viewport();if(view){view.dataset.walkWeaponHipGripNdc=`${lastHipPivotNdc.x.toFixed(4)},${lastHipPivotNdc.y.toFixed(4)}`;view.dataset.walkWeaponHipGripSource="last-presented-provider-frame-v1";}return true;}'
+          assert old_func in s, 'latch function contract changed'
+          s=s.replace(old_func,new_func,1)
+          old_provider='function applyProviderPresentation({camera,scene,gun=null,now=performance.now()}={}){const root=gun||scene?.getObjectByName?.("WALK_PISTOL_3D");if(!camera||!root)return false;const mode=String(footWeapons()?.mode||"pistol");setWeaponModeVisual(root,mode);const applied=applyLatchedAimTransform(root,camera,now);const view=viewport();if(view){view.dataset.walkWeaponPresentationCamera="walk-camera-provider-v1";view.dataset.walkWeaponPresentationOwner="walk-camera-provider+weapon-runtime-v1";}return applied;}'
+          new_provider='function applyProviderPresentation({camera,scene,gun=null,now=performance.now()}={}){const root=gun||scene?.getObjectByName?.("WALK_PISTOL_3D");if(!camera||!root)return false;const mode=String(footWeapons()?.mode||"pistol");setWeaponModeVisual(root,mode);const applied=applyLatchedAimTransform(root,camera,now);if(!applied&&!screenAimActive)capturePresentedHipPivot(root,camera,mode);const view=viewport();if(view){view.dataset.walkWeaponPresentationCamera="walk-camera-provider-v2";view.dataset.walkWeaponPresentationOwner="walk-camera-provider+weapon-runtime-v2";}return applied;}'
+          assert old_provider in s, 'provider presentation contract changed'
+          s=s.replace(old_provider,new_provider,1)
+          s=s.replace('if(gun!==lastGun){hasPresentationSnapshot=false;lastGun=gun;lastMode="";releaseAimPivot("weapon-root-change");}','if(gun!==lastGun){hasPresentationSnapshot=false;lastHipPivotValid=false;lastGun=gun;lastMode="";releaseAimPivot("weapon-root-change");}',1)
+          s=s.replace('if(mode!==lastMode){lastMode=mode;hasPresentationSnapshot=false;releaseAimPivot("weapon-mode-change");}','if(mode!==lastMode){lastMode=mode;hasPresentationSnapshot=false;lastHipPivotValid=false;releaseAimPivot("weapon-mode-change");}',1)
+          p.write_text(s)
+          PY
+          node --check sim/first_person_weapon_runtime_v3.mjs
+          grep -q 'last-presented-hip-v1' sim/first_person_weapon_runtime_v3.mjs
+          grep -q 'walk-camera-provider+weapon-runtime-v2' sim/first_person_weapon_runtime_v3.mjs
+      - name: Commit repair
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/first_person_weapon_runtime_v3.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m 'Latch FPS aim from last presented hip grip'
+          git push origin HEAD:main
