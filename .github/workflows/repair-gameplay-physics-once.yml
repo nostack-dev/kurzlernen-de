@@ -13,6 +13,14 @@ jobs:
       - name: Patch runtime
         run: |
           set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/player_car_mode.mjs');s=p.read_text()
+          current='clearFootKeys();resetPads();suppressFootGamepad(true);active=true;showLocalDriver(vehicle.root);setDrivingUi(true);'
+          normalized='clearFootKeys();resetPads();suppressFootGamepad(true);setDrivingUi(true);active=true;showLocalDriver(vehicle.root);'
+          if current in s:s=s.replace(current,normalized,1)
+          p.write_text(s)
+          PY
           python3 .github/repair_gameplay_physics_once.py
           node --check sim/world_rigid_body_physics.mjs
           node --check sim/world_rigid_body_runtime.mjs
