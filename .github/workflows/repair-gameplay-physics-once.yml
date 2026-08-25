@@ -20,6 +20,9 @@ jobs:
           normalized='clearFootKeys();resetPads();suppressFootGamepad(true);setDrivingUi(true);active=true;showLocalDriver(vehicle.root);'
           if current in s:s=s.replace(current,normalized,1)
           p.write_text(s)
+          p=Path('sim/player_vehicle_runtime_v2.mjs');s=p.read_text()
+          if 'function updateHumanVelocity(now){' in s:s=s.replace('function updateHumanVelocity(now){','function updateHumanVelocity(now=performance.now()){',1)
+          p.write_text(s)
           PY
           python3 .github/repair_gameplay_physics_once.py
           node --check sim/world_rigid_body_physics.mjs
