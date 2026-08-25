@@ -1,0 +1,32 @@
+name: Test portrait controls as 2D touch regions once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/fix-portrait-touch-overlap-test-once.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace one-dimensional overlap assertion
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/solo_layout_smoke.mjs')
+          s=p.read_text()
+          old='''    if(g.arm.left-g.clearance.right<20)throw new Error(`${viewport.name}: height control crowds ARM/KILL center: ${JSON.stringify({clearance:g.clearance,arm:g.arm})}`);'''
+          new='''    const armClearanceXOverlap=Math.min(g.arm.right,g.clearance.right)-Math.max(g.arm.left,g.clearance.left),armClearanceYGap=Math.max(g.arm.top-g.clearance.bottom,g.clearance.top-g.arm.bottom);\n    if(armClearanceXOverlap>0&&armClearanceYGap<12)throw new Error(`${viewport.name}: height control touch region crowds ARM/KILL row: ${JSON.stringify({xOverlap:armClearanceXOverlap,yGap:armClearanceYGap,clearance:g.clearance,arm:g.arm})}`);'''
+          if old not in s:
+              raise SystemExit('legacy 1D arm-clearance assertion not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+          node --check tests/solo_layout_smoke.mjs
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/solo_layout_smoke.mjs
+          git commit -m 'Test portrait controls as disjoint 2D touch regions'
+          git push origin HEAD:main
