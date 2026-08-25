@@ -1,0 +1,38 @@
+name: Verify car touch once
+on:
+  push:
+    paths:
+      - '.github/workflows/verify-car-touch-once.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Wait for exact Pages build
+        run: |
+          set -euxo pipefail
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl -fsSL --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' "https://kurzlernen.de/drone_simulator.html?car-touch-ci=${GITHUB_SHA}-${attempt}" -o /tmp/live.html \
+              && grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" /tmp/live.html; then
+              ready=1
+              break
+            fi
+            sleep 4
+          done
+          test "$ready" = 1
+      - name: Run real iPhone multitouch car smoke
+        run: |
+          set -euxo pipefail
+          tmp="$(mktemp -d)"
+          cd "$tmp"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund puppeteer-core@24.16.0
+          ln -s "$tmp/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          CHROME_BIN="$CHROME_BIN" node tests/player_car_touch_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?car-touch-ci=${GITHUB_SHA}"
