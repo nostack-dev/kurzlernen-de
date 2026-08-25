@@ -10,9 +10,16 @@ assert.ok(upperLeft.x<-.49&&upperLeft.y<-.49,"drag must follow absolute browser 
 
 const sim=readFileSync("sim/simulator.mjs","utf8");
 const semantics=readFileSync("sim/control_semantics.mjs","utf8");
+const gate=readFileSync("sim/landscape_only_gate.mjs","utf8");
+const layout=readFileSync("sim/solo_layout.mjs","utf8");
 assert.ok(!sim.includes("transform:rotate(90deg)!important"),"simulator must never CSS-rotate its display");
-assert.ok(sim.includes('orientationPolicy="native-never-rotate-v1"'));
-assert.ok(sim.includes('soloOrientation="native"'));
+assert.ok(!gate.includes("rotate(90deg)"),"landscape enforcement must never fake rotation with CSS");
+assert.ok(gate.includes('LANDSCAPE_ONLY_POLICY="landscape-only-v1"'));
+assert.ok(gate.includes('innerHeight>innerWidth'),"portrait must be detected from the native viewport");
+assert.ok(gate.includes('orientationBlocked=next?"portrait":"none"'),"portrait must be explicitly blocked");
+assert.ok(gate.includes('screen.orientation.lock("landscape")'),"supported browsers should best-effort lock landscape");
+assert.ok(layout.includes('import "./landscape_only_gate.mjs";'),"landscape gate must load for menu and simulator");
+assert.ok(!layout.includes("@media(orientation:portrait)"),"there must be no supported portrait flight layout");
 assert.ok(!semantics.includes("cssLandscapeQuarterTurn"),"touch semantics must not contain rotated-coordinate remapping");
 assert.ok(!semantics.includes("pointerDrags=new WeakMap"),"sticks must not use relative drag state");
 
@@ -23,4 +30,4 @@ assert.ok(simulator.includes('pointer=e.pointerId;apply(e);try{el.setPointerCapt
 assert.ok(simulator.includes('soloHeightPointer=event.pointerId;applySoloHeightPointer(event);try{soloHeightPad.setPointerCapture?.(soloHeightPointer);}catch{}'),"height pad must apply before capture");
 assert.ok(walk.includes('pointer=e.pointerId;apply(e);try{el.setPointerCapture?.(pointer);}catch{}'),"walk stick must apply before capture");
 assert.ok(car.includes('try{el.setPointerCapture?.(pointer);}catch{}apply(e);'),"car capture failure must not block touch input");
-console.log("Mobile native touch contract passed: native display, absolute touch and non-blocking pointer capture.");
+console.log("Mobile contract passed: landscape-only UI, no CSS rotation, absolute touch and non-blocking pointer capture.");
