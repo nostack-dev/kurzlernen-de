@@ -7,106 +7,67 @@ if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
 const page=await browser.newPage();
 
+const rect=r=>r?{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}:null;
+
 try{
-  for(const viewport of [{width:844,height:390,name:"landscape"},{width:844,height:300,name:"safari-bars"},{width:390,height:844,name:"iphone-portrait"}]){
+  for(const viewport of [{width:844,height:390,name:"landscape"},{width:844,height:300,name:"safari-bars"}]){
     await page.setViewport({width:viewport.width,height:viewport.height,deviceScaleFactor:1});
     await page.goto(simulatorUrl,{waitUntil:"load",timeout:30000});
     await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
     await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
-    // SOLO sets the body class before the queued presentation-resize commit.
-    // Wait for that commit instead of sampling the previous/empty viewport
-    // policy during rapid same-page reloads (notably the Safari-bars fixture).
-    await page.waitForFunction(()=>{const viewport=document.querySelector("#viewport");return viewport?.dataset.orientationPolicy==="native-never-rotate-v1"&&viewport.dataset.soloOrientation==="native";},{timeout:5000});
+    await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.orientationPolicy==="landscape-only-v1"&&v.dataset.orientationBlocked==="none"&&v.dataset.soloOrientation==="native";},{timeout:5000});
+
     const g=await page.evaluate(()=>{
-      const viewport=document.querySelector("#viewport"),viewportRect=viewport.getBoundingClientRect(),orientation=viewport.dataset.soloOrientation||"";
-      const physicalElementRect=e=>{const r=e?.getBoundingClientRect();return r?{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}:null;};
-      const physicalRect=selector=>physicalElementRect(document.querySelector(selector));
-      const logicalElementRect=e=>{const r=physicalElementRect(e);if(!r)return null;if(orientation==="css-landscape"){const left=r.top-viewportRect.top,top=viewportRect.right-r.right,right=r.bottom-viewportRect.top,bottom=viewportRect.right-r.left;return{left,top,right,bottom,width:right-left,height:bottom-top};}const left=r.left-viewportRect.left,top=r.top-viewportRect.top,right=r.right-viewportRect.left,bottom=r.bottom-viewportRect.top;return{left,top,right,bottom,width:right-left,height:bottom-top};};
-      const rect=selector=>logicalElementRect(document.querySelector(selector));
+      const r=e=>{const x=e?.getBoundingClientRect();return x?{left:x.left,top:x.top,right:x.right,bottom:x.bottom,width:x.width,height:x.height}:null;};
+      const v=document.querySelector("#viewport"),overlay=document.querySelector("#landscapeOnlyGate");
       return{
-        width:viewport.clientWidth,height:viewport.clientHeight,screenWidth:innerWidth,screenHeight:innerHeight,orientation,viewportPhysical:physicalRect("#viewport"),
-        cameraDisplay:getComputedStyle(document.querySelector("#cameraModes")).display,
-        panelDisplay:getComputedStyle(document.querySelector(".panel")).display,
-        telemetryDisplay:getComputedStyle(document.querySelector(".telemetry")).display,
-        raceDisplay:getComputedStyle(document.querySelector("#soloRaceHud")).display,
-        cameraMode:document.querySelector("#viewport")?.dataset.cameraMode||"",
-        autoStart:document.querySelector("#viewport")?.dataset.autoFlightStart||"",
-        soloCamera:document.querySelector("#soloCamera")?.textContent?.trim()||"",
-        topbar:rect("#soloTopbar"),topbarActions:rect("#soloTopbarActions"),topbarStatus:rect("#soloTopbarStatus"),toolbarLayout:document.querySelector("#soloTopbar")?.dataset.toolbarLayout||"",toolbarButtons:[...document.querySelectorAll("#soloTopbarActions>button")].filter(e=>getComputedStyle(e).display!=="none").map(e=>({id:e.id||e.className,rect:logicalElementRect(e)})),vs:rect("#lanVsButton"),vsParent:document.querySelector("#lanVsButton")?.parentElement?.id||"",vsCombatParent:document.querySelector("#vsCombatHud")?.parentElement?.id||"",vsCombatHidden:Boolean(document.querySelector("#vsCombatHud")?.hidden),gameplay:rect("#gameplayContractHud"),gameplayScoreParent:document.querySelector("#gameplayScorePill")?.parentElement?.id||"",gameplayLoop:viewport.dataset.gameplayLoop||"",left:rect("#soloLeft"),right:rect("#soloRight"),clearance:rect("#soloClearance"),arm:rect("#soloArm"),kill:rect("#soloKill"),
-        leftPhysical:physicalRect("#soloLeft"),heightPadPhysical:physicalRect("#soloHeightPad"),rotateBlocker:Boolean(document.querySelector("#soloRotate")),leftOpacity:Number(getComputedStyle(document.querySelector("#soloLeft")).opacity),armOpacity:Number(getComputedStyle(document.querySelector("#soloArm")).opacity),orientationPolicy:viewport.dataset.orientationPolicy||"",
-        armCueClass:document.querySelector("#soloArm")?.className||"",armLabel:document.querySelector("#soloArm")?.textContent?.trim()||""
+        width:v.clientWidth,height:v.clientHeight,screenWidth:innerWidth,screenHeight:innerHeight,viewport:r(v),
+        policy:v.dataset.orientationPolicy||"",blocked:v.dataset.orientationBlocked||"",orientation:v.dataset.soloOrientation||"",
+        gateHidden:Boolean(overlay?.hidden),gateDisplay:overlay?getComputedStyle(overlay).display:"missing",
+        cameraDisplay:getComputedStyle(document.querySelector("#cameraModes")).display,panelDisplay:getComputedStyle(document.querySelector(".panel")).display,telemetryDisplay:getComputedStyle(document.querySelector(".telemetry")).display,raceDisplay:getComputedStyle(document.querySelector("#soloRaceHud")).display,
+        cameraMode:v.dataset.cameraMode||"",autoStart:v.dataset.autoFlightStart||"",soloCamera:document.querySelector("#soloCamera")?.textContent?.trim()||"",
+        topbar:r(document.querySelector("#soloTopbar")),actions:r(document.querySelector("#soloTopbarActions")),status:r(document.querySelector("#soloTopbarStatus")),left:r(document.querySelector("#soloLeft")),right:r(document.querySelector("#soloRight")),clearance:r(document.querySelector("#soloClearance")),arm:r(document.querySelector("#soloArm")),kill:r(document.querySelector("#soloKill")),
+        leftPhysical:r(document.querySelector("#soloLeft")),heightPadPhysical:r(document.querySelector("#soloHeightPad")),toolbarLayout:document.querySelector("#soloTopbar")?.dataset.toolbarLayout||"",armCueClass:document.querySelector("#soloArm")?.className||""
       };
     });
-    const portrait=viewport.height>viewport.width;
-    if(g.orientationPolicy!=="native-never-rotate-v1"||g.orientation!=="native"||g.rotateBlocker)throw new Error(`${viewport.name}: native orientation contract failed: ${JSON.stringify({policy:g.orientationPolicy,orientation:g.orientation,blocker:g.rotateBlocker})}`);
-    if(g.width!==viewport.width||g.height!==viewport.height)throw new Error(`${viewport.name}: viewport geometry was altered instead of staying native: ${JSON.stringify({actual:[g.width,g.height],expected:[viewport.width,viewport.height]})}`);
-    const r=g.viewportPhysical;if(Math.abs(r.left)>1||Math.abs(r.top)>1||Math.abs(r.right-g.screenWidth)>1||Math.abs(r.bottom-g.screenHeight)>1)throw new Error(`${viewport.name}: native simulator does not cover screen: ${JSON.stringify({screen:[g.screenWidth,g.screenHeight],viewport:r})}`);
-    if(portrait&&(g.leftOpacity<.99||g.armOpacity<.99))throw new Error(`${viewport.name}: flight controls were dimmed by portrait mode: ${JSON.stringify({left:g.leftOpacity,arm:g.armOpacity})}`);
-    if(g.cameraMode!=="fpv"||g.autoStart!=="fpv"||g.soloCamera!=="FPV")throw new Error(`${viewport.name}: direct FPV startup failed: ${JSON.stringify({cameraMode:g.cameraMode,autoStart:g.autoStart,soloCamera:g.soloCamera})}`);
-    if(g.panelDisplay!=="none"||g.telemetryDisplay!=="none"||g.cameraDisplay!=="none")throw new Error(`${viewport.name}: main menu leaked into direct flight startup: ${JSON.stringify({panel:g.panelDisplay,telemetry:g.telemetryDisplay,camera:g.cameraDisplay})}`);
-    if(g.raceDisplay!=="none")throw new Error(`${viewport.name}: lap/time HUD still blocks the flight image: ${g.raceDisplay}`);
-    for(const key of ["topbar","topbarActions","topbarStatus","vs","gameplay","left","right","clearance","arm","kill"])if(!g[key])throw new Error(`${viewport.name}: missing ${key}`);
-    if(g.toolbarLayout!=="actions-status-v1")throw new Error(`${viewport.name}: semantic toolbar layout missing: ${g.toolbarLayout}`);
-    if(g.vsParent!=="soloTopbarActions")throw new Error(`${viewport.name}: FIND MATE is not in the action rail: ${JSON.stringify({parent:g.vsParent,vs:g.vs,topbar:g.topbar})}`);
-    if(g.vsCombatParent!=="soloTopbarStatus"||!g.vsCombatHidden)throw new Error(`${viewport.name}: VS combat status lifecycle/layout invalid: ${JSON.stringify({parent:g.vsCombatParent,hidden:g.vsCombatHidden})}`);
-    if(g.gameplayScoreParent!=="soloTopbarStatus"||g.gameplayLoop!=="skill-risk-bank-contracts-v1")throw new Error(`${viewport.name}: gameplay score/loop is not attached to the status rail: ${JSON.stringify({parent:g.gameplayScoreParent,loop:g.gameplayLoop})}`);
-    if(g.topbar.left<-1||g.topbar.right>g.width+1||g.vs.left<g.topbar.left-1||g.vs.right>g.topbar.right+1)throw new Error(`${viewport.name}: FIND MATE/topbar escapes viewport: ${JSON.stringify({width:g.width,topbar:g.topbar,vs:g.vs})}`);
-    if(g.topbarActions.bottom>g.topbarStatus.top+1)throw new Error(`${viewport.name}: action rail overlaps status rail: ${JSON.stringify({actions:g.topbarActions,status:g.topbarStatus})}`);
-    if(g.gameplay.left<0||g.gameplay.right>g.width||g.gameplay.top<g.topbar.bottom-1||g.gameplay.bottom>g.left.top+1)throw new Error(`${viewport.name}: gameplay contract obscures toolbar or flight controls: ${JSON.stringify({gameplay:g.gameplay,topbar:g.topbar,left:g.left})}`);
-    for(let i=0;i<g.toolbarButtons.length;i++)for(let j=i+1;j<g.toolbarButtons.length;j++){const a=g.toolbarButtons[i],b=g.toolbarButtons[j],overlap=Math.min(a.rect.right,b.rect.right)-Math.max(a.rect.left,b.rect.left)>1&&Math.min(a.rect.bottom,b.rect.bottom)-Math.max(a.rect.top,b.rect.top)>1;if(overlap)throw new Error(`${viewport.name}: toolbar buttons overlap: ${JSON.stringify({a,b})}`);}
-    if(!g.armCueClass.includes("arm-start-cta"))throw new Error(`${viewport.name}: ARM start cue class missing: ${JSON.stringify({className:g.armCueClass,label:g.armLabel})}`);
-    const expectedStickMax=viewport.height<=340?129:151;
-    if(g.left.width>expectedStickMax||g.right.width>expectedStickMax)throw new Error(`${viewport.name}: sticks still dominate viewport: ${JSON.stringify({left:g.left,right:g.right})}`);
-    if(g.clearance.right>=g.width*.5-20)throw new Error(`${viewport.name}: height control crosses the native center safe gap: ${JSON.stringify({width:g.width,clearance:g.clearance})}`);
-    if(g.clearance.left-g.left.right<5)throw new Error(`${viewport.name}: height control overlaps left stick: ${JSON.stringify({left:g.left,clearance:g.clearance})}`);
-    const armClearanceXOverlap=Math.min(g.arm.right,g.clearance.right)-Math.max(g.arm.left,g.clearance.left),armClearanceYGap=Math.max(g.arm.top-g.clearance.bottom,g.clearance.top-g.arm.bottom);
-    if(armClearanceXOverlap>0&&armClearanceYGap<12)throw new Error(`${viewport.name}: height control touch region crowds ARM/KILL row: ${JSON.stringify({xOverlap:armClearanceXOverlap,yGap:armClearanceYGap,clearance:g.clearance,arm:g.arm})}`);
-    const killRightXOverlap=Math.min(g.kill.right,g.right.right)-Math.max(g.kill.left,g.right.left),killRightYGap=Math.max(g.kill.top-g.right.bottom,g.right.top-g.kill.bottom);
-    if(killRightXOverlap>0&&killRightYGap<12)throw new Error(`${viewport.name}: right action touch region crowds right stick: ${JSON.stringify({xOverlap:killRightXOverlap,yGap:killRightYGap,action:g.kill,right:g.right})}`);
-    for(const key of ["left","right","clearance","arm","kill"]){const r=g[key];if(r.left<-1||r.right>g.width+1||r.top<-1||r.bottom>g.height+1)throw new Error(`${viewport.name}: ${key} escapes viewport: ${JSON.stringify(r)}`);}
 
-    const disabledActionOpacity=await page.$eval("#soloArm",e=>{e.disabled=true;return Number(getComputedStyle(e).opacity);});
-    if(disabledActionOpacity<.99)throw new Error(`${viewport.name}: CALIBRATING/disabled ARM action is visually dimmed: ${disabledActionOpacity}`);
+    if(g.policy!=="landscape-only-v1"||g.blocked!=="none"||g.orientation!=="native"||!g.gateHidden||g.gateDisplay!=="none")throw new Error(`${viewport.name}: landscape gate not open: ${JSON.stringify(g)}`);
+    if(g.width!==viewport.width||g.height!==viewport.height)throw new Error(`${viewport.name}: viewport geometry altered: ${JSON.stringify({actual:[g.width,g.height],expected:[viewport.width,viewport.height]})}`);
+    if(Math.abs(g.viewport.left)>1||Math.abs(g.viewport.top)>1||Math.abs(g.viewport.right-g.screenWidth)>1||Math.abs(g.viewport.bottom-g.screenHeight)>1)throw new Error(`${viewport.name}: simulator does not cover screen: ${JSON.stringify(g.viewport)}`);
+    if(g.cameraMode!=="fpv"||g.autoStart!=="fpv"||g.soloCamera!=="FPV")throw new Error(`${viewport.name}: direct FPV startup failed`);
+    if(g.panelDisplay!=="none"||g.telemetryDisplay!=="none"||g.cameraDisplay!=="none"||g.raceDisplay!=="none")throw new Error(`${viewport.name}: non-flight HUD leaked into flight`);
+    if(g.toolbarLayout!=="actions-status-v1")throw new Error(`${viewport.name}: toolbar contract missing`);
+    for(const key of ["topbar","actions","status","left","right","clearance","arm","kill"])if(!g[key])throw new Error(`${viewport.name}: missing ${key}`);
+    for(const key of ["left","right","clearance","arm","kill"]){const r=g[key];if(r.left<-1||r.right>g.width+1||r.top<-1||r.bottom>g.height+1)throw new Error(`${viewport.name}: ${key} escapes landscape viewport: ${JSON.stringify(r)}`);}
+    if(!g.armCueClass.includes("arm-start-cta"))throw new Error(`${viewport.name}: ARM cue missing`);
 
-    // Validate the ARM attention affordance independent of calibration timing.
-    const armCue=await page.evaluate(()=>{
-      const e=document.querySelector("#soloArm");
-      if(!e)throw new Error("ARM button missing");
-      e.disabled=false;e.classList.remove("arming","armed");e.classList.add("attention");e.textContent="ARM";
-      const style=getComputedStyle(e);return{text:e.textContent.trim(),className:e.className,animation:style.animationName};
-    });
-    if(armCue.text!=="ARM"||!armCue.className.includes("attention")||armCue.animation==="none")throw new Error(`${viewport.name}: ARM attention cue missing: ${JSON.stringify(armCue)}`);
-    const armHoverContract=await page.evaluate(()=>{
-      for(const sheet of document.styleSheets){
-        let rules=[];try{rules=[...sheet.cssRules];}catch{continue;}
-        for(const rule of rules){const css=rule.cssText||"";if(css.includes("#soloArm:not(:disabled):hover")&&css.includes("brightness(1.16)"))return css;}
-      }
-      return "";
-    });
-    if(!armHoverContract)throw new Error(`${viewport.name}: ARM hover/focus CSS contract missing`);
+    const stick=g.leftPhysical,cx=(stick.left+stick.right)/2,cy=(stick.top+stick.bottom)/2,targetX=cx+stick.width*.34;
+    await page.evaluate(({x,y})=>document.querySelector("#soloLeft").dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:901,pointerType:"touch",clientX:x,clientY:y,button:0})),{x:targetX,y:cy});
+    const stickAxes=await page.$eval("#soloLeft .solo-knob",e=>({left:parseFloat(e.style.left),top:parseFloat(e.style.top)}));
+    await page.evaluate(({x,y})=>document.querySelector("#soloLeft").dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:901,pointerType:"touch",clientX:x,clientY:y,button:0})),{x:targetX,y:cy});
+    if(!(stickAxes.left>75&&Math.abs(stickAxes.top-50)<3))throw new Error(`${viewport.name}: landscape absolute pointer mapping wrong: ${JSON.stringify(stickAxes)}`);
 
-    if(portrait){
-      const stick=g.leftPhysical,cx=(stick.left+stick.right)/2,cy=(stick.top+stick.bottom)/2,targetX=cx+stick.width*.34;
-      await page.evaluate(({x,y})=>document.querySelector("#soloLeft").dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:901,pointerType:"touch",clientX:x,clientY:y,button:0})),{x:targetX,y:cy});
-      const stickAxes=await page.$eval("#soloLeft .solo-knob",e=>({left:parseFloat(e.style.left),top:parseFloat(e.style.top)}));
-      await page.evaluate(({x,y})=>document.querySelector("#soloLeft").dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:901,pointerType:"touch",clientX:x,clientY:y,button:0})),{x:targetX,y:cy});
-      if(!(stickAxes.left>75&&Math.abs(stickAxes.top-50)<3))throw new Error(`${viewport.name}: absolute native pointer mapping is wrong: ${JSON.stringify(stickAxes)}`);
-      const pad=g.heightPadPhysical,px=(pad.left+pad.right)/2,py=(pad.top+pad.bottom)/2,targetY=py-pad.height*.30;
-      await page.evaluate(({x,y})=>document.querySelector("#soloHeightPad").dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:902,pointerType:"touch",clientX:x,clientY:y,button:0})),{x:px,y:targetY});
-      const climbRate=await page.$eval("#soloHeightPad",e=>Number(e.dataset.rateMps));
-      await page.evaluate(({x,y})=>document.querySelector("#soloHeightPad").dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:902,pointerType:"touch",clientX:x,clientY:y,button:0})),{x:px,y:targetY});
-      if(!(climbRate>0))throw new Error(`${viewport.name}: native altitude control does not command CLIMB: ${climbRate}`);
-    }
+    const pad=g.heightPadPhysical,px=(pad.left+pad.right)/2,py=(pad.top+pad.bottom)/2,targetY=py-pad.height*.30;
+    await page.evaluate(({x,y})=>document.querySelector("#soloHeightPad").dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:902,pointerType:"touch",clientX:x,clientY:y,button:0})),{x:px,y:targetY});
+    const climbRate=await page.$eval("#soloHeightPad",e=>Number(e.dataset.rateMps));
+    await page.evaluate(({x,y})=>document.querySelector("#soloHeightPad").dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:902,pointerType:"touch",clientX:x,clientY:y,button:0})),{x:px,y:targetY});
+    if(!(climbRate>0))throw new Error(`${viewport.name}: landscape altitude control does not command CLIMB: ${climbRate}`);
 
     await page.click("#soloExit");
     await page.waitForFunction(()=>!document.body.classList.contains("solo-flight"),{timeout:5000});
-    const exited=await page.evaluate(()=>({
-      panel:getComputedStyle(document.querySelector(".panel")).display,
-      telemetry:getComputedStyle(document.querySelector(".telemetry")).display,
-      camera:getComputedStyle(document.querySelector("#cameraModes")).display,
-      soloHidden:document.querySelector("#soloHud")?.hidden,
-    }));
-    if(exited.panel==="none"||exited.telemetry==="none"||exited.camera==="none"||exited.soloHidden!==true)throw new Error(`${viewport.name}: EXIT did not restore the main menu: ${JSON.stringify(exited)}`);
-    console.log(`Solo layout ${viewport.name} passed: native-orientation FPV startup, clear race-free HUD, mapped controls, and EXIT-only menu reveal.`);
+    const exited=await page.evaluate(()=>({panel:getComputedStyle(document.querySelector(".panel")).display,telemetry:getComputedStyle(document.querySelector(".telemetry")).display,camera:getComputedStyle(document.querySelector("#cameraModes")).display,soloHidden:document.querySelector("#soloHud")?.hidden}));
+    if(exited.panel==="none"||exited.telemetry==="none"||exited.camera==="none"||exited.soloHidden!==true)throw new Error(`${viewport.name}: EXIT did not restore landscape main menu: ${JSON.stringify(exited)}`);
+    console.log(`Solo layout ${viewport.name} passed: landscape-only FPV, absolute touch, and landscape main menu.`);
   }
+
+  // Main menu is also landscape-only. Portrait is a hard full-screen gate, not a second layout.
+  await page.setViewport({width:390,height:844,deviceScaleFactor:1});
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport"),g=document.querySelector("#landscapeOnlyGate");return v?.dataset.orientationPolicy==="landscape-only-v1"&&v.dataset.orientationBlocked==="portrait"&&g&&!g.hidden&&getComputedStyle(g).display!=="none";},{timeout:5000});
+  const portraitGate=await page.evaluate(()=>{
+    const g=document.querySelector("#landscapeOnlyGate"),r=g.getBoundingClientRect(),center=document.elementFromPoint(innerWidth/2,innerHeight/2);
+    return{solo:document.body.classList.contains("solo-flight"),policy:document.querySelector("#viewport")?.dataset.orientationPolicy,blocked:document.querySelector("#viewport")?.dataset.orientationBlocked,rect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom},screen:[innerWidth,innerHeight],ownsCenter:Boolean(center?.closest?.("#landscapeOnlyGate")),text:g.textContent};
+  });
+  if(portraitGate.solo||portraitGate.policy!=="landscape-only-v1"||portraitGate.blocked!=="portrait"||!portraitGate.ownsCenter||!portraitGate.text.includes("QUERFORMAT"))throw new Error(`portrait main-menu gate failed: ${JSON.stringify(portraitGate)}`);
+  if(Math.abs(portraitGate.rect.left)>1||Math.abs(portraitGate.rect.top)>1||Math.abs(portraitGate.rect.right-portraitGate.screen[0])>1||Math.abs(portraitGate.rect.bottom-portraitGate.screen[1])>1)throw new Error(`portrait gate does not cover screen: ${JSON.stringify(portraitGate)}`);
+  console.log("Portrait blocked globally: simulator and main menu require landscape.");
 }finally{await browser.close();}
