@@ -1,0 +1,127 @@
+name: Fix car steering and imagery once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/fix-car-steering-satellite-once.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch real car steering and imagery default
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Player car: the camera must follow measured Box3D yaw, never a synthetic steering heading.
+          p=Path('sim/player_car_mode.mjs'); s=p.read_text()
+          old='const DRIVE_LEASE_MS=460;'
+          new='const DRIVE_LEASE_MS=460;\nconst PLAYER_CAR_MAX_STEER_ANGLE_RAD=.5585053606381855;'
+          assert old in s and new not in s
+          s=s.replace(old,new,1)
+          old='const steerRate=1.35*(.24+Math.min(1,Math.abs(commandSpeed)/13)),reverseSign=commandSpeed<-.15?-1:1;heading+=input.steer*steerRate*reverseSign*dt;forward.set(Math.cos(heading),Math.sin(heading),0);const travelSign=commandSpeed<0?-1:1,distance=commandSpeed===0?0:8+Math.min(13,Math.abs(commandSpeed)*.42);target.set(pose.position[0]+forward.x*distance*travelSign,pose.position[1]+forward.y*distance*travelSign,Math.max(.42,pose.position[2]));'
+          new='const bodyYaw=Number.isFinite(pose.yaw)?pose.yaw:quaternionYaw(pose.rotation),travelSign=commandSpeed<0?-1:1;heading=bodyYaw;forward.set(Math.cos(bodyYaw),Math.sin(bodyYaw),0);const distance=commandSpeed===0?0:8+Math.min(13,Math.abs(commandSpeed)*.42);target.set(pose.position[0]+forward.x*distance*travelSign,pose.position[1]+forward.y*distance*travelSign,Math.max(.42,pose.position[2]));'
+          assert old in s
+          s=s.replace(old,new,1)
+          old='physics()?.setTarget?.(vehicle.id,{position:[target.x,target.y,target.z],yaw:heading,speedMps:Math.abs(commandSpeed),response:input.brake?6.2:4.4,maxAccelerationMps2:input.brake?18:11.5,owner:DRIVE_OWNER,priority:100,leaseMs:DRIVE_LEASE_MS});'
+          new='physics()?.setTarget?.(vehicle.id,{position:[target.x,target.y,target.z],yaw:bodyYaw,speedMps:Math.abs(commandSpeed),signedSpeedMps:commandSpeed,steer:input.steer,maxSteerAngleRad:PLAYER_CAR_MAX_STEER_ANGLE_RAD,response:input.brake?6.2:4.4,maxAccelerationMps2:input.brake?18:11.5,owner:DRIVE_OWNER,priority:100,leaseMs:DRIVE_LEASE_MS});'
+          assert old in s
+          s=s.replace(old,new,1)
+          old='view.dataset.vehicleDriveController="keyboard+multitouch+xbox-v3";'
+          new='view.dataset.vehicleDriveController="keyboard+multitouch+xbox-v4";view.dataset.vehicleDriveHeadingSource="box3d-body-yaw-v1";view.dataset.vehicleDriveSteeringPhysics="box3d-bicycle-yaw-rate-v1";view.dataset.vehicleDriveBodyYaw=bodyYaw.toFixed(4);'
+          assert old in s
+          s=s.replace(old,new,1)
+          old='el.addEventListener("pointerdown",e=>{if(!active)return;pointer=e.pointerId;try{el.setPointerCapture?.(pointer);}catch{}apply(e);},{passive:false});'
+          new='el.addEventListener("pointerdown",e=>{if(!active)return;pointer=e.pointerId;apply(e);try{el.setPointerCapture?.(pointer);}catch{}},{passive:false});'
+          assert old in s
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          # Box3D: player steering is a signed-speed bicycle yaw-rate target on the actual rigid body.
+          p=Path('sim/world_rigid_body_physics.mjs'); s=p.read_text()
+          old='setTarget(id,{position,speedMps=0,response=3.2,maxAccelerationMps2,yaw=null}={}){const record=this.records.get(String(id||""));if(!record||!finiteVector(position))return false;record.target={position:[...position],speedMps:Math.max(0,Number(speedMps)||0),response:clamp(response,.2,10),maxAccelerationMps2:clamp(maxAccelerationMps2??(record.drone?13:6),.5,30),yaw:Number.isFinite(yaw)?Number(yaw):null};return true;}'
+          new='setTarget(id,{position,speedMps=0,signedSpeedMps=null,response=3.2,maxAccelerationMps2,yaw=null,steer=null,maxSteerAngleRad=null}={}){const record=this.records.get(String(id||""));if(!record||!finiteVector(position))return false;record.target={position:[...position],speedMps:Math.max(0,Number(speedMps)||0),signedSpeedMps:Number.isFinite(signedSpeedMps)?Number(signedSpeedMps):null,response:clamp(response,.2,10),maxAccelerationMps2:clamp(maxAccelerationMps2??(record.drone?13:6),.5,30),yaw:Number.isFinite(yaw)?Number(yaw):null,steer:Number.isFinite(steer)?clamp(steer,-1,1):null,maxSteerAngleRad:Number.isFinite(maxSteerAngleRad)?clamp(maxSteerAngleRad,.15,.8):null};return true;}'
+          assert old in s
+          s=s.replace(old,new,1)
+          old='if(record.target){const offset=record.target.position.map((value,index)=>value-position[index]),horizontal=Math.hypot(offset[0],offset[1]),distance=record.drone?length3(offset):horizontal;if(distance>.03){const targetYaw=record.target.yaw??Math.atan2(offset[1],offset[0]),vertical=record.drone?offset[2]/Math.max(.01,distance):0,horizontalScale=record.drone?Math.sqrt(Math.max(0,1-vertical*vertical)):1,desired=[Math.cos(targetYaw)*record.target.speedMps*horizontalScale,Math.sin(targetYaw)*record.target.speedMps*horizontalScale,vertical*record.target.speedMps],gain=record.target.response,maxForce=record.massKg*record.target.maxAccelerationMps2,force=limitedVector([(desired[0]-velocity[0])*record.massKg*gain,(desired[1]-velocity[1])*record.massKg*gain,record.drone?(desired[2]-velocity[2])*record.massKg*gain:0],maxForce);b3.b3Body_ApplyForceToCenter(body,force,true);const rotation=b3.b3Body_GetRotation([0,0,0,1],body),currentYaw=quaternionYaw(rotation),yawError=wrap(targetYaw-currentYaw),torqueZ=clamp((yawError*7-angular[2]*2.8)*record.massKg,-record.massKg*12,record.massKg*12);if(record.drone){'
+          new='if(record.target){const offset=record.target.position.map((value,index)=>value-position[index]),horizontal=Math.hypot(offset[0],offset[1]),distance=record.drone?length3(offset):horizontal;if(distance>.03){const rotation=b3.b3Body_GetRotation([0,0,0,1],body),currentYaw=quaternionYaw(rotation),vehicleSteer=!record.drone&&Number.isFinite(record.target.steer)?record.target.steer:null,driveSpeed=vehicleSteer!==null&&Number.isFinite(record.target.signedSpeedMps)?record.target.signedSpeedMps:record.target.speedMps,targetYaw=vehicleSteer!==null?currentYaw:(record.target.yaw??Math.atan2(offset[1],offset[0])),vertical=record.drone?offset[2]/Math.max(.01,distance):0,horizontalScale=record.drone?Math.sqrt(Math.max(0,1-vertical*vertical)):1,desired=[Math.cos(targetYaw)*driveSpeed*horizontalScale,Math.sin(targetYaw)*driveSpeed*horizontalScale,vertical*record.target.speedMps],gain=record.target.response,maxForce=record.massKg*record.target.maxAccelerationMps2,force=limitedVector([(desired[0]-velocity[0])*record.massKg*gain,(desired[1]-velocity[1])*record.massKg*gain,record.drone?(desired[2]-velocity[2])*record.massKg*gain:0],maxForce);b3.b3Body_ApplyForceToCenter(body,force,true);const yawError=wrap(targetYaw-currentYaw);let torqueZ=clamp((yawError*7-angular[2]*2.8)*record.massKg,-record.massKg*12,record.massKg*12);if(vehicleSteer!==null){const wheelbase=Math.max(1.2,record.halfExtents[0]*1.55),steerAngle=vehicleSteer*(record.target.maxSteerAngleRad??.5585053606381855),desiredYawRate=driveSpeed/wheelbase*Math.tan(steerAngle),yawRateError=desiredYawRate-angular[2];torqueZ=clamp((yawRateError*6.4-angular[2]*.35)*record.massKg,-record.massKg*14,record.massKg*14);}if(record.drone){'
+          assert old in s
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          # Satellite/aerial imagery is OFF on every fresh page load. A user may enable it for the current session only.
+          p=Path('sim/real_world_bootstrap.mjs'); s=p.read_text()
+          old='this.minimapAxisLocked=loadBool(WORLD_MINIMAP_AXIS_LOCK_STORAGE,true);this.imageryEnabled=loadBool(WORLD_IMAGERY_STORAGE,false);this.lookYawDeg=0;'
+          new='this.minimapAxisLocked=loadBool(WORLD_MINIMAP_AXIS_LOCK_STORAGE,true);this.imageryEnabled=false;try{localStorage.removeItem(WORLD_IMAGERY_STORAGE);}catch{}this.lookYawDeg=0;'
+          assert old in s
+          s=s.replace(old,new,1)
+          old='this.imageryEnabled=Boolean(value);try{localStorage.setItem(WORLD_IMAGERY_STORAGE,this.imageryEnabled?"1":"0");}catch{}'
+          new='this.imageryEnabled=Boolean(value);try{localStorage.removeItem(WORLD_IMAGERY_STORAGE);}catch{}'
+          assert old in s
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('sim/control_settings.mjs'); s=p.read_text()
+          old='dialog.querySelector("[data-reset]")?.addEventListener("click",()=>{bridge.setImageryEnabled?.(true);bridge.setGridEnabled?.(true);'
+          new='dialog.querySelector("[data-reset]")?.addEventListener("click",()=>{bridge.setImageryEnabled?.(false);bridge.setGridEnabled?.(true);'
+          assert old in s
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          # Box3D regression: steering must rotate the actual body, not just a presentation camera.
+          p=Path('tests/world_rigid_body_physics_box3d_test.mjs'); s=p.read_text()
+          marker='physics.removeBody("car-slip");\n\nphysics.addBody({id:"car-a"'
+          insert='''physics.removeBody("car-slip");\n\nphysics.addBody({id:"car-steer",kind:"car",position:[0,-18,.42],yaw:0,halfExtents:[1.78,.82,.42],massKg:1420});\nphysics.setTarget("car-steer",{position:[45,-18,.42],yaw:0,speedMps:10,signedSpeedMps:10,steer:.72,maxSteerAngleRad:.56,response:4.4,maxAccelerationMps2:9});\nfor(let index=0;index<120;index++)physics.step(1/60,4,6500+index*1000/60);\nconst physicallySteered=physics.pose("car-steer");\nassert.ok(Math.abs(physicallySteered.yaw)>.10,`steering input rotated no Box3D vehicle body: ${JSON.stringify(physicallySteered)}`);\nassert.ok(Math.hypot(physicallySteered.position[0],physicallySteered.position[1]+18)>2,`steered car did not physically travel: ${JSON.stringify(physicallySteered)}`);\nphysics.removeBody("car-steer");\n\nphysics.addBody({id:"car-a"'''
+          assert marker in s
+          s=s.replace(marker,insert,1)
+          s=s.replace('vehicles resolve physical contacts, ground support, tire grip and impulse/gravity behavior; no dynamic camera body exists in this physics world.','vehicles resolve physical contacts, ground support, tire grip, real rigid-body steering and impulse/gravity behavior; no dynamic camera body exists in this physics world.')
+          p.write_text(s)
+
+          # Browser touch smoke: assert the real Box3D yaw changes while touch steer + gas are held.
+          p=Path('tests/player_car_touch_browser_smoke.mjs'); s=p.read_text()
+          old='''  const gas={x:boxes.gas.x+boxes.gas.w*.5,y:boxes.gas.y+boxes.gas.h*.5,id:901,radiusX:3,radiusY:3,force:1};\n  const steer={x:boxes.steer.x+boxes.steer.w*.84,y:boxes.steer.y+boxes.steer.h*.5,id:902,radiusX:3,radiusY:3,force:1};\n  await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[gas,steer]});\n  await sleep(650);\n  const during=await page.evaluate(()=>{const v=document.querySelector("#viewport"),d=globalThis.__arondightVehicleDrive;return{throttle:Number(v?.dataset.vehicleDriveThrottle||0),steer:Number(v?.dataset.vehicleDriveSteer||0),touchThrottle:v?.dataset.vehicleTouchThrottle||"",touchSteer:v?.dataset.vehicleTouchSteer||"",speedKmh:Number(v?.dataset.vehicleDriveSpeedKmh||0),active:Boolean(d?.active),gasHeld:document.getElementById("vehicleGas")?.classList.contains("held")};});'''
+          new='''  const beforePose=await page.evaluate(()=>globalThis.__arondightVehicleDrive?.physicsPose||null);\n  const gas={x:boxes.gas.x+boxes.gas.w*.5,y:boxes.gas.y+boxes.gas.h*.5,id:901,radiusX:3,radiusY:3,force:1};\n  const steer={x:boxes.steer.x+boxes.steer.w*.84,y:boxes.steer.y+boxes.steer.h*.5,id:902,radiusX:3,radiusY:3,force:1};\n  await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[gas,steer]});\n  await sleep(1200);\n  const during=await page.evaluate(()=>{const v=document.querySelector("#viewport"),d=globalThis.__arondightVehicleDrive,p=d?.physicsPose;return{throttle:Number(v?.dataset.vehicleDriveThrottle||0),steer:Number(v?.dataset.vehicleDriveSteer||0),touchThrottle:v?.dataset.vehicleTouchThrottle||"",touchSteer:v?.dataset.vehicleTouchSteer||"",speedKmh:Number(v?.dataset.vehicleDriveSpeedKmh||0),active:Boolean(d?.active),gasHeld:document.getElementById("vehicleGas")?.classList.contains("held"),bodyYaw:Number(p?.yaw),headingSource:v?.dataset.vehicleDriveHeadingSource||"",steeringPhysics:v?.dataset.vehicleDriveSteeringPhysics||""};});\n  const yaw0=Number(beforePose?.yaw),yawDelta=Math.atan2(Math.sin(during.bodyYaw-yaw0),Math.cos(during.bodyYaw-yaw0));'''
+          assert old in s
+          s=s.replace(old,new,1)
+          old='if(!during.active||during.throttle<.45||during.steer<.2||during.speedKmh<=0||!during.gasHeld)throw new Error(`real multitouch driving did not reach vehicle controller: ${JSON.stringify({positioned,boxes,during})}`);'
+          new='if(!during.active||during.throttle<.45||during.steer<.2||during.speedKmh<=0||!during.gasHeld||!Number.isFinite(yaw0)||!Number.isFinite(during.bodyYaw)||Math.abs(yawDelta)<.035||during.headingSource!=="box3d-body-yaw-v1"||during.steeringPhysics!=="box3d-bicycle-yaw-rate-v1")throw new Error(`real multitouch driving did not physically steer the Box3D car: ${JSON.stringify({positioned,boxes,beforePose,during,yawDelta})}`);'
+          assert old in s
+          s=s.replace(old,new,1)
+          old='console.log(`Mobile car touch smoke passed: ${during.speedKmh.toFixed(1)} km/h, steer=${during.steer.toFixed(2)}, parkedSource=${positioned.parked}.`);'
+          new='console.log(`Mobile car touch smoke passed: ${during.speedKmh.toFixed(1)} km/h, steer=${during.steer.toFixed(2)}, physicalYawDelta=${yawDelta.toFixed(3)} rad, parkedSource=${positioned.parked}.`);'
+          assert old in s
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          # Static defaults contract.
+          Path('tests/world_defaults_contract_test.mjs').write_text('''import assert from "node:assert/strict";\nimport {readFileSync} from "node:fs";\nconst world=readFileSync("sim/real_world_bootstrap.mjs","utf8"),settings=readFileSync("sim/control_settings.mjs","utf8"),car=readFileSync("sim/player_car_mode.mjs","utf8"),physics=readFileSync("sim/world_rigid_body_physics.mjs","utf8");\nassert.ok(world.includes("this.imageryEnabled=false;try{localStorage.removeItem(WORLD_IMAGERY_STORAGE);}catch{}"),"satellite imagery must start OFF regardless of legacy storage");\nassert.ok(!world.includes("this.imageryEnabled=loadBool(WORLD_IMAGERY_STORAGE"),"satellite imagery must not restore an old ON state");\nassert.ok(world.includes("this.imageryEnabled=Boolean(value);try{localStorage.removeItem(WORLD_IMAGERY_STORAGE);}catch{}"),"satellite opt-in must be session-local");\nassert.ok(settings.includes("bridge.setImageryEnabled?.(false);bridge.setGridEnabled?.(true)"),"settings reset must keep satellite OFF");\nassert.ok(car.includes("vehicleDriveHeadingSource=\\\"box3d-body-yaw-v1\\\""));\nassert.ok(car.includes("signedSpeedMps:commandSpeed,steer:input.steer"));\nassert.ok(physics.includes("desiredYawRate=driveSpeed/wheelbase*Math.tan(steerAngle)"));\nconsole.log("World defaults contract passed: satellite starts OFF and player steering is rigid-body authoritative.");\n''')
+
+          # Release gates: run the defaults contract and the actual mobile car touch smoke.
+          p=Path('.github/workflows/deploy.yml'); s=p.read_text()
+          old='          node tests/world_pedestrian_navigation_test.mjs\n'
+          new='          node tests/world_pedestrian_navigation_test.mjs\n          node tests/mobile_native_touch_contract_test.mjs\n          node tests/world_defaults_contract_test.mjs\n'
+          assert old in s and 'node tests/world_defaults_contract_test.mjs' not in s
+          s=s.replace(old,new,1)
+          old='          CHROME_BIN="$CHROME_BIN" node tests/takeoff_agl_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html\n'
+          new='          CHROME_BIN="$CHROME_BIN" node tests/takeoff_agl_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html\n          CHROME_BIN="$CHROME_BIN" node tests/player_car_touch_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html\n'
+          assert old in s and 'player_car_touch_browser_smoke.mjs http://127.0.0.1:4174' not in s
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          node --check sim/player_car_mode.mjs
+          node --check sim/world_rigid_body_physics.mjs
+          node --check sim/real_world_bootstrap.mjs
+          node --check sim/control_settings.mjs
+          node --check tests/player_car_touch_browser_smoke.mjs
+          node tests/mobile_native_touch_contract_test.mjs
+          node tests/world_defaults_contract_test.mjs
+      - name: Commit repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/player_car_mode.mjs sim/world_rigid_body_physics.mjs sim/real_world_bootstrap.mjs sim/control_settings.mjs tests/world_rigid_body_physics_box3d_test.mjs tests/player_car_touch_browser_smoke.mjs tests/world_defaults_contract_test.mjs .github/workflows/deploy.yml
+          git commit -m 'Make car steering physically authoritative and keep satellite off'
+          git push origin HEAD:main
