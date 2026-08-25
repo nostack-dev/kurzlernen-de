@@ -15,7 +15,8 @@ jobs:
         run: |
           set -euxo pipefail
           LIVE='https://kurzlernen.de/drone_simulator.html'
-          curl -fsSL "$LIVE?verify=$GITHUB_SHA" | grep -q 'ARONDIGHT45_BUILD_SHA:'
+          curl -fsSL "$LIVE?verify=$GITHUB_SHA" -o /tmp/live-simulator.html
+          grep -q 'ARONDIGHT45_BUILD_SHA:' /tmp/live-simulator.html
           npm ci --ignore-scripts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
