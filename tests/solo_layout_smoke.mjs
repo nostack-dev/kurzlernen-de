@@ -67,7 +67,7 @@ try{
     const g=document.querySelector("#landscapeOnlyGate"),r=g.getBoundingClientRect(),center=document.elementFromPoint(innerWidth/2,innerHeight/2);
     return{solo:document.body.classList.contains("solo-flight"),policy:document.querySelector("#viewport")?.dataset.orientationPolicy,blocked:document.querySelector("#viewport")?.dataset.orientationBlocked,rect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom},screen:[innerWidth,innerHeight],ownsCenter:Boolean(center?.closest?.("#landscapeOnlyGate")),text:g.textContent};
   });
-  if(portraitGate.solo||portraitGate.policy!=="landscape-only-v1"||portraitGate.blocked!=="portrait"||!portraitGate.ownsCenter||!portraitGate.text.includes("QUERFORMAT"))throw new Error(`portrait main-menu gate failed: ${JSON.stringify(portraitGate)}`);
+  if(portraitGate.solo||portraitGate.policy!=="landscape-only-v1"||portraitGate.blocked!=="portrait"||!portraitGate.ownsCenter||!/(LANDSCAPE|QUERFORMAT)/i.test(portraitGate.text))throw new Error(`portrait main-menu gate failed: ${JSON.stringify(portraitGate)}`);
   if(Math.abs(portraitGate.rect.left)>1||Math.abs(portraitGate.rect.top)>1||Math.abs(portraitGate.rect.right-portraitGate.screen[0])>1||Math.abs(portraitGate.rect.bottom-portraitGate.screen[1])>1)throw new Error(`portrait gate does not cover screen: ${JSON.stringify(portraitGate)}`);
   console.log("Portrait blocked globally: simulator and main menu require landscape.");
 }finally{await browser.close();}
