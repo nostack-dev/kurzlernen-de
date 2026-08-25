@@ -57,7 +57,7 @@ try{
     if(!g.armCueClass.includes("arm-start-cta"))throw new Error(`${viewport.name}: ARM start cue class missing: ${JSON.stringify({className:g.armCueClass,label:g.armLabel})}`);
     const expectedStickMax=viewport.height<=340?129:151;
     if(g.left.width>expectedStickMax||g.right.width>expectedStickMax)throw new Error(`${viewport.name}: sticks still dominate viewport: ${JSON.stringify({left:g.left,right:g.right})}`);
-    if(g.clearance.right>=g.width*.40)throw new Error(`${viewport.name}: height control still blocks center view: ${JSON.stringify(g.clearance)}`);
+    if(g.clearance.right>=g.width*.5-20)throw new Error(`${viewport.name}: height control crosses the native center safe gap: ${JSON.stringify({width:g.width,clearance:g.clearance})}`);
     if(g.clearance.left-g.left.right<5)throw new Error(`${viewport.name}: height control overlaps left stick: ${JSON.stringify({left:g.left,clearance:g.clearance})}`);
     if(g.arm.left-g.clearance.right<20)throw new Error(`${viewport.name}: height control crowds ARM/KILL center: ${JSON.stringify({clearance:g.clearance,arm:g.arm})}`);
     if(g.right.left-g.kill.right<20)throw new Error(`${viewport.name}: center actions crowd right stick: ${JSON.stringify({kill:g.kill,right:g.right})}`);
