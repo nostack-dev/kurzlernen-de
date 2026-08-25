@@ -1,0 +1,94 @@
+name: Repair walk move single owner once
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/repair_walk_move_single_owner_once.yml
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make walk move pointer single-owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_between(text, start, end, replacement):
+              i=text.index(start)
+              j=text.index(end, i)
+              return text[:i] + replacement.rstrip() + "\n" + text[j:]
+
+          p=Path('sim/player_walk_mode_v4.mjs')
+          s=p.read_text()
+          new_bind=r'''function bindMoveStick(el){
+            if(!el||el.dataset.moveBound==="1")return;el.dataset.moveBound="1";let pointer=null,lastSeenAt=-Infinity;const knob=el.querySelector(".knob");
+            const publish=(reason="active")=>{const view=viewport();if(!view)return;view.dataset.walkMoveStickOwner=pointer===null?"none":String(pointer);view.dataset.walkMoveStickLifecycle=reason;view.dataset.walkMoveStickRelease="owner-pointerup+pointercancel+touch-terminal+blur+visibility+pagehide+orientation-v6";};
+            const resetVisual=()=>{if(knob){knob.style.left="50%";knob.style.top="50%";}};
+            const clear=(reason="release")=>{if(pointer===null)return false;const id=pointer;pointer=null;state.move.x=state.move.y=0;resetVisual();try{if(el.hasPointerCapture?.(id))el.releasePointerCapture?.(id);}catch{}const view=viewport();if(view){view.dataset.walkMoveStickRecovery=reason;view.dataset.walkMoveStickRecoveries=String((Number(view.dataset.walkMoveStickRecoveries)||0)+1);}publish(reason);return true;};
+            const apply=e=>{if(isPlayerDead()||e.pointerId!==pointer)return;const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,rad=Math.max(1,r.width*.38),axes=radialStickAxes(e.clientX-cx,e.clientY-cy,rad),rawX=axes.x,rawY=axes.y,shaped=shapeFirstPersonMove(rawX,rawY,firstPersonSettings);state.move.x=shaped.x;state.move.y=shaped.y;lastSeenAt=performance.now();if(knob){knob.style.left=`${50+rawX*31}%`;knob.style.top=`${50+rawY*31}%`;}const view=viewport();if(view){view.dataset.walkMoveStick="radial-projection-full-range-v3";view.dataset.walkMoveStickRaw=`${rawX.toFixed(3)},${rawY.toFixed(3)}`;view.dataset.walkMoveStickMagnitude=axes.magnitude.toFixed(3);}e.preventDefault();e.stopPropagation();};
+            el.addEventListener("pointerdown",e=>{if(isPlayerDead()||pointer!==null)return;pointer=e.pointerId;apply(e);try{el.setPointerCapture?.(pointer);}catch{}publish("pointerdown");});
+            window.addEventListener("pointermove",e=>{if(e.pointerId!==pointer)return;apply(e);if(pointer!==null&&!el.hasPointerCapture?.(pointer))try{el.setPointerCapture?.(pointer);}catch{}},{capture:true,passive:false});
+            window.addEventListener("pointerup",e=>{if(e.pointerId===pointer)clear("pointerup");},{capture:true,passive:false});
+            window.addEventListener("pointercancel",e=>{if(e.pointerId===pointer)clear("pointercancel");},{capture:true,passive:false});
+            window.addEventListener("lostpointercapture",e=>{const view=viewport();if(e.pointerId!==pointer){if(view)view.dataset.walkMoveStickForeignCapture=String(e.pointerId);return;}if(view){view.dataset.walkMoveStickCaptureState="lost-await-terminal";view.dataset.walkMoveStickCaptureLosses=String((Number(view.dataset.walkMoveStickCaptureLosses)||0)+1);}publish("lost-await-terminal");},true);
+            window.addEventListener("touchend",e=>{if(pointer!==null&&Number(e.touches?.length||0)===0)clear("touchend-zero-touches");},{capture:true,passive:true});
+            window.addEventListener("touchcancel",e=>{if(pointer!==null&&Number(e.touches?.length||0)===0)clear("touchcancel-zero-touches");},{capture:true,passive:true});
+            addEventListener("blur",()=>clear("window-blur"),{capture:true});addEventListener("pagehide",()=>clear("pagehide"),{capture:true});addEventListener("orientationchange",()=>clear("orientationchange"),{capture:true});document.addEventListener("visibilitychange",()=>{if(document.hidden)clear("visibility-hidden");},{capture:true});addEventListener("arondight:player-mode",()=>{if(mode!=="foot")clear("mode-change");},{capture:true});
+            const watchdog=now=>{if(pointer!==null&&now-lastSeenAt>30000)clear("stale-pointer-watchdog");requestAnimationFrame(watchdog);};publish("installed-single-owner");requestAnimationFrame(watchdog);
+          }'''
+          s=replace_between(s,'function bindMoveStick(el){','function mountHud(){',new_bind)
+          p.write_text(s)
+
+          p=Path('sim/immersive_soundscape.mjs')
+          s=p.read_text()
+          old='import "./walk_input_lifecycle_guard.mjs";\n'
+          assert s.count(old)==1, f'walk guard import count={s.count(old)}'
+          p.write_text(s.replace(old,'',1))
+
+          p=Path('sim/gameplay_final_runtime_v2.mjs')
+          s=p.read_text()
+          old='activeMovePointer=null,activeMoveElement=null,tap=null'
+          assert s.count(old)==1, f'final runtime move owner declaration count={s.count(old)}'
+          s=s.replace(old,'tap=null',1)
+          s=replace_between(s,'function forceMoveRelease(reason="recovery"){','function inputCapture(event){','')
+          old='  const target=event.target instanceof Element?event.target:null;if(event.type==="pointerdown"&&target?.closest("#footMove")){activeMovePointer=event.pointerId;activeMoveElement=target.closest("#footMove");}\n  if((event.type==="pointerup"||event.type==="pointercancel")&&event.pointerId===activeMovePointer){activeMovePointer=null;activeMoveElement=null;}\n'
+          assert s.count(old)==1, f'final runtime move input tracking count={s.count(old)}'
+          s=s.replace(old,'  const target=event.target instanceof Element?event.target:null;\n',1)
+          old='document.addEventListener("lostpointercapture",event=>{const view=viewport();if(view)view.dataset.walkMoveStickCaptureState=event.pointerId===activeMovePointer?"lost-await-terminal":"foreign-ignored";},true);addEventListener("blur",()=>forceMoveRelease("window-blur"));addEventListener("pagehide",()=>forceMoveRelease("pagehide"));addEventListener("orientationchange",()=>forceMoveRelease("orientationchange"));document.addEventListener("visibilitychange",()=>{if(document.hidden)forceMoveRelease("visibility-hidden");});addEventListener("arondight:player-mode",()=>forceMoveRelease("mode-change"));'
+          assert s.count(old)==1, f'final runtime lifecycle owner count={s.count(old)}'
+          s=s.replace(old,'',1)
+          p.write_text(s)
+
+          p=Path('tests/combat_center_fire_test.mjs')
+          s=p.read_text()
+          old='walkLifecycle=readFileSync("sim/walk_input_lifecycle_guard.mjs","utf8");'
+          assert s.count(old)==1
+          s=s.replace(old,'walkLifecycle=readFileSync("sim/walk_input_lifecycle_guard.mjs","utf8"),playerWalk=readFileSync("sim/player_walk_mode_v4.mjs","utf8");',1)
+          old='assert.ok(finalRuntime.includes(\'if(event.pointerId===activeMovePointer)forceMoveRelease("lostpointercapture")\'),"lostpointercapture recovery is not scoped to the move-stick owner");assert.ok(!walkLifecycle.includes(\'stopPropagation()\'),"walk lifecycle guard still suppresses unrelated pointer-capture events such as the minimap");assert.ok(walkLifecycle.includes(\'authoritative-terminal-reset-v4\'),"walk terminal-state recovery contract missing");'
+          assert s.count(old)==1, f'legacy lifecycle assertion count={s.count(old)}'
+          new='assert.ok(playerWalk.includes(\'walkMoveStickOwner=pointer===null?"none":String(pointer)\'),"walk mode does not own its move pointer explicitly");assert.ok(playerWalk.includes(\'walkMoveStickCaptureState="lost-await-terminal"\'),"owned capture loss is not held until a terminal event");assert.ok(playerWalk.includes(\'walkMoveStickForeignCapture=String(e.pointerId)\'),"foreign pointer capture is not explicitly ignored");assert.ok(!soundscape.includes(\'walk_input_lifecycle_guard.mjs\'),"legacy walk lifecycle guard is still imported as a second move owner");'
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          node --check sim/player_walk_mode_v4.mjs
+          node --check sim/gameplay_final_runtime_v2.mjs
+          node --check sim/immersive_soundscape.mjs
+          node tests/combat_center_fire_test.mjs
+          grep -q 'installed-single-owner' sim/player_walk_mode_v4.mjs
+          ! grep -q 'activeMovePointer' sim/gameplay_final_runtime_v2.mjs
+          ! grep -q 'walk_input_lifecycle_guard.mjs' sim/immersive_soundscape.mjs
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/player_walk_mode_v4.mjs sim/gameplay_final_runtime_v2.mjs sim/immersive_soundscape.mjs tests/combat_center_fire_test.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m 'Make walk move input single-owner'
+          git push origin HEAD:main
