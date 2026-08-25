@@ -7,6 +7,7 @@ import {installVsCombatPresentation} from "./vs_combat_presentation.mjs";
 import {installVsMultiplayerGuard} from "./vs_multiplayer_guard.mjs";
 import {installVsFxGeoAdapter} from "./vs_fx_geo_adapter.mjs";
 import {installVsMultiplayer} from "./vs_multiplayer.mjs";
+import {installVsPlayerStateReplication} from "./vs_player_state_replication.mjs";
 import {installPlayerVehicleRuntime} from "./player_vehicle_runtime_v2.mjs";
 import {installPlayerRuntimeHotfix} from "./player_runtime_hotfix.mjs";
 import "./world_procedural_population.mjs";
@@ -104,6 +105,7 @@ export function installSoloFlightLayout(){
   installVsMultiplayerGuard();
   installVsFxGeoAdapter();
   installVsMultiplayer();
+  installVsPlayerStateReplication();
   installPlayerVehicleRuntime();
   installPlayerRuntimeHotfix();
 }
