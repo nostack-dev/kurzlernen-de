@@ -1,0 +1,53 @@
+name: Finish player multiplayer once
+on:
+  push:
+    paths:
+      - '.github/workflows/finish-player-multiplayer-once.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Wire player replication and vehicle touch ownership
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('sim/solo_layout.mjs')
+          s=p.read_text()
+          old='import {installVsMultiplayer} from "./vs_multiplayer.mjs";\n'
+          new=old+'import {installVsPlayerStateReplication} from "./vs_player_state_replication.mjs";\n'
+          if 'vs_player_state_replication.mjs' not in s:
+              if old not in s: raise SystemExit('solo import anchor missing')
+              s=s.replace(old,new,1)
+          old='  installVsMultiplayer();\n  installPlayerVehicleRuntime();'
+          new='  installVsMultiplayer();\n  installVsPlayerStateReplication();\n  installPlayerVehicleRuntime();'
+          if '  installVsPlayerStateReplication();' not in s:
+              if old not in s: raise SystemExit('solo install anchor missing')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('sim/player_walk_mode_v4.mjs')
+          s=p.read_text()
+          old='function installInput(){const view=viewport();view?.addEventListener("pointerdown",e=>{if(mode!=="foot")return;if(e.target instanceof Element&&e.target.closest("#footHud,#soloTopbar,#gameplayContractHud,.phone-settings-dialog"))return;'
+          new='function installInput(){const view=viewport();view?.addEventListener("pointerdown",e=>{if(mode!=="foot"||globalThis.__arondightVehicleDrive?.active)return;if(e.target instanceof Element&&e.target.closest("#footHud,#vehicleHud,#driveModeButton,#soloTopbar,#gameplayContractHud,.phone-settings-dialog"))return;'
+          if 'globalThis.__arondightVehicleDrive?.active' not in s:
+              if old not in s: raise SystemExit('walk pointer ownership anchor missing')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          node --check sim/vs_player_state_replication.mjs
+          node --check sim/solo_layout.mjs
+          node --check sim/player_walk_mode_v4.mjs
+          grep -q 'installVsPlayerStateReplication' sim/solo_layout.mjs
+          grep -q '#vehicleHud,#driveModeButton' sim/player_walk_mode_v4.mjs
+          git config user.name 'Christian Heinrich Hohlfeld'
+          git config user.email 'chris.hohlfeld@gmail.com'
+          git add sim/solo_layout.mjs sim/player_walk_mode_v4.mjs
+          git commit -m 'Complete multiplayer player modes and touch ownership'
+          git push origin HEAD:main
