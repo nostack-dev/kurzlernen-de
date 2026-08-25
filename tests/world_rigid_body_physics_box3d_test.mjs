@@ -34,6 +34,14 @@ assert.ok(Math.abs(gripped.lateralSlipMps)<1.25,`vehicle retained unrealistic la
 assert.ok(gripped.position[0]>6,`tire side-force killed longitudinal vehicle travel: ${JSON.stringify(gripped)}`);
 physics.removeBody("car-slip");
 
+physics.addBody({id:"car-steer",kind:"car",position:[0,-18,.42],yaw:0,halfExtents:[1.78,.82,.42],massKg:1420});
+physics.setTarget("car-steer",{position:[45,-18,.42],yaw:0,speedMps:10,signedSpeedMps:10,steer:.72,maxSteerAngleRad:.56,response:4.4,maxAccelerationMps2:9});
+for(let index=0;index<120;index++)physics.step(1/60,4,6500+index*1000/60);
+const physicallySteered=physics.pose("car-steer");
+assert.ok(Math.abs(physicallySteered.yaw)>.10,`steering input rotated no Box3D vehicle body: ${JSON.stringify(physicallySteered)}`);
+assert.ok(Math.hypot(physicallySteered.position[0],physicallySteered.position[1]+18)>2,`steered car did not physically travel: ${JSON.stringify(physicallySteered)}`);
+physics.removeBody("car-steer");
+
 physics.addBody({id:"car-a",kind:"car",position:[-7,8,.42],yaw:0,halfExtents:[1.78,.82,.42],massKg:1420});
 physics.addBody({id:"car-b",kind:"car",position:[7,8,.42],yaw:Math.PI,halfExtents:[1.78,.82,.42],massKg:1420});
 physics.setTarget("car-a",{position:[12,8,.42],yaw:0,speedMps:8});physics.setTarget("car-b",{position:[-12,8,.42],yaw:Math.PI,speedMps:8});
@@ -56,4 +64,4 @@ const falling=physics.pose("police-drone-test");assert.ok(falling.position[2]<ai
 assert.ok(physics.impactCount>=1&&impacts.some(event=>event.nativeContactEvent&&event.approachSpeedMps>1),`native Box3D contact-hit events produced no impact evidence: ${JSON.stringify(impacts.slice(-3))}`);
 
 physics.destroy();
-console.log("WORLD rigid-body Box3D passed: vehicles resolve physical contacts, ground support, tire grip and impulse/gravity behavior; no dynamic camera body exists in this physics world.");
+console.log("WORLD rigid-body Box3D passed: vehicles resolve physical contacts, ground support, tire grip, real rigid-body steering and impulse/gravity behavior; no dynamic camera body exists in this physics world.");

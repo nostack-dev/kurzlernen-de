@@ -1,0 +1,11 @@
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const world=readFileSync("sim/real_world_bootstrap.mjs","utf8"),settings=readFileSync("sim/control_settings.mjs","utf8"),car=readFileSync("sim/player_car_mode.mjs","utf8"),physics=readFileSync("sim/world_rigid_body_physics.mjs","utf8");
+assert.ok(world.includes("this.imageryEnabled=false;try{localStorage.removeItem(WORLD_IMAGERY_STORAGE);}catch{}"));
+assert.ok(!world.includes("this.imageryEnabled=loadBool(WORLD_IMAGERY_STORAGE"));
+assert.ok(world.includes("this.imageryEnabled=Boolean(value);try{localStorage.removeItem(WORLD_IMAGERY_STORAGE);}catch{}"));
+assert.ok(settings.includes("bridge.setImageryEnabled?.(false);bridge.setGridEnabled?.(true)"));
+assert.ok(car.includes("box3d-body-yaw-v1"));
+assert.ok(car.includes("signedSpeedMps:commandSpeed,steer:input.steer"));
+assert.ok(physics.includes("desiredYawRate=driveSpeed/wheelbase*Math.tan(steerAngle)"));
+console.log("World defaults contract passed: satellite starts OFF and player steering is rigid-body authoritative.");
