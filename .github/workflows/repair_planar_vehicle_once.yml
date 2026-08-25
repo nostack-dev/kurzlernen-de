@@ -1,0 +1,49 @@
+name: Repair planar vehicle physics once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/repair_planar_vehicle_once.yml']
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Constrain road vehicles to physical yaw plane
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/world_rigid_body_physics.mjs');s=p.read_text()
+          old='lateralSlipMps:0,uprightError:0};this.records.set(key,record);'
+          new='lateralSlipMps:0,uprightError:0,planarYaw:wrap(Number(yaw)||0)};this.records.set(key,record);'
+          assert old in s;s=s.replace(old,new,1)
+          old='record.preVelocity=[...velocity];record.lastVelocity=[...velocity];record.lateralSlipMps=0;return true;'
+          new='record.preVelocity=[...velocity];record.lastVelocity=[...velocity];record.lateralSlipMps=0;if(Number.isFinite(yaw))record.planarYaw=wrap(Number(yaw));return true;'
+          assert old in s;s=s.replace(old,new,1)
+          old='const rotation=b3.b3Body_GetRotation([0,0,0,1],body),currentYaw=quaternionYaw(rotation),vehicleSteer=!record.drone'
+          new='const rotation=b3.b3Body_GetRotation([0,0,0,1],body),currentYaw=record.drone?quaternionYaw(rotation):wrap(Number(record.planarYaw)||0),vehicleSteer=!record.drone'
+          assert old in s;s=s.replace(old,new,1)
+          old='const delta=clamp(dt,.001,.04);for(const record of this.records.values())this.controlBody(record,delta);this.b3.b3World_Step(this.world,delta,Math.max(1,Math.min(8,Math.floor(Number(subSteps)||4))));this.stepCount++;'
+          new='const delta=clamp(dt,.001,.04);for(const record of this.records.values())this.controlBody(record,delta);this.b3.b3World_Step(this.world,delta,Math.max(1,Math.min(8,Math.floor(Number(subSteps)||4))));for(const record of this.records.values()){if(record.drone)continue;const body=record.body;if(!body||!this.b3.b3Body_IsValid(body))continue;const position=this.b3.b3Body_GetPosition([0,0,0],body),angular=this.b3.b3Body_GetAngularVelocity([0,0,0],body),yawRate=Number(angular?.[2])||0;record.planarYaw=wrap((Number(record.planarYaw)||0)+yawRate*delta);this.b3.b3Body_SetTransform(body,[...position],yawQuaternion(record.planarYaw));this.b3.b3Body_SetAngularVelocity(body,[0,0,yawRate]);record.uprightError=0;}this.stepCount++;'
+          assert old in s;s=s.replace(old,new,1)
+          s=s.replace('v.dataset.worldPhysicsControl="force+torque+impulse";','v.dataset.worldPhysicsControl="force+torque+impulse+planar-vehicle-yaw";',1) if False else s
+          p.write_text(s)
+
+          p=Path('tests/world_rigid_body_physics_box3d_test.mjs');s=p.read_text()
+          needle='assert.ok((stableSteer.uprightError||0)<.10,`steering tipped the chassis instead of rotating it around Z: ${JSON.stringify(stableSteer)}`);'
+          assert needle in s
+          s=s.replace(needle,needle+'\nassert.ok(Math.abs(stableSteer.rotation[0])<.001&&Math.abs(stableSteer.rotation[1])<.001,`road vehicle escaped planar yaw constraint: ${JSON.stringify(stableSteer)}`);',1)
+          p.write_text(s)
+          PY
+          node --check sim/world_rigid_body_physics.mjs
+          node --check tests/world_rigid_body_physics_box3d_test.mjs
+      - name: Run Box3D regression
+        run: |
+          set -euo pipefail
+          TMP=/tmp/box3d-planar;rm -rf "$TMP";mkdir -p "$TMP";cd "$TMP";npm init -y >/dev/null; npm install --ignore-scripts --no-audit --no-fund box3d.js@0.1.1 >/dev/null;cd "$GITHUB_WORKSPACE";node tests/world_rigid_body_physics_box3d_test.mjs "$TMP/node_modules/box3d.js/dist/box3d.inline.mjs"
+      - name: Commit
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]';git config user.email '41898282+github-actions[bot]@users.noreply.github.com';git add sim/world_rigid_body_physics.mjs tests/world_rigid_body_physics_box3d_test.mjs;git diff --cached --quiet && exit 0;git commit -m 'Constrain road vehicle physics to yaw plane';git push origin HEAD:main
