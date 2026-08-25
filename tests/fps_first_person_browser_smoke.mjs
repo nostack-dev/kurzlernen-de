@@ -24,7 +24,7 @@ try{
   await page.$eval("#footLook",el=>el.dispatchEvent(new PointerEvent("lostpointercapture",{bubbles:true,cancelable:false,pointerId:991,pointerType:"touch"})));await pause(120);
   const heldAfterForeignCapture=await page.$eval("#viewport",v=>({move:v.dataset.walkMove,owner:v.dataset.walkMoveStickOwner,foreign:v.dataset.walkMoveStickForeignCapture}));if(String(heldAfterForeignCapture.move||"").startsWith("0.000,0.000")||heldAfterForeignCapture.owner!=="773")throw new Error(`foreign pointer capture interrupted held left stick: ${JSON.stringify(heldAfterForeignCapture)}`);
 
-  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.walkMuzzleDepth==="depth-tested-behind-viewmodel-occlusion-v2",{timeout:3000});
+  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.walkMuzzleDepth==="depth-tested-viewmodel-occlusion-v2",{timeout:3000});
   const noDragBefore=await page.$eval("#viewport",v=>({yaw:Number(v.dataset.walkYaw),pitch:Number(v.dataset.walkPitch)})),enhancedBefore=Number(await page.$eval("#viewport",v=>v.dataset.walkEnhancedShots||0)),hipGrip=await gripProjection();if(!hipGrip)throw new Error("hip grip projection unavailable");
   await page.$eval("#footLookZone",el=>{const r=el.getBoundingClientRect(),id=992,x=r.left+r.width*.72,y=r.top+r.height*.39;el.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:id,pointerType:"touch",button:0,buttons:1,clientX:x,clientY:y}));});
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.walkWeaponGripLatchActive==="1",{timeout:2000});await pause(80);const aimGripStart=await gripProjection();if(!aimGripStart)throw new Error("aim-start grip projection unavailable");
