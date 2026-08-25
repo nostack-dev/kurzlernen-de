@@ -1,0 +1,69 @@
+name: Fix mobile pointer capture once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/fix-pointer-capture-once.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply input before pointer capture
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('sim/simulator.mjs')
+          s=p.read_text()
+          replacements={
+            'soloHeightPad.addEventListener("pointerdown",event=>{if(soloHeightPointer!==null)return;soloHeightPointer=event.pointerId;soloHeightPad.setPointerCapture?.(soloHeightPointer);applySoloHeightPointer(event);});':
+            'soloHeightPad.addEventListener("pointerdown",event=>{if(soloHeightPointer!==null)return;soloHeightPointer=event.pointerId;applySoloHeightPointer(event);try{soloHeightPad.setPointerCapture?.(soloHeightPointer);}catch{}});',
+            'el.addEventListener("pointerdown",e=>{pointer=e.pointerId;el.setPointerCapture(pointer);apply(e);});':
+            'el.addEventListener("pointerdown",e=>{pointer=e.pointerId;apply(e);try{el.setPointerCapture?.(pointer);}catch{}});',
+          }
+          for old,new in replacements.items():
+              if old not in s: raise SystemExit(f'simulator marker missing: {old[:80]}')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('sim/player_walk_mode_v4.mjs')
+          s=p.read_text()
+          old='el.addEventListener("pointerdown",e=>{if(isPlayerDead())return;pointer=e.pointerId;el.setPointerCapture?.(pointer);apply(e);});'
+          new='el.addEventListener("pointerdown",e=>{if(isPlayerDead())return;pointer=e.pointerId;apply(e);try{el.setPointerCapture?.(pointer);}catch{}});'
+          if old not in s: raise SystemExit('walk move pointerdown marker missing')
+          s=s.replace(old,new,1)
+          old='beginTouchLook("touch-drag");el.setPointerCapture?.(lookPointer);e.preventDefault();'
+          new='beginTouchLook("touch-drag");try{el.setPointerCapture?.(lookPointer);}catch{}e.preventDefault();'
+          if old not in s: raise SystemExit('walk look capture marker missing')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('sim/player_car_mode.mjs')
+          s=p.read_text()
+          # Pointer capture is continuity only. It must never gate a touch sample.
+          import re
+          s,n=re.subn(r'(?<!try\{)([A-Za-z_$][\w$]*)\.setPointerCapture(?:\?\.)?\(([^;\n]+)\);',r'try{\1.setPointerCapture?.(\2);}catch{}',s)
+          p.write_text(s)
+          print(f'wrapped {n} vehicle pointer-capture calls')
+
+          p=Path('tests/mobile_native_touch_contract_test.mjs')
+          s=p.read_text()
+          extra='''\nconst simulator=readFileSync("sim/simulator.mjs","utf8");\nconst walk=readFileSync("sim/player_walk_mode_v4.mjs","utf8");\nassert.ok(simulator.includes('pointer=e.pointerId;apply(e);try{el.setPointerCapture?.(pointer);}catch{}'),"drone stick must apply before capture");\nassert.ok(simulator.includes('soloHeightPointer=event.pointerId;applySoloHeightPointer(event);try{soloHeightPad.setPointerCapture?.(soloHeightPointer);}catch{}'),"height pad must apply before capture");\nassert.ok(walk.includes('pointer=e.pointerId;apply(e);try{el.setPointerCapture?.(pointer);}catch{}'),"walk stick must apply before capture");\n'''
+          if 'drone stick must apply before capture' not in s:
+              s=s.replace('console.log("Mobile native touch contract passed: no display rotation and absolute touch mapping.");',extra+'console.log("Mobile native touch contract passed: native display, absolute touch and non-blocking pointer capture.");')
+          p.write_text(s)
+          PY
+          node --check sim/simulator.mjs
+          node --check sim/player_walk_mode_v4.mjs
+          node --check sim/player_car_mode.mjs
+          node tests/mobile_native_touch_contract_test.mjs
+          node tests/player_car_touch_contract_test.mjs
+      - name: Commit repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/simulator.mjs sim/player_walk_mode_v4.mjs sim/player_car_mode.mjs tests/mobile_native_touch_contract_test.mjs
+          git commit -m 'Make mobile pointer capture non-blocking'
+          git push origin HEAD:main
