@@ -42,6 +42,15 @@ assert.ok(physicallySteered.yaw<-.08,`right steering input did not rotate the Bo
 assert.ok(Math.hypot(physicallySteered.position[0],physicallySteered.position[1]+18)>1.2,`low-speed steered car did not physically travel: ${JSON.stringify(physicallySteered)}`);
 physics.removeBody("car-steer");
 
+physics.addBody({id:"car-steer-stability",kind:"car",position:[0,-24,.42],yaw:0,halfExtents:[1.78,.82,.42],massKg:1420});
+physics.setTarget("car-steer-stability",{position:[20,-24,.42],yaw:0,speedMps:2.2,signedSpeedMps:2.2,steer:.895,maxSteerAngleRad:.5585,response:4.4,maxAccelerationMps2:11.5});
+for(let index=0;index<110;index++)physics.step(1/60,4,6600+index*1000/60);
+const stableSteer=physics.pose("car-steer-stability");
+assert.ok(stableSteer.yaw<-.06&&stableSteer.yaw>-2.2,`sustained right steer did not produce bounded clockwise chassis yaw: ${JSON.stringify(stableSteer)}`);
+assert.ok((stableSteer.uprightError||0)<.10,`steering tipped the chassis instead of rotating it around Z: ${JSON.stringify(stableSteer)}`);
+assert.ok(Math.abs(stableSteer.angularVelocity[0])<1.2&&Math.abs(stableSteer.angularVelocity[1])<1.2,`vehicle accumulated unstable roll/pitch angular velocity: ${JSON.stringify(stableSteer)}`);
+physics.removeBody("car-steer-stability");
+
 physics.syncBuildings({hash:"vehicle-passage",footprintCount:2,prisms:[{buildingKey:"passage-north",base:0,top:4,points:[[-2,1.3],[18,1.3],[18,4],[-2,4]]},{buildingKey:"passage-south",base:0,top:4,points:[[-2,-4],[18,-4],[18,-1.3],[-2,-1.3]]}]});
 physics.addBody({id:"car-passage",kind:"car",position:[0,0,.42],yaw:0,halfExtents:[1.78,.82,.42],massKg:1420});
 physics.setTarget("car-passage",{position:[16,0,.42],yaw:0,speedMps:7,response:4,maxAccelerationMps2:8});
