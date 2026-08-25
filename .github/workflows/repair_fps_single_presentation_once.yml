@@ -1,0 +1,41 @@
+name: Repair FPS single presentation once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/repair_fps_single_presentation_once.yml']
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make FPS aim presentation single-pass
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/first_person_weapon_runtime_v3.mjs')
+          s=p.read_text()
+          old='if(updateScreenVector(d,d.source||"touch-screen-drag",true)){latchVisibleAimPivot();document.body.classList.add("foot-ads-active");}'
+          new='if(updateScreenVector(d,d.source||"touch-screen-drag",true))document.body.classList.add("foot-ads-active");'
+          assert old in s, 'synchronous latch contract changed'
+          s=s.replace(old,new,1)
+          old_hook='renderHook=function(...args){previousSceneOnBeforeRender?.apply(this,args);const mainCamera=bridge()?.threeCamera;if(!mainCamera)return;const gun=scene.getObjectByName?.("WALK_PISTOL_3D");if(!gun)return;const mode=String(footWeapons()?.mode||"pistol");setWeaponModeVisual(gun,mode);applyLatchedAimTransform(gun,mainCamera,performance.now());const view=viewport();if(view)view.dataset.walkWeaponPresentationCamera="player-main-camera-authoritative-v2";};'
+          new_hook='renderHook=function(...args){previousSceneOnBeforeRender?.apply(this,args);const camera=args[2];if(!camera?.isPerspectiveCamera)return;const gun=scene.getObjectByName?.("WALK_PISTOL_3D");if(!gun)return;const mode=String(footWeapons()?.mode||"pistol");setWeaponModeVisual(gun,mode);applyLatchedAimTransform(gun,camera,performance.now());const view=viewport();if(view)view.dataset.walkWeaponPresentationCamera="player-perspective-render-camera-v3";};'
+          assert old_hook in s, 'render hook contract changed'
+          s=s.replace(old_hook,new_hook,1)
+          p.write_text(s)
+          PY
+          node --check sim/first_person_weapon_runtime_v3.mjs
+          grep -q 'player-perspective-render-camera-v3' sim/first_person_weapon_runtime_v3.mjs
+          ! grep -q 'latchVisibleAimPivot();document.body.classList.add' sim/first_person_weapon_runtime_v3.mjs
+      - name: Commit repair
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/first_person_weapon_runtime_v3.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m 'Make FPS aim presentation single-pass'
+          git push origin HEAD:main
