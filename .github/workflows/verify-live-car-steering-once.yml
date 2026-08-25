@@ -11,11 +11,11 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
-      - name: Verify deployed simulator and physical mobile steering
+      - name: Verify inverted deployed mobile steering
         run: |
           set -euxo pipefail
           LIVE='https://kurzlernen.de/drone_simulator.html'
-          curl -fsSL "$LIVE?verify=$GITHUB_SHA" -o /tmp/live-simulator.html
+          curl -fsSL "$LIVE?verify=inverted-steer-$GITHUB_SHA" -o /tmp/live-simulator.html
           grep -q 'ARONDIGHT45_BUILD_SHA:' /tmp/live-simulator.html
           BUILD_DIR=/tmp/car-smoke-node
           rm -rf "$BUILD_DIR"
@@ -27,4 +27,4 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/player_car_touch_browser_smoke.mjs "$LIVE?physical-steering=1"
+          CHROME_BIN="$CHROME_BIN" node tests/player_car_touch_browser_smoke.mjs "$LIVE?physical-steering=inverted"
