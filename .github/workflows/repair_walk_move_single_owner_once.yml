@@ -66,6 +66,9 @@ jobs:
 
           p=Path('tests/combat_center_fire_test.mjs')
           s=p.read_text()
+          obsolete=",'pointerup+cancel+owned-lostcapture+blur+visibility+pagehide+orientation-v3'"
+          assert s.count(obsolete)==1, f'obsolete lifecycle marker count={s.count(obsolete)}'
+          s=s.replace(obsolete,'',1)
           old='walkLifecycle=readFileSync("sim/walk_input_lifecycle_guard.mjs","utf8");'
           assert s.count(old)==1
           s=s.replace(old,'walkLifecycle=readFileSync("sim/walk_input_lifecycle_guard.mjs","utf8"),playerWalk=readFileSync("sim/player_walk_mode_v4.mjs","utf8");',1)
