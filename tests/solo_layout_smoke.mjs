@@ -16,7 +16,7 @@ try{
     // SOLO sets the body class before the queued presentation-resize commit.
     // Wait for that commit instead of sampling the previous/empty viewport
     // policy during rapid same-page reloads (notably the Safari-bars fixture).
-    await page.waitForFunction(()=>{const viewport=document.querySelector("#viewport");return viewport?.dataset.orientationPolicy==="landscape"&&Boolean(viewport.dataset.soloOrientation);},{timeout:5000});
+    await page.waitForFunction(()=>{const viewport=document.querySelector("#viewport");return viewport?.dataset.orientationPolicy==="native-never-rotate-v1"&&viewport.dataset.soloOrientation==="native";},{timeout:5000});
     const g=await page.evaluate(()=>{
       const viewport=document.querySelector("#viewport"),viewportRect=viewport.getBoundingClientRect(),orientation=viewport.dataset.soloOrientation||"";
       const physicalElementRect=e=>{const r=e?.getBoundingClientRect();return r?{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}:null;};
@@ -38,12 +38,10 @@ try{
       };
     });
     const portrait=viewport.height>viewport.width;
-    if(g.orientationPolicy!=="landscape"||g.rotateBlocker)throw new Error(`${viewport.name}: landscape policy/blocker contract failed: ${JSON.stringify({policy:g.orientationPolicy,blocker:g.rotateBlocker})}`);
-    if(portrait){
-      if(g.orientation!=="css-landscape"||g.width!==viewport.height||g.height!==viewport.width)throw new Error(`${viewport.name}: portrait did not become a logical landscape viewport: ${JSON.stringify({orientation:g.orientation,width:g.width,height:g.height})}`);
-      const r=g.viewportPhysical;if(Math.abs(r.left)>1||Math.abs(r.top)>1||Math.abs(r.right-g.screenWidth)>1||Math.abs(r.bottom-g.screenHeight)>1)throw new Error(`${viewport.name}: rotated simulator does not cover screen: ${JSON.stringify({screen:[g.screenWidth,g.screenHeight],viewport:r})}`);
-      if(g.leftOpacity<.99||g.armOpacity<.99)throw new Error(`${viewport.name}: flight controls were dimmed by portrait mode: ${JSON.stringify({left:g.leftOpacity,arm:g.armOpacity})}`);
-    }else if(g.orientation!=="native-landscape")throw new Error(`${viewport.name}: native landscape policy was not detected: ${g.orientation}`);
+    if(g.orientationPolicy!=="native-never-rotate-v1"||g.orientation!=="native"||g.rotateBlocker)throw new Error(`${viewport.name}: native orientation contract failed: ${JSON.stringify({policy:g.orientationPolicy,orientation:g.orientation,blocker:g.rotateBlocker})}`);
+    if(g.width!==viewport.width||g.height!==viewport.height)throw new Error(`${viewport.name}: viewport geometry was altered instead of staying native: ${JSON.stringify({actual:[g.width,g.height],expected:[viewport.width,viewport.height]})}`);
+    const r=g.viewportPhysical;if(Math.abs(r.left)>1||Math.abs(r.top)>1||Math.abs(r.right-g.screenWidth)>1||Math.abs(r.bottom-g.screenHeight)>1)throw new Error(`${viewport.name}: native simulator does not cover screen: ${JSON.stringify({screen:[g.screenWidth,g.screenHeight],viewport:r})}`);
+    if(portrait&&(g.leftOpacity<.99||g.armOpacity<.99))throw new Error(`${viewport.name}: flight controls were dimmed by portrait mode: ${JSON.stringify({left:g.leftOpacity,arm:g.armOpacity})}`);
     if(g.cameraMode!=="fpv"||g.autoStart!=="fpv"||g.soloCamera!=="FPV")throw new Error(`${viewport.name}: direct FPV startup failed: ${JSON.stringify({cameraMode:g.cameraMode,autoStart:g.autoStart,soloCamera:g.soloCamera})}`);
     if(g.panelDisplay!=="none"||g.telemetryDisplay!=="none"||g.cameraDisplay!=="none")throw new Error(`${viewport.name}: main menu leaked into direct flight startup: ${JSON.stringify({panel:g.panelDisplay,telemetry:g.telemetryDisplay,camera:g.cameraDisplay})}`);
     if(g.raceDisplay!=="none")throw new Error(`${viewport.name}: lap/time HUD still blocks the flight image: ${g.raceDisplay}`);
@@ -86,15 +84,16 @@ try{
     if(!armHoverContract)throw new Error(`${viewport.name}: ARM hover/focus CSS contract missing`);
 
     if(portrait){
-      const stick=g.leftPhysical,cx=(stick.left+stick.right)/2,cy=(stick.top+stick.bottom)/2;
-      await page.mouse.move(cx,cy);await page.mouse.down();await page.mouse.move(cx,cy+stick.height*.25,{steps:3});
+      const stick=g.leftPhysical,cx=(stick.left+stick.right)/2,cy=(stick.top+stick.bottom)/2,targetX=cx+stick.width*.34;
+      await page.evaluate(({x,y})=>document.querySelector("#soloLeft").dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:901,pointerType:"touch",clientX:x,clientY:y,button:0})),{x:targetX,y:cy});
       const stickAxes=await page.$eval("#soloLeft .solo-knob",e=>({left:parseFloat(e.style.left),top:parseFloat(e.style.top)}));
-      await page.mouse.up();
-      if(!(stickAxes.left>60&&Math.abs(stickAxes.top-50)<2))throw new Error(`${viewport.name}: rotated pointer axes are wrong: ${JSON.stringify(stickAxes)}`);
-      const pad=g.heightPadPhysical,px=(pad.left+pad.right)/2,py=(pad.top+pad.bottom)/2;
-      await page.mouse.move(px,py);await page.mouse.down();await page.mouse.move(px+pad.width*.30,py,{steps:3});
-      const climbRate=await page.$eval("#soloHeightPad",e=>Number(e.dataset.rateMps));await page.mouse.up();
-      if(!(climbRate>0))throw new Error(`${viewport.name}: rotated altitude control does not command CLIMB: ${climbRate}`);
+      await page.evaluate(({x,y})=>document.querySelector("#soloLeft").dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:901,pointerType:"touch",clientX:x,clientY:y,button:0})),{x:targetX,y:cy});
+      if(!(stickAxes.left>75&&Math.abs(stickAxes.top-50)<3))throw new Error(`${viewport.name}: absolute native pointer mapping is wrong: ${JSON.stringify(stickAxes)}`);
+      const pad=g.heightPadPhysical,px=(pad.left+pad.right)/2,py=(pad.top+pad.bottom)/2,targetY=py-pad.height*.30;
+      await page.evaluate(({x,y})=>document.querySelector("#soloHeightPad").dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:902,pointerType:"touch",clientX:x,clientY:y,button:0})),{x:px,y:targetY});
+      const climbRate=await page.$eval("#soloHeightPad",e=>Number(e.dataset.rateMps));
+      await page.evaluate(({x,y})=>document.querySelector("#soloHeightPad").dispatchEvent(new PointerEvent("pointerup",{bubbles:true,cancelable:true,pointerId:902,pointerType:"touch",clientX:x,clientY:y,button:0})),{x:px,y:targetY});
+      if(!(climbRate>0))throw new Error(`${viewport.name}: native altitude control does not command CLIMB: ${climbRate}`);
     }
 
     await page.click("#soloExit");
@@ -106,6 +105,6 @@ try{
       soloHidden:document.querySelector("#soloHud")?.hidden,
     }));
     if(exited.panel==="none"||exited.telemetry==="none"||exited.camera==="none"||exited.soloHidden!==true)throw new Error(`${viewport.name}: EXIT did not restore the main menu: ${JSON.stringify(exited)}`);
-    console.log(`Solo layout ${viewport.name} passed: always-landscape FPV startup, clear race-free HUD, mapped controls, and EXIT-only menu reveal.`);
+    console.log(`Solo layout ${viewport.name} passed: native-orientation FPV startup, clear race-free HUD, mapped controls, and EXIT-only menu reveal.`);
   }
 }finally{await browser.close();}
