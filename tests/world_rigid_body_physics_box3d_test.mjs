@@ -42,6 +42,15 @@ assert.ok(Math.abs(physicallySteered.yaw)>.10,`steering input rotated no Box3D v
 assert.ok(Math.hypot(physicallySteered.position[0],physicallySteered.position[1]+18)>2,`steered car did not physically travel: ${JSON.stringify(physicallySteered)}`);
 physics.removeBody("car-steer");
 
+physics.syncBuildings({hash:"vehicle-passage",footprintCount:2,prisms:[{buildingKey:"passage-north",base:0,top:4,points:[[-2,1.3],[18,1.3],[18,4],[-2,4]]},{buildingKey:"passage-south",base:0,top:4,points:[[-2,-4],[18,-4],[18,-1.3],[-2,-1.3]]}]});
+physics.addBody({id:"car-passage",kind:"car",position:[0,0,.42],yaw:0,halfExtents:[1.78,.82,.42],massKg:1420});
+physics.setTarget("car-passage",{position:[16,0,.42],yaw:0,speedMps:7,response:4,maxAccelerationMps2:8});
+for(let index=0;index<180;index++)physics.step(1/60,4,6700+index*1000/60);
+const passageCar=physics.pose("car-passage");
+assert.ok(passageCar.position[0]>8,`car could not physically traverse a passable building corridor: ${JSON.stringify(passageCar)}`);
+assert.ok(Math.abs(passageCar.position[1])<.7,`car was pushed out of the physical passage instead of traversing it: ${JSON.stringify(passageCar)}`);
+physics.removeBody("car-passage");physics.syncBuildings({hash:"clear-after-passage",footprintCount:0,prisms:[]});
+
 physics.addBody({id:"car-a",kind:"car",position:[-7,8,.42],yaw:0,halfExtents:[1.78,.82,.42],massKg:1420});
 physics.addBody({id:"car-b",kind:"car",position:[7,8,.42],yaw:Math.PI,halfExtents:[1.78,.82,.42],massKg:1420});
 physics.setTarget("car-a",{position:[12,8,.42],yaw:0,speedMps:8});physics.setTarget("car-b",{position:[-12,8,.42],yaw:Math.PI,speedMps:8});
@@ -64,4 +73,4 @@ const falling=physics.pose("police-drone-test");assert.ok(falling.position[2]<ai
 assert.ok(physics.impactCount>=1&&impacts.some(event=>event.nativeContactEvent&&event.approachSpeedMps>1),`native Box3D contact-hit events produced no impact evidence: ${JSON.stringify(impacts.slice(-3))}`);
 
 physics.destroy();
-console.log("WORLD rigid-body Box3D passed: vehicles resolve physical contacts, ground support, tire grip, real rigid-body steering and impulse/gravity behavior; no dynamic camera body exists in this physics world.");
+console.log("WORLD rigid-body Box3D passed: vehicles resolve physical contacts, ground support, tire grip, real rigid-body steering, passable-corridor traversal and impulse/gravity behavior; no dynamic camera body exists in this physics world.");
