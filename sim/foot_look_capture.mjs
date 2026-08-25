@@ -83,6 +83,7 @@ export function installFootLookCapture(){
       if(pointer!==null)return;if(event.pointerType==="mouse"&&event.button!==0)return;syncAim();pointer=event.pointerId;captureEl=target.closest("#footLook")||target;try{captureEl?.setPointerCapture?.(pointer);}catch{}walk()?.beginTouchLook?.("touch-stick");stickEl=captureEl;stickKnob=stickEl?.querySelector(".knob")||null;stickFrameMs=performance.now();updateStick(event.clientX,event.clientY);const v=viewport();if(v){v.dataset.walkAimStickCapture="rate-v6";v.dataset.walkAimStickMode="rate-edge-hold-v5";v.dataset.walkTouchLookActive="1";}consume(event);return;
     }
     if(!target?.closest("#footLookZone"))return;
+    const vehicleDrive=globalThis.__arondightVehicleDrive||null;if(!vehicleDrive?.active&&vehicleDrive?.tryEnterAtScreenPoint?.(event.clientX,event.clientY)){const v=viewport();if(v)v.dataset.walkTouchTapRoute="vehicle-screen-interact-before-fire-v1";consume(event);return;}
     if(event.pointerType==="mouse"){
       if(event.button!==0)return;syncAim();const v=viewport();if(document.pointerLockElement!==v)try{v?.requestPointerLock?.({unadjustedMovement:true});}catch{try{v?.requestPointerLock?.();}catch{}}if(v)v.dataset.walkAimMouse="pointerlock-v13";consume(event);return;
     }
