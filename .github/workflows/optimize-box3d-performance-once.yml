@@ -1,0 +1,77 @@
+name: Optimize Box3D performance once
+on:
+  push:
+    paths:
+      - '.github/workflows/optimize-box3d-performance-once.yml'
+permissions:
+  contents: write
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Optimize population and rigid bodies
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('sim/world_procedural_population.mjs')
+          s=p.read_text()
+          def once(old,new,label):
+              global s
+              if old not in s: raise SystemExit(f'missing {label}')
+              s=s.replace(old,new,1)
+
+          once(
+            'import {pedestrianPointBlocked,projectPedestrianOutsideBuildings,steerPedestrianStep} from "./world_pedestrian_navigation.mjs";',
+            'import {createPedestrianNavigationIndex,pedestrianNavigationStats,pedestrianPointBlocked,projectPedestrianOutsideBuildings,steerPedestrianStep} from "./world_pedestrian_navigation.mjs";',
+            'navigation imports')
+          once(
+            'let audioSettings=loadAudioSettings(),lastPanicScreamAt=-Infinity,panicScreams=0,panicEvents=0;',
+            'let audioSettings=loadAudioSettings(),lastPanicScreamAt=-Infinity,panicScreams=0,panicEvents=0,pedestrianNavHash="",pedestrianNavIndex=null;',
+            'navigation cache state')
+          once(
+            'function buildingPrisms(){return bridge()?.buildingCollisionSnapshot?.prisms||[];}\nfunction panicBlocked(x,y){return pedestrianPointBlocked(x,y,buildingPrisms(),.30);}',
+            'function buildingNavigation(){const snapshot=bridge()?.buildingCollisionSnapshot,hash=String(snapshot?.hash||"");if(!pedestrianNavIndex||hash!==pedestrianNavHash){pedestrianNavIndex=createPedestrianNavigationIndex(snapshot?.prisms||[],{cellSizeM:MOBILE?18:16});pedestrianNavHash=hash;}return pedestrianNavIndex;}\nfunction panicBlocked(x,y){return pedestrianPointBlocked(x,y,buildingNavigation(),.30);}',
+            'building navigation cache')
+          once(
+            'function stepPersonNavigation(record,target,now,{speedMps=record.speed||1.25,clearanceM=.30}={}){const prisms=buildingPrisms(),hasPosition=Number.isFinite(record.pedestrianX)&&Number.isFinite(record.pedestrianY);if(!hasPosition){const spawn=projectPedestrianOutsideBuildings(target.x,target.y,prisms,{clearanceM:clearanceM+.04});record.pedestrianX=spawn.x;record.pedestrianY=spawn.y;record.pedestrianHeading=Number.isFinite(target.yaw)?target.yaw:0;record.pedestrianLastAt=now;if(spawn.moved)record.pedestrianCollisionCount++;}else{const dt=clamp((now-record.pedestrianLastAt)/1000,0,.05);record.pedestrianLastAt=now;const step=steerPedestrianStep({x:record.pedestrianX,y:record.pedestrianY,targetX:target.x,targetY:target.y,speedMps,dtS:dt,prisms,clearanceM,sideBias:record.index&1?1:-1,headingHint:record.pedestrianHeading});record.pedestrianX=step.x;record.pedestrianY=step.y;record.pedestrianHeading=step.heading;if(step.blocked||step.ejected)record.pedestrianCollisionCount++;}record.group.position.set(record.pedestrianX,record.pedestrianY,.01*Math.sin(Date.now()/1000*6+record.index));record.group.rotation.set(0,0,Number.isFinite(record.pedestrianHeading)?record.pedestrianHeading:(target.yaw||0));return{x:record.pedestrianX,y:record.pedestrianY,yaw:record.group.rotation.z};}',
+            'function stepPersonNavigation(record,target,now,{speedMps=record.speed||1.25,clearanceM=.30}={}){const navigation=buildingNavigation(),hasPosition=Number.isFinite(record.pedestrianX)&&Number.isFinite(record.pedestrianY);if(!hasPosition){const spawn=projectPedestrianOutsideBuildings(target.x,target.y,navigation,{clearanceM:clearanceM+.04});record.pedestrianX=spawn.x;record.pedestrianY=spawn.y;record.pedestrianHeading=Number.isFinite(target.yaw)?target.yaw:0;record.pedestrianLastAt=now;if(spawn.moved)record.pedestrianCollisionCount++;}else{const dt=clamp((now-record.pedestrianLastAt)/1000,0,.05);record.pedestrianLastAt=now;const step=steerPedestrianStep({x:record.pedestrianX,y:record.pedestrianY,targetX:target.x,targetY:target.y,speedMps,dtS:dt,navigation,clearanceM,sideBias:record.index&1?1:-1,headingHint:record.pedestrianHeading});record.pedestrianX=step.x;record.pedestrianY=step.y;record.pedestrianHeading=step.heading;if(step.blocked||step.ejected)record.pedestrianCollisionCount++;}record.group.position.set(record.pedestrianX,record.pedestrianY,.01*Math.sin(Date.now()/1000*6+record.index));record.group.rotation.set(0,0,Number.isFinite(record.pedestrianHeading)?record.pedestrianHeading:(target.yaw||0));return{x:record.pedestrianX,y:record.pedestrianY,yaw:record.group.rotation.z};}',
+            'person navigation indexed')
+          once('prisms:buildingPrisms(),clearanceM:.32','navigation:buildingNavigation(),clearanceM:.32','panic navigation indexed')
+          once(
+            'v.dataset.worldPopulationRecycles=String(populationRecycleCount);v.dataset.worldDecorRecycles=String(decorRecycleCount);v.dataset.worldPedestrianPanic="gunshot+explosion-flee+hands-up+scream-v1";',
+            'const navStats=pedestrianNavigationStats(buildingNavigation());v.dataset.worldPopulationRecycles=String(populationRecycleCount);v.dataset.worldDecorRecycles=String(decorRecycleCount);v.dataset.worldPedestrianNavigation="spatial-broadphase-grid-v1";v.dataset.worldPedestrianNavPrisms=String(navStats.totalPrisms);v.dataset.worldPedestrianNavAvgCandidates=navStats.averageCandidates.toFixed(2);v.dataset.worldPedestrianNavMaxCandidates=String(navStats.maxCandidates);v.dataset.worldPedestrianPanic="gunshot+explosion-flee+hands-up+scream-v1";',
+            'navigation telemetry')
+          p.write_text(s)
+
+          p=Path('sim/world_rigid_body_physics.mjs')
+          s=p.read_text()
+          def replace(old,new,label):
+              global s
+              if old not in s: raise SystemExit(f'missing physics {label}')
+              s=s.replace(old,new,1)
+          replace(
+            'bodyDef.gravityScale=resolvedGravityScale;bodyDef.enableSleep=false;bodyDef.isBullet=true;const body=',
+            'bodyDef.gravityScale=resolvedGravityScale;bodyDef.enableSleep=!drone;bodyDef.sleepThreshold=drone?.03:.09;bodyDef.isBullet=drone;const body=',
+            'sleep and bullet')
+          replace('shapeDef.enableContactEvents=true;shapeDef.enableHitEvents=true;','shapeDef.enableContactEvents=false;shapeDef.enableHitEvents=true;','event flags')
+          replace(
+            'const b3=this.b3,body=record.body,position=b3.b3Body_GetPosition([0,0,0],body),velocity=b3.b3Body_GetLinearVelocity([0,0,0],body),angular=b3.b3Body_GetAngularVelocity([0,0,0],body);record.preVelocity=[...velocity];',
+            'const b3=this.b3,body=record.body,sleeping=!record.drone&&typeof b3.b3Body_IsAwake==="function"&&!b3.b3Body_IsAwake(body);if(sleeping&&(record.target?.speedMps||0)<=0&&length3(record.pendingImpulse)<=.0001){record.preVelocity[0]=record.preVelocity[1]=record.preVelocity[2]=0;return;}const position=b3.b3Body_GetPosition([0,0,0],body),velocity=b3.b3Body_GetLinearVelocity([0,0,0],body),angular=b3.b3Body_GetAngularVelocity([0,0,0],body);record.preVelocity=[...velocity];',
+            'sleep fast path')
+          p.write_text(s)
+          PY
+          node --check sim/world_pedestrian_navigation.mjs
+          node --check sim/world_procedural_population.mjs
+          node --check sim/world_rigid_body_physics.mjs
+          node tests/world_pedestrian_navigation_test.mjs
+          grep -q 'spatial-broadphase-grid-v1' sim/world_procedural_population.mjs
+          grep -q 'bodyDef.enableSleep=!drone' sim/world_rigid_body_physics.mjs
+          grep -q 'bodyDef.isBullet=drone' sim/world_rigid_body_physics.mjs
+          git add sim/world_procedural_population.mjs sim/world_rigid_body_physics.mjs
+          git commit -m "Optimize Box3D and pedestrian hotpaths"
+          git push origin HEAD:main
