@@ -1,0 +1,34 @@
+name: Verify player multiplayer once
+on:
+  push:
+    paths:
+      - '.github/workflows/verify-player-multiplayer-once.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Contract and live browser verification
+        run: |
+          set -euxo pipefail
+          node tests/player_multiplayer_replication_contract_test.mjs
+          node tests/player_car_touch_contract_test.mjs
+          BUILD_DIR=/tmp/player-multiplayer-verify
+          rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund puppeteer-core@24.16.0
+          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          live=0
+          for attempt in $(seq 1 24); do
+            if curl -fsSL --retry 1 --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}-${attempt}" -o /tmp/live.html && grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" /tmp/live.html; then live=1; break; fi
+            sleep 5
+          done
+          test "$live" = 1
+          CHROME_BIN="$CHROME_BIN" node tests/player_multiplayer_modes_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}-modes"
+          CHROME_BIN="$CHROME_BIN" node tests/player_car_touch_browser_smoke.mjs "https://kurzlernen.de/drone_simulator.html?ci=${GITHUB_SHA}-car"
