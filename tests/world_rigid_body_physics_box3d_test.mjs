@@ -2,16 +2,11 @@ import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
 import {resolve} from "node:path";
 import {WorldRigidBodyPhysics} from "../sim/world_rigid_body_physics.mjs";
-import {CameraBox3dSpring,cameraSpringAcceleration} from "../sim/camera_box3d_spring.mjs";
 
 const modulePath=process.argv[2];
 if(!modulePath)throw new Error("usage: node tests/world_rigid_body_physics_box3d_test.mjs <box3d.inline.mjs>");
 const imported=await import(pathToFileURL(resolve(modulePath)).href),factory=imported.default,b3=await factory();
 const impacts=[],wall={hash:"traffic-wall",footprintCount:1,prisms:[{buildingKey:"wall",base:0,top:4,points:[[4,-3],[5,-3],[5,3],[4,3]]}]},physics=new WorldRigidBodyPhysics(b3,{buildingSnapshot:wall,onImpact:detail=>impacts.push(detail)});
-
-const springPush=cameraSpringAcceleration([.01,0,0],[0,0,0],{maxAccelerationMps2:160}),springBrake=cameraSpringAcceleration([.01,0,0],[-.05,0,0],{maxAccelerationMps2:160});
-assert.ok(springPush[0]>0,"camera spring does not pull toward its attachment target");
-assert.ok(springBrake[0]<springPush[0],"camera spring damping does not oppose relative velocity");
 
 physics.addBody({id:"grounded-car",kind:"car",position:[-12,-8,.42],yaw:.2,halfExtents:[1.78,.82,.42],massKg:1420});
 physics.addBody({id:"grounded-bus",kind:"bus",position:[12,-8,1.08],yaw:-.2,halfExtents:[4,1.17,1.08],massKg:9200});
@@ -28,21 +23,6 @@ const blocked=physics.pose("car-wall");
 assert.ok(blocked.position[0]>1.5,`force-driven vehicle never reached the building: ${JSON.stringify(blocked)}`);
 assert.ok(blocked.position[0]<2.35,`dynamic vehicle tunneled through static Box3D building: ${JSON.stringify(blocked)}`);
 assert.ok(blocked.position.every(Number.isFinite));
-
-const cameraSpring=new CameraBox3dSpring({b3,world:physics.world,profile:{frequencyHz:5.2,maxAccelerationMps2:80}}),cameraAnchor=[0,0,1.6],blockedDesired=[7,0,1.6];
-let cameraBlocked=null;
-for(let index=0;index<360;index++){cameraBlocked=cameraSpring.update({anchor:cameraAnchor,desired:blockedDesired,now:index*1000/60,mode:"follow"});physics.step(1/60,4,12000+index*1000/60);}
-cameraBlocked=cameraSpring.result(blockedDesired);
-assert.equal(cameraBlocked.physics,"box3d-dynamic-spring-v1");
-assert.ok(cameraBlocked.position[0]>2.5,`physical camera spring never reached the wall: ${JSON.stringify(cameraBlocked)}`);
-assert.ok(cameraBlocked.position[0]<3.93,`physical camera body tunneled through the Box3D wall: ${JSON.stringify(cameraBlocked)}`);
-assert.ok(cameraBlocked.compressionM>2.5,`camera spring did not compress against the wall: ${JSON.stringify(cameraBlocked)}`);
-const clearDesired=[2,0,1.6];let cameraReleased=null;
-for(let index=0;index<180;index++){cameraReleased=cameraSpring.update({anchor:cameraAnchor,desired:clearDesired,now:(360+index)*1000/60,mode:"follow"});physics.step(1/60,4,18000+index*1000/60);}
-cameraReleased=cameraSpring.result(clearDesired);
-assert.ok(Math.abs(cameraReleased.position[0]-clearDesired[0])<.12,`camera spring did not return to its attachment after the wall cleared: ${JSON.stringify(cameraReleased)}`);
-assert.ok(cameraReleased.compressionM<.14,`camera spring stayed compressed after returning to clear space: ${JSON.stringify(cameraReleased)}`);
-cameraSpring.destroy();
 
 physics.syncBuildings({hash:"clear",footprintCount:0,prisms:[]});physics.removeBody("car-wall");
 physics.addBody({id:"car-slip",kind:"car",position:[0,-12,.42],yaw:0,halfExtents:[1.78,.82,.42],massKg:1420});
@@ -76,4 +56,4 @@ const falling=physics.pose("police-drone-test");assert.ok(falling.position[2]<ai
 assert.ok(physics.impactCount>=1&&impacts.some(event=>event.nativeContactEvent&&event.approachSpeedMps>1),`native Box3D contact-hit events produced no impact evidence: ${JSON.stringify(impacts.slice(-3))}`);
 
 physics.destroy();
-console.log("WORLD rigid-body Box3D passed: vehicles resolve physical contacts and the camera attachment is a spring-loaded dynamic Box3D body that compresses at walls and returns when clear.");
+console.log("WORLD rigid-body Box3D passed: vehicles resolve physical contacts, ground support, tire grip and impulse/gravity behavior; no dynamic camera body exists in this physics world.");
