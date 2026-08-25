@@ -1,0 +1,74 @@
+name: Repair vehicle yaw contract once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/repair_vehicle_yaw_contract_once.yml']
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make planar vehicle yaw authoritative
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/world_rigid_body_physics.mjs')
+          s=p.read_text()
+          old='lateralSlipMps:0,uprightError:0,planarYaw:wrap(Number(yaw)||0)};this.records.set(key,record);'
+          new='lateralSlipMps:0,uprightError:0,planarYaw:wrap(Number(yaw)||0),planarYawRate:0,desiredPlanarYawRate:0};this.records.set(key,record);'
+          assert old in s
+          s=s.replace(old,new,1)
+
+          old='record.preVelocity=[...velocity];record.lastVelocity=[...velocity];record.lateralSlipMps=0;if(Number.isFinite(yaw))record.planarYaw=wrap(Number(yaw));return true;'
+          new='record.preVelocity=[...velocity];record.lastVelocity=[...velocity];record.lateralSlipMps=0;if(!record.drone){if(Number.isFinite(yaw))record.planarYaw=wrap(Number(yaw));record.planarYawRate=clamp(Number(angularVelocity?.[2])||0,-1.35,1.35);record.desiredPlanarYawRate=record.planarYawRate;}return true;'
+          assert old in s
+          s=s.replace(old,new,1)
+
+          old='pose(id){const record=this.records.get(String(id||""));if(!record||!this.b3.b3Body_IsValid(record.body))return null;const position=this.b3.b3Body_GetPosition([0,0,0],record.body),rotation=this.b3.b3Body_GetRotation([0,0,0,1],record.body),velocity=this.b3.b3Body_GetLinearVelocity([0,0,0],record.body),angularVelocity=this.b3.b3Body_GetAngularVelocity([0,0,0],record.body);return{position:[...position],rotation:[...rotation],velocity:[...velocity],angularVelocity:[...angularVelocity],yaw:quaternionYaw(rotation),lateralSlipMps:record.lateralSlipMps||0,uprightError:record.uprightError||0};}'
+          new='pose(id){const record=this.records.get(String(id||""));if(!record||!this.b3.b3Body_IsValid(record.body))return null;const position=this.b3.b3Body_GetPosition([0,0,0],record.body),rawRotation=this.b3.b3Body_GetRotation([0,0,0,1],record.body),velocity=this.b3.b3Body_GetLinearVelocity([0,0,0],record.body),rawAngularVelocity=this.b3.b3Body_GetAngularVelocity([0,0,0],record.body),yaw=record.drone?quaternionYaw(rawRotation):wrap(Number(record.planarYaw)||0),rotation=record.drone?[...rawRotation]:yawQuaternion(yaw),angularVelocity=record.drone?[...rawAngularVelocity]:[0,0,Number(record.planarYawRate)||0];return{position:[...position],rotation,velocity:[...velocity],angularVelocity,yaw,lateralSlipMps:record.lateralSlipMps||0,uprightError:record.uprightError||0};}'
+          assert old in s
+          s=s.replace(old,new,1)
+
+          old='const b3=this.b3,body=record.body,sleeping=!record.drone&&typeof b3.b3Body_IsAwake==="function"&&!b3.b3Body_IsAwake(body);if(sleeping&&(record.target?.speedMps||0)<=0&&length3(record.pendingImpulse)<=.0001){record.preVelocity[0]=record.preVelocity[1]=record.preVelocity[2]=0;return;}'
+          new='const b3=this.b3,body=record.body,sleeping=!record.drone&&typeof b3.b3Body_IsAwake==="function"&&!b3.b3Body_IsAwake(body);if(!record.drone)record.desiredPlanarYawRate=0;if(sleeping&&(record.target?.speedMps||0)<=0&&length3(record.pendingImpulse)<=.0001){record.preVelocity[0]=record.preVelocity[1]=record.preVelocity[2]=0;return;}'
+          assert old in s
+          s=s.replace(old,new,1)
+
+          old='let torqueZ=clamp((yawError*7-angular[2]*2.8)*record.massKg,-record.massKg*12,record.massKg*12);let steeringLateralAccel=0,frontAxlePoint=null;if(vehicleSteer!==null){'
+          new='let torqueZ=clamp((yawError*7-angular[2]*2.8)*record.massKg,-record.massKg*12,record.massKg*12);if(!record.drone)record.desiredPlanarYawRate=clamp(yawError*2.6,-1.15,1.15);let steeringLateralAccel=0,frontAxlePoint=null;if(vehicleSteer!==null){'
+          assert old in s
+          s=s.replace(old,new,1)
+
+          old='desiredYawRate=clamp(rawYawRate,-maxYawRate,maxYawRate),yawRateError=desiredYawRate-angular[2];torqueZ='
+          new='desiredYawRate=clamp(rawYawRate,-maxYawRate,maxYawRate),yawRateError=desiredYawRate-angular[2];record.desiredPlanarYawRate=desiredYawRate;torqueZ='
+          assert old in s
+          s=s.replace(old,new,1)
+
+          old='const position=this.b3.b3Body_GetPosition([0,0,0],body),angular=this.b3.b3Body_GetAngularVelocity([0,0,0],body),yawRate=Number(angular?.[2])||0;record.planarYaw=wrap((Number(record.planarYaw)||0)+yawRate*delta);this.b3.b3Body_SetTransform(body,[...position],yawQuaternion(record.planarYaw));this.b3.b3Body_SetAngularVelocity(body,[0,0,yawRate]);record.uprightError=0;'
+          new='const position=this.b3.b3Body_GetPosition([0,0,0],body),targetYawRate=clamp(Number(record.desiredPlanarYawRate)||0,-1.35,1.35),currentYawRate=Number(record.planarYawRate)||0,maxYawAccel=4.8,yawRate=currentYawRate+clamp(targetYawRate-currentYawRate,-maxYawAccel*delta,maxYawAccel*delta);record.planarYawRate=Math.abs(yawRate)<.0001?0:yawRate;record.planarYaw=wrap((Number(record.planarYaw)||0)+record.planarYawRate*delta);this.b3.b3Body_SetTransform(body,[...position],yawQuaternion(record.planarYaw));this.b3.b3Body_SetAngularVelocity(body,[0,0,0]);record.uprightError=0;'
+          assert old in s
+          s=s.replace(old,new,1)
+
+          p.write_text(s)
+          PY
+          node --check sim/world_rigid_body_physics.mjs
+      - name: Run Box3D regression
+        run: |
+          set -euo pipefail
+          TMP=/tmp/box3d-yaw; rm -rf "$TMP"; mkdir -p "$TMP"; cd "$TMP"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund box3d.js@0.1.1 >/dev/null
+          cd "$GITHUB_WORKSPACE"
+          node tests/world_rigid_body_physics_box3d_test.mjs "$TMP/node_modules/box3d.js/dist/box3d.inline.mjs"
+      - name: Commit
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/world_rigid_body_physics.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m 'Make planar vehicle yaw authoritative'
+          git push origin HEAD:main
