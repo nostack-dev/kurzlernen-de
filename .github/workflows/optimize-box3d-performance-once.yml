@@ -72,6 +72,8 @@ jobs:
           grep -q 'spatial-broadphase-grid-v1' sim/world_procedural_population.mjs
           grep -q 'bodyDef.enableSleep=!drone' sim/world_rigid_body_physics.mjs
           grep -q 'bodyDef.isBullet=drone' sim/world_rigid_body_physics.mjs
+          git config user.name 'Christian Heinrich Hohlfeld'
+          git config user.email 'chris.hohlfeld@gmail.com'
           git add sim/world_procedural_population.mjs sim/world_rigid_body_physics.mjs
           git commit -m "Optimize Box3D and pedestrian hotpaths"
           git push origin HEAD:main
