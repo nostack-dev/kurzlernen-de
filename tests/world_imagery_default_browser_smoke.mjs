@@ -12,6 +12,6 @@ try{
   await page.reload({waitUntil:"load",timeout:40000});
   await page.waitForFunction(()=>globalThis.__arondightRealWorld,{timeout:40000});
   const state=await page.evaluate(()=>({imageryEnabled:globalThis.__arondightRealWorld?.imageryEnabled,stored:localStorage.getItem("arondight45WorldImageryV1"),viewport:document.querySelector("#viewport")?.dataset.worldImageryEnabled||"unset"}));
-  if(state.imageryEnabled!==false||state.stored!==null)throw new Error(`satellite imagery survived a fresh startup: ${JSON.stringify(state)}`);
-  console.log(`Satellite startup smoke passed: imageryEnabled=${state.imageryEnabled}, legacyStorage=${state.stored}.`);
+  if(state.imageryEnabled!==false||state.stored==="1"||state.viewport==="1")throw new Error(`satellite imagery survived a fresh startup: ${JSON.stringify(state)}`);
+  console.log(`Satellite startup smoke passed: imageryEnabled=${state.imageryEnabled}, legacyStorage=${state.stored}, viewport=${state.viewport}.`);
 }finally{await browser.close();}
