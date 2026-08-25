@@ -7,6 +7,7 @@ const HUD_TOP_PAD_CSS=78;
 const FINGER_GAP_CSS=34;
 
 let installed=false,active=false,clientX=0,clientY=0,lastDrawMs=-Infinity,root=null,canvas=null,ctx=null;
+let hookedScene=null,previousSceneAfterRender=null,sceneAfterRenderHook=null;
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 const viewport=()=>document.getElementById("viewport");
@@ -73,11 +74,17 @@ function drawSource(source,point){
 function draw(now){
   if(!active||!isFoot()||now-lastDrawMs<DRAW_INTERVAL_MS)return;lastDrawMs=now;const point=logicalPoint(clientX,clientY);if(!point||!ensureRoot()||!ctx)return;resizeBackingStore();place(point);ctx.clearRect(0,0,canvas.width,canvas.height);let rendered=0,sourceKinds=[];
   for(const source of sourceCanvases()){try{if(drawSource(source.canvas,point)){rendered++;sourceKinds.push(source.kind);}}catch{}}
-  const view=viewport();if(view){view.dataset.walkAimMagnifierFrame=rendered?"rendered":"source-unavailable";view.dataset.walkAimMagnifierSources=sourceKinds.join("+");view.dataset.walkAimMagnifierZoom=MAGNIFIER_ZOOM.toFixed(2);}
+  const view=viewport();if(view){view.dataset.walkAimMagnifierFrame=rendered?"rendered":"source-unavailable";view.dataset.walkAimMagnifierSources=sourceKinds.join("+");view.dataset.walkAimMagnifierZoom=MAGNIFIER_ZOOM.toFixed(2);view.dataset.walkAimMagnifierCapture="scene-after-render-v2";}
+}
+
+function ensureSceneRenderHook(){
+  const scene=bridge()?.threeScene;if(!scene)return false;if(hookedScene===scene&&scene.onAfterRender===sceneAfterRenderHook)return true;
+  if(hookedScene&&sceneAfterRenderHook&&hookedScene.onAfterRender===sceneAfterRenderHook)hookedScene.onAfterRender=previousSceneAfterRender||(()=>{});
+  hookedScene=scene;previousSceneAfterRender=typeof scene.onAfterRender==="function"?scene.onAfterRender:null;sceneAfterRenderHook=function(...args){previousSceneAfterRender?.apply(this,args);if(active)draw(performance.now());};scene.onAfterRender=sceneAfterRenderHook;return true;
 }
 
 function show(detail={}){
-  if(!isFoot())return;clientX=Number(detail.clientX);clientY=Number(detail.clientY);active=true;ensureRoot()?.classList.add("active");const view=viewport();if(view){view.dataset.walkAimMagnifier="custom-canvas-touch-preview-v1";view.dataset.walkAimMagnifierActive="1";view.dataset.walkAimMagnifierNativeIos="suppressed-webkit-callout+selection-guards-v1";}
+  if(!isFoot())return;clientX=Number(detail.clientX);clientY=Number(detail.clientY);active=true;ensureRoot()?.classList.add("active");ensureSceneRenderHook();const view=viewport();if(view){view.dataset.walkAimMagnifier="custom-canvas-touch-preview-v1";view.dataset.walkAimMagnifierActive="1";view.dataset.walkAimMagnifierNativeIos="suppressed-webkit-callout+selection-guards-v1";view.dataset.walkAimMagnifierCapture="scene-after-render-v2";}
 }
 
 function hide(reason="release"){
@@ -87,11 +94,11 @@ function hide(reason="release"){
 function onAim(event){const detail=event?.detail||{};if(detail.active===false){hide(String(detail.source||"release"));return;}show(detail);}
 function isProtectedAimSurface(event){return event?.composedPath?.().some(node=>node instanceof Element&&(node.id==="footLookZone"||node.id==="footReticle"||node.id==="footAimMagnifier"||node.matches?.("#viewport canvas")))||false;}
 function preventNativeIosLoupe(event){if(isFoot()&&isProtectedAimSurface(event))event.preventDefault();}
-function frame(now=performance.now()){if(active)draw(now);requestAnimationFrame(frame);}
+function frame(now=performance.now()){const hooked=ensureSceneRenderHook();if(active&&!hooked)draw(now);requestAnimationFrame(frame);}
 
 export function installAimMagnifierOverlay(){
   if(installed)return;installed=true;ensureStyle();ensureRoot();addEventListener("arondight:foot-screen-aim",onAim);addEventListener("arondight:player-mode",()=>{if(!isFoot())hide("mode-change");});addEventListener("blur",()=>hide("blur"),true);addEventListener("pagehide",()=>hide("pagehide"),true);document.addEventListener("visibilitychange",()=>{if(document.hidden)hide("hidden");},true);for(const type of["contextmenu","selectstart","dragstart"])document.addEventListener(type,preventNativeIosLoupe,{capture:true,passive:false});requestAnimationFrame(frame);
-  const view=viewport();if(view){view.dataset.walkAimMagnifier="custom-canvas-touch-preview-v1";view.dataset.walkAimMagnifierNativeIos="suppressed-webkit-callout+selection-guards-v1";view.dataset.walkAimMagnifierZoom=MAGNIFIER_ZOOM.toFixed(2);}
+  const view=viewport();if(view){view.dataset.walkAimMagnifier="custom-canvas-touch-preview-v1";view.dataset.walkAimMagnifierNativeIos="suppressed-webkit-callout+selection-guards-v1";view.dataset.walkAimMagnifierZoom=MAGNIFIER_ZOOM.toFixed(2);view.dataset.walkAimMagnifierCapture="scene-after-render-v2";}
 }
 
 installAimMagnifierOverlay();
