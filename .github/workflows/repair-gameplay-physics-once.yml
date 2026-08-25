@@ -23,7 +23,8 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           p=Path('sim/world_rigid_body_physics.mjs');s=p.read_text();a=s.index('  controlBody(record,dt){');b=s.index('  step(dt=1/60',a);original=Path('/tmp/original-control-body.txt').read_text();injection='''  controlBody(record,dt){\n    if(record.vehicleRig&&record.target&&Number.isFinite(record.target.steer)){const b3=this.b3,body=record.body,velocity=b3.b3Body_GetLinearVelocity([0,0,0],body);record.preVelocity=[...velocity];this.updateVehicleRig(record);record.lateralSlipMps=0;if(length3(record.pendingImpulse)>.0001){const force=record.pendingImpulse.map(value=>value/Math.max(.001,dt));if(record.impulsePoint)b3.b3Body_ApplyForce(body,force,record.impulsePoint,true);else b3.b3Body_ApplyForceToCenter(body,force,true);record.pendingImpulse=[0,0,0];record.impulsePoint=null;}return;}\n''';assert original.startswith('  controlBody(record,dt){\n');preserved=injection+original[len('  controlBody(record,dt){\n'):];s=s[:a]+preserved+s[b:]
-          s=s.replace(',"b3Body_AllowFastRotation"].every','].every',1).replace('b3.b3Body_AllowFastRotation(wheelBody,true);','',1);p.write_text(s)
+          s=s.replace(',"b3Body_AllowFastRotation"].every','].every',1).replace('b3.b3Body_AllowFastRotation(wheelBody,true);','',1)
+          s=s.replace('}catch(error){for(const wheel of wheels)', '}catch(error){console.error("VEHICLE_RIG_CREATE_ERROR",error);for(const wheel of wheels)',1);p.write_text(s)
           p=Path('tests/player_car_physics_contract_test.mjs');t=p.read_text().replace('"b3Body_AllowFastRotation",','"allowFastRotation=true",');p.write_text(t)
           PY
           node --check sim/world_rigid_body_physics.mjs
@@ -38,6 +39,9 @@ jobs:
           rm -rf "$TMP" && mkdir -p "$TMP" && cd "$TMP"
           npm init -y >/dev/null
           npm install --ignore-scripts --no-audit --no-fund box3d.js@0.1.1 >/dev/null
+          node --input-type=module - "$TMP/node_modules/box3d.js/dist/box3d.inline.mjs" <<'JS'
+          import {pathToFileURL} from 'node:url';const m=await import(pathToFileURL(process.argv[2]).href),b3=await m.default();console.log('WHEEL_DEF='+JSON.stringify(b3.b3DefaultWheelJointDef()));
+          JS
           cd "$GITHUB_WORKSPACE"
           node tests/world_rigid_body_physics_box3d_test.mjs "$TMP/node_modules/box3d.js/dist/box3d.inline.mjs"
       - name: Commit runtime
