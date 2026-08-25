@@ -2,7 +2,7 @@ let installed=false,activePointer=null,activeElement=null,lastPointer=null,lastE
 function viewport(){return document.getElementById("viewport");}
 function isMoveTarget(target){return target instanceof Element?target.closest("#footMove"):null;}
 function publish(reason="active"){
-  const view=viewport();if(!view)return;view.dataset.walkInputLifecycleGuard="exclusive-move-pointer-v3";view.dataset.walkInputLifecycleRelease="authoritative-terminal-reset-v4";view.dataset.walkMoveStickOwner=activePointer===null?"none":String(activePointer);if(reason)view.dataset.walkMoveStickLifecycle=reason;
+  const view=viewport();if(!view)return;view.dataset.walkInputLifecycleGuard="exclusive-move-pointer-v4";view.dataset.walkInputLifecycleRelease="terminal-events-only-v5";view.dataset.walkMoveStickOwner=activePointer===null?"none":String(activePointer);if(reason)view.dataset.walkMoveStickLifecycle=reason;
 }
 function cancelMoveElement(element,id,reason){
   if(!element||id===null||id===undefined)return false;
@@ -12,8 +12,6 @@ function cancelMoveElement(element,id,reason){
 }
 function release(reason="lifecycle"){
   const id=activePointer??lastPointer,element=activeElement||lastElement;if(id===null||!element)return false;
-  // Drop guard ownership before synthesizing the terminal event so the control's
-  // own pointercancel handler can reset movement without recursively re-entering us.
   activePointer=null;activeElement=null;lastPointer=id;lastElement=element;
   cancelMoveElement(element,id,reason);
   try{if(element.hasPointerCapture?.(id))element.releasePointerCapture?.(id);}catch{}
@@ -31,7 +29,12 @@ function remember(event){
   }
   if(event.type==="pointerup"||event.type==="pointercancel")release(event.type);
 }
-function lostCapture(event){if(event.pointerId===activePointer)release("lostpointercapture");}
+function lostCapture(event){
+  const view=viewport();
+  if(event.pointerId!==activePointer){if(view)view.dataset.walkMoveStickForeignCapture=String(event.pointerId);return;}
+  if(view){view.dataset.walkMoveStickCaptureState="lost-await-terminal";view.dataset.walkMoveStickCaptureLosses=String((Number(view.dataset.walkMoveStickCaptureLosses)||0)+1);}
+  publish("capture-lost-await-terminal");
+}
 function touchTerminal(event){if(activePointer!==null&&Number(event.touches?.length||0)===0)release(event.type==="touchcancel"?"touchcancel-zero-touches":"touchend-zero-touches");}
 function watchdog(now){
   if(activePointer!==null&&activeElement&&now-lastSeenAt>30000)release("stale-pointer-watchdog");
