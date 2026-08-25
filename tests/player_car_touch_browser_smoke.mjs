@@ -22,17 +22,16 @@ try{
       const id=String(node.userData?.worldPopulationId||node.userData?.worldProceduralId||""),pose=id?physics.pose?.(id):null;
       if(id&&pose?.position)candidates.push({id,root:node,pose,parked:Boolean(node.userData?.worldParked)});
     });
-    candidates.sort((a,b)=>Number(b.parked)-Number(a.parked));
     const chosen=candidates[0];if(!chosen)return null;
-    const yaw=Number.isFinite(chosen.pose.yaw)?chosen.pose.yaw:0,position=[...chosen.pose.position];
+    const position=[640,640,Math.max(.42,Number(chosen.pose.position[2])||.42)],yaw=0;
     physics.clearTarget?.(chosen.id,{force:true});
     physics.setPose?.(chosen.id,{position,yaw,velocity:[0,0,0],angularVelocity:[0,0,0]});
     walk.setPose?.({x:position[0],y:position[1],yaw:0,pitch:0});
     const nearest=drive.nearestVehicle?.(performance.now()+1000),entered=nearest?.id===chosen.id&&drive.enterNearest?.()===true;
-    return{id:chosen.id,position,parked:chosen.parked,nearestId:nearest?.id||"",entered:Boolean(entered)};
+    return{id:chosen.id,position,parked:chosen.parked,nearestId:nearest?.id||"",entered:Boolean(entered),isolated:true};
   });
   if(!setup)throw new Error("no physical car available for mobile touch smoke");
-  if(!setup.entered)throw new Error(`could not enter stabilized physical car: ${JSON.stringify(setup)}`);
+  if(!setup.entered)throw new Error(`could not enter isolated physical car: ${JSON.stringify(setup)}`);
   await page.waitForFunction(()=>document.body.classList.contains("player-driving")&&getComputedStyle(document.querySelector("#vehicleHud")).display!=="none"&&document.querySelector("#vehicleGas")&&document.querySelector("#vehicleSteer"),{timeout:5000});
   const boxes=await page.evaluate(()=>{const pack=id=>{const r=document.getElementById(id)?.getBoundingClientRect();return r?{x:r.x,y:r.y,w:r.width,h:r.height}:null;};return{gas:pack("vehicleGas"),steer:pack("vehicleSteer"),hudZ:getComputedStyle(document.getElementById("vehicleHud")).zIndex,controller:document.querySelector("#viewport")?.dataset.vehicleDriveController,touch:document.querySelector("#viewport")?.dataset.vehicleTouchControls};});
   if(!boxes.gas||!boxes.steer||Number(boxes.hudZ)<1000)throw new Error(`vehicle touch HUD is not interactable/topmost: ${JSON.stringify(boxes)}`);
@@ -45,7 +44,7 @@ try{
   const yaw0=Number(beforePose?.yaw),yawDelta=Math.atan2(Math.sin(during.bodyYaw-yaw0),Math.cos(during.bodyYaw-yaw0));
   await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});await sleep(120);
   const released=await page.evaluate(()=>({throttle:document.querySelector("#viewport")?.dataset.vehicleTouchThrottle,steer:document.querySelector("#viewport")?.dataset.vehicleTouchSteer,gasHeld:document.getElementById("vehicleGas")?.classList.contains("held")}));
-  if(!during.active||during.throttle<.45||during.steer<.2||during.speedKmh<=0||!during.gasHeld||!Number.isFinite(yaw0)||!Number.isFinite(during.bodyYaw)||yawDelta>-.035||during.headingSource!=="box3d-body-yaw-v1"||during.steeringPhysics!=="box3d-bicycle-yaw-rate-v1")throw new Error(`right touch steer did not rotate the real Box3D car clockwise: ${JSON.stringify({setup,boxes,beforePose,during,yawDelta})}`);
+  if(!during.active||during.throttle<.45||during.steer<.2||during.speedKmh<=0||!during.gasHeld||!Number.isFinite(yaw0)||!Number.isFinite(during.bodyYaw)||yawDelta>-.035||during.headingSource!=="box3d-body-yaw-v1"||during.steeringPhysics!=="box3d-bicycle-yaw-rate-v1")throw new Error(`right touch steer did not rotate the isolated real Box3D car clockwise: ${JSON.stringify({setup,boxes,beforePose,during,yawDelta})}`);
   if(released.throttle!=="0"||Math.abs(Number(released.steer||0))>.02||released.gasHeld)throw new Error(`vehicle touch input stuck after release: ${JSON.stringify(released)}`);
-  console.log(`Mobile car touch smoke passed: ${during.speedKmh.toFixed(1)} km/h, right-steer=${during.steer.toFixed(2)}, clockwise physicalYawDelta=${yawDelta.toFixed(3)} rad, parkedSource=${setup.parked}.`);
+  console.log(`Mobile car touch smoke passed: ${during.speedKmh.toFixed(1)} km/h, right-steer=${during.steer.toFixed(2)}, clockwise physicalYawDelta=${yawDelta.toFixed(3)} rad, isolated=${setup.isolated}.`);
 }finally{await browser.close();}
