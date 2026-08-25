@@ -1,0 +1,42 @@
+name: Separate native portrait action touch targets once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/fix-native-portrait-actions-once.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Separate portrait action row from flight controls
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/solo_layout.mjs')
+          s=p.read_text()
+          old='''    /* In portrait the whole viewport is rotated by simulator.mjs. Percentages\n       therefore size against the resulting logical landscape canvas, not vw. */\n    @media(orientation:portrait){\n      body.solo-flight .solo-stick{width:min(25%,150px)}\n      body.solo-flight #soloClearance{left:calc(max(12px,var(--solo-safe-left)) + min(25%,150px) + 10px)}\n    }'''
+          new='''    /* Native portrait: keep every touch target in the browser coordinate system.\n       ARM/KILL get their own row above the lower stick/height-control rail. */\n    @media(orientation:portrait){\n      body.solo-flight .solo-stick{width:min(25%,150px)}\n      body.solo-flight #soloClearance{left:calc(max(12px,var(--solo-safe-left)) + min(25%,150px) + 10px)}\n      body.solo-flight .solo-action{bottom:max(170px,calc(var(--solo-safe-bottom) + 158px))}\n    }'''
+          if old not in s:
+              raise SystemExit('portrait layout block not found')
+          s=s.replace(old,new,1)
+          old_small='''      body.solo-flight .solo-action{bottom:max(16px,var(--solo-safe-bottom));width:92px;height:40px;padding:0 8px;font-size:10px}'''
+          new_small='''      body.solo-flight .solo-action{bottom:max(150px,calc(var(--solo-safe-bottom) + 140px));width:92px;height:40px;padding:0 8px;font-size:10px}'''
+          # Replace only the occurrence inside the portrait max-width block: it is the last occurrence.
+          pos=s.rfind(old_small)
+          if pos<0:
+              raise SystemExit('compact portrait action rule not found')
+          s=s[:pos]+new_small+s[pos+len(old_small):]
+          p.write_text(s)
+          PY
+          node --check sim/solo_layout.mjs
+          grep -q 'Native portrait: keep every touch target' sim/solo_layout.mjs
+          grep -q 'bottom:max(170px,calc(var(--solo-safe-bottom) + 158px))' sim/solo_layout.mjs
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/solo_layout.mjs
+          git commit -m 'Separate native portrait action touch targets'
+          git push origin HEAD:main
