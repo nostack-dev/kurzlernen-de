@@ -1,0 +1,48 @@
+name: Repair FPS final contract once
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/repair_fps_final_contract_once.yml
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove stale move telemetry owner and update FPS gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('sim/gameplay_final_runtime_v2.mjs')
+          s=p.read_text()
+          old='view.dataset.walkMoveStickRelease="pointerup+cancel+touch-terminal+blur+visibility+pagehide+orientation-v4";'
+          assert s.count(old)==1, f'stale move release telemetry count={s.count(old)}'
+          p.write_text(s.replace(old,'',1))
+
+          p=Path('tests/fps_first_person_browser_smoke.mjs')
+          s=p.read_text()
+          old='const final=await page.$eval("#viewport",v=>({touch:v.dataset.walkTouchFire,tracer:v.dataset.walkPistolTracer,muzzle:v.dataset.walkMuzzleDepth,recovery:v.dataset.walkMoveStickRelease,pedestrians:v.dataset.pedestrianAnimation,explosion:v.dataset.explosionPhysics,occlusion:v.dataset.explosionOcclusion,satellite:v.dataset.worldSatelliteDefault,weapon:v.dataset.walkWeapon,controller:v.dataset.weaponSwitchInputs,runtime:v.dataset.gameplayFinalRuntime,ownership:v.dataset.walkTouchOwnership,inputGuard:v.dataset.walkInputLifecycleGuard,hud:v.dataset.mobileLandscapeHud}));if(final.touch!=="screen-point-raycast-v2"||final.tracer!=="world-ray-muzzle-origin-v2"||!String(final.recovery).includes("lostcapture")||final.pedestrians!=="procedural-arm-leg-walkcycle-v2"||final.explosion!=="box3d-radial-impulse+damage-falloff-v2"||final.occlusion!=="building-prism-los-v2"||final.satellite!=="off"||final.runtime!=="weapons+blast+pedestrians+input-v2"||final.ownership!=="left-move+right-look+screen-fire-no-drag-v2"||final.inputGuard!=="exclusive-move-pointer-v3"||final.hud!=="compact-real-estate-v1")throw new Error(`final FPS gameplay contract failed: ${JSON.stringify({final,muzzleInvariant})}`);'
+          new='const final=await page.$eval("#viewport",v=>({touch:v.dataset.walkTouchFire,tracer:v.dataset.walkPistolTracer,muzzle:v.dataset.walkMuzzleDepth,recovery:v.dataset.walkMoveStickRelease,moveOwner:v.dataset.walkMoveStickOwner,moveLifecycle:v.dataset.walkMoveStickLifecycle,pedestrians:v.dataset.pedestrianAnimation,explosion:v.dataset.explosionPhysics,occlusion:v.dataset.explosionOcclusion,satellite:v.dataset.worldSatelliteDefault,weapon:v.dataset.walkWeapon,controller:v.dataset.weaponSwitchInputs,runtime:v.dataset.gameplayFinalRuntime,ownership:v.dataset.walkTouchOwnership,inputGuard:v.dataset.walkInputLifecycleGuard,hud:v.dataset.mobileLandscapeHud}));if(final.touch!=="screen-point-raycast-v5"||final.tracer!=="world-ray-muzzle-origin-v2"||!String(final.recovery).includes("owner-pointerup")||!String(final.recovery).includes("touch-terminal")||final.moveOwner!=="none"||final.moveLifecycle!=="window-blur"||final.pedestrians!=="procedural-arm-leg-walkcycle-v2"||final.explosion!=="box3d-radial-impulse+damage-falloff-v2"||final.occlusion!=="building-prism-los-v2"||final.satellite!=="off"||final.runtime!=="weapons+blast+pedestrians+input-v2"||final.ownership!=="left-move+right-look+screen-fire-no-drag-v2"||final.inputGuard||final.hud!=="compact-real-estate-v1")throw new Error(`final FPS gameplay contract failed: ${JSON.stringify({final,muzzleInvariant})}`);'
+          assert s.count(old)==1, f'stale final FPS contract count={s.count(old)}'
+          p.write_text(s.replace(old,new,1))
+          PY
+          node --check sim/gameplay_final_runtime_v2.mjs
+          node --check tests/fps_first_person_browser_smoke.mjs
+          ! grep -q 'walkMoveStickRelease="pointerup+cancel+touch-terminal+blur+visibility+pagehide+orientation-v4"' sim/gameplay_final_runtime_v2.mjs
+          grep -q 'screen-point-raycast-v5' tests/fps_first_person_browser_smoke.mjs
+          grep -q 'moveLifecycle!=="window-blur"' tests/fps_first_person_browser_smoke.mjs
+          grep -q 'final.inputGuard||' tests/fps_first_person_browser_smoke.mjs
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/gameplay_final_runtime_v2.mjs tests/fps_first_person_browser_smoke.mjs
+          git commit -m 'Align FPS gate with single-owner move input'
+          git push origin HEAD:main
