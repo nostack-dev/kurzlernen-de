@@ -1,0 +1,49 @@
+name: Fix native portrait toolbar once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/fix-native-portrait-toolbar-once.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make portrait action rail genuinely touchable
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sim/solo_layout.mjs')
+          s=p.read_text()
+          old='''    @media(orientation:portrait){
+      body.solo-flight .solo-stick{width:min(25%,150px)}
+      body.solo-flight #soloClearance{left:calc(max(12px,var(--solo-safe-left)) + min(25%,150px) + 10px)}
+      body.solo-flight .solo-action{bottom:max(170px,calc(var(--solo-safe-bottom) + 158px))}
+    }'''
+          new='''    @media(orientation:portrait){
+      body.solo-flight #soloTopbar{width:calc(100% - max(16px,calc(var(--solo-safe-left) + var(--solo-safe-right))));gap:4px}
+      body.solo-flight #viewport[data-world-mode="real"] #soloTopbar{left:50%;width:calc(100% - max(16px,calc(var(--solo-safe-left) + var(--solo-safe-right))));transform:translateX(-50%)}
+      body.solo-flight #soloTopbarActions{flex-wrap:wrap;justify-content:center;align-content:center;overflow:visible}
+      body.solo-flight #soloTopbarActions>button{flex:0 0 auto;min-width:48px!important;min-height:32px}
+      body.solo-flight #soloTopbarActions>#soloExit,body.solo-flight #soloTopbarActions>#soloReset{min-width:56px!important}
+      body.solo-flight #soloTopbarActions>#lanVsButton,body.solo-flight #soloTopbarActions>.phone-settings-button{min-width:72px!important}
+      body.solo-flight #soloTopbarStatus{flex-wrap:wrap;min-height:24px}
+      body.solo-flight #gameplayContractHud{top:max(150px,calc(var(--solo-safe-top) + 142px))!important}
+      body.solo-flight #worldLookHud{top:max(205px,calc(var(--solo-safe-top) + 197px))!important}
+      body.solo-flight .solo-stick{width:min(25%,150px)}
+      body.solo-flight #soloClearance{left:calc(max(12px,var(--solo-safe-left)) + min(25%,150px) + 10px)}
+      body.solo-flight .solo-action{bottom:max(170px,calc(var(--solo-safe-bottom) + 158px))}
+    }'''
+          if old not in s: raise SystemExit('native portrait block missing')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          node --check sim/solo_layout.mjs
+      - name: Commit repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sim/solo_layout.mjs
+          git commit -m 'Keep native portrait toolbar touchable'
+          git push origin HEAD:main
