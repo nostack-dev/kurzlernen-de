@@ -30,6 +30,8 @@ assert.ok(car.includes('showLocalDriver(vehicle.root)')&&car.includes('free-worl
 assert.ok(viewmodel.includes('gun.visible=footActive')&&viewmodel.includes('hidden-while-driving-v1'),"first-person arms/viewmodel remain visible while driving");
 assert.ok(population.includes('const externallyDriven=Boolean(record.group.userData.playerDriven||record.group.userData.remotePlayerDriven)')&&population.includes('if(!externallyDriven)'),"player-driven cars are still constrained by AI road routing");
 assert.ok(network.includes('cm:"vehicle"')&&network.includes('remotePlayerDriven'),"authoritative remote vehicle replication is missing");
+assert.ok(network.includes('function locallyOwnsVehicle(id,root=null)')&&network.includes('if(locallyOwnsVehicle(id,root))')&&network.includes('releaseRemote(peerId,"local-player-authority")'),"remote vehicle packets can still overwrite a locally driven Box3D body");
+assert.ok(network.includes('vehicleLocalPhysicsAuthority="reject-remote-same-body-v1"')&&network.includes('vsRemoteVehicleRejected="local-player-authority-v1"'),"local vehicle authority rejection telemetry is missing");
 assert.ok(multiplayer.includes('type:"shot"')&&multiplayer.includes('registerVsHit'),"multiplayer combat/shot replication is missing");
 assert.ok(layout.includes('installVsPlayerStateReplication();'),"player-state replication is not installed after multiplayer");
 assert.ok(walk.includes('globalThis.__arondightVehicleDrive?.active'),"walk controller still owns touch while driving");
@@ -45,4 +47,4 @@ assert.ok(vehicleRuntime.includes('av:canonical')&&vehicleRuntime.includes('vr:m
 assert.ok(vehicleRuntime.includes('__arondightVsPlayerStateReplicationV4')&&vehicleRuntime.includes('vsLegacyHumanAvatarsSuppressed'),"legacy duplicate remote human renderer is still active");
 assert.ok(network.includes('if(pose.cm==="vehicle"&&pose.cv)')&&network.includes('remotePlayerDriven'),"stationary active vehicles are not continuously retained by remote physics ownership");
 
-console.log("Player multiplayer replication contract passed: drone plus stationary shootable human presence, foot/vehicle modes, full remote human rig, weapon/death state, vehicle authority and touch ownership are wired.");
+console.log("Player multiplayer replication contract passed: drone plus stationary shootable human presence, foot/vehicle modes, full remote human rig, weapon/death state, remote vehicle replication, and local Box3D vehicle authority are wired.");
