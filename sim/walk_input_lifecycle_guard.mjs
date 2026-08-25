@@ -32,7 +32,7 @@ function lostCapture(event){if(event.pointerId===activePointer)release("lostpoin
 function touchTerminal(event){if(activePointer!==null&&Number(event.touches?.length||0)===0)release(event.type==="touchcancel"?"touchcancel-zero-touches":"touchend-zero-touches");}
 function watchdog(now){
   if(activePointer!==null&&activeElement&&now-lastSeenAt>30000)release("stale-pointer-watchdog");
-  const view=viewport();if(activePointer===null&&lastElement&&lastPointer!==null&&view&&String(view.dataset.walkMove||"").match(/^-?0\.000,-?0\.000$/)===null&&view.dataset.walkMoveStickOwner==="none")cancelMoveElement(lastElement,lastPointer,"orphaned-move-state");
+  const view=viewport(),move=String(view?.dataset.walkMove||"");if(activePointer===null&&lastElement&&lastPointer!==null&&view&&move&&!/^-?0\.000,-?0\.000$/.test(move)&&view.dataset.walkMoveStickOwner==="none")cancelMoveElement(lastElement,lastPointer,"orphaned-move-state");
   requestAnimationFrame(watchdog);
 }
 export function installWalkInputLifecycleGuard(){
