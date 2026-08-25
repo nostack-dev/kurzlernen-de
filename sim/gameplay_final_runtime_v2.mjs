@@ -15,7 +15,7 @@ const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tmp3=new THREE.Vector3(),
 const shotCamera=new THREE.PerspectiveCamera(78,16/9,.01,500),shotRaycaster=new THREE.Raycaster(),boxHits=new Box3dHitscanWorld();
 const tracerAxis=new THREE.Vector3(0,1,0),tracerVector=new THREE.Vector3();
 let installed=false,audioSettings=loadAudioSettings(),footWeapon=loadMode(FOOT_WEAPON_KEY,"pistol",["pistol","smg"]),droneWeapon=loadMode(DRONE_WEAPON_KEY,"gun",["gun","missile"]),lastPistol=-Infinity,lastSmg=-Infinity,lastMissile=-Infinity;
-let tracerScene=null,tracerPool=[],tracerCursor=0,blastScene=null,blastPool=[],blastCursor=0,activeMovePointer=null,activeMoveElement=null,tap=null,lastPedScan=-Infinity,pedestrians=[];
+let tracerScene=null,tracerPool=[],tracerCursor=0,blastScene=null,blastPool=[],blastCursor=0,tap=null,lastPedScan=-Infinity,pedestrians=[];
 const pedState=new WeakMap(),missiles=[];
 
 function viewport(){return document.getElementById("viewport");}
@@ -112,12 +112,9 @@ function ensureControls(){const view=viewport();if(!view)return;let foot=documen
 function toggleFootWeapon(){footWeapon=footWeapon==="pistol"?"smg":"pistol";saveMode(FOOT_WEAPON_KEY,footWeapon);patchWeaponVisual();ensureControls();return footWeapon;}
 function toggleDroneWeapon(){droneWeapon=droneWeapon==="gun"?"missile":"gun";saveMode(DRONE_WEAPON_KEY,droneWeapon);ensureControls();return droneWeapon;}
 
-function forceMoveRelease(reason="recovery"){
-  if(activeMovePointer===null||!activeMoveElement)return false;try{activeMoveElement.dispatchEvent(new PointerEvent("pointercancel",{bubbles:true,cancelable:true,pointerId:activeMovePointer,pointerType:"touch"}));}catch{}const knob=activeMoveElement.querySelector?.(".knob");if(knob){knob.style.left="50%";knob.style.top="50%";}activeMovePointer=null;activeMoveElement=null;const view=viewport();if(view){view.dataset.walkMoveStickRecovery=reason;view.dataset.walkMoveStickRecoveries=String((Number(view.dataset.walkMoveStickRecoveries)||0)+1);}return true;
-}
+
 function inputCapture(event){
-  const target=event.target instanceof Element?event.target:null;if(event.type==="pointerdown"&&target?.closest("#footMove")){activeMovePointer=event.pointerId;activeMoveElement=target.closest("#footMove");}
-  if((event.type==="pointerup"||event.type==="pointercancel")&&event.pointerId===activeMovePointer){activeMovePointer=null;activeMoveElement=null;}
+  const target=event.target instanceof Element?event.target:null;
   if(event.type==="pointerdown"&&isFoot()&&event.pointerType!=="mouse"&&target?.closest("#footLookZone")){tap={id:event.pointerId,x:event.clientX,y:event.clientY,lastX:event.clientX,lastY:event.clientY,at:performance.now(),moved:false};}
   if(event.type==="pointermove"&&tap&&event.pointerId===tap.id){tap.lastX=event.clientX;tap.lastY=event.clientY;if(Math.hypot(event.clientX-tap.x,event.clientY-tap.y)>9)tap.moved=true;}
   if((event.type==="pointerup"||event.type==="pointercancel")&&tap&&event.pointerId===tap.id){const t=tap;tap=null;if(event.type==="pointerup"&&!t.moved&&performance.now()-t.at<260)footBurst(t.lastX,t.lastY);}
@@ -141,7 +138,7 @@ let lastFrame=performance.now();
 function frame(now=performance.now()){const dt=clamp((now-lastFrame)/1000,.001,.05);lastFrame=now;ensureControls();patchWeaponVisual();updateFlash();updateMissiles(now,dt);updateBlasts(now);animatePedestrians(now,dt);const view=viewport();if(view){view.dataset.gameplayFinalRuntime="weapons+blast+pedestrians+input-v2";view.dataset.worldSatelliteDefault="off";view.dataset.walkMoveStickRelease="pointerup+cancel+touch-terminal+blur+visibility+pagehide+orientation-v4";view.dataset.weaponSwitchInputs="touch+keyboard-q+xbox-dpad-right-v2";view.dataset.droneWeaponMode=droneWeapon;}requestAnimationFrame(frame);}
 
 export function installGameplayFinalRuntime(){
-  if(installed)return;installed=true;installStyle();installApis();for(const type of["pointerdown","pointermove","pointerup","pointercancel"])document.addEventListener(type,inputCapture,{capture:true,passive:false});document.addEventListener("lostpointercapture",event=>{const view=viewport();if(view)view.dataset.walkMoveStickCaptureState=event.pointerId===activeMovePointer?"lost-await-terminal":"foreign-ignored";},true);addEventListener("blur",()=>forceMoveRelease("window-blur"));addEventListener("pagehide",()=>forceMoveRelease("pagehide"));addEventListener("orientationchange",()=>forceMoveRelease("orientationchange"));document.addEventListener("visibilitychange",()=>{if(document.hidden)forceMoveRelease("visibility-hidden");});addEventListener("arondight:player-mode",()=>forceMoveRelease("mode-change"));addEventListener("arondight:world-explosion",applyBlast);addEventListener(AUDIO_SETTINGS_EVENT,event=>audioSettings=normalizeAudioSettings(event.detail||loadAudioSettings()));addEventListener("keydown",event=>{if(event.code!=="KeyQ"||event.repeat)return;if(isFoot())toggleFootWeapon();else if(isDrone())toggleDroneWeapon();});requestAnimationFrame(frame);
+  if(installed)return;installed=true;installStyle();installApis();for(const type of["pointerdown","pointermove","pointerup","pointercancel"])document.addEventListener(type,inputCapture,{capture:true,passive:false});addEventListener("arondight:world-explosion",applyBlast);addEventListener(AUDIO_SETTINGS_EVENT,event=>audioSettings=normalizeAudioSettings(event.detail||loadAudioSettings()));addEventListener("keydown",event=>{if(event.code!=="KeyQ"||event.repeat)return;if(isFoot())toggleFootWeapon();else if(isDrone())toggleDroneWeapon();});requestAnimationFrame(frame);
 }
 
 installGameplayFinalRuntime();

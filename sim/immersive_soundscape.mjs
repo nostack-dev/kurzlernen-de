@@ -1,5 +1,4 @@
 import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./audio_settings.mjs";
-import "./walk_input_lifecycle_guard.mjs";
 import "./gameplay_final_runtime_v2.mjs";
 import "./gameplay_final_ui_dock.mjs";
 import "./gameplay_final_realism_patch.mjs";
