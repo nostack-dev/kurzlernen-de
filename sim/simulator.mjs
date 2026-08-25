@@ -596,10 +596,9 @@ $("viewport").appendChild(cameraHud);
 function syncSoloPresentationOrientation(){
   const viewport=$("viewport"),solo=document.body.classList.contains("solo-flight");
   if(!solo){delete viewport.dataset.soloOrientation;delete viewport.dataset.orientationPolicy;return false;}
-  const cssLandscape=globalThis.matchMedia?.("(orientation: portrait)")?.matches===true;
-  viewport.dataset.orientationPolicy="landscape";
-  viewport.dataset.soloOrientation=cssLandscape?"css-landscape":"native-landscape";
-  return cssLandscape;
+  viewport.dataset.orientationPolicy="native-never-rotate-v1";
+  viewport.dataset.soloOrientation="native";
+  return false;
 }
 let presentationViewportSize=null,presentationResizeQueued=false,presentationBackbufferResizes=0;
 function commitPresentationResize(){
@@ -732,13 +731,7 @@ const soloStyle=document.createElement("style");soloStyle.textContent=`
   #soloKill{left:50%;transform:translateX(5%);background:#8b2436e6!important}
   #soloGamepadHelp{position:absolute;left:50%;bottom:max(10px,var(--solo-safe-bottom));transform:translateX(-50%);max-width:94%;padding:6px 10px;border:1px solid #70ddff66;border-radius:999px;background:#071522dd;color:#dff7ff;font:800 9px/1.1 system-ui,-apple-system,sans-serif;letter-spacing:.04em;white-space:nowrap;pointer-events:none}
   body.solo-flight #viewport[data-gamepad-enabled="1"] .solo-stick,body.solo-flight #viewport[data-gamepad-enabled="1"] #soloClearance,body.solo-flight #viewport[data-gamepad-enabled="1"] .solo-action,body.solo-flight #viewport[data-control-source="xbox"] .solo-stick,body.solo-flight #viewport[data-control-source="xbox"] #soloClearance,body.solo-flight #viewport[data-control-source="xbox"] .solo-action{display:none!important}
-  /* iOS ignores Screen Orientation lock in normal browser tabs. Rotate the complete
-     simulator as a deterministic fallback so the flight UI is always landscape. */
-  @media(orientation:portrait){
-    body.solo-flight #viewport{inset:0 auto auto 100vw!important;width:100dvh!important;height:100vw!important;transform:rotate(90deg)!important;--solo-safe-top:env(safe-area-inset-right,0px);--solo-safe-right:env(safe-area-inset-bottom,0px);--solo-safe-bottom:env(safe-area-inset-left,0px);--solo-safe-left:env(safe-area-inset-top,0px)}
-    html.android-stable-webgl body.solo-flight #viewport{width:100svh!important;height:100vw!important}
-    body.solo-flight dialog[open]{transform:rotate(90deg);transform-origin:50% 50%}
-  }
+  /* Native orientation only. The simulator never rotates itself with CSS. */
   @media(max-height:430px){.solo-stick{width:min(30vw,180px)}.solo-action{width:76px;height:46px}}
 `;
 document.head.appendChild(soloStyle);
@@ -754,7 +747,7 @@ function renderSoloHeightControl(){
   const rate=clearanceRateMps(soloHeightAxis);soloHeightPad.dataset.rateMps=rate.toFixed(2);$("soloClearance").dataset.targetAglM=soloGroundClearance.toFixed(2);
 }
 function setSoloHeightAxis(value){soloHeightAxis=clamp(Number(value)||0,-1,1);renderSoloHeightControl();}
-function applySoloHeightPointer(event){const r=soloHeightPad.getBoundingClientRect(),rotated=$("viewport").dataset.soloOrientation==="css-landscape";const center=rotated?r.left+r.width/2:r.top+r.height/2,span=Math.max(1,(rotated?r.width:r.height)*.40),position=rotated?event.clientX:event.clientY;setSoloHeightAxis((rotated?position-center:center-position)/span);event.preventDefault();}
+function applySoloHeightPointer(event){const r=soloHeightPad.getBoundingClientRect(),center=r.top+r.height/2,span=Math.max(1,r.height*.40);setSoloHeightAxis((center-event.clientY)/span);event.preventDefault();}
 soloHeightPad.addEventListener("pointerdown",event=>{if(soloHeightPointer!==null)return;soloHeightPointer=event.pointerId;soloHeightPad.setPointerCapture?.(soloHeightPointer);applySoloHeightPointer(event);});
 soloHeightPad.addEventListener("pointermove",event=>{if(event.pointerId===soloHeightPointer)applySoloHeightPointer(event);});
 const releaseSoloHeight=event=>{if(soloHeightPointer===null||(event?.pointerId!=null&&event.pointerId!==soloHeightPointer))return;const released=soloHeightPointer;soloHeightPointer=null;setSoloHeightAxis(0);try{soloHeightPad.releasePointerCapture?.(released);}catch{}event?.preventDefault();};
