@@ -27,30 +27,12 @@ jobs:
                   raise SystemExit(f'marker missing in {path}: {old[:100]!r}')
               p.write_text(s.replace(old,new,1))
 
-          # Real default: OFF only when there is no stored user choice.
           replace_once('sim/real_world_bootstrap.mjs',
               'this.imageryEnabled=loadBool(WORLD_IMAGERY_STORAGE,true)',
               'this.imageryEnabled=loadBool(WORLD_IMAGERY_STORAGE,false)')
 
-          # Remove the old one-shot migration that could overwrite a stored preference.
-          p=Path('sim/world_liveliness.mjs'); s=p.read_text()
-          s=re.sub(r'^const IMAGERY_DEFAULT_OFF_MIGRATION=.*\n','',s,count=1,flags=re.M)
-          s=s.replace(',forcedDefaultOff=false','')
-          start=s.find('function forceSatelliteDefaultOff(){')
-          call=s.find('forceSatelliteDefaultOff();',start)
-          if start<0 or call<0:
-              raise SystemExit('legacy imagery migration function markers missing')
-          end=call+len('forceSatelliteDefaultOff();')
-          if end<len(s) and s[end]=='\n': end+=1
-          s=s[:start]+s[end:]
-          if 'IMAGERY_DEFAULT_OFF_MIGRATION' in s or 'forceSatelliteDefaultOff' in s or 'forcedDefaultOff' in s:
-              raise SystemExit('legacy imagery default migration still present')
-          p.write_text(s)
-
-          # Remove magnifier runtime import.
           replace_once('sim/foot_look_capture.mjs','import "./aim_magnifier_overlay.mjs";\n','')
 
-          # Remove magnifier from the persistent first-person settings model.
           p=Path('sim/first_person_control_settings.mjs'); s=p.read_text()
           s=s.replace('  aimMagnifierEnabled:true,\n','')
           s=s.replace('    aimMagnifierEnabled:settings.aimMagnifierEnabled===undefined?DEFAULT_FIRST_PERSON_CONTROL_SETTINGS.aimMagnifierEnabled:Boolean(settings.aimMagnifierEnabled),\n','')
@@ -58,7 +40,6 @@ jobs:
               raise SystemExit('magnifier still present in first-person settings model')
           p.write_text(s)
 
-          # Remove magnifier UI setting and persistence wire.
           p=Path('sim/player_settings_sections.mjs'); s=p.read_text()
           s=s.replace('+toggleRow("AIM MAGNIFIER","aimMagnifierEnabled")','')
           s=re.sub(r'\n  const magnifier=fps\.querySelector\([^\n]+\);magnifier\?\.addEventListener\([^\n]+\);','',s,count=1)
@@ -66,7 +47,6 @@ jobs:
               raise SystemExit('magnifier still present in settings UI')
           p.write_text(s)
 
-          # Update the combat contract: magnifier must stay removed, free-touch aim remains authoritative.
           p=Path('tests/combat_center_fire_test.mjs'); s=p.read_text()
           s=s.replace(',aimMagnifier=readFileSync("sim/aim_magnifier_overlay.mjs","utf8")','')
           s=s.replace('assert.ok(lookCapture.includes(\'import "./aim_magnifier_overlay.mjs";\'),"custom aim magnifier is not loaded by the FPS touch runtime");','assert.ok(!lookCapture.includes("aim_magnifier_overlay"),"removed aim magnifier was re-imported by FPS touch runtime");')
@@ -87,7 +67,6 @@ jobs:
           git rm .github/workflows/remove-aim-magnifier-and-default-imagery-off-once.yml
 
           node --check sim/real_world_bootstrap.mjs
-          node --check sim/world_liveliness.mjs
           node --check sim/foot_look_capture.mjs
           node --check sim/first_person_control_settings.mjs
           node --check sim/player_settings_sections.mjs
@@ -95,7 +74,6 @@ jobs:
 
           ! grep -R -E 'aim_magnifier_overlay|aimMagnifierEnabled|AIM MAGNIFIER|footAimMagnifier|walkAimMagnifier' sim tests
           grep -F 'this.imageryEnabled=loadBool(WORLD_IMAGERY_STORAGE,false)' sim/real_world_bootstrap.mjs
-          ! grep -F 'forceSatelliteDefaultOff' sim/world_liveliness.mjs
 
           git config user.name 'Christian Heinrich Hohlfeld'
           git config user.email 'chris.hohlfeld@gmail.com'
