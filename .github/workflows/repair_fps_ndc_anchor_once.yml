@@ -2,7 +2,8 @@ name: Repair FPS screen anchor once
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/repair_fps_ndc_anchor_once.yml']
+    paths:
+      - .github/workflows/repair_fps_ndc_anchor_once.yml
 permissions:
   contents: write
 jobs:
@@ -11,33 +12,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Anchor FPS grip in screen space
+        shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import re
-          p=Path('sim/first_person_weapon_runtime_v3.mjs')
-          s=p.read_text()
-          old='latchedPivotDepthM=.7,lastLatchContinuityM=0'
-          new='latchedPivotDepthM=.7,latchedPivotDistanceM=.7,lastLatchContinuityM=0'
-          assert old in s, 'latch state contract changed'
-          s=s.replace(old,new,1)
-          pattern=r'function latchAimPivot\(gun,pivot,camera,mode\)\{.*?\nfunction capturePresentedHipPivot'
-          replacement='''function latchAimPivot(gun,pivot,camera,mode){gun.updateMatrixWorld(true);camera.updateMatrixWorld?.(true);pivot.getWorldPosition(pivotWorld);projectedPivot.copy(pivotWorld).project(camera);latchedPivotNdc.set(projectedPivot.x,projectedPivot.y);latchedPivotCameraLocal.copy(pivotWorld);camera.worldToLocal(latchedPivotCameraLocal);latchedPivotDepthM=Math.max(.05,-latchedPivotCameraLocal.z);latchedPivotDistanceM=Math.max(.05,pivotWorld.distanceTo(camera.position));desiredPivotCameraLocal.copy(latchedPivotCameraLocal);lastLatchContinuityM=0;aimPivotLatched=true;aimPivotMode=mode;const view=viewport();if(view){view.dataset.walkWeaponGripLatchActive="1";view.dataset.walkWeaponGripLatchMode=mode;view.dataset.walkWeaponGripLatchSource="current-visible-screen-anchor-v2";view.dataset.walkWeaponGripLatchNdc=`${latchedPivotNdc.x.toFixed(4)},${latchedPivotNdc.y.toFixed(4)}`;view.dataset.walkWeaponGripLatchDepthM=latchedPivotDepthM.toFixed(4);view.dataset.walkWeaponAimStartContinuityM="0.000000";}}
-function capturePresentedHipPivot'''
-          s2,n=re.subn(pattern,replacement,s,count=1,flags=re.S)
-          assert n==1, f'latch function replacement count {n}'
-          s=s2
-          old_apply='latchedPivotLocal(camera,desiredPivotCameraLocal);desiredPivotWorld.copy(desiredPivotCameraLocal);camera.localToWorld(desiredPivotWorld);keepPivotAt(gun,pivot,desiredPivotWorld);'
-          new_apply='desiredPivotWorld.set(latchedPivotNdc.x,latchedPivotNdc.y,.5).unproject(camera).sub(camera.position).normalize().multiplyScalar(latchedPivotDistanceM).add(camera.position);desiredPivotCameraLocal.copy(desiredPivotWorld);camera.worldToLocal(desiredPivotCameraLocal);keepPivotAt(gun,pivot,desiredPivotWorld);'
-          assert old_apply in s, 'aim anchor application contract changed'
-          s=s.replace(old_apply,new_apply,1)
-          p.write_text(s)
+          p = Path('sim/first_person_weapon_runtime_v3.mjs')
+          s = p.read_text()
+          old = 'latchedPivotLocal(camera,desiredPivotCameraLocal);desiredPivotWorld.copy(desiredPivotCameraLocal);camera.localToWorld(desiredPivotWorld);keepPivotAt(gun,pivot,desiredPivotWorld);'
+          new = 'desiredPivotWorld.set(latchedPivotNdc.x,latchedPivotNdc.y,.5).unproject(camera).sub(camera.position).normalize().multiplyScalar(Math.max(.05,latchedPivotCameraLocal.length())).add(camera.position);desiredPivotCameraLocal.copy(desiredPivotWorld);camera.worldToLocal(desiredPivotCameraLocal);keepPivotAt(gun,pivot,desiredPivotWorld);'
+          assert old in s, 'camera-local anchor expression changed'
+          p.write_text(s.replace(old, new, 1))
           PY
           node --check sim/first_person_weapon_runtime_v3.mjs
-          grep -q 'current-visible-screen-anchor-v2' sim/first_person_weapon_runtime_v3.mjs
-          grep -q 'multiplyScalar(latchedPivotDistanceM)' sim/first_person_weapon_runtime_v3.mjs
+          grep -q 'multiplyScalar(Math.max(.05,latchedPivotCameraLocal.length()))' sim/first_person_weapon_runtime_v3.mjs
       - name: Commit repair
+        shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
