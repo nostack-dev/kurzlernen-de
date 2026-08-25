@@ -47,11 +47,18 @@ jobs:
           node tests/player_vitals_logic_test.mjs
           node tests/wanted_system_test.mjs
           node tests/gameplay_fun_logic_test.mjs
+          node tests/world_pedestrian_navigation_test.mjs
           node --check sim/player_walk_mode_v4.mjs
           node --check sim/gameplay_final_runtime_v2.mjs
           node --check sim/flight_fire_fx.mjs
           node --check sim/world_rigid_body_runtime.mjs
           node --check sim/wanted_police_drones.mjs
+          node --check sim/world_procedural_population.mjs
+          node --check sim/camera_collision_guard.mjs
+          test ! -e sim/camera_box3d_spring.mjs
+          ! grep -R -E 'CameraBox3dSpring|box3d-dynamic-spring' sim tests --exclude-dir=node_modules
+          grep -q 'playerCameraPhysicsBody="none"' sim/camera_collision_guard.mjs
+          grep -q 'world-position+distance-retention+panic-pin-v2' sim/world_procedural_population.mjs
           grep -q 'kMaxHorizontalAccelerationMps2 = 7.5f' esp32/Arondight45_StateControl.hpp
           grep -q 'box3d_hitscan.mjs' sim/flight_fire_fx.mjs
 
