@@ -2,7 +2,7 @@
 import argparse, csv, datetime as dt, html, io, json, math, os, re, time, urllib.parse, urllib.request
 from pathlib import Path
 
-SEC_BASE="https://data.sec.gov"; SEC_ARCHIVES="https://www.sec.gov/Archives/edgar/data"
+SEC_BASE="https://data.sec.gov"; SEC_TICKERS="https://www.sec.gov/files/company_tickers.json"; SEC_ARCHIVES="https://www.sec.gov/Archives/edgar/data"
 YAHOO_CHART="https://query1.finance.yahoo.com/v8/finance/chart"
 YAHOO_FUND="https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries"
 STOOQ="https://stooq.com/q/l/"
@@ -32,7 +32,7 @@ def req(url,sec=False,retries=4):
 def jget(url,sec=False): return json.loads(req(url,sec)[0].decode())
 def tget(url,sec=False): return req(url,sec)[0].decode("utf-8",errors="replace")
 def ticker_map():
- d=jget(f"{SEC_BASE}/files/company_tickers.json",True); return {str(x["ticker"]).upper():{"cik":int(x["cik_str"]),"name":x["title"]} for x in d.values()}
+ d=jget(SEC_TICKERS,True); return {str(x["ticker"]).upper():{"cik":int(x["cik_str"]),"name":x["title"]} for x in d.values()}
 def facts(cik): return jget(f"{SEC_BASE}/api/xbrl/companyfacts/CIK{cik:010d}.json",True)
 def units(f,ns,c):
  n=f.get("facts",{}).get(ns,{}).get(c,{}).get("units",{})
