@@ -38,7 +38,7 @@
 </main>
 <script>
 const DATA_URL='https://raw.githubusercontent.com/nostack-dev/kurzlernen-de/ratio-data/ratio-data.json';let feed=null;
-const $=id=>document.getElementById(id);const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));const fmt=(n,d=2)=>Number(n).toLocaleString('de-DE',{maximumFractionDigits:d,minimumFractionDigits:0});
+const $=id=>document.getElementById(id);const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const fmt=(n,d=2)=>Number(n).toLocaleString('de-DE',{maximumFractionDigits:d,minimumFractionDigits:0});
 const ageText=iso=>{const min=Math.max(0,Math.round((Date.now()-new Date(iso).getTime())/60000));if(min<60)return `${min} min alt`;return `${Math.floor(min/60)} h ${min%60} min alt`};
 const sourceLink=(label,src)=>!src||!src.url?`<span class="source">${esc(label)} · berechnet</span>`:`<a class="source" href="${esc(src.url)}" target="_blank" rel="noopener">${esc(label)} ↗</a>`;
 function initUniverses(){const sel=$('universe');const options=[['all','Alle getrackten Ticker']];for(const [key,list] of Object.entries(feed.universes||{})){const names={'ai-hardware':'AI Hardware & Cloud','semiconductors':'Semiconductors','datacenter-infra':'Data Center Infra','sp500-tech':'S&P Tech / High CapEx'};options.push([key,`${names[key]||key} (${list.length})`])}sel.innerHTML=options.map(([v,l])=>`<option value="${esc(v)}">${esc(l)}</option>`).join('')}
