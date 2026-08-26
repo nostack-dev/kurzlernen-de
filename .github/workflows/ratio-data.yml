@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ratio-data-feed-v2
+  group: ratio-data-feed-v3
   cancel-in-progress: true
 
 permissions:
@@ -29,7 +29,7 @@ jobs:
       - name: Fetch and validate real market data
         run: |
           set -euxo pipefail
-          python3 scripts/ratio_feed_complete.py --output /tmp/ratio-data.json --min-complete 45
+          python3 scripts/ratio_feed_all.py --output /tmp/ratio-data.json --min-complete 45
           python3 - <<'PY'
           import json, math
           p=json.load(open('/tmp/ratio-data.json', encoding='utf-8'))
@@ -38,6 +38,7 @@ jobs:
           assert p['completeCount'] == 45, (p['completeCount'], p.get('excluded'))
           assert p['excludedCount'] == 0, p.get('excluded')
           assert not p['errors'], p['errors']
+          assert len(p['stocks']) == 45
           required=('capexCurrentBn','capex2YBn','growthPct','demandBn','coverage','peg','price','score')
           for s in p['stocks']:
               for k in required:
@@ -77,7 +78,7 @@ jobs:
           cat > README.md <<'EOF'
           # Ratio data feed
           Machine-generated data for https://kurzlernen.de/ratio.html.
-          Financial facts come from official SEC CompanyFacts and SEC-filed disclosures. PEG uses live Yahoo data when available; fallbacks are computed locally from SEC earnings/share facts plus the live market price.
+          CapEx and demand facts come from official SEC CompanyFacts and SEC-filed disclosures. PEG uses live market data, SEC-derived calculations, and a named public market-data fallback when necessary. Loss-making firms retain a transparent signed forward PEG but are marked pegMeaningful=false.
           No synthetic/random fallback values are permitted.
           Publication requires all 45 tracked companies to have complete validated inputs.
           EOF
