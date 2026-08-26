@@ -3,13 +3,13 @@ name: Ratio feed 45 of 45
 on:
   push:
     branches: ["main"]
+    paths:
+      - "scripts/ratio_feed*.py"
+      - "ratio.html"
+      - ".github/workflows/ratio-live.yml"
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
-
-concurrency:
-  group: ratio-feed-production
-  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -17,7 +17,7 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,7 +53,6 @@ jobs:
           assert 0.2 <= nvda['coverage'] <= 1.0, nvda
           for ticker in ('ADI','DLR','TXN','CEG','HPE','SMCI','SMR'):
               assert ticker in by_ticker
-          # Broad plausibility gates for the previously unresolved PEG cases.
           assert 0 < by_ticker['CEG']['peg'] < 5, by_ticker['CEG']
           assert 0 < by_ticker['HPE']['peg'] < 5, by_ticker['HPE']
           assert 0 < by_ticker['SMCI']['peg'] < 5, by_ticker['SMCI']
