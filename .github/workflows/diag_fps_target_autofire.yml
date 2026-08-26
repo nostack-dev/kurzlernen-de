@@ -1,0 +1,23 @@
+name: Diagnose FPS target autofire
+on:
+  push:
+    branches: ["diag/fps-target-autofire-root-cause"]
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run live FPS target stress
+        shell: bash
+        run: |
+          set -euxo pipefail
+          TMP=/tmp/fps-target-diag
+          rm -rf "$TMP" && mkdir -p "$TMP" && cd "$TMP"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund puppeteer-core@24.16.0 >/dev/null
+          ln -s "$TMP/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          cd "$GITHUB_WORKSPACE"
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          CHROME_BIN="$CHROME_BIN" TARGET_URL="https://kurzlernen.de/drone_simulator.html?fps-target-autofire-diag=${GITHUB_SHA}" node tests/fps_target_autofire_diagnostic.mjs
