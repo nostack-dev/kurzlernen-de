@@ -49,6 +49,7 @@ jobs:
           node tests/gameplay_fun_logic_test.mjs
           node tests/world_pedestrian_navigation_test.mjs
           node tests/world_defaults_contract_test.mjs
+          node tests/player_multiplayer_replication_contract_test.mjs
           node --check sim/player_walk_mode_v4.mjs
           node --check sim/player_car_mode.mjs
           node --check sim/gameplay_final_runtime_v2.mjs
@@ -106,6 +107,7 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           node tests/world_building_collision_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           node tests/world_rigid_body_physics_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
+          node tests/multiplayer_mesh_smoke.mjs
           ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
           ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
           python3 - <<'PY'
@@ -151,6 +153,7 @@ jobs:
           trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true; rm -f node_modules' EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/player_multiplayer_modes_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
