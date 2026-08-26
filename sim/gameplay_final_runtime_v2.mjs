@@ -3,6 +3,7 @@ import {Box3dHitscanWorld} from "./box3d_hitscan.mjs";
 import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./audio_settings.mjs";
 import {getSharedCombatAudioContext,playCombatAudio} from "./combat_audio_bank.mjs";
 import {wantedLineBlockedByPrisms} from "./wanted_system_logic.mjs";
+import {findRayPopulationHit} from "./ray_population_hit.mjs";
 
 const IMAGERY_KEY="arondight45WorldImageryV1";
 const FOOT_WEAPON_KEY="arondight45FootWeaponV1";
@@ -46,9 +47,10 @@ function footRay(clientX,clientY){
 function droneRay(clientX,clientY){const camera=bridge()?.threeCamera,p=logicalPoint(clientX,clientY);if(!camera||!p)return null;ndc.set(p.x/p.width*2-1,1-p.y/p.height*2);shotRaycaster.setFromCamera(ndc,camera);return{origin:shotRaycaster.ray.origin.clone(),direction:shotRaycaster.ray.direction.clone(),point:p};}
 function candidates(scene){const list=[];scene?.traverse?.(node=>{if(!node?.isMesh||!effectiveVisible(node)||node.material?.visible===false)return;const u=node.userData||{};if(u.flightFireIgnore||u.walkWeaponPart||u.arondightAirframe||u.localHumanAvatar||u.worldPopulationClone)return;list.push(node);});return list;}
 function nearestHit(ray,maxDistance=180){
-  const b=bridge(),scene=b?.threeScene;if(!scene||!ray)return null;shotRaycaster.set(ray.origin,ray.direction);shotRaycaster.near=.01;shotRaycaster.far=maxDistance;const sceneHit=shotRaycaster.intersectObjects(candidates(scene),false)[0]||null;let staticHit=null;
+  const b=bridge(),scene=b?.threeScene;if(!scene||!ray)return null;shotRaycaster.set(ray.origin,ray.direction);shotRaycaster.near=.01;shotRaycaster.far=maxDistance;const sceneHit=shotRaycaster.intersectObjects(candidates(scene),false)[0]||null,populationHit=findRayPopulationHit(scene,ray,{maxDistance}),dynamicHit=populationHit&&(!sceneHit||populationHit.distance<sceneHit.distance)?populationHit:sceneHit;let staticHit=null;
   if(b.active){const hit=boxHits.cast([ray.origin.x,ray.origin.y,ray.origin.z],[ray.direction.x,ray.direction.y,ray.direction.z],maxDistance,b.buildingCollisionSnapshot);if(hit)staticHit={box3d:true,distance:hit.distanceM,point:new THREE.Vector3(...hit.point),worldNormal:new THREE.Vector3(...hit.normal)};}
-  return staticHit&&(!sceneHit||staticHit.distance<sceneHit.distance)?staticHit:sceneHit;
+  const view=viewport();if(populationHit&&dynamicHit===populationHit&&view)view.dataset.worldPopulationSoftTarget="ray-soft-person-volume-v1";
+  return staticHit&&(!dynamicHit||staticHit.distance<dynamicHit.distance-.05)?staticHit:dynamicHit;
 }
 
 function ensureTracerPool(scene){if(tracerScene===scene&&tracerPool.length)return;if(tracerScene)for(const mesh of tracerPool)mesh.parent?.remove(mesh);tracerScene=scene;tracerPool=[];const geometry=new THREE.CylinderGeometry(.007,.007,1,5),material=new THREE.MeshBasicMaterial({color:0xffd27a,transparent:true,opacity:.92,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending});for(let i=0;i<18;i++){const mesh=new THREE.Mesh(geometry,material);mesh.visible=false;mesh.frustumCulled=false;mesh.renderOrder=14;mesh.userData.flightFireIgnore=true;mesh.userData.flightFireTracer=true;scene.add(mesh);tracerPool.push(mesh);}}

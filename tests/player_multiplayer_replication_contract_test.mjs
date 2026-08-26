@@ -3,6 +3,7 @@ import {readFileSync} from "node:fs";
 
 const replication=readFileSync("sim/vs_player_state_replication.mjs","utf8"),humanRig=readFileSync("sim/player_human_rig.mjs","utf8"),car=readFileSync("sim/player_car_mode.mjs","utf8"),viewmodel=readFileSync("sim/first_person_weapon_runtime_v3.mjs","utf8"),population=readFileSync("sim/world_procedural_population.mjs","utf8");
 const network=readFileSync("sim/world_network_physics_sync.mjs","utf8");
+const lan=readFileSync("sim/lan_vs.mjs","utf8");
 const multiplayer=readFileSync("sim/vs_multiplayer.mjs","utf8");
 const layout=readFileSync("sim/solo_layout.mjs","utf8");
 const walk=readFileSync("sim/player_walk_mode_v4.mjs","utf8");
@@ -46,5 +47,6 @@ const vehicleRuntime=readFileSync("sim/player_vehicle_runtime_v2.mjs","utf8");
 assert.ok(vehicleRuntime.includes('av:canonical')&&vehicleRuntime.includes('vr:mode==="drone"?1:0'),"local stationary human anchor is not transmitted while drone flies");
 assert.ok(vehicleRuntime.includes('__arondightVsPlayerStateReplicationV4')&&vehicleRuntime.includes('vsLegacyHumanAvatarsSuppressed'),"legacy duplicate remote human renderer is still active");
 assert.ok(network.includes('if(pose.cm==="vehicle"&&pose.cv)')&&network.includes('remotePlayerDriven'),"stationary active vehicles are not continuously retained by remote physics ownership");
+assert.ok(lan.includes('clonePosePacket')&&lan.includes('"av","ag","avv"')&&lan.includes('"ph","pv","cv"'),"LAN pose transport still strips rich player/drone replication fields");
 
 console.log("Player multiplayer replication contract passed: drone plus stationary shootable human presence, foot/vehicle modes, full remote human rig, weapon/death state, remote vehicle replication, and local Box3D vehicle authority are wired.");
