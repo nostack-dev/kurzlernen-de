@@ -13,17 +13,12 @@ try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1,hasTouch:true,isMobile:true});
   await page.goto(input,{waitUntil:"load",timeout:40000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&globalThis.__arondightRealWorld?.threeScene&&globalThis.__arondightWalkMode&&globalThis.__arondightFootWeapons&&globalThis.__arondightPlayerDamageModel&&globalThis.__arondightWantedSystem,{timeout:40000});
+  await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,w=globalThis.__arondightWalkMode,v=document.querySelector("#viewport");w.setMode?.("foot",{persist:false,reason:"fps-target-root-cause-diag"});w.setPose?.({x:0,y:0,z:0,yaw:0,pitch:0});v.dataset.worldMode="real";b.active=true;b.originLon=9;b.originLat=47;});
+  await page.waitForFunction(()=>globalThis.__arondightWalkMode?.mode==="foot"&&document.querySelector("#viewport")?.dataset.worldProceduralPopulation==="1"&&Number(document.querySelector("#viewport")?.dataset.worldLifeVisible||0)>0,{timeout:12000});
   const setup=await page.evaluate(()=>{
-    const b=globalThis.__arondightRealWorld,w=globalThis.__arondightWalkMode,v=document.querySelector("#viewport");
-    w.setMode?.("foot",{persist:false,reason:"fps-target-root-cause-diag"});w.setPose?.({x:0,y:0,z:0,yaw:0,pitch:0});
-    v.dataset.worldMode="real";b.active=true;b.originLon=9;b.originLat=47;
-    const scene=b.threeScene,seen=new Map();scene.traverse(node=>{if(node?.isMesh)node.raycast=()=>{};const id=String(node?.userData?.worldPopulationId||""),kind=String(node?.userData?.worldPopulationKind||"");if(node?.isMesh&&id&&["person","car","bus"].includes(kind)&&!seen.has(id))seen.set(id,{id,kind,mesh:node});});
-    const all=[...seen.values()],sequence=[...all.filter(x=>x.kind==="person").slice(0,18),...all.filter(x=>x.kind==="car").slice(0,7),...all.filter(x=>x.kind==="bus").slice(0,3)];
-    if(sequence.length<20)throw Error(`insufficient procedural targets: ${sequence.length}`);
-    globalThis.__fpsTargetDiag={sequence,current:null};
-    const zone=document.getElementById("footLookZone"),r=zone.getBoundingClientRect();return{x:r.left+r.width*.56,y:r.top+r.height*.47,count:sequence.length};
+    const b=globalThis.__arondightRealWorld,scene=b.threeScene,seen=new Map();scene.traverse(node=>{if(node?.isMesh)node.raycast=()=>{};const id=String(node?.userData?.worldPopulationId||""),kind=String(node?.userData?.worldPopulationKind||"");if(node?.isMesh&&id&&["person","car","bus"].includes(kind)&&!seen.has(id))seen.set(id,{id,kind,mesh:node});});
+    const all=[...seen.values()],sequence=[...all.filter(x=>x.kind==="person").slice(0,18),...all.filter(x=>x.kind==="car").slice(0,7),...all.filter(x=>x.kind==="bus").slice(0,3)];if(sequence.length<20)throw Error(`insufficient procedural targets: ${sequence.length}`);globalThis.__fpsTargetDiag={sequence,current:null};const zone=document.getElementById("footLookZone"),r=zone.getBoundingClientRect();return{x:r.left+r.width*.56,y:r.top+r.height*.47,count:sequence.length};
   });
-  await page.waitForFunction(()=>globalThis.__arondightWalkMode?.mode==="foot"&&document.querySelector("#viewport")?.dataset.worldProceduralPopulation==="1",{timeout:10000});
   const arm=async index=>page.evaluate(index=>{const d=globalThis.__fpsTargetDiag,v=document.querySelector("#viewport"),rec=d.sequence[index];if(!rec)return null;if(d.current)d.current.mesh.raycast=()=>{};rec.mesh.userData.flightFireIgnore=false;rec.mesh.visible=true;rec.mesh.raycast=function(raycaster,intersections){const distance=.025,point=raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction,distance);intersections.push({distance,point,object:this,face:null,faceIndex:0});};d.current=rec;const key=rec.kind==="person"?"worldRagdollSpawns":"worldCarExplosionSpawns";return{id:rec.id,kind:rec.kind,key,before:Number(v.dataset[key]||0)};},index);
 
   const cdp=await page.createCDPSession();let dragging=true,moveStep=0;
@@ -39,9 +34,5 @@ try{
   if(failure){const manual=await page.evaluate(()=>{const v=document.querySelector("#viewport"),r=v.getBoundingClientRect();try{return{result:Boolean(globalThis.__arondightFootWeapons?.fireAt?.({clientX:r.left+r.width*.12,clientY:r.top+r.height*.12,source:"diag-manual-off-target"})),error:""};}catch(error){return{result:false,error:String(error?.stack||error)};}});await sleep(120);failure.manualOffTarget=manual;failure.afterManual=await state();console.log(`ROOT_CAUSE_FAILURE ${JSON.stringify(failure)}`);}else console.log(`ROOT_CAUSE_NO_FAILURE ${JSON.stringify(beforeProbe)}`);
   dragging=false;await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]}).catch(()=>{});await mover;
   if(!failure)throw Error(`diagnostic did not reproduce FPS target drag failure across ${setup.count} targets: ${JSON.stringify(beforeProbe)}`);
-  if(failure.errors?.length)console.log("ROOT_CLASS=TARGET_EXCEPTION");
-  else if(failure.state?.playerDead||failure.state?.walkDead)console.log("ROOT_CLASS=PLAYER_DEATH_WANTED_DAMAGE");
-  else if(failure.state?.aimActive==="0")console.log("ROOT_CLASS=INPUT_TERMINATED");
-  else if(failure.state?.fireResult==="gated")console.log("ROOT_CLASS=FIREAT_GATED");
-  else console.log("ROOT_CLASS=UNKNOWN");
+  if(failure.errors?.length)console.log("ROOT_CLASS=TARGET_EXCEPTION");else if(failure.state?.playerDead||failure.state?.walkDead)console.log("ROOT_CLASS=PLAYER_DEATH_WANTED_DAMAGE");else if(failure.state?.aimActive==="0")console.log("ROOT_CLASS=INPUT_TERMINATED");else if(failure.state?.fireResult==="gated")console.log("ROOT_CLASS=FIREAT_GATED");else console.log("ROOT_CLASS=UNKNOWN");
 }finally{await browser.close();}
