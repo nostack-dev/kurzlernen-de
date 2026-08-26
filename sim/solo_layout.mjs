@@ -19,6 +19,8 @@ import "./wanted_dispatch_guard.mjs";
 import "./training_showcase.mjs";
 import "./immersive_soundscape.mjs";
 import "./player_settings_sections.mjs";
+import "./pwa_standalone_viewport.mjs";
+import "./first_person_authority_runtime.mjs";
 import {installInitialAirframeGroundPose} from "./start_pose_guard.mjs";
 import {installFpvViewHeight} from "./fpv_view_height.mjs";
 
