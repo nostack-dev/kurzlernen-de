@@ -1,0 +1,2326 @@
+{
+  "schemaVersion": 3,
+  "generatedAt": "2026-08-26T16:00:40.434112Z",
+  "trackedCount": 45,
+  "completeCount": 45,
+  "excludedCount": 0,
+  "transport": {
+    "secFacts": "Official SEC CompanyFacts",
+    "url": "https://data.sec.gov"
+  },
+  "methodology": {
+    "capex": "Latest defensible annual SEC XBRL cash CapEx versus the annual value two fiscal years earlier. Annual periods are recognized from FY metadata or a 300–380 day filing duration.",
+    "demand": "Latest numeric SEC XBRL demand disclosure in the same currency as CapEx, prioritized RPO → backlog/order book → contract liabilities → deferred revenue. Exact concept is shown per company.",
+    "coverage": "Selected SEC demand disclosure divided by latest annual SEC CapEx in the same currency.",
+    "peg": "Yahoo trailing PEG when available; otherwise a disclosed calculation from current market price and annual EPS from SEC XBRL.",
+    "completeness": "Only complete rows are published. If an issuer does not disclose a numeric input, it is excluded from the ranking rather than filled with N/A or a synthetic estimate."
+  },
+  "universes": {
+    "ai-hardware": [
+      "NVDA",
+      "ORCL",
+      "MU",
+      "AMZN",
+      "MSFT",
+      "AVGO",
+      "TSM",
+      "SMCI",
+      "ANET",
+      "VRT",
+      "CEG",
+      "MOD",
+      "DELL",
+      "GOOGL",
+      "AMD",
+      "ASML",
+      "INTC",
+      "NBIS",
+      "PLTR",
+      "CSCO"
+    ],
+    "semiconductors": [
+      "TSM",
+      "NVDA",
+      "AVGO",
+      "ASML",
+      "AMD",
+      "MU",
+      "AMAT",
+      "LRCX",
+      "KLAC",
+      "QCOM",
+      "ARM",
+      "ADI",
+      "TXN",
+      "MRVL",
+      "NXPI"
+    ],
+    "datacenter-infra": [
+      "VRT",
+      "CEG",
+      "MOD",
+      "ANET",
+      "EQIX",
+      "DLR",
+      "SMR",
+      "VST",
+      "ETN",
+      "GE",
+      "PWR",
+      "JCI"
+    ],
+    "sp500-tech": [
+      "AAPL",
+      "MSFT",
+      "NVDA",
+      "AMZN",
+      "GOOGL",
+      "META",
+      "AVGO",
+      "ORCL",
+      "CSCO",
+      "ACN",
+      "IBM",
+      "AMD",
+      "QCOM",
+      "INTC",
+      "NOW",
+      "AMAT",
+      "TXN",
+      "LRCX",
+      "MU",
+      "GE",
+      "CAT",
+      "DE",
+      "DELL",
+      "HPE",
+      "PLTR"
+    ]
+  },
+  "stocks": [
+    {
+      "ticker": "AMZN",
+      "name": "AMAZON COM INC",
+      "sector": "Cloud & Commerce",
+      "cik": "0001018724",
+      "currency": "USD",
+      "capexCurrentBn": 82.999,
+      "capex2YBn": 52.729,
+      "growthPct": 57.41,
+      "demandBn": 20.428,
+      "demandBasis": "Deferred revenue",
+      "coverage": 0.246,
+      "peg": 1.3898,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 258.52,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001018724.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquireProductiveAssets",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001018724.json",
+          "transport": "data.sec.gov",
+          "basis": "Deferred revenue",
+          "concept": "us-gaap:ContractWithCustomerLiabilityCurrent",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/AMZN?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AMZN?symbol=AMZN&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "AMD",
+      "name": "ADVANCED MICRO DEVICES INC",
+      "sector": "AI Accelerators",
+      "cik": "0000002488",
+      "currency": "USD",
+      "capexCurrentBn": 0.974,
+      "capex2YBn": 0.546,
+      "growthPct": 78.39,
+      "demandBn": 0.222,
+      "demandBasis": "RPO",
+      "coverage": 0.228,
+      "peg": 0.9782,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 483.46,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000002488.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000002488.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-27",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/AMD?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AMD?symbol=AMD&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "ACN",
+      "name": "Accenture plc",
+      "sector": "IT Services",
+      "cik": "0001467373",
+      "currency": "USD",
+      "capexCurrentBn": 0.5165,
+      "capex2YBn": 0.5282,
+      "growthPct": -2.21,
+      "demandBn": 38.0,
+      "demandBasis": "RPO",
+      "coverage": 73.571,
+      "peg": 1.3552,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 181.895,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001467373.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001467373.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-05-31",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/ACN?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ACN?symbol=ACN&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "ADI",
+      "name": "ANALOG DEVICES INC",
+      "sector": "Analog Semiconductors",
+      "cik": "0000006281",
+      "currency": "USD",
+      "capexCurrentBn": 0.5336,
+      "capex2YBn": 1.2615,
+      "growthPct": -57.7,
+      "demandBn": 17.2,
+      "demandBasis": "Forward revenue run-rate",
+      "coverage": 32.237,
+      "peg": 0.5584,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 375.103,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000006281.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR 8-K issuer guidance",
+          "url": "https://www.sec.gov/Archives/edgar/data/6281/000000628126000072/0000006281-26-000072.txt",
+          "transport": "sec.gov/Archives",
+          "basis": "Forward revenue run-rate",
+          "concept": "SEC filing narrative: quarterly revenue guidance × 4",
+          "asOf": "2026-08-19",
+          "unit": "USD",
+          "details": "Quarter revenue guidance $4.300B; annualized ×4."
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/ADI?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ADI?symbol=ADI&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "AMAT",
+      "name": "APPLIED MATERIALS INC /DE",
+      "sector": "Semiconductor Equipment",
+      "cik": "0000006951",
+      "currency": "USD",
+      "capexCurrentBn": 2.26,
+      "capex2YBn": 1.106,
+      "growthPct": 104.34,
+      "demandBn": 3.271,
+      "demandBasis": "Deferred revenue",
+      "coverage": 1.447,
+      "peg": 0.9645,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 478.95,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000006951.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000006951.json",
+          "transport": "data.sec.gov",
+          "basis": "Deferred revenue",
+          "concept": "us-gaap:ContractWithCustomerLiability",
+          "asOf": "2026-07-26",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/AMAT?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AMAT?symbol=AMAT&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "AAPL",
+      "name": "Apple Inc.",
+      "sector": "Consumer Technology",
+      "cik": "0000320193",
+      "currency": "USD",
+      "capexCurrentBn": 12.715,
+      "capex2YBn": 10.708,
+      "growthPct": 18.74,
+      "demandBn": 14.9,
+      "demandBasis": "Deferred revenue",
+      "coverage": 1.172,
+      "peg": 2.4988,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 312.77,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+          "transport": "data.sec.gov",
+          "basis": "Deferred revenue",
+          "concept": "us-gaap:ContractWithCustomerLiability",
+          "asOf": "2026-06-27",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AAPL?symbol=AAPL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "ARM",
+      "name": "ARM HOLDINGS PLC /UK",
+      "sector": "CPU IP",
+      "cik": "0001973239",
+      "currency": "USD",
+      "capexCurrentBn": 0.092,
+      "capex2YBn": 0.092,
+      "growthPct": 0.0,
+      "demandBn": 2.1226,
+      "demandBasis": "RPO",
+      "coverage": 23.072,
+      "peg": 1.9609,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 240.66,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001973239.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2026,
+          "prior2FY": 2024,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001973239.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/ARM?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ARM?symbol=ARM&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "ANET",
+      "name": "Arista Networks, Inc.",
+      "sector": "Data Center Networking",
+      "cik": "0001596532",
+      "currency": "USD",
+      "capexCurrentBn": 0.032,
+      "capex2YBn": 0.0344,
+      "growthPct": -7.07,
+      "demandBn": 6.8659,
+      "demandBasis": "Deferred revenue",
+      "coverage": 214.559,
+      "peg": 1.7787,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 197.91,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001596532.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquireProductiveAssets",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001596532.json",
+          "transport": "data.sec.gov",
+          "basis": "Deferred revenue",
+          "concept": "us-gaap:ContractWithCustomerLiability",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/ANET?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ANET?symbol=ANET&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "ASML",
+      "name": "ASML HOLDING NV",
+      "sector": "Lithography",
+      "cik": "0000937966",
+      "currency": "EUR",
+      "capexCurrentBn": 2.0672,
+      "capex2YBn": 2.1556,
+      "growthPct": -4.1,
+      "demandBn": 46.5,
+      "demandBasis": "RPO",
+      "coverage": 22.494,
+      "peg": 2.0711,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 1741.66,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000937966.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "EUR"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000937966.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2025-12-31",
+          "unit": "EUR",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/ASML?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ASML?symbol=ASML&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "AVGO",
+      "name": "Broadcom Inc.",
+      "sector": "AI ASICs & Networking",
+      "cik": "0001730168",
+      "currency": "USD",
+      "capexCurrentBn": 0.623,
+      "capex2YBn": 0.452,
+      "growthPct": 37.83,
+      "demandBn": 164.6,
+      "demandBasis": "RPO",
+      "coverage": 264.205,
+      "peg": 0.4033,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 351.321,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001730168.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001730168.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-05-03",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/AVGO?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AVGO?symbol=AVGO&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "CEG",
+      "name": "Constellation Energy Corp",
+      "sector": "Power Generation",
+      "cik": "0001868275",
+      "currency": "USD",
+      "capexCurrentBn": 2.565,
+      "capex2YBn": 2.422,
+      "growthPct": 5.9,
+      "demandBn": 11.855,
+      "demandBasis": "RPO",
+      "coverage": 4.622,
+      "peg": -6.8637,
+      "pegMeaningful": false,
+      "pe": -36.674,
+      "price": 282.33,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001868275.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001868275.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/CEG?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Computed SEC PEG from net income ÷ diluted shares",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001868275.json",
+          "details": {
+            "incomeConcept": "us-gaap:AccumulatedOtherComprehensiveIncomeLossNetOfTax",
+            "sharesConcept": "us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding",
+            "currentFY": 2025,
+            "previousFY": 2024,
+            "currentNetIncome": -2425000000.0,
+            "previousNetIncome": -2302000000.0,
+            "currentDilutedShares": 315000000.0,
+            "previousDilutedShares": 315000000.0,
+            "currentDerivedEPS": -7.698412698412699,
+            "previousDerivedEPS": -7.307936507936508,
+            "growthPct": 5.343179843614254,
+            "formula": "EPS = SEC net income / SEC diluted weighted-average shares; PEG = (price / EPS) / EPS growth percent"
+          }
+        }
+      }
+    },
+    {
+      "ticker": "CSCO",
+      "name": "CISCO SYSTEMS, INC.",
+      "sector": "Networking",
+      "cik": "0000858877",
+      "currency": "USD",
+      "capexCurrentBn": 0.905,
+      "capex2YBn": 0.849,
+      "growthPct": 6.6,
+      "demandBn": 43.462,
+      "demandBasis": "RPO",
+      "coverage": 48.024,
+      "peg": 1.0243,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 112.0,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000858877.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000858877.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-04-25",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/CSCO?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/CSCO?symbol=CSCO&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "DLR",
+      "name": "DIGITAL REALTY TRUST, INC.",
+      "sector": "Data Centers",
+      "cik": "0001297996",
+      "currency": "USD",
+      "capexCurrentBn": 1.7648,
+      "capex2YBn": 0.5646,
+      "growthPct": 212.57,
+      "demandBn": 1.9,
+      "demandBasis": "Backlog",
+      "coverage": 1.077,
+      "peg": 13.9219,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 192.46,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001297996.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:ProceedsFromSaleOfProductiveAssets",
+          "currentFY": 2025,
+          "prior2FY": 2020,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR 8-K filing narrative",
+          "url": "https://www.sec.gov/Archives/edgar/data/1297996/000110465926086270/0001104659-26-086270.txt",
+          "transport": "sec.gov/Archives",
+          "basis": "Backlog",
+          "concept": "SEC filing narrative: Backlog",
+          "asOf": "2026-07-23",
+          "unit": "USD",
+          "details": "Numeric contracted-demand disclosure extracted from the issuer filing."
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/DLR?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/DLR?symbol=DLR&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "CAT",
+      "name": "CATERPILLAR INC",
+      "sector": "Industrial Equipment",
+      "cik": "0000018230",
+      "currency": "USD",
+      "capexCurrentBn": 1.988,
+      "capex2YBn": 1.597,
+      "growthPct": 24.48,
+      "demandBn": 44.1,
+      "demandBasis": "RPO",
+      "coverage": 22.183,
+      "peg": 1.7805,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 821.505,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000018230.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000018230.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/CAT?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/CAT?symbol=CAT&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "DE",
+      "name": "DEERE & CO",
+      "sector": "Industrial Equipment",
+      "cik": "0000315189",
+      "currency": "USD",
+      "capexCurrentBn": 1.64,
+      "capex2YBn": 1.498,
+      "growthPct": 9.48,
+      "demandBn": 1.855,
+      "demandBasis": "RPO",
+      "coverage": 1.131,
+      "peg": 1.4634,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 636.715,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000315189.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000315189.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-05-03",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/DE?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/DE?symbol=DE&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "EQIX",
+      "name": "EQUINIX INC",
+      "sector": "Data Centers",
+      "cik": "0001101239",
+      "currency": "USD",
+      "capexCurrentBn": 3.066,
+      "capex2YBn": 2.781,
+      "growthPct": 10.25,
+      "demandBn": 15.0,
+      "demandBasis": "RPO",
+      "coverage": 4.892,
+      "peg": 3.4559,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 1078.39,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001101239.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquireProductiveAssets",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001101239.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/EQIX?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/EQIX?symbol=EQIX&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "GOOGL",
+      "name": "Alphabet Inc.",
+      "sector": "Cloud & AI",
+      "cik": "0001652044",
+      "currency": "USD",
+      "capexCurrentBn": 52.535,
+      "capex2YBn": 32.251,
+      "growthPct": 62.89,
+      "demandBn": 519.5,
+      "demandBasis": "RPO",
+      "coverage": 9.889,
+      "peg": 0.9403,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 341.34,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001652044.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001652044.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/GOOGL?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/GOOGL?symbol=GOOGL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "ETN",
+      "name": "Eaton Corp plc",
+      "sector": "Power Management",
+      "cik": "0001551182",
+      "currency": "USD",
+      "capexCurrentBn": 0.808,
+      "capex2YBn": 0.757,
+      "growthPct": 6.74,
+      "demandBn": 1.159,
+      "demandBasis": "Deferred revenue",
+      "coverage": 1.434,
+      "peg": 2.934,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 417.165,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001551182.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001551182.json",
+          "transport": "data.sec.gov",
+          "basis": "Deferred revenue",
+          "concept": "us-gaap:ContractWithCustomerLiability",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/ETN?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ETN?symbol=ETN&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "GE",
+      "name": "GENERAL ELECTRIC CO",
+      "sector": "Industrial Technology",
+      "cik": "0000040545",
+      "currency": "USD",
+      "capexCurrentBn": 1.032,
+      "capex2YBn": 1.595,
+      "growthPct": -35.3,
+      "demandBn": 210.79,
+      "demandBasis": "RPO",
+      "coverage": 204.254,
+      "peg": 5.1344,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 354.26,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000040545.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquireProductiveAssets",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000040545.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/GE?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/GE?symbol=GE&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "DELL",
+      "name": "Dell Technologies Inc.",
+      "sector": "Enterprise Infrastructure",
+      "cik": "0001571996",
+      "currency": "USD",
+      "capexCurrentBn": 2.633,
+      "capex2YBn": 2.756,
+      "growthPct": -4.46,
+      "demandBn": 97.0,
+      "demandBasis": "RPO",
+      "coverage": 36.84,
+      "peg": 0.7405,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 465.98,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001571996.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2026,
+          "prior2FY": 2024,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001571996.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-05-01",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/DELL?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/DELL?symbol=DELL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550438&period2=1787760038",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "HPE",
+      "name": "Hewlett Packard Enterprise Co",
+      "sector": "Enterprise Infrastructure",
+      "cik": "0001645590",
+      "currency": "USD",
+      "capexCurrentBn": 2.367,
+      "capex2YBn": 2.828,
+      "growthPct": -16.3,
+      "demandBn": 10.8,
+      "demandBasis": "RPO",
+      "coverage": 4.563,
+      "peg": 3.4326,
+      "pegMeaningful": false,
+      "pe": -26.404,
+      "price": 54.27,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001645590.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquireProductiveAssets",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001645590.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-04-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/HPE?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Computed SEC PEG from net income ÷ diluted shares",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001645590.json",
+          "details": {
+            "incomeConcept": "us-gaap:AccumulatedOtherComprehensiveIncomeLossNetOfTax",
+            "sharesConcept": "us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding",
+            "currentFY": 2025,
+            "previousFY": 2024,
+            "currentNetIncome": -2748000000.0,
+            "previousNetIncome": -2977000000.0,
+            "currentDilutedShares": 1337000000.0,
+            "previousDilutedShares": 1337000000.0,
+            "currentDerivedEPS": -2.0553477935676887,
+            "previousDerivedEPS": -2.2266267763649963,
+            "growthPct": -7.692307692307699,
+            "formula": "EPS = SEC net income / SEC diluted weighted-average shares; PEG = (price / EPS) / EPS growth percent"
+          }
+        }
+      }
+    },
+    {
+      "ticker": "IBM",
+      "name": "INTERNATIONAL BUSINESS MACHINES CORP",
+      "sector": "Enterprise Technology",
+      "cik": "0000051143",
+      "currency": "USD",
+      "capexCurrentBn": 1.048,
+      "capex2YBn": 1.245,
+      "growthPct": -15.82,
+      "demandBn": 68.0,
+      "demandBasis": "RPO",
+      "coverage": 64.885,
+      "peg": 2.393,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 229.61,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000051143.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000051143.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/IBM?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/IBM?symbol=IBM&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "INTC",
+      "name": "INTEL CORP",
+      "sector": "Foundry & Compute",
+      "cik": "0000050863",
+      "currency": "USD",
+      "capexCurrentBn": 14.646,
+      "capex2YBn": 25.75,
+      "growthPct": -43.12,
+      "demandBn": 0.498,
+      "demandBasis": "Deferred revenue",
+      "coverage": 0.034,
+      "peg": 14.6363,
+      "pegMeaningful": false,
+      "pe": -1443.583,
+      "price": 86.615,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000050863.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000050863.json",
+          "transport": "data.sec.gov",
+          "basis": "Deferred revenue",
+          "concept": "us-gaap:ContractWithCustomerLiability",
+          "asOf": "2021-12-25",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/INTC?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Computed FY PEG = P/E ÷ annual EPS growth %",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000050863.json",
+          "details": {
+            "concept": "us-gaap:EarningsPerShareDiluted",
+            "fyCurrent": 2025,
+            "fyPrevious": 2024,
+            "epsCurrent": -0.06,
+            "epsPrevious": -4.38,
+            "growthPct": -98.63013698630137,
+            "unit": "USD/shares"
+          }
+        }
+      }
+    },
+    {
+      "ticker": "KLAC",
+      "name": "KLA CORP",
+      "sector": "Semiconductor Equipment",
+      "cik": "0000319201",
+      "currency": "USD",
+      "capexCurrentBn": 0.2774,
+      "capex2YBn": 0.2774,
+      "growthPct": 0.0,
+      "demandBn": 1.7751,
+      "demandBasis": "Deferred revenue",
+      "coverage": 6.4,
+      "peg": 1.753,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 181.875,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000319201.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2026,
+          "prior2FY": 2024,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000319201.json",
+          "transport": "data.sec.gov",
+          "basis": "Deferred revenue",
+          "concept": "us-gaap:ContractWithCustomerLiability",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/KLAC?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/KLAC?symbol=KLAC&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "JCI",
+      "name": "Johnson Controls International plc",
+      "sector": "Building Infrastructure",
+      "cik": "0000833444",
+      "currency": "USD",
+      "capexCurrentBn": 0.494,
+      "capex2YBn": 0.539,
+      "growthPct": -8.35,
+      "demandBn": 26.3,
+      "demandBasis": "RPO",
+      "coverage": 53.239,
+      "peg": 1.6209,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 144.98,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000833444.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquireProductiveAssets",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000833444.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-03-31",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/JCI?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/JCI?symbol=JCI&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "LRCX",
+      "name": "LAM RESEARCH CORP",
+      "sector": "Semiconductor Equipment",
+      "cik": "0000707549",
+      "currency": "USD",
+      "capexCurrentBn": 0.9664,
+      "capex2YBn": 0.5016,
+      "growthPct": 92.68,
+      "demandBn": 2.434,
+      "demandBasis": "RPO",
+      "coverage": 2.519,
+      "peg": 1.4639,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 312.335,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000707549.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquireProductiveAssets",
+          "currentFY": 2026,
+          "prior2FY": 2024,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000707549.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-28",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/LRCX?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/LRCX?symbol=LRCX&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "META",
+      "name": "Meta Platforms, Inc.",
+      "sector": "Digital Platforms & AI",
+      "cik": "0001326801",
+      "currency": "USD",
+      "capexCurrentBn": 37.256,
+      "capex2YBn": 27.266,
+      "growthPct": 36.64,
+      "demandBn": 1.16,
+      "demandBasis": "Deferred revenue",
+      "coverage": 0.031,
+      "peg": 0.8345,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 574.745,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001326801.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001326801.json",
+          "transport": "data.sec.gov",
+          "basis": "Deferred revenue",
+          "concept": "us-gaap:ContractWithCustomerLiability",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/META?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/META?symbol=META&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "MOD",
+      "name": "MODINE MANUFACTURING CO",
+      "sector": "Thermal Management",
+      "cik": "0000067347",
+      "currency": "USD",
+      "capexCurrentBn": 0.0877,
+      "capex2YBn": 0.0877,
+      "growthPct": 0.0,
+      "demandBn": 0.1992,
+      "demandBasis": "Deferred revenue",
+      "coverage": 2.271,
+      "peg": 0.6343,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 186.2,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000067347.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2026,
+          "prior2FY": 2024,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000067347.json",
+          "transport": "data.sec.gov",
+          "basis": "Deferred revenue",
+          "concept": "us-gaap:ContractWithCustomerLiability",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/MOD?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/MOD?symbol=MOD&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "MSFT",
+      "name": "MICROSOFT CORP",
+      "sector": "Cloud & Software",
+      "cik": "0000789019",
+      "currency": "USD",
+      "capexCurrentBn": 44.477,
+      "capex2YBn": 44.477,
+      "growthPct": 0.0,
+      "demandBn": 684.0,
+      "demandBasis": "RPO",
+      "coverage": 15.379,
+      "peg": 1.5968,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 494.05,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000789019.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2026,
+          "prior2FY": 2024,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000789019.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/MSFT?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/MSFT?symbol=MSFT&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "MRVL",
+      "name": "Marvell Technology, Inc.",
+      "sector": "Data Infrastructure Semiconductors",
+      "cik": "0001835632",
+      "currency": "USD",
+      "capexCurrentBn": 0.3541,
+      "capex2YBn": 0.2062,
+      "growthPct": 71.73,
+      "demandBn": 0.0637,
+      "demandBasis": "Deferred revenue",
+      "coverage": 0.18,
+      "peg": 1.4199,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 240.05,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001835632.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2026,
+          "prior2FY": 2024,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001835632.json",
+          "transport": "data.sec.gov",
+          "basis": "Deferred revenue",
+          "concept": "us-gaap:DeferredRevenueCurrent",
+          "asOf": "2026-05-02",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/MRVL?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/MRVL?symbol=MRVL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "MU",
+      "name": "MICRON TECHNOLOGY INC",
+      "sector": "HBM Memory",
+      "cik": "0000723125",
+      "currency": "USD",
+      "capexCurrentBn": 15.857,
+      "capex2YBn": 7.676,
+      "growthPct": 106.58,
+      "demandBn": 5.0,
+      "demandBasis": "RPO",
+      "coverage": 0.315,
+      "peg": 0.137,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 939.085,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000723125.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000723125.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-05-28",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/MU?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/MU?symbol=MU&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "NBIS",
+      "name": "Nebius Group N.V.",
+      "sector": "AI Neocloud",
+      "cik": "0001513845",
+      "currency": "USD",
+      "capexCurrentBn": 0.8075,
+      "capex2YBn": 1.0106,
+      "growthPct": -20.1,
+      "demandBn": 21.333,
+      "demandBasis": "RPO",
+      "coverage": 26.419,
+      "peg": -0.1705,
+      "pegMeaningful": false,
+      "pe": 4.034,
+      "price": 214.875,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001513845.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001513845.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2025-12-31",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/NBIS?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Computed FY PEG = P/E ÷ annual EPS growth %",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001513845.json",
+          "details": {
+            "concept": "us-gaap:EarningsPerShareDiluted",
+            "fyCurrent": 2023,
+            "fyPrevious": 2022,
+            "epsCurrent": 53.26,
+            "epsPrevious": 69.77,
+            "growthPct": -23.66346567292532,
+            "unit": "RUB/shares"
+          }
+        }
+      }
+    },
+    {
+      "ticker": "NOW",
+      "name": "ServiceNow, Inc.",
+      "sector": "Enterprise Software",
+      "cik": "0001373715",
+      "currency": "USD",
+      "capexCurrentBn": 0.852,
+      "capex2YBn": 0.694,
+      "growthPct": 22.77,
+      "demandBn": 29.0,
+      "demandBasis": "RPO",
+      "coverage": 34.038,
+      "peg": 1.1433,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 125.19,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001373715.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001373715.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/NOW?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/NOW?symbol=NOW&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "PLTR",
+      "name": "Palantir Technologies Inc.",
+      "sector": "Enterprise AI Software",
+      "cik": "0001321655",
+      "currency": "USD",
+      "capexCurrentBn": 0.0126,
+      "capex2YBn": 0.0151,
+      "growthPct": -16.41,
+      "demandBn": 4.9,
+      "demandBasis": "RPO",
+      "coverage": 387.842,
+      "peg": 2.3555,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 174.84,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001321655.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001321655.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/PLTR?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/PLTR?symbol=PLTR&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "NXPI",
+      "name": "NXP Semiconductors N.V.",
+      "sector": "Semiconductors",
+      "cik": "0001413447",
+      "currency": "USD",
+      "capexCurrentBn": 0.727,
+      "capex2YBn": 0.827,
+      "growthPct": -12.09,
+      "demandBn": 0.057,
+      "demandBasis": "Deferred revenue",
+      "coverage": 0.078,
+      "peg": 0.5385,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 223.74,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001413447.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001413447.json",
+          "transport": "data.sec.gov",
+          "basis": "Deferred revenue",
+          "concept": "us-gaap:ContractWithCustomerLiability",
+          "asOf": "2025-12-31",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/NXPI?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/NXPI?symbol=NXPI&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "PWR",
+      "name": "QUANTA SERVICES, INC.",
+      "sector": "Grid Infrastructure",
+      "cik": "0001050915",
+      "currency": "USD",
+      "capexCurrentBn": 0.6041,
+      "capex2YBn": 0.4348,
+      "growthPct": 38.93,
+      "demandBn": 33.55,
+      "demandBasis": "RPO",
+      "coverage": 55.539,
+      "peg": 1.6618,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 612.443,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001050915.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001050915.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/PWR?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/PWR?symbol=PWR&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "QCOM",
+      "name": "QUALCOMM INC/DE",
+      "sector": "Semiconductors",
+      "cik": "0000804328",
+      "currency": "USD",
+      "capexCurrentBn": 1.192,
+      "capex2YBn": 1.45,
+      "growthPct": -17.79,
+      "demandBn": 0.28,
+      "demandBasis": "Deferred revenue",
+      "coverage": 0.235,
+      "peg": 0.7062,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 161.61,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000804328.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquireProductiveAssets",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000804328.json",
+          "transport": "data.sec.gov",
+          "basis": "Deferred revenue",
+          "concept": "us-gaap:DeferredRevenueCurrent",
+          "asOf": "2026-06-28",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/QCOM?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/QCOM?symbol=QCOM&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "NVDA",
+      "name": "NVIDIA CORP",
+      "sector": "AI Compute & Networking",
+      "cik": "0001045810",
+      "currency": "USD",
+      "capexCurrentBn": 6.042,
+      "capex2YBn": 1.069,
+      "growthPct": 465.2,
+      "demandBn": 2.6,
+      "demandBasis": "RPO",
+      "coverage": 0.43,
+      "peg": 0.5868,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 210.545,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001045810.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquireProductiveAssets",
+          "currentFY": 2026,
+          "prior2FY": 2024,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001045810.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-04-26",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/NVDA?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/NVDA?symbol=NVDA&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "SMCI",
+      "name": "Super Micro Computer, Inc.",
+      "sector": "AI Servers",
+      "cik": "0001375365",
+      "currency": "USD",
+      "capexCurrentBn": 0.1243,
+      "capex2YBn": 0.0368,
+      "growthPct": 237.78,
+      "demandBn": 2.1356,
+      "demandBasis": "RPO",
+      "coverage": 17.184,
+      "peg": -227753.1407,
+      "pegMeaningful": false,
+      "pe": 32259.652,
+      "price": 37.77,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001375365.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001375365.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-03-31",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/SMCI?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Computed SEC PEG from net income ÷ diluted shares",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001375365.json",
+          "details": {
+            "incomeConcept": "us-gaap:AccumulatedOtherComprehensiveIncomeLossNetOfTax",
+            "sharesConcept": "us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding",
+            "currentFY": 2025,
+            "previousFY": 2024,
+            "currentNetIncome": 705000.0,
+            "previousNetIncome": 706000.0,
+            "currentDilutedShares": 602146000.0,
+            "previousDilutedShares": 602146000.0,
+            "currentDerivedEPS": 0.0011708123943362572,
+            "previousDerivedEPS": 0.0011724731211367344,
+            "growthPct": -0.14164305949010414,
+            "formula": "EPS = SEC net income / SEC diluted weighted-average shares; PEG = (price / EPS) / EPS growth percent"
+          }
+        }
+      }
+    },
+    {
+      "ticker": "VRT",
+      "name": "Vertiv Holdings Co",
+      "sector": "Data Center Power & Cooling",
+      "cik": "0001674101",
+      "currency": "USD",
+      "capexCurrentBn": 0.167,
+      "capex2YBn": 0.1279,
+      "growthPct": 30.57,
+      "demandBn": 3.6337,
+      "demandBasis": "Deferred revenue",
+      "coverage": 21.759,
+      "peg": 1.1998,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 261.43,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001674101.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001674101.json",
+          "transport": "data.sec.gov",
+          "basis": "Deferred revenue",
+          "concept": "us-gaap:ContractWithCustomerLiabilityCurrent",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/VRT?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/VRT?symbol=VRT&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "TSM",
+      "name": "TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD",
+      "sector": "Advanced Foundry",
+      "cik": "0001046179",
+      "currency": "TWD",
+      "capexCurrentBn": 956.0065,
+      "capex2YBn": 507.2387,
+      "growthPct": 88.47,
+      "demandBn": 31.77,
+      "demandBasis": "Contract liabilities",
+      "coverage": 0.033,
+      "peg": 0.9968,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 416.425,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001046179.json",
+          "transport": "data.sec.gov",
+          "concept": "ifrs-full:PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+          "currentFY": 2024,
+          "prior2FY": 2022,
+          "unit": "TWD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001046179.json",
+          "transport": "data.sec.gov",
+          "basis": "Contract liabilities",
+          "concept": "ifrs-full:ContractLiabilities",
+          "asOf": "2018-12-31",
+          "unit": "TWD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/TSM?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/TSM?symbol=TSM&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "TXN",
+      "name": "TEXAS INSTRUMENTS INC",
+      "sector": "Analog Semiconductors",
+      "cik": "0000097476",
+      "currency": "USD",
+      "capexCurrentBn": 4.82,
+      "capex2YBn": 5.071,
+      "growthPct": -4.95,
+      "demandBn": 23.6,
+      "demandBasis": "Forward revenue run-rate",
+      "coverage": 4.896,
+      "peg": 1.1466,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 262.55,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000097476.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR 8-K issuer guidance",
+          "url": "https://www.sec.gov/Archives/edgar/data/97476/000009747626000148/0000097476-26-000148.txt",
+          "transport": "sec.gov/Archives",
+          "basis": "Forward revenue run-rate",
+          "concept": "SEC filing narrative: quarterly revenue guidance midpoint × 4",
+          "asOf": "2026-07-22",
+          "unit": "USD",
+          "details": "Quarter guidance range $5.650B–$6.150B; midpoint annualized ×4."
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/TXN?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/TXN?symbol=TXN&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550439&period2=1787760039",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "ORCL",
+      "name": "ORACLE CORP",
+      "sector": "Cloud Infrastructure",
+      "cik": "0001341439",
+      "currency": "USD",
+      "capexCurrentBn": 6.866,
+      "capex2YBn": 6.866,
+      "growthPct": 0.0,
+      "demandBn": 638.0,
+      "demandBasis": "RPO",
+      "coverage": 92.922,
+      "peg": 0.8181,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 147.72,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001341439.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2026,
+          "prior2FY": 2024,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001341439.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-05-31",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/ORCL?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ORCL?symbol=ORCL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550440&period2=1787760040",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "VST",
+      "name": "Vistra Corp.",
+      "sector": "Power Generation",
+      "cik": "0001692819",
+      "currency": "USD",
+      "capexCurrentBn": 2.078,
+      "capex2YBn": 1.676,
+      "growthPct": 23.99,
+      "demandBn": 7.128,
+      "demandBasis": "RPO",
+      "coverage": 3.43,
+      "peg": 0.3904,
+      "pegMeaningful": false,
+      "pe": null,
+      "price": 140.63,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001692819.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001692819.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/VST?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/VST?symbol=VST&type=trailingPegRatio,forwardPe,trailingPe&period1=1786550440&period2=1787760040",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "SMR",
+      "name": "NUSCALE POWER Corp",
+      "sector": "Nuclear Technology",
+      "cik": "0001822966",
+      "currency": "USD",
+      "capexCurrentBn": 0.0,
+      "capex2YBn": 0.0017,
+      "growthPct": -97.45,
+      "demandBn": 0.0005,
+      "demandBasis": "Deferred revenue",
+      "coverage": 11.659,
+      "peg": -0.3973,
+      "pegMeaningful": false,
+      "pe": -14.072,
+      "price": 9.147,
+      "score": 0,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001822966.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001822966.json",
+          "transport": "data.sec.gov",
+          "basis": "Deferred revenue",
+          "concept": "us-gaap:ContractWithCustomerLiabilityNoncurrent",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/SMR?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Computed signed forward PEG from analyst EPS forecast",
+          "url": "https://stockanalysis.com/stocks/smr/forecast/",
+          "details": {
+            "provider": "StockAnalysis analyst consensus",
+            "epsThisYear": -0.48,
+            "epsNextYear": -0.65,
+            "growthPct": 35.41666666666667,
+            "formula": "PEG = (live price / next-year EPS) / ((next-year EPS / this-year EPS - 1) × 100)",
+            "economicMeaning": "Conventional PEG is not meaningful when P/E or forecast earnings are non-positive; signed value is retained for completeness and marked accordingly."
+          }
+        }
+      }
+    }
+  ],
+  "excluded": [],
+  "errors": []
+}
