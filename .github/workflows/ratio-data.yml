@@ -21,6 +21,8 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      SEC_USER_AGENT: "kurzlernen.de ratio-data actions@users.noreply.github.com"
     steps:
       - uses: actions/checkout@v4
         with:
