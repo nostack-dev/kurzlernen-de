@@ -8,7 +8,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Run live FPS target geometry stress
+      - name: Run live active-WORLD FPS target drag stress
         shell: bash
         run: |
           set -euxo pipefail
@@ -20,4 +20,4 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" TARGET_URL="https://kurzlernen.de/drone_simulator.html?fps-target-geometry-diag=${GITHUB_SHA}" node tests/fps_target_geometry_diagnostic.mjs
+          CHROME_BIN="$CHROME_BIN" TARGET_URL="https://kurzlernen.de/drone_simulator.html?fps-world-drag-diag=${GITHUB_SHA}" node tests/fps_target_autofire_diagnostic.mjs
