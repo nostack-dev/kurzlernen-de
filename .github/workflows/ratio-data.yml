@@ -21,8 +21,6 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      SEC_USER_AGENT: "kurzlernen.de ratio-data actions@users.noreply.github.com"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,7 +33,7 @@ jobs:
           python3 - <<'PY'
           import json, math
           p=json.load(open('/tmp/ratio-data.json', encoding='utf-8'))
-          assert p['schemaVersion'] == 2
+          assert p['schemaVersion'] == 3
           assert p['stocks'], 'no stocks'
           assert not p['errors'], p['errors']
           required=('capexCurrentBn','capex2YBn','growthPct','demandBn','coverage','peg','price','score')
@@ -46,6 +44,7 @@ jobs:
               assert s['sources']['capex']['url']
               assert s['sources']['demand']['url']
               assert s['sources']['price']['url']
+              assert s['sources']['capex']['transport']
           print('validated', len(p['stocks']), 'stocks')
           PY
 
@@ -70,7 +69,7 @@ jobs:
           cat > README.md <<'EOF'
           # Ratio data feed
           Machine-generated data for https://kurzlernen.de/ratio.html.
-          Methodology lives on main in scripts/update_ratio_data.py.
+          SEC XBRL facts are transported through the public DoltHub SEC CompanyFacts replica.
           No synthetic/random fallback values are permitted.
           EOF
           git add ratio-data.json README.md
