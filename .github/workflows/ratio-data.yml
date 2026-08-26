@@ -4,7 +4,7 @@ on:
   push:
     branches: ["main"]
     paths:
-      - "scripts/update_ratio_data.py"
+      - "scripts/ratio_feed.py"
       - ".github/workflows/ratio-data.yml"
   schedule:
     - cron: "*/15 * * * *"
@@ -29,23 +29,28 @@ jobs:
       - name: Fetch and validate real market data
         run: |
           set -euxo pipefail
-          python3 scripts/update_ratio_data.py --output /tmp/ratio-data.json
+          python3 scripts/ratio_feed.py --output /tmp/ratio-data.json --min-complete 45
           python3 - <<'PY'
           import json, math
           p=json.load(open('/tmp/ratio-data.json', encoding='utf-8'))
           assert p['schemaVersion'] == 3
-          assert p['stocks'], 'no stocks'
+          assert p['trackedCount'] == 45, p['trackedCount']
+          assert p['completeCount'] == 45, (p['completeCount'], p.get('excluded'))
+          assert p['excludedCount'] == 0, p.get('excluded')
           assert not p['errors'], p['errors']
           required=('capexCurrentBn','capex2YBn','growthPct','demandBn','coverage','peg','price','score')
           for s in p['stocks']:
               for k in required:
                   v=s.get(k)
                   assert isinstance(v,(int,float)) and math.isfinite(v), (s.get('ticker'),k,v)
-              assert s['sources']['capex']['url']
-              assert s['sources']['demand']['url']
+              assert s['sources']['capex']['url'].startswith('https://data.sec.gov/')
+              assert s['sources']['demand']['url'].startswith('https://data.sec.gov/')
               assert s['sources']['price']['url']
-              assert s['sources']['capex']['transport']
-          print('validated', len(p['stocks']), 'stocks')
+              assert s['sources']['capex']['transport'] == 'data.sec.gov'
+          nvda=next(s for s in p['stocks'] if s['ticker']=='NVDA')
+          assert 400 <= nvda['growthPct'] <= 550, nvda
+          assert 0.2 <= nvda['coverage'] <= 1.0, nvda
+          print('validated', len(p['stocks']), 'complete stocks; NVDA', nvda['growthPct'], nvda['coverage'], nvda['peg'])
           PY
 
       - name: Publish data branch
@@ -69,8 +74,9 @@ jobs:
           cat > README.md <<'EOF'
           # Ratio data feed
           Machine-generated data for https://kurzlernen.de/ratio.html.
-          SEC XBRL facts are transported through the public DoltHub SEC CompanyFacts replica.
+          Financial facts are fetched directly from the official SEC CompanyFacts API at data.sec.gov.
           No synthetic/random fallback values are permitted.
+          The workflow publishes only when all tracked companies have complete validated inputs.
           EOF
           git add ratio-data.json README.md
           if git diff --cached --quiet; then exit 0; fi
