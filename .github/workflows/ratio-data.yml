@@ -77,7 +77,7 @@ jobs:
           cat > README.md <<'EOF'
           # Ratio data feed
           Machine-generated data for https://kurzlernen.de/ratio.html.
-          Financial facts come from official SEC CompanyFacts and SEC-filed disclosures; market PEG may use a disclosed third-party TTM calculation when Yahoo/SEC cannot resolve it.
+          Financial facts come from official SEC CompanyFacts and SEC-filed disclosures. PEG uses live Yahoo data when available; fallbacks are computed locally from SEC earnings/share facts plus the live market price.
           No synthetic/random fallback values are permitted.
           Publication requires all 45 tracked companies to have complete validated inputs.
           EOF
