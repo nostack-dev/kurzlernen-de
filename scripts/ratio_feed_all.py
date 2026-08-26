@@ -11,6 +11,7 @@ No synthetic values, constants, ticker-specific financial numbers, or exclusions
 """
 from __future__ import annotations
 
+import json
 import math
 import re
 import sys
@@ -21,6 +22,7 @@ import ratio_feed as rf  # noqa: E402
 import ratio_feed_complete as complete  # noqa: E402
 
 _BASE_COMPLETE_PEG = complete.complete_peg
+_ORIGINAL_MAIN = rf.main
 SA_BASE = "https://stockanalysis.com/stocks/{ticker}"
 
 
@@ -35,7 +37,6 @@ def fetch_sa_text(url: str) -> str:
 def stockanalysis_current_peg(ticker: str):
     url = SA_BASE.format(ticker=ticker.lower()) + "/financials/ratios/"
     text = fetch_sa_text(url)
-    # The current column is the first PEG value after the PEG Ratio label.
     patterns = [
         r"PEG Ratio\s+(-?[0-9]+(?:\.[0-9]+)?)",
         r"PEG Ratio.{0,120}?(-?[0-9]+(?:\.[0-9]+)?)",
@@ -60,8 +61,6 @@ def stockanalysis_current_peg(ticker: str):
 
 
 def _extract_eps_forecast(text: str, label: str):
-    # Supports rendered text such as: EPS This Year -0.48 from -2.17
-    # and tolerates currency signs/thousands separators.
     label_re = re.escape(label)
     m = re.search(label_re + r"\s*\$?([+-]?[0-9][0-9,]*(?:\.[0-9]+)?)", text, re.I)
     if not m:
@@ -118,6 +117,30 @@ def all_sources_peg(ticker: str, cik: str, price: float, rows: list[dict]):
     raise rf.FetchError("PEG all-source cascade failed: " + " | ".join(errors))
 
 
+def peg_is_meaningful(peg: dict) -> bool:
+    value = peg.get("value")
+    if not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+        return False
+    basis = str(peg.get("basis") or "")
+    if basis in {"Yahoo trailing PEG", "StockAnalysis current PEG (S&P Global Market Intelligence)"}:
+        return True
+    pe = peg.get("pe")
+    if not isinstance(pe, (int, float)) or not math.isfinite(pe) or pe <= 0:
+        return False
+    details = peg.get("details") if isinstance(peg.get("details"), dict) else {}
+    growth = details.get("growthPct")
+    if isinstance(growth, (int, float)) and math.isfinite(growth) and growth <= 0:
+        return False
+    if basis == "Computed signed forward PEG from analyst EPS forecast":
+        eps_this = details.get("epsThisYear")
+        eps_next = details.get("epsNextYear")
+        return bool(
+            isinstance(eps_this, (int, float)) and math.isfinite(eps_this) and eps_this > 0
+            and isinstance(eps_next, (int, float)) and math.isfinite(eps_next) and eps_next > 0
+        )
+    return True
+
+
 def final_finish_stock(ticker: str, metrics):
     info, cik, rows, capex, demand, coverage = metrics
     price, price_provider, price_url = rf.market_price(ticker)
@@ -126,11 +149,7 @@ def final_finish_stock(ticker: str, metrics):
     if not all(math.isfinite(v) for v in values):
         raise rf.FetchError("non-finite metric")
     pe = peg.get("pe")
-    meaningful = bool(peg["value"] > 0 and isinstance(pe, (int, float)) and math.isfinite(pe) and pe > 0)
-    # Provider-published PEGs may not expose P/E in this response; a positive
-    # published PEG is still a conventional PEG and therefore meaningful.
-    if peg["basis"].startswith("StockAnalysis current PEG") and peg["value"] > 0:
-        meaningful = True
+    meaningful = peg_is_meaningful(peg)
     sec_url = rf.SEC_FACTS.format(cik=cik)
     return {
         "ticker": ticker,
@@ -148,7 +167,10 @@ def final_finish_stock(ticker: str, metrics):
         "pegMeaningful": meaningful,
         "pe": round(pe, 3) if isinstance(pe, (int, float)) and math.isfinite(pe) else None,
         "price": round(price, 4),
-        "score": rf.score(capex["growth"], coverage, peg["value"]) if meaningful else 0,
+        "score": rf.score(capex["growth"], coverage, peg["value"]) if meaningful else int(round(max(0, min(70,
+            (35 if capex["growth"] >= 300 else 25 + (capex["growth"] - 150) / 15 if capex["growth"] >= 150 else max(0, capex["growth"] / 150) * 20)
+            + (35 if coverage >= 3 else 25 + (coverage - 2) * 10 if coverage >= 2 else max(0, coverage / 2) * 20)
+        )))),
         "sources": {
             "capex": {
                 "provider": "SEC EDGAR CompanyFacts",
@@ -175,10 +197,34 @@ def final_finish_stock(ticker: str, metrics):
     }
 
 
+def all_main():
+    _ORIGINAL_MAIN()
+    output = "ratio-data.json"
+    for i, arg in enumerate(sys.argv[:-1]):
+        if arg == "--output":
+            output = sys.argv[i + 1]
+            break
+    path = Path(output)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["methodology"]["demand"] = (
+        "Latest real issuer demand signal: SEC XBRL RPO/backlog/contract liabilities/deferred revenue; "
+        "when not numerically disclosed in CompanyFacts, a numeric SEC-filed backlog/RPO or issuer revenue guidance is used and labeled."
+    )
+    payload["methodology"]["peg"] = (
+        "Yahoo trailing PEG when available; otherwise a transparent SEC-derived PEG; otherwise a named StockAnalysis/S&P Global current PEG. "
+        "If conventional PEG is unavailable for a loss-making issuer, a signed analyst-forecast PEG is retained only for completeness and marked pegMeaningful=false."
+    )
+    payload["methodology"]["completeness"] = (
+        "Production publication is all-or-nothing: all 45 tracked companies must have finite source-backed inputs, excludedCount must be zero, "
+        "and no synthetic/random/N/A fallback values are permitted."
+    )
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 complete.complete_peg = all_sources_peg
 rf.peg_value = all_sources_peg
 rf.filing_metrics = complete.complete_filing_metrics
 rf.finish_stock = final_finish_stock
 
 if __name__ == "__main__":
-    rf.main()
+    all_main()
