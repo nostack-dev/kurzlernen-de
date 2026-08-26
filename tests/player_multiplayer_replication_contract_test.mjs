@@ -48,5 +48,7 @@ assert.ok(vehicleRuntime.includes('av:canonical')&&vehicleRuntime.includes('vr:m
 assert.ok(vehicleRuntime.includes('__arondightVsPlayerStateReplicationV4')&&vehicleRuntime.includes('vsLegacyHumanAvatarsSuppressed'),"legacy duplicate remote human renderer is still active");
 assert.ok(network.includes('if(pose.cm==="vehicle"&&pose.cv)')&&network.includes('remotePlayerDriven'),"stationary active vehicles are not continuously retained by remote physics ownership");
 assert.ok(lan.includes('clonePosePacket')&&lan.includes('"av","ag","avv"')&&lan.includes('"ph","pv","cv"'),"LAN pose transport still strips rich player/drone replication fields");
+assert.ok(walk.includes('viewRay(){return currentViewRay();}')&&walk.includes('walkShotPose="current-presented-camera-v1"'),"walk shooting does not expose and consume the current presented camera pose");
+assert.ok(vehicleRuntime.includes('localHumanPoseContract="walk-follow+fps-hidden-v1"')&&vehicleRuntime.includes('walkShotReplicationPose="current-presented-camera-v1"')&&vehicleRuntime.includes('addEventListener("arondight:world-gunshot",onWorldGunshot)')&&vehicleRuntime.includes('addEventListener("arondight:walk-shot-ray",onWalkShotRay)'),"local walk mesh or replicated shot origin is not bound to the current walk pose");
 
 console.log("Player multiplayer replication contract passed: drone plus stationary shootable human presence, foot/vehicle modes, full remote human rig, weapon/death state, remote vehicle replication, and local Box3D vehicle authority are wired.");
