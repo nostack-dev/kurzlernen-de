@@ -25,4 +25,4 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/fps_target_drag_root_cause_browser_diag.mjs "https://kurzlernen.de/drone_simulator.html?fps-target-diag=${GITHUB_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/fps_police_drag_root_cause_browser_diag.mjs "https://kurzlernen.de/drone_simulator.html?fps-police-diag=${GITHUB_SHA}"
