@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ratio-data-feed
+  group: ratio-data-feed-v2
   cancel-in-progress: true
 
 permissions:
