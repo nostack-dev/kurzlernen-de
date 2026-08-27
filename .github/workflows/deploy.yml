@@ -50,6 +50,7 @@ jobs:
           node tests/world_pedestrian_navigation_test.mjs
           node tests/world_defaults_contract_test.mjs
           node tests/player_multiplayer_replication_contract_test.mjs
+          node tests/walk_collision_resolution_test.mjs
           node --check sim/player_walk_mode_v4.mjs
           node --check sim/player_car_mode.mjs
           node --check sim/gameplay_final_runtime_v2.mjs
@@ -60,6 +61,7 @@ jobs:
           node --check sim/wanted_police_drones.mjs
           node --check sim/world_procedural_population.mjs
           node --check sim/camera_collision_guard.mjs
+          node --check sim/walk_collision_resolution.mjs
           test ! -e sim/camera_box3d_spring.mjs
           ! grep -R -E 'CameraBox3dSpring|box3d-dynamic-spring' sim tests --exclude-dir=node_modules
           grep -q 'playerCameraPhysicsBody="none"' sim/camera_collision_guard.mjs
@@ -142,8 +144,8 @@ jobs:
           CHROME_BIN="$CHROME_BIN" node tests/player_car_touch_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/world_imagery_default_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
 
-      - name: FPS regression smoke
-        timeout-minutes: 4
+      - name: FPS + target drag regression smoke
+        timeout-minutes: 6
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
@@ -152,7 +154,8 @@ jobs:
           HTTP_PID=$!
           trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true; rm -f node_modules' EXIT
           sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/fps_input_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/combat_center_fire_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
           CHROME_BIN="$CHROME_BIN" node tests/player_multiplayer_modes_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
 
       - uses: actions/configure-pages@v5
