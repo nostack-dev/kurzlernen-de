@@ -4,15 +4,13 @@ const executablePath=process.env.CHROME_BIN;if(!executablePath)throw Error("CHRO
 const origin="https://kurzlernen.de";
 const url=new URL(process.argv[2]||`${origin}/drone_simulator.html`);url.searchParams.set("box3d-building-fire-diag",String(Date.now()));
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
-const context=browser.defaultBrowserContext();await context.overridePermissions(origin,["geolocation"]);
 const page=await browser.newPage(),errors=[];page.on("pageerror",e=>errors.push(String(e?.stack||e)));
-await page.setGeolocation({latitude:52.5208,longitude:13.4095,accuracy:5});
 await page.setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148");await page.setViewport({width:844,height:390,deviceScaleFactor:1});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 try{
   await page.goto(url.href,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&document.body.classList.contains("solo-flight")&&globalThis.__arondightRealWorld,{timeout:30000});
-  await page.select("#worldMode","real");await page.click("#useMyLocation");
+  await page.evaluate(async()=>{const b=globalThis.__arondightRealWorld;await b.activate({coords:{latitude:52.5208,longitude:13.4095,accuracy:5}});});
   await page.waitForFunction(()=>globalThis.__arondightRealWorld?.active===true&&document.querySelector("#viewport")?.dataset.worldMode==="real",{timeout:30000});
   await page.waitForFunction(()=>Number(document.querySelector("#viewport")?.dataset.worldBuildingCollisionRevision||0)>=1&&document.querySelector("#viewport")?.dataset.worldBuildingCollisionStatus==="box3d-active",{timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldProceduralPopulation==="1",{timeout:15000});
@@ -21,7 +19,7 @@ try{
     const sample=await page.evaluate(async round=>{
       const THREE=await import("three");const {Box3dHitscanWorld}=await import(`/sim/box3d_hitscan.mjs?diag=${Date.now()}-${round}`),b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),scene=b?.threeScene,camera=b?.threeCamera,snapshot=b?.buildingCollisionSnapshot;
       if(!scene||!camera||!snapshot?.prisms?.length)return{round,error:"missing-world",revision:Number(v?.dataset.worldBuildingCollisionRevision||0),status:v?.dataset.worldBuildingCollisionStatus||""};
-      scene.updateMatrixWorld(true);camera.updateMatrixWorld(true);const cam=new THREE.Vector3();camera.getWorldPosition(cam);const rect=v.getBoundingClientRect();
+      scene.updateMatrixWorld(true);camera.updateMatrixWorld(true);const cam=new THREE.Vector3();camera.getWorldPosition(cam);
       const pointInTri=(x,y,p)=>{const [a,b,c]=p,sign=(p1,p2,p3)=>(p1[0]-p3[0])*(p2[1]-p3[1])-(p2[0]-p3[0])*(p1[1]-p3[1]),pt=[x,y],d1=sign(pt,a,b),d2=sign(pt,b,c),d3=sign(pt,c,a),neg=d1<0||d2<0||d3<0,pos=d1>0||d2>0||d3>0;return!(neg&&pos);};
       const containing=(p)=>snapshot.prisms.filter(pr=>p.z>=pr.base-.03&&p.z<=pr.top+.03&&pr.points?.length===3&&pointInTri(p.x,p.y,pr.points)).slice(0,4).map(pr=>pr.buildingKey||"?");
       const seen=new Map();scene.traverse(node=>{const id=String(node?.userData?.worldPopulationId||""),kind=String(node?.userData?.worldPopulationKind||"");if(!id||!["person","car","bus"].includes(kind)||seen.has(id))return;let root=node;while(root.parent&&String(root.parent?.userData?.worldPopulationId||"")===id)root=root.parent;if(root.visible===false)return;seen.set(id,{id,kind,root});});
