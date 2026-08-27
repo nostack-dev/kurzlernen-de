@@ -12,6 +12,7 @@ import "./camera_collision_guard.mjs";
 import "./world_network_physics_sync.mjs";
 import "./world_explosion_acoustics.mjs";
 import "./walk_ui_layout_hotfix.mjs";
+import "./walk_collision_resolution.mjs";
 import "./combat_hit_stack_guard.mjs";
 import {buildingLaunchPointClear} from "./world_building_collision_physics.mjs";
 
