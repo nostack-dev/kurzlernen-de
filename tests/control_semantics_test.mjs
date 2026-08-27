@@ -10,8 +10,8 @@ import {
 
 assert.deepEqual(
   readdirSync(".github/workflows").sort(),
-  ["deploy.yml","s31-hil.yml"],
-  "production tree must contain only deploy.yml and s31-hil.yml",
+  ["deploy.yml","ratio-data.yml","ratio-live.yml","s31-hil.yml"],
+  "production workflow set must match the intentional deploy, ratio-data, ratio-live and S31 workflows",
 );
 
 const near=(a,b,eps=1e-6,msg="")=>assert.ok(Math.abs(a-b)<=eps,`${msg} expected ${b}, got ${a}`);
