@@ -22,21 +22,16 @@ import ratio_feed as rf  # noqa: E402
 import ratio_feed_complete as complete  # noqa: E402
 
 _BASE_COMPLETE_PEG = complete.complete_peg
-_BASE_INCOME_SEMANTIC_RANK = complete.income_semantic_rank
 _ORIGINAL_MAIN = rf.main
 SA_BASE = "https://stockanalysis.com/stocks/{ticker}"
 
 
 def strict_income_semantic_rank(row: dict) -> int:
-    """Never treat OCI/AOCI concepts as net income merely because their labels contain 'income'."""
+    """SEC PEG derivation accepts only explicit net-income concepts, never fuzzy label matches."""
     tag = str(row.get("tag") or "")
     if tag in complete.NET_INCOME_TAGS:
         return 1000 - complete.NET_INCOME_TAGS.index(tag)
-    text = (tag + " " + str(row.get("label") or "") + " " + str(row.get("description") or "")).lower()
-    compact = re.sub(r"[^a-z]+", "", text)
-    if "comprehensiveincome" in compact or "accumulatedothercomprehensive" in compact:
-        return 0
-    return _BASE_INCOME_SEMANTIC_RANK(row)
+    return 0
 
 
 # complete_peg() resolves income_semantic_rank through its module globals at call time.
