@@ -3,6 +3,7 @@ import "./gameplay_final_runtime_v2.mjs";
 import "./gameplay_final_ui_dock.mjs";
 import "./gameplay_final_realism_patch.mjs";
 import "./first_person_weapon_runtime_v3.mjs";
+import "./first_person_motion_follow.mjs";
 import "./gameplay_reliability_authority_v5.mjs";
 import "./gameplay_reliability_runtime_v4.mjs";
 import "./mobile_landscape_hud_compact.mjs";
