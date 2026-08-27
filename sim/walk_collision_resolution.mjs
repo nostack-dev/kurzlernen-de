@@ -33,6 +33,7 @@ export function resolveWalkCollisionMove(fromValue,toValue,{canOccupy,baseResolv
   if(typeof canOccupy!=="function")return fallback();
   if(!safeOccupy(canOccupy,from.x,from.y))return fallback();
   if(safeOccupy(canOccupy,to.x,to.y))return to;
+  if(!nearbyBuildingEdges(to,prisms).length)return fallback();
   const dx=to.x-from.x,dy=to.y-from.y,distance=Math.hypot(dx,dy);if(distance<=EPS)return from;
   const steps=Math.max(1,Math.ceil(distance/MAX_SUBSTEP_M)),stepX=dx/steps,stepY=dy/steps;
   let current={...from},moved=false,slid=false;
