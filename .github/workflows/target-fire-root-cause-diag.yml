@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Reproduce accumulated-kill drag-fire lock on confirmed live site
+      - name: Confirm first-person hold-fire behavior on live site
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
@@ -26,4 +26,4 @@ jobs:
           npm install --ignore-scripts --no-audit --no-fund puppeteer-core@24.16.0
           ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
           cd "$GITHUB_WORKSPACE"
-          CHROME_BIN="$CHROME_BIN" node tests/target_fire_wanted_root_cause_diag.mjs "https://kurzlernen.de/drone_simulator.html"
+          CHROME_BIN="$CHROME_BIN" node tests/first_person_hold_fire_diag.mjs "https://kurzlernen.de/drone_simulator.html"
