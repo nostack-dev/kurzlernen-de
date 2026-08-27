@@ -46,6 +46,6 @@ function installStyle(){if(document.querySelector("style[data-mobile-landscape-h
   #weaponSwitchDock button{height:27px!important;min-width:88px!important;font-size:7px!important}
 }
 `;document.head.appendChild(style);}
-function frame(){const view=document.getElementById("viewport");if(view){view.dataset.mobileLandscapeHud="compact-real-estate-v2";view.dataset.mobileDragAim="live-reticle-while-held-v1";}requestAnimationFrame(frame);}
+function frame(){const view=document.getElementById("viewport");if(view){view.dataset.mobileLandscapeHud="compact-real-estate-v1";view.dataset.mobileDragAim="live-reticle-while-held-v1";}requestAnimationFrame(frame);}
 export function installMobileLandscapeHudCompact(){if(installed)return;installed=true;installStyle();requestAnimationFrame(frame);}
 installMobileLandscapeHudCompact();
