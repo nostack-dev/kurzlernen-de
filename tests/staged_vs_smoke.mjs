@@ -93,8 +93,10 @@ assert.equal(buildingSource.includes("skipWholeBuilding"),false,"WORLD launch mu
 for(const marker of ["pointHasLaunchClearance(candidate,active,clearance)","guaranteedRadius","No collision-free WORLD launch point could be proven"])
   assert.ok(buildingSource.includes(marker),`WORLD launch proof contract missing: ${marker}`);
 const spawnGuardSource=readFileSync(new URL("../sim/world_spawn_guard.mjs",import.meta.url),"utf8");
-for(const marker of ["firstLoaded","buildingLaunchPointClear","queueMicrotask","soloReset","worldSpawnGuardResets","combat_visual_polish.mjs"])
+for(const marker of ["firstLoaded","buildingLaunchPointClear","physics-sink-single-owner-v2","combat_visual_polish.mjs"])
   assert.ok(spawnGuardSource.includes(marker),`delayed WORLD-collider/combat polish guard missing: ${marker}`);
+for(const forbidden of ["queueMicrotask","soloReset","worldSpawnGuardResets"])
+  assert.equal(spawnGuardSource.includes(forbidden),false,`WORLD spawn guard must not reset after the physics sink relocated the aircraft: ${forbidden}`);
 
 await import("./multiplayer_mesh_smoke.mjs");
-console.log("Staged VS smoke passed: direct P2P UDP mesh, deterministic Box3D hitscan fire, unique players, replicated fire/explosions, authority migration, hardened WORLD spawn and road traffic retained.");
+console.log("Staged VS smoke passed: direct P2P UDP mesh, deterministic Box3D hitscan fire, unique players, replicated fire/explosions, authority migration, physics-owned WORLD spawn and road traffic retained.");
