@@ -98,7 +98,7 @@ releaseStick(c,"right");
 const lockedRight={...DEFAULT_PHONE_SETTINGS,lockRightHorizontal:true};
 applyStick(c,"right",{x:-.6,y:.8},lockedRight);
 near(c.roll,phoneAxis(.6,lockedRight.rightFineness));assert.equal(c.pitch,0);
-rightKnob=gameKnobAxes(c,"right",lockedRight);near(rightKnob.x,-.6,3e-6);near(rightKnob.y,0,1e-12);
+rightKnob=knobAxes(c,"right",lockedRight);near(rightKnob.x,-.6,3e-6);near(rightKnob.y,0,1e-12);
 releaseStick(c,"right");
 
 let game=neutralControls();
