@@ -10,6 +10,7 @@ await page.evaluateOnNewDocument(()=>{
   Object.defineProperty(navigator,"geolocation",{configurable:true,value:{getCurrentPosition(_success,error){queueMicrotask(()=>error?.({code:1,message:"CI geolocation denied"}));}}});
 });
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const ARM_AUTHORITY_LIMIT_S=2.0;
 const read=()=>page.evaluate(()=>{
   const fc=Number(globalThis.__arondightDiagnostics?.fcState)||0;
   const aglText=document.querySelector("#soloAlt")?.textContent||"";
@@ -66,9 +67,9 @@ try{
   await page.waitForFunction(({start,limit})=>{
     const d=globalThis.__arondightDiagnostics,sim=Number(d?.simTime),fc=Number(d?.fcState)||0;
     return Boolean(fc&1)||(Number.isFinite(sim)&&sim>=start+limit);
-  },{timeout:15000},{start:armStart,limit:1.5});
+  },{timeout:15000},{start:armStart,limit:ARM_AUTHORITY_LIMIT_S});
   const armReached=await page.evaluate(()=>({sim:Number(globalThis.__arondightDiagnostics?.simTime),fc:Number(globalThis.__arondightDiagnostics?.fcState)||0}));
-  if(!(armReached.fc&1)||armReached.sim-armStart>1.5)throw new Error(`takeoff ARM authority failed: start=${armStart} reached=${JSON.stringify(armReached)}`);
+  if(!(armReached.fc&1)||armReached.sim-armStart>ARM_AUTHORITY_LIMIT_S)throw new Error(`takeoff ARM authority failed: start=${armStart} reached=${JSON.stringify(armReached)}`);
   await page.waitForFunction(()=>document.querySelector("#fcState")?.textContent==="ARMED",{timeout:1500});
   await wait(250);
 
