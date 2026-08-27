@@ -1,5 +1,5 @@
 let installed=false;
-function installStyle(){if(document.querySelector("style[data-mobile-landscape-hud-compact]"))return;const style=document.createElement("style");style.dataset.mobileLandscapeHudCompact="v2";style.textContent=`
+function installStyle(){if(document.querySelector("style[data-mobile-landscape-hud-compact]"))return;const style=document.createElement("style");style.dataset.mobileLandscapeHudCompact="v3";style.textContent=`
 @media (pointer:coarse) and (max-height:760px){
   body.solo-flight #soloTopbar{top:max(2px,var(--solo-safe-top))!important;gap:2px!important;width:min(calc(100% - max(12px,calc(var(--solo-safe-left) + var(--solo-safe-right)))),1060px)!important}
   body.solo-flight #viewport[data-world-mode="real"] #soloTopbar{left:max(6px,var(--solo-safe-left))!important;width:min(calc(100% - max(116px,calc(var(--solo-safe-right) + 110px))),1010px)!important}
@@ -10,7 +10,6 @@ function installStyle(){if(document.querySelector("style[data-mobile-landscape-h
   body.solo-flight #soloTopbarStatus>span{min-height:17px!important;padding:2px 5px!important;font-size:7.5px!important}
   body.solo-flight #soloTopbar #vsCombatHud{min-width:86px!important;font-size:7.5px!important}
   body.solo-flight #soloTopbar #soloCamera,body.solo-flight #soloTopbar .phone-settings-button,body.solo-flight #soloTopbar #lanVsButton{min-width:44px!important}
-  body.solo-flight #soloTopbarActions #droneWeaponToggle{height:25px!important;min-width:76px!important;padding:0 5px!important;font-size:7px!important}
 
   body.solo-flight #gameplayContractHud{left:max(8px,var(--solo-safe-left))!important;top:max(58px,calc(var(--solo-safe-top) + 54px))!important;width:132px!important}
   body.solo-flight #viewport[data-world-mode="real"] #gameplayContractHud{left:max(8px,var(--solo-safe-left))!important;top:max(58px,calc(var(--solo-safe-top) + 54px))!important}
@@ -21,10 +20,11 @@ function installStyle(){if(document.querySelector("style[data-mobile-landscape-h
   #gameplayContractBar{height:2px!important;margin-top:4px!important}
 
   body.solo-flight #viewport[data-world-mode="real"] #worldMapLegend{display:none!important}
-  body.solo-flight #viewport[data-world-mode="real"] #worldLookHud{width:86px!important;height:86px!important;right:max(6px,var(--solo-safe-right))!important;top:max(57px,calc(var(--solo-safe-top) + 53px))!important;border-radius:12px!important;box-shadow:0 4px 14px #0006!important}
-  #worldLookHud .world-look-title{left:5px!important;right:5px!important;top:4px!important;font-size:5.5px!important}
-  #worldLookHud .world-look-stage{left:7px!important;right:7px!important;top:17px!important;bottom:6px!important}
-  #worldLookHud .world-look-cardinal{font-size:5.5px!important}.world-look-n{top:17px!important;left:39px!important}.world-look-e{top:46px!important;right:8px!important}.world-look-s{bottom:6px!important;left:40px!important}.world-look-w{top:46px!important;left:8px!important}
+  body.solo-flight #viewport[data-world-mode="real"] #worldLookHud:not(.expanded){width:86px!important;height:86px!important;right:max(6px,var(--solo-safe-right))!important;top:max(57px,calc(var(--solo-safe-top) + 53px))!important;border-radius:12px!important;box-shadow:0 4px 14px #0006!important}
+  body.solo-flight #viewport[data-world-mode="real"] #worldLookHud.expanded{width:min(72vw,560px)!important;height:min(68dvh,430px)!important;z-index:40!important}
+  #worldLookHud:not(.expanded) .world-look-title{left:5px!important;right:5px!important;top:4px!important;font-size:5.5px!important}
+  #worldLookHud:not(.expanded) .world-look-stage{left:7px!important;right:7px!important;top:17px!important;bottom:6px!important}
+  #worldLookHud:not(.expanded) .world-look-cardinal{font-size:5.5px!important}#worldLookHud:not(.expanded) .world-look-n{top:17px!important;left:39px!important}#worldLookHud:not(.expanded) .world-look-e{top:46px!important;right:8px!important}#worldLookHud:not(.expanded) .world-look-s{bottom:6px!important;left:40px!important}#worldLookHud:not(.expanded) .world-look-w{top:46px!important;left:8px!important}
 
   body.solo-flight .solo-stick{width:min(21vw,132px)!important;bottom:max(15px,var(--solo-safe-bottom))!important}
   body.solo-flight #soloLeft{left:max(10px,var(--solo-safe-left))!important}body.solo-flight #soloRight{right:max(10px,var(--solo-safe-right))!important}
@@ -43,9 +43,9 @@ function installStyle(){if(document.querySelector("style[data-mobile-landscape-h
   body.on-foot-mode #footReticle.screen-aim-active::before,body.on-foot-mode #footReticle.screen-aim-active::after{content:"";position:absolute;left:50%;top:50%;background:#fff0c7e8;box-shadow:0 0 3px #000;transform:translate(-50%,-50%)}
   body.on-foot-mode #footReticle.screen-aim-active::before{width:10px;height:1px}body.on-foot-mode #footReticle.screen-aim-active::after{width:1px;height:10px}
   body.on-foot-mode #footReadout{top:max(51px,calc(var(--solo-safe-top) + 47px))!important;padding:3px 6px!important;font-size:7px!important;opacity:.72!important}
-  body.on-foot-mode #footWeaponToggle{bottom:max(10px,var(--solo-safe-bottom))!important;height:27px!important;min-width:88px!important;font-size:7px!important}
+  #weaponSwitchDock button{height:27px!important;min-width:88px!important;font-size:7px!important}
 }
 `;document.head.appendChild(style);}
-function frame(){const view=document.getElementById("viewport");if(view){view.dataset.mobileLandscapeHud="compact-real-estate-v1";view.dataset.mobileDragAim="live-reticle-while-held-v1";}requestAnimationFrame(frame);}
+function frame(){const view=document.getElementById("viewport");if(view){view.dataset.mobileLandscapeHud="compact-real-estate-v2";view.dataset.mobileDragAim="live-reticle-while-held-v1";}requestAnimationFrame(frame);}
 export function installMobileLandscapeHudCompact(){if(installed)return;installed=true;installStyle();requestAnimationFrame(frame);}
 installMobileLandscapeHudCompact();
