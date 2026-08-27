@@ -1,9 +1,7 @@
 import puppeteer from "puppeteer-core";
-import {execFileSync} from "node:child_process";
 
 const input=process.argv[2]||"http://127.0.0.1:4174/drone_simulator.html",url=new URL(input,"http://127.0.0.1:4174"),executablePath=process.env.CHROME_BIN;
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");if(process.env.GITHUB_SHA)url.searchParams.set("ci",process.env.GITHUB_SHA);
-execFileSync(process.execPath,["tests/combat_center_fire_browser_smoke.mjs",input],{stdio:"inherit",env:process.env});
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]}),page=await browser.newPage();
 const pause=ms=>page.evaluate(delay=>new Promise(resolve=>setTimeout(resolve,delay)),ms);
 try{
