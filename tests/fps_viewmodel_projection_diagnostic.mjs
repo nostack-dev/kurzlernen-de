@@ -14,11 +14,12 @@ try{
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.playerMode==="foot",{timeout:5000});
   await page.evaluate(()=>{
     const b=globalThis.__arondightRealWorld,v=document.querySelector("#viewport"),renderer=b.threeRenderer;
+    globalThis.__arondightFootWeaponPresentationV1={__finalViewmodelOwner:true,apply:({gun,camera})=>{if(!gun||!camera)return false;camera.updateMatrixWorld?.(true);gun.updateMatrixWorld?.(true);const Vec=gun.position.constructor,world=new Vec();gun.getWorldPosition(world);const local=world.clone();camera.worldToLocal(local);v.dataset.fpsVmPreParent=JSON.stringify({parent:gun.parent?.name||gun.parent?.type||"",gunPosition:[gun.position.x,gun.position.y,gun.position.z],gunWorld:[world.x,world.y,world.z],cameraPosition:[camera.position.x,camera.position.y,camera.position.z],expectedCameraLocal:[local.x,local.y,local.z]});return false;}};
     if(renderer.__fpsProjectionDiagnostic)return;
     const base=renderer.render.bind(renderer),isHand=name=>/WALK_VM_(?:GLOVE|SLEEVE|CUFF)/.test(name),isWeapon=name=>/WALK_VM_(?:FRAME|RAIL|SLIDE|BARREL|MUZZLE|GRIP|SIGHT|TRIGGER|MAG|EJECTION|FRONT|REAR)/.test(name)||/WALK_SMG_/.test(name);
     renderer.render=(scene,camera)=>{
       const gun=scene?.getObjectByName?.("WALK_PISTOL_3D"),Vec=gun?.position?.constructor;
-      const summary={frames:(Number(v.dataset.fpsVmDiagFrames)||0)+1,gun:Boolean(gun),gunVisible:Boolean(gun?.visible),parent:gun?.parent?.name||gun?.parent?.type||"",parentIsCamera:Boolean(gun?.parent===camera),near:Number(camera?.near),fov:Number(camera?.fov),aspect:Number(camera?.aspect),gunLocal:gun?[gun.position.x,gun.position.y,gun.position.z]:null,hands:{visible:0,front:0,onScreen:0,samples:[]},weapon:{visible:0,front:0,onScreen:0,samples:[]}};
+      const summary={frames:(Number(v.dataset.fpsVmDiagFrames)||0)+1,preParent:JSON.parse(v.dataset.fpsVmPreParent||"null"),gun:Boolean(gun),gunVisible:Boolean(gun?.visible),parent:gun?.parent?.name||gun?.parent?.type||"",parentIsCamera:Boolean(gun?.parent===camera),near:Number(camera?.near),fov:Number(camera?.fov),aspect:Number(camera?.aspect),gunLocal:gun?[gun.position.x,gun.position.y,gun.position.z]:null,hands:{visible:0,front:0,onScreen:0,samples:[]},weapon:{visible:0,front:0,onScreen:0,samples:[]}};
       const sample=(node,bucket)=>{
         if(!Vec)return;for(let n=node;n;n=n.parent)if(n.visible===false)return;bucket.visible++;
         node.geometry?.computeBoundingBox?.();const box=node.geometry?.boundingBox,points=[];
