@@ -26,6 +26,18 @@ _ORIGINAL_MAIN = rf.main
 SA_BASE = "https://stockanalysis.com/stocks/{ticker}"
 
 
+def strict_income_semantic_rank(row: dict) -> int:
+    """SEC PEG derivation accepts only explicit net-income concepts, never fuzzy label matches."""
+    tag = str(row.get("tag") or "")
+    if tag in complete.NET_INCOME_TAGS:
+        return 1000 - complete.NET_INCOME_TAGS.index(tag)
+    return 0
+
+
+# complete_peg() resolves income_semantic_rank through its module globals at call time.
+complete.income_semantic_rank = strict_income_semantic_rank
+
+
 def fetch_sa_text(url: str) -> str:
     raw = rf.get_bytes(url, retries=3, timeout=30).decode("utf-8", errors="ignore")
     text = complete.plain_text(raw)
