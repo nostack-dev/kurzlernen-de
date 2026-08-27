@@ -8,7 +8,7 @@ function viewport(){return document.getElementById("viewport");}
 function bridge(){return globalThis.__arondightRealWorld||null;}
 function walk(){return globalThis.__arondightWalkMode||null;}
 function currentMode(){return walk()?.mode==="foot"?"foot":"drone";}
-function bridgePlayerHp(){const value=Number(bridge()?.vsLocalHealth);return Number.isFinite(value)?clamp(value,0,PLAYER_MAX_HP):null;}
+function bridgePlayerHp(){const b=bridge();if(!b?.vsConnected)return null;const value=Number(b.vsLocalHealth);return Number.isFinite(value)?clamp(value,0,PLAYER_MAX_HP):null;}
 function currentPlayerHp(){return bridgePlayerHp()??playerHp;}
 
 function installHud(){
@@ -22,10 +22,10 @@ function installHud(){
 function playerWorldPose(){const w=walk(),vehicle=globalThis.__arondightPlayerVehicleRuntime,source=w?.mode==="foot"&&w.position?w.position:vehicle?.humanAnchor;return{x:Number(source?.x)||0,y:Number(source?.y)||0,z:0,yaw:Number(w?.yaw??viewport()?.dataset.walkYaw)||0};}
 function announce(type,detail){window.dispatchEvent(new CustomEvent(type,{detail}));}
 
-function setBridgePlayerHp(hp,dead){const b=bridge();if(!b)return;b.vsLocalHealth=hp;b.vsLocalDead=dead;b.updateVsCombatHud?.(true);}
+function setBridgePlayerHp(hp,dead){const b=bridge();if(!b?.vsConnected)return;b.vsLocalHealth=hp;b.vsLocalDead=dead;b.updateVsCombatHud?.(true);}
 function markPlayerDeath(source="world"){
   if(playerDead)return;playerDead=true;const pose=playerWorldPose(),side=((String(source).length+Math.round(Math.abs(pose.x+pose.y)))&1)?1:-1;spawnWorldPersonRagdoll({position:[pose.x,pose.y,pose.z],yaw:pose.yaw,impulse:[side*.55,-.35,.15],seed:`local-player-${source}`,id:"local-player"});
-  document.body?.classList.add("player-dead");announce("arondight:player-death",{source,position:[pose.x,pose.y,pose.z],yaw:pose.yaw,fallSide:side});const w=walk();if(w?.mode!=="foot")w?.setMode?.("foot",{persist:false,reason:"player-death"});
+  document.body?.classList.add("player-dead");announce("arondight:player-death",{source,position:[pose.x,pose.y,pose.z],yaw:pose.yaw,fallSide:side});
 }
 function revivePlayer(){const wasDead=playerDead;playerDead=false;document.body?.classList.remove("player-dead");if(wasDead)announce("arondight:player-revived",{hp:playerHp});}
 
@@ -69,7 +69,7 @@ function installResetHook(){document.addEventListener("click",event=>{const targ
 
 export function installPlayerVitalsRuntime(){
   if(installed)return globalThis.__arondightPlayerVitals;installed=true;installHud();installResetHook();
-  const playerApi={maxHp:PLAYER_MAX_HP,get hp(){return currentPlayerHp();},get dead(){return playerDead||currentPlayerHp()<=0;},damage:damagePlayer,reset:resetPlayer};
+  const playerApi={maxHp:PLAYER_MAX_HP,get hp(){return currentPlayerHp();},get dead(){return currentMode()==="foot"&&(playerDead||currentPlayerHp()<=0);},get physicallyDead(){return playerDead||currentPlayerHp()<=0;},damage:damagePlayer,reset:resetPlayer};
   const droneApi={maxHp:DRONE_MAX_HP,get hp(){return droneHp;},get destroyed(){return droneDestroyed;},get readyAt(){return droneReadyAt;},get cooldownMs(){return DRONE_REPLACEMENT_COOLDOWN_MS;},get remainingMs(){return replacementRemainingMs();},get canDeploy(){return canDeployDrone();},damage:damageDrone,destroy:destroyDrone,reset:resetDrone};
   globalThis.__arondightPlayerDamageModel=playerApi;globalThis.__arondightDroneDamageModel=droneApi;globalThis.__arondightPlayerVitals={player:playerApi,drone:droneApi,damageTargets:localDamageTargets,targetKindFromHit:damageTargetKindFromHit,registerHit:registerLocalDamageHit};
   addEventListener("arondight:player-damage",event=>damagePlayer(event?.detail?.damage??25,event?.detail?.source||"event"));addEventListener("arondight:drone-damage",event=>damageDrone(event?.detail?.damage??25,event?.detail?.source||"event"));requestAnimationFrame(sync);return globalThis.__arondightPlayerVitals;
