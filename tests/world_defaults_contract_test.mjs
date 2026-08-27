@@ -8,8 +8,10 @@ assert.ok(settings.includes("bridge.setImageryEnabled?.(false);bridge.setGridEna
 assert.ok(car.includes("box3d-body-yaw-v1"));
 assert.ok(car.includes("signedSpeedMps:commandSpeed,steer:input.steer"));
 assert.ok(physics.includes("rawYawRate=effectiveDriveSpeed/wheelbase*Math.tan(steerAngle)"));
-assert.ok(physics.includes("maxYawRate=Math.min(1.35,7.5/speedForGrip)"));
+assert.ok(physics.includes("vehicleSteeringYawLimit(speedMps)"));
+assert.ok(physics.includes("return clamp(7.5/speed,.38,1.35)"));
+assert.ok(physics.includes("maxYawRate=vehicleSteeringYawLimit(speedForGrip)"));
 assert.ok(physics.includes("desiredYawRate=clamp(rawYawRate,-maxYawRate,maxYawRate)"));
 assert.ok(physics.includes("frontAxlePoint=[position[0]+forwardX*frontLever"));
 assert.ok(physics.includes("b3.b3Body_ApplyForce(body,[leftX*record.massKg*steeringLateralAccel"));
-console.log("World defaults contract passed: satellite starts OFF and player steering is rigid-body authoritative with bounded bicycle yaw-rate plus physical front-axle force.");
+console.log("World defaults contract passed: satellite starts OFF and player steering is rigid-body authoritative with speed-sensitive bicycle yaw-rate, a nonzero high-speed authority floor and physical front-axle force.");
