@@ -1,6 +1,6 @@
 {
   "schemaVersion": 3,
-  "generatedAt": "2026-08-31T17:43:02.757311Z",
+  "generatedAt": "2026-08-31T19:41:51.996776Z",
   "trackedCount": 45,
   "completeCount": 45,
   "excludedCount": 0,
@@ -99,26 +99,26 @@
   },
   "stocks": [
     {
-      "ticker": "SMCI",
-      "name": "Super Micro Computer, Inc.",
-      "sector": "AI Servers",
-      "cik": "0001375365",
+      "ticker": "AVGO",
+      "name": "Broadcom Inc.",
+      "sector": "AI ASICs & Networking",
+      "cik": "0001730168",
       "currency": "USD",
-      "capexCurrentBn": 0.1243,
-      "capex2YBn": 0.0368,
-      "growthPct": 237.78,
-      "demandBn": 2.1356,
+      "capexCurrentBn": 0.623,
+      "capex2YBn": 0.452,
+      "growthPct": 37.83,
+      "demandBn": 164.6,
       "demandBasis": "RPO",
-      "coverage": 17.184,
-      "peg": 0.0005,
+      "coverage": 264.205,
+      "peg": 0.4176,
       "pegMeaningful": true,
-      "pe": 0.177,
-      "price": 37.17,
-      "score": 96,
+      "pe": null,
+      "price": 369.59,
+      "score": 70,
       "sources": {
         "capex": {
           "provider": "SEC EDGAR CompanyFacts",
-          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001375365.json",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001730168.json",
           "transport": "data.sec.gov",
           "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
           "currentFY": 2025,
@@ -127,11 +127,203 @@
         },
         "demand": {
           "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001730168.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-05-03",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/AVGO?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AVGO?symbol=AVGO&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "NVDA",
+      "name": "NVIDIA CORP",
+      "sector": "AI Compute & Networking",
+      "cik": "0001045810",
+      "currency": "USD",
+      "capexCurrentBn": 6.042,
+      "capex2YBn": 1.069,
+      "growthPct": 465.2,
+      "demandBn": 3.2,
+      "demandBasis": "RPO",
+      "coverage": 0.53,
+      "peg": 0.6279,
+      "pegMeaningful": true,
+      "pe": null,
+      "price": 219.77,
+      "score": 68,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001045810.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquireProductiveAssets",
+          "currentFY": 2026,
+          "prior2FY": 2024,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001045810.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-07-26",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/NVDA?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/NVDA?symbol=NVDA&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995711&period2=1788205311",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "VST",
+      "name": "Vistra Corp.",
+      "sector": "Power Generation",
+      "cik": "0001692819",
+      "currency": "USD",
+      "capexCurrentBn": 2.078,
+      "capex2YBn": 1.676,
+      "growthPct": 23.99,
+      "demandBn": 7.128,
+      "demandBasis": "RPO",
+      "coverage": 3.43,
+      "peg": 0.4024,
+      "pegMeaningful": true,
+      "pe": null,
+      "price": 137.61,
+      "score": 68,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001692819.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001692819.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/VST?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/VST?symbol=VST&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995711&period2=1788205311",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "GOOGL",
+      "name": "Alphabet Inc.",
+      "sector": "Cloud & AI",
+      "cik": "0001652044",
+      "currency": "USD",
+      "capexCurrentBn": 52.535,
+      "capex2YBn": 32.251,
+      "growthPct": 62.89,
+      "demandBn": 519.5,
+      "demandBasis": "RPO",
+      "coverage": 9.889,
+      "peg": 0.9232,
+      "pegMeaningful": true,
+      "pe": null,
+      "price": 338.805,
+      "score": 65,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001652044.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001652044.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/GOOGL?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/GOOGL?symbol=GOOGL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "SMCI",
+      "name": "Super Micro Computer, Inc.",
+      "sector": "AI Servers",
+      "cik": "0001375365",
+      "currency": "USD",
+      "capexCurrentBn": 0.1243,
+      "capex2YBn": 0.1243,
+      "growthPct": 0.0,
+      "demandBn": 2.612,
+      "demandBasis": "RPO",
+      "coverage": 21.017,
+      "peg": 0.0005,
+      "pegMeaningful": true,
+      "pe": 0.177,
+      "price": 37.135,
+      "score": 65,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001375365.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2026,
+          "prior2FY": 2024,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
           "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001375365.json",
           "transport": "data.sec.gov",
           "basis": "RPO",
           "concept": "us-gaap:RevenueRemainingPerformanceObligation",
-          "asOf": "2026-03-31",
+          "asOf": "2026-06-30",
           "unit": "USD",
           "details": null
         },
@@ -160,198 +352,6 @@
       }
     },
     {
-      "ticker": "AVGO",
-      "name": "Broadcom Inc.",
-      "sector": "AI ASICs & Networking",
-      "cik": "0001730168",
-      "currency": "USD",
-      "capexCurrentBn": 0.623,
-      "capex2YBn": 0.452,
-      "growthPct": 37.83,
-      "demandBn": 164.6,
-      "demandBasis": "RPO",
-      "coverage": 264.205,
-      "peg": 0.4176,
-      "pegMeaningful": true,
-      "pe": null,
-      "price": 369.77,
-      "score": 70,
-      "sources": {
-        "capex": {
-          "provider": "SEC EDGAR CompanyFacts",
-          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001730168.json",
-          "transport": "data.sec.gov",
-          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
-          "currentFY": 2025,
-          "prior2FY": 2023,
-          "unit": "USD"
-        },
-        "demand": {
-          "provider": "SEC EDGAR CompanyFacts",
-          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001730168.json",
-          "transport": "data.sec.gov",
-          "basis": "RPO",
-          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
-          "asOf": "2026-05-03",
-          "unit": "USD",
-          "details": null
-        },
-        "price": {
-          "provider": "Yahoo Finance chart",
-          "url": "https://query1.finance.yahoo.com/v8/finance/chart/AVGO?range=5d&interval=1d&includePrePost=false"
-        },
-        "peg": {
-          "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AVGO?symbol=AVGO&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
-          "details": null
-        }
-      }
-    },
-    {
-      "ticker": "NVDA",
-      "name": "NVIDIA CORP",
-      "sector": "AI Compute & Networking",
-      "cik": "0001045810",
-      "currency": "USD",
-      "capexCurrentBn": 6.042,
-      "capex2YBn": 1.069,
-      "growthPct": 465.2,
-      "demandBn": 3.2,
-      "demandBasis": "RPO",
-      "coverage": 0.53,
-      "peg": 0.6279,
-      "pegMeaningful": true,
-      "pe": null,
-      "price": 219.51,
-      "score": 68,
-      "sources": {
-        "capex": {
-          "provider": "SEC EDGAR CompanyFacts",
-          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001045810.json",
-          "transport": "data.sec.gov",
-          "concept": "us-gaap:PaymentsToAcquireProductiveAssets",
-          "currentFY": 2026,
-          "prior2FY": 2024,
-          "unit": "USD"
-        },
-        "demand": {
-          "provider": "SEC EDGAR CompanyFacts",
-          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001045810.json",
-          "transport": "data.sec.gov",
-          "basis": "RPO",
-          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
-          "asOf": "2026-07-26",
-          "unit": "USD",
-          "details": null
-        },
-        "price": {
-          "provider": "Yahoo Finance chart",
-          "url": "https://query1.finance.yahoo.com/v8/finance/chart/NVDA?range=5d&interval=1d&includePrePost=false"
-        },
-        "peg": {
-          "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/NVDA?symbol=NVDA&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
-          "details": null
-        }
-      }
-    },
-    {
-      "ticker": "VST",
-      "name": "Vistra Corp.",
-      "sector": "Power Generation",
-      "cik": "0001692819",
-      "currency": "USD",
-      "capexCurrentBn": 2.078,
-      "capex2YBn": 1.676,
-      "growthPct": 23.99,
-      "demandBn": 7.128,
-      "demandBasis": "RPO",
-      "coverage": 3.43,
-      "peg": 0.4024,
-      "pegMeaningful": true,
-      "pe": null,
-      "price": 137.12,
-      "score": 68,
-      "sources": {
-        "capex": {
-          "provider": "SEC EDGAR CompanyFacts",
-          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001692819.json",
-          "transport": "data.sec.gov",
-          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
-          "currentFY": 2025,
-          "prior2FY": 2023,
-          "unit": "USD"
-        },
-        "demand": {
-          "provider": "SEC EDGAR CompanyFacts",
-          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001692819.json",
-          "transport": "data.sec.gov",
-          "basis": "RPO",
-          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
-          "asOf": "2026-06-30",
-          "unit": "USD",
-          "details": null
-        },
-        "price": {
-          "provider": "Yahoo Finance chart",
-          "url": "https://query1.finance.yahoo.com/v8/finance/chart/VST?range=5d&interval=1d&includePrePost=false"
-        },
-        "peg": {
-          "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/VST?symbol=VST&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
-          "details": null
-        }
-      }
-    },
-    {
-      "ticker": "GOOGL",
-      "name": "Alphabet Inc.",
-      "sector": "Cloud & AI",
-      "cik": "0001652044",
-      "currency": "USD",
-      "capexCurrentBn": 52.535,
-      "capex2YBn": 32.251,
-      "growthPct": 62.89,
-      "demandBn": 519.5,
-      "demandBasis": "RPO",
-      "coverage": 9.889,
-      "peg": 0.9232,
-      "pegMeaningful": true,
-      "pe": null,
-      "price": 338.61,
-      "score": 65,
-      "sources": {
-        "capex": {
-          "provider": "SEC EDGAR CompanyFacts",
-          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001652044.json",
-          "transport": "data.sec.gov",
-          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
-          "currentFY": 2025,
-          "prior2FY": 2023,
-          "unit": "USD"
-        },
-        "demand": {
-          "provider": "SEC EDGAR CompanyFacts",
-          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001652044.json",
-          "transport": "data.sec.gov",
-          "basis": "RPO",
-          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
-          "asOf": "2026-06-30",
-          "unit": "USD",
-          "details": null
-        },
-        "price": {
-          "provider": "Yahoo Finance chart",
-          "url": "https://query1.finance.yahoo.com/v8/finance/chart/GOOGL?range=5d&interval=1d&includePrePost=false"
-        },
-        "peg": {
-          "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/GOOGL?symbol=GOOGL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
-          "details": null
-        }
-      }
-    },
-    {
       "ticker": "ADI",
       "name": "ANALOG DEVICES INC",
       "sector": "Analog Semiconductors",
@@ -366,7 +366,7 @@
       "peg": 0.5597,
       "pegMeaningful": true,
       "pe": null,
-      "price": 363.112,
+      "price": 362.885,
       "score": 64,
       "sources": {
         "capex": {
@@ -394,7 +394,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ADI?symbol=ADI&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ADI?symbol=ADI&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -414,7 +414,7 @@
       "peg": 0.7746,
       "pegMeaningful": true,
       "pe": null,
-      "price": 463.29,
+      "price": 460.33,
       "score": 60,
       "sources": {
         "capex": {
@@ -442,7 +442,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/DELL?symbol=DELL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/DELL?symbol=DELL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -462,7 +462,7 @@
       "peg": 0.8587,
       "pegMeaningful": true,
       "pe": null,
-      "price": 149.47,
+      "price": 150.135,
       "score": 58,
       "sources": {
         "capex": {
@@ -490,7 +490,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ORCL?symbol=ORCL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ORCL?symbol=ORCL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995711&period2=1788205311",
           "details": null
         }
       }
@@ -510,7 +510,7 @@
       "peg": 0.6286,
       "pegMeaningful": true,
       "pe": null,
-      "price": 177.28,
+      "price": 178.82,
       "score": 55,
       "sources": {
         "capex": {
@@ -538,7 +538,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/MOD?symbol=MOD&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/MOD?symbol=MOD&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -558,7 +558,7 @@
       "peg": 0.9691,
       "pegMeaningful": true,
       "pe": null,
-      "price": 458.07,
+      "price": 458.385,
       "score": 49,
       "sources": {
         "capex": {
@@ -586,7 +586,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AMAT?symbol=AMAT&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AMAT?symbol=AMAT&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -606,7 +606,7 @@
       "peg": 0.1374,
       "pegMeaningful": true,
       "pe": null,
-      "price": 947.685,
+      "price": 944.88,
       "score": 47,
       "sources": {
         "capex": {
@@ -634,7 +634,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/MU?symbol=MU&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/MU?symbol=MU&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995711&period2=1788205311",
           "details": null
         }
       }
@@ -654,7 +654,7 @@
       "peg": 1.0339,
       "pegMeaningful": true,
       "pe": null,
-      "price": 110.535,
+      "price": 110.825,
       "score": 45,
       "sources": {
         "capex": {
@@ -682,7 +682,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/CSCO?symbol=CSCO&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/CSCO?symbol=CSCO&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -702,7 +702,7 @@
       "peg": 13.9059,
       "pegMeaningful": true,
       "pe": null,
-      "price": 184.47,
+      "price": 186.37,
       "score": 45,
       "sources": {
         "capex": {
@@ -730,7 +730,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/DLR?symbol=DLR&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/DLR?symbol=DLR&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -750,7 +750,7 @@
       "peg": 1.7115,
       "pegMeaningful": true,
       "pe": null,
-      "price": 606.955,
+      "price": 607.72,
       "score": 45,
       "sources": {
         "capex": {
@@ -778,7 +778,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/PWR?symbol=PWR&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/PWR?symbol=PWR&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995711&period2=1788205311",
           "details": null
         }
       }
@@ -795,10 +795,10 @@
       "demandBn": 10.8,
       "demandBasis": "RPO",
       "coverage": 4.563,
-      "peg": 1.0671,
+      "peg": 1.0619,
       "pegMeaningful": true,
-      "pe": 27.162,
-      "price": 52.72,
+      "pe": 27.029,
+      "price": 52.46,
       "score": 44,
       "sources": {
         "capex": {
@@ -859,7 +859,7 @@
       "peg": 1.2672,
       "pegMeaningful": true,
       "pe": null,
-      "price": 258.015,
+      "price": 257.22,
       "score": 44,
       "sources": {
         "capex": {
@@ -887,7 +887,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/VRT?symbol=VRT&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/VRT?symbol=VRT&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995711&period2=1788205311",
           "details": null
         }
       }
@@ -907,7 +907,7 @@
       "peg": 1.793,
       "pegMeaningful": true,
       "pe": null,
-      "price": 793.11,
+      "price": 797.6,
       "score": 43,
       "sources": {
         "capex": {
@@ -935,7 +935,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/CAT?symbol=CAT&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/CAT?symbol=CAT&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -955,7 +955,7 @@
       "peg": 1.4821,
       "pegMeaningful": true,
       "pe": null,
-      "price": 301.37,
+      "price": 301.52,
       "score": 43,
       "sources": {
         "capex": {
@@ -983,7 +983,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/LRCX?symbol=LRCX&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/LRCX?symbol=LRCX&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -1003,7 +1003,7 @@
       "peg": 1.236,
       "pegMeaningful": true,
       "pe": null,
-      "price": 147.41,
+      "price": 148.91,
       "score": 43,
       "sources": {
         "capex": {
@@ -1031,7 +1031,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/NOW?symbol=NOW&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/NOW?symbol=NOW&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995711&period2=1788205311",
           "details": null
         }
       }
@@ -1051,7 +1051,7 @@
       "peg": 3.4656,
       "pegMeaningful": true,
       "pe": null,
-      "price": 1039.98,
+      "price": 1045.725,
       "score": 41,
       "sources": {
         "capex": {
@@ -1079,7 +1079,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/EQIX?symbol=EQIX&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/EQIX?symbol=EQIX&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -1096,10 +1096,10 @@
       "demandBn": 11.855,
       "demandBasis": "RPO",
       "coverage": 4.622,
-      "peg": 2.0703,
+      "peg": 2.0491,
       "pegMeaningful": true,
-      "pe": 20.84,
-      "price": 278.0,
+      "pe": 20.626,
+      "price": 275.15,
       "score": 41,
       "sources": {
         "capex": {
@@ -1154,7 +1154,7 @@
       "peg": 1.1752,
       "pegMeaningful": true,
       "pe": null,
-      "price": 260.61,
+      "price": 261.12,
       "score": 41,
       "sources": {
         "capex": {
@@ -1182,7 +1182,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/TXN?symbol=TXN&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/TXN?symbol=TXN&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995711&period2=1788205311",
           "details": null
         }
       }
@@ -1202,7 +1202,7 @@
       "peg": 1.901,
       "pegMeaningful": true,
       "pe": null,
-      "price": 194.935,
+      "price": 196.575,
       "score": 40,
       "sources": {
         "capex": {
@@ -1230,55 +1230,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ANET?symbol=ANET&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
-          "details": null
-        }
-      }
-    },
-    {
-      "ticker": "ARM",
-      "name": "ARM HOLDINGS PLC /UK",
-      "sector": "CPU IP",
-      "cik": "0001973239",
-      "currency": "USD",
-      "capexCurrentBn": 0.092,
-      "capex2YBn": 0.092,
-      "growthPct": 0.0,
-      "demandBn": 2.1226,
-      "demandBasis": "RPO",
-      "coverage": 23.072,
-      "peg": 2.0958,
-      "pegMeaningful": true,
-      "pe": null,
-      "price": 239.31,
-      "score": 40,
-      "sources": {
-        "capex": {
-          "provider": "SEC EDGAR CompanyFacts",
-          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001973239.json",
-          "transport": "data.sec.gov",
-          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
-          "currentFY": 2026,
-          "prior2FY": 2024,
-          "unit": "USD"
-        },
-        "demand": {
-          "provider": "SEC EDGAR CompanyFacts",
-          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001973239.json",
-          "transport": "data.sec.gov",
-          "basis": "RPO",
-          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
-          "asOf": "2026-06-30",
-          "unit": "USD",
-          "details": null
-        },
-        "price": {
-          "provider": "Yahoo Finance chart",
-          "url": "https://query1.finance.yahoo.com/v8/finance/chart/ARM?range=5d&interval=1d&includePrePost=false"
-        },
-        "peg": {
-          "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ARM?symbol=ARM&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ANET?symbol=ANET&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -1298,7 +1250,7 @@
       "peg": 2.0665,
       "pegMeaningful": true,
       "pe": null,
-      "price": 1690.2,
+      "price": 1693.23,
       "score": 40,
       "sources": {
         "capex": {
@@ -1326,7 +1278,55 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ASML?symbol=ASML&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ASML?symbol=ASML&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "ARM",
+      "name": "ARM HOLDINGS PLC /UK",
+      "sector": "CPU IP",
+      "cik": "0001973239",
+      "currency": "USD",
+      "capexCurrentBn": 0.092,
+      "capex2YBn": 0.092,
+      "growthPct": 0.0,
+      "demandBn": 2.1226,
+      "demandBasis": "RPO",
+      "coverage": 23.072,
+      "peg": 2.0958,
+      "pegMeaningful": true,
+      "pe": null,
+      "price": 241.552,
+      "score": 40,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001973239.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2026,
+          "prior2FY": 2024,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001973239.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/ARM?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ARM?symbol=ARM&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -1346,7 +1346,7 @@
       "peg": 5.0344,
       "pegMeaningful": true,
       "pe": null,
-      "price": 335.45,
+      "price": 336.475,
       "score": 40,
       "sources": {
         "capex": {
@@ -1374,55 +1374,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/GE?symbol=GE&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
-          "details": null
-        }
-      }
-    },
-    {
-      "ticker": "IBM",
-      "name": "INTERNATIONAL BUSINESS MACHINES CORP",
-      "sector": "Enterprise Technology",
-      "cik": "0000051143",
-      "currency": "USD",
-      "capexCurrentBn": 1.048,
-      "capex2YBn": 1.245,
-      "growthPct": -15.82,
-      "demandBn": 68.0,
-      "demandBasis": "RPO",
-      "coverage": 64.885,
-      "peg": 2.44,
-      "pegMeaningful": true,
-      "pe": null,
-      "price": 234.05,
-      "score": 40,
-      "sources": {
-        "capex": {
-          "provider": "SEC EDGAR CompanyFacts",
-          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000051143.json",
-          "transport": "data.sec.gov",
-          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
-          "currentFY": 2025,
-          "prior2FY": 2023,
-          "unit": "USD"
-        },
-        "demand": {
-          "provider": "SEC EDGAR CompanyFacts",
-          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000051143.json",
-          "transport": "data.sec.gov",
-          "basis": "RPO",
-          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
-          "asOf": "2026-06-30",
-          "unit": "USD",
-          "details": null
-        },
-        "price": {
-          "provider": "Yahoo Finance chart",
-          "url": "https://query1.finance.yahoo.com/v8/finance/chart/IBM?range=5d&interval=1d&includePrePost=false"
-        },
-        "peg": {
-          "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/IBM?symbol=IBM&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/GE?symbol=GE&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -1442,7 +1394,7 @@
       "peg": 1.6254,
       "pegMeaningful": true,
       "pe": null,
-      "price": 138.3,
+      "price": 138.4,
       "score": 40,
       "sources": {
         "capex": {
@@ -1470,7 +1422,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/JCI?symbol=JCI&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/JCI?symbol=JCI&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -1490,7 +1442,7 @@
       "peg": 1.7571,
       "pegMeaningful": true,
       "pe": null,
-      "price": 175.24,
+      "price": 175.81,
       "score": 40,
       "sources": {
         "capex": {
@@ -1518,7 +1470,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/KLAC?symbol=KLAC&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/KLAC?symbol=KLAC&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -1538,7 +1490,7 @@
       "peg": 1.6402,
       "pegMeaningful": true,
       "pe": null,
-      "price": 510.57,
+      "price": 509.395,
       "score": 40,
       "sources": {
         "capex": {
@@ -1566,7 +1518,55 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/MSFT?symbol=MSFT&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/MSFT?symbol=MSFT&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995711&period2=1788205311",
+          "details": null
+        }
+      }
+    },
+    {
+      "ticker": "IBM",
+      "name": "INTERNATIONAL BUSINESS MACHINES CORP",
+      "sector": "Enterprise Technology",
+      "cik": "0000051143",
+      "currency": "USD",
+      "capexCurrentBn": 1.048,
+      "capex2YBn": 1.245,
+      "growthPct": -15.82,
+      "demandBn": 68.0,
+      "demandBasis": "RPO",
+      "coverage": 64.885,
+      "peg": 2.44,
+      "pegMeaningful": true,
+      "pe": null,
+      "price": 234.8,
+      "score": 40,
+      "sources": {
+        "capex": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000051143.json",
+          "transport": "data.sec.gov",
+          "concept": "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+          "currentFY": 2025,
+          "prior2FY": 2023,
+          "unit": "USD"
+        },
+        "demand": {
+          "provider": "SEC EDGAR CompanyFacts",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000051143.json",
+          "transport": "data.sec.gov",
+          "basis": "RPO",
+          "concept": "us-gaap:RevenueRemainingPerformanceObligation",
+          "asOf": "2026-06-30",
+          "unit": "USD",
+          "details": null
+        },
+        "price": {
+          "provider": "Yahoo Finance chart",
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/IBM?range=5d&interval=1d&includePrePost=false"
+        },
+        "peg": {
+          "provider": "Yahoo trailing PEG",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/IBM?symbol=IBM&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -1586,7 +1586,7 @@
       "peg": 2.49,
       "pegMeaningful": true,
       "pe": null,
-      "price": 185.89,
+      "price": 186.59,
       "score": 40,
       "sources": {
         "capex": {
@@ -1614,7 +1614,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/PLTR?symbol=PLTR&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/PLTR?symbol=PLTR&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995711&period2=1788205311",
           "details": null
         }
       }
@@ -1634,7 +1634,7 @@
       "peg": 1.3614,
       "pegMeaningful": true,
       "pe": null,
-      "price": 190.46,
+      "price": 190.795,
       "score": 38,
       "sources": {
         "capex": {
@@ -1662,7 +1662,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ACN?symbol=ACN&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ACN?symbol=ACN&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -1679,10 +1679,10 @@
       "demandBn": 21.333,
       "demandBasis": "RPO",
       "coverage": 26.419,
-      "peg": -0.1628,
+      "peg": -0.1624,
       "pegMeaningful": false,
-      "pe": 3.853,
-      "price": 205.22,
+      "pe": 3.844,
+      "price": 204.725,
       "score": 35,
       "sources": {
         "capex": {
@@ -1735,10 +1735,10 @@
       "demandBn": 0.0005,
       "demandBasis": "Deferred revenue",
       "coverage": 11.659,
-      "peg": -0.3996,
+      "peg": -0.399,
       "pegMeaningful": false,
-      "pe": -14.154,
-      "price": 9.2,
+      "pe": -14.131,
+      "price": 9.185,
       "score": 35,
       "sources": {
         "capex": {
@@ -1793,7 +1793,7 @@
       "peg": 0.5468,
       "pegMeaningful": true,
       "pe": null,
-      "price": 224.89,
+      "price": 224.99,
       "score": 30,
       "sources": {
         "capex": {
@@ -1821,7 +1821,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/NXPI?symbol=NXPI&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/NXPI?symbol=NXPI&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995711&period2=1788205311",
           "details": null
         }
       }
@@ -1841,7 +1841,7 @@
       "peg": 0.8526,
       "pegMeaningful": true,
       "pe": null,
-      "price": 571.97,
+      "price": 572.78,
       "score": 28,
       "sources": {
         "capex": {
@@ -1869,7 +1869,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/META?symbol=META&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/META?symbol=META&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -1889,7 +1889,7 @@
       "peg": 0.7248,
       "pegMeaningful": true,
       "pe": null,
-      "price": 169.43,
+      "price": 170.54,
       "score": 28,
       "sources": {
         "capex": {
@@ -1917,7 +1917,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/QCOM?symbol=QCOM&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/QCOM?symbol=QCOM&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995711&period2=1788205311",
           "details": null
         }
       }
@@ -1937,7 +1937,7 @@
       "peg": 1.0208,
       "pegMeaningful": true,
       "pe": null,
-      "price": 468.52,
+      "price": 469.095,
       "score": 22,
       "sources": {
         "capex": {
@@ -1965,7 +1965,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AMD?symbol=AMD&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AMD?symbol=AMD&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -1985,7 +1985,7 @@
       "peg": 1.0216,
       "pegMeaningful": true,
       "pe": null,
-      "price": 416.755,
+      "price": 415.255,
       "score": 22,
       "sources": {
         "capex": {
@@ -2013,7 +2013,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/TSM?symbol=TSM&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/TSM?symbol=TSM&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995711&period2=1788205311",
           "details": null
         }
       }
@@ -2033,7 +2033,7 @@
       "peg": 2.9831,
       "pegMeaningful": true,
       "pe": null,
-      "price": 401.79,
+      "price": 402.02,
       "score": 20,
       "sources": {
         "capex": {
@@ -2061,7 +2061,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ETN?symbol=ETN&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/ETN?symbol=ETN&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -2081,7 +2081,7 @@
       "peg": 2.5365,
       "pegMeaningful": true,
       "pe": null,
-      "price": 314.055,
+      "price": 316.14,
       "score": 19,
       "sources": {
         "capex": {
@@ -2109,7 +2109,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AAPL?symbol=AAPL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AAPL?symbol=AAPL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -2129,7 +2129,7 @@
       "peg": 1.4448,
       "pegMeaningful": true,
       "pe": null,
-      "price": 650.65,
+      "price": 652.42,
       "score": 14,
       "sources": {
         "capex": {
@@ -2157,7 +2157,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/DE?symbol=DE&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/DE?symbol=DE&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -2177,7 +2177,7 @@
       "peg": 1.3642,
       "pegMeaningful": true,
       "pe": null,
-      "price": 261.005,
+      "price": 259.35,
       "score": 13,
       "sources": {
         "capex": {
@@ -2205,7 +2205,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AMZN?symbol=AMZN&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988581&period2=1788198181",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AMZN?symbol=AMZN&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995710&period2=1788205310",
           "details": null
         }
       }
@@ -2225,7 +2225,7 @@
       "peg": 1.4263,
       "pegMeaningful": true,
       "pe": null,
-      "price": 210.21,
+      "price": 211.9,
       "score": 13,
       "sources": {
         "capex": {
@@ -2253,7 +2253,7 @@
         },
         "peg": {
           "provider": "Yahoo trailing PEG",
-          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/MRVL?symbol=MRVL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786988582&period2=1788198182",
+          "url": "https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/MRVL?symbol=MRVL&type=trailingPegRatio,forwardPe,trailingPe&period1=1786995711&period2=1788205311",
           "details": null
         }
       }
@@ -2270,10 +2270,10 @@
       "demandBn": 0.498,
       "demandBasis": "Deferred revenue",
       "coverage": 0.034,
-      "peg": 15.1534,
+      "peg": 15.1619,
       "pegMeaningful": false,
-      "pe": -1494.583,
-      "price": 89.675,
+      "pe": -1495.417,
+      "price": 89.725,
       "score": 0,
       "sources": {
         "capex": {
