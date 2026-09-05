@@ -25,7 +25,8 @@ export function wantedStarsForHeat(heat){
 }
 
 export function wantedPoliceCount(stars){
-  return Math.max(0,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||0)));
+  const level=Math.max(0,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||0)));
+  return level?Math.min(WANTED_MAX_STARS,level+1):0;
 }
 
 export function wantedDetectionRadiusM(stars){
@@ -49,12 +50,12 @@ export function wantedPoliceSpawnRadiusM(index=0){
 
 export function wantedPoliceArrivalDelayMs(stars){
   const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
-  return Math.max(3000,3900-level*160);
+  return Math.max(1800,2500-level*140);
 }
 
 export function wantedPoliceEngageDelayMs(stars){
   const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
-  return Math.max(2500,3300-level*130);
+  return Math.max(1500,2100-level*120);
 }
 
 export function wantedPoliceWaveBreakMs(stars){
@@ -82,16 +83,17 @@ export function wantedEmpImpulseNs(distanceM){
   const t=Math.min(1,distance/WANTED_EMP_RANGE_M),smooth=t*t*(3-2*t);return 54+72*(1-smooth);
 }
 
-const POLICE_ALTITUDE_FORMATION_M=Object.freeze([0,.18,-.18,.34,-.34]);
+// Keep pursuers near the player's normal sightline instead of stacking them overhead.
+const POLICE_ALTITUDE_FORMATION_M=Object.freeze([0,.08,-.08,.15,-.15]);
 
 export function wantedPoliceAltitudeOffsetM(index=0,phase="pursuit"){
   const slot=POLICE_ALTITUDE_FORMATION_M[Math.max(0,Math.floor(Number(index)||0))%POLICE_ALTITUDE_FORMATION_M.length];
-  return (String(phase)==="searching"?.70:.35)+slot;
+  return (String(phase)==="searching"?.53:.18)+slot;
 }
 
 export function wantedPointInRing(x,y,ring){
   let inside=false;if(!Array.isArray(ring)||ring.length<3)return false;
-  for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],b=ring[j],ax=Number(a?.[0]),ay=Number(a?.[1]),bx=Number(b?.[0]),by=Number(b?.[1]);if(!Number.isFinite(ax+ay+bx+by))continue;const crosses=(ay>y)!==(by>y)&&x<(bx-ax)*(y-ay)/((by-ay)||1e-12)+ax;if(crosses)inside=!inside;}
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],b=ring[(i+1)%ring.length],ax=Number(a?.[0]),ay=Number(a?.[1]),bx=Number(b?.[0]),by=Number(b?.[1]);if(!Number.isFinite(ax+ay+bx+by))continue;const crosses=(ay>y)!==(by>y)&&x<(bx-ax)*(y-ay)/((by-ay)||1e-12)+ax;if(crosses)inside=!inside;}
   return inside;
 }
 
