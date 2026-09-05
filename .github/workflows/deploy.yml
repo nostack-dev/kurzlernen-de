@@ -47,13 +47,28 @@ jobs:
           node tests/player_vitals_logic_test.mjs
           node tests/wanted_system_test.mjs
           node tests/gameplay_fun_logic_test.mjs
+          node tests/world_pedestrian_navigation_test.mjs
+          node tests/world_defaults_contract_test.mjs
+          node tests/player_multiplayer_replication_contract_test.mjs
           node --check sim/player_walk_mode_v4.mjs
+          node --check sim/player_car_mode.mjs
           node --check sim/gameplay_final_runtime_v2.mjs
           node --check sim/flight_fire_fx.mjs
           node --check sim/world_rigid_body_runtime.mjs
+          node --check sim/world_rigid_body_physics.mjs
+          node --check sim/real_world_bootstrap.mjs
           node --check sim/wanted_police_drones.mjs
+          node --check sim/world_procedural_population.mjs
+          node --check sim/camera_collision_guard.mjs
+          test ! -e sim/camera_box3d_spring.mjs
+          ! grep -R -E 'CameraBox3dSpring|box3d-dynamic-spring' sim tests --exclude-dir=node_modules
+          grep -q 'playerCameraPhysicsBody="none"' sim/camera_collision_guard.mjs
+          grep -q 'world-position+distance-retention+panic-pin-v2' sim/world_procedural_population.mjs
           grep -q 'kMaxHorizontalAccelerationMps2 = 7.5f' esp32/Arondight45_StateControl.hpp
           grep -q 'box3d_hitscan.mjs' sim/flight_fire_fx.mjs
+          grep -q 'box3d-body-yaw-v1' sim/player_car_mode.mjs
+          grep -q 'box3d-bicycle-yaw-rate-v1' sim/player_car_mode.mjs
+          grep -q 'this.imageryEnabled=false' sim/real_world_bootstrap.mjs
 
       - name: Build exact shared controller runtime to WebAssembly
         run: |
@@ -92,6 +107,7 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           node tests/world_building_collision_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           node tests/world_rigid_body_physics_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
+          node tests/multiplayer_mesh_smoke.mjs
           ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
           ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
           python3 - <<'PY'
@@ -111,20 +127,22 @@ jobs:
           grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" drone_simulator.html
           rm -rf generated
 
-      - name: Fast browser boot gate
-        timeout-minutes: 4
+      - name: Fast browser boot + takeoff + physical car steering + imagery gate
+        timeout-minutes: 6
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
           python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
           HTTP_PID=$!
-          trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true; rm -f node_modules' EXIT
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true' EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
+          CHROME_BIN="$CHROME_BIN" node tests/takeoff_agl_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/player_car_touch_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/world_imagery_default_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
 
-      - name: Advisory FPS regression smoke
-        continue-on-error: true
+      - name: FPS regression smoke
         timeout-minutes: 4
         run: |
           set -euxo pipefail
@@ -135,6 +153,7 @@ jobs:
           trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true; rm -f node_modules' EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/player_multiplayer_modes_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

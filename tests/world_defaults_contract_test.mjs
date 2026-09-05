@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const world=readFileSync("sim/real_world_bootstrap.mjs","utf8"),settings=readFileSync("sim/control_settings.mjs","utf8"),car=readFileSync("sim/player_car_mode.mjs","utf8"),physics=readFileSync("sim/world_rigid_body_physics.mjs","utf8");
+assert.ok(world.includes("this.imageryEnabled=false;try{localStorage.removeItem(WORLD_IMAGERY_STORAGE);}catch{}"));
+assert.ok(!world.includes("this.imageryEnabled=loadBool(WORLD_IMAGERY_STORAGE"));
+assert.ok(world.includes("this.imageryEnabled=Boolean(value);try{localStorage.removeItem(WORLD_IMAGERY_STORAGE);}catch{}"));
+assert.ok(settings.includes("bridge.setImageryEnabled?.(false);bridge.setGridEnabled?.(true)"));
+assert.ok(car.includes("box3d-body-yaw-v1"));
+assert.ok(car.includes("signedSpeedMps:commandSpeed,steer:input.steer"));
+assert.ok(physics.includes("rawYawRate=effectiveDriveSpeed/wheelbase*Math.tan(steerAngle)"));
+assert.ok(physics.includes("vehicleSteeringYawLimit(speedMps)"));
+assert.ok(physics.includes("return clamp(7.5/speed,.38,1.35)"));
+assert.ok(physics.includes("maxYawRate=vehicleSteeringYawLimit(speedForGrip)"));
+assert.ok(physics.includes("desiredYawRate=clamp(rawYawRate,-maxYawRate,maxYawRate)"));
+assert.ok(physics.includes("frontAxlePoint=[position[0]+forwardX*frontLever"));
+assert.ok(physics.includes("b3.b3Body_ApplyForce(body,[leftX*record.massKg*steeringLateralAccel"));
+console.log("World defaults contract passed: satellite starts OFF and player steering is rigid-body authoritative with speed-sensitive bicycle yaw-rate, a nonzero high-speed authority floor and physical front-axle force.");

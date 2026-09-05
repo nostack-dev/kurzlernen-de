@@ -10,8 +10,8 @@ import {
 
 assert.deepEqual(
   readdirSync(".github/workflows").sort(),
-  ["deploy.yml","s31-hil.yml"],
-  "production tree must contain only deploy.yml and s31-hil.yml",
+  ["deploy.yml","ratio-data.yml","ratio-live.yml","s31-hil.yml"],
+  "production workflow set must match the intentional deploy, ratio-data, ratio-live and S31 workflows",
 );
 
 const near=(a,b,eps=1e-6,msg="")=>assert.ok(Math.abs(a-b)<=eps,`${msg} expected ${b}, got ${a}`);
@@ -123,26 +123,14 @@ gameKnob=gameKnobAxes(game,"left",DEFAULT_PHONE_SETTINGS);near(Math.hypot(gameKn
 const maxGameSpeed={...DEFAULT_PHONE_SETTINGS,maxHorizontalSpeedKmh:90};game=neutralControls();applyGameStick(game,"left",{x:1,y:0},maxGameSpeed);near(gameStateStickMagnitude(Math.abs(game.roll)),1,1e-10,"90 km/h setting must decode to full FC velocity authority");
 const slowGameSpeed={...DEFAULT_PHONE_SETTINGS,maxHorizontalSpeedKmh:5};game=neutralControls();applyGameStick(game,"left",{x:1,y:0},slowGameSpeed);near(gameStateStickMagnitude(Math.abs(game.roll)),5/90,2e-8,"low speed setting must decode to the selected velocity fraction");
 
-const knob={style:{left:"50%",top:"71%"}};
-const element={
-  querySelector:()=>knob,
-  getBoundingClientRect:()=>({left:0,top:0,width:180,height:180}),
-};
+const element={getBoundingClientRect:()=>({left:0,top:0,width:180,height:180})};
 const down=normalizedPointer(element,{type:"pointerdown",pointerId:1,clientX:90,clientY:90});
-near(down.x,0);near(down.y,.5);
-const move=normalizedPointer(element,{type:"pointermove",pointerId:1,clientX:90,clientY:52.2});
-near(move.x,0);near(move.y,0,1e-6,"relative drag should move by half radius, not jump absolute");
-endPointerDrag(element,1);
-
-const rotatedElement={
-  ...element,
-  closest:()=>({dataset:{soloOrientation:"css-landscape"}}),
-};
-const rotatedDown=normalizedPointer(rotatedElement,{type:"pointerdown",pointerId:2,clientX:90,clientY:90});
-near(rotatedDown.x,0);near(rotatedDown.y,.5);
-const rotatedMove=normalizedPointer(rotatedElement,{type:"pointermove",pointerId:2,clientX:127.8,clientY:90});
-near(rotatedMove.x,0);near(rotatedMove.y,0,1e-6,"clockwise landscape fallback must map screen-right drag to local stick-up");
-endPointerDrag(rotatedElement,2);
+near(down.x,0);near(down.y,0,1e-9,"centre touch must centre the stick immediately");
+const rightDown=normalizedPointer(element,{type:"pointerdown",pointerId:2,clientX:165.6,clientY:90});
+near(rightDown.x,1,1e-6,"pointerdown must immediately use the touched right-edge position");near(rightDown.y,0);
+const move=normalizedPointer(element,{type:"pointermove",pointerId:2,clientX:90,clientY:52.2});
+near(move.x,0);near(move.y,-.5,1e-6,"drag must follow the absolute native finger position");
+endPointerDrag(element,2);
 
 const tenPxRaw=phoneAxis(10/(180*.42),10);
 assert.ok(tenPxRaw>.035,"10 px max-fine movement must cross production roll/pitch deadband");
@@ -164,7 +152,7 @@ const stateSource=readFileSync("esp32/Arondight45_StateControl.hpp","utf8");
 for(const marker of ["shaped_magnitude = shape(magnitude, 0.035f, 0.25f)","kStateMaxHorizontalSpeedMps = 25.0f"])
   assert.ok(stateSource.includes(marker),`shared S31 radial velocity contract missing: ${marker}`);
 
-console.log("Phone controls passed: radial 5-90 km/h GAME velocity envelope, semantic inversion, axis locks, relative drag, pooled fire FX, and FC-authoritative arming.");
+console.log("Phone controls passed: radial 5-90 km/h GAME velocity envelope, semantic inversion, axis locks, absolute native touch, pooled fire FX, and FC-authoritative arming.");
 
 import {clearanceRateMps,stepGroundClearanceTarget,MAX_GAME_CLEARANCE_RATE_MPS} from "../sim/control_semantics.mjs";
 if(clearanceRateMps(0)!==0||clearanceRateMps(.05)!==0)throw new Error("height HOLD/deadband failed");

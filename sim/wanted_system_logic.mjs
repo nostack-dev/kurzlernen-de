@@ -82,11 +82,13 @@ export function wantedEmpImpulseNs(distanceM){
   const t=Math.min(1,distance/WANTED_EMP_RANGE_M),smooth=t*t*(3-2*t);return 54+72*(1-smooth);
 }
 
-const POLICE_ALTITUDE_FORMATION_M=Object.freeze([0,.18,-.18,.34,-.34]);
+// Keep pursuers near the player's normal sightline instead of stacking them overhead.
+// Slots stay deliberately non-uniform so multiple drones never form an artificial flat plane.
+const POLICE_ALTITUDE_FORMATION_M=Object.freeze([0,.08,-.08,.15,-.15]);
 
 export function wantedPoliceAltitudeOffsetM(index=0,phase="pursuit"){
   const slot=POLICE_ALTITUDE_FORMATION_M[Math.max(0,Math.floor(Number(index)||0))%POLICE_ALTITUDE_FORMATION_M.length];
-  return (String(phase)==="searching"?.70:.35)+slot;
+  return (String(phase)==="searching"?.53:.18)+slot;
 }
 
 export function wantedPointInRing(x,y,ring){

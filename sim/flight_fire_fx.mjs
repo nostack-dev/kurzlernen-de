@@ -2,6 +2,7 @@ import * as THREE from "three";
 import {Box3dHitscanWorld} from "./box3d_hitscan.mjs";
 import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./audio_settings.mjs";
 import {getSharedCombatAudioContext,playCombatAudio} from "./combat_audio_bank.mjs";
+import {findRayPopulationHit} from "./ray_population_hit.mjs";
 
 const SHOT_INTERVAL_MS=92;
 const DECAL_POOL_SIZE=32;
@@ -34,6 +35,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   viewport.dataset.fireArmed="0";
   viewport.dataset.fireLockReason="unarmed";
   viewport.dataset.fireWeaponGate="gun-vs-guided-missile-v2";
+  viewport.dataset.firePopulationHitMode="mesh-raycast+soft-person-volume-v1";
 
   const style=document.createElement("style");style.textContent=`
     #viewport{touch-action:none;overscroll-behavior:none}
@@ -99,10 +101,13 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   function immediateHit(ray){
     ensurePeerCombatScale();scene.updateMatrixWorld(true);refreshCandidates(performance.now(),true);intersections.length=0;raycaster.intersectObjects(candidates,false,intersections);
     const sceneHit=intersections[0]||null;
+    const populationHit=findRayPopulationHit(scene,ray,{maxDistance:MAX_HITSCAN_M});
+    const dynamicHit=populationHit&&(!sceneHit||populationHit.distance<sceneHit.distance)?populationHit:sceneHit;
     const staticRaw=worldBridge?.active?box3dHitscan.cast([ray.origin.x,ray.origin.y,ray.origin.z],[ray.direction.x,ray.direction.y,ray.direction.z],MAX_HITSCAN_M,worldBridge?.buildingCollisionSnapshot):null;
     const staticHit=staticRaw?{distance:staticRaw.distanceM,point:worldPoint.set(...staticRaw.point),worldNormal:worldNormal.set(...staticRaw.normal),box3d:true}:null;
-    if(staticHit&&(!sceneHit||staticHit.distance<sceneHit.distance))return staticHit;
-    return sceneHit;
+    if(staticHit&&(!dynamicHit||staticHit.distance<dynamicHit.distance-.05))return staticHit;
+    if(populationHit&&dynamicHit===populationHit)viewport.dataset.firePopulationSoftHits=String((Number(viewport.dataset.firePopulationSoftHits)||0)+1);
+    return dynamicHit;
   }
   function routeHit(sceneHit){
     if(!sceneHit)return false;if(sceneHit.box3d){addThreeDecal(sceneHit);return false;}

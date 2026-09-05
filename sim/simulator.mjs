@@ -419,7 +419,14 @@ class PhysicsModel {
     if(offset<=.01)return false;
     b3.b3Body_SetTransform(this.body,[safe[0],safe[1],AIRFRAME_SPAWN_Z_M],this.rotation());b3.b3Body_SetLinearVelocity(this.body,[0,0,0]);b3.b3Body_SetAngularVelocity(this.body,[0,0,0]);this.syncPresentationSnapshots();return true;
   }
-  rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.resolveWorldBuildingLaunch();this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,launchExclusionPoint:this.worldBuildingLaunchPoint||[Infinity,Infinity]});this.worldBuildingCollisionRevision++;}
+  rebuildWorldBuildingCollisions(){
+  if(!this.world)return;
+  destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);
+  this.resolveWorldBuildingLaunch();
+  this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,launchExclusionPoint:this.worldBuildingLaunchPoint||[Infinity,Infinity]});
+  this.snapSpawnToGround();
+  this.worldBuildingCollisionRevision++;
+}
   buildGraphics(){
     if(this.group)this.scene.remove(this.group);
     this.group=new THREE.Group();this.group.userData.arondightAirframe=true;this.scene.add(this.group);this.rotors=[];
@@ -473,6 +480,25 @@ class PhysicsModel {
     this.renderRotation.set(q0[0],q0[1],q0[2],q0[3]).slerp(this.renderCurrentQuaternion.set(q1[0],q1[1],q1[2],q1[3]),a).normalize();
     return this.presentationPoseCache;
   }
+  spawnGroundRaycast(point=this.position()){
+  const x=Number(point?.[0])||0,y=Number(point?.[1])||0,currentZ=Number(point?.[2])||0,top=Math.max(256,currentZ+128),bottom=-256,translation=[0,0,bottom-top],filter=b3.b3DefaultQueryFilter();
+  filter.categoryBits=QUERY_CAMERA;filter.maskBits=COLLISION_TERRAIN;
+  const hit=b3.b3World_CastRayClosest(this.world,[x,y,top],translation,filter),fraction=Number(hit?.fraction);
+  if(!hit?.hit||!Number.isFinite(fraction)||fraction<0||fraction>1)return{valid:false,groundZ:0,spawnZ:AIRFRAME_SPAWN_Z_M,fraction:1};
+  const groundZ=top+translation[2]*fraction,spawnZ=groundZ+AIRFRAME_GROUND_SUPPORT_M+AIRFRAME_SPAWN_SEPARATION_M;
+  return{valid:Number.isFinite(groundZ)&&Number.isFinite(spawnZ),groundZ,spawnZ,fraction};
+}
+snapSpawnToGround(){
+  if(!this.body)return false;
+  const position=this.position(),velocity=this.linear(),angular=this.angular(),reference=Array.isArray(this.worldBuildingLaunchPoint)&&this.worldBuildingLaunchPoint.length===2&&this.worldBuildingLaunchPoint.every(Number.isFinite)?this.worldBuildingLaunchPoint:[position[0],position[1]],nearLaunch=Math.hypot(position[0]-reference[0],position[1]-reference[1])<.14,idle=norm(velocity)<.20&&norm(angular)<.80;
+  if(!nearLaunch||!idle)return false;
+  const ray=this.spawnGroundRaycast(position),viewport=$("viewport");
+  if(!ray.valid){if(viewport)viewport.dataset.airframeSpawnGroundRaycast="miss";return false;}
+  const moved=Math.abs(position[2]-ray.spawnZ)>.0005;
+  if(moved){b3.b3Body_SetTransform(this.body,[position[0],position[1],ray.spawnZ],this.rotation());b3.b3Body_SetLinearVelocity(this.body,[0,0,0]);b3.b3Body_SetAngularVelocity(this.body,[0,0,0]);this.syncPresentationSnapshots();}
+  if(viewport){viewport.dataset.airframeSpawnGroundRaycast="hit";viewport.dataset.airframeSpawnGroundZ=ray.groundZ.toFixed(4);viewport.dataset.airframeSpawnZ=ray.spawnZ.toFixed(4);viewport.dataset.airframeSpawnGroundClearanceM=(ray.spawnZ-ray.groundZ).toFixed(4);viewport.dataset.airframeSpawnGroundAdjusted=moved?"1":"0";}
+  return moved;
+}
   groundRange(maxRange=12){
     const range=clamp(Number(maxRange)||12,.05,NAV_AGL_RAY_MAX_M),origin=this.worldPoint([0,0,-.018]),down=this.worldVector([0,0,-1]),verticalProjection=-down[2];
     if(!(verticalProjection>.55))return{valid:false,slant:0,agl:0,verticalProjection};
@@ -570,10 +596,9 @@ $("viewport").appendChild(cameraHud);
 function syncSoloPresentationOrientation(){
   const viewport=$("viewport"),solo=document.body.classList.contains("solo-flight");
   if(!solo){delete viewport.dataset.soloOrientation;delete viewport.dataset.orientationPolicy;return false;}
-  const cssLandscape=globalThis.matchMedia?.("(orientation: portrait)")?.matches===true;
-  viewport.dataset.orientationPolicy="landscape";
-  viewport.dataset.soloOrientation=cssLandscape?"css-landscape":"native-landscape";
-  return cssLandscape;
+  viewport.dataset.orientationPolicy="native-never-rotate-v1";
+  viewport.dataset.soloOrientation="native";
+  return false;
 }
 let presentationViewportSize=null,presentationResizeQueued=false,presentationBackbufferResizes=0;
 function commitPresentationResize(){
@@ -706,13 +731,7 @@ const soloStyle=document.createElement("style");soloStyle.textContent=`
   #soloKill{left:50%;transform:translateX(5%);background:#8b2436e6!important}
   #soloGamepadHelp{position:absolute;left:50%;bottom:max(10px,var(--solo-safe-bottom));transform:translateX(-50%);max-width:94%;padding:6px 10px;border:1px solid #70ddff66;border-radius:999px;background:#071522dd;color:#dff7ff;font:800 9px/1.1 system-ui,-apple-system,sans-serif;letter-spacing:.04em;white-space:nowrap;pointer-events:none}
   body.solo-flight #viewport[data-gamepad-enabled="1"] .solo-stick,body.solo-flight #viewport[data-gamepad-enabled="1"] #soloClearance,body.solo-flight #viewport[data-gamepad-enabled="1"] .solo-action,body.solo-flight #viewport[data-control-source="xbox"] .solo-stick,body.solo-flight #viewport[data-control-source="xbox"] #soloClearance,body.solo-flight #viewport[data-control-source="xbox"] .solo-action{display:none!important}
-  /* iOS ignores Screen Orientation lock in normal browser tabs. Rotate the complete
-     simulator as a deterministic fallback so the flight UI is always landscape. */
-  @media(orientation:portrait){
-    body.solo-flight #viewport{inset:0 auto auto 100vw!important;width:100dvh!important;height:100vw!important;transform:rotate(90deg)!important;--solo-safe-top:env(safe-area-inset-right,0px);--solo-safe-right:env(safe-area-inset-bottom,0px);--solo-safe-bottom:env(safe-area-inset-left,0px);--solo-safe-left:env(safe-area-inset-top,0px)}
-    html.android-stable-webgl body.solo-flight #viewport{width:100svh!important;height:100vw!important}
-    body.solo-flight dialog[open]{transform:rotate(90deg);transform-origin:50% 50%}
-  }
+  /* Native orientation only. The simulator never rotates itself with CSS. */
   @media(max-height:430px){.solo-stick{width:min(30vw,180px)}.solo-action{width:76px;height:46px}}
 `;
 document.head.appendChild(soloStyle);
@@ -728,8 +747,8 @@ function renderSoloHeightControl(){
   const rate=clearanceRateMps(soloHeightAxis);soloHeightPad.dataset.rateMps=rate.toFixed(2);$("soloClearance").dataset.targetAglM=soloGroundClearance.toFixed(2);
 }
 function setSoloHeightAxis(value){soloHeightAxis=clamp(Number(value)||0,-1,1);renderSoloHeightControl();}
-function applySoloHeightPointer(event){const r=soloHeightPad.getBoundingClientRect(),rotated=$("viewport").dataset.soloOrientation==="css-landscape";const center=rotated?r.left+r.width/2:r.top+r.height/2,span=Math.max(1,(rotated?r.width:r.height)*.40),position=rotated?event.clientX:event.clientY;setSoloHeightAxis((rotated?position-center:center-position)/span);event.preventDefault();}
-soloHeightPad.addEventListener("pointerdown",event=>{if(soloHeightPointer!==null)return;soloHeightPointer=event.pointerId;soloHeightPad.setPointerCapture?.(soloHeightPointer);applySoloHeightPointer(event);});
+function applySoloHeightPointer(event){const r=soloHeightPad.getBoundingClientRect(),center=r.top+r.height/2,span=Math.max(1,r.height*.40);setSoloHeightAxis((center-event.clientY)/span);event.preventDefault();}
+soloHeightPad.addEventListener("pointerdown",event=>{if(soloHeightPointer!==null)return;soloHeightPointer=event.pointerId;applySoloHeightPointer(event);try{soloHeightPad.setPointerCapture?.(soloHeightPointer);}catch{}});
 soloHeightPad.addEventListener("pointermove",event=>{if(event.pointerId===soloHeightPointer)applySoloHeightPointer(event);});
 const releaseSoloHeight=event=>{if(soloHeightPointer===null||(event?.pointerId!=null&&event.pointerId!==soloHeightPointer))return;const released=soloHeightPointer;soloHeightPointer=null;setSoloHeightAxis(0);try{soloHeightPad.releasePointerCapture?.(released);}catch{}event?.preventDefault();};
 soloHeightPad.addEventListener("pointerup",releaseSoloHeight);soloHeightPad.addEventListener("pointercancel",releaseSoloHeight);soloHeightPad.addEventListener("lostpointercapture",releaseSoloHeight);
@@ -745,7 +764,7 @@ function updateSoloSticks(){
 function soloStick(el,kind){
   let pointer=null;
   const apply=e=>{const point=normalizedPointer(el,e);applyGameStick(soloControls,kind,point,phoneSettings);updateSoloSticks();e.preventDefault();};
-  el.addEventListener("pointerdown",e=>{pointer=e.pointerId;el.setPointerCapture(pointer);apply(e);});
+  el.addEventListener("pointerdown",e=>{pointer=e.pointerId;apply(e);try{el.setPointerCapture?.(pointer);}catch{}});
   el.addEventListener("pointermove",e=>{if(e.pointerId===pointer)apply(e);});
   const release=e=>{if(e.pointerId!==pointer)return;endPointerDrag(el,e.pointerId);pointer=null;if(kind==="left"){soloControls.roll=0;soloControls.pitch=0;soloControls.throttle=0;}else{soloControls.yaw=0;soloControls.bodyPitch=0;}updateSoloSticks();e.preventDefault();};
   el.addEventListener("pointerup",release);el.addEventListener("pointercancel",release);

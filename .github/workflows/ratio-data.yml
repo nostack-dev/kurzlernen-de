@@ -1,0 +1,88 @@
+name: Refresh ratio market data
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/ratio_feed*.py"
+      - ".github/workflows/ratio-data.yml"
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ratio-data-feed-v3
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch and validate real market data
+        run: |
+          set -euxo pipefail
+          python3 scripts/ratio_feed_all.py --output /tmp/ratio-data.json --min-complete 45
+          python3 - <<'PY'
+          import json, math
+          p=json.load(open('/tmp/ratio-data.json', encoding='utf-8'))
+          assert p['schemaVersion'] == 3
+          assert p['trackedCount'] == 45, p['trackedCount']
+          assert p['completeCount'] == 45, (p['completeCount'], p.get('excluded'))
+          assert p['excludedCount'] == 0, p.get('excluded')
+          assert not p['errors'], p['errors']
+          assert len(p['stocks']) == 45
+          required=('capexCurrentBn','capex2YBn','growthPct','demandBn','coverage','peg','price','score')
+          for s in p['stocks']:
+              for k in required:
+                  v=s.get(k)
+                  assert isinstance(v,(int,float)) and math.isfinite(v), (s.get('ticker'),k,v)
+              assert s['sources']['capex']['url'].startswith('https://data.sec.gov/')
+              assert 'sec.gov/' in s['sources']['demand']['url'], s
+              assert s['sources']['price']['url']
+              assert s['sources']['capex']['transport'] == 'data.sec.gov'
+              assert s['sources']['peg']['url']
+          nvda=next(s for s in p['stocks'] if s['ticker']=='NVDA')
+          assert 400 <= nvda['growthPct'] <= 550, nvda
+          assert 0.2 <= nvda['coverage'] <= 1.0, nvda
+          for ticker in ('ADI','DLR','TXN','CEG','HPE','SMCI','SMR'):
+              assert any(s['ticker']==ticker for s in p['stocks']), ticker
+          print('validated', len(p['stocks']), 'complete stocks; NVDA', nvda['growthPct'], nvda['coverage'], nvda['peg'])
+          PY
+
+      - name: Publish data branch
+        run: |
+          set -euxo pipefail
+          git config user.name "ratio-data-bot"
+          git config user.email "actions@users.noreply.github.com"
+          rm -rf /tmp/ratio-data-branch
+          if git ls-remote --exit-code --heads origin ratio-data >/dev/null 2>&1; then
+            git fetch origin ratio-data
+            git worktree add /tmp/ratio-data-branch origin/ratio-data
+            cd /tmp/ratio-data-branch
+            git switch -C ratio-data
+          else
+            git worktree add --detach /tmp/ratio-data-branch
+            cd /tmp/ratio-data-branch
+            git switch --orphan ratio-data
+            git rm -rf . || true
+          fi
+          cp /tmp/ratio-data.json ratio-data.json
+          cat > README.md <<'EOF'
+          # Ratio data feed
+          Machine-generated data for https://kurzlernen.de/ratio.html.
+          CapEx and demand facts come from official SEC CompanyFacts and SEC-filed disclosures. PEG uses live market data, SEC-derived calculations, and a named public market-data fallback when necessary. Loss-making firms retain a transparent signed forward PEG but are marked pegMeaningful=false.
+          No synthetic/random fallback values are permitted.
+          Publication requires all 45 tracked companies to have complete validated inputs.
+          EOF
+          git add ratio-data.json README.md
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Refresh ratio data"
+          git push origin HEAD:ratio-data
