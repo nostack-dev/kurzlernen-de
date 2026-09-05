@@ -1,5 +1,5 @@
 import {loadPhoneControlSettings} from "./drone_control_settings.mjs";
-import {loadFirstPersonControlSettings} from "./first_person_control_settings.mjs";
+import {loadFirstPersonControlSettings,saveFirstPersonControlSettings} from "./first_person_control_settings.mjs";
 import {DEFAULT_VEHICLE_CONTROL_SETTINGS,loadVehicleControlSettings,saveVehicleControlSettings} from "./vehicle_control_settings.mjs";
 
 let installed=false;

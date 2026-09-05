@@ -24,6 +24,9 @@ const read=()=>page.evaluate(()=>{
     state:document.querySelector("#fcState")?.textContent||"",
     visualSupport:parseFloat(document.querySelector("#viewport")?.dataset.airframeVisualSupportZ||"NaN"),
     targetAgl:parseFloat(document.querySelector("#soloClearance")?.dataset.targetAglM||"NaN"),
+  spawnRaycast:document.querySelector("#viewport")?.dataset.airframeSpawnGroundRaycast||"",
+  spawnGroundZ:parseFloat(document.querySelector("#viewport")?.dataset.airframeSpawnGroundZ||"NaN"),
+  spawnZ:parseFloat(document.querySelector("#viewport")?.dataset.airframeSpawnZ||"NaN"),
   };
 });
 const assertFlightHealthy=(sample,phase)=>{
@@ -52,6 +55,8 @@ try{
   const before=await read();
   if(before.state!=="DISARMED"||!before.navValid||before.navDegraded||!Number.isFinite(before.agl)||before.agl<0||before.rangeText.includes("DEGRADED")||before.rangeText.includes("LOST"))
     throw new Error(`AGL/arm readiness invalid before ARM: ${JSON.stringify(before)}`);
+  if(before.spawnRaycast!=="hit"||!Number.isFinite(before.spawnGroundZ)||!Number.isFinite(before.spawnZ))throw new Error(`spawn was not resolved from the active Box3D ground ray: ${JSON.stringify(before)}`);
+  const spawnClearance=before.spawnZ-before.spawnGroundZ;if(!(spawnClearance>.020&&spawnClearance<.030))throw new Error(`spawn clearance is not derived from the airframe support envelope: ${spawnClearance} ${JSON.stringify(before)}`);
   const groundVisualSamples=[];for(let i=0;i<20;i++){groundVisualSamples.push((await read()).visualSupport);await wait(50);}
   const minVisualSupport=Math.min(...groundVisualSamples.filter(Number.isFinite));
   if(!Number.isFinite(minVisualSupport)||minVisualSupport<.001)throw new Error(`visible airframe clipped the ground during pre-arm settle: minSupport=${minVisualSupport} samples=${JSON.stringify(groundVisualSamples)}`);

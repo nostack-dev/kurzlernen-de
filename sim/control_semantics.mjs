@@ -130,37 +130,13 @@ function renderedKnobAxes(element){
   };
 }
 
-const pointerDrags=new WeakMap();
-function cssLandscapeQuarterTurn(element){
-  return element.closest?.("#viewport")?.dataset?.soloOrientation==="css-landscape";
-}
 export function normalizedPointer(element,event){
   const rect=element.getBoundingClientRect();
   const radius=Math.max(1,Math.min(rect.width,rect.height)*.42);
-  if(event.type==="pointerdown"){
-    const base=renderedKnobAxes(element);
-    pointerDrags.set(element,{pointerId:event.pointerId,x:event.clientX,y:event.clientY,base,quarterTurn:cssLandscapeQuarterTurn(element)});
-    return base;
-  }
-  const drag=pointerDrags.get(element);
-  if(drag&&drag.pointerId===event.pointerId){
-    const screenX=event.clientX-drag.x,screenY=event.clientY-drag.y;
-    return constrainUnit(
-      drag.base.x+(drag.quarterTurn?screenY:screenX)/radius,
-      drag.base.y+(drag.quarterTurn?-screenX:screenY)/radius,
-    );
-  }
   const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;
-  const screenX=event.clientX-cx,screenY=event.clientY-cy;
-  return constrainUnit(
-    (cssLandscapeQuarterTurn(element)?screenY:screenX)/radius,
-    (cssLandscapeQuarterTurn(element)?-screenX:screenY)/radius,
-  );
+  return constrainUnit((Number(event.clientX)-cx)/radius,(Number(event.clientY)-cy)/radius);
 }
-export function endPointerDrag(element,pointerId){
-  const drag=pointerDrags.get(element);
-  if(!drag||pointerId==null||drag.pointerId===pointerId)pointerDrags.delete(element);
-}
+export function endPointerDrag(_element,_pointerId){}
 
 export function applyGameStick(controls,kind,point,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings),p=constrainUnit(Number(point?.x)||0,Number(point?.y)||0);

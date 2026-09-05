@@ -16,13 +16,11 @@ const ROUTE_REFRESH_MS=1800;
 const ROUTE_STALE_MS=18000;
 const ROUTE_DROP_MS=90000;
 const MAX_ROUTE_POOL=48;
-const IMAGERY_STORAGE="arondight45WorldImageryV1";
-const IMAGERY_DEFAULT_OFF_MIGRATION="arondight45WorldImageryDefaultOffV3";
 const AUDIO_SETTINGS_KEY="arondight45AudioSettingsV1";
 const LIFE_FX_TYPE="world-life-death-v1";
 const records=[],routes=[],routeCache=new Map(),lifeById=new Map(),particles=[];
 const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),matrix=new THREE.Matrix4(),quat=new THREE.Quaternion(),scale=new THREE.Vector3(1,1,1);
-let installed=false,boundScene=null,lifeRoot=null,lightRoot=null,treeRoot=null,lampRoot=null,lastRouteRefresh=-Infinity,lastOriginKey="",lastFrame=performance.now(),audioCtx=null,audioUnlocked=false,lastChirp=0,wrappedHit=null,particlePoints=null,particleGeometry=null,particlePositions=null,particleColors=null,particleCursor=0,treeTrunks=null,treeCrowns=null,lampPoles=null,lampHeads=null,mapStyledFor=null,forcedDefaultOff=false;
+let installed=false,boundScene=null,lifeRoot=null,lightRoot=null,treeRoot=null,lampRoot=null,lastRouteRefresh=-Infinity,lastOriginKey="",lastFrame=performance.now(),audioCtx=null,audioUnlocked=false,lastChirp=0,wrappedHit=null,particlePoints=null,particleGeometry=null,particlePositions=null,particleColors=null,particleCursor=0,treeTrunks=null,treeCrowns=null,lampPoles=null,lampHeads=null,mapStyledFor=null;
 
 function bridge(){return globalThis.__arondightRealWorld||null;}
 function viewport(){return document.getElementById("viewport");}
@@ -35,17 +33,6 @@ function playExplosion(){beep({f:96,f2:28,d:.48,g:.10,type:"sawtooth"});}
 function playPersonHit(){beep({f:190,f2:78,d:.30,g:.04,type:"sawtooth"});}
 function playBirdHit(){beep({f:1450,f2:430,d:.18,g:.03,type:"triangle"});}
 function playAmbientBird(now){if(now-lastChirp<8000+Math.random()*7000)return;lastChirp=now;beep({f:1250+Math.random()*450,f2:1900+Math.random()*500,d:.10,g:.009,type:"sine"});setTimeout(()=>beep({f:1600+Math.random()*350,f2:1050,d:.08,g:.006,type:"sine"}),90);}
-
-function forceSatelliteDefaultOff(){
-  try{
-    if(localStorage.getItem(IMAGERY_DEFAULT_OFF_MIGRATION)==="1")return false;
-    localStorage.setItem(IMAGERY_STORAGE,"0");
-    localStorage.setItem(IMAGERY_DEFAULT_OFF_MIGRATION,"1");
-    forcedDefaultOff=true;
-    return true;
-  }catch{return false;}
-}
-forceSatelliteDefaultOff();
 
 function populationKind(record){return record.kind==="car"?"life-car":record.kind==="person"?"life-person":record.kind;}
 function tag(mesh,record){mesh.userData.worldPopulationKind=populationKind(record);mesh.userData.worldPopulationId=record.id;mesh.userData.worldLifeId=record.id;mesh.userData.worldLifeKind=record.kind;mesh.userData.worldPopulationClone=false;mesh.castShadow=false;mesh.receiveShadow=false;}
@@ -163,7 +150,7 @@ function wrapPopulationHits(){const b=bridge(),base=b?.registerWorldPopulationHi
 function handleRemoteFx(event){const p=event?.detail?.packet;if(p?.type!==LIFE_FX_TYPE)return;const r=lifeById.get(String(p.objectId||""));if(r)killRecord(r,{network:false});}
 
 function patchSettingsUi(){for(const dialog of document.querySelectorAll(".phone-settings-dialog")){const imagery=dialog.querySelector("[data-world-imagery]");if(imagery&&!imagery.dataset.defaultOffPatched){imagery.dataset.defaultOffPatched="1";imagery.checked=bridge()?.imageryEnabled===true;const notes=[...dialog.querySelectorAll(".phone-settings-note")],note=notes.find(n=>n.textContent.includes("REAL AERIAL / SATELLITE MAP is ON by default"));if(note)note.textContent=note.textContent.replace("REAL AERIAL / SATELLITE MAP is ON by default","REAL AERIAL / SATELLITE MAP is OFF by default");const reset=dialog.querySelector("[data-reset]");reset?.addEventListener("click",()=>queueMicrotask(()=>{bridge()?.setImageryEnabled?.(false);imagery.checked=false;}),{capture:true});}}}
-function syncDefaultOff(){const b=bridge();if(!b)return;if(forcedDefaultOff&&b.imageryEnabled!==false){b.setImageryEnabled?.(false);forcedDefaultOff=false;}const v=viewport();if(v){v.dataset.worldSatelliteDefault="off";v.dataset.worldImageryDefault="0";}}
+function syncDefaultOff(){const v=viewport();if(v){v.dataset.worldSatelliteDefault="off";v.dataset.worldImageryDefault="0";}}
 
 function loop(now=performance.now()){const dt=Math.min(.05,Math.max(0,(now-lastFrame)/1000||0));lastFrame=now;const b=bridge();syncDefaultOff();patchSettingsUi();wrapPopulationHits();if(ensureScene()){const active=Boolean(b?.active);lifeRoot.visible=active;lightRoot.visible=active;treeRoot.visible=active;lampRoot.visible=active;if(active){refreshRoutes(now);styleMap();const t=Date.now()/1000;for(const r of records)updateRecord(r,t,now,dt);updateParticles(now,dt);playAmbientBird(now);const v=viewport();if(v){v.dataset.worldLifeVisible=String(records.filter(r=>r.group.visible).length);v.dataset.worldLifeTotal=String(records.length);v.dataset.worldLifeTotalApproxCars=String((MOBILE?8:14)+EXTRA_CARS);v.dataset.worldLifeTotalApproxPeople=String((MOBILE?8:14)+EXTRA_PEOPLE);}}else{particlePoints.visible=false;}}requestAnimationFrame(loop);}
 
