@@ -45,6 +45,7 @@
       </div>
       <button id="resetBtn" class="reset" type="button" hidden>Neu aufnehmen</button>
       <p id="hint" class="hint">Mikrofonzugriff wird beim ersten Aufnehmen angefragt.</p>
+      <audio id="player" playsinline preload="auto" hidden></audio>
     </section>
   </main>
 <script>
@@ -59,17 +60,21 @@
   const stage=document.getElementById('stage');
   const wave=document.getElementById('wave');
   const hint=document.getElementById('hint');
+  const player=document.getElementById('player');
 
   for(let i=0;i<38;i++){const b=document.createElement('span');b.className='bar';wave.appendChild(b)}
   const bars=[...wave.children];
-  let stream=null,recorder=null,chunks=[],audioCtx=null,analyser=null,analyserData=null,sourceNode=null,animFrame=null,startTime=0,timerId=null,originalBuffer=null,reversedBuffer=null,playingSource=null;
+  let stream=null,recorder=null,chunks=[],recordCtx=null,analyser=null,analyserData=null,sourceNode=null,animFrame=null,startTime=0,timerId=null;
+  let originalUrl=null,reverseUrl=null;
 
   const supported=window.isSecureContext&&!!(navigator.mediaDevices?.getUserMedia&&window.MediaRecorder&&(window.AudioContext||window.webkitAudioContext));
   if(!supported){recordBtn.disabled=true;status.textContent=window.isSecureContext?'Browser unterstützt Aufnahme nicht':'HTTPS erforderlich';hint.textContent='Bitte direkt in Safari öffnen.'}
 
   const fmt=s=>{const sec=Math.max(0,Math.floor(s));return Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')};
-  function getAudioContext(){if(!audioCtx){const AC=window.AudioContext||window.webkitAudioContext;audioCtx=new AC()}return audioCtx}
-  function stopPlayback(){if(playingSource){try{playingSource.stop()}catch{}try{playingSource.disconnect()}catch{}playingSource=null}}
+  function makeContext(){const AC=window.AudioContext||window.webkitAudioContext;return new AC()}
+  function getRecordContext(){if(!recordCtx||recordCtx.state==='closed')recordCtx=makeContext();return recordCtx}
+  function stopPlayback(){try{player.pause()}catch{}player.removeAttribute('src');try{player.load()}catch{}}
+  function revokeUrls(){if(originalUrl){URL.revokeObjectURL(originalUrl);originalUrl=null}if(reverseUrl){URL.revokeObjectURL(reverseUrl);reverseUrl=null}}
   function setBarsIdle(){bars.forEach((b,i)=>b.style.height=(8+((i*13)%16))+'px')}
   setBarsIdle();
   function animateWave(){if(!analyser||!analyserData)return;analyser.getByteTimeDomainData(analyserData);const step=Math.max(1,Math.floor(analyserData.length/bars.length));for(let i=0;i<bars.length;i++){const v=Math.abs(analyserData[i*step]-128)/128;bars[i].style.height=(8+v*42)+'px'}animFrame=requestAnimationFrame(animateWave)}
@@ -78,7 +83,7 @@
   function stopTimer(duration){if(timerId)clearInterval(timerId);timerId=null;if(Number.isFinite(duration))timer.textContent=fmt(duration)}
 
   async function beginRecording(){
-    stopPlayback();originalBuffer=null;reversedBuffer=null;actions.hidden=true;resetBtn.hidden=true;
+    stopPlayback();revokeUrls();actions.hidden=true;resetBtn.hidden=true;
     try{
       stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
       chunks=[];
@@ -87,7 +92,7 @@
       recorder=preferred?new MediaRecorder(stream,{mimeType:preferred}):new MediaRecorder(stream);
       recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
       recorder.onstop=finishRecording;
-      const ctx=getAudioContext();if(ctx.state==='suspended')await ctx.resume();
+      const ctx=getRecordContext();if(ctx.state==='suspended'||ctx.state==='interrupted')try{await ctx.resume()}catch{}
       sourceNode=ctx.createMediaStreamSource(stream);analyser=ctx.createAnalyser();analyser.fftSize=256;analyserData=new Uint8Array(analyser.fftSize);sourceNode.connect(analyser);
       recorder.start();recordBtn.textContent='Stop';recordBtn.classList.add('active');stage.classList.add('recording');status.textContent='Aufnahme läuft';hint.hidden=true;startTimer();animateWave();
     }catch(err){
@@ -103,33 +108,95 @@
     stopWave();recordBtn.disabled=true;recordBtn.textContent='…';status.textContent='Wird verarbeitet';
   }
 
-  function reverseAudioBuffer(ctx,buffer){const out=ctx.createBuffer(buffer.numberOfChannels,buffer.length,buffer.sampleRate);for(let c=0;c<buffer.numberOfChannels;c++){const src=buffer.getChannelData(c),dst=out.getChannelData(c);for(let i=0,j=src.length-1;i<src.length;i++,j--)dst[i]=src[j]}return out}
+  function reverseBuffer(ctx,buffer){
+    const out=ctx.createBuffer(buffer.numberOfChannels,buffer.length,buffer.sampleRate);
+    for(let c=0;c<buffer.numberOfChannels;c++){
+      const src=buffer.getChannelData(c),dst=out.getChannelData(c);
+      for(let i=0,j=src.length-1;i<src.length;i++,j--)dst[i]=src[j];
+    }
+    return out;
+  }
+
+  function audioBufferToWav(buffer){
+    const channels=buffer.numberOfChannels;
+    const sampleRate=buffer.sampleRate;
+    const frames=buffer.length;
+    const bytesPerSample=2;
+    const blockAlign=channels*bytesPerSample;
+    const dataSize=frames*blockAlign;
+    const ab=new ArrayBuffer(44+dataSize);
+    const view=new DataView(ab);
+    const write=(off,s)=>{for(let i=0;i<s.length;i++)view.setUint8(off+i,s.charCodeAt(i))};
+    write(0,'RIFF');view.setUint32(4,36+dataSize,true);write(8,'WAVE');write(12,'fmt ');
+    view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,channels,true);view.setUint32(24,sampleRate,true);
+    view.setUint32(28,sampleRate*blockAlign,true);view.setUint16(32,blockAlign,true);view.setUint16(34,16,true);write(36,'data');view.setUint32(40,dataSize,true);
+    const channelData=[];for(let c=0;c<channels;c++)channelData.push(buffer.getChannelData(c));
+    let off=44;
+    for(let i=0;i<frames;i++){
+      for(let c=0;c<channels;c++){
+        let s=Math.max(-1,Math.min(1,channelData[c][i]));
+        view.setInt16(off,s<0?s*0x8000:s*0x7fff,true);off+=2;
+      }
+    }
+    return new Blob([ab],{type:'audio/wav'});
+  }
+
+  async function decodeBlob(blob){
+    const ctx=makeContext();
+    try{
+      const arr=await blob.arrayBuffer();
+      return await ctx.decodeAudioData(arr.slice(0));
+    }finally{
+      try{await ctx.close()}catch{}
+    }
+  }
 
   async function finishRecording(){
     try{
-      const mime=recorder?.mimeType||chunks[0]?.type||'audio/webm';
+      const mime=recorder?.mimeType||chunks[0]?.type||'audio/mp4';
       const blob=new Blob(chunks,{type:mime});
-      const arr=await blob.arrayBuffer();
-      const ctx=getAudioContext();originalBuffer=await ctx.decodeAudioData(arr.slice(0));reversedBuffer=reverseAudioBuffer(ctx,originalBuffer);stopTimer(originalBuffer.duration);
+      if(!blob.size)throw new Error('Leere Aufnahme');
+      const decoded=await decodeBlob(blob);
+      const reverseCtx=makeContext();
+      const reversed=reverseBuffer(reverseCtx,decoded);
+      const reverseBlob=audioBufferToWav(reversed);
+      try{await reverseCtx.close()}catch{}
+      revokeUrls();
+      originalUrl=URL.createObjectURL(blob);
+      reverseUrl=URL.createObjectURL(reverseBlob);
+      stopTimer(decoded.duration);
       recordBtn.hidden=true;recordBtn.disabled=false;actions.hidden=false;resetBtn.hidden=false;status.textContent='Bereit';stage.classList.remove('recording');
     }catch(err){
       console.error(err);stopTimer();recordBtn.hidden=false;recordBtn.disabled=false;recordBtn.textContent='Nochmal';recordBtn.classList.remove('active');stage.classList.remove('recording');status.textContent='Audio konnte nicht verarbeitet werden';resetBtn.hidden=false;
     }finally{recorder=null;chunks=[]}
   }
 
-  async function play(buffer){if(!buffer)return;stopPlayback();const ctx=getAudioContext();if(ctx.state==='suspended')await ctx.resume();const src=ctx.createBufferSource();src.buffer=buffer;src.connect(ctx.destination);src.onended=()=>{if(playingSource===src){playingSource=null;status.textContent='Bereit'}};playingSource=src;status.textContent='Spielt';src.start()}
+  async function playUrl(url,label){
+    if(!url){status.textContent='Keine Aufnahme';return}
+    try{
+      player.pause();player.src=url;player.currentTime=0;player.load();
+      status.textContent=label;
+      await player.play();
+    }catch(err){
+      console.error(err);status.textContent='Wiedergabe fehlgeschlagen';
+    }
+  }
+
+  player.addEventListener('ended',()=>status.textContent='Bereit');
+  player.addEventListener('error',()=>status.textContent='Wiedergabe fehlgeschlagen');
 
   function reset(){
-    stopPlayback();stopWave();originalBuffer=null;reversedBuffer=null;chunks=[];
+    stopPlayback();revokeUrls();stopWave();chunks=[];
     if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
     if(timerId)clearInterval(timerId);timerId=null;timer.textContent='0:00';status.textContent='Tippe auf Aufnahme';actions.hidden=true;resetBtn.hidden=true;recordBtn.hidden=false;recordBtn.disabled=false;recordBtn.textContent='Aufnehmen';recordBtn.classList.remove('active');stage.classList.remove('recording');hint.hidden=false;setBarsIdle();
   }
 
   recordBtn.addEventListener('click',()=>recorder&&recorder.state==='recording'?endRecording():beginRecording());
-  playBtn.addEventListener('click',()=>play(originalBuffer));
-  reverseBtn.addEventListener('click',()=>play(reversedBuffer));
+  playBtn.addEventListener('click',()=>playUrl(originalUrl,'Normal'));
+  reverseBtn.addEventListener('click',()=>playUrl(reverseUrl,'Reverse'));
   resetBtn.addEventListener('click',reset);
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&recorder?.state==='recording')endRecording()});
+  window.addEventListener('pagehide',()=>{stopPlayback();revokeUrls();if(stream)stream.getTracks().forEach(t=>t.stop())});
 })();
 </script>
 </body>
