@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0b0c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Reverse</title>
+  <style>
+    :root{--bg:#0b0b0c;--card:#151517;--line:#262629;--text:#f5f5f7;--muted:#929299;--accent:#fff;--accentText:#0b0b0c;--danger:#ff453a}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",system-ui,sans-serif}
+    body{min-height:100svh;display:flex;align-items:center;justify-content:center;padding:max(20px,env(safe-area-inset-top)) 18px max(24px,env(safe-area-inset-bottom))}
+    .app{width:min(100%,430px)}
+    h1{margin:0 0 28px;font-size:28px;letter-spacing:-.03em;text-align:center}
+    .stage{background:var(--card);border:1px solid var(--line);border-radius:28px;padding:18px}
+    .timer{font-variant-numeric:tabular-nums;text-align:center;font-size:54px;font-weight:700;letter-spacing:-.05em;padding:20px 0 10px}
+    .status{text-align:center;color:var(--muted);font-size:14px;min-height:20px}
+    .wave{height:54px;display:flex;align-items:center;justify-content:center;gap:3px;margin:14px 0 22px;overflow:hidden}
+    .bar{width:3px;height:10px;border-radius:3px;background:#3a3a3f;transition:height .08s linear,background .15s ease}
+    .recording .bar{background:#f5f5f7}
+    .record{width:96px;height:96px;border-radius:50%;border:0;background:var(--accent);color:var(--accentText);display:block;margin:0 auto;font-size:15px;font-weight:700}
+    .record.active{background:var(--danger);color:#fff}
+    .actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
+    button{min-height:56px;border-radius:18px;border:1px solid var(--line);background:#1d1d20;color:var(--text);font:inherit;font-weight:700;font-size:16px;padding:0 16px;touch-action:manipulation}
+    button.primary{background:var(--accent);color:var(--accentText);border-color:var(--accent)}
+    button:disabled{opacity:.35}
+    .reset{width:100%;margin-top:12px;background:transparent;color:var(--muted)}
+    .hint{font-size:12px;color:var(--muted);text-align:center;margin:14px 0 0;line-height:1.35}
+    [hidden]{display:none!important}
+    @media(max-width:360px){.timer{font-size:46px}.record{width:88px;height:88px}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>Reverse</h1>
+    <section id="stage" class="stage">
+      <div id="timer" class="timer">0:00</div>
+      <div id="status" class="status">Tippe auf Aufnahme</div>
+      <div id="wave" class="wave" aria-hidden="true"></div>
+      <button id="recordBtn" class="record" type="button">Aufnehmen</button>
+      <div id="actions" class="actions" hidden>
+        <button id="playBtn" type="button">▶ Normal</button>
+        <button id="reverseBtn" class="primary" type="button">↶ Reverse</button>
+      </div>
+      <button id="resetBtn" class="reset" type="button" hidden>Neu aufnehmen</button>
+      <p id="hint" class="hint">Mikrofonzugriff wird beim ersten Aufnehmen angefragt.</p>
+    </section>
+  </main>
+<script>
+(() => {
+  const recordBtn=document.getElementById('recordBtn');
+  const playBtn=document.getElementById('playBtn');
+  const reverseBtn=document.getElementById('reverseBtn');
+  const resetBtn=document.getElementById('resetBtn');
+  const actions=document.getElementById('actions');
+  const timer=document.getElementById('timer');
+  const status=document.getElementById('status');
+  const stage=document.getElementById('stage');
+  const wave=document.getElementById('wave');
+  const hint=document.getElementById('hint');
+
+  for(let i=0;i<38;i++){const b=document.createElement('span');b.className='bar';wave.appendChild(b)}
+  const bars=[...wave.children];
+  let stream=null,recorder=null,chunks=[],audioCtx=null,analyser=null,analyserData=null,sourceNode=null,animFrame=null,startTime=0,timerId=null,originalBuffer=null,reversedBuffer=null,playingSource=null;
+
+  const supported=window.isSecureContext&&!!(navigator.mediaDevices?.getUserMedia&&window.MediaRecorder&&(window.AudioContext||window.webkitAudioContext));
+  if(!supported){recordBtn.disabled=true;status.textContent=window.isSecureContext?'Browser unterstützt Aufnahme nicht':'HTTPS erforderlich';hint.textContent='Bitte direkt in Safari öffnen.'}
+
+  const fmt=s=>{const sec=Math.max(0,Math.floor(s));return Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')};
+  function getAudioContext(){if(!audioCtx){const AC=window.AudioContext||window.webkitAudioContext;audioCtx=new AC()}return audioCtx}
+  function stopPlayback(){if(playingSource){try{playingSource.stop()}catch{}try{playingSource.disconnect()}catch{}playingSource=null}}
+  function setBarsIdle(){bars.forEach((b,i)=>b.style.height=(8+((i*13)%16))+'px')}
+  setBarsIdle();
+  function animateWave(){if(!analyser||!analyserData)return;analyser.getByteTimeDomainData(analyserData);const step=Math.max(1,Math.floor(analyserData.length/bars.length));for(let i=0;i<bars.length;i++){const v=Math.abs(analyserData[i*step]-128)/128;bars[i].style.height=(8+v*42)+'px'}animFrame=requestAnimationFrame(animateWave)}
+  function stopWave(){if(animFrame)cancelAnimationFrame(animFrame);animFrame=null;setBarsIdle()}
+  function startTimer(){startTime=performance.now();timer.textContent='0:00';timerId=setInterval(()=>timer.textContent=fmt((performance.now()-startTime)/1000),250)}
+  function stopTimer(duration){if(timerId)clearInterval(timerId);timerId=null;if(Number.isFinite(duration))timer.textContent=fmt(duration)}
+
+  async function beginRecording(){
+    stopPlayback();originalBuffer=null;reversedBuffer=null;actions.hidden=true;resetBtn.hidden=true;
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      chunks=[];
+      const types=['audio/mp4','audio/webm;codecs=opus','audio/webm'];
+      const preferred=types.find(t=>MediaRecorder.isTypeSupported?.(t));
+      recorder=preferred?new MediaRecorder(stream,{mimeType:preferred}):new MediaRecorder(stream);
+      recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+      recorder.onstop=finishRecording;
+      const ctx=getAudioContext();if(ctx.state==='suspended')await ctx.resume();
+      sourceNode=ctx.createMediaStreamSource(stream);analyser=ctx.createAnalyser();analyser.fftSize=256;analyserData=new Uint8Array(analyser.fftSize);sourceNode.connect(analyser);
+      recorder.start();recordBtn.textContent='Stop';recordBtn.classList.add('active');stage.classList.add('recording');status.textContent='Aufnahme läuft';hint.hidden=true;startTimer();animateWave();
+    }catch(err){
+      console.error(err);status.textContent=err?.name==='NotAllowedError'?'Mikrofon nicht erlaubt':'Aufnahme nicht möglich';recordBtn.textContent='Aufnehmen';recordBtn.classList.remove('active');stage.classList.remove('recording');
+    }
+  }
+
+  function endRecording(){
+    if(!recorder||recorder.state==='inactive')return;
+    recorder.stop();
+    if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+    if(sourceNode){try{sourceNode.disconnect()}catch{}sourceNode=null}
+    stopWave();recordBtn.disabled=true;recordBtn.textContent='…';status.textContent='Wird verarbeitet';
+  }
+
+  function reverseAudioBuffer(ctx,buffer){const out=ctx.createBuffer(buffer.numberOfChannels,buffer.length,buffer.sampleRate);for(let c=0;c<buffer.numberOfChannels;c++){const src=buffer.getChannelData(c),dst=out.getChannelData(c);for(let i=0,j=src.length-1;i<src.length;i++,j--)dst[i]=src[j]}return out}
+
+  async function finishRecording(){
+    try{
+      const mime=recorder?.mimeType||chunks[0]?.type||'audio/webm';
+      const blob=new Blob(chunks,{type:mime});
+      const arr=await blob.arrayBuffer();
+      const ctx=getAudioContext();originalBuffer=await ctx.decodeAudioData(arr.slice(0));reversedBuffer=reverseAudioBuffer(ctx,originalBuffer);stopTimer(originalBuffer.duration);
+      recordBtn.hidden=true;recordBtn.disabled=false;actions.hidden=false;resetBtn.hidden=false;status.textContent='Bereit';stage.classList.remove('recording');
+    }catch(err){
+      console.error(err);stopTimer();recordBtn.hidden=false;recordBtn.disabled=false;recordBtn.textContent='Nochmal';recordBtn.classList.remove('active');stage.classList.remove('recording');status.textContent='Audio konnte nicht verarbeitet werden';resetBtn.hidden=false;
+    }finally{recorder=null;chunks=[]}
+  }
+
+  async function play(buffer){if(!buffer)return;stopPlayback();const ctx=getAudioContext();if(ctx.state==='suspended')await ctx.resume();const src=ctx.createBufferSource();src.buffer=buffer;src.connect(ctx.destination);src.onended=()=>{if(playingSource===src){playingSource=null;status.textContent='Bereit'}};playingSource=src;status.textContent='Spielt';src.start()}
+
+  function reset(){
+    stopPlayback();stopWave();originalBuffer=null;reversedBuffer=null;chunks=[];
+    if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+    if(timerId)clearInterval(timerId);timerId=null;timer.textContent='0:00';status.textContent='Tippe auf Aufnahme';actions.hidden=true;resetBtn.hidden=true;recordBtn.hidden=false;recordBtn.disabled=false;recordBtn.textContent='Aufnehmen';recordBtn.classList.remove('active');stage.classList.remove('recording');hint.hidden=false;setBarsIdle();
+  }
+
+  recordBtn.addEventListener('click',()=>recorder&&recorder.state==='recording'?endRecording():beginRecording());
+  playBtn.addEventListener('click',()=>play(originalBuffer));
+  reverseBtn.addEventListener('click',()=>play(reversedBuffer));
+  resetBtn.addEventListener('click',reset);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden&&recorder?.state==='recording')endRecording()});
+})();
+</script>
+</body>
+</html>
