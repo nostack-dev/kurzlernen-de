@@ -5,35 +5,35 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#0b0b0c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>Reverse</title>
+  <title>Reverse Challenge</title>
   <style>
     :root{--bg:#0b0b0c;--card:#151517;--line:#262629;--text:#f5f5f7;--muted:#929299;--accent:#fff;--accentText:#0b0b0c;--danger:#ff453a}
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",system-ui,sans-serif}
     body{min-height:100svh;display:flex;align-items:center;justify-content:center;padding:max(20px,env(safe-area-inset-top)) 18px max(24px,env(safe-area-inset-bottom))}
     .app{width:min(100%,430px)}
-    h1{margin:0 0 28px;font-size:28px;letter-spacing:-.03em;text-align:center}
+    h1{margin:0 0 28px;font-size:30px;line-height:1.05;letter-spacing:-.04em;text-align:center}
     .stage{background:var(--card);border:1px solid var(--line);border-radius:28px;padding:18px}
     .timer{font-variant-numeric:tabular-nums;text-align:center;font-size:54px;font-weight:700;letter-spacing:-.05em;padding:20px 0 10px}
     .status{text-align:center;color:var(--muted);font-size:14px;min-height:20px}
     .wave{height:54px;display:flex;align-items:center;justify-content:center;gap:3px;margin:14px 0 22px;overflow:hidden}
     .bar{width:3px;height:10px;border-radius:3px;background:#3a3a3f;transition:height .08s linear,background .15s ease}
     .recording .bar{background:#f5f5f7}
-    .record{width:96px;height:96px;border-radius:50%;border:0;background:var(--accent);color:var(--accentText);display:block;margin:0 auto;font-size:15px;font-weight:700}
+    button{min-height:56px;border-radius:18px;border:1px solid var(--line);background:#1d1d20;color:var(--text);font:inherit;font-weight:700;font-size:16px;padding:0 16px;touch-action:manipulation}
+    .record{width:104px;height:104px;min-height:104px;border-radius:50%;border:0;background:var(--accent);color:var(--accentText);display:grid;place-items:center;margin:0 auto;padding:0;text-align:center;line-height:1;font-size:15px;font-weight:700}
     .record.active{background:var(--danger);color:#fff}
     .actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
-    button{min-height:56px;border-radius:18px;border:1px solid var(--line);background:#1d1d20;color:var(--text);font:inherit;font-weight:700;font-size:16px;padding:0 16px;touch-action:manipulation}
     button.primary{background:var(--accent);color:var(--accentText);border-color:var(--accent)}
     button:disabled{opacity:.35}
     .reset{width:100%;margin-top:12px;background:transparent;color:var(--muted)}
     .hint{font-size:12px;color:var(--muted);text-align:center;margin:14px 0 0;line-height:1.35}
     [hidden]{display:none!important}
-    @media(max-width:360px){.timer{font-size:46px}.record{width:88px;height:88px}}
+    @media(max-width:360px){.timer{font-size:46px}.record{width:94px;height:94px;min-height:94px}}
   </style>
 </head>
 <body>
   <main class="app">
-    <h1>Reverse</h1>
+    <h1>Reverse Challenge</h1>
     <section id="stage" class="stage">
       <div id="timer" class="timer">0:00</div>
       <div id="status" class="status">Tippe auf Aufnahme</div>
@@ -85,11 +85,18 @@
   async function beginRecording(){
     stopPlayback();revokeUrls();actions.hidden=true;resetBtn.hidden=true;
     try{
-      stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      stream=await navigator.mediaDevices.getUserMedia({audio:{
+        echoCancellation:{ideal:false},
+        noiseSuppression:{ideal:false},
+        autoGainControl:{ideal:false},
+        channelCount:{ideal:1},
+        sampleRate:{ideal:48000}
+      }});
       chunks=[];
-      const types=['audio/mp4','audio/webm;codecs=opus','audio/webm'];
+      const types=['audio/mp4;codecs=mp4a.40.2','audio/mp4','audio/webm;codecs=opus','audio/webm'];
       const preferred=types.find(t=>MediaRecorder.isTypeSupported?.(t));
-      recorder=preferred?new MediaRecorder(stream,{mimeType:preferred}):new MediaRecorder(stream);
+      let opts=preferred?{mimeType:preferred,audioBitsPerSecond:256000}:{audioBitsPerSecond:256000};
+      try{recorder=new MediaRecorder(stream,opts)}catch{recorder=preferred?new MediaRecorder(stream,{mimeType:preferred}):new MediaRecorder(stream)}
       recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
       recorder.onstop=finishRecording;
       const ctx=getRecordContext();if(ctx.state==='suspended'||ctx.state==='interrupted')try{await ctx.resume()}catch{}
@@ -108,47 +115,65 @@
     stopWave();recordBtn.disabled=true;recordBtn.textContent='…';status.textContent='Wird verarbeitet';
   }
 
-  function reverseBuffer(ctx,buffer){
-    const out=ctx.createBuffer(buffer.numberOfChannels,buffer.length,buffer.sampleRate);
-    for(let c=0;c<buffer.numberOfChannels;c++){
-      const src=buffer.getChannelData(c),dst=out.getChannelData(c);
-      for(let i=0,j=src.length-1;i<src.length;i++,j--)dst[i]=src[j];
+  function trimSpeech(ctx,buffer){
+    const rate=buffer.sampleRate,frames=buffer.length,channels=buffer.numberOfChannels;
+    const block=Math.max(1,Math.floor(rate*0.01));
+    const threshold=0.012;
+    let first=0,last=frames-1,found=false;
+    for(let start=0;start<frames;start+=block){
+      const end=Math.min(frames,start+block);let peak=0;
+      for(let c=0;c<channels;c++){const d=buffer.getChannelData(c);for(let i=start;i<end;i++)peak=Math.max(peak,Math.abs(d[i]))}
+      if(peak>=threshold){first=start;found=true;break}
+    }
+    if(!found)return buffer;
+    for(let end=frames;end>0;end-=block){
+      const start=Math.max(0,end-block);let peak=0;
+      for(let c=0;c<channels;c++){const d=buffer.getChannelData(c);for(let i=start;i<end;i++)peak=Math.max(peak,Math.abs(d[i]))}
+      if(peak>=threshold){last=end-1;break}
+    }
+    const pad=Math.floor(rate*0.07);first=Math.max(0,first-pad);last=Math.min(frames-1,last+pad);
+    const out=ctx.createBuffer(channels,last-first+1,rate);
+    for(let c=0;c<channels;c++)out.getChannelData(c).set(buffer.getChannelData(c).subarray(first,last+1));
+    return out;
+  }
+
+  function reverseAndPolish(ctx,buffer){
+    const clean=trimSpeech(ctx,buffer);
+    const out=ctx.createBuffer(clean.numberOfChannels,clean.length,clean.sampleRate);
+    let peak=0;
+    for(let c=0;c<clean.numberOfChannels;c++){
+      const src=clean.getChannelData(c),dst=out.getChannelData(c);
+      for(let i=0,j=src.length-1;i<src.length;i++,j--){const v=src[j];dst[i]=v;peak=Math.max(peak,Math.abs(v))}
+    }
+    const gain=peak>0?Math.min(1.8,0.92/peak):1;
+    const fade=Math.min(Math.floor(out.sampleRate*0.006),Math.floor(out.length/4));
+    for(let c=0;c<out.numberOfChannels;c++){
+      const d=out.getChannelData(c);
+      for(let i=0;i<d.length;i++)d[i]*=gain;
+      for(let i=0;i<fade;i++){
+        const g=i/fade;
+        d[i]*=g;
+        d[d.length-1-i]*=g;
+      }
     }
     return out;
   }
 
   function audioBufferToWav(buffer){
-    const channels=buffer.numberOfChannels;
-    const sampleRate=buffer.sampleRate;
-    const frames=buffer.length;
-    const bytesPerSample=2;
-    const blockAlign=channels*bytesPerSample;
-    const dataSize=frames*blockAlign;
-    const ab=new ArrayBuffer(44+dataSize);
-    const view=new DataView(ab);
+    const channels=buffer.numberOfChannels,sampleRate=buffer.sampleRate,frames=buffer.length,bytesPerSample=2,blockAlign=channels*bytesPerSample,dataSize=frames*blockAlign;
+    const ab=new ArrayBuffer(44+dataSize),view=new DataView(ab);
     const write=(off,s)=>{for(let i=0;i<s.length;i++)view.setUint8(off+i,s.charCodeAt(i))};
-    write(0,'RIFF');view.setUint32(4,36+dataSize,true);write(8,'WAVE');write(12,'fmt ');
-    view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,channels,true);view.setUint32(24,sampleRate,true);
-    view.setUint32(28,sampleRate*blockAlign,true);view.setUint16(32,blockAlign,true);view.setUint16(34,16,true);write(36,'data');view.setUint32(40,dataSize,true);
+    write(0,'RIFF');view.setUint32(4,36+dataSize,true);write(8,'WAVE');write(12,'fmt ');view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,channels,true);view.setUint32(24,sampleRate,true);view.setUint32(28,sampleRate*blockAlign,true);view.setUint16(32,blockAlign,true);view.setUint16(34,16,true);write(36,'data');view.setUint32(40,dataSize,true);
     const channelData=[];for(let c=0;c<channels;c++)channelData.push(buffer.getChannelData(c));
     let off=44;
-    for(let i=0;i<frames;i++){
-      for(let c=0;c<channels;c++){
-        let s=Math.max(-1,Math.min(1,channelData[c][i]));
-        view.setInt16(off,s<0?s*0x8000:s*0x7fff,true);off+=2;
-      }
-    }
+    for(let i=0;i<frames;i++)for(let c=0;c<channels;c++){const s=Math.max(-1,Math.min(1,channelData[c][i]));view.setInt16(off,s<0?s*0x8000:s*0x7fff,true);off+=2}
     return new Blob([ab],{type:'audio/wav'});
   }
 
   async function decodeBlob(blob){
     const ctx=makeContext();
-    try{
-      const arr=await blob.arrayBuffer();
-      return await ctx.decodeAudioData(arr.slice(0));
-    }finally{
-      try{await ctx.close()}catch{}
-    }
+    try{return await ctx.decodeAudioData((await blob.arrayBuffer()).slice(0))}
+    finally{try{await ctx.close()}catch{}}
   }
 
   async function finishRecording(){
@@ -158,13 +183,10 @@
       if(!blob.size)throw new Error('Leere Aufnahme');
       const decoded=await decodeBlob(blob);
       const reverseCtx=makeContext();
-      const reversed=reverseBuffer(reverseCtx,decoded);
+      const reversed=reverseAndPolish(reverseCtx,decoded);
       const reverseBlob=audioBufferToWav(reversed);
       try{await reverseCtx.close()}catch{}
-      revokeUrls();
-      originalUrl=URL.createObjectURL(blob);
-      reverseUrl=URL.createObjectURL(reverseBlob);
-      stopTimer(decoded.duration);
+      revokeUrls();originalUrl=URL.createObjectURL(blob);reverseUrl=URL.createObjectURL(reverseBlob);stopTimer(decoded.duration);
       recordBtn.hidden=true;recordBtn.disabled=false;actions.hidden=false;resetBtn.hidden=false;status.textContent='Bereit';stage.classList.remove('recording');
     }catch(err){
       console.error(err);stopTimer();recordBtn.hidden=false;recordBtn.disabled=false;recordBtn.textContent='Nochmal';recordBtn.classList.remove('active');stage.classList.remove('recording');status.textContent='Audio konnte nicht verarbeitet werden';resetBtn.hidden=false;
@@ -173,13 +195,8 @@
 
   async function playUrl(url,label){
     if(!url){status.textContent='Keine Aufnahme';return}
-    try{
-      player.pause();player.src=url;player.currentTime=0;player.load();
-      status.textContent=label;
-      await player.play();
-    }catch(err){
-      console.error(err);status.textContent='Wiedergabe fehlgeschlagen';
-    }
+    try{player.pause();player.src=url;player.currentTime=0;player.load();status.textContent=label;await player.play()}
+    catch(err){console.error(err);status.textContent='Wiedergabe fehlgeschlagen'}
   }
 
   player.addEventListener('ended',()=>status.textContent='Bereit');
