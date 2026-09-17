@@ -42,8 +42,6 @@
   .sug { padding:8px 10px; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between; }
   .sug:hover, .sug.active { background:#1a222c; }
   #analyseStatus { margin-top:10px; font-size:.9rem; color:var(--muted); }
-  details.setup { margin-top:10px; color:var(--muted); font-size:.85rem; }
-  details.setup input { width:100%; margin-top:6px; background:#0f1419; border:1px solid var(--line); color:var(--text); border-radius:8px; padding:8px; }
   .kern-sub { color:var(--muted); font-size:.9rem; margin-top:8px; line-height:1.4; }
 </style>
 </head>
@@ -70,12 +68,7 @@
     </div>
     <div id="suggest"></div>
     <div id="analyseStatus"></div>
-    <details class="setup">
-      <summary>Webhook einmal verbinden</summary>
-      <input id="whUrl" placeholder="Webhook-URL"/>
-      <input id="whKey" placeholder="Sender-Key / Authorization"/>
-      <button id="btnSaveWh" type="button" style="margin-top:8px;background:#243041;color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer">Speichern</button>
-    </details>
+    <p class="meta" style="margin-top:10px">Analyse = Befehl an BotBot. Einfach hier tippen oder im Chat: <code>analysiere ORCL</code> — kein Setup nötig.</p>
   </div>
 
   <div class="card span12"><div class="disclaimer" id="disclaimer">Social-Signal, keine Finanzberatung. Kernzahl = Nähe Makro-Schock (Fed/CPI/Jobs).</div></div>
@@ -171,48 +164,18 @@ qEl.addEventListener('keydown', function(e) {
     runAnalyse();
   }
 });
-document.getElementById('btnSaveWh').onclick = function() {
-  localStorage.setItem('botbot_wh_url', document.getElementById('whUrl').value.trim());
-  localStorage.setItem('botbot_wh_key', document.getElementById('whKey').value.trim());
-  statusEl.textContent = 'Webhook gespeichert.';
-};
-document.getElementById('whUrl').value = localStorage.getItem('botbot_wh_url') || '';
-document.getElementById('whKey').value = localStorage.getItem('botbot_wh_key') || '';
 btn.onclick = runAnalyse;
 
 async function runAnalyse() {
   if (!selected) return;
   var symbol = selected.s;
-  var name = selected.n;
-  var url = localStorage.getItem('botbot_wh_url') || '';
-  var key = localStorage.getItem('botbot_wh_key') || '';
-  statusEl.innerHTML = 'Analyse <b>' + symbol + '</b> …';
+  var cmd = 'analysiere ' + symbol;
+  statusEl.innerHTML = 'Schick BotBot im Chat: <code>' + cmd + '</code> — er liefert Buy/Hold/Sell + Belege.';
   btn.disabled = true;
-  if (url) {
-    try {
-      var headers = { 'Content-Type': 'application/json' };
-      if (key) {
-        headers['Authorization'] = key.indexOf('Bearer') === 0 ? key : ('Bearer ' + key);
-        headers['X-Webhook-Key'] = key;
-      }
-      var res = await fetch(url, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify({ symbol: symbol, name: name, source: 'stockstrend.html', action: 'analyse' })
-      });
-      statusEl.innerHTML = res.ok
-        ? 'Läuft: <b>' + symbol + '</b> → Buy/Hold/Sell + Belege.'
-        : 'Webhook ' + res.status + '. Chat: <code>analysiere ' + symbol + '</code>';
-    } catch (e) {
-      statusEl.innerHTML = 'Fehler. Chat: <code>analysiere ' + symbol + '</code>';
-    }
-  } else {
-    statusEl.innerHTML = 'Webhook fehlt — Chat: <code>analysiere ' + symbol + '</code>';
-    try {
-      await navigator.clipboard.writeText('analysiere ' + symbol);
-      statusEl.innerHTML += ' · kopiert.';
-    } catch (e2) {}
-  }
+  try {
+    await navigator.clipboard.writeText(cmd);
+    statusEl.innerHTML += ' · kopiert, einfach bei BotBot einfügen.';
+  } catch (e2) {}
   btn.disabled = false;
 }
 
