@@ -87,6 +87,37 @@
   .wl-chart-wrap canvas { max-height:200px; }
   .wl-stats { display:flex; flex-wrap:wrap; gap:12px 20px; font-size:.85rem; color:var(--muted); margin-bottom:8px; }
   .wl-stats b { color:var(--text); }
+
+  .wl-range { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 12px; }
+  .wl-range button {
+    background:#0f1419; border:1px solid var(--line); color:var(--muted);
+    border-radius:999px; padding:5px 12px; font-size:.75rem; font-weight:700;
+    cursor:pointer; letter-spacing:.03em; text-transform:uppercase;
+  }
+  .wl-range button:hover { border-color:#3d8bfd; color:var(--text); }
+  .wl-range button.active { background:#15202b; border-color:#3d8bfd; color:#7dd3fc; }
+  .wl-voices-layout {
+    display:grid; grid-template-columns:220px 1fr; gap:16px; align-items:start; margin-top:4px;
+  }
+  @media (max-width:720px) {
+    .wl-voices-layout { grid-template-columns:1fr; }
+  }
+  .wl-pie-wrap {
+    background:#0f1419; border:1px solid var(--line); border-radius:12px; padding:10px;
+  }
+  .wl-pie-wrap canvas { max-height:200px; width:100% !important; }
+  .wl-pie-legend { font-size:.72rem; color:var(--muted); text-align:center; margin-top:4px; }
+  .wl-stimmen-grouped { display:flex; flex-direction:column; gap:14px; }
+  .wl-group-h {
+    font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; font-weight:700;
+    color:var(--muted); margin:0 0 6px; display:flex; gap:8px; align-items:center;
+  }
+  .wl-group-h .cnt { font-weight:600; opacity:.85; }
+  .wl-group-h.bull { color:var(--bull); }
+  .wl-group-h.mixed { color:var(--warn); }
+  .wl-group-h.bear { color:var(--bear); }
+  .wl-stimmen-grouped .voice-grid { max-width:none; }
+  .voice-at { font-size:.68rem; color:#6b7785; margin-left:auto; }
 </style>
 </head>
 <body>
@@ -114,13 +145,19 @@
     <div id="analyseStatus"></div>
   </div>
 
+  
+  <div class="card span12" id="dataMeta" style="border-color:#f0b42944">
+    <div class="label">Daten · Persistenz · Aggregation · Frische</div>
+    <div class="kern-sub" id="dataMetaBody">lädt…</div>
+  </div>
+
   <div class="card span12"><div class="disclaimer" id="disclaimer">Social-Signal, keine Finanzberatung. Kernzahl = Nähe Makro-Schock (Fed/CPI/Jobs).</div></div>
 
 
   <div class="card span12" id="watchlistCard" style="border-color:#22c55e44">
     <div class="wl-head">
       <div>
-        <div class="label">Watchlist · Favoriten · Auto-Update</div>
+        <div class="label">Watchlist · Auto alle 15 Min · persistent</div>
         <div class="wl-note" style="margin-top:6px">Verwaltet persistent via BotBot Chat: <code>watch SYMBOL</code> / <code>unwatch SYMBOL</code> (CORS — kein Webhook aus dem Browser)</div>
       </div>
       <div class="meta" id="wlUpdated">—</div>
@@ -135,10 +172,26 @@
       <div class="wl-stats" id="wlStats"></div>
       <div class="wl-why" id="wlWhy"></div>
       <div class="wl-chart-wrap">
-        <div class="label" style="margin-bottom:8px">Verlauf seit Beobachtung · Social-Impuls (+ Confidence)</div>
+        <div class="label" style="margin-bottom:8px">Verlauf · Hype↑ / Hype↓ / Net (Range-Filter)</div>
         <canvas id="wlChart"></canvas>
       </div>
-      <div id="wlStimmen"></div>
+      <div id="wlStimmen">
+        <div class="stimmen-label">Stimmen</div>
+        <div class="wl-range" id="wlRange">
+          <button type="button" data-range="today">Today</button>
+          <button type="button" data-range="1w">1W</button>
+          <button type="button" data-range="5m">5M</button>
+          <button type="button" data-range="year">Year</button>
+          <button type="button" data-range="all" class="active">All</button>
+        </div>
+        <div class="wl-voices-layout" id="wlVoicesLayout">
+          <div class="wl-pie-wrap">
+            <canvas id="wlPie"></canvas>
+            <div class="wl-pie-legend" id="wlPieLegend"></div>
+          </div>
+          <div class="wl-stimmen-grouped" id="wlStimmenGrouped"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -335,8 +388,8 @@ async function runAnalyse() {
   try {
     localStorage.setItem('botbot_pending_analyse', JSON.stringify({ symbol: symbol, name: selected.n, t: Date.now() }));
   } catch (e) {}
-  var cmd = 'analysiere ' + symbol;
-  statusEl.innerHTML = '<b>' + esc(symbol) + '</b> noch nicht gescannt. Schreib BotBot: <code>' + esc(cmd) + '</code>';
+  var cmd = 'watch ' + symbol;
+  statusEl.innerHTML = '<b>' + esc(symbol) + '</b> → Watchlist + Scan. Schick BotBot: <code>' + esc(cmd) + '</code> (jedes Symbol, nicht nur ORCL).';
   try {
     await navigator.clipboard.writeText(cmd);
     statusEl.innerHTML += ' · kopiert';
@@ -349,6 +402,8 @@ async function runAnalyse() {
 var wlData = null;
 var wlSelected = null;
 var wlChart = null;
+var wlPieChart = null;
+var wlRange = 'all';
 
 function fmtBerlin(iso) {
   if (!iso) return '—';
@@ -357,6 +412,228 @@ function fmtBerlin(iso) {
     if (isNaN(d.getTime())) return String(iso);
     return d.toLocaleString('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'short', timeStyle: 'short' }) + ' (Berlin)';
   } catch (e) { return String(iso); }
+}
+
+
+function voiceTime(v) {
+  if (!v || !v.at) return null;
+  var t = new Date(v.at).getTime();
+  return isNaN(t) ? null : t;
+}
+function berlinOffsetString(d) {
+  try {
+    var fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Berlin', timeZoneName: 'shortOffset' });
+    var tzName = (fmt.formatToParts(d || new Date()).find(function(p){ return p.type === 'timeZoneName'; }) || {}).value || 'GMT+2';
+    var m = /([+-])(\d{1,2})(?::?(\d{2}))?/.exec(tzName.replace('GMT','').replace('UTC',''));
+    if (m) {
+      return m[1] + String(parseInt(m[2],10)).padStart(2,'0') + ':' + String(m[3] ? parseInt(m[3],10) : 0).padStart(2,'0');
+    }
+  } catch (e) {}
+  return '+02:00';
+}
+function rangeStartMs(range) {
+  var now = Date.now();
+  if (range === 'all' || !range) return null;
+  if (range === 'today') {
+    var berlinYmd = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(new Date(now));
+    return Date.parse(berlinYmd + 'T00:00:00' + berlinOffsetString(new Date(now)));
+  }
+  if (range === '1w') return now - 7 * 86400000;
+  if (range === '5m') return now - Math.round(5 * 30.437 * 86400000); // ~5 months
+  if (range === 'year') return now - 365 * 86400000;
+  return null;
+}
+function filterVoices(voices, range) {
+  var list = (voices || []).slice();
+  var start = rangeStartMs(range);
+  if (start == null) return list;
+  return list.filter(function(v) {
+    var t = voiceTime(v);
+    if (t == null) return true; // keep undated when filtering? prefer keep with fallback
+    return t >= start;
+  });
+}
+function leanOrder(lean) {
+  var l = String(lean || 'mixed').toLowerCase();
+  if (l === 'bull') return 0;
+  if (l === 'mixed') return 1;
+  if (l === 'bear') return 2;
+  return 1;
+}
+function sortVoicesGrouped(voices) {
+  return (voices || []).slice().sort(function(a, b) {
+    var lo = leanOrder(a.lean) - leanOrder(b.lean);
+    if (lo !== 0) return lo;
+    var ta = voiceTime(a) || 0;
+    var tb = voiceTime(b) || 0;
+    return tb - ta; // newest first within group
+  });
+}
+function voiceCardHtml(v) {
+  var src = v.source || 'Other';
+  var lean = v.lean || 'mixed';
+  var open = v.url
+    ? '<a class="voice-open" href="' + esc(v.url) + '" target="_blank" rel="noopener">Öffnen</a>'
+    : '';
+  var at = v.at ? '<span class="voice-at">' + esc(fmtBerlin(v.at)) + '</span>' : '';
+  return '<div class="voice-card">' +
+    '<div class="voice-top">' +
+      '<span class="src-badge ' + srcBadgeClass(src) + '">' + esc(src) + '</span>' +
+      '<span class="lean-pill ' + leanClass(lean) + '">' + esc(lean) + '</span>' +
+      at +
+    '</div>' +
+    '<div class="voice-text">„' + esc(v.text || '') + '“</div>' +
+    open +
+  '</div>';
+}
+function renderWlVoices(st) {
+  var lat = (st && st.latest) || {};
+  var e = lat.evidence || {};
+  var raw = (e.voices && e.voices.length) ? e.voices : (st.voices_archive || []);
+  var filtered = filterVoices(raw, wlRange);
+  var sorted = sortVoicesGrouped(filtered);
+
+  // counts for pie
+  var counts = { bull: 0, mixed: 0, bear: 0 };
+  sorted.forEach(function(v) {
+    var l = String(v.lean || 'mixed').toLowerCase();
+    if (l !== 'bull' && l !== 'bear') l = 'mixed';
+    counts[l]++;
+  });
+  var total = counts.bull + counts.mixed + counts.bear;
+
+  // pie
+  var pieCtx = document.getElementById('wlPie');
+  if (wlPieChart) { wlPieChart.destroy(); wlPieChart = null; }
+  if (pieCtx) {
+    wlPieChart = new Chart(pieCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Bull', 'Mixed', 'Bear'],
+        datasets: [{
+          data: [counts.bull, counts.mixed, counts.bear],
+          backgroundColor: ['#22c55e', '#f0b429', '#e85d4c'],
+          borderColor: '#121821',
+          borderWidth: 2
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(ctx) {
+                var n = ctx.raw || 0;
+                var pct = total ? Math.round(100 * n / total) : 0;
+                return ctx.label + ': ' + n + ' (' + pct + '%)';
+              }
+            }
+          }
+        },
+        cutout: '58%'
+      }
+    });
+  }
+  var leg = document.getElementById('wlPieLegend');
+  if (leg) {
+    leg.textContent = total
+      ? ('Bull ' + counts.bull + ' · Mixed ' + counts.mixed + ' · Bear ' + counts.bear)
+      : 'Keine Stimmen in diesem Zeitraum';
+  }
+
+  // grouped list
+  var groups = { bull: [], mixed: [], bear: [] };
+  sorted.forEach(function(v) {
+    var l = String(v.lean || 'mixed').toLowerCase();
+    if (l !== 'bull' && l !== 'bear') l = 'mixed';
+    groups[l].push(v);
+  });
+  var order = ['bull', 'mixed', 'bear'];
+  var titles = { bull: 'Bull', mixed: 'Mixed', bear: 'Bear' };
+  var htmlOut = '';
+  order.forEach(function(g) {
+    var arr = groups[g];
+    if (!arr.length) return;
+    htmlOut += '<div class="wl-group">' +
+      '<div class="wl-group-h ' + g + '">' + titles[g] + ' <span class="cnt">(' + arr.length + ')</span></div>' +
+      '<div class="voice-grid">' + arr.map(voiceCardHtml).join('') + '</div></div>';
+  });
+  if (!htmlOut) {
+    htmlOut = '<div class="wl-empty">Keine Stimmen für diesen Zeitraum.</div>';
+  }
+  var host = document.getElementById('wlStimmenGrouped');
+  if (host) host.innerHTML = htmlOut;
+}
+
+function filterHistory(hist, range) {
+  var start = rangeStartMs(range);
+  if (start == null) return hist || [];
+  return (hist || []).filter(function(h) {
+    if (!h || !h.at) return true;
+    var t = new Date(h.at).getTime();
+    if (isNaN(t)) return true;
+    return t >= start;
+  });
+}
+function renderWlHypeChart(st) {
+  var hist = filterHistory(st.history || [], wlRange);
+  var labels = hist.map(function(h) { return fmtBerlin(h.at); });
+  var hypeBull = hist.map(function(h) { return h.hype_bull != null ? h.hype_bull : null; });
+  var hypeBear = hist.map(function(h) { return h.hype_bear != null ? -Math.abs(h.hype_bear) : null; });
+  var hypeNet = hist.map(function(h) {
+    if (h.hype_net != null) return h.hype_net;
+    return h.social_impulse != null ? h.social_impulse : null;
+  });
+  if (wlChart) { wlChart.destroy(); wlChart = null; }
+  var ctx = document.getElementById('wlChart');
+  if (!ctx) return;
+  wlChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels.length ? labels : ['—'],
+      datasets: [
+        {
+          label: 'Hype↑ Bull',
+          data: hypeBull.length ? hypeBull : [null],
+          borderColor: '#22c55e',
+          backgroundColor: 'rgba(34,197,94,.10)',
+          fill: true,
+          tension: 0.25,
+          pointRadius: 4
+        },
+        {
+          label: 'Hype↓ Bear',
+          data: hypeBear.length ? hypeBear : [null],
+          borderColor: '#e85d4c',
+          backgroundColor: 'rgba(232,93,76,.10)',
+          fill: true,
+          tension: 0.25,
+          pointRadius: 4
+        },
+        {
+          label: 'Net / Impuls',
+          data: hypeNet.length ? hypeNet : [null],
+          borderColor: '#3d8bfd',
+          backgroundColor: 'transparent',
+          borderDash: [5, 4],
+          tension: 0.25,
+          pointRadius: 3
+        }
+      ]
+    },
+    options: {
+      plugins: {
+        legend: { labels: { color: '#8b97a8' } },
+        title: { display: true, text: 'Aggregierter Hype-Verlauf (seit Beobachtung)', color: '#8b97a8', font: { size: 12 } }
+      },
+      scales: {
+        x: { ticks: { color: '#8b97a8', maxRotation: 45, minRotation: 0 }, grid: { color: '#243041' } },
+        y: { min: -100, max: 100, ticks: { color: '#8b97a8' }, grid: { color: '#243041' } }
+      }
+    }
+  });
 }
 
 function renderWatchlist() {
@@ -424,66 +701,24 @@ function renderWatchlist() {
     '<span>News <b>' + (e.news != null ? esc(e.news) : '—') + '</b></span>';
   document.getElementById('wlWhy').textContent = lat.why || '';
 
-  // Stimmen: prefer latest.evidence.voices, else voices_archive
-  var fake = { evidence: { voices: (e.voices && e.voices.length) ? e.voices : (st.voices_archive || []) } };
-  document.getElementById('wlStimmen').innerHTML = renderStimmen(fake.evidence, st);
+  // Range pills
+  var rangeEl = document.getElementById('wlRange');
+  if (rangeEl) {
+    Array.prototype.forEach.call(rangeEl.querySelectorAll('button'), function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-range') === wlRange);
+      btn.onclick = function() {
+        wlRange = btn.getAttribute('data-range') || 'all';
+        Array.prototype.forEach.call(rangeEl.querySelectorAll('button'), function(b) {
+          b.classList.toggle('active', b.getAttribute('data-range') === wlRange);
+        });
+        renderWlVoices(st);
+        renderWlHypeChart(st);
+      };
+    });
+  }
 
-  // Chart: Hype↑ / Hype↓ / Net über Zeit (aggregierte Stimmen-Leans)
-  var hist = st.history || [];
-  var labels = hist.map(function(h) { return fmtBerlin(h.at); });
-  var hypeBull = hist.map(function(h) { return h.hype_bull != null ? h.hype_bull : null; });
-  var hypeBear = hist.map(function(h) { return h.hype_bear != null ? -Math.abs(h.hype_bear) : null; });
-  var hypeNet = hist.map(function(h) {
-    if (h.hype_net != null) return h.hype_net;
-    return h.social_impulse != null ? h.social_impulse : null;
-  });
-  if (wlChart) { wlChart.destroy(); wlChart = null; }
-  var ctx = document.getElementById('wlChart');
-  wlChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels.length ? labels : ['—'],
-      datasets: [
-        {
-          label: 'Hype↑ Bull',
-          data: hypeBull.length ? hypeBull : [null],
-          borderColor: '#22c55e',
-          backgroundColor: 'rgba(34,197,94,.10)',
-          fill: true,
-          tension: 0.25,
-          pointRadius: 4
-        },
-        {
-          label: 'Hype↓ Bear',
-          data: hypeBear.length ? hypeBear : [null],
-          borderColor: '#e85d4c',
-          backgroundColor: 'rgba(232,93,76,.10)',
-          fill: true,
-          tension: 0.25,
-          pointRadius: 4
-        },
-        {
-          label: 'Net / Impuls',
-          data: hypeNet.length ? hypeNet : [null],
-          borderColor: '#3d8bfd',
-          backgroundColor: 'transparent',
-          borderDash: [5, 4],
-          tension: 0.25,
-          pointRadius: 3
-        }
-      ]
-    },
-    options: {
-      plugins: {
-        legend: { labels: { color: '#8b97a8' } },
-        title: { display: true, text: 'Aggregierter Hype-Verlauf (seit Beobachtung)', color: '#8b97a8', font: { size: 12 } }
-      },
-      scales: {
-        x: { ticks: { color: '#8b97a8', maxRotation: 45, minRotation: 0 }, grid: { color: '#243041' } },
-        y: { min: -100, max: 100, ticks: { color: '#8b97a8' }, grid: { color: '#243041' } }
-      }
-    }
-  });
+  renderWlVoices(st);
+  renderWlHypeChart(st);
 }
 
 async function loadWatchlist() {
@@ -509,6 +744,22 @@ async function load() {
   document.getElementById('kernSub').innerHTML = '<b>' + esc(k.name || 'Kernzahl') + '</b> · nächster Katalysator: ' + esc(k.next_catalyst || '—') + ' (' + esc(k.when_label || '') + ')<br>' + esc(k.why || '');
   document.getElementById('signal').innerHTML = v.early_signal ? '<span class="pill hold">Frühsignal</span>' : '';
   if (t.signals_disclaimer) document.getElementById('disclaimer').textContent = t.signals_disclaimer;
+  var dm = document.getElementById('dataMetaBody');
+  if (dm) {
+    var fr = t.freshness || {};
+    var tot = t.totals || {};
+    dm.innerHTML =
+      '<b>Wo:</b> GH Pages JSON (Quelle der Wahrheit) — ' +
+      '<a class="stock" href="https://kurzlernen.de/watchlist.json" target="_blank" rel="noopener">watchlist.json</a> · ' +
+      '<a class="stock" href="https://kurzlernen.de/watchlist-data.json" target="_blank" rel="noopener">watchlist-data.json</a> · ' +
+      '<a class="stock" href="https://kurzlernen.de/stockstrend-data.json" target="_blank" rel="noopener">stockstrend-data.json</a>' +
+      ' — Backup auf BotBot.<br>' +
+      '<b>Aggregation:</b> echte Social-Counts (X/Reddit/News); Stimmen nach lean Bull/Mixed/Bear; Hype% aus Voice-Anteil; Impuls −100…+100; Watchlist-Verlauf seit <code>added_at</code>.<br>' +
+      '<b>Frische:</b> Stand ' + esc(data.updated_at || '—') +
+      ' · freshest ' + esc(fr.freshest_item_age || fr.freshest_absolute || '—') +
+      ' · Items ' + esc(tot.content_items_usable != null ? tot.content_items_usable : '—') +
+      ' · Watchlist Auto Mo–Fr alle 15 Min.';
+  }
 
   var cal = document.getElementById('calendar');
   cal.innerHTML = '';
