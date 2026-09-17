@@ -172,6 +172,13 @@
   details.wl-acc .voice-grid { padding:10px 12px 12px; }
   details.wl-acc .cnt { font-weight:600; opacity:.85; font-size:.85rem; }
 
+
+  footer { padding:12px 24px 28px; color:var(--muted); font-size:.75rem; line-height:1.45; }
+  .foot-meta { margin-bottom:8px; max-width:900px; }
+  .foot-meta a { color:#7dd3fc; }
+  .foot-line { opacity:.8; }
+  .mag-range-note { font-size:.75rem; color:var(--muted); margin-left:8px; font-weight:500; text-transform:none; letter-spacing:0; }
+
 </style>
 </head>
 <body>
@@ -194,17 +201,7 @@
     <div id="suggest"></div>
     <div id="analyseStatus"></div>
   </div>
-
-  
-  <div class="card span12" id="dataMeta" style="border-color:#f0b42944">
-    <div class="label">Daten · Persistenz · Aggregation · Frische</div>
-    <div class="kern-sub" id="dataMetaBody">lädt…</div>
-  </div>
-
-  <div class="card span12"><div class="disclaimer" id="disclaimer">Social-Signal, keine Finanzberatung.</div></div>
-
-
-  <div class="card span12" id="watchlistCard" style="border-color:#22c55e44">
+<div class="card span12" id="watchlistCard" style="border-color:#22c55e44">
     <div class="wl-head">
       <div>
         <div class="label">Watchlist · Auto alle 15 Min · persistent</div>
@@ -269,13 +266,16 @@
       <tbody></tbody>
     </table>
     </div>
-    <div class="table-help" title="Impuls = Social-Momentum −100…+100 (Buzz-Richtung, kein Kurs).">Impuls = Social-Momentum −100…+100 (Buzz-Richtung, kein Kurs). Watchlist-Symbole nur oben (Stimmen + Pie dort).</div>
+    <div class="table-help" title="Impuls = Social-Momentum −100…+100 (Buzz-Richtung, kein Kurs).">Watchlist-Symbole nur oben (Stimmen + Pie).</div>
   </div>
 
   <div class="card span6"><div class="label">Nächste Termine</div><div id="calendar"></div></div>
-  <div class="card span6"><div class="label">Verlauf Magnitude</div><canvas id="histChart"></canvas></div>
+  <div class="card span6"><div class="label">Verlauf Magnitude <span class="mag-range-note" id="magRangeNote">(1W)</span></div><canvas id="histChart"></canvas></div>
 </div>
-<footer>Refresh 60s · Live Social-Signal</footer>
+<footer>
+  <div class="foot-meta" id="dataMetaBody">lädt…</div>
+  <div class="foot-line" id="disclaimer">Refresh 60s</div>
+</footer>
 <script>
 function esc(s) {
   return String(s == null ? '' : s)
@@ -794,12 +794,58 @@ function renderWatchlist() {
         });
         renderWlVoices(st);
         renderWlHypeChart(st);
+        renderMagnitudeChart();
       };
     });
   }
 
   renderWlVoices(st);
   renderWlHypeChart(st);
+}
+
+
+function renderMagnitudeChart() {
+  var hist = window._tickHistory || [];
+  var range = (typeof wlRange !== 'undefined' && wlRange) ? wlRange : '1w';
+  var cut = rangeCutoffMs(range);
+  var filtered = (!range || range === 'all') ? hist.slice() : hist.filter(function(h) {
+    var t = new Date(h.scraped_at || h.tick_id || h.at || 0).getTime();
+    return !isNaN(t) && t >= cut;
+  });
+  var rangeNames = { today:'Today', '1d':'1D', '1w':'1W', '5m':'5M', year:'Year', all:'All' };
+  var rn = rangeNames[range] || range;
+  var note = document.getElementById('magRangeNote');
+  if (note) note.textContent = '(' + rn + ')';
+  if (window._hist) { window._hist.destroy(); window._hist = null; }
+  var canvas = document.getElementById('histChart');
+  if (!canvas) return;
+  window._hist = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: filtered.map(function(h) {
+        var iso = h.scraped_at || h.tick_id || h.at;
+        try {
+          return new Date(iso).toLocaleString('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'short', timeStyle: 'short' });
+        } catch (e) { return iso || '—'; }
+      }),
+      datasets: [{
+        data: filtered.map(function(h) { return h.magnitude; }),
+        borderColor: '#e85d4c',
+        backgroundColor: 'rgba(232,93,76,.15)',
+        fill: true,
+        tension: 0.25,
+        pointRadius: 4
+      }]
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8b97a8', maxRotation: 45 }, grid: { color: '#243041' } },
+        y: { min: 0, max: 100, ticks: { color: '#8b97a8' }, grid: { color: '#243041' } }
+      }
+    }
+  });
 }
 
 async function loadWatchlist() {
@@ -821,7 +867,7 @@ async function load() {
   var v = t.vector || {};
   document.getElementById('updated').textContent = 'Stand: ' + (data.updated_at || '—');
   document.getElementById('signal').innerHTML = v.early_signal ? '<span class="pill hold">Frühsignal</span>' : '';
-  if (t.signals_disclaimer) document.getElementById('disclaimer').textContent = t.signals_disclaimer;
+  var _d=document.getElementById('disclaimer'); if (_d) _d.textContent = 'Refresh 60s';
   var dm = document.getElementById('dataMetaBody');
   if (dm) {
     var fr = t.freshness || {};
@@ -849,6 +895,10 @@ async function load() {
     cal.appendChild(row);
   });
 
+  window._tickHistory = data.history || [];
+  renderMagnitudeChart();
+  /* magnitude chart rendered via renderMagnitudeChart using wlRange */
+  if (false) {
   var hist = data.history || [];
   if (window._hist) window._hist.destroy();
   window._hist = new Chart(document.getElementById('histChart'), {
@@ -872,6 +922,8 @@ async function load() {
       }
     }
   });
+
+  } /* end disabled legacy hist */
 
   latestSignals = t.stock_signals || [];
   var wlSyms = {};
