@@ -25,6 +25,10 @@
   .sell,.dehyped { background:rgba(232,93,76,.18); color:var(--bear); }
   .hold,.mixed,.warn { background:rgba(240,180,41,.18); color:var(--warn); }
   canvas { max-height:220px; }
+  .table-wrap { width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .why-one { color:var(--muted); font-size:.8rem; max-width:280px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  a.wl-jump { color:#7dd3fc; font-size:.8rem; font-weight:700; text-decoration:none; }
+  a.wl-jump:hover { text-decoration:underline; }
   table { width:100%; border-collapse:collapse; font-size:.88rem; }
   th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
   th { color:var(--muted); font-weight:500; }
@@ -83,8 +87,8 @@
   .wl-detail-top h2 { margin:0; font-size:1.15rem; }
   .wl-seit { color:var(--muted); font-size:.8rem; }
   .wl-why { color:#c5ced8; font-size:.9rem; margin:8px 0 12px; line-height:1.4; max-width:640px; }
-  .wl-chart-wrap { background:#0f1419; border:1px solid var(--line); border-radius:12px; padding:12px; margin:12px 0; }
-  .wl-chart-wrap canvas { max-height:200px; }
+  .wl-chart-wrap { background:#0f1419; border:1px solid var(--line); border-radius:12px; padding:12px; margin:12px 0; position:relative; height:244px; }
+  .wl-chart-wrap canvas { width:100% !important; height:220px !important; max-height:220px; }
   .wl-stats { display:flex; flex-wrap:wrap; gap:12px 20px; font-size:.85rem; color:var(--muted); margin-bottom:8px; }
   .wl-stats b { color:var(--text); }
 
@@ -99,15 +103,16 @@
   .wl-voices-layout {
     display:grid; grid-template-columns:220px 1fr; gap:16px; align-items:start; margin-top:4px;
   }
-  @media (max-width:720px) {
-    .wl-voices-layout { grid-template-columns:1fr; }
-  }
   .wl-pie-wrap {
-    background:#0f1419; border:1px solid var(--line); border-radius:12px; padding:10px;
+    background:#0f1419; border:1px solid var(--line); border-radius:12px; padding:12px 10px;
+    width:220px; max-width:220px; box-sizing:border-box;
   }
-  .wl-pie-wrap canvas { max-height:200px; width:100% !important; }
-  .wl-pie-legend { font-size:.72rem; color:var(--muted); text-align:center; margin-top:4px; }
-  .wl-stimmen-grouped { display:flex; flex-direction:column; gap:14px; }
+  .wl-pie-wrap canvas {
+    width:200px !important; height:200px !important; max-height:200px !important;
+    display:block; margin:0 auto;
+  }
+  .wl-pie-legend { font-size:.72rem; color:var(--muted); text-align:center; margin-top:6px; }
+  .wl-stimmen-grouped { display:flex; flex-direction:column; gap:14px; min-width:0; }
   .wl-group-h {
     font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; font-weight:700;
     color:var(--muted); margin:0 0 6px; display:flex; gap:8px; align-items:center;
@@ -118,6 +123,40 @@
   .wl-group-h.bear { color:var(--bear); }
   .wl-stimmen-grouped .voice-grid { max-width:none; }
   .voice-at { font-size:.68rem; color:#6b7785; margin-left:auto; }
+
+  /* Mobile */
+  @media (max-width:700px) {
+    header { padding:12px 14px 6px; }
+    h1 { font-size:1.15rem; }
+    .grid { padding:8px 12px 20px; gap:10px; }
+    .card { padding:12px; border-radius:12px; }
+    .huge { font-size:2.2rem; }
+    .meta, .kern-sub, .wl-note { font-size:.8rem; }
+    .search-row input { min-width:0; font-size:.95rem; padding:9px 10px; }
+    .search-row button { padding:9px 14px; }
+    .wl-pills { width:100%; }
+    .wl-pill { flex:1 1 100%; min-width:0; width:100%; }
+    .wl-voices-layout { grid-template-columns:1fr; }
+    .wl-pie-wrap { width:100%; max-width:220px; margin:0 auto; }
+    .wl-pie-wrap canvas { width:200px !important; height:200px !important; }
+    .wl-range { gap:8px; }
+    .wl-range button { min-height:36px; padding:8px 14px; font-size:.8rem; }
+    .wl-chart-wrap { height:244px; padding:10px; }
+    .wl-chart-wrap canvas { height:220px !important; }
+    .table-wrap { margin:0 -4px; }
+    #signals { font-size:.78rem; min-width:560px; }
+    th, td { padding:6px 5px; }
+    .why-one { max-width:160px; }
+    footer { padding:0 12px 20px; }
+  }
+
+
+  .wl-range-bar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:12px 0 8px; padding:10px 12px; background:#0f1419; border:1px solid var(--line); border-radius:12px; }
+  .wl-range-label { font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); font-weight:700; margin-right:4px; }
+  .wl-range { display:flex; flex-wrap:wrap; gap:8px; }
+  .wl-range button { min-height:40px; min-width:52px; padding:8px 14px; border-radius:999px; border:1px solid var(--line); background:#121821; color:var(--text); cursor:pointer; font-weight:700; font-size:.9rem; }
+  .wl-range button.active { border-color:#3d8bfd; background:#1a3350; color:#7dd3fc; box-shadow:0 0 0 1px #3d8bfd55; }
+
 </style>
 </head>
 <body>
@@ -129,11 +168,7 @@
   <div id="signal"></div>
 </header>
 <div class="grid">
-  <div class="card span12" style="border-color:#3d8bfd55">
-    <div class="label">Kernzahl · First Principles · Low Noise</div>
-    <div class="huge" id="kernVal">—</div>
-    <div class="kern-sub" id="kernSub"></div>
-  </div>
+
 
   <div class="card span12">
     <div class="label">Stock suchen · Analyse → Buy / Hold / Sell</div>
@@ -151,7 +186,7 @@
     <div class="kern-sub" id="dataMetaBody">lädt…</div>
   </div>
 
-  <div class="card span12"><div class="disclaimer" id="disclaimer">Social-Signal, keine Finanzberatung. Kernzahl = Nähe Makro-Schock (Fed/CPI/Jobs).</div></div>
+  <div class="card span12"><div class="disclaimer" id="disclaimer">Social-Signal, keine Finanzberatung.</div></div>
 
 
   <div class="card span12" id="watchlistCard" style="border-color:#22c55e44">
@@ -171,19 +206,24 @@
       </div>
       <div class="wl-stats" id="wlStats"></div>
       <div class="wl-why" id="wlWhy"></div>
+      <div class="wl-range-bar">
+        <span class="wl-range-label">Zeitraum</span>
+        <div class="wl-range" id="wlRange" role="tablist" aria-label="Zeitraum">
+          <button type="button" data-range="today">Today</button>
+          <button type="button" data-range="1d">1D</button>
+          <button type="button" data-range="1w" class="active">1W</button>
+          <button type="button" data-range="5m">5M</button>
+          <button type="button" data-range="year">Year</button>
+          <button type="button" data-range="all">All</button>
+        </div>
+        <span class="meta" id="wlRangeHint">Chart + Stimmen + Pie</span>
+      </div>
       <div class="wl-chart-wrap">
-        <div class="label" style="margin-bottom:8px">Verlauf · Hype↑ / Hype↓ / Net (Range-Filter)</div>
+        <div class="label" id="wlChartLabel" style="margin-bottom:8px">Verlauf · Hype↑ / Hype↓ / Net · 1W</div>
         <canvas id="wlChart"></canvas>
       </div>
       <div id="wlStimmen">
-        <div class="stimmen-label">Stimmen</div>
-        <div class="wl-range" id="wlRange">
-          <button type="button" data-range="today">Today</button>
-          <button type="button" data-range="1w">1W</button>
-          <button type="button" data-range="5m">5M</button>
-          <button type="button" data-range="year">Year</button>
-          <button type="button" data-range="all" class="active">All</button>
-        </div>
+        <div class="stimmen-label">Stimmen <span id="wlStimmenRange" class="meta"></span></div>
         <div class="wl-voices-layout" id="wlVoicesLayout">
           <div class="wl-pie-wrap">
             <canvas id="wlPie"></canvas>
@@ -197,6 +237,7 @@
 
   <div class="card span12">
     <div class="label">Ergebnis je Aktie · Signal · Belege</div>
+    <div class="table-wrap">
     <table id="signals">
       <thead>
         <tr>
@@ -206,13 +247,14 @@
           <th>X</th>
           <th>Reddit</th>
           <th>News</th>
-          <th>Warum / Stimmen</th>
+          <th>Warum</th>
           <th>Links</th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
-    <div class="table-help" title="Impuls = Social-Momentum −100…+100 (Buzz-Richtung, kein Kurs).">Impuls = Social-Momentum −100…+100 (Buzz-Richtung, kein Kurs). Stimmen = aggregierte Belege aus X / Reddit / News.</div>
+    </div>
+    <div class="table-help" title="Impuls = Social-Momentum −100…+100 (Buzz-Richtung, kein Kurs).">Impuls = Social-Momentum −100…+100 (Buzz-Richtung, kein Kurs). Watchlist-Symbole nur oben (Stimmen + Pie dort).</div>
   </div>
 
   <div class="card span6"><div class="label">Nächste Termine</div><div id="calendar"></div></div>
@@ -297,32 +339,6 @@ function leanClass(lean) {
   if (l === 'bear') return 'lean-bear';
   return 'lean-mixed';
 }
-function renderStimmen(e, s) {
-  var voices = (e && e.voices) || [];
-  if (voices.length) {
-    var cards = voices.slice(0, 10).map(function(v) {
-      var src = v.source || 'Other';
-      var lean = v.lean || 'mixed';
-      var open = v.url
-        ? '<a class="voice-open" href="' + esc(v.url) + '" target="_blank" rel="noopener">Öffnen</a>'
-        : '';
-      return '<div class="voice-card">' +
-        '<div class="voice-top">' +
-          '<span class="src-badge ' + srcBadgeClass(src) + '">' + esc(src) + '</span>' +
-          '<span class="lean-pill ' + leanClass(lean) + '">' + esc(lean) + '</span>' +
-        '</div>' +
-        '<div class="voice-text">„' + esc(v.text || '') + '“</div>' +
-        open +
-      '</div>';
-    }).join('');
-    return '<div class="stimmen"><div class="stimmen-label">Stimmen</div><div class="voice-grid">' + cards + '</div></div>';
-  }
-  var snips = (e.snippets || s.sample_snippets || []).slice(0, 4).map(function(x) {
-    return '<div class="voice-card"><div class="voice-text">„' + esc(x) + '“</div></div>';
-  }).join('');
-  if (!snips) return '';
-  return '<div class="stimmen"><div class="stimmen-label">Stimmen</div><div class="voice-grid">' + snips + '</div></div>';
-}
 
 var selected = null;
 var latestSignals = [];
@@ -373,6 +389,17 @@ async function runAnalyse() {
   var symbol = selected.s;
   btn.disabled = true;
   var hit = findSignal(symbol);
+  var onWl = wlData && ((wlData.stocks && wlData.stocks[symbol]) ||
+    (wlData.watchlist || []).some(function(w){ return String(w.symbol||'').toUpperCase() === symbol; }));
+  if (onWl) {
+    wlSelected = symbol;
+    renderWatchlist();
+    statusEl.innerHTML = '<b>' + esc(symbol) + '</b> auf Watchlist — Detail geöffnet.';
+    var card = document.getElementById('watchlistCard');
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    btn.disabled = false;
+    return;
+  }
   if (hit) {
     statusEl.innerHTML = '<b>' + esc(symbol) + '</b> · <span class="pill ' + cls(hit.signal) + '">' + esc(String(hit.signal || '').toUpperCase()) + '</span> schon live — gescrollt.';
     var row = document.getElementById('row-' + symbol);
@@ -403,7 +430,7 @@ var wlData = null;
 var wlSelected = null;
 var wlChart = null;
 var wlPieChart = null;
-var wlRange = 'all';
+var wlRange = '1w';
 
 function fmtBerlin(iso) {
   if (!iso) return '—';
@@ -446,13 +473,12 @@ function rangeStartMs(range) {
   return null;
 }
 function filterVoices(voices, range) {
-  var list = (voices || []).slice();
-  var start = rangeStartMs(range);
-  if (start == null) return list;
-  return list.filter(function(v) {
-    var t = voiceTime(v);
-    if (t == null) return true; // keep undated when filtering? prefer keep with fallback
-    return t >= start;
+  if (!voices || !voices.length) return [];
+  if (!range || range === 'all') return voices.slice();
+  var cut = rangeCutoffMs(range);
+  return voices.filter(function(v) {
+    var t = new Date(v.at || 0).getTime();
+    return !isNaN(t) && t >= cut;
   });
 }
 function leanOrder(lean) {
@@ -508,31 +534,45 @@ function renderWlVoices(st) {
   var pieCtx = document.getElementById('wlPie');
   if (wlPieChart) { wlPieChart.destroy(); wlPieChart = null; }
   if (pieCtx) {
+    pieCtx.width = 200;
+    pieCtx.height = 200;
+    pieCtx.style.width = '200px';
+    pieCtx.style.height = '200px';
+    var pieData = [counts.bull, counts.mixed, counts.bear];
+    if (!total) pieData = [1, 1, 1];
     wlPieChart = new Chart(pieCtx, {
       type: 'doughnut',
       data: {
         labels: ['Bull', 'Mixed', 'Bear'],
         datasets: [{
-          data: [counts.bull, counts.mixed, counts.bear],
+          data: pieData,
           backgroundColor: ['#22c55e', '#f0b429', '#e85d4c'],
           borderColor: '#121821',
           borderWidth: 2
         }]
       },
       options: {
+        responsive: false,
+        maintainAspectRatio: false,
+        animation: false,
         plugins: {
-          legend: { display: false },
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: { color: '#8b97a8', boxWidth: 10, font: { size: 11 }, padding: 8 }
+          },
           tooltip: {
             callbacks: {
               label: function(ctx) {
+                if (!total) return ctx.label + ': 0';
                 var n = ctx.raw || 0;
-                var pct = total ? Math.round(100 * n / total) : 0;
+                var pct = Math.round(100 * n / total);
                 return ctx.label + ': ' + n + ' (' + pct + '%)';
               }
             }
           }
         },
-        cutout: '58%'
+        cutout: '55%'
       }
     });
   }
@@ -567,18 +607,40 @@ function renderWlVoices(st) {
   if (host) host.innerHTML = htmlOut;
 }
 
+function rangeCutoffMs(range) {
+  var now = Date.now();
+  var d = new Date();
+  // Berlin midnight approx via local box TZ Europe/Berlin
+  if (range === 'today') {
+    var start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    return start;
+  }
+  if (range === '1d') return now - 86400000;
+  if (range === '1w') return now - 7 * 86400000;
+  if (range === '5m') return now - 150 * 86400000; // ~5 months
+  if (range === 'year') return now - 365 * 86400000;
+  return 0; // all
+}
+
 function filterHistory(hist, range) {
-  var start = rangeStartMs(range);
-  if (start == null) return hist || [];
-  return (hist || []).filter(function(h) {
-    if (!h || !h.at) return true;
-    var t = new Date(h.at).getTime();
-    if (isNaN(t)) return true;
-    return t >= start;
+  if (!hist || !hist.length) return [];
+  if (!range || range === 'all') return hist.slice();
+  var cut = rangeCutoffMs(range);
+  return hist.filter(function(h) {
+    var t = new Date(h.at || 0).getTime();
+    return !isNaN(t) && t >= cut;
   });
 }
 function renderWlHypeChart(st) {
   var hist = filterHistory(st.history || [], wlRange);
+  var rangeNames = { today:'Today', '1d':'1D', '1w':'1W', '5m':'5M', year:'Year', all:'All' };
+  var rn = rangeNames[wlRange] || wlRange;
+  var lab = document.getElementById('wlChartLabel');
+  if (lab) lab.textContent = 'Verlauf · Hype↑ / Hype↓ / Net · ' + rn;
+  var sr = document.getElementById('wlStimmenRange');
+  if (sr) sr.textContent = '(' + rn + ')';
+  var hint = document.getElementById('wlRangeHint');
+  if (hint) hint.textContent = 'aktiv: ' + rn + ' · Chart + Stimmen + Pie';
   var labels = hist.map(function(h) { return fmtBerlin(h.at); });
   var hypeBull = hist.map(function(h) { return h.hype_bull != null ? h.hype_bull : null; });
   var hypeBear = hist.map(function(h) { return h.hype_bear != null ? -Math.abs(h.hype_bear) : null; });
@@ -589,6 +651,8 @@ function renderWlHypeChart(st) {
   if (wlChart) { wlChart.destroy(); wlChart = null; }
   var ctx = document.getElementById('wlChart');
   if (!ctx) return;
+  ctx.style.width = '100%';
+  ctx.style.height = '220px';
   wlChart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -624,6 +688,8 @@ function renderWlHypeChart(st) {
       ]
     },
     options: {
+      responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: { labels: { color: '#8b97a8' } },
         title: { display: true, text: 'Aggregierter Hype-Verlauf (seit Beobachtung)', color: '#8b97a8', font: { size: 12 } }
@@ -738,10 +804,7 @@ async function load() {
   var data = await res.json();
   var t = data.tick || {};
   var v = t.vector || {};
-  var k = t.kernzahl || {};
   document.getElementById('updated').textContent = 'Stand: ' + (data.updated_at || '—');
-  document.getElementById('kernVal').textContent = (k.value != null ? k.value : '—');
-  document.getElementById('kernSub').innerHTML = '<b>' + esc(k.name || 'Kernzahl') + '</b> · nächster Katalysator: ' + esc(k.next_catalyst || '—') + ' (' + esc(k.when_label || '') + ')<br>' + esc(k.why || '');
   document.getElementById('signal').innerHTML = v.early_signal ? '<span class="pill hold">Frühsignal</span>' : '';
   if (t.signals_disclaimer) document.getElementById('disclaimer').textContent = t.signals_disclaimer;
   var dm = document.getElementById('dataMetaBody');
@@ -796,15 +859,21 @@ async function load() {
   });
 
   latestSignals = t.stock_signals || [];
+  var wlSyms = {};
+  try {
+    ((wlData && wlData.watchlist) || []).forEach(function(w){ if (w && w.symbol) wlSyms[String(w.symbol).toUpperCase()] = true; });
+    Object.keys((wlData && wlData.stocks) || {}).forEach(function(k){ wlSyms[String(k).toUpperCase()] = true; });
+  } catch (e0) {}
   var tb = document.querySelector('#signals tbody');
   tb.innerHTML = '';
-  if (!latestSignals.length) {
-    tb.innerHTML = '<tr><td colspan="8" class="meta">Keine Stocks mit echten Social-Counts — analysiere SYMBOL im Chat.</td></tr>';
-  }
+  var shown = 0;
   latestSignals.forEach(function(s) {
+    var sym = String(s.symbol || '').toUpperCase();
+    if (wlSyms[sym]) return;
     var L = s.links || {};
     var e = s.evidence || {};
-    var stimmen = renderStimmen(e, s);
+    var whyOne = String(s.why || '').replace(/\s+/g, ' ').trim();
+    if (whyOne.length > 90) whyOne = whyOne.slice(0, 87) + '…';
     var tr = document.createElement('tr');
     tr.id = 'row-' + (s.symbol || '');
     tr.innerHTML = '<td><a class="stock" href="' + esc(L.yahoo || '#') + '" target="_blank" rel="noopener">' + esc(s.symbol || '') + '</a><div class="meta">' + esc(s.name || '') + '</div></td>' +
@@ -813,11 +882,15 @@ async function load() {
       '<td>' + (e.x_posts != null ? esc(e.x_posts) : '—') + '</td>' +
       '<td>' + (e.reddit_posts != null ? esc(e.reddit_posts) : '—') + '</td>' +
       '<td>' + (e.news != null ? esc(e.news) : '—') + '</td>' +
-      '<td><div class="why">' + esc(s.why || '') + '</div>' + stimmen + '</td>' +
+      '<td><div class="why-one" title="' + esc(s.why || '') + '">' + esc(whyOne || '—') + '</div></td>' +
       '<td class="links">' + (L.yahoo ? '<a href="' + esc(L.yahoo) + '" target="_blank" rel="noopener">Yahoo</a>' : '') +
         (L.tradingview ? '<a href="' + esc(L.tradingview) + '" target="_blank" rel="noopener">TV</a>' : '') + '</td>';
     tb.appendChild(tr);
+    shown++;
   });
+  if (!shown) {
+    tb.innerHTML = '<tr><td colspan="8" class="meta">Keine weiteren Stocks (Watchlist-Symbole nur oben). Analysiere SYMBOL im Chat.</td></tr>';
+  }
 
   // pending analyse resolved?
   try {
@@ -829,7 +902,8 @@ async function load() {
   } catch (e3) {}
 }
 async function refreshAll() {
-  await Promise.all([load(), loadWatchlist()]);
+  await loadWatchlist();
+  await load();
 }
 refreshAll();
 setInterval(refreshAll, 60000);
