@@ -412,8 +412,12 @@ function renderWatchlist() {
   sigEl.className = 'pill ' + cls(lat.signal);
   sigEl.textContent = String(lat.signal || '—').toUpperCase();
   document.getElementById('wlSeit').textContent = 'Seit Beobachtung: ' + fmtBerlin(st.added_at || (list.find(function(x){return x.symbol===wlSelected;}) || {}).added_at);
+  var hyp = lat.hype || {};
   document.getElementById('wlStats').innerHTML =
     '<span>Impuls <b>' + (lat.social_impulse != null ? esc(lat.social_impulse) : '—') + '</b></span>' +
+    '<span class="pill buy">Hype↑ ' + (hyp.bull != null ? esc(hyp.bull) : '—') + '</span>' +
+    '<span class="pill sell">Hype↓ ' + (hyp.bear != null ? esc(hyp.bear) : '—') + '</span>' +
+    '<span>Net <b>' + (hyp.net != null ? esc(hyp.net) : '—') + '</b></span>' +
     '<span>Confidence <b>' + (lat.confidence != null ? esc(lat.confidence) : '—') + '</b></span>' +
     '<span>X <b>' + (e.x_posts != null ? esc(e.x_posts) : '—') + '</b></span>' +
     '<span>Reddit <b>' + (e.reddit_posts != null ? esc(e.reddit_posts) : '—') + '</b></span>' +
@@ -424,11 +428,15 @@ function renderWatchlist() {
   var fake = { evidence: { voices: (e.voices && e.voices.length) ? e.voices : (st.voices_archive || []) } };
   document.getElementById('wlStimmen').innerHTML = renderStimmen(fake.evidence, st);
 
-  // Chart history
+  // Chart: Hype↑ / Hype↓ / Net über Zeit (aggregierte Stimmen-Leans)
   var hist = st.history || [];
   var labels = hist.map(function(h) { return fmtBerlin(h.at); });
-  var impulse = hist.map(function(h) { return h.social_impulse; });
-  var conf = hist.map(function(h) { return h.confidence; });
+  var hypeBull = hist.map(function(h) { return h.hype_bull != null ? h.hype_bull : null; });
+  var hypeBear = hist.map(function(h) { return h.hype_bear != null ? -Math.abs(h.hype_bear) : null; });
+  var hypeNet = hist.map(function(h) {
+    if (h.hype_net != null) return h.hype_net;
+    return h.social_impulse != null ? h.social_impulse : null;
+  });
   if (wlChart) { wlChart.destroy(); wlChart = null; }
   var ctx = document.getElementById('wlChart');
   wlChart = new Chart(ctx, {
@@ -437,29 +445,39 @@ function renderWatchlist() {
       labels: labels.length ? labels : ['—'],
       datasets: [
         {
-          label: 'Social-Impuls',
-          data: impulse.length ? impulse : [null],
-          borderColor: '#3d8bfd',
-          backgroundColor: 'rgba(61,139,253,.12)',
+          label: 'Hype↑ Bull',
+          data: hypeBull.length ? hypeBull : [null],
+          borderColor: '#22c55e',
+          backgroundColor: 'rgba(34,197,94,.10)',
           fill: true,
           tension: 0.25,
-          pointRadius: 4,
-          yAxisID: 'y'
+          pointRadius: 4
         },
         {
-          label: 'Confidence',
-          data: conf.length ? conf : [null],
-          borderColor: '#f0b429',
-          backgroundColor: 'transparent',
-          borderDash: [4, 4],
+          label: 'Hype↓ Bear',
+          data: hypeBear.length ? hypeBear : [null],
+          borderColor: '#e85d4c',
+          backgroundColor: 'rgba(232,93,76,.10)',
+          fill: true,
           tension: 0.25,
-          pointRadius: 3,
-          yAxisID: 'y'
+          pointRadius: 4
+        },
+        {
+          label: 'Net / Impuls',
+          data: hypeNet.length ? hypeNet : [null],
+          borderColor: '#3d8bfd',
+          backgroundColor: 'transparent',
+          borderDash: [5, 4],
+          tension: 0.25,
+          pointRadius: 3
         }
       ]
     },
     options: {
-      plugins: { legend: { labels: { color: '#8b97a8' } } },
+      plugins: {
+        legend: { labels: { color: '#8b97a8' } },
+        title: { display: true, text: 'Aggregierter Hype-Verlauf (seit Beobachtung)', color: '#8b97a8', font: { size: 12 } }
+      },
       scales: {
         x: { ticks: { color: '#8b97a8', maxRotation: 45, minRotation: 0 }, grid: { color: '#243041' } },
         y: { min: -100, max: 100, ticks: { color: '#8b97a8' }, grid: { color: '#243041' } }
