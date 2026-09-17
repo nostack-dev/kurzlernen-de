@@ -43,6 +43,7 @@
   .sug:hover, .sug.active { background:#1a222c; }
   #analyseStatus { margin-top:10px; font-size:.9rem; color:var(--muted); }
   .kern-sub { color:var(--muted); font-size:.9rem; margin-top:8px; line-height:1.4; }
+  tr.flash td { background: rgba(61,139,253,.12); }
 </style>
 </head>
 <body>
@@ -68,7 +69,6 @@
     </div>
     <div id="suggest"></div>
     <div id="analyseStatus"></div>
-    <p class="meta" style="margin-top:10px">Analyse = Befehl an BotBot. Einfach hier tippen oder im Chat: <code>analysiere ORCL</code> — kein Setup nötig.</p>
   </div>
 
   <div class="card span12"><div class="disclaimer" id="disclaimer">Social-Signal, keine Finanzberatung. Kernzahl = Nähe Makro-Schock (Fed/CPI/Jobs).</div></div>
@@ -84,7 +84,7 @@
   <div class="card span6"><div class="label">Nächste Termine</div><div id="calendar"></div></div>
   <div class="card span6"><div class="label">Verlauf Magnitude</div><canvas id="histChart"></canvas></div>
 </div>
-<footer>Refresh 60s</footer>
+<footer>Refresh 60s · Live Social-Signal</footer>
 <script>
 function cls(s) {
   s = (s || '').toLowerCase();
@@ -132,6 +132,7 @@ function searchTickers(q) {
 }
 
 var selected = null;
+var latestSignals = [];
 var qEl = document.getElementById('q');
 var sug = document.getElementById('suggest');
 var btn = document.getElementById('btnAnalyse');
@@ -166,15 +167,39 @@ qEl.addEventListener('keydown', function(e) {
 });
 btn.onclick = runAnalyse;
 
+function findSignal(symbol) {
+  symbol = String(symbol || '').toUpperCase();
+  for (var i = 0; i < latestSignals.length; i++) {
+    if (String(latestSignals[i].symbol || '').toUpperCase() === symbol) return latestSignals[i];
+  }
+  return null;
+}
+
 async function runAnalyse() {
   if (!selected) return;
   var symbol = selected.s;
-  var cmd = 'analysiere ' + symbol;
-  statusEl.innerHTML = 'Schick BotBot im Chat: <code>' + cmd + '</code> — er liefert Buy/Hold/Sell + Belege.';
   btn.disabled = true;
+  var hit = findSignal(symbol);
+  if (hit) {
+    statusEl.innerHTML = '<b>' + symbol + '</b> · <span class="pill ' + cls(hit.signal) + '">' + String(hit.signal || '').toUpperCase() + '</span> schon live — gescrollt.';
+    var row = document.getElementById('row-' + symbol);
+    if (row) {
+      row.classList.add('flash');
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(function() { row.classList.remove('flash'); }, 1800);
+    }
+    btn.disabled = false;
+    return;
+  }
+  // Kein Cross-Origin-Webhook (CORS). Pending-Symbol merken + Chat-Hinweis kurz.
+  try {
+    localStorage.setItem('botbot_pending_analyse', JSON.stringify({ symbol: symbol, name: selected.n, t: Date.now() }));
+  } catch (e) {}
+  var cmd = 'analysiere ' + symbol;
+  statusEl.innerHTML = '<b>' + symbol + '</b> noch nicht gescannt. Schreib BotBot: <code>' + cmd + '</code>';
   try {
     await navigator.clipboard.writeText(cmd);
-    statusEl.innerHTML += ' · kopiert, einfach bei BotBot einfügen.';
+    statusEl.innerHTML += ' · kopiert';
   } catch (e2) {}
   btn.disabled = false;
 }
@@ -225,15 +250,17 @@ async function load() {
     }
   });
 
+  latestSignals = t.stock_signals || [];
   var tb = document.querySelector('#signals tbody');
   tb.innerHTML = '';
-  (t.stock_signals || []).forEach(function(s) {
+  latestSignals.forEach(function(s) {
     var L = s.links || {};
     var e = s.evidence || {};
     var snips = (e.snippets || s.sample_snippets || []).slice(0, 2).map(function(x) {
       return '<div class="snip">„' + x + '“</div>';
     }).join('');
     var tr = document.createElement('tr');
+    tr.id = 'row-' + (s.symbol || '');
     tr.innerHTML = '<td><a class="stock" href="' + (L.yahoo || '#') + '" target="_blank" rel="noopener">' + (s.symbol || '') + '</a><div class="meta">' + (s.name || '') + '</div></td>' +
       '<td><span class="pill ' + cls(s.signal) + '">' + String(s.signal || '').toUpperCase() + '</span></td>' +
       '<td>' + (s.social_impulse != null ? s.social_impulse : '—') + '</td>' +
@@ -245,6 +272,15 @@ async function load() {
         (L.tradingview ? '<a href="' + L.tradingview + '" target="_blank" rel="noopener">TV</a>' : '') + '</td>';
     tb.appendChild(tr);
   });
+
+  // pending analyse resolved?
+  try {
+    var pend = JSON.parse(localStorage.getItem('botbot_pending_analyse') || 'null');
+    if (pend && pend.symbol && findSignal(pend.symbol)) {
+      statusEl.innerHTML = '<b>' + pend.symbol + '</b> ist live.';
+      localStorage.removeItem('botbot_pending_analyse');
+    }
+  } catch (e3) {}
 }
 load();
 setInterval(load, 60000);
