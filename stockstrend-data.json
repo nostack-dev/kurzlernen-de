@@ -220,7 +220,108 @@
       "key": "lean_off",
       "label": "Leicht risk-off",
       "disclaimer": "Kein Trade-Call / keine Kaufempfehlung — nur aggregiertes Social-Sentiment."
-    }
+    },
+    "macro_calendar": [
+      {
+        "id": "nfp",
+        "title": "US Jobs (NFP)",
+        "when": "2026-10-02T14:30:00+02:00",
+        "when_label": "Fr 02.10.2026 · 14:30 Berlin",
+        "link": "https://www.bls.gov/news.release/empsit.toc.htm"
+      },
+      {
+        "id": "cpi",
+        "title": "US CPI",
+        "when": "2026-10-14T14:30:00+02:00",
+        "when_label": "Mi 14.10.2026 · 14:30 Berlin",
+        "link": "https://www.bls.gov/cpi/"
+      },
+      {
+        "id": "fomc",
+        "title": "Fed Zinsentscheidung",
+        "when": "2026-10-28T20:00:00+02:00",
+        "when_label": "Mi 28.10.2026 · ~20:00 Berlin",
+        "link": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+      },
+      {
+        "id": "earnings",
+        "title": "Q3 Earnings-Fenster",
+        "when": "2026-10-06T00:00:00+02:00",
+        "when_label": "ca. Mitte Okt → Mitte Nov 2026",
+        "link": "https://www.tradingview.com/markets/stocks-usa/earnings/"
+      }
+    ],
+    "stock_signals": [
+      {
+        "symbol": "SPY",
+        "name": "Proxy: S&P 500 ETF",
+        "theme": "Fed/Rate Hike",
+        "hype_state": "dehyped",
+        "signal": "sell",
+        "signal_label": "Social-Signal: SELL",
+        "confidence": 74,
+        "strength": 88,
+        "why": "Aus Theme „Fed/Rate Hike“ / Sentiment bearish (Stärke 88) — Heuristik bis Live-Tweet-Scan.",
+        "sample_snippets": [],
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/SPY/",
+          "yahoo": "https://finance.yahoo.com/quote/SPY"
+        },
+        "interim": true
+      },
+      {
+        "symbol": "ES=F",
+        "name": "S&P Futures",
+        "theme": "Futures/Asia Bounce",
+        "hype_state": "hyped",
+        "signal": "buy",
+        "signal_label": "Social-Signal: BUY",
+        "confidence": 74,
+        "strength": 76,
+        "why": "Aus Theme „Futures/Asia Bounce“ / Sentiment leicht_bullish (Stärke 76) — Heuristik bis Live-Tweet-Scan.",
+        "sample_snippets": [],
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/CME_MINI:ES1!/",
+          "yahoo": "https://finance.yahoo.com/quote/ES=F"
+        },
+        "interim": true
+      },
+      {
+        "symbol": "DIA",
+        "name": "Dow Jones ETF",
+        "theme": "DIA/Dow",
+        "hype_state": "mixed",
+        "signal": "hold",
+        "signal_label": "Social-Signal: HOLD",
+        "confidence": 74,
+        "strength": 72,
+        "why": "Aus Theme „DIA/Dow“ / Sentiment bearish (Stärke 72) — Heuristik bis Live-Tweet-Scan.",
+        "sample_snippets": [],
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/DIA/",
+          "yahoo": "https://finance.yahoo.com/quote/DIA"
+        },
+        "interim": true
+      },
+      {
+        "symbol": "BTC-USD",
+        "name": "Bitcoin",
+        "theme": "BTC/Crypto",
+        "hype_state": "mixed",
+        "signal": "hold",
+        "signal_label": "Social-Signal: HOLD",
+        "confidence": 74,
+        "strength": 68,
+        "why": "Aus Theme „BTC/Crypto“ / Sentiment mixed (Stärke 68) — Heuristik bis Live-Tweet-Scan.",
+        "sample_snippets": [],
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/BINANCE:BTCUSDT/",
+          "yahoo": "https://finance.yahoo.com/quote/BTC-USD"
+        },
+        "interim": true
+      }
+    ],
+    "signals_disclaimer": "Buy/Hold/Sell = Social-Signal aus Buzz-Kontext, KEINE Finanzberatung und KEIN Trade-Call."
   },
   "history": [
     {
