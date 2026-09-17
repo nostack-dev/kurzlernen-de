@@ -7,7 +7,7 @@
 <title>BotBot · Stocks Trendvektor</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
-  :root { --bg:#0a0e12; --card:#121821; --line:#243041; --text:#e7ecf1; --muted:#8b97a8; --bear:#e85d4c; --bull:#22c55e; --warn:#f0b429; --blue:#3d8bfd; }
+  :root { --bg:#0a0e12; --card:#121821; --line:#243041; --text:#e7ecf1; --muted:#8b97a8; --bear:#e85d4c; --bull:#22c55e; --warn:#f0b429; }
   * { box-sizing: border-box; }
   body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
   header { padding:20px 24px 8px; display:flex; flex-wrap:wrap; gap:12px; align-items:baseline; justify-content:space-between; }
@@ -15,20 +15,27 @@
   .meta { color:var(--muted); font-size:.9rem; }
   .grid { display:grid; grid-template-columns:repeat(12,1fr); gap:14px; padding:12px 24px 28px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
-  .span3 { grid-column: span 3; } .span4 { grid-column: span 4; } .span6 { grid-column: span 6; } .span8 { grid-column: span 8; } .span12 { grid-column: span 12; }
-  @media (max-width:900px){ .span3,.span4,.span6,.span8,.span12{ grid-column: span 12; } }
+  .span3{grid-column:span 3}.span4{grid-column:span 4}.span6{grid-column:span 6}.span8{grid-column:span 8}.span12{grid-column:span 12}
+  @media (max-width:900px){ .span3,.span4,.span6,.span8,.span12{grid-column:span 12} }
   .label { color:var(--muted); font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; }
   .big { font-size:2rem; font-weight:700; margin-top:6px; }
-  .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:.8rem; font-weight:600; }
-  .bear { background:rgba(232,93,76,.15); color:var(--bear); }
-  .bull { background:rgba(34,197,94,.15); color:var(--bull); }
-  .warn { background:rgba(240,180,41,.15); color:var(--warn); }
-  canvas { max-height:280px; }
+  .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:.8rem; font-weight:700; }
+  .buy,.bull,.risk_on,.lean_on,.hyped { background:rgba(34,197,94,.18); color:var(--bull); }
+  .sell,.bear,.risk_off,.lean_off,.dehyped { background:rgba(232,93,76,.18); color:var(--bear); }
+  .hold,.watch,.mixed,.warn { background:rgba(240,180,41,.18); color:var(--warn); }
+  canvas { max-height:260px; }
   table { width:100%; border-collapse:collapse; font-size:.9rem; }
-  th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
   th { color:var(--muted); font-weight:500; }
-  .barwrap { height:10px; background:#1a222c; border-radius:6px; overflow:hidden; }
-  .bar { height:100%; border-radius:6px; }
+  a.stock { color:#7dd3fc; text-decoration:none; font-weight:700; }
+  a.stock:hover { text-decoration:underline; }
+  .links a { color:var(--muted); font-size:.75rem; margin-right:8px; }
+  .links a:hover { color:#7dd3fc; }
+  .disclaimer { border:1px solid var(--line); background:#0f1419; border-radius:10px; padding:10px 12px; font-size:.85rem; color:var(--muted); }
+  .cal { display:grid; gap:10px; }
+  .cal-row { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:baseline; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); }
+  .cal-row:last-child { border-bottom:0; }
+  .why { color:var(--muted); font-size:.8rem; margin-top:4px; max-width:420px; }
   footer { padding:0 24px 24px; color:var(--muted); font-size:.8rem; }
 </style>
 </head>
@@ -44,96 +51,116 @@
   <div class="card span3"><div class="label">Richtung</div><div class="big" id="direction">—</div></div>
   <div class="card span3"><div class="label">Magnitude</div><div class="big" id="mag">—</div></div>
   <div class="card span3"><div class="label">Konfidenz</div><div class="big" id="conf">—</div></div>
-  <div class="card span3"><div class="label">Items (dieser Tick)</div><div class="big" id="items">—</div></div>
+  <div class="card span3"><div class="label">Gesamt-Bias</div><div class="big" id="obias">—</div></div>
 
-  <div class="card span6"><div class="label">Datenmenge pro Quelle</div><canvas id="volChart"></canvas></div>
-  <div class="card span6"><div class="label">Verlauf Magnitude</div><canvas id="histChart"></canvas></div>
+  <div class="card span12"><div class="disclaimer" id="disclaimer">Buy/Hold/Sell = Social-Signal aus Buzz — keine Finanzberatung.</div></div>
 
-  <div class="card span8"><div class="label">Top-Themen</div><table id="themes"><thead><tr><th>Thema</th><th>Sentiment</th><th>Stärke</th><th></th></tr></thead><tbody></tbody></table></div>
-  <div class="card span4"><div class="label">Frische / Quellen</div><div id="fresh" style="margin-top:10px;line-height:1.55;font-size:.9rem;color:var(--muted)"></div></div>
+  <div class="card span6">
+    <div class="label">Nächste Termine (KISS)</div>
+    <div class="cal" id="calendar"></div>
+  </div>
+  <div class="card span6">
+    <div class="label">Verlauf Magnitude</div>
+    <canvas id="histChart"></canvas>
+  </div>
 
-  <div class="card span12"><div class="label">Delta vs. vorheriger Tick</div><div id="delta" style="margin-top:8px;font-size:.95rem">Baseline — noch kein Delta</div></div>
+  <div class="card span12">
+    <div class="label">Gehyped / Gedehyped · Social Buy / Hold / Sell</div>
+    <table id="signals">
+      <thead><tr><th>Stock</th><th>Hype</th><th>Signal</th><th>Konfidenz</th><th>Warum (Kontext)</th><th>Links</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card span6"><div class="label">Datenmenge</div><canvas id="volChart"></canvas></div>
+  <div class="card span6"><div class="label">Frische / Delta</div><div id="fresh" style="margin-top:10px;line-height:1.55;font-size:.9rem;color:var(--muted)"></div><div id="delta" style="margin-top:12px;font-size:.9rem;color:var(--muted)"></div></div>
 </div>
-<footer>Keine Trade-Empfehlung. Aggregierte Social-Stimmung · Auto-Refresh alle 60s · Daten: <code>stockstrend-data.json</code></footer>
+<footer>Auto-Refresh 60s · <code>stockstrend-data.json</code></footer>
 <script>
-async function load() {
-  const res = await fetch('stockstrend-data.json?t=' + Date.now(), { cache: 'no-store' });
+function cls(s){ s=(s||'').toLowerCase(); if(s.includes('buy')||s.includes('hyped')&&!s.includes('de')||s.includes('on')) return 'buy'; if(s.includes('sell')||s.includes('dehyped')||s.includes('off')) return 'sell'; return 'hold'; }
+function daysUntil(iso){
+  if(!iso) return '';
+  const t = new Date(iso).getTime();
+  if(isNaN(t)) return '';
+  const d = Math.ceil((t - Date.now())/86400000);
+  if(d<0) return 'vorüber';
+  if(d===0) return 'heute';
+  return 'in ' + d + ' Tagen';
+}
+async function load(){
+  const res = await fetch('stockstrend-data.json?t='+Date.now(), {cache:'no-store'});
   const data = await res.json();
   const t = data.tick || {};
   const v = t.vector || {};
   const totals = t.totals || {};
   const br = totals.breakdown || {};
+  const ob = t.overall_bias || {};
 
   document.getElementById('updated').textContent =
-    'Stand: ' + (data.updated_at || '—') + ' · ' + (data.timezone || '');
+    'Stand: '+(data.updated_at||'—')+' · Items: '+(totals.content_items_usable??'—')+' · '+(data.timezone||'');
 
-  const dir = (v.direction || '—').replaceAll('_',' ');
-  const bearish = /bear/i.test(dir);
-  document.getElementById('direction').innerHTML =
-    '<span class="pill ' + (bearish ? 'bear' : 'bull') + '">' + dir + '</span>';
+  const dir = (v.direction||'—').replaceAll('_',' ');
+  document.getElementById('direction').innerHTML = '<span class="pill '+( /bear/i.test(dir)?'sell':'buy')+'">'+dir+'</span>';
   document.getElementById('mag').textContent = v.magnitude ?? '—';
   document.getElementById('conf').textContent = v.confidence ?? '—';
-  document.getElementById('items').textContent = totals.content_items_usable ?? '—';
+  document.getElementById('obias').innerHTML = '<span class="pill '+cls(ob.key||'')+'">'+(ob.label||'—')+'</span>';
+  document.getElementById('disclaimer').textContent = t.signals_disclaimer || ob.disclaimer || document.getElementById('disclaimer').textContent;
 
   const sig = document.getElementById('signal');
-  if (v.early_signal) {
-    sig.innerHTML = '<span class="pill warn">Frühsignal: JA</span> <span class="meta">' + (v.early_signal_note || '') + '</span>';
-  } else {
-    sig.innerHTML = '<span class="pill">Frühsignal: nein</span>';
-  }
+  sig.innerHTML = v.early_signal
+    ? '<span class="pill hold">Frühsignal: JA</span> <span class="meta">'+(v.early_signal_note||'')+'</span>'
+    : '<span class="pill">Frühsignal: nein</span>';
 
-  const labels = Object.keys(br);
-  const vals = Object.values(br);
-  if (window._vol) window._vol.destroy();
-  window._vol = new Chart(document.getElementById('volChart'), {
-    type: 'bar',
-    data: { labels, datasets: [{ data: vals, backgroundColor: ['#1d9bf0','#ff4500','#8b5cf6','#22c55e','#f472b6','#94a3b8'] }] },
-    options: { plugins:{legend:{display:false}}, scales:{ x:{ ticks:{color:'#8b97a8'}, grid:{color:'#243041'} }, y:{ ticks:{color:'#8b97a8'}, grid:{color:'#243041'}, beginAtZero:true } } }
+  const cal = document.getElementById('calendar');
+  cal.innerHTML = '';
+  (t.macro_calendar||[]).forEach(ev => {
+    const row = document.createElement('div');
+    row.className = 'cal-row';
+    row.innerHTML = '<div><b>'+ev.title+'</b><div class="meta">'+ev.when_label+' · '+daysUntil(ev.when)+'</div></div>' +
+      (ev.link ? '<a class="stock" href="'+ev.link+'" target="_blank" rel="noopener">Quelle</a>' : '');
+    cal.appendChild(row);
   });
 
   const hist = data.history || [];
-  if (window._hist) window._hist.destroy();
+  if(window._hist) window._hist.destroy();
   window._hist = new Chart(document.getElementById('histChart'), {
-    type: 'line',
-    data: {
-      labels: hist.map((h,i) => '#' + (i+1)),
-      datasets: [{
-        label: 'Magnitude',
-        data: hist.map(h => h.magnitude),
-        borderColor: '#e85d4c',
-        backgroundColor: 'rgba(232,93,76,.15)',
-        fill: true,
-        tension: .25,
-        pointRadius: 5
-      }]
-    },
-    options: { plugins:{legend:{display:false}}, scales:{ x:{ ticks:{color:'#8b97a8'}, grid:{color:'#243041'} }, y:{ min:0, max:100, ticks:{color:'#8b97a8'}, grid:{color:'#243041'} } } }
+    type:'line',
+    data:{ labels: hist.map((_,i)=>'#'+(i+1)), datasets:[{ data: hist.map(h=>h.magnitude), borderColor:'#e85d4c', backgroundColor:'rgba(232,93,76,.15)', fill:true, tension:.25, pointRadius:5 }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#8b97a8'}, grid:{color:'#243041'}}, y:{min:0,max:100,ticks:{color:'#8b97a8'}, grid:{color:'#243041'}} }}
   });
 
-  const tb = document.querySelector('#themes tbody');
+  const tb = document.querySelector('#signals tbody');
   tb.innerHTML = '';
-  (t.top_themes || []).forEach(th => {
-    const color = /bear/i.test(th.sentiment) ? '#e85d4c' : /bull/i.test(th.sentiment) ? '#22c55e' : '#f0b429';
+  (t.stock_signals||[]).forEach(s => {
+    const links = s.links||{};
     const tr = document.createElement('tr');
-    tr.innerHTML = '<td>' + th.theme + '</td><td>' + th.sentiment + '</td><td>' + th.strength +
-      '</td><td style="width:35%"><div class="barwrap"><div class="bar" style="width:' + th.strength + '%;background:' + color + '"></div></div></td>';
+    tr.innerHTML =
+      '<td><a class="stock" href="'+(links.yahoo||'#')+'" target="_blank" rel="noopener">'+(s.symbol||'')+'</a><div class="meta">'+(s.name||'')+'</div></td>'+
+      '<td><span class="pill '+cls(s.hype_state)+'">'+(s.hype_state||'')+'</span></td>'+
+      '<td><span class="pill '+cls(s.signal)+'">'+(s.signal||'').toUpperCase()+'</span><div class="meta">'+(s.signal_label||'')+'</div></td>'+
+      '<td>'+(s.confidence??'—')+'</td>'+
+      '<td><div class="why">'+(s.why||'')+'</div></td>'+
+      '<td class="links">'+(links.yahoo?'<a href="'+links.yahoo+'" target="_blank" rel="noopener">Yahoo</a>':'')+(links.tradingview?'<a href="'+links.tradingview+'" target="_blank" rel="noopener">TV</a>':'')+'</td>';
     tb.appendChild(tr);
   });
 
-  const f = t.freshness || {};
-  document.getElementById('fresh').innerHTML =
-    '<div><b>Frischestes:</b> ' + (f.freshest_absolute || '—') + '</div>' +
-    '<div><b>Primärsignal:</b> ' + (f.primary_signal || '—') + '</div>' +
-    '<div><b>Qualität:</b> ' + (f.quality || '—') + '</div>' +
-    '<div style="margin-top:10px"><b>Quellen OK / Fail</b> siehe Tick-JSON</div>';
+  if(window._vol) window._vol.destroy();
+  window._vol = new Chart(document.getElementById('volChart'), {
+    type:'bar',
+    data:{ labels:Object.keys(br), datasets:[{ data:Object.values(br), backgroundColor:['#1d9bf0','#ff4500','#8b5cf6','#22c55e','#f472b6','#94a3b8'] }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#8b97a8'}, grid:{color:'#243041'}}, y:{ticks:{color:'#8b97a8'}, grid:{color:'#243041'}, beginAtZero:true } }}
+  });
 
+  const f = t.freshness||{};
+  document.getElementById('fresh').innerHTML =
+    '<div><b>Frischestes:</b> '+(f.freshest_absolute||f.freshest_item_age||'—')+'</div>'+
+    '<div><b>Primär:</b> '+(f.primary_signal||'—')+'</div>';
   const d = t.delta_vs_prev;
-  document.getElementById('delta').textContent = d
-    ? JSON.stringify(d)
-    : 'Baseline (Tick #1) — Deltas erscheinen ab dem nächsten Scan.';
+  document.getElementById('delta').innerHTML = d
+    ? 'Δ Mag <b>'+(d.magnitude_delta??'—')+'</b> · Δ Conf <b>'+(d.confidence_delta??'—')+'</b> · Vol <b>'+(d.volume_change_pct??'—')+'%</b>'
+    : 'Kein Delta';
 }
-load();
-setInterval(load, 60000);
+load(); setInterval(load, 60000);
 </script>
 </body>
 </html>

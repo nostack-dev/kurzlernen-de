@@ -1,47 +1,50 @@
 {
-  "updated_at": "2026-09-17T10:37:00+02:00",
+  "updated_at": "2026-09-17T10:58:00+02:00",
   "timezone": "Europe/Berlin",
   "tick": {
-    "tick_id": "2026-09-17T10:37:00+02:00",
-    "scraped_at": "2026-09-17T10:37:00+02:00",
+    "tick_id": "2026-09-17T10:58:00+02:00",
+    "scraped_at": "2026-09-17T10:58:00+02:00",
     "timezone": "Europe/Berlin",
     "sources": {
       "user-X": {
         "status": "ok",
-        "items": 154,
+        "items": 100,
         "breakdown": {
           "trends_usa": 20,
           "trends_germany": 20,
           "news": 15,
-          "posts_sampled": 99
+          "posts_sampled": 45
         },
-        "counts_7d": {
-          "composite": 167598,
-          "nvda": 25101,
-          "btc": 714967,
-          "tsla": 21367
+        "counts_24h": {
+          "nvda": 9439,
+          "tsla": 8316,
+          "btc": 200715,
+          "composite": 370406
         },
-        "freshest": "2026-09-17T08:33:30Z (~0–2 min)",
-        "window": "Posts/News recency ≤24h; Counts 7d"
+        "freshest": "2026-09-17T08:51:01Z (~0–1 min)",
+        "window": "Posts/News recency ≤24h; Counts ~24h hourly",
+        "credits_before_usd": 9.4
       },
       "user-Apify-Reddit": {
         "status": "ok",
-        "items": 45,
+        "items": 39,
         "subreddits": [
           "CryptoCurrency",
           "StockMarket",
           "wallstreetbets",
           "stocks"
         ],
-        "window": "hot/day ~24h",
-        "freshest_item_age": "<24h"
+        "window": "hot/day ~24–48h",
+        "freshest_item_age": "~2.5h",
+        "run_id": "j9VaFTCdfdC4JZyH4"
       },
       "user-Apify-TikTok": {
         "status": "ok",
         "items": 10,
-        "freshest": "2026-09-16T22:54:50Z (~9.7h)",
-        "oldest": "2026-09-13T22:11:48Z (~3.4d)",
-        "note": "Free-Cap 10"
+        "freshest": "2026-09-16T14:35:19Z (~20.4h)",
+        "oldest": "2026-07-23T02:37:40Z (~56d evergreen)",
+        "note": "Free-Cap awareness; 10 items",
+        "run_id": "qAgEK4wEeP5SdqVXd"
       },
       "WebSearch": {
         "status": "ok",
@@ -50,75 +53,275 @@
       },
       "user-Bright Data": {
         "status": "fail",
-        "items": 0
+        "items": 0,
+        "error": "HTTP 401 Auth method is not supported"
       },
       "user-Treg": {
         "status": "fail",
-        "items": 0
+        "items": 0,
+        "error": "not signed in / token invalid or expired"
       },
       "user-Monid": {
         "status": "skip",
-        "items": 0
+        "items": 0,
+        "note": "needsAuth"
       }
     },
     "totals": {
-      "content_items_usable": 214,
+      "content_items_usable": 154,
       "breakdown": {
         "x_trends": 40,
         "x_news": 15,
-        "x_posts": 99,
-        "reddit": 45,
+        "x_posts": 45,
+        "reddit": 39,
         "tiktok": 10,
         "websearch": 5
       }
     },
     "freshness": {
-      "freshest_absolute": "X post ~0–2 min",
-      "primary_signal": "Minuten bis wenige Stunden",
-      "quality": "hoch X+Reddit; mittel TikTok; niedrig Auth-Fails"
+      "freshest_absolute": "X post ~0–1 min",
+      "primary_signal": "Minuten (X) bis ~24h (Reddit/News); TikTok Stunden–Tage",
+      "quality": "hoch X+Reddit+Web; mittel TikTok; Auth-Fails Bright Data/Treg/Monid",
+      "scrape_berlin": "2026-09-17T10:58:00+02:00",
+      "sample_window": "X posts seconds–minutes; news ≤24h; Reddit hot/day; TikTok mixed ages",
+      "freshest_item_age": "~0–1 min",
+      "oldest_usable_signal": "Reddit ~2d; TikTok primary ~20h"
     },
     "vector": {
       "direction": "leicht_bearish_risk_off",
-      "magnitude": 65,
-      "confidence": 72,
+      "magnitude": 60,
+      "confidence": 74,
       "early_signal": true,
-      "early_signal_note": "Extreme Fear ~24, WSB laut, Premarket-Bounce"
+      "early_signal_note": "Futures/Asia-Bounce nach Fed-Selloff; F&G Extreme Fear ~24; WSB laut (Puts/Stress)"
     },
     "top_themes": [
       {
         "theme": "Fed/Rate Hike",
         "sentiment": "bearish",
-        "strength": 90
+        "strength": 88,
+        "symbol": "SPY",
+        "symbol_note": "Proxy: S&P 500 ETF",
+        "bias": "risk_off",
+        "bias_label": "Vorsicht / Bias risk-off",
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/SPY/",
+          "yahoo": "https://finance.yahoo.com/quote/SPY"
+        }
       },
       {
         "theme": "Fear & Greed Stocks ~24",
         "sentiment": "bearish",
-        "strength": 85
+        "strength": 84,
+        "symbol": "SPY",
+        "symbol_note": "Proxy: Markt-Gauge",
+        "bias": "risk_off",
+        "bias_label": "Vorsicht / Bias risk-off",
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/SPY/",
+          "yahoo": "https://finance.yahoo.com/quote/SPY"
+        }
+      },
+      {
+        "theme": "Futures/Asia Bounce",
+        "sentiment": "leicht_bullish",
+        "strength": 76,
+        "symbol": "ES=F",
+        "symbol_note": "S&P Futures",
+        "bias": "risk_on",
+        "bias_label": "Beobachten / Bias risk-on",
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/CME_MINI:ES1!/",
+          "yahoo": "https://finance.yahoo.com/quote/ES=F"
+        }
       },
       {
         "theme": "DIA/Dow",
         "sentiment": "bearish",
-        "strength": 78
-      },
-      {
-        "theme": "SPY/S&P",
-        "sentiment": "mixed",
-        "strength": 75
+        "strength": 72,
+        "symbol": "DIA",
+        "symbol_note": "Dow Jones ETF",
+        "bias": "lean_off",
+        "bias_label": "Leicht risk-off",
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/DIA/",
+          "yahoo": "https://finance.yahoo.com/quote/DIA"
+        }
       },
       {
         "theme": "BTC/Crypto",
-        "sentiment": "leicht_bullish",
-        "strength": 72
+        "sentiment": "mixed",
+        "strength": 68,
+        "symbol": "BTC-USD",
+        "symbol_note": "Bitcoin",
+        "bias": "watch",
+        "bias_label": "Nur beobachten",
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/BINANCE:BTCUSDT/",
+          "yahoo": "https://finance.yahoo.com/quote/BTC-USD"
+        }
       }
     ],
-    "delta_vs_prev": null,
-    "chart": "/home/box/agent-data/agents/d96c7cd8-4ca3-4ebc-952e-e462ef808dbd/trendvektor/tick-20260917-1037.png",
-    "baseline": true,
-    "scrape_window": {
-      "start": "2026-09-17T10:33:00+02:00",
-      "end": "2026-09-17T10:37:00+02:00"
+    "delta_vs_prev": {
+      "prev_tick_id": "2026-09-17T10:37:00+02:00",
+      "magnitude_delta": -5,
+      "confidence_delta": 2,
+      "direction_prev": "leicht_bearish_risk_off",
+      "direction_now": "leicht_bearish_risk_off",
+      "direction_changed": false,
+      "early_signal_prev": true,
+      "early_signal_now": true,
+      "early_signal_flipped": false,
+      "volume_prev": 214,
+      "volume_now": 154,
+      "volume_change_pct": -28.0,
+      "new_themes": [
+        "Futures/Asia Bounce"
+      ],
+      "gone_themes": [
+        "SPY/S&P"
+      ],
+      "sentiment_swings": [
+        {
+          "theme": "BTC/Crypto",
+          "from": "leicht_bullish",
+          "to": "mixed"
+        }
+      ],
+      "note": "Overnight digest: Futures/Asia mild rebound vs Tick#1; F&G/Fed still dominate; BTC softened by ETF outflows"
     },
-    "volume_enriched": true
+    "material_change": false,
+    "material_change_reasons": [
+      "|Δmag|=5<8; direction unchanged; conf Δ+2; early_signal unchanged; Futures theme new but strength 76<80; BTC leicht_bullish→mixed strength 68; volume −28%<30%"
+    ],
+    "chart": "/home/box/agent-data/agents/d96c7cd8-4ca3-4ebc-952e-e462ef808dbd/trendvektor/tick-20260917-1058.png",
+    "baseline": false,
+    "scrape_window": {
+      "start": "2026-09-17T10:50:00+02:00",
+      "end": "2026-09-17T10:58:00+02:00"
+    },
+    "volume_enriched": true,
+    "mini_series": [
+      {
+        "tick": 1,
+        "at": "2026-09-17T10:37:00+02:00",
+        "direction": "leicht_bearish_risk_off",
+        "magnitude": 65,
+        "confidence": 72
+      },
+      {
+        "tick": 2,
+        "at": "2026-09-17T10:58:00+02:00",
+        "direction": "leicht_bearish_risk_off",
+        "magnitude": 60,
+        "confidence": 74
+      }
+    ],
+    "overall_bias": {
+      "key": "lean_off",
+      "label": "Leicht risk-off",
+      "disclaimer": "Kein Trade-Call / keine Kaufempfehlung — nur aggregiertes Social-Sentiment."
+    },
+    "macro_calendar": [
+      {
+        "id": "nfp",
+        "title": "US Jobs (NFP)",
+        "when": "2026-10-02T14:30:00+02:00",
+        "when_label": "Fr 02.10.2026 · 14:30 Berlin",
+        "link": "https://www.bls.gov/news.release/empsit.toc.htm"
+      },
+      {
+        "id": "cpi",
+        "title": "US CPI",
+        "when": "2026-10-14T14:30:00+02:00",
+        "when_label": "Mi 14.10.2026 · 14:30 Berlin",
+        "link": "https://www.bls.gov/cpi/"
+      },
+      {
+        "id": "fomc",
+        "title": "Fed Zinsentscheidung",
+        "when": "2026-10-28T20:00:00+02:00",
+        "when_label": "Mi 28.10.2026 · ~20:00 Berlin",
+        "link": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+      },
+      {
+        "id": "earnings",
+        "title": "Q3 Earnings-Fenster",
+        "when": "2026-10-06T00:00:00+02:00",
+        "when_label": "ca. Mitte Okt → Mitte Nov 2026",
+        "link": "https://www.tradingview.com/markets/stocks-usa/earnings/"
+      }
+    ],
+    "stock_signals": [
+      {
+        "symbol": "SPY",
+        "name": "Proxy: S&P 500 ETF",
+        "theme": "Fed/Rate Hike",
+        "hype_state": "dehyped",
+        "signal": "sell",
+        "signal_label": "Social-Signal: SELL",
+        "confidence": 74,
+        "strength": 88,
+        "why": "Aus Theme „Fed/Rate Hike“ / Sentiment bearish (Stärke 88) — Heuristik bis Live-Tweet-Scan.",
+        "sample_snippets": [],
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/SPY/",
+          "yahoo": "https://finance.yahoo.com/quote/SPY"
+        },
+        "interim": true
+      },
+      {
+        "symbol": "ES=F",
+        "name": "S&P Futures",
+        "theme": "Futures/Asia Bounce",
+        "hype_state": "hyped",
+        "signal": "buy",
+        "signal_label": "Social-Signal: BUY",
+        "confidence": 74,
+        "strength": 76,
+        "why": "Aus Theme „Futures/Asia Bounce“ / Sentiment leicht_bullish (Stärke 76) — Heuristik bis Live-Tweet-Scan.",
+        "sample_snippets": [],
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/CME_MINI:ES1!/",
+          "yahoo": "https://finance.yahoo.com/quote/ES=F"
+        },
+        "interim": true
+      },
+      {
+        "symbol": "DIA",
+        "name": "Dow Jones ETF",
+        "theme": "DIA/Dow",
+        "hype_state": "mixed",
+        "signal": "hold",
+        "signal_label": "Social-Signal: HOLD",
+        "confidence": 74,
+        "strength": 72,
+        "why": "Aus Theme „DIA/Dow“ / Sentiment bearish (Stärke 72) — Heuristik bis Live-Tweet-Scan.",
+        "sample_snippets": [],
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/DIA/",
+          "yahoo": "https://finance.yahoo.com/quote/DIA"
+        },
+        "interim": true
+      },
+      {
+        "symbol": "BTC-USD",
+        "name": "Bitcoin",
+        "theme": "BTC/Crypto",
+        "hype_state": "mixed",
+        "signal": "hold",
+        "signal_label": "Social-Signal: HOLD",
+        "confidence": 74,
+        "strength": 68,
+        "why": "Aus Theme „BTC/Crypto“ / Sentiment mixed (Stärke 68) — Heuristik bis Live-Tweet-Scan.",
+        "sample_snippets": [],
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/BINANCE:BTCUSDT/",
+          "yahoo": "https://finance.yahoo.com/quote/BTC-USD"
+        },
+        "interim": true
+      }
+    ],
+    "signals_disclaimer": "Buy/Hold/Sell = Social-Signal aus Buzz-Kontext, KEINE Finanzberatung und KEIN Trade-Call."
   },
   "history": [
     {
@@ -128,6 +331,15 @@
       "confidence": 72,
       "direction": "leicht_bearish_risk_off",
       "items": 214,
+      "early_signal": true
+    },
+    {
+      "tick_id": "2026-09-17T10:58:00+02:00",
+      "scraped_at": "2026-09-17T10:58:00+02:00",
+      "magnitude": 60,
+      "confidence": 74,
+      "direction": "leicht_bearish_risk_off",
+      "items": 154,
       "early_signal": true
     }
   ]
