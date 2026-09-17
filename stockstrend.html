@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<title>BotBot · Stocks Trendvektor</title>
+<title>BotBot · Stocks</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="./tickers.js"></script>
 <style>
@@ -16,230 +16,275 @@
   .meta { color:var(--muted); font-size:.9rem; }
   .grid { display:grid; grid-template-columns:repeat(12,1fr); gap:14px; padding:12px 24px 28px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
-  .span3{grid-column:span 3}.span4{grid-column:span 4}.span6{grid-column:span 6}.span8{grid-column:span 8}.span12{grid-column:span 12}
-  @media (max-width:900px){ .span3,.span4,.span6,.span8,.span12{grid-column:span 12} }
+  .span6{grid-column:span 6}.span12{grid-column:span 12}
+  @media (max-width:900px){ .span6,.span12{grid-column:span 12} }
   .label { color:var(--muted); font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; }
-  .big { font-size:2rem; font-weight:700; margin-top:6px; }
+  .huge { font-size:3rem; font-weight:800; margin-top:6px; }
   .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:.8rem; font-weight:700; }
-  .buy,.bull,.hyped { background:rgba(34,197,94,.18); color:var(--bull); }
-  .sell,.bear,.dehyped { background:rgba(232,93,76,.18); color:var(--bear); }
-  .hold,.watch,.mixed,.warn { background:rgba(240,180,41,.18); color:var(--warn); }
-  canvas { max-height:240px; }
-  table { width:100%; border-collapse:collapse; font-size:.9rem; }
+  .buy,.hyped { background:rgba(34,197,94,.18); color:var(--bull); }
+  .sell,.dehyped { background:rgba(232,93,76,.18); color:var(--bear); }
+  .hold,.mixed,.warn { background:rgba(240,180,41,.18); color:var(--warn); }
+  canvas { max-height:220px; }
+  table { width:100%; border-collapse:collapse; font-size:.88rem; }
   th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
   th { color:var(--muted); font-weight:500; }
   a.stock { color:#7dd3fc; text-decoration:none; font-weight:700; }
   .links a { color:var(--muted); font-size:.75rem; margin-right:8px; }
   .disclaimer { border:1px solid var(--line); background:#0f1419; border-radius:10px; padding:10px 12px; font-size:.85rem; color:var(--muted); }
-  .cal-row { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:baseline; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); }
-  .why { color:var(--muted); font-size:.8rem; margin-top:4px; max-width:420px; }
+  .cal-row { display:flex; flex-wrap:wrap; gap:8px 16px; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); }
+  .why { color:var(--muted); font-size:.8rem; margin-top:4px; max-width:380px; }
+  .snip { color:#a8b3c2; font-size:.75rem; margin-top:4px; border-left:2px solid #243041; padding-left:8px; }
   footer { padding:0 24px 24px; color:var(--muted); font-size:.8rem; }
   .search-row { display:flex; gap:8px; flex-wrap:wrap; }
   .search-row input { flex:1; min-width:180px; background:#0f1419; border:1px solid var(--line); color:var(--text); border-radius:10px; padding:10px 12px; font-size:1rem; }
   .search-row button { background:#3d8bfd; color:#fff; border:0; border-radius:10px; padding:10px 16px; font-weight:700; cursor:pointer; }
-  .search-row button:disabled { opacity:.5; cursor:default; }
-  .search-row button.secondary { background:#243041; }
-  #suggest { margin-top:8px; }
-  .sug { padding:8px 10px; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
+  .search-row button:disabled { opacity:.5; }
+  .sug { padding:8px 10px; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between; }
   .sug:hover, .sug.active { background:#1a222c; }
   #analyseStatus { margin-top:10px; font-size:.9rem; color:var(--muted); }
   details.setup { margin-top:10px; color:var(--muted); font-size:.85rem; }
   details.setup input { width:100%; margin-top:6px; background:#0f1419; border:1px solid var(--line); color:var(--text); border-radius:8px; padding:8px; }
+  .kern-sub { color:var(--muted); font-size:.9rem; margin-top:8px; line-height:1.4; }
 </style>
 </head>
 <body>
 <header>
   <div>
-    <h1>BotBot · Stocks Trendvektor</h1>
+    <h1>BotBot · Stocks</h1>
     <div class="meta" id="updated">lädt…</div>
   </div>
   <div id="signal"></div>
 </header>
 <div class="grid">
+  <div class="card span12" style="border-color:#3d8bfd55">
+    <div class="label">Kernzahl · First Principles · Low Noise</div>
+    <div class="huge" id="kernVal">—</div>
+    <div class="kern-sub" id="kernSub"></div>
+  </div>
+
   <div class="card span12">
-    <div class="label">Stock suchen · Analyse</div>
+    <div class="label">Stock suchen · Analyse → Buy / Hold / Sell</div>
     <div class="search-row">
-      <input id="q" type="search" placeholder="z. B. oracle, apple, SMCI, rivian…" autocomplete="off"/>
+      <input id="q" type="search" placeholder="oracle, apple, SMCI…" autocomplete="off"/>
       <button id="btnAnalyse" type="button" disabled>Analyse</button>
     </div>
     <div id="suggest"></div>
     <div id="analyseStatus"></div>
     <details class="setup">
-      <summary>Webhook einmal verbinden (für Analyse-Button)</summary>
-      <p>URL + Key aus der BotBot-Routine „Stock Analyse on Demand“ hier speichern (bleibt nur lokal im Browser).</p>
+      <summary>Webhook einmal verbinden</summary>
       <input id="whUrl" placeholder="Webhook-URL"/>
-      <input id="whKey" placeholder="Sender-Key" style="margin-top:6px"/>
-      <button class="secondary" id="btnSaveWh" type="button" style="margin-top:8px;background:#243041;color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer">Speichern</button>
+      <input id="whKey" placeholder="Sender-Key / Authorization"/>
+      <button id="btnSaveWh" type="button" style="margin-top:8px;background:#243041;color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer">Speichern</button>
     </details>
   </div>
 
-  <div class="card span3"><div class="label">Richtung</div><div class="big" id="direction">—</div></div>
-  <div class="card span3"><div class="label">Magnitude</div><div class="big" id="mag">—</div></div>
-  <div class="card span3"><div class="label">Konfidenz</div><div class="big" id="conf">—</div></div>
-  <div class="card span3"><div class="label">Gesamt-Bias</div><div class="big" id="obias">—</div></div>
+  <div class="card span12"><div class="disclaimer" id="disclaimer">Social-Signal, keine Finanzberatung. Kernzahl = Nähe Makro-Schock (Fed/CPI/Jobs).</div></div>
 
-  <div class="card span12"><div class="disclaimer" id="disclaimer">Buy/Hold/Sell = Social-Signal — keine Finanzberatung.</div></div>
+  <div class="card span12">
+    <div class="label">Ergebnis je Aktie · Signal · Belege</div>
+    <table id="signals">
+      <thead><tr><th>Stock</th><th>Signal</th><th>Impuls</th><th>X</th><th>Reddit</th><th>News</th><th>Warum / Tweets</th><th>Links</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
   <div class="card span6"><div class="label">Nächste Termine</div><div id="calendar"></div></div>
   <div class="card span6"><div class="label">Verlauf Magnitude</div><canvas id="histChart"></canvas></div>
-
-  <div class="card span12">
-    <div class="label">Gehyped / Gedehyped · Social Buy / Hold / Sell</div>
-    <table id="signals"><thead><tr><th>Stock</th><th>Hype</th><th>Signal</th><th>Konfidenz</th><th>Warum</th><th>Links</th></tr></thead><tbody></tbody></table>
-  </div>
-
-  <div class="card span6"><div class="label">Datenmenge</div><canvas id="volChart"></canvas></div>
-  <div class="card span6"><div class="label">Frische / Delta</div><div id="fresh" style="margin-top:10px;line-height:1.55;font-size:.9rem;color:var(--muted)"></div><div id="delta" style="margin-top:12px;font-size:.9rem;color:var(--muted)"></div></div>
 </div>
-<footer>Auto-Refresh 60s · <code>stockstrend-data.json</code> · <code>tickers.js</code></footer>
+<footer>Refresh 60s</footer>
 <script>
-function cls(s){ s=(s||'').toLowerCase(); if(s.includes('buy')||s==='hyped') return 'buy'; if(s.includes('sell')||s.includes('dehyped')) return 'sell'; return 'hold'; }
-function daysUntil(iso){ const t=new Date(iso).getTime(); if(isNaN(t)) return ''; const d=Math.ceil((t-Date.now())/86400000); if(d<0) return 'vorüber'; if(d===0) return 'heute'; return 'in '+d+' Tagen'; }
-
-function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/[^a-z0-9+.\- ]/g,''); }
-function scoreMatch(query, row){
-  const q = norm(query).trim();
-  if(!q) return 0;
-  const sym = norm(row.s);
-  const name = norm(row.n);
-  const aliases = (row.a||[]).map(norm);
-  if(sym === q) return 100;
-  if(aliases.includes(q) || name === q) return 95;
-  if(sym.startsWith(q)) return 90;
-  if(name.startsWith(q)) return 85;
-  if(aliases.some(a => a.startsWith(q))) return 82;
-  if(name.includes(q)) return 70;
-  if(aliases.some(a => a.includes(q))) return 65;
-  // fuzzy token
-  const tokens = q.split(/\s+/);
-  let tscore = 0;
-  for(const t of tokens){ if(name.includes(t) || sym.includes(t)) tscore += 20; }
-  return tscore;
+function cls(s) {
+  s = (s || '').toLowerCase();
+  if (s.indexOf('buy') >= 0 || s === 'hyped') return 'buy';
+  if (s.indexOf('sell') >= 0 || s.indexOf('dehyped') >= 0) return 'sell';
+  return 'hold';
 }
-function searchTickers(q){
-  const list = window.BOTBOT_TICKERS || [];
-  // raw ticker typed
-  const raw = q.trim().toUpperCase();
-  let hits = list.map(r => ({...r, score: scoreMatch(q,r)})).filter(r => r.score > 0);
-  hits.sort((a,b)=> b.score - a.score);
-  if(/^[A-Z.\-]{1,6}$/.test(raw) && !hits.some(h => h.s === raw)){
-    hits.unshift({s:raw, n:'Ticker (direkt)', a:[], score:88});
+function daysUntil(iso) {
+  var t = new Date(iso).getTime();
+  if (isNaN(t)) return '';
+  var d = Math.ceil((t - Date.now()) / 86400000);
+  if (d < 0) return 'vorüber';
+  if (d === 0) return 'heute';
+  return 'in ' + d + ' Tagen';
+}
+function norm(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9+.\- ]/g, '');
+}
+function scoreMatch(query, row) {
+  var q = norm(query).trim();
+  if (!q) return 0;
+  var sym = norm(row.s);
+  var name = norm(row.n);
+  var aliases = (row.a || []).map(norm);
+  if (sym === q) return 100;
+  if (aliases.indexOf(q) >= 0 || name === q) return 95;
+  if (sym.indexOf(q) === 0) return 90;
+  if (name.indexOf(q) === 0) return 85;
+  if (aliases.some(function(a) { return a.indexOf(q) === 0; })) return 82;
+  if (name.indexOf(q) >= 0) return 70;
+  if (aliases.some(function(a) { return a.indexOf(q) >= 0; })) return 65;
+  return 0;
+}
+function searchTickers(q) {
+  var list = window.BOTBOT_TICKERS || [];
+  var raw = q.trim().toUpperCase();
+  var hits = list.map(function(r) {
+    return { s: r.s, n: r.n, a: r.a, score: scoreMatch(q, r) };
+  }).filter(function(r) { return r.score > 0; });
+  hits.sort(function(a, b) { return b.score - a.score; });
+  if (/^[A-Z.\-]{1,6}$/.test(raw) && !hits.some(function(h) { return h.s === raw; })) {
+    hits.unshift({ s: raw, n: 'Ticker (direkt)', a: [], score: 88 });
   }
   return hits.slice(0, 8);
 }
 
-let selected = null;
-const qEl = document.getElementById('q');
-const sug = document.getElementById('suggest');
-const btn = document.getElementById('btnAnalyse');
-const statusEl = document.getElementById('analyseStatus');
+var selected = null;
+var qEl = document.getElementById('q');
+var sug = document.getElementById('suggest');
+var btn = document.getElementById('btnAnalyse');
+var statusEl = document.getElementById('analyseStatus');
 
-function renderSuggest(hits){
+function renderSuggest(hits) {
   sug.innerHTML = '';
-  hits.forEach((h,i) => {
-    const div = document.createElement('div');
-    div.className = 'sug' + (selected && selected.s===h.s ? ' active':'');
-    div.innerHTML = '<span><b>'+h.s+'</b> · '+h.n+'</span><span class="meta">'+h.score+'</span>';
-    div.onclick = () => { selected = h; qEl.value = h.s + ' — ' + h.n; btn.disabled = false; renderSuggest(hits); };
+  hits.forEach(function(h) {
+    var div = document.createElement('div');
+    div.className = 'sug' + (selected && selected.s === h.s ? ' active' : '');
+    div.innerHTML = '<span><b>' + h.s + '</b> · ' + h.n + '</span>';
+    div.onclick = function() {
+      selected = h;
+      qEl.value = h.s + ' — ' + h.n;
+      btn.disabled = false;
+      renderSuggest(hits);
+    };
     sug.appendChild(div);
   });
 }
-qEl.addEventListener('input', () => {
-  const hits = searchTickers(qEl.value);
+qEl.addEventListener('input', function() {
+  var hits = searchTickers(qEl.value);
   selected = hits[0] || null;
   btn.disabled = !selected;
   renderSuggest(hits);
 });
-qEl.addEventListener('keydown', (e) => {
-  if(e.key === 'Enter' && selected){ e.preventDefault(); runAnalyse(); }
+qEl.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && selected) {
+    e.preventDefault();
+    runAnalyse();
+  }
 });
-
-document.getElementById('btnSaveWh').onclick = () => {
+document.getElementById('btnSaveWh').onclick = function() {
   localStorage.setItem('botbot_wh_url', document.getElementById('whUrl').value.trim());
   localStorage.setItem('botbot_wh_key', document.getElementById('whKey').value.trim());
-  statusEl.textContent = 'Webhook lokal gespeichert.';
+  statusEl.textContent = 'Webhook gespeichert.';
 };
 document.getElementById('whUrl').value = localStorage.getItem('botbot_wh_url') || '';
 document.getElementById('whKey').value = localStorage.getItem('botbot_wh_key') || '';
-
 btn.onclick = runAnalyse;
-async function runAnalyse(){
-  if(!selected) return;
-  const symbol = selected.s;
-  const name = selected.n;
-  const url = localStorage.getItem('botbot_wh_url') || '';
-  const key = localStorage.getItem('botbot_wh_key') || '';
-  statusEl.innerHTML = 'Analyse für <b>'+symbol+'</b> …';
+
+async function runAnalyse() {
+  if (!selected) return;
+  var symbol = selected.s;
+  var name = selected.n;
+  var url = localStorage.getItem('botbot_wh_url') || '';
+  var key = localStorage.getItem('botbot_wh_key') || '';
+  statusEl.innerHTML = 'Analyse <b>' + symbol + '</b> …';
   btn.disabled = true;
-  if(url){
+  if (url) {
     try {
-      const headers = {'Content-Type':'application/json'};
-      if(key) headers['Authorization'] = key.startsWith('Bearer') ? key : ('Bearer '+key);
-      // also try common custom header patterns
-      if(key) headers['X-Webhook-Key'] = key;
-      const res = await fetch(url, { method:'POST', headers, body: JSON.stringify({ symbol, name, source:'stockstrend.html', action:'analyse' }) });
+      var headers = { 'Content-Type': 'application/json' };
+      if (key) {
+        headers['Authorization'] = key.indexOf('Bearer') === 0 ? key : ('Bearer ' + key);
+        headers['X-Webhook-Key'] = key;
+      }
+      var res = await fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ symbol: symbol, name: name, source: 'stockstrend.html', action: 'analyse' })
+      });
       statusEl.innerHTML = res.ok
-        ? 'Angefordert: <b>'+symbol+'</b> — BotBot analysiert Social-Buzz. Seite aktualisiert sich gleich (Refresh).'
-        : 'Webhook antwortete '+res.status+'. Alternativ im Chat: <code>analysiere '+symbol+'</code>';
-    } catch(err){
-      statusEl.innerHTML = 'Webhook-Fehler. Im Chat schreiben: <code>analysiere '+symbol+'</code>';
+        ? 'Läuft: <b>' + symbol + '</b> → Buy/Hold/Sell + Belege.'
+        : 'Webhook ' + res.status + '. Chat: <code>analysiere ' + symbol + '</code>';
+    } catch (e) {
+      statusEl.innerHTML = 'Fehler. Chat: <code>analysiere ' + symbol + '</code>';
     }
   } else {
-    statusEl.innerHTML = 'Noch kein Webhook. Öffne Setup oben <b>oder</b> schreib BotBot im Chat: <code>analysiere '+symbol+'</code>';
-    try { await navigator.clipboard.writeText('analysiere '+symbol); statusEl.innerHTML += ' · kopiert.'; } catch(_){}
+    statusEl.innerHTML = 'Webhook fehlt — Chat: <code>analysiere ' + symbol + '</code>';
+    try {
+      await navigator.clipboard.writeText('analysiere ' + symbol);
+      statusEl.innerHTML += ' · kopiert.';
+    } catch (e2) {}
   }
   btn.disabled = false;
 }
 
-async function load(){
-  const res = await fetch('stockstrend-data.json?t='+Date.now(), {cache:'no-store'});
-  const data = await res.json();
-  const t = data.tick || {};
-  const v = t.vector || {};
-  const totals = t.totals || {};
-  const br = totals.breakdown || {};
-  const ob = t.overall_bias || {};
-  document.getElementById('updated').textContent = 'Stand: '+(data.updated_at||'—')+' · Items: '+(totals.content_items_usable??'—');
-  document.getElementById('direction').innerHTML = '<span class="pill '+(/bear/i.test(v.direction||'')?'sell':'buy')+'">'+(v.direction||'—').replaceAll('_',' ')+'</span>';
-  document.getElementById('mag').textContent = v.magnitude ?? '—';
-  document.getElementById('conf').textContent = v.confidence ?? '—';
-  document.getElementById('obias').innerHTML = '<span class="pill '+cls(ob.key||'')+'">'+(ob.label||'—')+'</span>';
-  if(t.signals_disclaimer) document.getElementById('disclaimer').textContent = t.signals_disclaimer;
-  document.getElementById('signal').innerHTML = v.early_signal ? '<span class="pill hold">Frühsignal: JA</span>' : '<span class="pill">Frühsignal: nein</span>';
+async function load() {
+  var res = await fetch('stockstrend-data.json?t=' + Date.now(), { cache: 'no-store' });
+  var data = await res.json();
+  var t = data.tick || {};
+  var v = t.vector || {};
+  var k = t.kernzahl || {};
+  document.getElementById('updated').textContent = 'Stand: ' + (data.updated_at || '—');
+  document.getElementById('kernVal').textContent = (k.value != null ? k.value : '—');
+  document.getElementById('kernSub').innerHTML = '<b>' + (k.name || 'Kernzahl') + '</b> · nächster Katalysator: ' + (k.next_catalyst || '—') + ' (' + (k.when_label || '') + ')<br>' + (k.why || '');
+  document.getElementById('signal').innerHTML = v.early_signal ? '<span class="pill hold">Frühsignal</span>' : '';
+  if (t.signals_disclaimer) document.getElementById('disclaimer').textContent = t.signals_disclaimer;
 
-  const cal = document.getElementById('calendar'); cal.innerHTML='';
-  (t.macro_calendar||[]).forEach(ev => {
-    const row=document.createElement('div'); row.className='cal-row';
-    row.innerHTML='<div><b>'+ev.title+'</b><div class="meta">'+ev.when_label+' · '+daysUntil(ev.when)+'</div></div>'+(ev.link?'<a class="stock" href="'+ev.link+'" target="_blank" rel="noopener">Quelle</a>':'');
+  var cal = document.getElementById('calendar');
+  cal.innerHTML = '';
+  (t.macro_calendar || []).forEach(function(ev) {
+    var row = document.createElement('div');
+    row.className = 'cal-row';
+    row.innerHTML = '<div><b>' + ev.title + '</b><div class="meta">' + ev.when_label + ' · ' + daysUntil(ev.when) + '</div></div>' +
+      (ev.link ? '<a class="stock" href="' + ev.link + '" target="_blank" rel="noopener">Quelle</a>' : '');
     cal.appendChild(row);
   });
 
-  const hist = data.history||[];
-  if(window._hist) window._hist.destroy();
-  window._hist = new Chart(document.getElementById('histChart'), { type:'line', data:{ labels:hist.map((_,i)=>'#'+(i+1)), datasets:[{ data:hist.map(h=>h.magnitude), borderColor:'#e85d4c', backgroundColor:'rgba(232,93,76,.15)', fill:true, tension:.25, pointRadius:5 }]}, options:{ plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#8b97a8'},grid:{color:'#243041'}}, y:{min:0,max:100,ticks:{color:'#8b97a8'},grid:{color:'#243041'}} }});
-
-  const tb=document.querySelector('#signals tbody'); tb.innerHTML='';
-  (t.stock_signals||[]).forEach(s=>{
-    const L=s.links||{};
-    const tr=document.createElement('tr');
-    tr.innerHTML='<td><a class="stock" href="'+(L.yahoo||'#')+'" target="_blank" rel="noopener">'+(s.symbol||'')+'</a><div class="meta">'+(s.name||'')+'</div></td>'+
-      '<td><span class="pill '+cls(s.hype_state)+'">'+(s.hype_state||'')+'</span></td>'+
-      '<td><span class="pill '+cls(s.signal)+'">'+(s.signal||'').toUpperCase()+'</span></td>'+
-      '<td>'+(s.confidence??'—')+'</td>'+
-      '<td><div class="why">'+(s.why||'')+'</div></td>'+
-      '<td class="links">'+(L.yahoo?'<a href="'+L.yahoo+'" target="_blank" rel="noopener">Yahoo</a>':'')+(L.tradingview?'<a href="'+L.tradingview+'" target="_blank" rel="noopener">TV</a>':'')+'</td>';
-    tb.appendChild(tr);
+  var hist = data.history || [];
+  if (window._hist) window._hist.destroy();
+  window._hist = new Chart(document.getElementById('histChart'), {
+    type: 'line',
+    data: {
+      labels: hist.map(function(_, i) { return '#' + (i + 1); }),
+      datasets: [{
+        data: hist.map(function(h) { return h.magnitude; }),
+        borderColor: '#e85d4c',
+        backgroundColor: 'rgba(232,93,76,.15)',
+        fill: true,
+        tension: 0.25,
+        pointRadius: 4
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8b97a8' }, grid: { color: '#243041' } },
+        y: { min: 0, max: 100, ticks: { color: '#8b97a8' }, grid: { color: '#243041' } }
+      }
+    }
   });
 
-  if(window._vol) window._vol.destroy();
-  window._vol = new Chart(document.getElementById('volChart'), { type:'bar', data:{ labels:Object.keys(br), datasets:[{ data:Object.values(br), backgroundColor:['#1d9bf0','#ff4500','#8b5cf6','#22c55e','#f472b6','#94a3b8'] }]}, options:{ plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#8b97a8'},grid:{color:'#243041'}}, y:{ticks:{color:'#8b97a8'},grid:{color:'#243041'}, beginAtZero:true }}});
-
-  const f=t.freshness||{};
-  document.getElementById('fresh').innerHTML='<div><b>Frischestes:</b> '+(f.freshest_absolute||f.freshest_item_age||'—')+'</div>';
-  const d=t.delta_vs_prev;
-  document.getElementById('delta').innerHTML=d?'Δ Mag <b>'+(d.magnitude_delta??'—')+'</b> · Δ Conf <b>'+(d.confidence_delta??'—')+'</b>':'';
+  var tb = document.querySelector('#signals tbody');
+  tb.innerHTML = '';
+  (t.stock_signals || []).forEach(function(s) {
+    var L = s.links || {};
+    var e = s.evidence || {};
+    var snips = (e.snippets || s.sample_snippets || []).slice(0, 2).map(function(x) {
+      return '<div class="snip">„' + x + '“</div>';
+    }).join('');
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><a class="stock" href="' + (L.yahoo || '#') + '" target="_blank" rel="noopener">' + (s.symbol || '') + '</a><div class="meta">' + (s.name || '') + '</div></td>' +
+      '<td><span class="pill ' + cls(s.signal) + '">' + String(s.signal || '').toUpperCase() + '</span></td>' +
+      '<td>' + (s.social_impulse != null ? s.social_impulse : '—') + '</td>' +
+      '<td>' + (e.x_posts != null ? e.x_posts : '—') + '</td>' +
+      '<td>' + (e.reddit_posts != null ? e.reddit_posts : '—') + '</td>' +
+      '<td>' + (e.news != null ? e.news : '—') + '</td>' +
+      '<td><div class="why">' + (s.why || '') + '</div>' + snips + '</td>' +
+      '<td class="links">' + (L.yahoo ? '<a href="' + L.yahoo + '" target="_blank" rel="noopener">Yahoo</a>' : '') +
+        (L.tradingview ? '<a href="' + L.tradingview + '" target="_blank" rel="noopener">TV</a>' : '') + '</td>';
+    tb.appendChild(tr);
+  });
 }
-load(); setInterval(load, 60000);
+load();
+setInterval(load, 60000);
 </script>
 </body>
 </html>

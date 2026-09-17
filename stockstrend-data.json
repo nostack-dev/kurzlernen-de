@@ -267,7 +267,15 @@
           "tradingview": "https://www.tradingview.com/symbols/SPY/",
           "yahoo": "https://finance.yahoo.com/quote/SPY"
         },
-        "interim": true
+        "interim": true,
+        "social_impulse": -88,
+        "evidence": {
+          "x_posts": null,
+          "reddit_posts": null,
+          "news": null,
+          "total": null,
+          "snippets": []
+        }
       },
       {
         "symbol": "ES=F",
@@ -284,7 +292,15 @@
           "tradingview": "https://www.tradingview.com/symbols/CME_MINI:ES1!/",
           "yahoo": "https://finance.yahoo.com/quote/ES=F"
         },
-        "interim": true
+        "interim": true,
+        "social_impulse": 76,
+        "evidence": {
+          "x_posts": null,
+          "reddit_posts": null,
+          "news": null,
+          "total": null,
+          "snippets": []
+        }
       },
       {
         "symbol": "DIA",
@@ -301,7 +317,15 @@
           "tradingview": "https://www.tradingview.com/symbols/DIA/",
           "yahoo": "https://finance.yahoo.com/quote/DIA"
         },
-        "interim": true
+        "interim": true,
+        "social_impulse": 0,
+        "evidence": {
+          "x_posts": null,
+          "reddit_posts": null,
+          "news": null,
+          "total": null,
+          "snippets": []
+        }
       },
       {
         "symbol": "BTC-USD",
@@ -318,10 +342,34 @@
           "tradingview": "https://www.tradingview.com/symbols/BINANCE:BTCUSDT/",
           "yahoo": "https://finance.yahoo.com/quote/BTC-USD"
         },
-        "interim": true
+        "interim": true,
+        "social_impulse": 0,
+        "evidence": {
+          "x_posts": null,
+          "reddit_posts": null,
+          "news": null,
+          "total": null,
+          "snippets": []
+        }
       }
     ],
-    "signals_disclaimer": "Buy/Hold/Sell = Social-Signal aus Buzz-Kontext, KEINE Finanzberatung und KEIN Trade-Call."
+    "signals_disclaimer": "Buy/Hold/Sell = Social-Signal aus Buzz-Kontext, KEINE Finanzberatung und KEIN Trade-Call.",
+    "kernzahl": {
+      "name": "Katalysator-Druck",
+      "value": 35,
+      "unit": "0–100",
+      "next_catalyst": "US Jobs (NFP)",
+      "when_label": "Fr 02.10.2026 · 14:30 Berlin",
+      "when": "2026-10-02T14:30:00+02:00",
+      "link": "https://www.bls.gov/news.release/empsit.toc.htm",
+      "why": "First principles: Aktien schwanken am stärksten bei Diskontsatz-/Inflations-/Cashflow-Überraschungen. Low-noise Kern = Nähe zum nächsten Makro-Schock (Fed/CPI/Jobs), nicht Roh-Tweet-Volume.",
+      "principle": "discount_rate_and_macro_surprise"
+    },
+    "product_contract": {
+      "kernzahl": "Katalysator-Druck (Nähe Fed/CPI/Jobs) — low noise vs Social-Volume",
+      "per_stock": "Suche → Analyse → buy|hold|sell + evidence counts (X/Reddit/News) + snippets",
+      "disclaimer": "Social-Signal, keine Finanzberatung"
+    }
   },
   "history": [
     {
@@ -331,7 +379,8 @@
       "confidence": 72,
       "direction": "leicht_bearish_risk_off",
       "items": 214,
-      "early_signal": true
+      "early_signal": true,
+      "kernzahl": null
     },
     {
       "tick_id": "2026-09-17T10:58:00+02:00",
@@ -340,7 +389,8 @@
       "confidence": 74,
       "direction": "leicht_bearish_risk_off",
       "items": 154,
-      "early_signal": true
+      "early_signal": true,
+      "kernzahl": 35
     }
   ]
 }
