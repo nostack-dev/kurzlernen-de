@@ -1,0 +1,134 @@
+{
+  "updated_at": "2026-09-17T10:37:00+02:00",
+  "timezone": "Europe/Berlin",
+  "tick": {
+    "tick_id": "2026-09-17T10:37:00+02:00",
+    "scraped_at": "2026-09-17T10:37:00+02:00",
+    "timezone": "Europe/Berlin",
+    "sources": {
+      "user-X": {
+        "status": "ok",
+        "items": 154,
+        "breakdown": {
+          "trends_usa": 20,
+          "trends_germany": 20,
+          "news": 15,
+          "posts_sampled": 99
+        },
+        "counts_7d": {
+          "composite": 167598,
+          "nvda": 25101,
+          "btc": 714967,
+          "tsla": 21367
+        },
+        "freshest": "2026-09-17T08:33:30Z (~0–2 min)",
+        "window": "Posts/News recency ≤24h; Counts 7d"
+      },
+      "user-Apify-Reddit": {
+        "status": "ok",
+        "items": 45,
+        "subreddits": [
+          "CryptoCurrency",
+          "StockMarket",
+          "wallstreetbets",
+          "stocks"
+        ],
+        "window": "hot/day ~24h",
+        "freshest_item_age": "<24h"
+      },
+      "user-Apify-TikTok": {
+        "status": "ok",
+        "items": 10,
+        "freshest": "2026-09-16T22:54:50Z (~9.7h)",
+        "oldest": "2026-09-13T22:11:48Z (~3.4d)",
+        "note": "Free-Cap 10"
+      },
+      "WebSearch": {
+        "status": "ok",
+        "items": 5,
+        "window": "same-day 2026-09-17"
+      },
+      "user-Bright Data": {
+        "status": "fail",
+        "items": 0
+      },
+      "user-Treg": {
+        "status": "fail",
+        "items": 0
+      },
+      "user-Monid": {
+        "status": "skip",
+        "items": 0
+      }
+    },
+    "totals": {
+      "content_items_usable": 214,
+      "breakdown": {
+        "x_trends": 40,
+        "x_news": 15,
+        "x_posts": 99,
+        "reddit": 45,
+        "tiktok": 10,
+        "websearch": 5
+      }
+    },
+    "freshness": {
+      "freshest_absolute": "X post ~0–2 min",
+      "primary_signal": "Minuten bis wenige Stunden",
+      "quality": "hoch X+Reddit; mittel TikTok; niedrig Auth-Fails"
+    },
+    "vector": {
+      "direction": "leicht_bearish_risk_off",
+      "magnitude": 65,
+      "confidence": 72,
+      "early_signal": true,
+      "early_signal_note": "Extreme Fear ~24, WSB laut, Premarket-Bounce"
+    },
+    "top_themes": [
+      {
+        "theme": "Fed/Rate Hike",
+        "sentiment": "bearish",
+        "strength": 90
+      },
+      {
+        "theme": "Fear & Greed Stocks ~24",
+        "sentiment": "bearish",
+        "strength": 85
+      },
+      {
+        "theme": "DIA/Dow",
+        "sentiment": "bearish",
+        "strength": 78
+      },
+      {
+        "theme": "SPY/S&P",
+        "sentiment": "mixed",
+        "strength": 75
+      },
+      {
+        "theme": "BTC/Crypto",
+        "sentiment": "leicht_bullish",
+        "strength": 72
+      }
+    ],
+    "delta_vs_prev": null,
+    "chart": "/home/box/agent-data/agents/d96c7cd8-4ca3-4ebc-952e-e462ef808dbd/trendvektor/tick-20260917-1037.png",
+    "baseline": true,
+    "scrape_window": {
+      "start": "2026-09-17T10:33:00+02:00",
+      "end": "2026-09-17T10:37:00+02:00"
+    },
+    "volume_enriched": true
+  },
+  "history": [
+    {
+      "tick_id": "2026-09-17T10:37:00+02:00",
+      "scraped_at": "2026-09-17T10:37:00+02:00",
+      "magnitude": 65,
+      "confidence": 72,
+      "direction": "leicht_bearish_risk_off",
+      "items": 214,
+      "early_signal": true
+    }
+  ]
+}
