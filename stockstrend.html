@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <title>BotBot · Stocks Trendvektor</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="./tickers.js"></script>
 <style>
   :root { --bg:#0a0e12; --card:#121821; --line:#243041; --text:#e7ecf1; --muted:#8b97a8; --bear:#e85d4c; --bull:#22c55e; --warn:#f0b429; }
   * { box-sizing: border-box; }
@@ -20,23 +21,30 @@
   .label { color:var(--muted); font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; }
   .big { font-size:2rem; font-weight:700; margin-top:6px; }
   .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:.8rem; font-weight:700; }
-  .buy,.bull,.risk_on,.lean_on,.hyped { background:rgba(34,197,94,.18); color:var(--bull); }
-  .sell,.bear,.risk_off,.lean_off,.dehyped { background:rgba(232,93,76,.18); color:var(--bear); }
+  .buy,.bull,.hyped { background:rgba(34,197,94,.18); color:var(--bull); }
+  .sell,.bear,.dehyped { background:rgba(232,93,76,.18); color:var(--bear); }
   .hold,.watch,.mixed,.warn { background:rgba(240,180,41,.18); color:var(--warn); }
-  canvas { max-height:260px; }
+  canvas { max-height:240px; }
   table { width:100%; border-collapse:collapse; font-size:.9rem; }
   th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
   th { color:var(--muted); font-weight:500; }
   a.stock { color:#7dd3fc; text-decoration:none; font-weight:700; }
-  a.stock:hover { text-decoration:underline; }
   .links a { color:var(--muted); font-size:.75rem; margin-right:8px; }
-  .links a:hover { color:#7dd3fc; }
   .disclaimer { border:1px solid var(--line); background:#0f1419; border-radius:10px; padding:10px 12px; font-size:.85rem; color:var(--muted); }
-  .cal { display:grid; gap:10px; }
   .cal-row { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:baseline; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); }
-  .cal-row:last-child { border-bottom:0; }
   .why { color:var(--muted); font-size:.8rem; margin-top:4px; max-width:420px; }
   footer { padding:0 24px 24px; color:var(--muted); font-size:.8rem; }
+  .search-row { display:flex; gap:8px; flex-wrap:wrap; }
+  .search-row input { flex:1; min-width:180px; background:#0f1419; border:1px solid var(--line); color:var(--text); border-radius:10px; padding:10px 12px; font-size:1rem; }
+  .search-row button { background:#3d8bfd; color:#fff; border:0; border-radius:10px; padding:10px 16px; font-weight:700; cursor:pointer; }
+  .search-row button:disabled { opacity:.5; cursor:default; }
+  .search-row button.secondary { background:#243041; }
+  #suggest { margin-top:8px; }
+  .sug { padding:8px 10px; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
+  .sug:hover, .sug.active { background:#1a222c; }
+  #analyseStatus { margin-top:10px; font-size:.9rem; color:var(--muted); }
+  details.setup { margin-top:10px; color:var(--muted); font-size:.85rem; }
+  details.setup input { width:100%; margin-top:6px; background:#0f1419; border:1px solid var(--line); color:var(--text); border-radius:8px; padding:8px; }
 </style>
 </head>
 <body>
@@ -48,45 +56,141 @@
   <div id="signal"></div>
 </header>
 <div class="grid">
+  <div class="card span12">
+    <div class="label">Stock suchen · Analyse</div>
+    <div class="search-row">
+      <input id="q" type="search" placeholder="z. B. oracle, apple, SMCI, rivian…" autocomplete="off"/>
+      <button id="btnAnalyse" type="button" disabled>Analyse</button>
+    </div>
+    <div id="suggest"></div>
+    <div id="analyseStatus"></div>
+    <details class="setup">
+      <summary>Webhook einmal verbinden (für Analyse-Button)</summary>
+      <p>URL + Key aus der BotBot-Routine „Stock Analyse on Demand“ hier speichern (bleibt nur lokal im Browser).</p>
+      <input id="whUrl" placeholder="Webhook-URL"/>
+      <input id="whKey" placeholder="Sender-Key" style="margin-top:6px"/>
+      <button class="secondary" id="btnSaveWh" type="button" style="margin-top:8px;background:#243041;color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer">Speichern</button>
+    </details>
+  </div>
+
   <div class="card span3"><div class="label">Richtung</div><div class="big" id="direction">—</div></div>
   <div class="card span3"><div class="label">Magnitude</div><div class="big" id="mag">—</div></div>
   <div class="card span3"><div class="label">Konfidenz</div><div class="big" id="conf">—</div></div>
   <div class="card span3"><div class="label">Gesamt-Bias</div><div class="big" id="obias">—</div></div>
 
-  <div class="card span12"><div class="disclaimer" id="disclaimer">Buy/Hold/Sell = Social-Signal aus Buzz — keine Finanzberatung.</div></div>
+  <div class="card span12"><div class="disclaimer" id="disclaimer">Buy/Hold/Sell = Social-Signal — keine Finanzberatung.</div></div>
 
-  <div class="card span6">
-    <div class="label">Nächste Termine (KISS)</div>
-    <div class="cal" id="calendar"></div>
-  </div>
-  <div class="card span6">
-    <div class="label">Verlauf Magnitude</div>
-    <canvas id="histChart"></canvas>
-  </div>
+  <div class="card span6"><div class="label">Nächste Termine</div><div id="calendar"></div></div>
+  <div class="card span6"><div class="label">Verlauf Magnitude</div><canvas id="histChart"></canvas></div>
 
   <div class="card span12">
     <div class="label">Gehyped / Gedehyped · Social Buy / Hold / Sell</div>
-    <table id="signals">
-      <thead><tr><th>Stock</th><th>Hype</th><th>Signal</th><th>Konfidenz</th><th>Warum (Kontext)</th><th>Links</th></tr></thead>
-      <tbody></tbody>
-    </table>
+    <table id="signals"><thead><tr><th>Stock</th><th>Hype</th><th>Signal</th><th>Konfidenz</th><th>Warum</th><th>Links</th></tr></thead><tbody></tbody></table>
   </div>
 
   <div class="card span6"><div class="label">Datenmenge</div><canvas id="volChart"></canvas></div>
   <div class="card span6"><div class="label">Frische / Delta</div><div id="fresh" style="margin-top:10px;line-height:1.55;font-size:.9rem;color:var(--muted)"></div><div id="delta" style="margin-top:12px;font-size:.9rem;color:var(--muted)"></div></div>
 </div>
-<footer>Auto-Refresh 60s · <code>stockstrend-data.json</code></footer>
+<footer>Auto-Refresh 60s · <code>stockstrend-data.json</code> · <code>tickers.js</code></footer>
 <script>
-function cls(s){ s=(s||'').toLowerCase(); if(s.includes('buy')||s.includes('hyped')&&!s.includes('de')||s.includes('on')) return 'buy'; if(s.includes('sell')||s.includes('dehyped')||s.includes('off')) return 'sell'; return 'hold'; }
-function daysUntil(iso){
-  if(!iso) return '';
-  const t = new Date(iso).getTime();
-  if(isNaN(t)) return '';
-  const d = Math.ceil((t - Date.now())/86400000);
-  if(d<0) return 'vorüber';
-  if(d===0) return 'heute';
-  return 'in ' + d + ' Tagen';
+function cls(s){ s=(s||'').toLowerCase(); if(s.includes('buy')||s==='hyped') return 'buy'; if(s.includes('sell')||s.includes('dehyped')) return 'sell'; return 'hold'; }
+function daysUntil(iso){ const t=new Date(iso).getTime(); if(isNaN(t)) return ''; const d=Math.ceil((t-Date.now())/86400000); if(d<0) return 'vorüber'; if(d===0) return 'heute'; return 'in '+d+' Tagen'; }
+
+function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/[^a-z0-9+.\- ]/g,''); }
+function scoreMatch(query, row){
+  const q = norm(query).trim();
+  if(!q) return 0;
+  const sym = norm(row.s);
+  const name = norm(row.n);
+  const aliases = (row.a||[]).map(norm);
+  if(sym === q) return 100;
+  if(aliases.includes(q) || name === q) return 95;
+  if(sym.startsWith(q)) return 90;
+  if(name.startsWith(q)) return 85;
+  if(aliases.some(a => a.startsWith(q))) return 82;
+  if(name.includes(q)) return 70;
+  if(aliases.some(a => a.includes(q))) return 65;
+  // fuzzy token
+  const tokens = q.split(/\s+/);
+  let tscore = 0;
+  for(const t of tokens){ if(name.includes(t) || sym.includes(t)) tscore += 20; }
+  return tscore;
 }
+function searchTickers(q){
+  const list = window.BOTBOT_TICKERS || [];
+  // raw ticker typed
+  const raw = q.trim().toUpperCase();
+  let hits = list.map(r => ({...r, score: scoreMatch(q,r)})).filter(r => r.score > 0);
+  hits.sort((a,b)=> b.score - a.score);
+  if(/^[A-Z.\-]{1,6}$/.test(raw) && !hits.some(h => h.s === raw)){
+    hits.unshift({s:raw, n:'Ticker (direkt)', a:[], score:88});
+  }
+  return hits.slice(0, 8);
+}
+
+let selected = null;
+const qEl = document.getElementById('q');
+const sug = document.getElementById('suggest');
+const btn = document.getElementById('btnAnalyse');
+const statusEl = document.getElementById('analyseStatus');
+
+function renderSuggest(hits){
+  sug.innerHTML = '';
+  hits.forEach((h,i) => {
+    const div = document.createElement('div');
+    div.className = 'sug' + (selected && selected.s===h.s ? ' active':'');
+    div.innerHTML = '<span><b>'+h.s+'</b> · '+h.n+'</span><span class="meta">'+h.score+'</span>';
+    div.onclick = () => { selected = h; qEl.value = h.s + ' — ' + h.n; btn.disabled = false; renderSuggest(hits); };
+    sug.appendChild(div);
+  });
+}
+qEl.addEventListener('input', () => {
+  const hits = searchTickers(qEl.value);
+  selected = hits[0] || null;
+  btn.disabled = !selected;
+  renderSuggest(hits);
+});
+qEl.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && selected){ e.preventDefault(); runAnalyse(); }
+});
+
+document.getElementById('btnSaveWh').onclick = () => {
+  localStorage.setItem('botbot_wh_url', document.getElementById('whUrl').value.trim());
+  localStorage.setItem('botbot_wh_key', document.getElementById('whKey').value.trim());
+  statusEl.textContent = 'Webhook lokal gespeichert.';
+};
+document.getElementById('whUrl').value = localStorage.getItem('botbot_wh_url') || '';
+document.getElementById('whKey').value = localStorage.getItem('botbot_wh_key') || '';
+
+btn.onclick = runAnalyse;
+async function runAnalyse(){
+  if(!selected) return;
+  const symbol = selected.s;
+  const name = selected.n;
+  const url = localStorage.getItem('botbot_wh_url') || '';
+  const key = localStorage.getItem('botbot_wh_key') || '';
+  statusEl.innerHTML = 'Analyse für <b>'+symbol+'</b> …';
+  btn.disabled = true;
+  if(url){
+    try {
+      const headers = {'Content-Type':'application/json'};
+      if(key) headers['Authorization'] = key.startsWith('Bearer') ? key : ('Bearer '+key);
+      // also try common custom header patterns
+      if(key) headers['X-Webhook-Key'] = key;
+      const res = await fetch(url, { method:'POST', headers, body: JSON.stringify({ symbol, name, source:'stockstrend.html', action:'analyse' }) });
+      statusEl.innerHTML = res.ok
+        ? 'Angefordert: <b>'+symbol+'</b> — BotBot analysiert Social-Buzz. Seite aktualisiert sich gleich (Refresh).'
+        : 'Webhook antwortete '+res.status+'. Alternativ im Chat: <code>analysiere '+symbol+'</code>';
+    } catch(err){
+      statusEl.innerHTML = 'Webhook-Fehler. Im Chat schreiben: <code>analysiere '+symbol+'</code>';
+    }
+  } else {
+    statusEl.innerHTML = 'Noch kein Webhook. Öffne Setup oben <b>oder</b> schreib BotBot im Chat: <code>analysiere '+symbol+'</code>';
+    try { await navigator.clipboard.writeText('analysiere '+symbol); statusEl.innerHTML += ' · kopiert.'; } catch(_){}
+  }
+  btn.disabled = false;
+}
+
 async function load(){
   const res = await fetch('stockstrend-data.json?t='+Date.now(), {cache:'no-store'});
   const data = await res.json();
@@ -95,70 +199,45 @@ async function load(){
   const totals = t.totals || {};
   const br = totals.breakdown || {};
   const ob = t.overall_bias || {};
-
-  document.getElementById('updated').textContent =
-    'Stand: '+(data.updated_at||'—')+' · Items: '+(totals.content_items_usable??'—')+' · '+(data.timezone||'');
-
-  const dir = (v.direction||'—').replaceAll('_',' ');
-  document.getElementById('direction').innerHTML = '<span class="pill '+( /bear/i.test(dir)?'sell':'buy')+'">'+dir+'</span>';
+  document.getElementById('updated').textContent = 'Stand: '+(data.updated_at||'—')+' · Items: '+(totals.content_items_usable??'—');
+  document.getElementById('direction').innerHTML = '<span class="pill '+(/bear/i.test(v.direction||'')?'sell':'buy')+'">'+(v.direction||'—').replaceAll('_',' ')+'</span>';
   document.getElementById('mag').textContent = v.magnitude ?? '—';
   document.getElementById('conf').textContent = v.confidence ?? '—';
   document.getElementById('obias').innerHTML = '<span class="pill '+cls(ob.key||'')+'">'+(ob.label||'—')+'</span>';
-  document.getElementById('disclaimer').textContent = t.signals_disclaimer || ob.disclaimer || document.getElementById('disclaimer').textContent;
+  if(t.signals_disclaimer) document.getElementById('disclaimer').textContent = t.signals_disclaimer;
+  document.getElementById('signal').innerHTML = v.early_signal ? '<span class="pill hold">Frühsignal: JA</span>' : '<span class="pill">Frühsignal: nein</span>';
 
-  const sig = document.getElementById('signal');
-  sig.innerHTML = v.early_signal
-    ? '<span class="pill hold">Frühsignal: JA</span> <span class="meta">'+(v.early_signal_note||'')+'</span>'
-    : '<span class="pill">Frühsignal: nein</span>';
-
-  const cal = document.getElementById('calendar');
-  cal.innerHTML = '';
+  const cal = document.getElementById('calendar'); cal.innerHTML='';
   (t.macro_calendar||[]).forEach(ev => {
-    const row = document.createElement('div');
-    row.className = 'cal-row';
-    row.innerHTML = '<div><b>'+ev.title+'</b><div class="meta">'+ev.when_label+' · '+daysUntil(ev.when)+'</div></div>' +
-      (ev.link ? '<a class="stock" href="'+ev.link+'" target="_blank" rel="noopener">Quelle</a>' : '');
+    const row=document.createElement('div'); row.className='cal-row';
+    row.innerHTML='<div><b>'+ev.title+'</b><div class="meta">'+ev.when_label+' · '+daysUntil(ev.when)+'</div></div>'+(ev.link?'<a class="stock" href="'+ev.link+'" target="_blank" rel="noopener">Quelle</a>':'');
     cal.appendChild(row);
   });
 
-  const hist = data.history || [];
+  const hist = data.history||[];
   if(window._hist) window._hist.destroy();
-  window._hist = new Chart(document.getElementById('histChart'), {
-    type:'line',
-    data:{ labels: hist.map((_,i)=>'#'+(i+1)), datasets:[{ data: hist.map(h=>h.magnitude), borderColor:'#e85d4c', backgroundColor:'rgba(232,93,76,.15)', fill:true, tension:.25, pointRadius:5 }]},
-    options:{ plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#8b97a8'}, grid:{color:'#243041'}}, y:{min:0,max:100,ticks:{color:'#8b97a8'}, grid:{color:'#243041'}} }}
-  });
+  window._hist = new Chart(document.getElementById('histChart'), { type:'line', data:{ labels:hist.map((_,i)=>'#'+(i+1)), datasets:[{ data:hist.map(h=>h.magnitude), borderColor:'#e85d4c', backgroundColor:'rgba(232,93,76,.15)', fill:true, tension:.25, pointRadius:5 }]}, options:{ plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#8b97a8'},grid:{color:'#243041'}}, y:{min:0,max:100,ticks:{color:'#8b97a8'},grid:{color:'#243041'}} }});
 
-  const tb = document.querySelector('#signals tbody');
-  tb.innerHTML = '';
-  (t.stock_signals||[]).forEach(s => {
-    const links = s.links||{};
-    const tr = document.createElement('tr');
-    tr.innerHTML =
-      '<td><a class="stock" href="'+(links.yahoo||'#')+'" target="_blank" rel="noopener">'+(s.symbol||'')+'</a><div class="meta">'+(s.name||'')+'</div></td>'+
+  const tb=document.querySelector('#signals tbody'); tb.innerHTML='';
+  (t.stock_signals||[]).forEach(s=>{
+    const L=s.links||{};
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td><a class="stock" href="'+(L.yahoo||'#')+'" target="_blank" rel="noopener">'+(s.symbol||'')+'</a><div class="meta">'+(s.name||'')+'</div></td>'+
       '<td><span class="pill '+cls(s.hype_state)+'">'+(s.hype_state||'')+'</span></td>'+
-      '<td><span class="pill '+cls(s.signal)+'">'+(s.signal||'').toUpperCase()+'</span><div class="meta">'+(s.signal_label||'')+'</div></td>'+
+      '<td><span class="pill '+cls(s.signal)+'">'+(s.signal||'').toUpperCase()+'</span></td>'+
       '<td>'+(s.confidence??'—')+'</td>'+
       '<td><div class="why">'+(s.why||'')+'</div></td>'+
-      '<td class="links">'+(links.yahoo?'<a href="'+links.yahoo+'" target="_blank" rel="noopener">Yahoo</a>':'')+(links.tradingview?'<a href="'+links.tradingview+'" target="_blank" rel="noopener">TV</a>':'')+'</td>';
+      '<td class="links">'+(L.yahoo?'<a href="'+L.yahoo+'" target="_blank" rel="noopener">Yahoo</a>':'')+(L.tradingview?'<a href="'+L.tradingview+'" target="_blank" rel="noopener">TV</a>':'')+'</td>';
     tb.appendChild(tr);
   });
 
   if(window._vol) window._vol.destroy();
-  window._vol = new Chart(document.getElementById('volChart'), {
-    type:'bar',
-    data:{ labels:Object.keys(br), datasets:[{ data:Object.values(br), backgroundColor:['#1d9bf0','#ff4500','#8b5cf6','#22c55e','#f472b6','#94a3b8'] }]},
-    options:{ plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#8b97a8'}, grid:{color:'#243041'}}, y:{ticks:{color:'#8b97a8'}, grid:{color:'#243041'}, beginAtZero:true } }}
-  });
+  window._vol = new Chart(document.getElementById('volChart'), { type:'bar', data:{ labels:Object.keys(br), datasets:[{ data:Object.values(br), backgroundColor:['#1d9bf0','#ff4500','#8b5cf6','#22c55e','#f472b6','#94a3b8'] }]}, options:{ plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#8b97a8'},grid:{color:'#243041'}}, y:{ticks:{color:'#8b97a8'},grid:{color:'#243041'}, beginAtZero:true }}});
 
-  const f = t.freshness||{};
-  document.getElementById('fresh').innerHTML =
-    '<div><b>Frischestes:</b> '+(f.freshest_absolute||f.freshest_item_age||'—')+'</div>'+
-    '<div><b>Primär:</b> '+(f.primary_signal||'—')+'</div>';
-  const d = t.delta_vs_prev;
-  document.getElementById('delta').innerHTML = d
-    ? 'Δ Mag <b>'+(d.magnitude_delta??'—')+'</b> · Δ Conf <b>'+(d.confidence_delta??'—')+'</b> · Vol <b>'+(d.volume_change_pct??'—')+'%</b>'
-    : 'Kein Delta';
+  const f=t.freshness||{};
+  document.getElementById('fresh').innerHTML='<div><b>Frischestes:</b> '+(f.freshest_absolute||f.freshest_item_age||'—')+'</div>';
+  const d=t.delta_vs_prev;
+  document.getElementById('delta').innerHTML=d?'Δ Mag <b>'+(d.magnitude_delta??'—')+'</b> · Δ Conf <b>'+(d.confidence_delta??'—')+'</b>':'';
 }
 load(); setInterval(load, 60000);
 </script>
