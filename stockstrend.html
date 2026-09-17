@@ -167,7 +167,7 @@ function searchTickers(q) {
     return { s: r.s, n: r.n, a: r.a, score: scoreMatch(q, r) };
   }).filter(function(r) { return r.score > 0; });
   hits.sort(function(a, b) { return b.score - a.score; });
-  if (/^[A-Z.\-]{1,6}$/.test(raw) && !hits.some(function(h) { return h.s === raw; })) {
+  if (/^[A-Z.\-]{1,6}$/.test(raw) && !hits.some(function(h) { return h.s === raw || h.score >= 90; })) {
     hits.unshift({ s: raw, n: 'Ticker (direkt)', a: [], score: 88 });
   }
   return hits.slice(0, 8);
@@ -215,8 +215,13 @@ async function runAnalyse() {
   statusEl.innerHTML = 'Schick BotBot im Chat: <code>' + esc(cmd) + '</code> — er liefert Buy/Hold/Sell + Belege.';
   btn.disabled = true;
   try {
-    await navigator.clipboard.writeText(cmd);
-    statusEl.innerHTML += ' · kopiert, einfach bei BotBot einfügen.';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await Promise.race([
+        navigator.clipboard.writeText(cmd),
+        new Promise(function(_, reject) { setTimeout(function() { reject(new Error('clipboard-timeout')); }, 800); })
+      ]);
+      statusEl.innerHTML += ' · kopiert, einfach bei BotBot einfügen.';
+    }
   } catch (e2) {}
   btn.disabled = false;
 }
