@@ -63,6 +63,30 @@
   #analyseStatus { margin-top:10px; font-size:.9rem; color:var(--muted); }
   .kern-sub { color:var(--muted); font-size:.9rem; margin-top:8px; line-height:1.4; }
   tr.flash td { background: rgba(61,139,253,.12); }
+
+  /* Watchlist */
+  .wl-head { display:flex; flex-wrap:wrap; gap:10px; align-items:baseline; justify-content:space-between; margin-bottom:12px; }
+  .wl-note { font-size:.78rem; color:var(--muted); line-height:1.4; max-width:520px; }
+  .wl-note code { background:#0f1419; padding:1px 6px; border-radius:6px; font-size:.75rem; color:#7dd3fc; }
+  .wl-pills { display:flex; flex-wrap:wrap; gap:10px; }
+  .wl-pill {
+    background:#0f1419; border:1px solid var(--line); border-radius:12px; padding:10px 14px;
+    cursor:pointer; min-width:120px; transition:border-color .15s, background .15s;
+  }
+  .wl-pill:hover, .wl-pill.active { border-color:#3d8bfd; background:#15202b; }
+  .wl-pill .sym { font-weight:800; font-size:1rem; letter-spacing:.02em; }
+  .wl-pill .wl-meta { color:var(--muted); font-size:.75rem; margin-top:4px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .wl-empty { color:var(--muted); font-size:.9rem; padding:8px 0; }
+  .wl-detail { margin-top:16px; border-top:1px solid var(--line); padding-top:14px; display:none; }
+  .wl-detail.open { display:block; }
+  .wl-detail-top { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; margin-bottom:10px; }
+  .wl-detail-top h2 { margin:0; font-size:1.15rem; }
+  .wl-seit { color:var(--muted); font-size:.8rem; }
+  .wl-why { color:#c5ced8; font-size:.9rem; margin:8px 0 12px; line-height:1.4; max-width:640px; }
+  .wl-chart-wrap { background:#0f1419; border:1px solid var(--line); border-radius:12px; padding:12px; margin:12px 0; }
+  .wl-chart-wrap canvas { max-height:200px; }
+  .wl-stats { display:flex; flex-wrap:wrap; gap:12px 20px; font-size:.85rem; color:var(--muted); margin-bottom:8px; }
+  .wl-stats b { color:var(--text); }
 </style>
 </head>
 <body>
@@ -91,6 +115,32 @@
   </div>
 
   <div class="card span12"><div class="disclaimer" id="disclaimer">Social-Signal, keine Finanzberatung. Kernzahl = Nähe Makro-Schock (Fed/CPI/Jobs).</div></div>
+
+
+  <div class="card span12" id="watchlistCard" style="border-color:#22c55e44">
+    <div class="wl-head">
+      <div>
+        <div class="label">Watchlist · Favoriten · Auto-Update</div>
+        <div class="wl-note" style="margin-top:6px">Verwaltet persistent via BotBot Chat: <code>watch SYMBOL</code> / <code>unwatch SYMBOL</code> (CORS — kein Webhook aus dem Browser)</div>
+      </div>
+      <div class="meta" id="wlUpdated">—</div>
+    </div>
+    <div class="wl-pills" id="wlPills"><div class="wl-empty">Watchlist lädt…</div></div>
+    <div class="wl-detail" id="wlDetail">
+      <div class="wl-detail-top">
+        <h2 id="wlDetailTitle">—</h2>
+        <span class="pill" id="wlDetailSignal">—</span>
+        <span class="wl-seit" id="wlSeit"></span>
+      </div>
+      <div class="wl-stats" id="wlStats"></div>
+      <div class="wl-why" id="wlWhy"></div>
+      <div class="wl-chart-wrap">
+        <div class="label" style="margin-bottom:8px">Verlauf seit Beobachtung · Social-Impuls (+ Confidence)</div>
+        <canvas id="wlChart"></canvas>
+      </div>
+      <div id="wlStimmen"></div>
+    </div>
+  </div>
 
   <div class="card span12">
     <div class="label">Ergebnis je Aktie · Signal · Belege</div>
@@ -294,6 +344,142 @@ async function runAnalyse() {
   btn.disabled = false;
 }
 
+
+/* —— Watchlist —— */
+var wlData = null;
+var wlSelected = null;
+var wlChart = null;
+
+function fmtBerlin(iso) {
+  if (!iso) return '—';
+  try {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso);
+    return d.toLocaleString('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'short', timeStyle: 'short' }) + ' (Berlin)';
+  } catch (e) { return String(iso); }
+}
+
+function renderWatchlist() {
+  var pills = document.getElementById('wlPills');
+  var detail = document.getElementById('wlDetail');
+  if (!wlData) {
+    pills.innerHTML = '<div class="wl-empty">Watchlist noch nicht verfügbar.</div>';
+    detail.classList.remove('open');
+    return;
+  }
+  document.getElementById('wlUpdated').textContent = 'WL Stand: ' + (wlData.updated_at || '—');
+  var list = wlData.watchlist || [];
+  var stocks = wlData.stocks || {};
+  if (!list.length) {
+    pills.innerHTML = '<div class="wl-empty">Keine Favoriten — im Chat: <code>watch SYMBOL</code></div>';
+    detail.classList.remove('open');
+    return;
+  }
+  // keep selection if still present
+  if (wlSelected && !stocks[wlSelected] && !list.some(function(x){ return x.symbol === wlSelected; })) {
+    wlSelected = null;
+  }
+  if (!wlSelected) wlSelected = list[0].symbol;
+
+  pills.innerHTML = '';
+  list.forEach(function(entry) {
+    var sym = entry.symbol;
+    var st = stocks[sym] || {};
+    var lat = st.latest || {};
+    var pill = document.createElement('div');
+    pill.className = 'wl-pill' + (wlSelected === sym ? ' active' : '');
+    pill.innerHTML =
+      '<div class="sym">' + esc(sym) + '</div>' +
+      '<div class="wl-meta">' +
+        '<span class="pill ' + cls(lat.signal) + '">' + esc(String(lat.signal || '—').toUpperCase()) + '</span>' +
+        '<span>Impuls ' + (lat.social_impulse != null ? esc(lat.social_impulse) : '—') + '</span>' +
+        '<span>' + esc(fmtBerlin(lat.at)) + '</span>' +
+      '</div>';
+    pill.onclick = function() {
+      wlSelected = sym;
+      renderWatchlist();
+    };
+    pills.appendChild(pill);
+  });
+
+  // detail
+  var st = stocks[wlSelected] || {};
+  var lat = st.latest || {};
+  var e = (lat.evidence) || {};
+  detail.classList.add('open');
+  document.getElementById('wlDetailTitle').textContent = (st.symbol || wlSelected) + ' · ' + (st.name || '');
+  var sigEl = document.getElementById('wlDetailSignal');
+  sigEl.className = 'pill ' + cls(lat.signal);
+  sigEl.textContent = String(lat.signal || '—').toUpperCase();
+  document.getElementById('wlSeit').textContent = 'Seit Beobachtung: ' + fmtBerlin(st.added_at || (list.find(function(x){return x.symbol===wlSelected;}) || {}).added_at);
+  document.getElementById('wlStats').innerHTML =
+    '<span>Impuls <b>' + (lat.social_impulse != null ? esc(lat.social_impulse) : '—') + '</b></span>' +
+    '<span>Confidence <b>' + (lat.confidence != null ? esc(lat.confidence) : '—') + '</b></span>' +
+    '<span>X <b>' + (e.x_posts != null ? esc(e.x_posts) : '—') + '</b></span>' +
+    '<span>Reddit <b>' + (e.reddit_posts != null ? esc(e.reddit_posts) : '—') + '</b></span>' +
+    '<span>News <b>' + (e.news != null ? esc(e.news) : '—') + '</b></span>';
+  document.getElementById('wlWhy').textContent = lat.why || '';
+
+  // Stimmen: prefer latest.evidence.voices, else voices_archive
+  var fake = { evidence: { voices: (e.voices && e.voices.length) ? e.voices : (st.voices_archive || []) } };
+  document.getElementById('wlStimmen').innerHTML = renderStimmen(fake.evidence, st);
+
+  // Chart history
+  var hist = st.history || [];
+  var labels = hist.map(function(h) { return fmtBerlin(h.at); });
+  var impulse = hist.map(function(h) { return h.social_impulse; });
+  var conf = hist.map(function(h) { return h.confidence; });
+  if (wlChart) { wlChart.destroy(); wlChart = null; }
+  var ctx = document.getElementById('wlChart');
+  wlChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels.length ? labels : ['—'],
+      datasets: [
+        {
+          label: 'Social-Impuls',
+          data: impulse.length ? impulse : [null],
+          borderColor: '#3d8bfd',
+          backgroundColor: 'rgba(61,139,253,.12)',
+          fill: true,
+          tension: 0.25,
+          pointRadius: 4,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Confidence',
+          data: conf.length ? conf : [null],
+          borderColor: '#f0b429',
+          backgroundColor: 'transparent',
+          borderDash: [4, 4],
+          tension: 0.25,
+          pointRadius: 3,
+          yAxisID: 'y'
+        }
+      ]
+    },
+    options: {
+      plugins: { legend: { labels: { color: '#8b97a8' } } },
+      scales: {
+        x: { ticks: { color: '#8b97a8', maxRotation: 45, minRotation: 0 }, grid: { color: '#243041' } },
+        y: { min: -100, max: 100, ticks: { color: '#8b97a8' }, grid: { color: '#243041' } }
+      }
+    }
+  });
+}
+
+async function loadWatchlist() {
+  try {
+    var res = await fetch('watchlist-data.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    wlData = await res.json();
+  } catch (err) {
+    console.warn('watchlist load failed', err);
+    if (!wlData) wlData = null;
+  }
+  renderWatchlist();
+}
+
 async function load() {
   var res = await fetch('stockstrend-data.json?t=' + Date.now(), { cache: 'no-store' });
   var data = await res.json();
@@ -373,8 +559,11 @@ async function load() {
     }
   } catch (e3) {}
 }
-load();
-setInterval(load, 60000);
+async function refreshAll() {
+  await Promise.all([load(), loadWatchlist()]);
+}
+refreshAll();
+setInterval(refreshAll, 60000);
 </script>
 </body>
 </html>
