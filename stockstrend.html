@@ -120,14 +120,26 @@ function scoreMatch(query, row) {
 }
 function searchTickers(q) {
   var list = window.BOTBOT_TICKERS || [];
-  var raw = q.trim().toUpperCase();
+  var raw = q.trim().toUpperCase().replace(/\s+/g, '');
   var hits = list.map(function(r) {
     return { s: r.s, n: r.n, a: r.a, score: scoreMatch(q, r) };
   }).filter(function(r) { return r.score > 0; });
   hits.sort(function(a, b) { return b.score - a.score; });
-  if (/^[A-Z.\-]{1,6}$/.test(raw) && !hits.some(function(h) { return h.s === raw; })) {
+  // Direct ticker only if input looks like a SYMBOL (not a company name like ORACLE),
+  // and we don't already have a strong catalog hit for that symbol.
+  var looksLikeTicker = /^[A-Z][A-Z.\-]{0,4}$/.test(raw) && raw.length <= 5;
+  var hasStrongHit = hits.some(function(h) { return h.score >= 70; });
+  var alreadySym = hits.some(function(h) { return h.s === raw; });
+  if (looksLikeTicker && !alreadySym && !hasStrongHit) {
     hits.unshift({ s: raw, n: 'Ticker (direkt)', a: [], score: 88 });
   }
+  // Dedupe by symbol
+  var seen = {};
+  hits = hits.filter(function(h) {
+    if (seen[h.s]) return false;
+    seen[h.s] = true;
+    return true;
+  });
   return hits.slice(0, 8);
 }
 
