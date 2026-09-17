@@ -157,6 +157,21 @@
   .wl-range button { min-height:40px; min-width:52px; padding:8px 14px; border-radius:999px; border:1px solid var(--line); background:#121821; color:var(--text); cursor:pointer; font-weight:700; font-size:.9rem; }
   .wl-range button.active { border-color:#3d8bfd; background:#1a3350; color:#7dd3fc; box-shadow:0 0 0 1px #3d8bfd55; }
 
+
+  details.wl-acc { border:1px solid var(--line); border-radius:12px; background:#0f1419; overflow:hidden; }
+  details.wl-acc > summary.wl-group-h {
+    list-style:none; cursor:pointer; padding:12px 14px; font-weight:800; font-size:.95rem;
+    display:flex; align-items:center; justify-content:space-between; gap:8px; user-select:none;
+  }
+  details.wl-acc > summary.wl-group-h::-webkit-details-marker { display:none; }
+  details.wl-acc > summary.wl-group-h::after { content:'▸'; color:var(--muted); font-size:.85rem; transition:transform .15s; }
+  details.wl-acc[open] > summary.wl-group-h::after { transform:rotate(90deg); }
+  details.wl-acc > summary.bull { color:var(--bull); background:rgba(34,197,94,.08); }
+  details.wl-acc > summary.mixed { color:var(--warn); background:rgba(240,180,41,.08); }
+  details.wl-acc > summary.bear { color:var(--bear); background:rgba(232,93,76,.08); }
+  details.wl-acc .voice-grid { padding:10px 12px 12px; }
+  details.wl-acc .cnt { font-weight:600; opacity:.85; font-size:.85rem; }
+
 </style>
 </head>
 <body>
@@ -596,9 +611,9 @@ function renderWlVoices(st) {
   order.forEach(function(g) {
     var arr = groups[g];
     if (!arr.length) return;
-    htmlOut += '<div class="wl-group">' +
-      '<div class="wl-group-h ' + g + '">' + titles[g] + ' <span class="cnt">(' + arr.length + ')</span></div>' +
-      '<div class="voice-grid">' + arr.map(voiceCardHtml).join('') + '</div></div>';
+    htmlOut += '<details class="wl-group wl-acc">' +
+      '<summary class="wl-group-h ' + g + '">' + titles[g] + ' <span class="cnt">(' + arr.length + ')</span></summary>' +
+      '<div class="voice-grid">' + arr.map(voiceCardHtml).join('') + '</div></details>';
   });
   if (!htmlOut) {
     htmlOut = '<div class="wl-empty">Keine Stimmen für diesen Zeitraum.</div>';
