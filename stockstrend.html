@@ -262,9 +262,19 @@ async function load() {
     }
   });
 
-  latestSignals = t.stock_signals || [];
+  latestSignals = (t.stock_signals || []).filter(function(s) {
+    if (s.interim) return false;
+    var e = s.evidence || {};
+    var x = Number(e.x_posts) || 0;
+    var r = Number(e.reddit_posts) || 0;
+    var n = Number(e.news) || 0;
+    return (x + r + n) > 0;
+  });
   var tb = document.querySelector('#signals tbody');
   tb.innerHTML = '';
+  if (!latestSignals.length) {
+    tb.innerHTML = '<tr><td colspan="8" class="meta">Keine Stocks mit echten Social-Counts — analysiere SYMBOL im Chat.</td></tr>';
+  }
   latestSignals.forEach(function(s) {
     var L = s.links || {};
     var e = s.evidence || {};

@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-09-17T11:20:50+02:00",
+  "updated_at": "2026-09-17T11:27:23+02:00",
   "timezone": "Europe/Berlin",
   "tick": {
     "tick_id": "2026-09-17T10:58:00+02:00",
@@ -259,7 +259,7 @@
         "signal": "hold",
         "confidence": 72,
         "social_impulse": 6,
-        "why": "X-Volume nach Q1-Peak (~3.1k/Tag 10.09.) auf ~0.6k (16.09.) abgekühlt. Split: OCI +121% / RPO $664B Bulls vs. Layoffs, Restructuring & CapEx-Bears. Premarket-Bounce-Chatter, aber kein dominanter Hype → Hold.",
+        "why": "Volume abgekühlt (Peak ~3.1k → ~0.6k/Tag). Mixed: OCI/RPO-Bulls vs Layoff/CapEx-Bears. Kein klarer Hype → Hold.",
         "evidence": {
           "x_posts": 50,
           "reddit_posts": 13,
@@ -274,109 +274,9 @@
           "yahoo": "https://finance.yahoo.com/quote/ORCL",
           "tradingview": "https://www.tradingview.com/symbols/NYSE-ORCL/"
         }
-      },
-      {
-        "symbol": "SPY",
-        "name": "Proxy: S&P 500 ETF",
-        "theme": "Fed/Rate Hike",
-        "hype_state": "dehyped",
-        "signal": "sell",
-        "signal_label": "Social-Signal: SELL",
-        "confidence": 74,
-        "strength": 88,
-        "why": "Aus Theme „Fed/Rate Hike“ / Sentiment bearish (Stärke 88) — Heuristik bis Live-Tweet-Scan.",
-        "sample_snippets": [],
-        "links": {
-          "tradingview": "https://www.tradingview.com/symbols/SPY/",
-          "yahoo": "https://finance.yahoo.com/quote/SPY"
-        },
-        "interim": true,
-        "social_impulse": -88,
-        "evidence": {
-          "x_posts": null,
-          "reddit_posts": null,
-          "news": null,
-          "total": null,
-          "snippets": []
-        }
-      },
-      {
-        "symbol": "ES=F",
-        "name": "S&P Futures",
-        "theme": "Futures/Asia Bounce",
-        "hype_state": "hyped",
-        "signal": "buy",
-        "signal_label": "Social-Signal: BUY",
-        "confidence": 74,
-        "strength": 76,
-        "why": "Aus Theme „Futures/Asia Bounce“ / Sentiment leicht_bullish (Stärke 76) — Heuristik bis Live-Tweet-Scan.",
-        "sample_snippets": [],
-        "links": {
-          "tradingview": "https://www.tradingview.com/symbols/CME_MINI:ES1!/",
-          "yahoo": "https://finance.yahoo.com/quote/ES=F"
-        },
-        "interim": true,
-        "social_impulse": 76,
-        "evidence": {
-          "x_posts": null,
-          "reddit_posts": null,
-          "news": null,
-          "total": null,
-          "snippets": []
-        }
-      },
-      {
-        "symbol": "DIA",
-        "name": "Dow Jones ETF",
-        "theme": "DIA/Dow",
-        "hype_state": "mixed",
-        "signal": "hold",
-        "signal_label": "Social-Signal: HOLD",
-        "confidence": 74,
-        "strength": 72,
-        "why": "Aus Theme „DIA/Dow“ / Sentiment bearish (Stärke 72) — Heuristik bis Live-Tweet-Scan.",
-        "sample_snippets": [],
-        "links": {
-          "tradingview": "https://www.tradingview.com/symbols/DIA/",
-          "yahoo": "https://finance.yahoo.com/quote/DIA"
-        },
-        "interim": true,
-        "social_impulse": 0,
-        "evidence": {
-          "x_posts": null,
-          "reddit_posts": null,
-          "news": null,
-          "total": null,
-          "snippets": []
-        }
-      },
-      {
-        "symbol": "BTC-USD",
-        "name": "Bitcoin",
-        "theme": "BTC/Crypto",
-        "hype_state": "mixed",
-        "signal": "hold",
-        "signal_label": "Social-Signal: HOLD",
-        "confidence": 74,
-        "strength": 68,
-        "why": "Aus Theme „BTC/Crypto“ / Sentiment mixed (Stärke 68) — Heuristik bis Live-Tweet-Scan.",
-        "sample_snippets": [],
-        "links": {
-          "tradingview": "https://www.tradingview.com/symbols/BINANCE:BTCUSDT/",
-          "yahoo": "https://finance.yahoo.com/quote/BTC-USD"
-        },
-        "interim": true,
-        "social_impulse": 0,
-        "evidence": {
-          "x_posts": null,
-          "reddit_posts": null,
-          "news": null,
-          "total": null,
-          "snippets": []
-        }
       }
     ],
-    "signals_disclaimer": "Buy/Hold/Sell = Social-Signal aus Buzz-Kontext, KEINE Finanzberatung und KEIN Trade-Call.",
+    "signals_disclaimer": "Nur Stocks mit echten Social-Counts (X/Reddit/News). Keine Theme-Heuristik. Social-Signal ≠ Finanzberatung.",
     "kernzahl": {
       "name": "Katalysator-Druck",
       "value": 35,
