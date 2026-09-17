@@ -20,16 +20,21 @@
   .label { color:var(--muted); font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; }
   .big { font-size:2rem; font-weight:700; margin-top:6px; }
   .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:.8rem; font-weight:600; }
-  .bear { background:rgba(232,93,76,.15); color:var(--bear); }
-  .bull { background:rgba(34,197,94,.15); color:var(--bull); }
-  .warn { background:rgba(240,180,41,.15); color:var(--warn); }
+  .bear,.risk_off,.lean_off { background:rgba(232,93,76,.15); color:var(--bear); }
+  .bull,.risk_on,.lean_on { background:rgba(34,197,94,.15); color:var(--bull); }
+  .warn,.watch { background:rgba(240,180,41,.15); color:var(--warn); }
   canvas { max-height:280px; }
   table { width:100%; border-collapse:collapse; font-size:.9rem; }
-  th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
   th { color:var(--muted); font-weight:500; }
-  .barwrap { height:10px; background:#1a222c; border-radius:6px; overflow:hidden; }
+  .barwrap { height:10px; background:#1a222c; border-radius:6px; overflow:hidden; min-width:80px; }
   .bar { height:100%; border-radius:6px; }
+  a.stock { color:#7dd3fc; text-decoration:none; font-weight:600; }
+  a.stock:hover { text-decoration:underline; }
+  .links a { color:var(--muted); font-size:.75rem; margin-right:8px; }
+  .links a:hover { color:#7dd3fc; }
   footer { padding:0 24px 24px; color:var(--muted); font-size:.8rem; }
+  .disclaimer { border:1px solid var(--line); background:#0f1419; border-radius:10px; padding:10px 12px; font-size:.85rem; color:var(--muted); }
 </style>
 </head>
 <body>
@@ -44,18 +49,31 @@
   <div class="card span3"><div class="label">Richtung</div><div class="big" id="direction">—</div></div>
   <div class="card span3"><div class="label">Magnitude</div><div class="big" id="mag">—</div></div>
   <div class="card span3"><div class="label">Konfidenz</div><div class="big" id="conf">—</div></div>
-  <div class="card span3"><div class="label">Items (dieser Tick)</div><div class="big" id="items">—</div></div>
+  <div class="card span3"><div class="label">Gesamt-Bias</div><div class="big" id="obias">—</div></div>
+
+  <div class="card span12"><div class="disclaimer" id="disclaimer">Kein Trade-Call / keine Kaufempfehlung — nur aggregiertes Social-Sentiment.</div></div>
 
   <div class="card span6"><div class="label">Datenmenge pro Quelle</div><canvas id="volChart"></canvas></div>
   <div class="card span6"><div class="label">Verlauf Magnitude</div><canvas id="histChart"></canvas></div>
 
-  <div class="card span8"><div class="label">Top-Themen</div><table id="themes"><thead><tr><th>Thema</th><th>Sentiment</th><th>Stärke</th><th></th></tr></thead><tbody></tbody></table></div>
-  <div class="card span4"><div class="label">Frische / Quellen</div><div id="fresh" style="margin-top:10px;line-height:1.55;font-size:.9rem;color:var(--muted)"></div></div>
+  <div class="card span12"><div class="label">Top-Themen · Bias · Stock-Links</div>
+    <table id="themes">
+      <thead><tr><th>Thema</th><th>Symbol</th><th>Bias</th><th>Sentiment</th><th>Stärke</th><th>Links</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
-  <div class="card span12"><div class="label">Delta vs. vorheriger Tick</div><div id="delta" style="margin-top:8px;font-size:.95rem">Baseline — noch kein Delta</div></div>
+  <div class="card span6"><div class="label">Frische</div><div id="fresh" style="margin-top:10px;line-height:1.55;font-size:.9rem;color:var(--muted)"></div></div>
+  <div class="card span6"><div class="label">Delta vs. vorheriger Tick</div><div id="delta" style="margin-top:8px;font-size:.95rem;color:var(--muted)">—</div></div>
 </div>
-<footer>Keine Trade-Empfehlung. Aggregierte Social-Stimmung · Auto-Refresh alle 60s · Daten: <code>stockstrend-data.json</code></footer>
+<footer>Items & Frische im JSON · Auto-Refresh 60s · Live-Daten: <code>stockstrend-data.json</code></footer>
 <script>
+function pillClass(bias) {
+  if (!bias) return 'watch';
+  if (bias.includes('on') && !bias.includes('off')) return 'risk_on';
+  if (bias.includes('off')) return 'risk_off';
+  return 'watch';
+}
 async function load() {
   const res = await fetch('stockstrend-data.json?t=' + Date.now(), { cache: 'no-store' });
   const data = await res.json();
@@ -63,9 +81,10 @@ async function load() {
   const v = t.vector || {};
   const totals = t.totals || {};
   const br = totals.breakdown || {};
+  const ob = t.overall_bias || {};
 
   document.getElementById('updated').textContent =
-    'Stand: ' + (data.updated_at || '—') + ' · ' + (data.timezone || '');
+    'Stand: ' + (data.updated_at || '—') + ' · Items: ' + (totals.content_items_usable ?? '—') + ' · ' + (data.timezone || '');
 
   const dir = (v.direction || '—').replaceAll('_',' ');
   const bearish = /bear/i.test(dir);
@@ -73,7 +92,9 @@ async function load() {
     '<span class="pill ' + (bearish ? 'bear' : 'bull') + '">' + dir + '</span>';
   document.getElementById('mag').textContent = v.magnitude ?? '—';
   document.getElementById('conf').textContent = v.confidence ?? '—';
-  document.getElementById('items').textContent = totals.content_items_usable ?? '—';
+  document.getElementById('obias').innerHTML =
+    '<span class="pill ' + pillClass(ob.key || '') + '">' + (ob.label || '—') + '</span>';
+  if (ob.disclaimer) document.getElementById('disclaimer').textContent = ob.disclaimer;
 
   const sig = document.getElementById('signal');
   if (v.early_signal) {
@@ -114,23 +135,40 @@ async function load() {
   tb.innerHTML = '';
   (t.top_themes || []).forEach(th => {
     const color = /bear/i.test(th.sentiment) ? '#e85d4c' : /bull/i.test(th.sentiment) ? '#22c55e' : '#f0b429';
+    const sym = th.symbol || '—';
+    const links = th.links || {};
+    const yahoo = links.yahoo ? '<a href="' + links.yahoo + '" target="_blank" rel="noopener">Yahoo</a>' : '';
+    const tv = links.tradingview ? '<a href="' + links.tradingview + '" target="_blank" rel="noopener">TradingView</a>' : '';
+    const symCell = links.yahoo
+      ? '<a class="stock" href="' + links.yahoo + '" target="_blank" rel="noopener">' + sym + '</a>'
+      : sym;
     const tr = document.createElement('tr');
-    tr.innerHTML = '<td>' + th.theme + '</td><td>' + th.sentiment + '</td><td>' + th.strength +
-      '</td><td style="width:35%"><div class="barwrap"><div class="bar" style="width:' + th.strength + '%;background:' + color + '"></div></div></td>';
+    tr.innerHTML =
+      '<td>' + th.theme + (th.symbol_note ? '<div class="meta">' + th.symbol_note + '</div>' : '') + '</td>' +
+      '<td>' + symCell + '</td>' +
+      '<td><span class="pill ' + pillClass(th.bias || '') + '">' + (th.bias_label || '—') + '</span></td>' +
+      '<td>' + (th.sentiment || '') + '</td>' +
+      '<td><div class="barwrap"><div class="bar" style="width:' + (th.strength||0) + '%;background:' + color + '"></div></div> ' + (th.strength||'') + '</td>' +
+      '<td class="links">' + yahoo + tv + '</td>';
     tb.appendChild(tr);
   });
 
   const f = t.freshness || {};
   document.getElementById('fresh').innerHTML =
-    '<div><b>Frischestes:</b> ' + (f.freshest_absolute || '—') + '</div>' +
+    '<div><b>Frischestes:</b> ' + (f.freshest_absolute || f.freshest_item_age || '—') + '</div>' +
     '<div><b>Primärsignal:</b> ' + (f.primary_signal || '—') + '</div>' +
-    '<div><b>Qualität:</b> ' + (f.quality || '—') + '</div>' +
-    '<div style="margin-top:10px"><b>Quellen OK / Fail</b> siehe Tick-JSON</div>';
+    '<div><b>Qualität:</b> ' + (f.quality || '—') + '</div>';
 
   const d = t.delta_vs_prev;
-  document.getElementById('delta').textContent = d
-    ? JSON.stringify(d)
-    : 'Baseline (Tick #1) — Deltas erscheinen ab dem nächsten Scan.';
+  if (!d) {
+    document.getElementById('delta').textContent = 'Baseline — noch kein Delta';
+  } else {
+    document.getElementById('delta').innerHTML =
+      'Δ Magnitude: <b>' + (d.magnitude_delta ?? '—') + '</b> · Δ Konfidenz: <b>' + (d.confidence_delta ?? '—') +
+      '</b> · Volumen: <b>' + (d.volume_change_pct ?? '—') + '%</b><br>' +
+      'Neu: ' + ((d.new_themes||[]).join(', ') || '—') + ' · Weg: ' + ((d.gone_themes||[]).join(', ') || '—') +
+      (d.note ? '<br>' + d.note : '');
+  }
 }
 load();
 setInterval(load, 60000);
