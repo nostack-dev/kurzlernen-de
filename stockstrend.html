@@ -28,12 +28,31 @@
   table { width:100%; border-collapse:collapse; font-size:.88rem; }
   th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
   th { color:var(--muted); font-weight:500; }
+  th .th-sub { display:block; font-size:.65rem; text-transform:none; letter-spacing:0; font-weight:400; color:#6b7785; margin-top:2px; max-width:110px; line-height:1.25; }
   a.stock { color:#7dd3fc; text-decoration:none; font-weight:700; }
   .links a { color:var(--muted); font-size:.75rem; margin-right:8px; }
   .disclaimer { border:1px solid var(--line); background:#0f1419; border-radius:10px; padding:10px 12px; font-size:.85rem; color:var(--muted); }
   .cal-row { display:flex; flex-wrap:wrap; gap:8px 16px; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); }
-  .why { color:var(--muted); font-size:.8rem; margin-top:4px; max-width:380px; }
+  .why { color:var(--muted); font-size:.8rem; margin-top:4px; max-width:420px; }
   .snip { color:#a8b3c2; font-size:.75rem; margin-top:4px; border-left:2px solid #243041; padding-left:8px; }
+  .stimmen { margin-top:10px; }
+  .stimmen-label { font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:6px; }
+  .voice-grid { display:flex; flex-direction:column; gap:6px; max-width:460px; }
+  .voice-card { background:#0f1419; border:1px solid var(--line); border-radius:10px; padding:8px 10px; }
+  .voice-top { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:4px; }
+  .src-badge { display:inline-block; font-size:.65rem; font-weight:700; padding:2px 7px; border-radius:999px; letter-spacing:.03em; }
+  .src-x { background:rgba(29,155,240,.2); color:#7dd3fc; }
+  .src-reddit { background:rgba(255,69,0,.18); color:#ff8a65; }
+  .src-news { background:rgba(168,85,247,.18); color:#c4b5fd; }
+  .src-other { background:rgba(139,151,168,.2); color:var(--muted); }
+  .lean-pill { font-size:.65rem; font-weight:700; padding:2px 6px; border-radius:6px; text-transform:uppercase; }
+  .lean-bull { color:var(--bull); background:rgba(34,197,94,.12); }
+  .lean-bear { color:var(--bear); background:rgba(232,93,76,.12); }
+  .lean-mixed { color:var(--warn); background:rgba(240,180,41,.12); }
+  .voice-text { font-size:.78rem; color:#c5ced8; line-height:1.35; }
+  .voice-open { font-size:.72rem; color:#7dd3fc; text-decoration:none; margin-top:4px; display:inline-block; }
+  .voice-open:hover { text-decoration:underline; }
+  .table-help { margin-top:10px; font-size:.78rem; color:var(--muted); line-height:1.4; }
   footer { padding:0 24px 24px; color:var(--muted); font-size:.8rem; }
   .search-row { display:flex; gap:8px; flex-wrap:wrap; }
   .search-row input { flex:1; min-width:180px; background:#0f1419; border:1px solid var(--line); color:var(--text); border-radius:10px; padding:10px 12px; font-size:1rem; }
@@ -76,9 +95,21 @@
   <div class="card span12">
     <div class="label">Ergebnis je Aktie · Signal · Belege</div>
     <table id="signals">
-      <thead><tr><th>Stock</th><th>Signal</th><th>Impuls</th><th>X</th><th>Reddit</th><th>News</th><th>Warum / Tweets</th><th>Links</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Stock</th>
+          <th>Signal</th>
+          <th title="Impuls = Social-Momentum −100…+100 (Buzz-Richtung, kein Kurs).">Impuls<span class="th-sub">Social −100…+100</span></th>
+          <th>X</th>
+          <th>Reddit</th>
+          <th>News</th>
+          <th>Warum / Stimmen</th>
+          <th>Links</th>
+        </tr>
+      </thead>
       <tbody></tbody>
     </table>
+    <div class="table-help" title="Impuls = Social-Momentum −100…+100 (Buzz-Richtung, kein Kurs).">Impuls = Social-Momentum −100…+100 (Buzz-Richtung, kein Kurs). Stimmen = aggregierte Belege aus X / Reddit / News.</div>
   </div>
 
   <div class="card span6"><div class="label">Nächste Termine</div><div id="calendar"></div></div>
@@ -86,6 +117,13 @@
 </div>
 <footer>Refresh 60s · Live Social-Signal</footer>
 <script>
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 function cls(s) {
   s = (s || '').toLowerCase();
   if (s.indexOf('buy') >= 0 || s === 'hyped') return 'buy';
@@ -143,6 +181,46 @@ function searchTickers(q) {
   return hits.slice(0, 8);
 }
 
+function srcBadgeClass(src) {
+  var s = String(src || '').toLowerCase();
+  if (s === 'x' || s === 'twitter') return 'src-x';
+  if (s.indexOf('reddit') >= 0) return 'src-reddit';
+  if (s.indexOf('news') >= 0) return 'src-news';
+  return 'src-other';
+}
+function leanClass(lean) {
+  var l = String(lean || '').toLowerCase();
+  if (l === 'bull') return 'lean-bull';
+  if (l === 'bear') return 'lean-bear';
+  return 'lean-mixed';
+}
+function renderStimmen(e, s) {
+  var voices = (e && e.voices) || [];
+  if (voices.length) {
+    var cards = voices.slice(0, 10).map(function(v) {
+      var src = v.source || 'Other';
+      var lean = v.lean || 'mixed';
+      var open = v.url
+        ? '<a class="voice-open" href="' + esc(v.url) + '" target="_blank" rel="noopener">Öffnen</a>'
+        : '';
+      return '<div class="voice-card">' +
+        '<div class="voice-top">' +
+          '<span class="src-badge ' + srcBadgeClass(src) + '">' + esc(src) + '</span>' +
+          '<span class="lean-pill ' + leanClass(lean) + '">' + esc(lean) + '</span>' +
+        '</div>' +
+        '<div class="voice-text">„' + esc(v.text || '') + '“</div>' +
+        open +
+      '</div>';
+    }).join('');
+    return '<div class="stimmen"><div class="stimmen-label">Stimmen</div><div class="voice-grid">' + cards + '</div></div>';
+  }
+  var snips = (e.snippets || s.sample_snippets || []).slice(0, 4).map(function(x) {
+    return '<div class="voice-card"><div class="voice-text">„' + esc(x) + '“</div></div>';
+  }).join('');
+  if (!snips) return '';
+  return '<div class="stimmen"><div class="stimmen-label">Stimmen</div><div class="voice-grid">' + snips + '</div></div>';
+}
+
 var selected = null;
 var latestSignals = [];
 var qEl = document.getElementById('q');
@@ -155,7 +233,7 @@ function renderSuggest(hits) {
   hits.forEach(function(h) {
     var div = document.createElement('div');
     div.className = 'sug' + (selected && selected.s === h.s ? ' active' : '');
-    div.innerHTML = '<span><b>' + h.s + '</b> · ' + h.n + '</span>';
+    div.innerHTML = '<span><b>' + esc(h.s) + '</b> · ' + esc(h.n) + '</span>';
     div.onclick = function() {
       selected = h;
       qEl.value = h.s + ' — ' + h.n;
@@ -193,7 +271,7 @@ async function runAnalyse() {
   btn.disabled = true;
   var hit = findSignal(symbol);
   if (hit) {
-    statusEl.innerHTML = '<b>' + symbol + '</b> · <span class="pill ' + cls(hit.signal) + '">' + String(hit.signal || '').toUpperCase() + '</span> schon live — gescrollt.';
+    statusEl.innerHTML = '<b>' + esc(symbol) + '</b> · <span class="pill ' + cls(hit.signal) + '">' + esc(String(hit.signal || '').toUpperCase()) + '</span> schon live — gescrollt.';
     var row = document.getElementById('row-' + symbol);
     if (row) {
       row.classList.add('flash');
@@ -208,7 +286,7 @@ async function runAnalyse() {
     localStorage.setItem('botbot_pending_analyse', JSON.stringify({ symbol: symbol, name: selected.n, t: Date.now() }));
   } catch (e) {}
   var cmd = 'analysiere ' + symbol;
-  statusEl.innerHTML = '<b>' + symbol + '</b> noch nicht gescannt. Schreib BotBot: <code>' + cmd + '</code>';
+  statusEl.innerHTML = '<b>' + esc(symbol) + '</b> noch nicht gescannt. Schreib BotBot: <code>' + esc(cmd) + '</code>';
   try {
     await navigator.clipboard.writeText(cmd);
     statusEl.innerHTML += ' · kopiert';
@@ -224,7 +302,7 @@ async function load() {
   var k = t.kernzahl || {};
   document.getElementById('updated').textContent = 'Stand: ' + (data.updated_at || '—');
   document.getElementById('kernVal').textContent = (k.value != null ? k.value : '—');
-  document.getElementById('kernSub').innerHTML = '<b>' + (k.name || 'Kernzahl') + '</b> · nächster Katalysator: ' + (k.next_catalyst || '—') + ' (' + (k.when_label || '') + ')<br>' + (k.why || '');
+  document.getElementById('kernSub').innerHTML = '<b>' + esc(k.name || 'Kernzahl') + '</b> · nächster Katalysator: ' + esc(k.next_catalyst || '—') + ' (' + esc(k.when_label || '') + ')<br>' + esc(k.why || '');
   document.getElementById('signal').innerHTML = v.early_signal ? '<span class="pill hold">Frühsignal</span>' : '';
   if (t.signals_disclaimer) document.getElementById('disclaimer').textContent = t.signals_disclaimer;
 
@@ -233,8 +311,8 @@ async function load() {
   (t.macro_calendar || []).forEach(function(ev) {
     var row = document.createElement('div');
     row.className = 'cal-row';
-    row.innerHTML = '<div><b>' + ev.title + '</b><div class="meta">' + ev.when_label + ' · ' + daysUntil(ev.when) + '</div></div>' +
-      (ev.link ? '<a class="stock" href="' + ev.link + '" target="_blank" rel="noopener">Quelle</a>' : '');
+    row.innerHTML = '<div><b>' + esc(ev.title) + '</b><div class="meta">' + esc(ev.when_label) + ' · ' + esc(daysUntil(ev.when)) + '</div></div>' +
+      (ev.link ? '<a class="stock" href="' + esc(ev.link) + '" target="_blank" rel="noopener">Quelle</a>' : '');
     cal.appendChild(row);
   });
 
@@ -262,14 +340,7 @@ async function load() {
     }
   });
 
-  latestSignals = (t.stock_signals || []).filter(function(s) {
-    if (s.interim) return false;
-    var e = s.evidence || {};
-    var x = Number(e.x_posts) || 0;
-    var r = Number(e.reddit_posts) || 0;
-    var n = Number(e.news) || 0;
-    return (x + r + n) > 0;
-  });
+  latestSignals = t.stock_signals || [];
   var tb = document.querySelector('#signals tbody');
   tb.innerHTML = '';
   if (!latestSignals.length) {
@@ -278,20 +349,18 @@ async function load() {
   latestSignals.forEach(function(s) {
     var L = s.links || {};
     var e = s.evidence || {};
-    var snips = (e.snippets || s.sample_snippets || []).slice(0, 2).map(function(x) {
-      return '<div class="snip">„' + x + '“</div>';
-    }).join('');
+    var stimmen = renderStimmen(e, s);
     var tr = document.createElement('tr');
     tr.id = 'row-' + (s.symbol || '');
-    tr.innerHTML = '<td><a class="stock" href="' + (L.yahoo || '#') + '" target="_blank" rel="noopener">' + (s.symbol || '') + '</a><div class="meta">' + (s.name || '') + '</div></td>' +
-      '<td><span class="pill ' + cls(s.signal) + '">' + String(s.signal || '').toUpperCase() + '</span></td>' +
-      '<td>' + (s.social_impulse != null ? s.social_impulse : '—') + '</td>' +
-      '<td>' + (e.x_posts != null ? e.x_posts : '—') + '</td>' +
-      '<td>' + (e.reddit_posts != null ? e.reddit_posts : '—') + '</td>' +
-      '<td>' + (e.news != null ? e.news : '—') + '</td>' +
-      '<td><div class="why">' + (s.why || '') + '</div>' + snips + '</td>' +
-      '<td class="links">' + (L.yahoo ? '<a href="' + L.yahoo + '" target="_blank" rel="noopener">Yahoo</a>' : '') +
-        (L.tradingview ? '<a href="' + L.tradingview + '" target="_blank" rel="noopener">TV</a>' : '') + '</td>';
+    tr.innerHTML = '<td><a class="stock" href="' + esc(L.yahoo || '#') + '" target="_blank" rel="noopener">' + esc(s.symbol || '') + '</a><div class="meta">' + esc(s.name || '') + '</div></td>' +
+      '<td><span class="pill ' + cls(s.signal) + '">' + esc(String(s.signal || '').toUpperCase()) + '</span></td>' +
+      '<td title="Impuls = Social-Momentum −100…+100 (Buzz-Richtung, kein Kurs).">' + (s.social_impulse != null ? esc(s.social_impulse) : '—') + '</td>' +
+      '<td>' + (e.x_posts != null ? esc(e.x_posts) : '—') + '</td>' +
+      '<td>' + (e.reddit_posts != null ? esc(e.reddit_posts) : '—') + '</td>' +
+      '<td>' + (e.news != null ? esc(e.news) : '—') + '</td>' +
+      '<td><div class="why">' + esc(s.why || '') + '</div>' + stimmen + '</td>' +
+      '<td class="links">' + (L.yahoo ? '<a href="' + esc(L.yahoo) + '" target="_blank" rel="noopener">Yahoo</a>' : '') +
+        (L.tradingview ? '<a href="' + esc(L.tradingview) + '" target="_blank" rel="noopener">TV</a>' : '') + '</td>';
     tb.appendChild(tr);
   });
 
@@ -299,7 +368,7 @@ async function load() {
   try {
     var pend = JSON.parse(localStorage.getItem('botbot_pending_analyse') || 'null');
     if (pend && pend.symbol && findSignal(pend.symbol)) {
-      statusEl.innerHTML = '<b>' + pend.symbol + '</b> ist live.';
+      statusEl.innerHTML = '<b>' + esc(pend.symbol) + '</b> ist live.';
       localStorage.removeItem('botbot_pending_analyse');
     }
   } catch (e3) {}

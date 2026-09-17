@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-09-17T11:27:23+02:00",
+  "updated_at": "2026-09-17T11:29:18+02:00",
   "timezone": "Europe/Berlin",
   "tick": {
     "tick_id": "2026-09-17T10:58:00+02:00",
@@ -23,7 +23,9 @@
         },
         "freshest": "2026-09-17T08:51:01Z (~0–1 min)",
         "window": "Posts/News recency ≤24h; Counts ~24h hourly",
-        "credits_before_usd": 9.4
+        "credits_before_usd": 9.4,
+        "credits_after_orcl_refresh_usd": 7.71,
+        "credits_spent_orcl_refresh_usd": 0.11
       },
       "user-Apify-Reddit": {
         "status": "ok",
@@ -259,15 +261,71 @@
         "signal": "hold",
         "confidence": 72,
         "social_impulse": 6,
-        "why": "Volume abgekühlt (Peak ~3.1k → ~0.6k/Tag). Mixed: OCI/RPO-Bulls vs Layoff/CapEx-Bears. Kein klarer Hype → Hold.",
+        "why": "Mixed mild: OCI/RPO bulls vs CapEx/layoff/dilution bears. Volume cooler → Hold.",
         "evidence": {
           "x_posts": 50,
           "reddit_posts": 13,
           "news": 4,
           "snippets": [
-            "OCI revenue grew 121%, RPO $664bn, ~850MW capacity — utilization very high. (X)",
-            "ORCL -3.1% — $2.8B restructuring & layoffs as AI Capex soars (Reddit r/OracleStock)",
-            "Oracle $ORCL up 4.6% pre-market. (X)"
+            "OCI +121% / RPO bullish — stock still CapEx-discounted. (X)",
+            "Layoffs + borrow for buildout; FCF/CapEx angst. (X/Reddit)",
+            "Ellison canceled sale plan — price-too-low signal. (X)"
+          ],
+          "voices": [
+            {
+              "source": "X",
+              "text": "ORACLE LOOKS TOO CHEAP — strong Q1 FY2027; stock still discounted on AI-customer concerns. Interested in adding long-term.",
+              "url": "https://x.com/Sam_Badawi/status/2099103046219264099",
+              "lean": "bull"
+            },
+            {
+              "source": "X",
+              "text": "Oracle beat; OCI +121%; stock still sold off on AI CapEx/cash burn — but ~$11.4B customer prepay may ease funding risk.",
+              "url": "https://x.com/EvelynLinAlpha/status/2099184095725281633",
+              "lean": "mixed"
+            },
+            {
+              "source": "X",
+              "text": "Ellison canceled his stock-sale plan — signal he thinks price too low (target talk $200–$350).",
+              "url": "https://x.com/chinoalemano/status/2098947533779177800",
+              "lean": "bull"
+            },
+            {
+              "source": "X",
+              "text": "EPS $1.92 beat by ~15%; stock jumped after-hours — but watchers say transformation/OCI story > EPS.",
+              "url": "https://x.com/TheQuietTrader1/status/2098144584387731549",
+              "lean": "bull"
+            },
+            {
+              "source": "X",
+              "text": "Oracle cutting again while borrowing for the buildout — new layoff round framed as broader org change (BI/insiders).",
+              "url": "https://x.com/Shahjees/status/2099737491704357207",
+              "lean": "bear"
+            },
+            {
+              "source": "X",
+              "text": "Larry Ellison canceled trading plan for up to 50M shares by end-Oct; no shares sold; still ~40% owner (FT).",
+              "url": "https://x.com/Unclestocknotes/status/2099252801482154420",
+              "lean": "bull"
+            },
+            {
+              "source": "Reddit",
+              "text": "Beat every number last quarter and the stock fell ~11% — CapEx ~$55.7B, FCF −$23.7B, more raise planned; OpenAI concentration fears.",
+              "url": "https://www.reddit.com/r/OracleStock/comments/1u5pglj/oracle_beat_every_number_last_quarter_and_the/",
+              "lean": "bear"
+            },
+            {
+              "source": "Reddit",
+              "text": "Trap or opportunity at ~150? Dilution/$40B raise + CapEx angst vs. bulls calling overreaction / add-on-dip.",
+              "url": "https://www.reddit.com/r/OracleStock/comments/1ug2jbx/trap_or_opportunity_at_150/",
+              "lean": "mixed"
+            },
+            {
+              "source": "News",
+              "text": "CapEx ~$55.7B FY26 (above guide); plans more raise; large restructuring/layoffs while funding AI datacenters — stock sold off on spend fears.",
+              "url": "https://thenextweb.com/news/oracle-q4-fy2026-capex-55-billion-ai-data-center-openai",
+              "lean": "bear"
+            }
           ]
         },
         "links": {
