@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<title>BotBot · Stocks</title>
+<title>BotBot · Stocks Trendvektor</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="./tickers.js"></script>
 <style>
@@ -16,24 +16,30 @@
   .meta { color:var(--muted); font-size:.9rem; }
   .grid { display:grid; grid-template-columns:repeat(12,1fr); gap:14px; padding:12px 24px 28px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
-  .span6{grid-column:span 6}.span12{grid-column:span 12}
-  @media (max-width:900px){ .span6,.span12{grid-column:span 12} }
+  .span3{grid-column:span 3}.span4{grid-column:span 4}.span6{grid-column:span 6}.span8{grid-column:span 8}.span12{grid-column:span 12}
+  @media (max-width:900px){ .span3,.span4,.span6,.span8,.span12{grid-column:span 12} }
   .label { color:var(--muted); font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; }
+  .big { font-size:2rem; font-weight:700; margin-top:6px; }
   .huge { font-size:3rem; font-weight:800; margin-top:6px; }
   .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:.8rem; font-weight:700; }
-  .buy,.hyped { background:rgba(34,197,94,.18); color:var(--bull); }
-  .sell,.dehyped { background:rgba(232,93,76,.18); color:var(--bear); }
-  .hold,.mixed,.warn { background:rgba(240,180,41,.18); color:var(--warn); }
-  canvas { max-height:220px; }
+  .buy,.bull,.risk_on,.lean_on,.hyped { background:rgba(34,197,94,.18); color:var(--bull); }
+  .sell,.bear,.risk_off,.lean_off,.dehyped { background:rgba(232,93,76,.18); color:var(--bear); }
+  .hold,.watch,.mixed,.warn { background:rgba(240,180,41,.18); color:var(--warn); }
+  canvas { max-height:260px; }
   table { width:100%; border-collapse:collapse; font-size:.88rem; }
   th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
   th { color:var(--muted); font-weight:500; }
   a.stock { color:#7dd3fc; text-decoration:none; font-weight:700; }
+  a.stock:hover { text-decoration:underline; }
   .links a { color:var(--muted); font-size:.75rem; margin-right:8px; }
+  .links a:hover { color:#7dd3fc; }
   .disclaimer { border:1px solid var(--line); background:#0f1419; border-radius:10px; padding:10px 12px; font-size:.85rem; color:var(--muted); }
-  .cal-row { display:flex; flex-wrap:wrap; gap:8px 16px; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); }
-  .why { color:var(--muted); font-size:.8rem; margin-top:4px; max-width:380px; }
+  .cal-row { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:baseline; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); }
+  .cal-row:last-child { border-bottom:0; }
+  .why { color:var(--muted); font-size:.8rem; margin-top:4px; max-width:420px; }
   .snip { color:#a8b3c2; font-size:.75rem; margin-top:4px; border-left:2px solid #243041; padding-left:8px; }
+  .barwrap { height:10px; background:#1a222c; border-radius:6px; overflow:hidden; }
+  .bar { height:100%; border-radius:6px; }
   footer { padding:0 24px 24px; color:var(--muted); font-size:.8rem; }
   .search-row { display:flex; gap:8px; flex-wrap:wrap; }
   .search-row input { flex:1; min-width:180px; background:#0f1419; border:1px solid var(--line); color:var(--text); border-radius:10px; padding:10px 12px; font-size:1rem; }
@@ -43,18 +49,25 @@
   .sug:hover, .sug.active { background:#1a222c; }
   #analyseStatus { margin-top:10px; font-size:.9rem; color:var(--muted); }
   .kern-sub { color:var(--muted); font-size:.9rem; margin-top:8px; line-height:1.4; }
+  .chart-img { width:100%; height:auto; border-radius:10px; background:#fff; }
+  .hidden { display:none; }
 </style>
 </head>
 <body>
 <header>
   <div>
-    <h1>BotBot · Stocks</h1>
+    <h1>BotBot · Stocks Trendvektor</h1>
     <div class="meta" id="updated">lädt…</div>
   </div>
   <div id="signal"></div>
 </header>
 <div class="grid">
-  <div class="card span12" style="border-color:#3d8bfd55">
+  <div class="card span3"><div class="label">Richtung</div><div class="big" id="direction">—</div></div>
+  <div class="card span3"><div class="label">Magnitude</div><div class="big" id="mag">—</div></div>
+  <div class="card span3"><div class="label">Konfidenz</div><div class="big" id="conf">—</div></div>
+  <div class="card span3"><div class="label">Gesamt-Bias</div><div class="big" id="obias">—</div></div>
+
+  <div class="card span12 hidden" id="kernCard" style="border-color:#3d8bfd55">
     <div class="label">Kernzahl · First Principles · Low Noise</div>
     <div class="huge" id="kernVal">—</div>
     <div class="kern-sub" id="kernSub"></div>
@@ -71,25 +84,54 @@
     <p class="meta" style="margin-top:10px">Analyse = Befehl an BotBot. Einfach hier tippen oder im Chat: <code>analysiere ORCL</code> — kein Setup nötig.</p>
   </div>
 
-  <div class="card span12"><div class="disclaimer" id="disclaimer">Social-Signal, keine Finanzberatung. Kernzahl = Nähe Makro-Schock (Fed/CPI/Jobs).</div></div>
+  <div class="card span12">
+    <div class="disclaimer" id="disclaimer">Social-Signal, keine Finanzberatung.</div>
+    <div class="disclaimer" id="biasDisclaimer" style="margin-top:8px"></div>
+  </div>
 
   <div class="card span12">
-    <div class="label">Ergebnis je Aktie · Signal · Belege</div>
+    <div class="label">Gehyped / Gedehyped · Social Buy / Hold / Sell</div>
     <table id="signals">
-      <thead><tr><th>Stock</th><th>Signal</th><th>Impuls</th><th>X</th><th>Reddit</th><th>News</th><th>Warum / Tweets</th><th>Links</th></tr></thead>
+      <thead><tr><th>Stock</th><th>Hype</th><th>Signal</th><th>Konfidenz</th><th>Warum / Belege</th><th>Links</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
 
-  <div class="card span6"><div class="label">Nächste Termine</div><div id="calendar"></div></div>
-  <div class="card span6"><div class="label">Verlauf Magnitude</div><canvas id="histChart"></canvas></div>
+  <div class="card span6">
+    <div class="label">Nächste Termine (KISS)</div>
+    <div id="calendar"></div>
+  </div>
+  <div class="card span6">
+    <div class="label">Verlauf Magnitude (Ticks 1–n)</div>
+    <canvas id="histChart"></canvas>
+    <img id="chartAsset" class="chart-img hidden" alt="Trendvektor Magnitude Mini-Series" style="margin-top:12px"/>
+  </div>
+
+  <div class="card span8">
+    <div class="label">Top-Themen</div>
+    <table id="themes"><thead><tr><th>Thema</th><th>Sentiment</th><th>Stärke</th><th></th></tr></thead><tbody></tbody></table>
+  </div>
+  <div class="card span4">
+    <div class="label">Frische / Delta / Volumen</div>
+    <div id="fresh" style="margin-top:10px;line-height:1.55;font-size:.9rem;color:var(--muted)"></div>
+    <div id="delta" style="margin-top:12px;font-size:.9rem;color:var(--muted)"></div>
+  </div>
+
+  <div class="card span12"><div class="label">Datenmenge pro Quelle</div><canvas id="volChart"></canvas></div>
 </div>
-<footer>Refresh 60s</footer>
+<footer>Refresh 60s · <code>stockstrend-data.json</code></footer>
 <script>
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 function cls(s) {
   s = (s || '').toLowerCase();
-  if (s.indexOf('buy') >= 0 || s === 'hyped') return 'buy';
-  if (s.indexOf('sell') >= 0 || s.indexOf('dehyped') >= 0) return 'sell';
+  if (s.indexOf('buy') >= 0 || s === 'hyped' || s.indexOf('risk_on') >= 0 || s.indexOf('lean_on') >= 0) return 'buy';
+  if (s.indexOf('sell') >= 0 || s.indexOf('dehyped') >= 0 || s.indexOf('risk_off') >= 0 || s.indexOf('lean_off') >= 0 || s.indexOf('bear') >= 0) return 'sell';
   return 'hold';
 }
 function daysUntil(iso) {
@@ -142,7 +184,7 @@ function renderSuggest(hits) {
   hits.forEach(function(h) {
     var div = document.createElement('div');
     div.className = 'sug' + (selected && selected.s === h.s ? ' active' : '');
-    div.innerHTML = '<span><b>' + h.s + '</b> · ' + h.n + '</span>';
+    div.innerHTML = '<span><b>' + esc(h.s) + '</b> · ' + esc(h.n) + '</span>';
     div.onclick = function() {
       selected = h;
       qEl.value = h.s + ' — ' + h.n;
@@ -170,7 +212,7 @@ async function runAnalyse() {
   if (!selected) return;
   var symbol = selected.s;
   var cmd = 'analysiere ' + symbol;
-  statusEl.innerHTML = 'Schick BotBot im Chat: <code>' + cmd + '</code> — er liefert Buy/Hold/Sell + Belege.';
+  statusEl.innerHTML = 'Schick BotBot im Chat: <code>' + esc(cmd) + '</code> — er liefert Buy/Hold/Sell + Belege.';
   btn.disabled = true;
   try {
     await navigator.clipboard.writeText(cmd);
@@ -182,38 +224,79 @@ async function runAnalyse() {
 async function load() {
   var res = await fetch('stockstrend-data.json?t=' + Date.now(), { cache: 'no-store' });
   var data = await res.json();
-  var t = data.tick || {};
+  var t = data.tick || data;
   var v = t.vector || {};
-  var k = t.kernzahl || {};
-  document.getElementById('updated').textContent = 'Stand: ' + (data.updated_at || '—');
-  document.getElementById('kernVal').textContent = (k.value != null ? k.value : '—');
-  document.getElementById('kernSub').innerHTML = '<b>' + (k.name || 'Kernzahl') + '</b> · nächster Katalysator: ' + (k.next_catalyst || '—') + ' (' + (k.when_label || '') + ')<br>' + (k.why || '');
-  document.getElementById('signal').innerHTML = v.early_signal ? '<span class="pill hold">Frühsignal</span>' : '';
-  if (t.signals_disclaimer) document.getElementById('disclaimer').textContent = t.signals_disclaimer;
+  var totals = t.totals || {};
+  var br = totals.breakdown || {};
+  var ob = t.overall_bias || {};
+  var k = t.kernzahl || data.kernzahl || {};
+  var f = t.freshness || {};
+  var dlt = t.delta_vs_prev || {};
+  var items = totals.content_items_usable;
+
+  document.getElementById('updated').textContent =
+    'Stand: ' + (data.updated_at || t.tick_id || '—') +
+    ' · Items: ' + (items != null ? items : '—') +
+    ' · ' + (data.timezone || t.timezone || '');
+
+  var dir = String(v.direction || '—').split('_').join(' ');
+  document.getElementById('direction').innerHTML =
+    '<span class="pill ' + cls(v.direction || dir) + '">' + esc(dir) + '</span>';
+  document.getElementById('mag').textContent = v.magnitude != null ? v.magnitude : '—';
+  document.getElementById('conf').textContent = v.confidence != null ? v.confidence : '—';
+  document.getElementById('obias').innerHTML =
+    '<span class="pill ' + cls(ob.key || '') + '">' + esc(ob.label || '—') + '</span>';
+
+  var sig = document.getElementById('signal');
+  if (v.early_signal) {
+    sig.innerHTML = '<span class="pill hold">Frühsignal: JA</span> <span class="meta">' + esc(v.early_signal_note || '') + '</span>';
+  } else {
+    sig.innerHTML = '<span class="pill">Frühsignal: nein</span>';
+  }
+
+  var disc = t.signals_disclaimer || data.signals_disclaimer || '';
+  document.getElementById('disclaimer').textContent = disc || 'Social-Signal, keine Finanzberatung.';
+  document.getElementById('biasDisclaimer').textContent = ob.disclaimer || '';
+  document.getElementById('biasDisclaimer').classList.toggle('hidden', !ob.disclaimer);
+
+  if (k.value != null) {
+    document.getElementById('kernCard').classList.remove('hidden');
+    document.getElementById('kernVal').textContent = k.value;
+    document.getElementById('kernSub').innerHTML =
+      '<b>' + esc(k.name || 'Kernzahl') + '</b> · nächster Katalysator: ' +
+      esc(k.next_catalyst || '—') + ' (' + esc(k.when_label || '') + ')<br>' + esc(k.why || '');
+  } else {
+    document.getElementById('kernCard').classList.add('hidden');
+  }
 
   var cal = document.getElementById('calendar');
   cal.innerHTML = '';
   (t.macro_calendar || []).forEach(function(ev) {
     var row = document.createElement('div');
     row.className = 'cal-row';
-    row.innerHTML = '<div><b>' + ev.title + '</b><div class="meta">' + ev.when_label + ' · ' + daysUntil(ev.when) + '</div></div>' +
-      (ev.link ? '<a class="stock" href="' + ev.link + '" target="_blank" rel="noopener">Quelle</a>' : '');
+    row.innerHTML = '<div><b>' + esc(ev.title) + '</b><div class="meta">' + esc(ev.when_label) + ' · ' + esc(daysUntil(ev.when)) + '</div></div>' +
+      (ev.link ? '<a class="stock" href="' + esc(ev.link) + '" target="_blank" rel="noopener">Quelle</a>' : '');
     cal.appendChild(row);
   });
 
-  var hist = data.history || [];
+  var hist = data.history || t.mini_series || data.mini_series || [];
   if (window._hist) window._hist.destroy();
   window._hist = new Chart(document.getElementById('histChart'), {
     type: 'line',
     data: {
-      labels: hist.map(function(_, i) { return '#' + (i + 1); }),
+      labels: hist.map(function(h, i) {
+        var n = h.tick != null ? h.tick : (i + 1);
+        var at = h.at || h.tick_id || h.scraped_at || '';
+        var hhmm = at.length >= 16 ? at.slice(11, 16) : '';
+        return '#' + n + (hhmm ? ' ' + hhmm : '');
+      }),
       datasets: [{
         data: hist.map(function(h) { return h.magnitude; }),
         borderColor: '#e85d4c',
         backgroundColor: 'rgba(232,93,76,.15)',
         fill: true,
         tension: 0.25,
-        pointRadius: 4
+        pointRadius: 5
       }]
     },
     options: {
@@ -225,26 +308,93 @@ async function load() {
     }
   });
 
+  var chartAsset = t.chart_asset || data.chart_asset;
+  var img = document.getElementById('chartAsset');
+  if (chartAsset && String(chartAsset).indexOf('/') !== 0 && String(chartAsset).indexOf('http') !== 0) {
+    img.src = chartAsset + '?t=' + Date.now();
+    img.classList.remove('hidden');
+  } else {
+    img.removeAttribute('src');
+    img.classList.add('hidden');
+  }
+
   var tb = document.querySelector('#signals tbody');
   tb.innerHTML = '';
   (t.stock_signals || []).forEach(function(s) {
     var L = s.links || {};
     var e = s.evidence || {};
-    var snips = (e.snippets || s.sample_snippets || []).slice(0, 2).map(function(x) {
-      return '<div class="snip">„' + x + '“</div>';
+    var snips = (e.snippets || s.sample_snippets || []).slice(0, 3).map(function(x) {
+      return '<div class="snip">„' + esc(x) + '“</div>';
     }).join('');
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td><a class="stock" href="' + (L.yahoo || '#') + '" target="_blank" rel="noopener">' + (s.symbol || '') + '</a><div class="meta">' + (s.name || '') + '</div></td>' +
-      '<td><span class="pill ' + cls(s.signal) + '">' + String(s.signal || '').toUpperCase() + '</span></td>' +
-      '<td>' + (s.social_impulse != null ? s.social_impulse : '—') + '</td>' +
-      '<td>' + (e.x_posts != null ? e.x_posts : '—') + '</td>' +
-      '<td>' + (e.reddit_posts != null ? e.reddit_posts : '—') + '</td>' +
-      '<td>' + (e.news != null ? e.news : '—') + '</td>' +
-      '<td><div class="why">' + (s.why || '') + '</div>' + snips + '</td>' +
-      '<td class="links">' + (L.yahoo ? '<a href="' + L.yahoo + '" target="_blank" rel="noopener">Yahoo</a>' : '') +
-        (L.tradingview ? '<a href="' + L.tradingview + '" target="_blank" rel="noopener">TV</a>' : '') + '</td>';
+    tr.innerHTML =
+      '<td><a class="stock" href="' + esc(L.yahoo || '#') + '" target="_blank" rel="noopener">' + esc(s.symbol || '') + '</a><div class="meta">' + esc(s.name || '') + '</div></td>' +
+      '<td><span class="pill ' + cls(s.hype_state) + '">' + esc(s.hype_state || '') + '</span></td>' +
+      '<td><span class="pill ' + cls(s.signal) + '">' + esc(String(s.signal || '').toUpperCase()) + '</span><div class="meta">' + esc(s.signal_label || '') + '</div></td>' +
+      '<td>' + (s.confidence != null ? s.confidence : '—') + '</td>' +
+      '<td><div class="why">' + esc(s.why || '') + '</div>' + snips + '</td>' +
+      '<td class="links">' +
+        (L.yahoo ? '<a href="' + esc(L.yahoo) + '" target="_blank" rel="noopener">Yahoo</a>' : '') +
+        (L.tradingview ? '<a href="' + esc(L.tradingview) + '" target="_blank" rel="noopener">TV</a>' : '') +
+      '</td>';
     tb.appendChild(tr);
   });
+
+  var thb = document.querySelector('#themes tbody');
+  thb.innerHTML = '';
+  (t.top_themes || []).forEach(function(th) {
+    var color = /bear/i.test(th.sentiment) ? '#e85d4c' : /bull/i.test(th.sentiment) ? '#22c55e' : '#f0b429';
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + esc(th.theme) + '</td><td>' + esc(th.sentiment) + '</td><td>' + esc(th.strength) +
+      '</td><td style="width:35%"><div class="barwrap"><div class="bar" style="width:' + Number(th.strength || 0) + '%;background:' + color + '"></div></div></td>';
+    thb.appendChild(tr);
+  });
+
+  if (window._vol) window._vol.destroy();
+  window._vol = new Chart(document.getElementById('volChart'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(br),
+      datasets: [{ data: Object.values(br), backgroundColor: ['#1d9bf0', '#ff4500', '#8b5cf6', '#22c55e', '#f472b6', '#94a3b8'] }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8b97a8' }, grid: { color: '#243041' } },
+        y: { ticks: { color: '#8b97a8' }, grid: { color: '#243041' }, beginAtZero: true }
+      }
+    }
+  });
+
+  var src = t.sources_status || (t.sources || {});
+  var srcBits = Object.keys(src).map(function(name) {
+    var st = src[name] || {};
+    return esc(name) + ' ' + esc(st.status || '') + ' (' + (st.items != null ? st.items : '0') + ')';
+  }).join(' · ');
+
+  document.getElementById('fresh').innerHTML =
+    '<div><b>Frischestes:</b> ' + esc(f.freshest_absolute || f.freshest_item_age || '—') + '</div>' +
+    '<div><b>Primär:</b> ' + esc(f.primary_signal || '—') + '</div>' +
+    '<div><b>Qualität:</b> ' + esc(f.quality || '—') + '</div>' +
+    '<div><b>Fenster:</b> ' + esc(f.sample_window || '—') + '</div>' +
+    (srcBits ? '<div style="margin-top:8px"><b>Quellen:</b> ' + srcBits + '</div>' : '');
+
+  if (dlt && (dlt.magnitude_delta != null || dlt.prev_tick_id)) {
+    var magD = dlt.magnitude_delta;
+    var magTxt = magD == null ? '—' : (magD > 0 ? '+' + magD : String(magD));
+    var confD = dlt.confidence_delta;
+    var confTxt = confD == null ? '—' : (confD > 0 ? '+' + confD : String(confD));
+    var volTxt = dlt.volume_change_pct == null ? '—' : dlt.volume_change_pct + '%';
+    var mat = (t.material_change === true) ? 'ja' : (t.material_change === false ? 'nein' : '—');
+    document.getElementById('delta').innerHTML =
+      'Δ Mag <b>' + esc(magTxt) + '</b> · Δ Conf <b>' + esc(confTxt) + '</b> · Vol <b>' + esc(volTxt) + '</b>' +
+      ' · Vol ' + esc(dlt.volume_prev) + '→' + esc(dlt.volume_now) +
+      '<div>Richtung gleich: ' + (dlt.direction_changed ? 'nein' : 'ja') +
+      ' · Material change: <b>' + esc(mat) + '</b></div>' +
+      (dlt.note ? '<div style="margin-top:6px">' + esc(dlt.note) + '</div>' : '');
+  } else {
+    document.getElementById('delta').textContent = 'Kein Delta';
+  }
 }
 load();
 setInterval(load, 60000);
