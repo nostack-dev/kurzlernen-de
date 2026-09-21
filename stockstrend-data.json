@@ -1,9 +1,9 @@
 {
-  "updated_at": "2026-09-21T14:46:00+02:00",
+  "updated_at": "2026-09-21T15:00:00+02:00",
   "timezone": "Europe/Berlin",
   "tick": {
-    "tick_id": "2026-09-21T14:46:00+02:00",
-    "scraped_at": "2026-09-21T14:46:00+02:00",
+    "tick_id": "2026-09-21T15:00:00+02:00",
+    "scraped_at": "2026-09-21T15:00:00+02:00",
     "timezone": "Europe/Berlin",
     "sources": {
       "user-X": {
@@ -16,52 +16,52 @@
           "posts_sampled": 40
         },
         "counts_24h": {
-          "nvda": 6823,
-          "tsla": 5776,
-          "btc": 125136,
-          "orcl": 891,
-          "composite": 138626
+          "nvda": 6387,
+          "tsla": 5482,
+          "btc": 120138,
+          "orcl": 817,
+          "composite": 132824
         },
         "counts_7d": {},
-        "freshest": "2026-09-21T14:40:44+02:00",
+        "freshest": "2026-09-21T14:50:32+02:00",
         "window": "Posts/News recency ≤24–48h; Counts ~24h ($NVDA|NVDA / $TSLA|TSLA / $BTC|Bitcoin / $ORCL)",
-        "credits_before_usd": 2.22,
-        "credits_after_usd": 1.94,
-        "credits_spent_usd": 0.28
+        "credits_before_usd": 1.94,
+        "credits_after_usd": 1.76,
+        "credits_spent_usd": 0.18
       },
       "user-Apify-Reddit": {
-        "status": "ok",
-        "items": 12,
+        "status": "fail_limit",
+        "items": 0,
         "subreddits": [
           "OracleStock",
           "wallstreetbets",
-          "technology",
-          "realtech",
-          "ValueInvesting"
+          "stocks",
+          "StockMarket",
+          "technology"
         ],
-        "window": "new/week partial",
+        "window": "n/a",
         "freshest_item_age": "",
-        "run_id": "qJ0KM8tuj3iLohBFW",
-        "note": "trudax/reddit-scraper-lite aborted ~3.5min partial; 15 dataset rows → 12 usable stockish. run_id=qJ0KM8tuj3iLohBFW"
+        "run_id": "",
+        "note": "trudax/reddit-scraper-lite blocked: Apify monthly usage hard limit exceeded; curl reddit JSON 403; no partial dataset"
       },
       "user-Apify-TikTok": {
-        "status": "ok",
-        "items": 38,
-        "freshest": "2026-09-21T11:11:01Z SpaceX/invest; stockmarket 02:24Z+; Micron 23:30Z",
-        "oldest": "stale >30d filtered from 75→usable",
-        "note": "Free-Cap clockworks/free-tiktok-scraper; 75 rows → 38 usable ≤30d stockish. run_id=9wxvo2L4Wq6X9i13B",
-        "run_id": "9wxvo2L4Wq6X9i13B"
+        "status": "fail_limit",
+        "items": 0,
+        "freshest": "",
+        "oldest": "",
+        "note": "clockworks/free-tiktok-scraper Monthly usage hard limit exceeded; 0 usable",
+        "run_id": ""
       },
       "WebSearch": {
         "status": "ok",
         "items": 5,
         "window": "same-day 2026-09-21",
         "notes": [
-          "Mon futures firm: ES ~+0.63–0.69% (~7766), NQ ~+1.09% (~30243); Dow e-minis ~+0.6–0.73% (Reuters/TS2)",
-          "Oil soft: Brent ~−2.5% / WTI ~−3.1%; 10Y tested ~5% (Friday close 4.998%)",
-          "SoftBank LAUNCHED >$11B junk ($10B+$€1B) for OpenAI ~Oct 1; pricing ~24 Sep (Reuters term sheet)",
-          "X news: S&P near highs but extreme narrow breadth (Goepfert); SoftBank junk for OpenAI top story",
-          "ORCL: Abilene Stargate layoff chatter + DC-loan marks ~89–91¢; dip-buy lists persist; BTC chatter elevated on X counts"
+          "Mon futures firm (Reuters 07:09ET): Dow e-minis +0.78%, ES +0.67%, NQ +1.04%; AI rebound (INTC/MRVL/META)",
+          "Oil soft ~−2% to 11-day low; 10Y slipped below 5%; BTC +4.3% >7mo high (Reuters)",
+          "SoftBank LAUNCHED >$11B junk ($10B+$€1B) for OpenAI ~Oct 1; pricing ~24 Sep (Reuters/Japan Times)",
+          "X news: S&P near highs extreme narrow breadth (Goepfert); SoftBank junk top finance story",
+          "ORCL: Abilene Stargate layoff chatter + DC-loan marks ~89–91¢; dip-buy lists persist; SoftBank/hyperscaler debt curve"
         ]
       },
       "user-Bright Data": {
@@ -81,39 +81,39 @@
       }
     },
     "totals": {
-      "content_items_usable": 140,
+      "content_items_usable": 90,
       "breakdown": {
         "x_trends": 35,
         "x_news": 10,
         "x_posts": 40,
-        "reddit": 12,
-        "tiktok": 38,
+        "reddit": 0,
+        "tiktok": 0,
         "websearch": 5
       }
     },
     "freshness": {
-      "freshest_absolute": "2026-09-21T14:40:44+02:00",
-      "primary_signal": "Minuten (X) bis Stunden–Tage (TikTok/Reddit); News same-day",
-      "quality": "hoch X+Web+TikTok+Reddit; Bright Data 401; Treg ok_empty; Monid skip",
-      "scrape_berlin": "2026-09-21T14:46:00+02:00",
-      "sample_window": "X posts seconds–minutes; news ≤48h; TikTok ≤30d; Reddit new/week partial",
+      "freshest_absolute": "2026-09-21T14:50:32+02:00",
+      "primary_signal": "Minuten (X) + same-day Web/News; Reddit/TikTok aus (Apify-Limit)",
+      "quality": "mittel-hoch X+Web; Apify Reddit+TikTok hard-limit; Bright Data 401; Treg ok_empty; Monid skip",
+      "scrape_berlin": "2026-09-21T15:00:00+02:00",
+      "sample_window": "X posts minutes–hours; news ≤48h; Reddit/TikTok unavailable this tick",
       "freshest_item_age": "",
-      "oldest_usable_signal": "TikTok ~30d edge; older SoftBank/ORCL clips filtered"
+      "oldest_usable_signal": "X news breadth story ~24–48h; SoftBank same-day"
     },
     "vector": {
       "direction": "mixed_cautious",
-      "magnitude": 40,
-      "confidence": 81,
+      "magnitude": 39,
+      "confidence": 78,
       "early_signal": true,
-      "early_signal_note": "Vorsicht wegen SoftBank-Schulden."
+      "early_signal_note": "Futures fest, SoftBank-Junk und fehlende Social-Quellen."
     },
     "top_themes": [
       {
         "theme": "Mon Futures Firmer Persist",
         "sentiment": "leicht_bullish",
-        "strength": 86,
+        "strength": 85,
         "symbol": "ES=F",
-        "symbol_note": "ES~+0.63–0.69% NQ~+1.09%; oil −~2.5–3%; 10Y ~5% test",
+        "symbol_note": "ES~+0.67% NQ~+1.04% Dow~+0.78% (Reuters 07:09ET); oil −~2%; 10Y <5%",
         "bias": "risk_on",
         "bias_label": "Beobachten / Bias risk-on",
         "links": {
@@ -126,7 +126,7 @@
         "sentiment": "bearish",
         "strength": 88,
         "symbol": "9984.T",
-        "symbol_note": ">$11B junk ($10B+$€1B) for OpenAI Oct-1 tranche; pricing ~24 Sep; yields ~8%",
+        "symbol_note": ">$11B junk ($10B+$€1B) for OpenAI Oct-1 tranche; pricing ~24 Sep; BB+",
         "bias": "risk_off",
         "bias_label": "Vorsicht / Bias risk-off",
         "links": {
@@ -137,7 +137,7 @@
       {
         "theme": "Narrow Breadth / Mega-Cap Lead",
         "sentiment": "bearish",
-        "strength": 81,
+        "strength": 80,
         "symbol": "SPY",
         "symbol_note": "S&P near highs; extreme narrow breadth (X news Goepfert); AI leadership",
         "bias": "risk_off",
@@ -148,56 +148,68 @@
         }
       },
       {
-        "theme": "BTC Elevated X Volume",
-        "sentiment": "bullish",
-        "strength": 84,
-        "symbol": "BTC-USD",
-        "symbol_note": "X $BTC|Bitcoin ~125136/24h elevated vs prior; crypto risk-on tape vs oil soft",
-        "bias": "risk_on",
-        "bias_label": "Beobachten / Bias risk-on",
-        "links": {
-          "tradingview": "https://www.tradingview.com/symbols/BINANCE:BTCUSDT/",
-          "yahoo": "https://finance.yahoo.com/quote/BTC-USD"
-        }
-      },
-      {
-        "theme": "ORCL SoftBank-Schulden / AI Capex",
+        "theme": "ORCL AI-DC Stress / Dip-Buys",
         "sentiment": "mixed",
-        "strength": 83,
+        "strength": 76,
         "symbol": "ORCL",
-        "symbol_note": "DC-Kredite 89–91¢ + Abilene layoffs vs RPO/cloud bulls + SoftBank spillover",
+        "symbol_note": "Abilene Stargate layoffs; DC loans ~89–91¢; RPO/cloud bulls vs debt bears; Vol~817/24h",
         "bias": "mixed",
         "bias_label": "Abwarten / Bias mixed",
         "links": {
-          "tradingview": "https://www.tradingview.com/symbols/NYSE:ORCL/",
+          "tradingview": "https://www.tradingview.com/symbols/ORCL/",
           "yahoo": "https://finance.yahoo.com/quote/ORCL"
+        }
+      },
+      {
+        "theme": "BTC Risk-On Marker",
+        "sentiment": "leicht_bullish",
+        "strength": 72,
+        "symbol": "BTC-USD",
+        "symbol_note": "BTC +~4% >7mo high ~$84–85k; COIN/MSTR lift; X counts ~120k/24h",
+        "bias": "risk_on",
+        "bias_label": "Beobachten / Bias risk-on",
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/BTCUSD/",
+          "yahoo": "https://finance.yahoo.com/quote/BTC-USD"
         }
       }
     ],
     "delta_vs_prev": {
-      "prev_tick_id": "2026-09-21T14:00:00+02:00",
-      "magnitude_delta": 1,
-      "confidence_delta": 1,
+      "prev_tick_id": "2026-09-21T14:46:00+02:00",
+      "magnitude_delta": -1,
+      "confidence_delta": -3,
       "direction_prev": "mixed_cautious",
       "direction_now": "mixed_cautious",
       "direction_changed": false,
       "early_signal_prev": true,
       "early_signal_now": true,
       "early_signal_flipped": false,
-      "volume_prev": 147,
-      "volume_now": 140,
-      "volume_change_pct": -4.8,
+      "volume_prev": 140,
+      "volume_now": 90,
+      "volume_change_pct": -35.7,
       "new_themes": [
-        "SoftBank-Schulden Junk LAUNCHED confirmed term sheet"
+        "BTC risk-on marker elevated (>+7mo high)"
       ],
       "gone_themes": [],
       "sentiment_swings": [
-        "ORCL Abilene layoff chatter new vs tick18"
+        "Apify hard-limit: Reddit+TikTok usable→0 vs tick19"
       ]
     },
     "material_change": false,
-    "material_change_reasons": [],
-    "chart": {},
+    "material_change_reasons": [
+      "|Δmag|=1<5 (40→39)",
+      "direction mixed_cautious unchanged",
+      "early_signal unchanged (True)",
+      "watchlist ORCL hold unchanged",
+      "volume abs Δ=50 (140→90) but regime same; Apify monthly hard-limit (Reddit+TikTok 0)",
+      "SoftBank junk still LAUNCHED + futures firm + narrow breadth; ORCL Hold"
+    ],
+    "chart": {
+      "magnitude": 39,
+      "confidence": 78,
+      "direction": "mixed_cautious",
+      "items": 90
+    },
     "baseline": false,
     "scrape_window": {
       "start": "2026-09-21T13:31:00+02:00",
@@ -330,12 +342,20 @@
         "direction": "mixed_cautious",
         "magnitude": 40,
         "confidence": 81
+      },
+      {
+        "tick_id": "2026-09-21T15:00:00+02:00",
+        "magnitude": 39,
+        "confidence": 78,
+        "direction": "mixed_cautious",
+        "items": 90,
+        "early_signal": true
       }
     ],
     "overall_bias": {
       "key": "mixed",
       "label": "Gemischt / vorsichtig",
-      "disclaimer": "Kein Trade-Call / keine Kaufempfehlung — nur aggregiertes Social-Sentiment."
+      "note": "Futures fest und BTC risk-on, SoftBank-Junk und enge Breite halten Vorsicht."
     },
     "macro_calendar": [
       {
@@ -379,20 +399,20 @@
         "name": "Oracle",
         "hype_state": "mixed",
         "signal": "hold",
-        "confidence": 78,
-        "social_impulse": 2,
-        "hype_bull": 11,
-        "hype_bear": 10,
+        "confidence": 74,
+        "social_impulse": 1,
+        "hype_bull": 10,
+        "hype_bear": 9,
         "hype_net": 1,
-        "why": "Bulls und Bears halten sich die Waage. SoftBank-Schulden bleiben das Hauptrisiko.",
+        "why": "SoftBank-Junk >$11B + ORCL-DC-Kredite ~89–91¢ und Abilene-Layoffs halten Druck; Dip-Buys/RPO-Bulls + firmer Futures mildern. Voices bull10/bear9/mixed8, Vol ~817/24h → Hold Impulse +1. Reddit/TikTok Apify-Limit.",
         "evidence": {
-          "x_posts": 14,
-          "reddit_posts": 4,
+          "x_posts": 12,
+          "reddit_posts": 0,
           "news": 3,
           "snippets": [
             "SoftBank >$11B junk LAUNCHED for OpenAI (term sheet) — SoftBank-Schulden / AI leverage",
             "ORCL DC-loan soft marks ~89–91¢; Abilene Stargate layoff chatter (X)",
-            "Futures ES~+0.65/NQ~+1.1%; narrow breadth warning; oil −~2.5%"
+            "Futures ES~+0.67/NQ~+1.04%; narrow breadth warning; oil −~2%; BTC risk-on"
           ],
           "voices": [
             {
@@ -419,9 +439,9 @@
             {
               "source": "X",
               "text": "Roger bearish forever but Oracle hasn't imploded — financially strong + massive RPO",
-              "url": "https://x.com/lidokidz/status/2102003339936288896",
+              "url": "https://x.com/lidokidz/status/2102017636011839637",
               "lean": "bull",
-              "at": "2026-09-21T13:53:44+02:00"
+              "at": "2026-09-21T14:50:32+02:00"
             },
             {
               "source": "X",
@@ -439,164 +459,42 @@
             },
             {
               "source": "X",
-              "text": "$ORCL at $140 in top-10 buys below fair value",
+              "text": "Aggressively buy great companies below fair value — $ORCL at $140 in top 10",
               "url": "https://x.com/933Athkar/status/2101983759176454218",
               "lean": "bull",
               "at": "2026-09-21T12:35:55+02:00"
             },
             {
               "source": "X",
-              "text": "Possible buys for the week includes $ORCL",
-              "url": "https://x.com/HKIStrategies/status/2101977850291081387",
-              "lean": "bull",
-              "at": "2026-09-21T12:12:27+02:00"
-            },
-            {
-              "source": "X",
-              "text": "SoftBank $11B+ junk → more OpenAI compute; $ORCL clearest beneficiary",
-              "url": "https://x.com/Scalpers16779/status/2101975073892470966",
-              "lean": "bull",
-              "at": "2026-09-21T12:01:25+02:00"
-            },
-            {
-              "source": "X",
-              "text": "$ORCL is a strong buy (dip buyer)",
-              "url": "https://x.com/HKIStrategies/status/2101950940723003591",
-              "lean": "bull",
-              "at": "2026-09-21T10:25:31+02:00"
-            },
-            {
-              "source": "X",
-              "text": "Hyperscalers debt since 2025 includes $ORCL $50.8B vs $MSFT absent",
-              "url": "https://x.com/medflixszn/status/2101993346495569999",
-              "lean": "mixed",
-              "at": "2026-09-21T13:14:01+02:00"
-            },
-            {
-              "source": "X",
-              "text": "Credit story hyperscalers OCF $600B→$2T assumption — $ORCL named",
-              "url": "https://x.com/Drewalphatrades/status/2102014341453074505",
-              "lean": "mixed",
-              "at": "2026-09-21T14:37:27+02:00"
-            },
-            {
-              "source": "X",
-              "text": "$ORCL only Neo-Cloud not taking off overnight (Ellison critique)",
-              "url": "https://x.com/rdd147/status/2101877126475706843",
+              "text": "SoftBank junk curve same as hyperscalers incl $ORCL; 10y funding pressure",
+              "url": "https://x.com/IADataFinance/status/2101988835441746205",
               "lean": "bear",
-              "at": "2026-09-21T05:32:12+02:00"
-            },
-            {
-              "source": "X",
-              "text": "SoftBank launching one of biggest junk bond deals ever for OpenAI",
-              "url": "https://x.com/qz/status/2102014133629837724",
-              "lean": "bear",
-              "at": "2026-09-21T14:36:37+02:00"
-            },
-            {
-              "source": "X",
-              "text": "SoftBank $10B+$€1B notes; AI capex financed at junk ~8.2% yields",
-              "url": "https://x.com/BriceTian/status/2102013865227665684",
-              "lean": "bear",
-              "at": "2026-09-21T14:35:33+02:00"
-            },
-            {
-              "source": "X",
-              "text": "US stock futures rise near ATH as oil/yields drop",
-              "url": "https://x.com/blckchaindaily/status/2102014646483931212",
-              "lean": "bull",
-              "at": "2026-09-21T14:38:39+02:00"
-            },
-            {
-              "source": "X",
-              "text": "Nasdaq futures +1%; oil 11-day low; 10Y back below 5% — constructive but unconfirmed",
-              "url": "https://x.com/FIowStateofMind/status/2102014460747473172",
-              "lean": "mixed",
-              "at": "2026-09-21T14:37:55+02:00"
-            },
-            {
-              "source": "Reddit",
-              "text": "[Sep 21–25] Weekly ORCL Discussion Thread",
-              "url": "https://www.reddit.com/r/OracleStock/comments/1wm8hfz/sep_21_sep_25_weekly_orcl_discussion_thread/",
-              "lean": "mixed",
-              "at": "2026-09-21T12:01:33+02:00"
-            },
-            {
-              "source": "Reddit",
-              "text": "Oracle stock bullish research (r/OracleStock)",
-              "url": "https://www.reddit.com/r/OracleStock/comments/1wlzo9e/oracle_stock_bullish_research/",
-              "lean": "bull",
-              "at": "2026-09-21T04:00:28+02:00"
-            },
-            {
-              "source": "Reddit",
-              "text": "SoftBank seeks $11B junk bonds for OpenAI — r/wallstreetbets",
-              "url": "https://www.reddit.com/r/wallstreetbets/comments/1wm5i24/softbank_seeks_11_billion_in_junk_bonds_for/",
-              "lean": "bear",
-              "at": "2026-09-21T09:05:04+02:00"
-            },
-            {
-              "source": "Reddit",
-              "text": "SoftBank seeks $11 billion in junk bonds for OpenAI Bet",
-              "url": "https://www.reddit.com/r/technology/comments/1wm5pl1/softbank_seeks_11_billion_in_junk_bonds_for/",
-              "lean": "mixed",
-              "at": "2026-09-21T09:16:53+02:00"
+              "at": "2026-09-21T12:56:06+02:00"
             },
             {
               "source": "News",
-              "text": "SoftBank Seeks $11B Junk Bond Deal for OpenAI Investment (X News)",
-              "url": "https://x.com/i/trending/2101864903011180768",
+              "text": "SoftBank seeks >$11B junk for OpenAI; pricing ~24 Sep / Oct-1 tranche",
+              "url": "https://www.reuters.com/business/media-telecom/softbank-group-launches-over-10-billion-bonds-openai-investment-term-sheet-shows-2026-09-21/",
               "lean": "bear",
-              "at": "2026-09-21T13:45:47+02:00"
+              "at": "2026-09-21T14:47:00+02:00"
             },
             {
               "source": "News",
-              "text": "S&P nears highs amid extreme narrow breadth warning",
-              "url": "https://x.com/i/trending/2101717156845269053",
-              "lean": "bear",
-              "at": "2026-09-20T21:53:22+02:00"
-            },
-            {
-              "source": "News",
-              "text": "US stock futures open higher despite weekend geopolitics",
-              "url": "https://x.com/i/trending/2101845122967335261",
+              "text": "Wall St futures rise as AI stocks gain, oil slides (ES/NQ firm)",
+              "url": "https://www.reuters.com/business/wall-st-futures-rise-ai-stocks-gain-oil-prices-slide-2026-09-21/",
               "lean": "bull",
-              "at": "2026-09-21T03:31:02+02:00"
-            },
-            {
-              "source": "TikTok",
-              "text": "Oracle's $18B data center debt under pressure (FT)",
-              "url": "https://www.tiktok.com/@jqjousabusinessenglish1/video/7687123296374082830",
-              "lean": "bear",
-              "at": "2026-09-19T08:05:05+02:00"
-            },
-            {
-              "source": "TikTok",
-              "text": "Does Oracle own TikTok? Cash flow / prepaid compute caution",
-              "url": "https://www.tiktok.com/@davidflanks/video/7686511678388751630",
-              "lean": "mixed",
-              "at": "2026-09-17T16:31:06+02:00"
-            },
-            {
-              "source": "TikTok",
-              "text": "Micron one of best AI performers past year (stocktok risk-on)",
-              "url": "https://www.tiktok.com/@sobhainvests/video/7687756343993781525",
-              "lean": "bull",
-              "at": "2026-09-21T01:30:29+02:00"
-            },
-            {
-              "source": "TikTok",
-              "text": "TOP 3 STOCKS Monday 9/21/26 trading watchlist",
-              "url": "https://www.tiktok.com/@momentum.official/video/7687732847494434062",
-              "lean": "bull",
-              "at": "2026-09-20T23:30:09+02:00"
+              "at": "2026-09-21T13:09:00+02:00"
             }
           ]
+        },
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/ORCL/",
+          "yahoo": "https://finance.yahoo.com/quote/ORCL"
         }
       }
     ],
-    "signals_disclaimer": "",
-    "early_signal_note": "Vorsicht wegen SoftBank-Schulden."
+    "early_signal_note": "Futures fest, SoftBank-Junk und fehlende Social-Quellen.",
+    "signals_disclaimer": ""
   },
   "history": [
     {
@@ -737,12 +635,26 @@
       "direction": "mixed_cautious",
       "items": 140,
       "early_signal": true
+    },
+    {
+      "tick_id": "2026-09-21T15:00:00+02:00",
+      "scraped_at": "2026-09-21T15:00:00+02:00",
+      "magnitude": 39,
+      "confidence": 78,
+      "direction": "mixed_cautious",
+      "items": 90,
+      "early_signal": true
     }
   ],
   "signals_disclaimer": "",
-  "early_signal_note": "Vorsicht wegen SoftBank-Schulden.",
+  "early_signal_note": "Futures fest, SoftBank-Junk und fehlende Social-Quellen.",
   "freshness": {
+    "freshest_absolute": "2026-09-21T14:50:32+02:00",
+    "primary_signal": "Minuten (X) + same-day Web/News; Reddit/TikTok aus (Apify-Limit)",
+    "quality": "mittel-hoch X+Web; Apify Reddit+TikTok hard-limit; Bright Data 401; Treg ok_empty; Monid skip",
+    "scrape_berlin": "2026-09-21T15:00:00+02:00",
+    "sample_window": "X posts minutes–hours; news ≤48h; Reddit/TikTok unavailable this tick",
     "freshest_item_age": "",
-    "freshest_absolute": "2026-09-21T14:40:44+02:00"
+    "oldest_usable_signal": "X news breadth story ~24–48h; SoftBank same-day"
   }
 }
