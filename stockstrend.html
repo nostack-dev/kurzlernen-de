@@ -19,7 +19,6 @@
     --green: #00c761;
     --red: #ff3b30;
     --amber: #ff9500;
-    --ink: #1b1b1f;
   }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--soft); color: var(--text); }
@@ -57,7 +56,7 @@
   details.acc.bull > summary { color: var(--green); }
   details.acc.bear > summary { color: var(--red); }
   details.acc.mixed > summary { color: var(--amber); }
-  .voice { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 0.82rem; color: var(--text); line-height: 1.35; }
+  .voice{padding:8px 0;border-top:1px solid var(--line);font-size:13px;line-height:1.35}
   .voice a { color: var(--green); text-decoration: none; font-weight: 650; margin-left: 6px; font-size: 0.78rem; }
   footer { max-width: 980px; margin: 0 auto; padding: 0 14px 24px; color: var(--muted); font-size: 0.75rem; }
   a.ext { color: var(--green); text-decoration: none; font-weight: 650; margin-right: 10px; }
@@ -74,16 +73,27 @@
   .meta { font-size: 12px; line-height: 1.35; }
   #magNow { font-weight: 700; color: var(--ink); margin-left: 6px; }
   @media (max-width:700px){
-    .chart-wrap-lg { height: 240px; }
-    .chart-wrap-lg canvas { height: 240px !important; }
+     .chart-wrap-lg { height: 240px; }
+    .chart-wrap-lg canvas { height: 200px !important; }
     .chart-wrap-sm { height: 160px; }
-    .chart-wrap-sm canvas { height: 160px !important; }
+    .chart-wrap-sm canvas { height: 180px !important; }
   }
 
   .range{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;width:100%}
   .range button{width:100%;padding:10px 6px;border:1px solid var(--line);background:#fff;border-radius:999px;font:650 13px/1.1 system-ui,sans-serif;cursor:pointer;color:var(--ink)}
   .range button.active{background:var(--ink);color:#fff;border-color:var(--ink)}
   @media (max-width:700px){.range{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+
+  footer{color:#4a4a52;font-size:12px;opacity:1}
+  @media (max-width:700px){
+    .chart-wrap-lg{height:200px}
+    .chart-wrap-lg canvas{height:200px !important}
+    .chart-wrap-sm{height:150px}
+    .chart-wrap-sm canvas{height:150px !important}
+    .label{font-size:13px}
+    .meta{font-size:12px}
+  }
 
 </style>
 </head>
@@ -110,7 +120,7 @@
         <span title="Social-Druck von −100 (sehr negativ) bis +100 (sehr positiv)">Social-Druck <b id="orclImp">—</b></span>
         <span>Bullisch <b id="orclBull" style="color:var(--green)">—</b></span>
         <span>Bearisch <b id="orclBear" style="color:var(--red)">—</b></span>
-        <span title="Stimmung normalisiert: 0 negativ · 50 neutral · 100 positiv">Stimmung <b id="orclNet">—</b></span>
+        <span title="Stimmung normalisiert: 0 bearish · 50 neutral · 100 bullish">Stimmung <b id="orclNet">—</b></span>
       </div>
       <div class="note" id="orclWhy"></div>
       <div class="meta" style="margin-top:8px" id="orclLinks"></div>
@@ -283,7 +293,8 @@ function stimmungNorm(h){
 }
 function chartInteract(){ return {mode:'index', intersect:false, axis:'x'}; }
 function axisX(){
-  return {ticks:{color:'#6b6b76', maxRotation:0, autoSkip:true, maxTicksLimit:wlRange==='today'||wlRange==='1d'?6:5, font:{size:11}}, grid:{display:false}};
+  var mob=window.matchMedia&&window.matchMedia('(max-width:700px)').matches;
+  return {ticks:{color:'#6b6b76', maxRotation:0, autoSkip:true, maxTicksLimit:mob?4:(wlRange==='today'||wlRange==='1d'?6:5), font:{size:mob?12:11}}, grid:{display:false}};
 }
 function renderAll(){
   var t=(tickData&&tickData.tick)||{};
