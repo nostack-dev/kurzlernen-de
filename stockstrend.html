@@ -433,7 +433,7 @@ function renderAll(){
     {label:'Bullisch %',data:seriesWithGaps(hist,function(h){return h.at;},function(h){return directionalPct(h).bull;}),parsing:false,spanGaps:false,borderColor:'#00c761',backgroundColor:'#00c761',tension:.18,pointRadius:2,pointHoverRadius:6,borderWidth:2},
     {label:'Bearisch %',data:seriesWithGaps(hist,function(h){return h.at;},function(h){return directionalPct(h).bear;}),parsing:false,spanGaps:false,borderColor:'#ff3b30',backgroundColor:'#ff3b30',tension:.18,pointRadius:2,pointHoverRadius:6,borderWidth:2},
     {label:'Stimmung',data:seriesWithGaps(hist,function(h){return h.at;},function(h){return stimmungNorm(h);}),parsing:false,spanGaps:false,borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',borderDash:[5,4],tension:.18,pointRadius:2,pointHoverRadius:6,borderWidth:2.5}
-  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:16,bottom:12,left:12,right:10}},interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:13},padding:10}},tooltip:tipBase('hype')},scales:{x:axisX(hist,function(h){return h.at;}),y:{grace:'12%',suggestedMin:0,suggestedMax:100,ticks:{color:'#6b6b76',font:{size:11},callback:function(v){return v+' %';}},grid:{color:'#f0f0f3'},border:{display:false}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:16,bottom:12,left:12,right:10}},interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:13},padding:10}},tooltip:tipBase('hype')},scales:{x:axisX(hist,function(h){return h.at;}),y:{min:0,max:100,grace:'4%',ticks:{color:'#6b6b76',font:{size:11},callback:function(v){return v+' %';}},grid:{color:'#f0f0f3'},border:{display:false}}}}});
 
   var mhist=filterByAt(tickData.history||[], function(h){return h.scraped_at||h.tick_id||h.at;});
   if(!mhist.length && (t.mini_series||[]).length){
@@ -446,7 +446,7 @@ function renderAll(){
   var magNowEl=document.getElementById('magNow'); if(magNowEl) magNowEl.textContent=magIst!=null?('· jetzt '+magIst):'';
   magChart=new Chart(document.getElementById('magChart'),{type:'line',data:{datasets:[
     {label:'Stimmungsstärke',data:seriesWithGaps(mhist,function(h){return h.scraped_at||h.tick_id||h.at;},function(h){return h.magnitude;}),parsing:false,spanGaps:false,borderColor:'#00c761',backgroundColor:'rgba(0,199,97,.12)',fill:true,tension:.18,pointRadius:3,pointHoverRadius:7,borderWidth:2.5}
-  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:10,bottom:6,left:8,right:8}},interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase('mag')},scales:{x:axisX(mhist,function(h){return h.scraped_at||h.tick_id||h.at;}),y:{grace:'8%',suggestedMin:0,suggestedMax:100,ticks:{color:'#6b6b76',font:{size:11}},grid:{color:'#f0f0f3'},border:{display:false}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:10,bottom:6,left:8,right:8}},interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase('mag')},scales:{x:axisX(mhist,function(h){return h.scraped_at||h.tick_id||h.at;}),y:{min:0,max:100,grace:'4%',ticks:{color:'#6b6b76',font:{size:11}},grid:{color:'#f0f0f3'},border:{display:false}}}}});
 
   if(ivChart) ivChart.destroy();
   var ivHist=filterByAt((ivData&&ivData.history)||[], function(h){return h.at;});

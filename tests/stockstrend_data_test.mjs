@@ -36,11 +36,10 @@ assert(!html.includes('query1.finance.yahoo.com'),'browser must not fetch Yahoo 
 assert(!html.includes('query2.finance.yahoo.com'),'browser must not fetch Yahoo directly');
 assert(html.includes("fetch('orcl-minute.json?t='"),'price shock feed must be same-origin');
 assert(html.includes(".chart-wrap canvas { max-height: none"),'chart canvases must not inherit 190px max-height clip');
-assert(html.includes("grace:'12%'"),'hype chart needs y-grace so lines are not clipped');
-assert(html.includes("grace:'8%'"),'magnitude chart needs y-grace');
+assert(html.includes("grace:'4%'"),'hype/mag charts need light y-grace');
 assert(html.includes("grace:'10%'"),'intrinsic chart needs y-grace');
 assert(html.includes('Math.min(now,last+pad)'),'adaptive x-max must not run past now');
-assert(!html.includes("y:{min:0,max:100,"),'hard 0-100 y bounds clip edge points');
+assert(html.includes("y:{min:0,max:100,grace:'4%'"),'hype/mag need padded 0-100 bounds');
 
 assert.equal(intr.currency_display,'USD');
 assert.equal(intr.method,'buffett_owner_earnings_maintenance_capex_corridor');
