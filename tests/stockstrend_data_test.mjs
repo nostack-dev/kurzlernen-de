@@ -85,4 +85,10 @@ for(const h of intr.history){
 assert.equal(intr.history.find(x=>x.at.startsWith('2026-09-11'))?.valuation_basis,'FY2026');
 assert.equal(intr.history.find(x=>x.at.startsWith('2026-09-14'))?.valuation_basis,'TTM Q1 FY2027');
 
+
+assert(!JSON.stringify(trend.tick?.sources||{}).includes('Apify'),'Apify source keys must be gone');
+assert(!('user-Apify-Reddit' in (trend.tick?.sources||{})),'user-Apify-Reddit must be removed');
+assert(!('user-Apify-TikTok' in (trend.tick?.sources||{})),'user-Apify-TikTok must be removed');
+assert(trend.tick?.sources?.PublicReddit,'PublicReddit aggregator source missing');
+
 console.log('stockstrend contract: OK');

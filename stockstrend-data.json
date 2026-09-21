@@ -1,9 +1,9 @@
 {
-  "updated_at": "2026-09-21T17:05:00+02:00",
+  "updated_at": "2026-09-21T17:21:00+02:00",
   "timezone": "Europe/Berlin",
   "tick": {
-    "tick_id": "2026-09-21T17:05:00+02:00",
-    "scraped_at": "2026-09-21T17:05:00+02:00",
+    "tick_id": "2026-09-21T17:21:00+02:00",
+    "scraped_at": "2026-09-21T17:21:00+02:00",
     "timezone": "Europe/Berlin",
     "sources": {
       "user-X": {
@@ -29,29 +29,6 @@
         "credits_after_usd": 0.99,
         "credits_spent_usd": 0.08
       },
-      "user-Apify-Reddit": {
-        "status": "fail_limit",
-        "items": 0,
-        "subreddits": [
-          "OracleStock",
-          "wallstreetbets",
-          "stocks",
-          "StockMarket",
-          "technology"
-        ],
-        "window": "n/a",
-        "freshest_item_age": "",
-        "run_id": "",
-        "note": "trudax/reddit-scraper-lite blocked: Apify monthly usage hard limit exceeded; no partial dataset"
-      },
-      "user-Apify-TikTok": {
-        "status": "fail_limit",
-        "items": 0,
-        "freshest": "",
-        "oldest": "",
-        "run_id": "",
-        "note": "clockworks/free-tiktok-scraper Monthly usage hard limit exceeded; 0 usable"
-      },
       "WebSearch": {
         "status": "ok",
         "items": 5,
@@ -70,33 +47,64 @@
         "error": "HTTP 401 Auth method is not supported"
       },
       "user-Treg": {
-        "status": "ok_empty",
+        "status": "auth_needed",
         "items": 0,
-        "note": "catalog_search oracle stock sentiment social → 0 matches"
+        "note": "Use treg.reddit.subreddit.posts / scrapecreators.reddit.search.posts / treg.tiktok.search.videos when signed in."
       },
       "user-Monid": {
         "status": "skip",
         "items": 0,
         "note": "not used this tick"
+      },
+      "PublicReddit": {
+        "status": "ok",
+        "items": 3,
+        "providers": [
+          "apewisdom.io",
+          "altindex.com",
+          "thedistributed.co"
+        ],
+        "window": "24h–30d aggregator snapshots 2026-09-21",
+        "freshest": "2026-09-21T17:21:00+02:00",
+        "notes": [
+          "ApeWisdom 24h: 4 mentions, sentiment 50% (WSB 50%)",
+          "AltIndex: ~30 daily investing-subreddit mentions; Reddit sentiment 46/100 bearish (as of Sep 20)",
+          "The Distributed 30d to Sep 15: 1446 mentions; 50% bull / 17% bear / 33% neutral"
+        ],
+        "orcl_hint": {
+          "mentions_24h_approx": 4,
+          "sentiment_pct_bullish": 50,
+          "daily_mentions_altindex": 30,
+          "sentiment_altindex_100": 46
+        }
+      },
+      "TikTokPublic": {
+        "status": "ok_news_only",
+        "items": 2,
+        "note": "No; live video search via Treg treg.tiktok.search.videos when auth valid.",
+        "urls": [
+          "https://www.reuters.com/world/china/oracles-stake-tiktok-us-joint-venture-is-worth-roughly-2-billion-filing-shows-2026-03-11/",
+          "https://www.fool.com/investing/2026/01/31/down-big-buy-ai-stock-oracle-tiktok/"
+        ]
       }
     },
     "totals": {
-      "content_items_usable": 90,
+      "content_items_usable": 93,
       "breakdown": {
         "x_trends": 35,
         "x_news": 10,
         "x_posts": 40,
-        "reddit": 0,
+        "reddit": 3,
         "tiktok": 0,
         "websearch": 5
       }
     },
     "freshness": {
       "freshest_absolute": "2026-09-21T16:51:19+02:00",
-      "primary_signal": "Minuten (X) + same-day Web/News; Reddit/TikTok aus (Apify-Limit)",
-      "quality": "mittel-hoch X+Web; Apify Reddit+TikTok hard-limit; Bright Data 401; Treg ok_empty; Monid skip",
-      "scrape_berlin": "2026-09-21T17:05:00+02:00",
-      "sample_window": "X posts minutes–hours; news ≤48h; Reddit/TikTok unavailable this tick",
+      "primary_signal": "Minuten (X) + same-day Web/News + PublicReddit aggregators (Apify retired)",
+      "quality": "mittel-hoch X+Web+PublicReddit; TikTok news-only until Treg auth; Bright Data 401; Apify retired",
+      "scrape_berlin": "2026-09-21T17:21:00+02:00",
+      "sample_window": "X posts minutes–hours; news ≤48h; Reddit via ApeWisdom/AltIndex/TheDistributed",
       "freshest_item_age": "",
       "oldest_usable_signal": "X news breadth story ~24–48h; SoftBank same-day; cash session green"
     },
@@ -203,7 +211,7 @@
       "direction mixed_cautious unchanged",
       "early_signal unchanged (True)",
       "watchlist ORCL hold unchanged",
-      "volume regime same; usable 90; Apify Reddit+TikTok 0",
+      "volume regime same; usable 90",
       "SoftBank bonds still live + session green + ORCL debt/layoffs; Hold"
     ],
     "chart": {
@@ -215,7 +223,7 @@
     "baseline": false,
     "scrape_window": {
       "start": "2026-09-21T16:25:00+02:00",
-      "end": "2026-09-21T17:05:00+02:00",
+      "end": "2026-09-21T17:21:00+02:00",
       "kind": "tick_interval",
       "note": "Intervall seit dem vorherigen Tick; kein behaupteter Scrape-Startzeitpunkt."
     },
@@ -521,10 +529,10 @@
   "early_signal_note": "Vorsicht wegen SoftBank-Schulden.",
   "freshness": {
     "freshest_absolute": "2026-09-21T16:51:19+02:00",
-    "primary_signal": "Minuten (X) + same-day Web/News; Reddit/TikTok aus (Apify-Limit)",
-    "quality": "mittel-hoch X+Web; Apify Reddit+TikTok hard-limit; Bright Data 401; Treg ok_empty; Monid skip",
-    "scrape_berlin": "2026-09-21T17:05:00+02:00",
-    "sample_window": "X posts minutes–hours; news ≤48h; Reddit/TikTok unavailable this tick",
+    "primary_signal": "Minuten (X) + same-day Web/News + PublicReddit aggregators (Apify retired)",
+    "quality": "mittel-hoch X+Web+PublicReddit; TikTok news-only until Treg auth; Bright Data 401; Apify retired",
+    "scrape_berlin": "2026-09-21T17:21:00+02:00",
+    "sample_window": "X posts minutes–hours; news ≤48h; Reddit via ApeWisdom/AltIndex/TheDistributed",
     "freshest_item_age": "",
     "oldest_usable_signal": "X news breadth story ~24–48h; SoftBank same-day; cash session green"
   },
@@ -702,6 +710,15 @@
       "confidence": 74,
       "direction": "mixed_cautious",
       "items": 90,
+      "early_signal": true
+    },
+    {
+      "tick_id": "2026-09-21T17:21:00+02:00",
+      "scraped_at": "2026-09-21T17:21:00+02:00",
+      "magnitude": 36,
+      "confidence": 74,
+      "direction": "mixed_cautious",
+      "items": 93,
       "early_signal": true
     }
   ]
