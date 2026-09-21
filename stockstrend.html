@@ -231,7 +231,6 @@
     <div class="value-summary" id="ivNow"></div>
     <div class="chart-sub"><span id="ivCoverage"></span></div>
     <div class="chart-wrap chart-wrap-lg"><canvas id="ivChart"></canvas></div>
-    <details class="iv-details"><summary>Berechnung & Grenzen</summary><div class="meta" id="ivNote" style="margin-top:8px"></div></details>
   </div>
 <div class="card secondary-section">
     <div class="label">Oracle · Meinungen <span class="meta" id="stimmenRange"></span></div>
@@ -244,7 +243,7 @@
     </div>
   </div>
 </div>
-<footer>BotBot · Social-Signal, keine Anlageberatung</footer>
+<footer>BotBot</footer>
 <script src="price-shock-core.js"></script>
 <script>
 var LS_RANGE='botbot_wl_range', LS_ACC='botbot_acc_open';
@@ -547,8 +546,6 @@ function renderAll(){
     var hi=ivMoney(ivPick(latIv,'intrinsic_high'),ivCur,0);
     ivNowEl.textContent='Kurs '+k+' · Fair '+base+' · Spanne '+lo+'–'+hi;
   }
-  var ivNote=document.getElementById('ivNote');
-  if(ivNote&&ivData) ivNote.textContent=(ivData.model&&ivData.model.summary_de?ivData.model.summary_de+' ':'')+(ivData.limitations_de||'');
   ivChart=new Chart(document.getElementById('ivChart'),{type:'line',data:{datasets:[
     {label:'Kurs',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return ivPick(h,'price');}),parsing:false,spanGaps:false,borderColor:'#00c761',backgroundColor:'#00c761',fill:false,tension:.10,pointRadius:0,pointHoverRadius:5,borderWidth:2.5},
     {label:'Fair Value',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return firstValue(h.intrinsic_base_usd,h.intrinsic_usd,h.intrinsic_base_eur,h.intrinsic_eur);}),parsing:false,spanGaps:false,borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',stepped:true,pointRadius:0,pointHoverRadius:5,borderWidth:2}
