@@ -339,15 +339,21 @@ function renderAll(){
   var ivNowEl=document.getElementById('ivNow');
   var latIv=ivData&&ivData.latest;
   if(ivNowEl&&latIv){
-    ivNowEl.textContent='· Kurs '+Number(latIv.price_eur).toLocaleString('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0})+' · Innerer Wert '+Number(latIv.intrinsic_eur).toLocaleString('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0});
+    ivNowEl.textContent=(function(){
+      var k=Number(latIv.price_eur).toLocaleString('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0});
+      var iv=Number(latIv.intrinsic_eur).toLocaleString('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0});
+      var oe=latIv.owner_earnings_ps_eur!=null?Number(latIv.owner_earnings_ps_eur).toLocaleString('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:2}):'—';
+      return '· Kurs '+k+' · OE/Aktie '+oe+' · Innerer Wert '+iv;
+    })();
   }
   var ivNote=document.getElementById('ivNote');
   if(ivNote&&ivData){
     ivNote.textContent=(ivData.params&&ivData.params.note_de?ivData.params.note_de+' ':'')+(ivData.limitations_de||'');
   }
   ivChart=new Chart(document.getElementById('ivChart'),{type:'line',data:{labels:ivAxis,datasets:[
-    {label:'Kurs',data:ivHist.map(function(h){return h.price_eur;}),borderColor:'#00c761',backgroundColor:'rgba(0,199,97,.10)',fill:false,tension:.2,pointRadius:0,pointHoverRadius:6,borderWidth:2.5},
-    {label:'Innerer Wert',data:ivHist.map(function(h){return h.intrinsic_eur;}),borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',borderDash:[6,4],tension:.2,pointRadius:0,pointHoverRadius:6,borderWidth:2.5}
+    {label:'Kurs',data:ivHist.map(function(h){return h.price_eur;}),borderColor:'#00c761',backgroundColor:'#00c761',fill:false,tension:.2,pointRadius:0,pointHoverRadius:6,borderWidth:2.5},
+    {label:'Innerer Wert',data:ivHist.map(function(h){return h.intrinsic_eur;}),borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',borderDash:[6,4],tension:.2,pointRadius:0,pointHoverRadius:6,borderWidth:2},
+    {label:'Owner Earnings / Aktie',data:ivHist.map(function(h){return h.owner_earnings_ps_eur;}),borderColor:'#ff3b30',backgroundColor:'#ff3b30',tension:.2,pointRadius:0,pointHoverRadius:6,borderWidth:2}
   ]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:12},padding:16}},tooltip:tipBase(ivFull,'iv')},scales:{x:axisX(),y:{ticks:{color:'#6b6b76',callback:function(v){return v+' €';},font:{size:11}},grid:{color:'#f0f0f3'}}}}});
 
 
