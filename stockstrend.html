@@ -17,7 +17,6 @@
     --soft: #f5f5f7;
     --line: #e8e8ed;
     --text: #1b1b1f;
-    --ink: #1b1b1f;
     --muted: #6b6b76;
     --green: #00c761;
     --red: #ff3b30;
@@ -135,7 +134,6 @@
         <span>Beiträge <b id="freshItems">—</b></span>
         <span>Stand <b id="freshAt">—</b></span>
       </div>
-      <div class="note" id="freshQuality"></div>
     </div>
   </div>
 
@@ -153,7 +151,7 @@
 
   <div class="card chart-card-lg">
     <div class="label">Oracle · Stimmung über Zeit</div>
-    <div class="meta" style="margin:0 0 12px">Grün = bullischer Anteil · Rot = bearischer Anteil. Basis sind nur gerichtete Stimmen; zusammen 100 %.</div>
+    <div class="meta" style="margin:0 0 12px">Grün = positiv % · Rot = negativ % · Gestrichelt = Stimmung (50 = neutral).</div>
     <div class="chart-wrap chart-wrap-lg"><canvas id="hypeChart"></canvas></div>
   </div>
   <div class="card chart-card-sm">
@@ -163,8 +161,8 @@
   </div>
 
     <div class="card chart-card-lg">
-    <div class="label">Oracle · Innerer Wert je Aktie vs Kurs <span class="meta" id="ivNow"></span></div>
-    <div class="meta" style="margin:0 0 12px">USD · Grün = Aktienkurs · Schwarz = innerer Wert je Aktie · Rot = normalisierte Owner Earnings je Aktie. Nur veröffentlichte Geschäftszahlen.</div>
+    <div class="label">Oracle · Innerer Wert vs Kurs <span class="meta" id="ivNow"></span></div>
+    <div class="meta" style="margin:0 0 12px">Grün = Kurs · Schwarz = Innerer Wert · Rot = Gewinnkraft je Aktie. Alles in Euro.</div>
     <div class="chart-wrap chart-wrap-lg"><canvas id="ivChart"></canvas></div>
     <div class="meta" id="ivNote" style="margin-top:10px"></div>
   </div>
@@ -214,7 +212,7 @@ function filterByAt(arr, getAt){
   if(!wlRange||wlRange==='all') return arr.slice();
   var cut=rangeCutoffMs(wlRange);
   var out=arr.filter(function(x){var t=new Date(getAt(x)||0).getTime(); return !isNaN(t)&&t>=cut;});
-  return out;
+  return out.length?out:arr.slice();
 }
 function fmtBerlin(iso){
   try{return new Date(iso).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){return iso||'—';}
@@ -281,23 +279,17 @@ function tipBase(fullLabels, kind){
         if(kind==='iv'){
           var name=ctx.dataset.label||'';
           var n=Number(v);
-          return '  '+name+': '+n.toLocaleString('de-DE',{style:'currency',currency:'USD',maximumFractionDigits:2});
+          return '  '+name+': '+n.toLocaleString('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:2});
         }
         return '  Stimmungsstärke: '+v+' / 100';
       }
     }
   };
 }
-function directionalPct(h){
-  var b=Number(h&&h.hype_bull), r=Number(h&&h.hype_bear);
-  if(isNaN(b)||isNaN(r)||(b+r)<=0) return {bull:null,bear:null};
-  var bull=Math.round(1000*b/(b+r))/10;
-  return {bull:bull,bear:Math.round((100-bull)*10)/10};
-}
 function stimmungNorm(h){
-  var p=directionalPct(h);
-  if(p.bull!=null) return Math.round(p.bull);
-  var n=h&&h.hype_net!=null?Number(h.hype_net):(h&&h.social_impulse!=null?Number(h.social_impulse):null);
+  var b=Number(h.hype_bull), r=Number(h.hype_bear);
+  if(!isNaN(b)&&!isNaN(r)&&(b+r)>0) return Math.round(100*b/(b+r));
+  var n=h.hype_net!=null?Number(h.hype_net):(h.social_impulse!=null?Number(h.social_impulse):null);
   if(n==null||isNaN(n)) return null;
   return Math.round((n+100)/2);
 }
@@ -311,14 +303,13 @@ function renderAll(){
   var v=t.vector||{};
   var fr=t.freshness||{};
   var updated=tickData&&tickData.updated_at;
-  var freshnessAt=fr.freshest_absolute||updated;
-  var age=ageLabel(freshnessAt);
+  // Prefer freshest social item age for "Aktualität", not page load lag text
+  var age=ageLabel(updated);
   var stale=false;
-  try{ stale=(Date.now()-new Date(freshnessAt).getTime())>20*60*1000; }catch(e){}
-  document.getElementById('freshAge').textContent=(age||'—')+(stale?' · veraltet':'');
+  try{ stale=(Date.now()-new Date(updated).getTime())>20*60*1000; }catch(e){}
+  document.getElementById('freshAge').textContent=age||'—';
   document.getElementById('freshItems').textContent=(t.totals&&t.totals.content_items_usable)!=null?t.totals.content_items_usable:'—';
-  document.getElementById('freshAt').textContent=fmtBerlin(freshnessAt);
-  var q=document.getElementById('freshQuality'); if(q) q.textContent=fr.quality||fr.primary_signal||'';
+  document.getElementById('freshAt').textContent=fmtBerlin(updated);
   var dir=String(v.direction||'');
   document.getElementById('biasDir').textContent=DIR_DE[dir]||dir||'—';
   document.getElementById('biasMag').textContent=v.magnitude!=null?v.magnitude:'—';
@@ -328,10 +319,6 @@ function renderAll(){
 
   var orcl=((wlData&&wlData.stocks)||{}).ORCL||{};
   var lat=orcl.latest||{};
-  var tail=(orcl.history||[]).length?(orcl.history||[])[(orcl.history||[]).length-1]:null;
-  if(tail&&(!lat.at||new Date(tail.at).getTime()>new Date(lat.at).getTime())){
-    lat=Object.assign({},lat,tail,{why:orcl.why||lat.why||'',evidence:Object.assign({},lat.evidence||{},orcl.evidence||{}),hype:{bull:tail.hype_bull,bear:tail.hype_bear,mixed:tail.hype_mixed,net:tail.hype_net}});
-  }
   var hyp=lat.hype||{};
   var ev=lat.evidence||{};
   var sig=String(lat.signal||'').toLowerCase();
@@ -340,9 +327,8 @@ function renderAll(){
   (function(){ var n=lat.social_impulse; var el=document.getElementById('orclImp');
     if(n==null||n===''){ el.textContent='—'; return; }
     var s=Number(n); el.textContent=(s>0?'+':'')+s; })();
-  var dirPct=directionalPct({hype_bull:hyp.bull,hype_bear:hyp.bear});
-  document.getElementById('orclBull').textContent=dirPct.bull!=null?(dirPct.bull.toLocaleString('de-DE',{maximumFractionDigits:1})+' %'):'—';
-  document.getElementById('orclBear').textContent=dirPct.bear!=null?(dirPct.bear.toLocaleString('de-DE',{maximumFractionDigits:1})+' %'):'—';
+  document.getElementById('orclBull').textContent=hyp.bull!=null?(hyp.bull+' %'):'—';
+  document.getElementById('orclBear').textContent=hyp.bear!=null?(hyp.bear+' %'):'—';
   document.getElementById('orclNet').textContent=(function(){var s=stimmungNorm({hype_bull:hyp.bull,hype_bear:hyp.bear,hype_net:hyp.net,social_impulse:lat.social_impulse});return s!=null?(s+' / 100'):'—';})();
   document.getElementById('orclWhy').textContent=lat.why||'';
   var L=lat.links||{};
@@ -353,9 +339,10 @@ function renderAll(){
   var hypeAxis=hist.map(function(h){return fmtAxis(h.at);});
   if(hypeChart) hypeChart.destroy();
   hypeChart=new Chart(document.getElementById('hypeChart'),{type:'line',data:{labels:hypeAxis,datasets:[
-    {label:'Bullisch %',data:hist.map(function(h){return directionalPct(h).bull;}),borderColor:'#00c761',backgroundColor:'#00c761',tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5},
-    {label:'Bearisch %',data:hist.map(function(h){return directionalPct(h).bear;}),borderColor:'#ff3b30',backgroundColor:'#ff3b30',tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5}
-  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:8,bottom:4,left:12,right:8}},interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:13},padding:8}},tooltip:tipBase(hypeFull,'hype')},scales:{x:axisX(),y:{min:0,max:100,ticks:{color:'#6b6b76',font:{size:11},callback:function(v){return v+' %';}},grid:{color:'#f0f0f3'},title:{display:false}}}}});
+    {label:'Positiv %',data:hist.map(function(h){return h.hype_bull;}),borderColor:'#00c761',backgroundColor:'#00c761',tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5},
+    {label:'Negativ %',data:hist.map(function(h){return h.hype_bear!=null?Math.abs(h.hype_bear):null;}),borderColor:'#ff3b30',backgroundColor:'#ff3b30',tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5},
+    {label:'Stimmung',data:hist.map(stimmungNorm),borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',borderDash:[6,4],tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5}
+  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:8,bottom:4,left:12,right:8}},interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:13},padding:8}},tooltip:tipBase(hypeFull,'hype')},scales:{x:axisX(),y:{grace:'12%',ticks:{color:'#6b6b76',font:{size:11},callback:function(v){return v;}},grid:{color:'#f0f0f3'},title:{display:false}}}}});
 
   var mhist=filterByAt(tickData.history||[], function(h){return h.scraped_at||h.tick_id||h.at;});
   if(!mhist.length && (t.mini_series||[]).length){
@@ -378,90 +365,21 @@ function renderAll(){
   var latIv=ivData&&ivData.latest;
   if(ivNowEl&&latIv){
     ivNowEl.textContent=(function(){
-      var k=Number(latIv.price_usd).toLocaleString('de-DE',{style:'currency',currency:'USD',maximumFractionDigits:2});
-      var iv=Number(latIv.intrinsic_usd).toLocaleString('de-DE',{style:'currency',currency:'USD',maximumFractionDigits:2});
-      var oe=latIv.normalized_owner_earnings_ps_usd!=null?Number(latIv.normalized_owner_earnings_ps_usd).toLocaleString('de-DE',{style:'currency',currency:'USD',maximumFractionDigits:2}):'—';
-      return '· Kurs '+k+' · Owner Earnings '+oe+' · Innerer Wert '+iv;
+      var k=Number(latIv.price_eur).toLocaleString('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0});
+      var iv=Number(latIv.intrinsic_eur).toLocaleString('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0});
+      var oe=latIv.owner_earnings_ps_eur!=null?Number(latIv.owner_earnings_ps_eur).toLocaleString('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:2}):'—';
+      return '· Kurs '+k+' · Gewinnkraft '+oe+' · Innerer Wert '+iv;
     })();
   }
   var ivNote=document.getElementById('ivNote');
   if(ivNote&&ivData){
-    ivNote.textContent=(ivData.model&&ivData.model.summary_de?ivData.model.summary_de+' ':'')+(ivData.limitations_de||'');
+    ivNote.textContent='Gewinnkraft = Gewinn + Abschreibungen − Investitionen. Wenn Gewinnkraft negativ → Innerer Wert 0.';
   }
   ivChart=new Chart(document.getElementById('ivChart'),{type:'line',data:{labels:ivAxis,datasets:[
-    {label:'Aktienkurs',data:ivHist.map(function(h){return h.price_usd;}),borderColor:'#00c761',backgroundColor:'#00c761',fill:false,tension:.2,pointRadius:0,pointHoverRadius:6,borderWidth:2.5},
-    {label:'Innerer Wert / Aktie',data:ivHist.map(function(h){return h.intrinsic_usd;}),borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',borderDash:[6,4],tension:.2,pointRadius:0,pointHoverRadius:6,borderWidth:2},
-    {label:'Owner Earnings / Aktie',data:ivHist.map(function(h){return h.owner_earnings_ps_usd;}),borderColor:'#ff3b30',backgroundColor:'#ff3b30',tension:.2,pointRadius:0,pointHoverRadius:6,borderWidth:2}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:13},padding:8}},tooltip:tipBase(ivFull,'iv')},scales:{x:axisX(),y:{ticks:{color:'#6b6b76',callback:function(v){return ',font:{size:11}},grid:{color:'#f0f0f3'}}}}});
-
-
-  var voices=filterByAt(ev.voices||orcl.voices_archive||[], function(v){return v.at;});
-  var counts={bull:0,mixed:0,bear:0};
-  voices.forEach(function(v){var l=String(v.lean||'mixed').toLowerCase(); if(l!=='bull'&&l!=='bear')l='mixed'; counts[l]++;});
-  var total=counts.bull+counts.mixed+counts.bear;
-  if(pieChart) pieChart.destroy();
-  pieChart=new Chart(document.getElementById('pie'),{type:'doughnut',data:{labels:['Bullisch','Unklar','Bearisch'],datasets:[{data:[counts.bull,counts.mixed,counts.bear],backgroundColor:['#00c761','#ff9500','#ff3b30'],borderWidth:0}]},options:{plugins:{legend:{display:false}},cutout:'64%'}});
-  document.getElementById('pieLeg').textContent=total?('Bullisch '+counts.bull+' · Unklar '+counts.mixed+' · Bearisch '+counts.bear):'Keine Meinungen';
-  var rn={today:'Heute','1d':'1T','1w':'1W','5m':'5M',year:'1J',all:'Gesamt'}[wlRange]||wlRange;
-  document.getElementById('stimmenRange').textContent='('+rn+')';
-  var groups={bull:[],mixed:[],bear:[]};
-  voices.slice().sort(function(a,b){return new Date(b.at||0)-new Date(a.at||0);}).forEach(function(v){
-    var l=String(v.lean||'mixed').toLowerCase(); if(l!=='bull'&&l!=='bear')l='mixed'; groups[l].push(v);
-  });
-  var titles={bull:'Bullisch',mixed:'Unklar',bear:'Bearisch'};
-  var html='';
-  ['bull','mixed','bear'].forEach(function(g){
-    var arr=groups[g]; if(!arr.length) return;
-    html+='<details class="acc '+g+'"><summary>'+titles[g]+' <span>('+arr.length+')</span></summary>';
-    arr.slice(0,8).forEach(function(v){
-      html+='<div class="voice"><span class="voice-at">'+esc(fmtBerlin(v.at)||'ohne Datum')+' · '+esc((String(v.source||v.src||'Social')).toUpperCase())+'</span>'+esc(v.text||'')+(v.url?' <a href="'+esc(v.url)+'" target="_blank" rel="noopener">Öffnen</a>':'')+'</div>';
-    });
-    html+='</details>';
-  });
-  document.getElementById('stimmenList').innerHTML=html||'<div class="meta">Keine Meinungen in diesem Zeitraum.</div>';
-  var accMap=loadAccOpen();
-  Array.prototype.forEach.call(document.querySelectorAll('#stimmenList details.acc'), function(d){
-    var key=(d.className||'').replace(/\s+/g,' ');
-    if(accMap[key]) d.open=true;
-    d.addEventListener('toggle', function(){
-      var m=loadAccOpen();
-      m[key]=d.open;
-      saveAccOpen(m);
-    });
-  });
-}
-async function fetchJson(url,optional){
-  try{var r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);return await r.json();}
-  catch(e){if(optional)return null;throw e;}
-}
-async function load(){
-  try{
-    var a=await fetchJson('stockstrend-data.json',false);
-    var b=await fetchJson('watchlist-data.json',false);
-    var c=await fetchJson('intrinsic-orcl.json',true);
-    tickData=a; wlData=b; ivData=c;
-    Array.prototype.forEach.call(document.querySelectorAll('#rangeBar button'),function(b){b.classList.toggle('active',b.getAttribute('data-range')===wlRange);});
-    renderAll();
-  }catch(e){
-    var age=document.getElementById('freshAge'),q=document.getElementById('freshQuality');
-    if(age)age.textContent='Datenfehler';
-    if(q)q.textContent='Aktuelle JSON-Daten konnten nicht vollständig geladen werden.';
-  }
-}
-document.getElementById('rangeBar').onclick=function(e){
-  var btn=e.target.closest('button[data-range]'); if(!btn) return;
-  wlRange=btn.getAttribute('data-range');
-  saveRange(wlRange);
-  Array.prototype.forEach.call(document.querySelectorAll('#rangeBar button'), function(b){b.classList.toggle('active', b===btn);});
-  renderAll();
-};
-var REFRESH_MS=60000;
-load();
-setInterval(function(){ load(); }, REFRESH_MS);
-</script>
-</body>
-</html>
-+v;},font:{size:11}},grid:{color:'#f0f0f3'}}}}});
+    {label:'Kurs',data:ivHist.map(function(h){return h.price_eur;}),borderColor:'#00c761',backgroundColor:'#00c761',fill:false,tension:.2,pointRadius:0,pointHoverRadius:6,borderWidth:2.5},
+    {label:'Innerer Wert',data:ivHist.map(function(h){return h.intrinsic_eur;}),borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',borderDash:[6,4],tension:.2,pointRadius:0,pointHoverRadius:6,borderWidth:2},
+    {label:'Gewinnkraft / Aktie',data:ivHist.map(function(h){return h.owner_earnings_ps_eur;}),borderColor:'#ff3b30',backgroundColor:'#ff3b30',tension:.2,pointRadius:0,pointHoverRadius:6,borderWidth:2}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:13},padding:8}},tooltip:tipBase(ivFull,'iv')},scales:{x:axisX(),y:{ticks:{color:'#6b6b76',callback:function(v){return v+' €';},font:{size:11}},grid:{color:'#f0f0f3'}}}}});
 
 
   var voices=filterByAt(ev.voices||orcl.voices_archive||[], function(v){return v.at;});
