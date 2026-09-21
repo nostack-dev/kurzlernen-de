@@ -206,6 +206,8 @@
     .wl-pie-wrap canvas { width:220px !important; height:220px !important; }
   }
 
+  #histChart, #wlChart { max-height: 240px; height: 220px !important; }
+  .card.span6 { min-height: 280px; }
 </style>
 </head>
 <body>
@@ -229,8 +231,8 @@
     <div id="suggest"></div>
     <div id="analyseStatus"></div>
   </div>
-</div>
-<div class="card span12" id="watchlistCard" style="border-color:#22c55e44">
+
+  <div class="card span12" id="watchlistCard" style="border-color:#22c55e44">
     <div class="wl-head">
       <div>
         <div class="label">Watchlist</div>
@@ -737,7 +739,7 @@ function renderWlHypeChart(st) {
         title: { display: true, text: 'Aggregierter Hype-Verlauf (seit Beobachtung)', color: '#8b97a8', font: { size: 12 } }
       },
       scales: {
-        x: { ticks: { color: '#8b97a8', maxRotation: 45, minRotation: 0 }, grid: { color: '#243041' } },
+        x: { ticks: { color: '#8b97a8', maxRotation: 0, autoSkip: true, maxTicksLimit: 6 }, grid: { color: '#243041' } },
         y: { min: -100, max: 100, ticks: { color: '#8b97a8' }, grid: { color: '#243041' } }
       }
     }
@@ -797,7 +799,14 @@ function renderWatchlist() {
   sigEl.className = 'pill ' + cls(lat.signal);
   sigEl.textContent = String(lat.signal || '—').toUpperCase();
   document.getElementById('wlSeit').textContent = 'Seit Beobachtung: ' + fmtBerlin(st.added_at || (list.find(function(x){return x.symbol===wlSelected;}) || {}).added_at);
-  var hyp = lat.hype || {};
+  var hyp = lat.hype || null;
+  if (!hyp) {
+    var vv = ((lat.evidence || {}).voices) || (st.voices_archive || []) || [];
+    var bc=0, br=0, mx=0;
+    vv.forEach(function(v){ var l=String(v.lean||'mixed').toLowerCase(); if(l==='bull')bc++; else if(l==='bear')br++; else mx++; });
+    var tot=Math.max(bc+br+mx,1);
+    hyp = { bull: Math.round(100*bc/tot), bear: Math.round(100*br/tot), mixed: Math.round(100*mx/tot), net: Math.round(100*(bc-br)/tot), voice_counts:{bull:bc,bear:br,mixed:mx} };
+  }
   document.getElementById('wlStats').innerHTML =
     '<span>Impuls <b>' + (lat.social_impulse != null ? esc(lat.social_impulse) : '—') + '</b></span>' +
     '<span class="pill buy">Hype↑ ' + (hyp.bull != null ? esc(hyp.bull) : '—') + '</span>' +
@@ -834,12 +843,19 @@ function renderWatchlist() {
 
 function renderMagnitudeChart() {
   var hist = window._tickHistory || [];
+  if (!hist.length && window._miniSeries && window._miniSeries.length) {
+    hist = window._miniSeries.map(function(m) {
+      return { scraped_at: m.at, tick_id: m.at, magnitude: m.magnitude, confidence: m.confidence, direction: m.direction };
+    });
+  }
   var range = (typeof wlRange !== 'undefined' && wlRange) ? wlRange : '1w';
   var cut = rangeCutoffMs(range);
   var filtered = (!range || range === 'all') ? hist.slice() : hist.filter(function(h) {
     var t = new Date(h.scraped_at || h.tick_id || h.at || 0).getTime();
     return !isNaN(t) && t >= cut;
   });
+  // If range filters everything out, fall back to all points so chart never looks "broken"
+  if (!filtered.length && hist.length) filtered = hist.slice();
   var rangeNames = { today:'Today', '1d':'1D', '1w':'1W', '5m':'5M', year:'Year', all:'All' };
   var rn = rangeNames[range] || range;
   var note = document.getElementById('magRangeNote');
@@ -924,6 +940,7 @@ async function load() {
   });
 
   window._tickHistory = data.history || [];
+  window._miniSeries = t.mini_series || [];
   renderMagnitudeChart();
 latestSignals = t.stock_signals || [];
   var wlSyms = {};
@@ -956,7 +973,12 @@ latestSignals = t.stock_signals || [];
     shown++;
   });
   if (!shown) {
-    tb.innerHTML = '<tr><td colspan="8" class="meta">Keine weiteren Stocks (Watchlist-Symbole nur oben). Analysiere SYMBOL im Chat.</td></tr>';
+    tb.innerHTML = '';
+    var card = tb.closest('.card');
+    if (card) card.style.display = 'none';
+  } else {
+    var card2 = tb.closest('.card');
+    if (card2) card2.style.display = '';
   }
 
   // pending analyse resolved?
