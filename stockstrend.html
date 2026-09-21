@@ -196,18 +196,18 @@ function renderAll(){
   var fr=t.freshness||{};
   var updated=tickData&&tickData.updated_at;
   // Prefer freshest social item age for "Aktualität", not page load lag text
-  var freshest=fr.freshest_item_age||fr.freshest_absolute||'—';
   var age=ageLabel(updated);
-  var stale=(Date.now()-new Date(updated).getTime())>20*60*1000;
-  document.getElementById('hdrFresh').innerHTML='Daten <span class="'+(stale?'bad':'ok')+'">'+esc(freshest)+'</span> · Stand '+esc(fmtBerlin(updated))+' (vor '+esc(age)+')';
+  var stale=false;
+  try{ stale=(Date.now()-new Date(updated).getTime())>20*60*1000; }catch(e){}
+  document.getElementById('hdrFresh').innerHTML='Stand '+esc(fmtBerlin(updated))+' · vor '+esc(age);
+  document.getElementById('freshAge').textContent=age||'—';
+  document.getElementById('freshItems').textContent=(t.totals&&t.totals.content_items_usable)!=null?t.totals.content_items_usable:'—';
+  document.getElementById('freshAt').textContent=fmtBerlin(updated);
   document.getElementById('biasDir').textContent=DIR_DE[v.direction]||v.direction||'—';
   document.getElementById('biasMag').textContent=v.magnitude!=null?v.magnitude:'—';
   document.getElementById('biasConf').textContent=v.confidence!=null?v.confidence:'—';
   document.getElementById('biasEarly').innerHTML=v.early_signal?'<span class="pill early">Frühsignal</span>':'';
-  document.getElementById('biasNote').textContent=v.early_signal_note||'';
-  document.getElementById('freshAge').textContent=freshest;
-  document.getElementById('freshItems').textContent=(t.totals&&t.totals.content_items_usable)!=null?t.totals.content_items_usable:'—';
-  document.getElementById('freshAt').textContent=fmtBerlin(updated);
+  document.getElementById('biasNote').textContent=v.early_signal_note||(tickData&&tickData.early_signal_note)||'';
 
   var orcl=((wlData&&wlData.stocks)||{}).ORCL||{};
   var lat=orcl.latest||{};
