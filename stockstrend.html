@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<!-- ebitda-gone 1789997101.2955325 -->
+<!-- ebitda-gone 1789997101.2955325 · iv-usd-fields -->
 <meta charset="utf-8"/>
 <meta name="pass2" content="240-de-grid6"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -299,7 +299,7 @@ function tipBase(kind){
           if(name.indexOf('Stimmung')>=0) return '  Stimmung: '+v+' / 100 (50 = neutral)';
           return '  '+name+': '+v;
         }
-        if(kind==='iv') return '  '+name+': '+Number(v).toLocaleString('de-DE',{style:'currency',currency:'USD',maximumFractionDigits:2});
+        if(kind==='iv') return '  '+name+': '+ivMoney(v,'USD',2);
         return '  Stimmungsstärke: '+v+' / 100';
       }
     }
@@ -321,6 +321,20 @@ function stimmungNorm(h){
 function firstValue(){
   for(var i=0;i<arguments.length;i++) if(arguments[i]!=null&&arguments[i]!=='') return arguments[i];
   return null;
+}
+function ivCurrency(data){
+  var c=String((data&&data.currency_display)||'USD').toUpperCase();
+  return c==='EUR'?'EUR':'USD';
+}
+function ivPick(row, base){
+  if(!row) return null;
+  return firstValue(row[base+'_usd'], row[base+'_eur'], row[base]);
+}
+function ivMoney(v, currency, digits){
+  if(v==null||v==='') return '—';
+  var n=Number(v);
+  if(!isFinite(n)) return '—';
+  return n.toLocaleString('de-DE',{style:'currency',currency:currency||'USD',maximumFractionDigits:digits==null?2:digits});
 }
 function medianNum(a){
   var x=(a||[]).filter(function(v){return isFinite(v)&&v>0;}).slice().sort(function(a,b){return a-b;});
@@ -451,23 +465,24 @@ function renderAll(){
   if(ivChart) ivChart.destroy();
   var ivHist=filterByAt((ivData&&ivData.history)||[], function(h){return h.at;});
   var ivCov=document.getElementById('ivCoverage'); if(ivCov) ivCov.textContent=coverageText(ivHist,function(h){return h.at;});
-  var ivNowEl=document.getElementById('ivNow'), latIv=ivData&&ivData.latest;
+  var ivNowEl=document.getElementById('ivNow'), latIv=ivData&&ivData.latest, ivCur=ivCurrency(ivData), ivSym=ivCur==='EUR'?' €':' $';
   if(ivNowEl&&latIv){
-    var k=Number(latIv.price_usd).toLocaleString('de-DE',{style:'currency',currency:'USD',maximumFractionDigits:2});
-    var oe=latIv.normalized_owner_earnings_ps_usd!=null?Number(latIv.normalized_owner_earnings_ps_usd).toLocaleString('de-DE',{style:'currency',currency:'USD',maximumFractionDigits:2}):'—';
-    var lo=Number(latIv.intrinsic_low_usd).toLocaleString('de-DE',{style:'currency',currency:'USD',maximumFractionDigits:2});
-    var base=Number(latIv.intrinsic_base_usd).toLocaleString('de-DE',{style:'currency',currency:'USD',maximumFractionDigits:2});
-    var hi=Number(latIv.intrinsic_high_usd).toLocaleString('de-DE',{style:'currency',currency:'USD',maximumFractionDigits:2});
+    var k=ivMoney(ivPick(latIv,'price'),ivCur,2);
+    var oeRaw=firstValue(latIv.normalized_owner_earnings_ps_usd,latIv.normalized_owner_earnings_ps_eur,latIv.owner_earnings_ps_usd,latIv.owner_earnings_ps_eur);
+    var oe=oeRaw!=null?ivMoney(oeRaw,ivCur,2):'—';
+    var lo=ivMoney(ivPick(latIv,'intrinsic_low'),ivCur,2);
+    var base=ivMoney(firstValue(latIv.intrinsic_base_usd,latIv.intrinsic_usd,latIv.intrinsic_base_eur,latIv.intrinsic_eur),ivCur,2);
+    var hi=ivMoney(ivPick(latIv,'intrinsic_high'),ivCur,2);
     ivNowEl.textContent='· Kurs '+k+' · Owner Earnings '+oe+' · Wert '+lo+'–'+hi+' · Basis '+base;
   }
   var ivNote=document.getElementById('ivNote');
   if(ivNote&&ivData) ivNote.textContent=(ivData.model&&ivData.model.summary_de?ivData.model.summary_de+' ':'')+(ivData.limitations_de||'');
   ivChart=new Chart(document.getElementById('ivChart'),{type:'line',data:{datasets:[
-    {label:'Aktienkurs',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return h.price_usd;}),parsing:false,spanGaps:false,borderColor:'#00c761',backgroundColor:'#00c761',fill:false,tension:.12,pointRadius:0,pointHoverRadius:5,borderWidth:2.5},
-    {label:'Konservativer Wert',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return h.intrinsic_low_usd;}),parsing:false,spanGaps:false,borderColor:'#ff3b30',backgroundColor:'#ff3b30',borderDash:[4,4],tension:0,pointRadius:0,pointHoverRadius:5,borderWidth:1.5},
-    {label:'Basiswert',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return h.intrinsic_base_usd;}),parsing:false,spanGaps:false,borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',tension:0,pointRadius:0,pointHoverRadius:5,borderWidth:2.2},
-    {label:'Obere Sensitivität',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return h.intrinsic_high_usd;}),parsing:false,spanGaps:false,borderColor:'#8e8e93',backgroundColor:'#8e8e93',borderDash:[4,4],tension:0,pointRadius:0,pointHoverRadius:5,borderWidth:1.5}
-  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:12,bottom:8,left:8,right:8}},interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:12},padding:8}},tooltip:tipBase('iv')},scales:{x:axisX(ivHist,function(h){return h.at;}),y:{grace:'10%',ticks:{color:'#6b6b76',callback:function(v){return Number(v).toLocaleString('de-DE',{maximumFractionDigits:0})+' $';},font:{size:11}},grid:{color:'#f0f0f3'},border:{display:false}}}}});
+    {label:'Aktienkurs',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return ivPick(h,'price');}),parsing:false,spanGaps:false,borderColor:'#00c761',backgroundColor:'#00c761',fill:false,tension:.12,pointRadius:0,pointHoverRadius:5,borderWidth:2.5},
+    {label:'Konservativer Wert',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return ivPick(h,'intrinsic_low');}),parsing:false,spanGaps:false,borderColor:'#ff3b30',backgroundColor:'#ff3b30',borderDash:[4,4],tension:0,pointRadius:0,pointHoverRadius:5,borderWidth:1.5},
+    {label:'Basiswert',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return firstValue(h.intrinsic_base_usd,h.intrinsic_usd,h.intrinsic_base_eur,h.intrinsic_eur);}),parsing:false,spanGaps:false,borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',tension:0,pointRadius:0,pointHoverRadius:5,borderWidth:2.2},
+    {label:'Obere Sensitivität',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return ivPick(h,'intrinsic_high');}),parsing:false,spanGaps:false,borderColor:'#8e8e93',backgroundColor:'#8e8e93',borderDash:[4,4],tension:0,pointRadius:0,pointHoverRadius:5,borderWidth:1.5}
+  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:12,bottom:8,left:8,right:8}},interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:12},padding:8}},tooltip:tipBase('iv')},scales:{x:axisX(ivHist,function(h){return h.at;}),y:{grace:'10%',ticks:{color:'#6b6b76',callback:function(v){var n=Number(v);return isFinite(n)?n.toLocaleString('de-DE',{maximumFractionDigits:0})+ivSym:'—';},font:{size:11}},grid:{color:'#f0f0f3'},border:{display:false}}}}});
 
 
   var voices=filterByAt(ev.voices||orcl.voices_archive||[], function(v){return v.at;});

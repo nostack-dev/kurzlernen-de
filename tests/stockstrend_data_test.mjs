@@ -30,6 +30,13 @@ assert(html.includes("axisX(mhist"),'magnitude chart must use adaptive time boun
 assert(html.includes("axisX(ivHist"),'intrinsic chart must use adaptive time bounds');
 assert(html.includes('data-range="5y"'),'5Y range missing');
 assert(!html.includes("callback:function(v){return v+' €';}"),'USD chart must not show euro axis');
+assert(html.includes('function ivPick'),'IV field picker missing');
+assert(html.includes('function ivMoney'),'IV money formatter missing');
+assert(html.includes("ivPick(latIv,'price')")||html.includes('ivPick(latIv,"price")'),'title must read price via ivPick');
+assert(html.includes("ivPick(h,'price')")||html.includes('ivPick(h,"price")'),'series must read price via ivPick');
+assert(!html.includes('latIv.price_eur'),'must not read price_eur directly (NaN when JSON is USD-only)');
+assert(!html.includes('h.price_eur'),'must not map price_eur series directly');
+assert(!html.includes("currency:'EUR'"),'IV UI must not hardcode EUR currency');
 assert(html.includes('Preisalarm aktivieren'),'alarm wording regression');
 assert(!html.includes("+' · same-origin'"),'internal transport wording leaked to UI');
 assert(!html.includes('query1.finance.yahoo.com'),'browser must not fetch Yahoo directly');
