@@ -61,8 +61,8 @@
   .voice-at { display:block; color: var(--muted); font-size: 11px; margin-bottom: 2px; font-variant-numeric: tabular-nums; }
 
   .chart-wrap { position: relative; width: 100%; }
-  .chart-wrap-lg { height: 340px; margin-top: 4px; }
-  .chart-wrap-lg canvas { width: 100% !important; height: 340px !important; }
+  .chart-wrap-lg { height: 360px; margin-top: 4px; overflow: visible; }
+  .chart-wrap-lg canvas { width: 100% !important; height: 360px !important; }
   .chart-wrap-sm { height: 200px; margin-top: 4px; }
   .chart-wrap-sm canvas { width: 100% !important; height: 200px !important; }
   .chart-card-lg, .chart-card-sm { margin-bottom: 16px; }
@@ -317,7 +317,7 @@ function renderAll(){
     {label:'Bullish %',data:hist.map(function(h){return h.hype_bull;}),borderColor:'#00c761',backgroundColor:'#00c761',tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5},
     {label:'Bearish %',data:hist.map(function(h){return h.hype_bear!=null?Math.abs(h.hype_bear):null;}),borderColor:'#ff3b30',backgroundColor:'#ff3b30',tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5},
     {label:'Stimmung (0–100)',data:hist.map(stimmungNorm),borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',borderDash:[6,4],tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:12},padding:16}},tooltip:tipBase(hypeFull,'hype')},scales:{x:axisX(),y:{min:0,max:100,ticks:{color:'#6b6b76',font:{size:11}},grid:{color:'#f0f0f3'},title:{display:true,text:'0 = bearish · 50 = neutral · 100 = bullish',color:'#6b6b76',font:{size:10}}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:8,bottom:4,left:4,right:8}},interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:12},padding:16}},tooltip:tipBase(hypeFull,'hype')},scales:{x:axisX(),y:{grace:'12%',ticks:{color:'#6b6b76',font:{size:11},callback:function(v){return v;}},grid:{color:'#f0f0f3'},title:{display:true,text:'Skala passt sich den Ausschlägen an (Stimmung: 50 = neutral)',color:'#6b6b76',font:{size:10}}}}}});
 
   var mhist=filterByAt(tickData.history||[], function(h){return h.scraped_at||h.tick_id||h.at;});
   if(!mhist.length && (t.mini_series||[]).length){
