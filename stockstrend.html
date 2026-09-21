@@ -136,7 +136,13 @@
     <div class="chart-wrap chart-wrap-sm"><canvas id="magChart"></canvas></div>
   </div>
 
-  <div class="card">
+    <div class="card chart-card-lg">
+    <div class="label">Oracle · Innerer Wert vs Kurs <span class="meta" id="ivNow"></span></div>
+    <div class="meta" style="margin:0 0 12px">Grün = Kurs · Schwarz = Innerer Wert (Owner Earnings, kein EBITDA). Zeitraum wie oben.</div>
+    <div class="chart-wrap chart-wrap-lg"><canvas id="ivChart"></canvas></div>
+    <div class="meta" id="ivNote" style="margin-top:10px"></div>
+  </div>
+<div class="card">
     <div class="label">Oracle · Meinungen <span class="meta" id="stimmenRange"></span></div>
     <div class="stimmen-box">
       <div>
@@ -151,7 +157,7 @@
 <script>
 var LS_RANGE='botbot_wl_range', LS_ACC='botbot_acc_open';
 var wlRange=(function(){ try{ return localStorage.getItem(LS_RANGE)||'1w'; }catch(e){ return '1w'; } })();
-var tickData=null, wlData=null, hypeChart=null, magChart=null, pieChart=null;
+var tickData=null, wlData=null, ivData=null, hypeChart=null, magChart=null, ivChart=null, pieChart=null;
 function saveRange(r){ try{ localStorage.setItem(LS_RANGE, r); }catch(e){} }
 function loadAccOpen(){ try{ return JSON.parse(localStorage.getItem(LS_ACC)||'{}'); }catch(e){ return {}; } }
 function saveAccOpen(map){ try{ localStorage.setItem(LS_ACC, JSON.stringify(map)); }catch(e){} }
@@ -246,6 +252,11 @@ function tipBase(fullLabels, kind){
           if(name.indexOf('Stimmung')>=0) return '  Stimmung: '+v+' / 100 (50 = neutral)';
           return '  '+name+': '+v;
         }
+        if(kind==='iv'){
+          var name=ctx.dataset.label||'';
+          var n=Number(v);
+          return '  '+name+': '+n.toLocaleString('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:2});
+        }
         return '  Stimmungsstärke: '+v+' / 100';
       }
     }
@@ -320,6 +331,25 @@ function renderAll(){
   var magNowEl=document.getElementById('magNow');
   if(magNowEl) magNowEl.textContent=magIst!=null?('· jetzt '+magIst):'';
   magChart=new Chart(document.getElementById('magChart'),{type:'line',data:{labels:magAxis,datasets:[{label:'Stimmungsstärke',data:magVals,borderColor:'#00c761',backgroundColor:'rgba(0,199,97,.12)',fill:true,tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5,pointBackgroundColor:magVals.map(function(_,i,a){return i===a.length-1?'#00c761':'#1b1b1f';})}]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase(magFull,'mag')},scales:{x:axisX(),y:{min:0,max:100,ticks:{color:'#6b6b76',font:{size:11}},grid:{color:'#f0f0f3'}}}}});
+  // Intrinsic vs price
+  if(ivChart) ivChart.destroy();
+  var ivHist=filterByAt((ivData&&ivData.history)||[], function(h){return h.at;});
+  var ivFull=ivHist.map(function(h){return fmtBerlin(h.at);});
+  var ivAxis=ivHist.map(function(h){return fmtAxis(h.at);});
+  var ivNowEl=document.getElementById('ivNow');
+  var latIv=ivData&&ivData.latest;
+  if(ivNowEl&&latIv){
+    ivNowEl.textContent='· Kurs '+Number(latIv.price_eur).toLocaleString('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0})+' · Innerer Wert '+Number(latIv.intrinsic_eur).toLocaleString('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0});
+  }
+  var ivNote=document.getElementById('ivNote');
+  if(ivNote&&ivData){
+    ivNote.textContent=(ivData.params&&ivData.params.note_de?ivData.params.note_de+' ':'')+(ivData.limitations_de||'');
+  }
+  ivChart=new Chart(document.getElementById('ivChart'),{type:'line',data:{labels:ivAxis,datasets:[
+    {label:'Kurs',data:ivHist.map(function(h){return h.price_eur;}),borderColor:'#00c761',backgroundColor:'rgba(0,199,97,.10)',fill:false,tension:.2,pointRadius:0,pointHoverRadius:6,borderWidth:2.5},
+    {label:'Innerer Wert',data:ivHist.map(function(h){return h.intrinsic_eur;}),borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',borderDash:[6,4],tension:.2,pointRadius:0,pointHoverRadius:6,borderWidth:2.5}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:12},padding:16}},tooltip:tipBase(ivFull,'iv')},scales:{x:axisX(),y:{ticks:{color:'#6b6b76',callback:function(v){return v+' €';},font:{size:11}},grid:{color:'#f0f0f3'}}}}});
+
 
   var voices=filterByAt(ev.voices||orcl.voices_archive||[], function(v){return v.at;});
   var counts={bull:0,mixed:0,bear:0};
@@ -359,7 +389,8 @@ function renderAll(){
 async function load(){
   var a=await fetch('stockstrend-data.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json();});
   var b=await fetch('watchlist-data.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json();});
-  tickData=a; wlData=b;
+  var c=await fetch('intrinsic-orcl.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;});
+  tickData=a; wlData=b; ivData=c;
   Array.prototype.forEach.call(document.querySelectorAll('#rangeBar button'), function(b){
     b.classList.toggle('active', b.getAttribute('data-range')===wlRange);
   });
