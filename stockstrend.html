@@ -504,21 +504,12 @@ function setShockNotifyButton(){
   b.classList.toggle('on',on);
 }
 async function fetchOrclMinuteBars(){
-  var urls=[
-    'https://query1.finance.yahoo.com/v8/finance/chart/ORCL?range=5d&interval=1m&includePrePost=true&events=div%2Csplits',
-    'https://query2.finance.yahoo.com/v8/finance/chart/ORCL?range=5d&interval=1m&includePrePost=true&events=div%2Csplits'
-  ];
-  var lastErr=null;
-  for(var i=0;i<urls.length;i++){
-    try{
-      var r=await fetch(urls[i],{cache:'no-store'});
-      if(!r.ok)throw new Error('HTTP '+r.status);
-      var bars=PriceShock.parseYahoo(await r.json());
-      if(bars.length<25)throw new Error('zu wenig Bars');
-      return bars;
-    }catch(e){lastErr=e;}
-  }
-  throw lastErr||new Error('Preisfeed nicht verfügbar');
+  var r=await fetch('orcl-minute.json?t='+Date.now(),{cache:'no-store'});
+  if(!r.ok)throw new Error('Preisfeed HTTP '+r.status);
+  var payload=await r.json();
+  var bars=PriceShock.parseYahoo(payload);
+  if(bars.length<25)throw new Error('zu wenig 1-Minuten-Bars');
+  return bars;
 }
 function shockDescribe(x){
   if(!x)return '';
@@ -539,7 +530,7 @@ function renderShock(x,err){
   var arrow=x.direction==='up'?'↑':'↓';
   h.textContent=x.triggered?('BÄM '+arrow+' '+x.score):'ruhig';
   if(x.triggered)c.classList.add(x.direction==='up'?'shock-up':'shock-down');
-  document.getElementById('shockFeed').textContent='1-Minuten-Feed · '+fmtBerlin(x.at);
+  document.getElementById('shockFeed').textContent='1-Minuten-Feed · '+fmtBerlin(x.at)+' · same-origin';
   document.getElementById('shockScore').textContent=x.score+'/100';
   document.getElementById('shockMove').textContent=(x.move_pct>0?'+':'')+x.move_pct.toLocaleString('de-DE',{maximumFractionDigits:2})+' %';
   document.getElementById('shockWindow').textContent=x.window_minutes+' Min';

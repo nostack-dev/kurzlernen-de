@@ -19,6 +19,9 @@ assert.equal(o.latest.confidence,tail.confidence,'latest/history confidence drif
 assert(html.includes('return out;'));
 assert(!html.includes('return out.length?out:arr.slice();'));
 assert(html.includes('directionalPct'));
+assert(!html.includes('query1.finance.yahoo.com'), 'browser must not fetch Yahoo directly');
+assert(!html.includes('query2.finance.yahoo.com'), 'browser must not fetch Yahoo directly');
+assert(html.includes("fetch('orcl-minute.json?t='"), 'price shock feed must be same-origin');
 assert.equal(intr.currency_display,'USD');
 assert(intr.latest.intrinsic_usd>0);
 assert(!('intrinsic_eur' in intr.latest));

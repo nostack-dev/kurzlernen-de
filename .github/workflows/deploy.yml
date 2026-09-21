@@ -114,6 +114,27 @@ jobs:
           grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" drone_simulator.html
           rm -rf generated
 
+      - name: Build ORCL minute feed
+        timeout-minutes: 2
+        run: |
+          set -euxo pipefail
+          URL1='https://query1.finance.yahoo.com/v8/finance/chart/ORCL?range=5d&interval=1m&includePrePost=true&events=div%2Csplits'
+          URL2='https://query2.finance.yahoo.com/v8/finance/chart/ORCL?range=5d&interval=1m&includePrePost=true&events=div%2Csplits'
+          if ! curl -fsSL --retry 2 --connect-timeout 10 --max-time 30 -A 'Mozilla/5.0' "$URL1" -o orcl-minute.json; then
+            curl -fsSL --retry 2 --connect-timeout 10 --max-time 30 -A 'Mozilla/5.0' "$URL2" -o orcl-minute.json
+          fi
+          node - <<'NODE'
+          const fs=require('fs');
+          const p=JSON.parse(fs.readFileSync('orcl-minute.json','utf8'));
+          const r=p?.chart?.result?.[0];
+          const ts=r?.timestamp||[];
+          const q=r?.indicators?.quote?.[0]||{};
+          const good=ts.filter((_,i)=>Number.isFinite(Number(q.close?.[i]))&&Number(q.close[i])>0);
+          if(good.length<25) throw new Error('ORCL minute feed has fewer than 25 valid bars');
+          if(p?.chart?.error) throw new Error('Yahoo chart error: '+JSON.stringify(p.chart.error));
+          console.log('ORCL minute feed OK:',good.length,'bars');
+          NODE
+
       - name: Fast browser boot gate
         timeout-minutes: 4
         run: |
