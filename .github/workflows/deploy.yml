@@ -49,6 +49,7 @@ jobs:
           node tests/wanted_system_test.mjs
           node tests/gameplay_fun_logic_test.mjs
           node tests/stockstrend_data_test.mjs
+          node tests/price_shock_test.cjs
           node --check sim/player_walk_mode_v4.mjs
           node --check sim/gameplay_final_runtime_v2.mjs
           node --check sim/flight_fire_fx.mjs

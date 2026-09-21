@@ -98,6 +98,18 @@
     .meta{font-size:12px}
   }
 
+  .shock-card{border-left:4px solid var(--line);transition:border-color .15s ease,box-shadow .15s ease}
+  .shock-card.shock-up{border-left-color:var(--green);box-shadow:0 8px 26px rgba(0,199,97,.12)}
+  .shock-card.shock-down{border-left-color:var(--red);box-shadow:0 8px 26px rgba(255,59,48,.12)}
+  .shock-card.shock-up #shockHeadline{color:var(--green)}
+  .shock-card.shock-down #shockHeadline{color:var(--red)}
+  .shock-actions{margin-top:10px}
+  .shock-actions button{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:7px 11px;font:inherit;cursor:pointer}
+  .shock-actions button.on{border-color:var(--text);font-weight:700}
+  .shock-events{margin-top:10px;display:grid;gap:5px}
+  .shock-event{font-size:12px;color:var(--muted)}
+  .shock-event b.up{color:var(--green)} .shock-event b.down{color:var(--red)}
+
 </style>
 </head>
 <body>
@@ -137,6 +149,21 @@
       </div>
       <div class="note" id="freshQuality"></div>
     </div>
+  </div>
+
+  <div class="card shock-card" id="shockCard">
+    <div class="label">Oracle · Preisimpuls <span class="meta" id="shockFeed">1-Minuten-Feed · lädt …</span></div>
+    <div class="big"><span id="shockHeadline">—</span></div>
+    <div class="kpis">
+      <span>Score <b id="shockScore">—</b></span>
+      <span>Bewegung <b id="shockMove">—</b></span>
+      <span>Fenster <b id="shockWindow">—</b></span>
+      <span>vs. normal <b id="shockZ">—</b></span>
+      <span>Volumen <b id="shockVol">—</b></span>
+    </div>
+    <div class="note" id="shockNote">Suche nach plötzlichen Sprüngen, geraden Rampen und Beschleunigungen.</div>
+    <div class="shock-actions"><button type="button" id="shockNotify">Desktop-Alarm</button></div>
+    <div class="shock-events" id="shockEvents"></div>
   </div>
 
   <div class="card">
@@ -180,6 +207,7 @@
   </div>
 </div>
 <footer>BotBot · Social-Signal, keine Anlageberatung</footer>
+<script src="price-shock-core.js"></script>
 <script>
 var LS_RANGE='botbot_wl_range', LS_ACC='botbot_acc_open';
 var wlRange=(function(){ try{ return localStorage.getItem(LS_RANGE)||'1w'; }catch(e){ return '1w'; } })();
@@ -456,67 +484,99 @@ document.getElementById('rangeBar').onclick=function(e){
   Array.prototype.forEach.call(document.querySelectorAll('#rangeBar button'), function(b){b.classList.toggle('active', b===btn);});
   renderAll();
 };
-var REFRESH_MS=60000;
-load();
-setInterval(function(){ load(); }, REFRESH_MS);
-</script>
-</body>
-</html>
-+v;},font:{size:11}},grid:{color:'#f0f0f3'}}}}});
-
-
-  var voices=filterByAt(ev.voices||orcl.voices_archive||[], function(v){return v.at;});
-  var counts={bull:0,mixed:0,bear:0};
-  voices.forEach(function(v){var l=String(v.lean||'mixed').toLowerCase(); if(l!=='bull'&&l!=='bear')l='mixed'; counts[l]++;});
-  var total=counts.bull+counts.mixed+counts.bear;
-  if(pieChart) pieChart.destroy();
-  pieChart=new Chart(document.getElementById('pie'),{type:'doughnut',data:{labels:['Bullisch','Unklar','Bearisch'],datasets:[{data:[counts.bull,counts.mixed,counts.bear],backgroundColor:['#00c761','#ff9500','#ff3b30'],borderWidth:0}]},options:{plugins:{legend:{display:false}},cutout:'64%'}});
-  document.getElementById('pieLeg').textContent=total?('Bullisch '+counts.bull+' · Unklar '+counts.mixed+' · Bearisch '+counts.bear):'Keine Meinungen';
-  var rn={today:'Heute','1d':'1T','1w':'1W','5m':'5M',year:'1J',all:'Gesamt'}[wlRange]||wlRange;
-  document.getElementById('stimmenRange').textContent='('+rn+')';
-  var groups={bull:[],mixed:[],bear:[]};
-  voices.slice().sort(function(a,b){return new Date(b.at||0)-new Date(a.at||0);}).forEach(function(v){
-    var l=String(v.lean||'mixed').toLowerCase(); if(l!=='bull'&&l!=='bear')l='mixed'; groups[l].push(v);
-  });
-  var titles={bull:'Bullisch',mixed:'Unklar',bear:'Bearisch'};
-  var html='';
-  ['bull','mixed','bear'].forEach(function(g){
-    var arr=groups[g]; if(!arr.length) return;
-    html+='<details class="acc '+g+'"><summary>'+titles[g]+' <span>('+arr.length+')</span></summary>';
-    arr.slice(0,8).forEach(function(v){
-      html+='<div class="voice"><span class="voice-at">'+esc(fmtBerlin(v.at)||'ohne Datum')+' · '+esc((String(v.source||v.src||'Social')).toUpperCase())+'</span>'+esc(v.text||'')+(v.url?' <a href="'+esc(v.url)+'" target="_blank" rel="noopener">Öffnen</a>':'')+'</div>';
-    });
-    html+='</details>';
-  });
-  document.getElementById('stimmenList').innerHTML=html||'<div class="meta">Keine Meinungen in diesem Zeitraum.</div>';
-  var accMap=loadAccOpen();
-  Array.prototype.forEach.call(document.querySelectorAll('#stimmenList details.acc'), function(d){
-    var key=(d.className||'').replace(/\s+/g,' ');
-    if(accMap[key]) d.open=true;
-    d.addEventListener('toggle', function(){
-      var m=loadAccOpen();
-      m[key]=d.open;
-      saveAccOpen(m);
-    });
-  });
+var SHOCK_LS='botbot_orcl_price_shocks_v1', SHOCK_NOTIFY_LS='botbot_orcl_shock_notify_v1';
+var shockLastKey='', shockPollBusy=false;
+function shockEventsLoad(){try{return JSON.parse(localStorage.getItem(SHOCK_LS)||'[]');}catch(e){return [];}}
+function shockEventsSave(x){try{localStorage.setItem(SHOCK_LS,JSON.stringify(x.slice(0,30)));}catch(e){}}
+function shockNotifyEnabled(){try{return localStorage.getItem(SHOCK_NOTIFY_LS)==='1';}catch(e){return false;}}
+function renderShockEvents(){
+  var el=document.getElementById('shockEvents'); if(!el)return;
+  var events=shockEventsLoad().slice(0,6);
+  el.innerHTML=events.length?events.map(function(e){
+    var arrow=e.direction==='up'?'↑':'↓',cls=e.direction==='up'?'up':'down';
+    return '<div class="shock-event"><b class="'+cls+'">BÄM '+arrow+' '+e.score+'</b> · '+esc(fmtBerlin(e.at))+' · '+(e.move_pct>0?'+':'')+e.move_pct+' % / '+e.window_minutes+' Min · '+esc(e.pattern)+'</div>';
+  }).join(''):'<div class="shock-event">Noch kein starker Preisimpuls gespeichert.</div>';
 }
-async function load(){
-  var a=await fetch('stockstrend-data.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json();});
-  var b=await fetch('watchlist-data.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json();});
-  var c=await fetch('intrinsic-orcl.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;});
-  tickData=a; wlData=b; ivData=c;
-  Array.prototype.forEach.call(document.querySelectorAll('#rangeBar button'), function(b){
-    b.classList.toggle('active', b.getAttribute('data-range')===wlRange);
-  });
-  renderAll();
+function setShockNotifyButton(){
+  var b=document.getElementById('shockNotify'); if(!b)return;
+  var on=shockNotifyEnabled()&&typeof Notification!=='undefined'&&Notification.permission==='granted';
+  b.textContent=on?'Desktop-Alarm an':'Desktop-Alarm';
+  b.classList.toggle('on',on);
 }
-document.getElementById('rangeBar').onclick=function(e){
-  var btn=e.target.closest('button[data-range]'); if(!btn) return;
-  wlRange=btn.getAttribute('data-range');
-  saveRange(wlRange);
-  Array.prototype.forEach.call(document.querySelectorAll('#rangeBar button'), function(b){b.classList.toggle('active', b===btn);});
-  renderAll();
+async function fetchOrclMinuteBars(){
+  var urls=[
+    'https://query1.finance.yahoo.com/v8/finance/chart/ORCL?range=5d&interval=1m&includePrePost=true&events=div%2Csplits',
+    'https://query2.finance.yahoo.com/v8/finance/chart/ORCL?range=5d&interval=1m&includePrePost=true&events=div%2Csplits'
+  ];
+  var lastErr=null;
+  for(var i=0;i<urls.length;i++){
+    try{
+      var r=await fetch(urls[i],{cache:'no-store'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      var bars=PriceShock.parseYahoo(await r.json());
+      if(bars.length<25)throw new Error('zu wenig Bars');
+      return bars;
+    }catch(e){lastErr=e;}
+  }
+  throw lastErr||new Error('Preisfeed nicht verfügbar');
+}
+function shockDescribe(x){
+  if(!x)return '';
+  var p={sprung:'plötzlicher Sprung',rampe:'geradlinige Rampe',beschleunigung:'Beschleunigung',impuls:'Preisimpuls'}[x.pattern]||x.pattern;
+  if(!x.triggered)return 'Kein ungewöhnlicher Impuls. stärkstes Fenster: '+x.window_minutes+' Min, '+Math.abs(x.move_pct).toLocaleString('de-DE',{maximumFractionDigits:2})+' %.';
+  return p+' · '+x.z.toLocaleString('de-DE',{maximumFractionDigits:1})+'× statistische Norm'+(x.volume_ratio!=null?' · Volumen '+x.volume_ratio.toLocaleString('de-DE',{maximumFractionDigits:1})+'× normal':'');
+}
+function renderShock(x,err){
+  var c=document.getElementById('shockCard'),h=document.getElementById('shockHeadline');
+  if(!c||!h)return;
+  c.classList.remove('shock-up','shock-down');
+  if(err){
+    h.textContent='Feed nicht verfügbar';
+    document.getElementById('shockFeed').textContent='1-Minuten-Feed · Fehler';
+    document.getElementById('shockNote').textContent='Preisfeed konnte nicht geladen werden. Social- und Intrinsic-Daten laufen unabhängig weiter.';
+    return;
+  }
+  var arrow=x.direction==='up'?'↑':'↓';
+  h.textContent=x.triggered?('BÄM '+arrow+' '+x.score):'ruhig';
+  if(x.triggered)c.classList.add(x.direction==='up'?'shock-up':'shock-down');
+  document.getElementById('shockFeed').textContent='1-Minuten-Feed · '+fmtBerlin(x.at);
+  document.getElementById('shockScore').textContent=x.score+'/100';
+  document.getElementById('shockMove').textContent=(x.move_pct>0?'+':'')+x.move_pct.toLocaleString('de-DE',{maximumFractionDigits:2})+' %';
+  document.getElementById('shockWindow').textContent=x.window_minutes+' Min';
+  document.getElementById('shockZ').textContent=x.z.toLocaleString('de-DE',{maximumFractionDigits:1})+'×';
+  document.getElementById('shockVol').textContent=x.volume_ratio==null?'—':x.volume_ratio.toLocaleString('de-DE',{maximumFractionDigits:1})+'×';
+  document.getElementById('shockNote').textContent=shockDescribe(x);
+  if(x.triggered){
+    var key=x.at+'|'+x.direction+'|'+x.pattern;
+    if(key!==shockLastKey){
+      shockLastKey=key;
+      var ev=shockEventsLoad();
+      ev.unshift(x); shockEventsSave(ev); renderShockEvents();
+      if(x.score>=80&&shockNotifyEnabled()&&typeof Notification!=='undefined'&&Notification.permission==='granted'){
+        try{new Notification('ORCL · BÄM '+arrow+' '+x.score,{body:(x.move_pct>0?'+':'')+x.move_pct+' % in '+x.window_minutes+' Min · '+x.pattern});}catch(e){}
+      }
+    }
+  }
+}
+async function pollShock(){
+  if(shockPollBusy||typeof PriceShock==='undefined')return;
+  shockPollBusy=true;
+  try{var bars=await fetchOrclMinuteBars();renderShock(PriceShock.analyze(bars),null);}
+  catch(e){renderShock(null,e);}
+  finally{shockPollBusy=false;}
+}
+document.getElementById('shockNotify').onclick=async function(){
+  if(typeof Notification==='undefined'){this.textContent='Nicht unterstützt';return;}
+  if(Notification.permission!=='granted'){
+    var p=await Notification.requestPermission();
+    if(p!=='granted'){this.textContent='Alarm blockiert';return;}
+  }
+  try{localStorage.setItem(SHOCK_NOTIFY_LS,shockNotifyEnabled()?'0':'1');}catch(e){}
+  setShockNotifyButton();
 };
+renderShockEvents(); setShockNotifyButton(); pollShock();
+setInterval(pollShock,20000);
+
 var REFRESH_MS=60000;
 load();
 setInterval(function(){ load(); }, REFRESH_MS);
