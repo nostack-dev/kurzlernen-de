@@ -19,7 +19,7 @@ Do not call `user-Apify-*`, `trudax/*`, `clockworks/*`, or any Apify actor.
 
 - Omit `user-Apify-Reddit` / `user-Apify-TikTok` entirely.
 - Prefer keys: `user-X`, `WebSearch`, `PublicReddit` (aggregators), `user-Treg` (live Reddit/TikTok), optional `user-Bright Data`.
-- `freshness.primary_signal` / `quality` must not mention Apify.
+- Prefer omitting Apify; a single "Apify retired" note in freshness is OK. Never keep `user-Apify-*` keys.
 
 ## Chart UI
 
