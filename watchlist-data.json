@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-09-21T16:25:00+02:00",
+  "updated_at": "2026-09-21T17:05:00+02:00",
   "watchlist": [
     {
       "symbol": "ORCL",
@@ -14,13 +14,13 @@
       "name": "Oracle",
       "added_at": "2026-09-17T11:30:00+02:00",
       "latest": {
-        "at": "2026-09-21T16:25:00+02:00",
+        "at": "2026-09-21T17:05:00+02:00",
         "signal": "hold",
-        "social_impulse": -1,
-        "hype_bull": 38,
-        "hype_bear": 46,
-        "hype_net": -8,
-        "confidence": 71
+        "social_impulse": 1,
+        "hype_bull": 42,
+        "hype_bear": 32,
+        "hype_net": 10,
+        "confidence": 70
       },
       "history": [
         {
@@ -702,6 +702,20 @@
           "voice_bull": 10,
           "voice_bear": 12,
           "voice_mixed": 4,
+          "sentiment_unit": "percent_all_classified"
+        },
+        {
+          "at": "2026-09-21T17:05:00+02:00",
+          "hype_bull": 42,
+          "hype_bear": 32,
+          "hype_net": 10,
+          "social_impulse": 1,
+          "signal": "hold",
+          "confidence": 70,
+          "hype_mixed": 26,
+          "voice_bull": 17,
+          "voice_bear": 13,
+          "voice_mixed": 10,
           "sentiment_unit": "percent_all_classified"
         }
       ],
@@ -2732,22 +2746,26 @@
         }
       ],
       "signal": "hold",
-      "social_impulse": -1,
-      "impulse": -1,
-      "hype_bull": 38,
-      "hype_bear": 46,
-      "hype_net": -8,
-      "confidence": 71,
+      "social_impulse": 1,
+      "impulse": 1,
+      "hype_bull": 42,
+      "hype_bear": 32,
+      "hype_net": 10,
+      "confidence": 70,
       "hype_state": "mixed",
-      "updated_at": "2026-09-21T16:25:00+02:00",
-      "why": "Schulden, Kredit-Stress und Entlassungsgerüchte wiegen etwas schwerer als Dip-Käufe. SoftBank-Anleihen halten den Druck.",
+      "updated_at": "2026-09-21T17:05:00+02:00",
+      "why": "Schulden und SoftBank-Anleihen bleiben der Gegenwind. Dip-Käufe und Stifel-Buy halten es gemischt.",
       "evidence": {
-        "x_posts": 22,
+        "x_posts": 24,
         "reddit_posts": 0,
         "news": 5
       },
-      "voices": "bull10/bear12/mixed4",
-      "hype_mixed": 16,
+      "voices": {
+        "bull": 17,
+        "bear": 13,
+        "mixed": 10
+      },
+      "hype_mixed": 26,
       "sentiment_unit": "percent_all_classified"
     }
   }
