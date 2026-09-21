@@ -66,8 +66,8 @@
   .voice-at { display:block; color: var(--muted); font-size: 11px; margin-bottom: 2px; font-variant-numeric: tabular-nums; }
 
   .chart-wrap { position: relative; width: 100%; }
-  .chart-wrap-lg { height: 240px; margin-top: 4px; overflow: visible; }
-  .chart-wrap-lg canvas { width: 100% !important; height: 240px !important; }
+  .chart-wrap-lg { height: 300px; margin-top: 4px; overflow: visible; }
+  .chart-wrap-lg canvas { width: 100% !important; height: 300px !important; }
   .chart-wrap-sm { height: 160px; margin-top: 4px; }
   .chart-wrap-sm canvas { width: 100% !important; height: 160px !important; }
   .chart-card-lg, .chart-card-sm { margin-bottom: 12px; }
@@ -76,8 +76,8 @@
   .meta { font-size: 12px; line-height: 1.35; }
   #magNow { font-weight: 700; color: var(--ink); margin-left: 6px; }
   @media (max-width:700px){
-     .chart-wrap-lg { height: 240px; }
-    .chart-wrap-lg canvas { height: 200px !important; }
+     .chart-wrap-lg { height: 300px; }
+    .chart-wrap-lg canvas { height: 280px !important; }
     .chart-wrap-sm { height: 160px; }
     .chart-wrap-sm canvas { height: 180px !important; }
   }
@@ -90,8 +90,8 @@
 
   footer{color:#4a4a52;font-size:12px;opacity:1}
   @media (max-width:700px){
-    .chart-wrap-lg{height:200px}
-    .chart-wrap-lg canvas{height:200px !important}
+    .chart-wrap-lg{height:260px}
+    .chart-wrap-lg canvas{height:260px !important}
     .chart-wrap-sm{height:150px}
     .chart-wrap-sm canvas{height:150px !important}
     .label{font-size:13px}
@@ -353,9 +353,10 @@ function renderAll(){
   var hypeAxis=hist.map(function(h){return fmtAxis(h.at);});
   if(hypeChart) hypeChart.destroy();
   hypeChart=new Chart(document.getElementById('hypeChart'),{type:'line',data:{labels:hypeAxis,datasets:[
-    {label:'Bullisch %',data:hist.map(function(h){return directionalPct(h).bull;}),borderColor:'#00c761',backgroundColor:'#00c761',tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5},
-    {label:'Bearisch %',data:hist.map(function(h){return directionalPct(h).bear;}),borderColor:'#ff3b30',backgroundColor:'#ff3b30',tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5}
-  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:8,bottom:4,left:12,right:8}},interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:13},padding:8}},tooltip:tipBase(hypeFull,'hype')},scales:{x:axisX(),y:{min:0,max:100,ticks:{color:'#6b6b76',font:{size:11},callback:function(v){return v+' %';}},grid:{color:'#f0f0f3'},title:{display:false}}}}});
+    {label:'Bullisch %',data:hist.map(function(h){return directionalPct(h).bull;}),borderColor:'#00c761',backgroundColor:'#00c761',tension:.25,pointRadius:3,pointHoverRadius:7,borderWidth:2},
+    {label:'Bearisch %',data:hist.map(function(h){return directionalPct(h).bear;}),borderColor:'#ff3b30',backgroundColor:'#ff3b30',tension:.25,pointRadius:3,pointHoverRadius:7,borderWidth:2},
+    {label:'Stimmung',data:hist.map(function(h){return stimmungNorm(h);}),borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',borderDash:[5,4],tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5}
+  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:16,bottom:12,left:12,right:10}},interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:13},padding:10}},tooltip:tipBase(hypeFull,'hype')},scales:{x:axisX(),y:{grace:'15%',ticks:{color:'#6b6b76',font:{size:11},callback:function(v){return v+' %';}},grid:{color:'#f0f0f3'},title:{display:false}}}}});
 
   var mhist=filterByAt(tickData.history||[], function(h){return h.scraped_at||h.tick_id||h.at;});
   if(!mhist.length && (t.mini_series||[]).length){
