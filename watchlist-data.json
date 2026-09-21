@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-09-21T19:35:00+02:00",
+  "updated_at": "2026-09-21T20:00:00+02:00",
   "watchlist": [
     {
       "symbol": "ORCL",
@@ -14,13 +14,13 @@
       "name": "Oracle",
       "added_at": "2026-09-17T11:30:00+02:00",
       "latest": {
-        "at": "2026-09-21T19:35:00+02:00",
+        "at": "2026-09-21T20:00:00+02:00",
         "signal": "hold",
         "social_impulse": 0,
-        "hype_bull": 35,
-        "hype_bear": 40,
-        "hype_net": -5,
-        "confidence": 68
+        "hype_bull": 25,
+        "hype_bear": 38,
+        "hype_net": -13,
+        "confidence": 65
       },
       "history": [
         {
@@ -760,9 +760,80 @@
           "voice_mixed": 5,
           "sentiment_unit": "percent_all_classified",
           "price": 148.61
+        },
+        {
+          "at": "2026-09-21T20:00:00+02:00",
+          "hype_bull": 25,
+          "hype_bear": 38,
+          "hype_net": -13,
+          "social_impulse": 0,
+          "signal": "hold",
+          "confidence": 65,
+          "hype_mixed": 37,
+          "voice_bull": 2,
+          "voice_bear": 3,
+          "voice_mixed": 3,
+          "sentiment_unit": "percent_all_classified",
+          "price": 149.17
         }
       ],
       "voices_archive": [
+        {
+          "source": "News",
+          "text": "SoftBank startet >$10B+$€1B Anleihen für OpenAI; Pricing ~24.09.",
+          "url": "https://www.reuters.com/business/media-telecom/softbank-group-launches-over-10-billion-bonds-openai-investment-term-sheet-shows-2026-09-21/",
+          "lean": "bear",
+          "at": "2026-09-21T20:02:00+02:00"
+        },
+        {
+          "source": "News",
+          "text": "ORCL-Schulden und KI-Ausbau bleiben unter Druck.",
+          "url": "https://finance.yahoo.com/markets/stocks/articles/oracle-junk-bond-fears-debt-173300814.html",
+          "lean": "bear",
+          "at": "2026-09-21T20:02:00+02:00"
+        },
+        {
+          "source": "News",
+          "text": "Wall Street grün: S&P ~+1%, NQ ~+1.6%; Öl nachgeben.",
+          "url": "https://www.reuters.com/business/wall-st-futures-rise-ai-stocks-gain-oil-prices-slide-2026-09-21/",
+          "lean": "bull",
+          "at": "2026-09-21T20:02:00+02:00"
+        },
+        {
+          "source": "News",
+          "text": "BTC ~$86k risk-on, Session stützt Risikoassets.",
+          "url": "https://cointelegraph.com/markets/bitcoin-price-86k-analysis-sees-crypto-new-bull-market",
+          "lean": "bull",
+          "at": "2026-09-21T20:02:00+02:00"
+        },
+        {
+          "source": "News",
+          "text": "ORCL ~$149, leicht im Plus bei KI-Session.",
+          "url": "https://finance.yahoo.com/quote/ORCL",
+          "lean": "mixed",
+          "at": "2026-09-21T20:02:00+02:00"
+        },
+        {
+          "source": "Reddit",
+          "text": "ApeWisdom: ORCL 5 Mentions/24h WSB, Sentiment ~50/50.",
+          "url": "https://apewisdom.io/stocks/ORCL/",
+          "lean": "mixed",
+          "at": "2026-09-21T20:02:00+02:00"
+        },
+        {
+          "source": "Reddit",
+          "text": "AltIndex: ~30 daily Mentions, Reddit-Sentiment 46/100 eher vorsichtig.",
+          "url": "https://altindex.com/ticker/orcl/reddit-mentions",
+          "lean": "bear",
+          "at": "2026-09-21T20:02:00+02:00"
+        },
+        {
+          "source": "Reddit",
+          "text": "TheDistributed 30d: 1403 Mentions, 50% bull / 17% bear / 33% neutral.",
+          "url": "https://thedistributed.co/stocks/ORCL/",
+          "lean": "mixed",
+          "at": "2026-09-21T20:02:00+02:00"
+        },
         {
           "source": "Reddit",
           "text": "Gemischt: Chancen im Cloud-Geschäft, Risiken bei den Schulden.",
@@ -3111,24 +3182,24 @@
       "signal": "hold",
       "social_impulse": 0,
       "impulse": 0,
-      "hype_bull": 35,
-      "hype_bear": 40,
-      "hype_net": -5,
-      "confidence": 68,
+      "hype_bull": 25,
+      "hype_bear": 38,
+      "hype_net": -13,
+      "confidence": 65,
       "hype_state": "mixed",
-      "updated_at": "2026-09-21T19:35:00+02:00",
-      "why": "SoftBank-Anleihen und ORCL-Schulden bleiben Gegenwind. Kurs leicht grün und Dip-Käufe halten es gemischt.",
+      "updated_at": "2026-09-21T20:00:00+02:00",
+      "why": "SoftBank-Anleihen und ORCL-Schulden bleiben Gegenwind. Kurs leicht grün hält es gemischt.",
       "evidence": {
-        "x_posts": 20,
+        "x_posts": 0,
         "reddit_posts": 0,
         "news": 5
       },
       "voices": {
-        "bull": 7,
-        "bear": 8,
-        "mixed": 5
+        "bull": 2,
+        "bear": 3,
+        "mixed": 3
       },
-      "hype_mixed": 25,
+      "hype_mixed": 37,
       "sentiment_unit": "percent_all_classified"
     }
   }
