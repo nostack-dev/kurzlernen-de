@@ -1,64 +1,66 @@
 {
-  "updated_at": "2026-09-17T12:00:00+02:00",
+  "updated_at": "2026-09-21T08:15:00+02:00",
   "timezone": "Europe/Berlin",
   "tick": {
-    "tick_id": "2026-09-17T12:00:00+02:00",
-    "scraped_at": "2026-09-17T12:00:00+02:00",
+    "tick_id": "2026-09-21T08:15:00+02:00",
+    "scraped_at": "2026-09-21T08:15:00+02:00",
     "timezone": "Europe/Berlin",
     "sources": {
       "user-X": {
         "status": "ok",
-        "items": 100,
+        "items": 92,
         "breakdown": {
           "trends_usa": 20,
           "trends_germany": 15,
-          "news": 15,
-          "posts_sampled": 50
+          "news": 12,
+          "posts_sampled": 45
         },
         "counts_24h": {
-          "nvda": 4030,
-          "tsla": 3613,
-          "btc": 206359,
-          "composite": 214002,
-          "orcl": 685,
-          "msft": 1048
+          "nvda": 2567,
+          "tsla": 2090,
+          "btc": 177457,
+          "composite": 182114,
+          "orcl": 398
         },
         "counts_7d": {},
-        "freshest": "2026-09-17T09:47:00Z (~0–1 min)",
-        "window": "Posts/News recency ≤24h; Counts ~24h hourly",
-        "credits_before_usd": 7.23,
-        "credits_after_usd": 6.94,
-        "credits_spent_usd": 0.29
+        "freshest": "2026-09-21T06:12:00Z (~0–1 min)",
+        "window": "Posts/News recency ≤24–48h; Counts ~24h hourly",
+        "credits_before_usd": 6.44,
+        "credits_after_usd": 6.03,
+        "credits_spent_usd": 0.41
       },
       "user-Apify-Reddit": {
-        "status": "partial_ok",
-        "items": 3,
+        "status": "ok",
+        "items": 22,
         "subreddits": [
-          "OracleStock"
+          "OracleStock",
+          "wallstreetbets",
+          "stocks",
+          "StockMarket"
         ],
-        "window": "hot/week ~24–48h",
-        "freshest_item_age": "~3h",
-        "run_id": "isIDmTnTclQffthXV",
-        "note": "Hot WSB/stocks/StockMarket/Crypto run D3ske2Jp2TNCS67OU TIMED-OUT 0 items. ORCL r/OracleStock SUCCEEDED 3 items."
+        "window": "hot/week ~24–72h",
+        "freshest_item_age": "~2–4h (r/StockMarket PEP; r/OracleStock bullish research)",
+        "run_id": "HDgSnGVsTBE5MDgf9",
+        "note": "trudax/reddit-scraper-lite 22 posts; 8 r/OracleStock + WSB/stocks/StockMarket."
       },
       "user-Apify-TikTok": {
         "status": "ok",
-        "items": 11,
-        "freshest": "2026-09-17T02:09:55Z (~10h)",
-        "oldest": "2025-07-04T23:20:48Z (stale row filtered from usable)",
-        "note": "Free-Cap; 12 rows → 11 usable (1 ancient MSFT clip).",
-        "run_id": "cm5Qadyc04hY5uEjW"
+        "items": 9,
+        "freshest": "2026-09-20T11:17:36Z (~21h)",
+        "oldest": "2026-04-27 (stale rows filtered)",
+        "note": "Free-Cap clockworks/free-tiktok-scraper; 12 rows → 9 usable (3 ancient >30d filtered). run_id=weoxmgr0bzXryZ6O0",
+        "run_id": "weoxmgr0bzXryZ6O0"
       },
       "WebSearch": {
         "status": "ok",
         "items": 5,
-        "window": "same-day 2026-09-17",
+        "window": "same-day 2026-09-21",
         "notes": [
-          "Reuters: shares tick higher / Asia rebound post Fed hike",
-          "Tickmill: ES/NQ futures +0.6–0.7% relief",
-          "X/CNN: F&G ~24 Extreme Fear (some prints Fear ~26)",
-          "Goldman now prices Oct hike; Oct odds ~53%",
-          "Fed hike 25bp to 3.75–4.00% (Warsh) + DXY 7-week high"
+          "Mon futures: ES ~+0.3–0.5%, NQ ~+0.3–0.6% into open; oil softens from ~$100",
+          "Fed digestion: Warsh hike 3.75–4.00%; Oct hike odds ~58%, Dec ~75%; 10y ~4.9–5%",
+          "Crypto F&G ~70 Greed (alt.me); BTC holds ~$81k despite hike/Clarity setback",
+          "Trump–Xi summit week + Mideast/Houthi risk caps risk-on",
+          "ORCL: debt/Project-Jupiter FUD + Reddit sustain/~148; Motley Fool CapEx/debt debate"
         ]
       },
       "user-Bright Data": {
@@ -78,63 +80,37 @@
       }
     },
     "totals": {
-      "content_items_usable": 119,
+      "content_items_usable": 128,
       "breakdown": {
         "x_trends": 35,
-        "x_news": 15,
-        "x_posts": 50,
-        "reddit": 3,
-        "tiktok": 11,
+        "x_news": 12,
+        "x_posts": 45,
+        "reddit": 22,
+        "tiktok": 9,
         "websearch": 5
       }
     },
     "freshness": {
       "freshest_absolute": "X post ~0–1 min",
-      "primary_signal": "Minuten (X) bis ~24h (Reddit/News); TikTok Stunden–Tage",
-      "quality": "hoch X+Web; mittel TikTok; Reddit partial (ORCL only); Auth-Fails Bright Data/Treg/Monid",
-      "scrape_berlin": "2026-09-17T12:00:00+02:00",
+      "primary_signal": "Minuten (X) bis ~24–72h (Reddit/News); TikTok Stunden–Tage",
+      "quality": "hoch X+Web+Reddit; mittel TikTok (oracle hashtag noise); Auth-Fails Bright Data/Treg; Monid skip",
+      "scrape_berlin": "2026-09-21T08:15:00+02:00",
       "sample_window": "X posts seconds–minutes; news ≤48h; Reddit hot; TikTok mixed ages",
       "freshest_item_age": "~0–1 min",
-      "oldest_usable_signal": "Reddit ~1d; TikTok primary ~10h"
+      "oldest_usable_signal": "TikTok ORCL clips ~10–11d; Reddit ~4d"
     },
     "vector": {
-      "direction": "leicht_bearish_risk_off",
-      "magnitude": 51,
-      "confidence": 78,
+      "direction": "mixed_cautious",
+      "magnitude": 40,
+      "confidence": 71,
       "early_signal": true,
-      "early_signal_note": "Futures bounce continues; F&G Extreme Fear ~24–26; Goldman/Oct-hike ~53%; DXY 7w high; Tom Lee overreaction/Q4-rally counter"
+      "early_signal_note": "Mon futures bounce + crypto F&G~70 Greed; residual Fed hawkish path (Oct/Dec hike odds), 10y~5%, oil geopolitics; breadth warning under S&P highs"
     },
     "top_themes": [
       {
-        "theme": "Fed/Rate Hike",
-        "sentiment": "bearish",
-        "strength": 82,
-        "symbol": "SPY",
-        "symbol_note": "Proxy: S&P 500 ETF",
-        "bias": "risk_off",
-        "bias_label": "Vorsicht / Bias risk-off",
-        "links": {
-          "tradingview": "https://www.tradingview.com/symbols/SPY/",
-          "yahoo": "https://finance.yahoo.com/quote/SPY"
-        }
-      },
-      {
-        "theme": "Fear & Greed Stocks ~24–26",
-        "sentiment": "bearish",
-        "strength": 80,
-        "symbol": "SPY",
-        "symbol_note": "Proxy: Markt-Gauge",
-        "bias": "risk_off",
-        "bias_label": "Vorsicht / Bias risk-off",
-        "links": {
-          "tradingview": "https://www.tradingview.com/symbols/SPY/",
-          "yahoo": "https://finance.yahoo.com/quote/SPY"
-        }
-      },
-      {
-        "theme": "Futures Bounce post-Fed",
+        "theme": "Mon Futures Bounce / Open",
         "sentiment": "leicht_bullish",
-        "strength": 76,
+        "strength": 74,
         "symbol": "ES=F",
         "symbol_note": "S&P Futures",
         "bias": "risk_on",
@@ -145,89 +121,108 @@
         }
       },
       {
-        "theme": "Goldman Oct-hike / DXY",
+        "theme": "Fed Hawkish Path / Yields ~5%",
         "sentiment": "bearish",
-        "strength": 74,
-        "symbol": "DX-Y.NYB",
-        "symbol_note": "US Dollar Index",
-        "bias": "lean_off",
-        "bias_label": "Leicht risk-off",
+        "strength": 78,
+        "symbol": "SPY",
+        "symbol_note": "Proxy: S&P 500 ETF",
+        "bias": "risk_off",
+        "bias_label": "Vorsicht / Bias risk-off",
         "links": {
-          "tradingview": "https://www.tradingview.com/symbols/TVC:DXY/",
-          "yahoo": "https://finance.yahoo.com/quote/DX-Y.NYB"
+          "tradingview": "https://www.tradingview.com/symbols/SPY/",
+          "yahoo": "https://finance.yahoo.com/quote/SPY"
         }
       },
       {
-        "theme": "BTC/Crypto holds ~76k",
-        "sentiment": "mixed",
-        "strength": 66,
+        "theme": "Crypto F&G ~70 Greed / BTC ~81k",
+        "sentiment": "bullish",
+        "strength": 72,
         "symbol": "BTC-USD",
-        "symbol_note": "Bitcoin ~76k holds post Clarity+Fed",
-        "bias": "watch",
-        "bias_label": "Nur beobachten",
+        "symbol_note": "Bitcoin holds post-hike",
+        "bias": "risk_on",
+        "bias_label": "Beobachten / Bias risk-on",
         "links": {
           "tradingview": "https://www.tradingview.com/symbols/BINANCE:BTCUSDT/",
           "yahoo": "https://finance.yahoo.com/quote/BTC-USD"
         }
+      },
+      {
+        "theme": "Trump–Xi + Mideast / Oil",
+        "sentiment": "mixed",
+        "strength": 68,
+        "symbol": "CL=F",
+        "symbol_note": "WTI crude geopolitics",
+        "bias": "watch",
+        "bias_label": "Nur beobachten",
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/NYMEX:CL1!/",
+          "yahoo": "https://finance.yahoo.com/quote/CL=F"
+        }
+      },
+      {
+        "theme": "Narrow Breadth under ATH tape",
+        "sentiment": "bearish",
+        "strength": 70,
+        "symbol": "SPY",
+        "symbol_note": "Mega-cap leadership / weak breadth",
+        "bias": "lean_off",
+        "bias_label": "Leicht risk-off",
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/SPY/",
+          "yahoo": "https://finance.yahoo.com/quote/SPY"
+        }
       }
     ],
     "delta_vs_prev": {
-      "prev_tick_id": "2026-09-17T11:45:00+02:00",
-      "magnitude_delta": -2,
-      "confidence_delta": 1,
+      "prev_tick_id": "2026-09-17T12:00:00+02:00",
+      "magnitude_delta": -11,
+      "confidence_delta": -7,
       "direction_prev": "leicht_bearish_risk_off",
-      "direction_now": "leicht_bearish_risk_off",
-      "direction_changed": false,
+      "direction_now": "mixed_cautious",
+      "direction_changed": true,
       "early_signal_prev": true,
       "early_signal_now": true,
       "early_signal_flipped": false,
-      "volume_prev": 129,
-      "volume_now": 119,
-      "volume_change_pct": -7.8,
+      "volume_prev": 119,
+      "volume_now": 128,
+      "volume_change_pct": 7.6,
       "new_themes": [
-        "Goldman Oct-hike / DXY"
+        "Mon Futures Bounce / Open",
+        "Crypto F&G ~70 Greed / BTC ~81k",
+        "Trump–Xi + Mideast / Oil",
+        "Narrow Breadth under ATH tape"
       ],
       "gone_themes": [
-        "Oil/Risk-off tape"
+        "Fear & Greed Stocks ~24–26",
+        "Futures Bounce post-Fed",
+        "Goldman Oct-hike / DXY",
+        "BTC/Crypto holds ~76k",
+        "Fed/Rate Hike"
       ],
-      "sentiment_swings": [],
-      "theme_strength_deltas": [
+      "sentiment_swings": [
         {
-          "theme": "Fed/Rate Hike",
-          "from": 84,
-          "to": 82
-        },
-        {
-          "theme": "Fear & Greed",
-          "from": 84,
-          "to": 80
-        },
-        {
-          "theme": "Futures Bounce",
-          "from": 78,
-          "to": 76
-        },
-        {
-          "theme": "BTC/Crypto",
-          "from": 68,
-          "to": 66
+          "theme": "Crypto/F&G",
+          "from": "extreme_fear_stocks~24 + BTC mixed",
+          "to": "crypto_greed~70 / BTC~81k"
         }
       ],
-      "note": "Digestion tick: mag softens further (53→51) on futures bounce + Tom-Lee overreaction; Goldman Oct-hike + F&G keep risk-off; Reddit hot timeout"
+      "theme_strength_deltas": [],
+      "note": "4-day gap tick: Fed hike digested; futures green Mon + crypto greed flip softens risk-off into mixed_cautious; ORCL still Hold"
     },
-    "material_change": false,
+    "material_change": true,
     "material_change_reasons": [
-      "|Δmag|=2<10",
-      "direction unchanged",
-      "watchlist signals unchanged (ORCL hold, MSFT hold)",
-      "Futures bounce + Goldman Oct-hike narrative; F&G~24–26",
-      "volume -7.8% (abs<30)"
+      "|Δmag|=11≥10 (51→40)",
+      "direction leicht_bearish_risk_off→mixed_cautious",
+      "early_signal unchanged (true)",
+      "watchlist ORCL hold unchanged",
+      "futures green Mon open + crypto F&G~70 Greed vs residual Fed hawkish / 10y~5% / oil geopolitics",
+      "volume 7.6% (abs<30)"
     ],
     "chart": null,
     "baseline": false,
     "scrape_window": {
-      "start": "2026-09-17T11:46:00+02:00",
-      "end": "2026-09-17T12:00:00+02:00"
+      "start": "2026-09-21T08:00:00+02:00",
+      "end": "2026-09-21T08:15:00+02:00"
     },
     "volume_enriched": true,
     "mini_series": [
@@ -265,11 +260,18 @@
         "direction": "leicht_bearish_risk_off",
         "magnitude": 51,
         "confidence": 78
+      },
+      {
+        "tick": 6,
+        "at": "2026-09-21T08:15:00+02:00",
+        "direction": "mixed_cautious",
+        "magnitude": 40,
+        "confidence": 71
       }
     ],
     "overall_bias": {
-      "key": "lean_off",
-      "label": "Leicht risk-off",
+      "key": "mixed",
+      "label": "Gemischt / vorsichtig",
       "disclaimer": "Kein Trade-Call / keine Kaufempfehlung — nur aggregiertes Social-Sentiment."
     },
     "macro_calendar": [
@@ -305,8 +307,8 @@
     "katalysator_druck": {
       "next_shock": "nfp",
       "next_shock_label": "US Jobs (NFP) Fr 02.10.2026 14:30 Berlin",
-      "days_approx": 15,
-      "note": "Nächster Makro-Schock: NFP; danach CPI 14.10, FOMC 28.10"
+      "days_approx": 11,
+      "note": "Nächster Makro-Schock: NFP in ~11 Tagen; danach CPI 14.10, FOMC 28.10"
     },
     "stock_signals": [
       {
@@ -314,53 +316,88 @@
         "name": "Oracle",
         "hype_state": "mixed",
         "signal": "hold",
-        "confidence": 72,
-        "social_impulse": 5,
-        "why": "Dip-buy chatter + OCI/AI-infra bulls offset fresh layoff/restructuring headlines. Volume cooler (~685/24h $ORCL). Mixed → Hold.",
+        "confidence": 70,
+        "social_impulse": 2,
+        "why": "Post-Fed digestion: Reddit sustain/~148 rebound bulls + 50EMA continuation offset Project-Jupiter/debt/India-layoff bears. $ORCL vol ~398/24h (cooler). Mixed → Hold.",
         "evidence": {
-          "x_posts": 16,
-          "reddit_posts": 3,
+          "x_posts": 12,
+          "reddit_posts": 8,
           "news": 2,
           "snippets": [
-            "AI restructuring / job cuts amid $70B cloud spend (X)",
-            "Dip-buy starter $ORCL + OCI/AI-infra stack mentions (X)",
-            "r/OracleStock: down-day ≠ thesis; entry ~140 / rebound talk (Reddit)"
+            "r/OracleStock: sustaining ~148 post-hike; neoclouds down / ORCL up (Reddit)",
+            "Project Jupiter financing FUD SOFR+500 + Barron's leverage critique (X)",
+            "India ~3k cuts / OFSS −6.5% on $18B DC debt overhang (X/News)"
           ],
           "voices": [
             {
               "source": "X",
-              "text": "Oracle AI Restructuring: Why Job Cuts Mount Despite $70B Cloud Spending",
-              "url": "https://x.com/nxtmedia_in/status/2100521101764043041",
-              "lean": "bear",
-              "at": "2026-09-17T11:43:51+02:00"
-            },
-            {
-              "source": "X",
-              "text": "AI-Infrastructure stack: $ORCL in data centers layer (with CRWV/IREN/NBIS).",
-              "url": "https://x.com/MMatters22596/status/2100520969911570838",
+              "text": "Oracle | $ORCL — historically whenever it dips below the 50 EMA and prints a strong close back above it, continuation almost always follows.",
+              "url": "https://x.com/NexusCoOfficial/status/2101903236831822140",
               "lean": "bull",
-              "at": "2026-09-17T11:43:19+02:00"
+              "at": "2026-09-21T07:15:57+02:00"
             },
             {
               "source": "X",
-              "text": "Picked up a few $ORCL shares as a starter position yesterday.",
-              "url": "https://x.com/steady_profits/status/2100519885491101872",
-              "lean": "bull",
-              "at": "2026-09-17T11:39:01+02:00"
-            },
-            {
-              "source": "X",
-              "text": "Is Adobe Finally Turning a Corner? … & Oracle Doubles Down on AI (podcast).",
-              "url": "https://x.com/cdn_investing/status/2100514056738066683",
+              "text": "$ORCL weekend FUD around Project Jupiter becoming “distressed.” Deal moved SOFR+250→~SOFR+500 (~8.85%). Ugly, but everyone financing compute at once.",
+              "url": "https://x.com/signalcalls/status/2101916544762593392",
               "lean": "mixed",
-              "at": "2026-09-17T11:15:51+02:00"
+              "at": "2026-09-21T08:08:50+02:00"
+            },
+            {
+              "source": "X",
+              "text": "@barronsonline is doing a disfavor recommending Oracle $ORCL — $3.60 LT debt per $1 equity; weakest of tech giants in high-rate environment.",
+              "url": "https://x.com/npunwani/status/2101886735215132676",
+              "lean": "bear",
+              "at": "2026-09-21T06:10:23+02:00"
+            },
+            {
+              "source": "X",
+              "text": "Oracle caps severance at 26 weeks as fresh India cuts hit ~3,000 — unvested stock cancelled; AI CapEx while headcount shrinks.",
+              "url": "https://x.com/Aismindiia/status/2101914754906566950",
+              "lean": "bear",
+              "at": "2026-09-21T08:01:43+02:00"
+            },
+            {
+              "source": "X",
+              "text": "OFSS shares fall ~6.5% on Oracle debt concerns linked to planned $18B data-centre expansion.",
+              "url": "https://x.com/sisbl_in/status/2101916773281067164",
+              "lean": "bear",
+              "at": "2026-09-21T08:09:45+02:00"
+            },
+            {
+              "source": "X",
+              "text": "My “don’t ignore these” watchlist: $ORCL — AI cloud (with quantum/nuclear/space names).",
+              "url": "https://x.com/DrWhoTradess/status/2101903969551290686",
+              "lean": "bull",
+              "at": "2026-09-21T07:18:52+02:00"
+            },
+            {
+              "source": "X",
+              "text": "Net Profits of $3T bond issuance by Hyperscalers/Neo-Clouds — US Pension System about to fail. $ORCL among names.",
+              "url": "https://x.com/rdd147/status/2101886774603915486",
+              "lean": "bear",
+              "at": "2026-09-21T06:10:32+02:00"
             },
             {
               "source": "Reddit",
-              "text": "Oracle down — relax; OCI +121%, ~$31B cash; long thesis, not day-trade.",
-              "url": "https://www.reddit.com/r/OracleStock/comments/1wi1czv/oracle_is_down_omg/",
+              "text": "$ORCL sustaining surprisingly well — only dipped to ~140 post-hike, rebound toward 150; sitting ~148, short-term growth possible.",
+              "url": "https://www.reddit.com/r/OracleStock/comments/1wk23vp/orcl_is_sustaining_surprisingly_well/",
               "lean": "bull",
-              "at": "2026-09-16T18:01:43+02:00"
+              "at": "2026-09-18T22:52:55+02:00"
+            },
+            {
+              "source": "Reddit",
+              "text": "Wow, all Neoclouds down and Oracle up — once-in-lifetime; trimmed 30% at 150 after buys ~140–145.",
+              "url": "https://www.reddit.com/r/OracleStock/comments/1wiuinx/wow_all_neoclouds_down_and_oracle_up/",
+              "lean": "bull",
+              "at": "2026-09-17T15:48:35+02:00"
+            },
+            {
+              "source": "Reddit",
+              "text": "Oracle stock bullish research — substantial position; consolidated bullish write-up shared.",
+              "url": "https://www.reddit.com/r/OracleStock/comments/1wlzo9e/oracle_stock_bullish_research/",
+              "lean": "bull",
+              "at": "2026-09-21T04:00:28+02:00"
             },
             {
               "source": "Reddit",
@@ -371,24 +408,24 @@
             },
             {
               "source": "Reddit",
-              "text": "What is a good entry price? Watching ~$140 for rebound by year-end.",
-              "url": "https://www.reddit.com/r/OracleStock/comments/1whoro1/what_is_a_good_entry_price/",
-              "lean": "bull",
-              "at": "2026-09-16T08:03:53+02:00"
+              "text": "Oracle FY2026 10-K: US revenue $39.8B (59.1% high geo risk); Cloud & Software 86.9%; hardware fading.",
+              "url": "https://www.reddit.com/r/OracleStock/comments/1wkql6n/oracle_orcl_fy2026_10k_data_us_revenue_hits_398b/",
+              "lean": "mixed",
+              "at": "2026-09-19T18:27:13+02:00"
             },
             {
               "source": "News",
-              "text": "Oracle cuts ~2–2.5k jobs in India amid AI CapEx surge; 6am lockout emails.",
-              "url": "https://x.com/i/trending/2100208591869284480",
+              "text": "Motley Fool: ORCL down ~53% from peak — OCI +120% but $117B+ debt and OpenAI backlog concentration keep valuation compressed.",
+              "url": "https://www.fool.com/investing/2026/09/17/should-buy-oracle-stock-down-53-peak-answer-you/",
               "lean": "bear",
-              "at": "2026-09-16T15:11:22+02:00"
+              "at": "2026-09-17T12:25:00+02:00"
             },
             {
               "source": "News",
-              "text": "Oracle abrupt 6am layoff emails; AI infra push amid global headcount cuts.",
-              "url": "https://x.com/i/trending/2099493708953493681",
-              "lean": "bear",
-              "at": "2026-09-16T14:14:05+02:00"
+              "text": "Stock futures climb Monday; SPY resilience watch after Fed hike — traders eye bull flag / 7675 resistance.",
+              "url": "https://x.com/i/trending/2101864904172896372",
+              "lean": "mixed",
+              "at": "2026-09-21T07:08:07+02:00"
             }
           ]
         },
@@ -398,403 +435,7 @@
         }
       }
     ],
-    "signals_disclaimer": "Social-Signal, keine Finanzberatung."
+    "signals_disclaimer": ""
   },
-  "disclaimer": "Social-Signal, keine Finanzberatung.",
-  "tick_id": "2026-09-17T12:00:00+02:00",
-  "scraped_at": "2026-09-17T12:00:00+02:00",
-  "sources": {
-    "user-X": {
-      "status": "ok",
-      "items": 100,
-      "breakdown": {
-        "trends_usa": 20,
-        "trends_germany": 15,
-        "news": 15,
-        "posts_sampled": 50
-      },
-      "counts_24h": {
-        "nvda": 4030,
-        "tsla": 3613,
-        "btc": 206359,
-        "composite": 214002,
-        "orcl": 685,
-        "msft": 1048
-      },
-      "counts_7d": {},
-      "freshest": "2026-09-17T09:47:00Z (~0–1 min)",
-      "window": "Posts/News recency ≤24h; Counts ~24h hourly",
-      "credits_before_usd": 7.23,
-      "credits_after_usd": 6.94,
-      "credits_spent_usd": 0.29
-    },
-    "user-Apify-Reddit": {
-      "status": "partial_ok",
-      "items": 3,
-      "subreddits": [
-        "OracleStock"
-      ],
-      "window": "hot/week ~24–48h",
-      "freshest_item_age": "~3h",
-      "run_id": "isIDmTnTclQffthXV",
-      "note": "Hot WSB/stocks/StockMarket/Crypto run D3ske2Jp2TNCS67OU TIMED-OUT 0 items. ORCL r/OracleStock SUCCEEDED 3 items."
-    },
-    "user-Apify-TikTok": {
-      "status": "ok",
-      "items": 11,
-      "freshest": "2026-09-17T02:09:55Z (~10h)",
-      "oldest": "2025-07-04T23:20:48Z (stale row filtered from usable)",
-      "note": "Free-Cap; 12 rows → 11 usable (1 ancient MSFT clip).",
-      "run_id": "cm5Qadyc04hY5uEjW"
-    },
-    "WebSearch": {
-      "status": "ok",
-      "items": 5,
-      "window": "same-day 2026-09-17",
-      "notes": [
-        "Reuters: shares tick higher / Asia rebound post Fed hike",
-        "Tickmill: ES/NQ futures +0.6–0.7% relief",
-        "X/CNN: F&G ~24 Extreme Fear (some prints Fear ~26)",
-        "Goldman now prices Oct hike; Oct odds ~53%",
-        "Fed hike 25bp to 3.75–4.00% (Warsh) + DXY 7-week high"
-      ]
-    },
-    "user-Bright Data": {
-      "status": "fail",
-      "items": 0,
-      "error": "HTTP 401 Auth method is not supported"
-    },
-    "user-Treg": {
-      "status": "fail",
-      "items": 0,
-      "error": "not signed in / token invalid or expired"
-    },
-    "user-Monid": {
-      "status": "skip",
-      "items": 0,
-      "note": "needsAuth / not in catalog"
-    }
-  },
-  "totals": {
-    "content_items_usable": 119,
-    "breakdown": {
-      "x_trends": 35,
-      "x_news": 15,
-      "x_posts": 50,
-      "reddit": 3,
-      "tiktok": 11,
-      "websearch": 5
-    }
-  },
-  "freshness": {
-    "freshest_absolute": "X post ~0–1 min",
-    "primary_signal": "Minuten (X) bis ~24h (Reddit/News); TikTok Stunden–Tage",
-    "quality": "hoch X+Web; mittel TikTok; Reddit partial (ORCL only); Auth-Fails Bright Data/Treg/Monid",
-    "scrape_berlin": "2026-09-17T12:00:00+02:00",
-    "sample_window": "X posts seconds–minutes; news ≤48h; Reddit hot; TikTok mixed ages",
-    "freshest_item_age": "~0–1 min",
-    "oldest_usable_signal": "Reddit ~1d; TikTok primary ~10h"
-  },
-  "vector": {
-    "direction": "leicht_bearish_risk_off",
-    "magnitude": 51,
-    "confidence": 78,
-    "early_signal": true,
-    "early_signal_note": "Futures bounce continues; F&G Extreme Fear ~24–26; Goldman/Oct-hike ~53%; DXY 7w high; Tom Lee overreaction/Q4-rally counter"
-  },
-  "top_themes": [
-    {
-      "theme": "Fed/Rate Hike",
-      "sentiment": "bearish",
-      "strength": 82,
-      "symbol": "SPY",
-      "symbol_note": "Proxy: S&P 500 ETF",
-      "bias": "risk_off",
-      "bias_label": "Vorsicht / Bias risk-off",
-      "links": {
-        "tradingview": "https://www.tradingview.com/symbols/SPY/",
-        "yahoo": "https://finance.yahoo.com/quote/SPY"
-      }
-    },
-    {
-      "theme": "Fear & Greed Stocks ~24–26",
-      "sentiment": "bearish",
-      "strength": 80,
-      "symbol": "SPY",
-      "symbol_note": "Proxy: Markt-Gauge",
-      "bias": "risk_off",
-      "bias_label": "Vorsicht / Bias risk-off",
-      "links": {
-        "tradingview": "https://www.tradingview.com/symbols/SPY/",
-        "yahoo": "https://finance.yahoo.com/quote/SPY"
-      }
-    },
-    {
-      "theme": "Futures Bounce post-Fed",
-      "sentiment": "leicht_bullish",
-      "strength": 76,
-      "symbol": "ES=F",
-      "symbol_note": "S&P Futures",
-      "bias": "risk_on",
-      "bias_label": "Beobachten / Bias risk-on",
-      "links": {
-        "tradingview": "https://www.tradingview.com/symbols/CME_MINI:ES1!/",
-        "yahoo": "https://finance.yahoo.com/quote/ES=F"
-      }
-    },
-    {
-      "theme": "Goldman Oct-hike / DXY",
-      "sentiment": "bearish",
-      "strength": 74,
-      "symbol": "DX-Y.NYB",
-      "symbol_note": "US Dollar Index",
-      "bias": "lean_off",
-      "bias_label": "Leicht risk-off",
-      "links": {
-        "tradingview": "https://www.tradingview.com/symbols/TVC:DXY/",
-        "yahoo": "https://finance.yahoo.com/quote/DX-Y.NYB"
-      }
-    },
-    {
-      "theme": "BTC/Crypto holds ~76k",
-      "sentiment": "mixed",
-      "strength": 66,
-      "symbol": "BTC-USD",
-      "symbol_note": "Bitcoin ~76k holds post Clarity+Fed",
-      "bias": "watch",
-      "bias_label": "Nur beobachten",
-      "links": {
-        "tradingview": "https://www.tradingview.com/symbols/BINANCE:BTCUSDT/",
-        "yahoo": "https://finance.yahoo.com/quote/BTC-USD"
-      }
-    }
-  ],
-  "delta_vs_prev": {
-    "prev_tick_id": "2026-09-17T11:45:00+02:00",
-    "magnitude_delta": -2,
-    "confidence_delta": 1,
-    "direction_prev": "leicht_bearish_risk_off",
-    "direction_now": "leicht_bearish_risk_off",
-    "direction_changed": false,
-    "early_signal_prev": true,
-    "early_signal_now": true,
-    "early_signal_flipped": false,
-    "volume_prev": 129,
-    "volume_now": 119,
-    "volume_change_pct": -7.8,
-    "new_themes": [
-      "Goldman Oct-hike / DXY"
-    ],
-    "gone_themes": [
-      "Oil/Risk-off tape"
-    ],
-    "sentiment_swings": [],
-    "theme_strength_deltas": [
-      {
-        "theme": "Fed/Rate Hike",
-        "from": 84,
-        "to": 82
-      },
-      {
-        "theme": "Fear & Greed",
-        "from": 84,
-        "to": 80
-      },
-      {
-        "theme": "Futures Bounce",
-        "from": 78,
-        "to": 76
-      },
-      {
-        "theme": "BTC/Crypto",
-        "from": 68,
-        "to": 66
-      }
-    ],
-    "note": "Digestion tick: mag softens further (53→51) on futures bounce + Tom-Lee overreaction; Goldman Oct-hike + F&G keep risk-off; Reddit hot timeout"
-  },
-  "material_change": false,
-  "material_change_reasons": [
-    "|Δmag|=2<10",
-    "direction unchanged",
-    "watchlist signals unchanged (ORCL hold, MSFT hold)",
-    "Futures bounce + Goldman Oct-hike narrative; F&G~24–26",
-    "volume -7.8% (abs<30)"
-  ],
-  "chart": null,
-  "baseline": false,
-  "scrape_window": {
-    "start": "2026-09-17T11:46:00+02:00",
-    "end": "2026-09-17T12:00:00+02:00"
-  },
-  "volume_enriched": true,
-  "mini_series": [
-    {
-      "tick": 1,
-      "at": "2026-09-17T10:37:00+02:00",
-      "direction": "leicht_bearish_risk_off",
-      "magnitude": 65,
-      "confidence": 72
-    },
-    {
-      "tick": 2,
-      "at": "2026-09-17T10:58:00+02:00",
-      "direction": "leicht_bearish_risk_off",
-      "magnitude": 60,
-      "confidence": 74
-    },
-    {
-      "tick": 3,
-      "at": "2026-09-17T11:15:00+02:00",
-      "direction": "leicht_bearish_risk_off",
-      "magnitude": 56,
-      "confidence": 76
-    },
-    {
-      "tick": 4,
-      "at": "2026-09-17T11:45:00+02:00",
-      "direction": "leicht_bearish_risk_off",
-      "magnitude": 53,
-      "confidence": 77
-    },
-    {
-      "tick": 5,
-      "at": "2026-09-17T12:00:00+02:00",
-      "direction": "leicht_bearish_risk_off",
-      "magnitude": 51,
-      "confidence": 78
-    }
-  ],
-  "overall_bias": {
-    "key": "lean_off",
-    "label": "Leicht risk-off",
-    "disclaimer": "Kein Trade-Call / keine Kaufempfehlung — nur aggregiertes Social-Sentiment."
-  },
-  "macro_calendar": [
-    {
-      "id": "nfp",
-      "title": "US Jobs (NFP)",
-      "when": "2026-10-02T14:30:00+02:00",
-      "when_label": "Fr 02.10.2026 · 14:30 Berlin",
-      "link": "https://www.bls.gov/news.release/empsit.toc.htm"
-    },
-    {
-      "id": "cpi",
-      "title": "US CPI",
-      "when": "2026-10-14T14:30:00+02:00",
-      "when_label": "Mi 14.10.2026 · 14:30 Berlin",
-      "link": "https://www.bls.gov/cpi/"
-    },
-    {
-      "id": "fomc",
-      "title": "Fed Zinsentscheidung",
-      "when": "2026-10-28T20:00:00+02:00",
-      "when_label": "Mi 28.10.2026 · ~20:00 Berlin",
-      "link": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
-    },
-    {
-      "id": "earnings",
-      "title": "Q3 Earnings-Fenster",
-      "when": "2026-10-06T00:00:00+02:00",
-      "when_label": "ca. Mitte Okt → Mitte Nov 2026",
-      "link": "https://www.tradingview.com/markets/stocks-usa/earnings/"
-    }
-  ],
-  "katalysator_druck": {
-    "next_shock": "nfp",
-    "next_shock_label": "US Jobs (NFP) Fr 02.10.2026 14:30 Berlin",
-    "days_approx": 15,
-    "note": "Nächster Makro-Schock: NFP; danach CPI 14.10, FOMC 28.10"
-  },
-  "stock_signals": [
-    {
-      "symbol": "ORCL",
-      "name": "Oracle",
-      "hype_state": "mixed",
-      "signal": "hold",
-      "confidence": 72,
-      "social_impulse": 5,
-      "why": "Dip-buy chatter + OCI/AI-infra bulls offset fresh layoff/restructuring headlines. Volume cooler (~685/24h $ORCL). Mixed → Hold.",
-      "evidence": {
-        "x_posts": 16,
-        "reddit_posts": 3,
-        "news": 2,
-        "snippets": [
-          "AI restructuring / job cuts amid $70B cloud spend (X)",
-          "Dip-buy starter $ORCL + OCI/AI-infra stack mentions (X)",
-          "r/OracleStock: down-day ≠ thesis; entry ~140 / rebound talk (Reddit)"
-        ],
-        "voices": [
-          {
-            "source": "X",
-            "text": "Oracle AI Restructuring: Why Job Cuts Mount Despite $70B Cloud Spending",
-            "url": "https://x.com/nxtmedia_in/status/2100521101764043041",
-            "lean": "bear",
-            "at": "2026-09-17T11:43:51+02:00"
-          },
-          {
-            "source": "X",
-            "text": "AI-Infrastructure stack: $ORCL in data centers layer (with CRWV/IREN/NBIS).",
-            "url": "https://x.com/MMatters22596/status/2100520969911570838",
-            "lean": "bull",
-            "at": "2026-09-17T11:43:19+02:00"
-          },
-          {
-            "source": "X",
-            "text": "Picked up a few $ORCL shares as a starter position yesterday.",
-            "url": "https://x.com/steady_profits/status/2100519885491101872",
-            "lean": "bull",
-            "at": "2026-09-17T11:39:01+02:00"
-          },
-          {
-            "source": "X",
-            "text": "Is Adobe Finally Turning a Corner? … & Oracle Doubles Down on AI (podcast).",
-            "url": "https://x.com/cdn_investing/status/2100514056738066683",
-            "lean": "mixed",
-            "at": "2026-09-17T11:15:51+02:00"
-          },
-          {
-            "source": "Reddit",
-            "text": "Oracle down — relax; OCI +121%, ~$31B cash; long thesis, not day-trade.",
-            "url": "https://www.reddit.com/r/OracleStock/comments/1wi1czv/oracle_is_down_omg/",
-            "lean": "bull",
-            "at": "2026-09-16T18:01:43+02:00"
-          },
-          {
-            "source": "Reddit",
-            "text": "Any realistic chance ORCL rebounds above $150 next week?",
-            "url": "https://www.reddit.com/r/OracleStock/comments/1wim1e2/any_realistic_chance_orcl_rebounds_above_150_next/",
-            "lean": "mixed",
-            "at": "2026-09-17T08:24:40+02:00"
-          },
-          {
-            "source": "Reddit",
-            "text": "What is a good entry price? Watching ~$140 for rebound by year-end.",
-            "url": "https://www.reddit.com/r/OracleStock/comments/1whoro1/what_is_a_good_entry_price/",
-            "lean": "bull",
-            "at": "2026-09-16T08:03:53+02:00"
-          },
-          {
-            "source": "News",
-            "text": "Oracle cuts ~2–2.5k jobs in India amid AI CapEx surge; 6am lockout emails.",
-            "url": "https://x.com/i/trending/2100208591869284480",
-            "lean": "bear",
-            "at": "2026-09-16T15:11:22+02:00"
-          },
-          {
-            "source": "News",
-            "text": "Oracle abrupt 6am layoff emails; AI infra push amid global headcount cuts.",
-            "url": "https://x.com/i/trending/2099493708953493681",
-            "lean": "bear",
-            "at": "2026-09-16T14:14:05+02:00"
-          }
-        ]
-      },
-      "links": {
-        "yahoo": "https://finance.yahoo.com/quote/ORCL",
-        "tradingview": "https://www.tradingview.com/symbols/NYSE-ORCL/"
-      }
-    }
-  ],
-  "signals_disclaimer": ""
+  "disclaimer": "Kein Trade-Call / keine Kaufempfehlung — nur aggregiertes Social-Sentiment."
 }
