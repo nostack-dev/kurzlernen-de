@@ -1,9 +1,9 @@
 {
-  "updated_at": "2026-09-21T16:10:00+02:00",
+  "updated_at": "2026-09-21T16:25:00+02:00",
   "timezone": "Europe/Berlin",
   "tick": {
-    "tick_id": "2026-09-21T16:10:00+02:00",
-    "scraped_at": "2026-09-21T16:10:00+02:00",
+    "tick_id": "2026-09-21T16:25:00+02:00",
+    "scraped_at": "2026-09-21T16:25:00+02:00",
     "timezone": "Europe/Berlin",
     "sources": {
       "user-X": {
@@ -16,18 +16,18 @@
           "posts_sampled": 40
         },
         "counts_24h": {
-          "nvda": 6749,
-          "tsla": 6137,
-          "btc": 127572,
-          "orcl": 423,
-          "composite": 140881
+          "nvda": 6816,
+          "tsla": 6233,
+          "btc": 128654,
+          "orcl": 436,
+          "composite": 142139
         },
         "counts_7d": {},
-        "freshest": "2026-09-21T16:06:42+02:00",
+        "freshest": "2026-09-21T16:23:12+02:00",
         "window": "Posts/News recency ≤24–48h; Counts ~24h ($NVDA|NVDA / $TSLA|TSLA / $BTC|Bitcoin / $ORCL)",
-        "credits_before_usd": 1.73,
-        "credits_after_usd": 1.32,
-        "credits_spent_usd": 0.41
+        "credits_before_usd": 1.32,
+        "credits_after_usd": 1.07,
+        "credits_spent_usd": 0.25
       },
       "user-Apify-Reddit": {
         "status": "fail_limit",
@@ -57,11 +57,11 @@
         "items": 5,
         "window": "same-day 2026-09-21",
         "notes": [
-          "Mon futures firm (Reuters ~05:09ET update): Dow e-minis +0.6%, ES +0.63%, NQ +1.09%; AI rebound; oil ~-2%; 10Y <5%",
-          "Bloomberg: ES +0.7% / NQ +1.1% ahead Trump-Xi; oil slips",
-          "SoftBank LAUNCHED >$10B+$€1B bonds for OpenAI; pricing ~24 Sep (Reuters)",
-          "ORCL ~$148.42 (+0.55%) Sep 21; SoftBank/AI-debt caution still in tape",
-          "BTC rebound toward ~$85k; risk-on crypto tape"
+          "Cash open AI-led: Dow +0.49% / S&P +0.55% / Nasdaq +0.76% (Reuters); oil −~2%; 10Y <5%",
+          "Bloomberg earlier: ES +0.7% / NQ +1.1% ahead Trump-Xi; oil slips",
+          "SoftBank LAUNCHED >$10B+$€1B bonds for OpenAI; pricing ~24 Sep; Fitch BB+ (Reuters)",
+          "ORCL ~$148.21 (+0.4%); $18bn Project Jupiter loans stressed + Abilene layoff chatter",
+          "BTC ~$85.8k; risk-on crypto tape"
         ]
       },
       "user-Bright Data": {
@@ -72,7 +72,7 @@
       "user-Treg": {
         "status": "ok_empty",
         "items": 0,
-        "note": "catalog_search stock sentiment oracle social → 0 matches"
+        "note": "catalog_search oracle stock sentiment social → 0 matches"
       },
       "user-Monid": {
         "status": "skip",
@@ -92,41 +92,41 @@
       }
     },
     "freshness": {
-      "freshest_absolute": "2026-09-21T16:06:42+02:00",
+      "freshest_absolute": "2026-09-21T16:23:12+02:00",
       "primary_signal": "Minuten (X) + same-day Web/News; Reddit/TikTok aus (Apify-Limit)",
       "quality": "mittel-hoch X+Web; Apify Reddit+TikTok hard-limit; Bright Data 401; Treg ok_empty; Monid skip",
-      "scrape_berlin": "2026-09-21T16:10:00+02:00",
+      "scrape_berlin": "2026-09-21T16:25:00+02:00",
       "sample_window": "X posts minutes–hours; news ≤48h; Reddit/TikTok unavailable this tick",
       "freshest_item_age": "",
-      "oldest_usable_signal": "X news breadth story ~24–48h; SoftBank same-day"
+      "oldest_usable_signal": "X news breadth story ~24–48h; SoftBank same-day; cash open confirmed"
     },
     "vector": {
       "direction": "mixed_cautious",
-      "magnitude": 38,
-      "confidence": 76,
+      "magnitude": 37,
+      "confidence": 75,
       "early_signal": true,
       "early_signal_note": "Vorsicht wegen SoftBank-Schulden."
     },
     "top_themes": [
       {
-        "theme": "Mon Futures Firmer Persist",
+        "theme": "Cash Open AI-Led Higher",
         "sentiment": "leicht_bullish",
-        "strength": 84,
-        "symbol": "ES=F",
-        "symbol_note": "ES~+0.63% NQ~+1.09% Dow~+0.6% (Reuters); oil −~2%; 10Y <5%; Trump-Xi optimism",
+        "strength": 85,
+        "symbol": "SPY",
+        "symbol_note": "Open: Dow +0.49% / S&P +0.55% / NQ +0.76%; oil −~2%; 10Y <5%",
         "bias": "risk_on",
         "bias_label": "Beobachten / Bias risk-on",
         "links": {
-          "tradingview": "https://www.tradingview.com/symbols/CME_MINI:ES1!/",
-          "yahoo": "https://finance.yahoo.com/quote/ES=F"
+          "tradingview": "https://www.tradingview.com/symbols/SPY/",
+          "yahoo": "https://finance.yahoo.com/quote/SPY"
         }
       },
       {
-        "theme": "SoftBank-Schulden Bonds LAUNCHED",
+        "theme": "SoftBank-Schulden Bonds LIVE",
         "sentiment": "bearish",
-        "strength": 87,
+        "strength": 88,
         "symbol": "9984.T",
-        "symbol_note": ">$10B+$€1B notes for OpenAI; pricing ~24 Sep; AI-debt caution live",
+        "symbol_note": ">$10B+$€1B notes for OpenAI; pricing ~24 Sep; Fitch BB+; AI-debt caution",
         "bias": "risk_off",
         "bias_label": "Vorsicht / Bias risk-off",
         "links": {
@@ -135,9 +135,22 @@
         }
       },
       {
+        "theme": "ORCL Debt / Layoffs / Dip-Buys",
+        "sentiment": "mixed",
+        "strength": 78,
+        "symbol": "ORCL",
+        "symbol_note": "~$148.21; $18bn Project Jupiter stressed + Abilene layoffs vs Stifel Buy; Vol~436/24h",
+        "bias": "mixed",
+        "bias_label": "Abwarten / Bias mixed",
+        "links": {
+          "tradingview": "https://www.tradingview.com/symbols/ORCL/",
+          "yahoo": "https://finance.yahoo.com/quote/ORCL"
+        }
+      },
+      {
         "theme": "Narrow Breadth / Mega-Cap Lead",
         "sentiment": "bearish",
-        "strength": 80,
+        "strength": 79,
         "symbol": "SPY",
         "symbol_note": "S&P near highs; extreme narrow breadth (X news Goepfert); AI leadership",
         "bias": "risk_off",
@@ -148,24 +161,11 @@
         }
       },
       {
-        "theme": "ORCL Debt Stress / Dip-Buys",
-        "sentiment": "mixed",
-        "strength": 75,
-        "symbol": "ORCL",
-        "symbol_note": "Debt/leverage + 52w-low chatter vs dip-buys/Stifel Buy; Vol~423/24h; ~$148",
-        "bias": "mixed",
-        "bias_label": "Abwarten / Bias mixed",
-        "links": {
-          "tradingview": "https://www.tradingview.com/symbols/ORCL/",
-          "yahoo": "https://finance.yahoo.com/quote/ORCL"
-        }
-      },
-      {
         "theme": "BTC Risk-On Marker",
         "sentiment": "leicht_bullish",
         "strength": 74,
         "symbol": "BTC-USD",
-        "symbol_note": "BTC rebound toward ~$85k; X counts ~127k/24h",
+        "symbol_note": "BTC ~$85.8k; X counts ~128k/24h",
         "bias": "risk_on",
         "bias_label": "Beobachten / Bias risk-on",
         "links": {
@@ -175,9 +175,9 @@
       }
     ],
     "delta_vs_prev": {
-      "prev_tick_id": "2026-09-21T15:00:00+02:00",
+      "prev_tick_id": "2026-09-21T16:10:00+02:00",
       "magnitude_delta": -1,
-      "confidence_delta": -2,
+      "confidence_delta": -1,
       "direction_prev": "mixed_cautious",
       "direction_now": "mixed_cautious",
       "direction_changed": false,
@@ -187,43 +187,40 @@
       "volume_prev": 90,
       "volume_now": 90,
       "volume_change_pct": 0.0,
-      "new_themes": [],
-      "gone_themes": [],
+      "new_themes": [
+        "Cash Open AI-Led Higher"
+      ],
+      "gone_themes": [
+        "Mon Futures Firmer Persist"
+      ],
       "sentiment_swings": [
-        "ORCL voices slightly more bearish this sample; SoftBank still live"
+        "ORCL: Abilene-Layoffs + $18bn Jupiter-Stress neu im Sample; SoftBank weiter live; Cash-Open bestätigt Futures"
       ]
     },
     "material_change": false,
     "material_change_reasons": [
-      "|Δmag|=1<5 (39→38)",
+      "|Δmag|=1<5 (38→37)",
       "direction mixed_cautious unchanged",
       "early_signal unchanged (True)",
       "watchlist ORCL hold unchanged",
       "volume regime same; usable 90; Apify Reddit+TikTok 0",
-      "SoftBank bonds still live + futures firm + narrow breadth; ORCL Hold"
+      "SoftBank bonds still live + cash open firm + ORCL debt/layoffs; Hold"
     ],
     "chart": {
-      "magnitude": 38,
-      "confidence": 76,
+      "magnitude": 37,
+      "confidence": 75,
       "direction": "mixed_cautious",
       "items": 90
     },
     "baseline": false,
     "scrape_window": {
-      "start": "2026-09-21T15:00:00+02:00",
-      "end": "2026-09-21T16:10:00+02:00",
+      "start": "2026-09-21T16:10:00+02:00",
+      "end": "2026-09-21T16:25:00+02:00",
       "kind": "tick_interval",
       "note": "Intervall seit dem vorherigen Tick; kein behaupteter Scrape-Startzeitpunkt."
     },
     "volume_enriched": true,
     "mini_series": [
-      {
-        "tick": 2,
-        "at": "2026-09-17T10:58:00+02:00",
-        "direction": "leicht_bearish_risk_off",
-        "magnitude": 60,
-        "confidence": 74
-      },
       {
         "tick": 3,
         "at": "2026-09-17T11:15:00+02:00",
@@ -358,12 +355,20 @@
         "direction": "mixed_cautious",
         "items": 90,
         "early_signal": true
+      },
+      {
+        "tick_id": "2026-09-21T16:25:00+02:00",
+        "magnitude": 37,
+        "confidence": 75,
+        "direction": "mixed_cautious",
+        "items": 90,
+        "early_signal": true
       }
     ],
     "overall_bias": {
       "key": "mixed",
       "label": "Gemischt / vorsichtig",
-      "note": "Futures fest und BTC risk-on, SoftBank-Anleihen und enge Breite halten Vorsicht."
+      "note": "Cash-Open fest und BTC risk-on, SoftBank-Anleihen und enge Breite halten Vorsicht."
     },
     "macro_calendar": [
       {
@@ -407,91 +412,91 @@
         "name": "Oracle",
         "hype_state": "mixed",
         "signal": "hold",
-        "confidence": 72,
+        "confidence": 71,
         "social_impulse": -1,
-        "hype_bull": 11,
-        "hype_bear": 13,
+        "hype_bull": 10,
+        "hype_bear": 12,
         "hype_net": -2,
-        "why": "Bärenstimmen zu Schulden und Kursrückgang überwiegen leicht. SoftBank-Anleihen halten den Druck.",
+        "why": "Schulden, Kredit-Stress und Entlassungsgerüchte wiegen etwas schwerer als Dip-Käufe. SoftBank-Anleihen halten den Druck.",
         "evidence": {
           "x_posts": 22,
           "reddit_posts": 0,
           "news": 5,
           "snippets": [
             "SoftBank >$10B+$€1B bonds for OpenAI still live — debt caution",
-            "ORCL X voices bull11/bear13/mixed3; Vol~423/24h",
-            "Futures ES~+0.63/NQ~+1.09%; narrow breadth; BTC ~$85k risk-on"
+            "ORCL X voices bull10/bear12/mixed4; Vol~436/24h",
+            "Cash open Dow/S&P/NQ green; Abilene layoffs + $18bn Jupiter stress; BTC ~$85.8k"
           ],
           "voices": [
             {
               "source": "X",
-              "text": "Hyperscaler capex: ORCL smallest program + highest leverage $124bn net debt",
+              "text": "Oracle debt to fund cloud — could derail $ORCL?",
+              "url": "https://x.com/HealyWriting/status/2102040957101203848",
+              "lean": "bear",
+              "at": "2026-09-21T16:23:12+02:00"
+            },
+            {
+              "source": "X",
+              "text": "Mass layoffs at Abilene Stargate AI data center",
+              "url": "https://x.com/rdd147/status/2102012845668134981",
+              "lean": "bear",
+              "at": "2026-09-21T14:31:30+02:00"
+            },
+            {
+              "source": "X",
+              "text": "97.9% GPU utilization — AI infra alive for $ORCL",
+              "url": "https://x.com/Mom4Josh/status/2102038143956623757",
+              "lean": "bull",
+              "at": "2026-09-21T16:12:02+02:00"
+            },
+            {
+              "source": "X",
+              "text": "Hyperscaler: ORCL smallest program + $124bn net debt",
               "url": "https://x.com/KllResearch/status/2102035115992068265",
               "lean": "bear",
               "at": "2026-09-21T16:00:00+02:00"
             },
             {
               "source": "X",
-              "text": "Volume's all crypto and AI today... $ORCL green tape",
-              "url": "https://x.com/sssc/status/2102036802701832697",
-              "lean": "bull",
-              "at": "2026-09-21T16:06:42+02:00"
-            },
-            {
-              "source": "X",
-              "text": "Oracle Q1 FY2027 capex $28.5B fact note",
-              "url": "https://x.com/AllFactsAI/status/2102036636582424643",
-              "lean": "mixed",
-              "at": "2026-09-21T16:06:02+02:00"
-            },
-            {
-              "source": "X",
-              "text": "Sorry — article was 'stressed' on $ORCL not distressed",
-              "url": "https://x.com/rdd147/status/2102035075634495605",
-              "lean": "bear",
-              "at": "2026-09-21T15:59:50+02:00"
-            },
-            {
-              "source": "X",
-              "text": "$ORCL vs $AMD: cheaper multiple + large AI infra backlog",
+              "text": "$ORCL vs $AMD cheaper multiple + AI backlog",
               "url": "https://x.com/theaveragegal__/status/2102033996079128822",
               "lean": "bull",
               "at": "2026-09-21T15:55:33+02:00"
             },
             {
               "source": "X",
-              "text": "10 names near 52w lows — Oracle $ORCL -55%",
-              "url": "https://x.com/findbettertrade/status/2102033877455831554",
+              "text": "Short $ORCL today — go for that crash",
+              "url": "https://x.com/QuantNug/status/2102028130714296586",
               "lean": "bear",
-              "at": "2026-09-21T15:55:04+02:00"
+              "at": "2026-09-21T15:32:14+02:00"
             },
             {
               "source": "X",
-              "text": "$ORCL is section 8 housing for AI — where I'm parked",
-              "url": "https://x.com/strifenjustice/status/2102033269852168396",
+              "text": "Stifel keeps Buy on Oracle",
+              "url": "https://x.com/PT_CARBA/status/2102024678466351186",
               "lean": "bull",
-              "at": "2026-09-21T15:52:40+02:00"
+              "at": "2026-09-21T15:18:31+02:00"
             },
             {
               "source": "X",
-              "text": "Huge backlog exciting but backlog isn't revenue yet — $ORCL lesson",
-              "url": "https://x.com/prof_SJGreene/status/2102022063192162454",
+              "text": "$18B headwind emerges for Oracle stock",
+              "url": "https://x.com/weijgenberger/status/2102018323504394422",
+              "lean": "bear",
+              "at": "2026-09-21T14:53:16+02:00"
+            },
+            {
+              "source": "X",
+              "text": "Volume crypto+AI; $ORCL on green tape",
+              "url": "https://x.com/sssc/status/2102036802701832697",
+              "lean": "bull",
+              "at": "2026-09-21T16:06:42+02:00"
+            },
+            {
+              "source": "X",
+              "text": "$ORCL down ~50% — walk through both sides",
+              "url": "https://x.com/JoshTradeOption/status/2102020269317455957",
               "lean": "mixed",
-              "at": "2026-09-21T15:08:08+02:00"
-            },
-            {
-              "source": "X",
-              "text": "Technicals not ideal for $ORCL — needs 200d ma recovery",
-              "url": "https://x.com/cperruna/status/2102032562403045654",
-              "lean": "bear",
-              "at": "2026-09-21T15:49:51+02:00"
-            },
-            {
-              "source": "X",
-              "text": "Oil spanked; want all the $ORCL and $CRWV",
-              "url": "https://x.com/strifenjustice/status/2102032648918929674",
-              "lean": "bull",
-              "at": "2026-09-21T15:50:12+02:00"
+              "at": "2026-09-21T15:01:00+02:00"
             }
           ]
         },
@@ -503,6 +508,17 @@
     ],
     "early_signal_note": "Vorsicht wegen SoftBank-Schulden.",
     "signals_disclaimer": ""
+  },
+  "signals_disclaimer": "",
+  "early_signal_note": "Vorsicht wegen SoftBank-Schulden.",
+  "freshness": {
+    "freshest_absolute": "2026-09-21T16:23:12+02:00",
+    "primary_signal": "Minuten (X) + same-day Web/News; Reddit/TikTok aus (Apify-Limit)",
+    "quality": "mittel-hoch X+Web; Apify Reddit+TikTok hard-limit; Bright Data 401; Treg ok_empty; Monid skip",
+    "scrape_berlin": "2026-09-21T16:25:00+02:00",
+    "sample_window": "X posts minutes–hours; news ≤48h; Reddit/TikTok unavailable this tick",
+    "freshest_item_age": "",
+    "oldest_usable_signal": "X news breadth story ~24–48h; SoftBank same-day; cash open confirmed"
   },
   "history": [
     {
@@ -661,17 +677,15 @@
       "direction": "mixed_cautious",
       "items": 90,
       "early_signal": true
+    },
+    {
+      "tick_id": "2026-09-21T16:25:00+02:00",
+      "scraped_at": "2026-09-21T16:25:00+02:00",
+      "magnitude": 37,
+      "confidence": 75,
+      "direction": "mixed_cautious",
+      "items": 90,
+      "early_signal": true
     }
-  ],
-  "signals_disclaimer": "",
-  "early_signal_note": "Vorsicht wegen SoftBank-Schulden.",
-  "freshness": {
-    "freshest_absolute": "2026-09-21T16:06:42+02:00",
-    "primary_signal": "Minuten (X) + same-day Web/News; Reddit/TikTok aus (Apify-Limit)",
-    "quality": "mittel-hoch X+Web; Apify Reddit+TikTok hard-limit; Bright Data 401; Treg ok_empty; Monid skip",
-    "scrape_berlin": "2026-09-21T16:10:00+02:00",
-    "sample_window": "X posts minutes–hours; news ≤48h; Reddit/TikTok unavailable this tick",
-    "freshest_item_age": "",
-    "oldest_usable_signal": "X news breadth story ~24–48h; SoftBank same-day"
-  }
+  ]
 }
