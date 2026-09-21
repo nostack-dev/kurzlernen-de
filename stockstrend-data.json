@@ -23,7 +23,7 @@
           "composite": 126211
         },
         "counts_7d": {},
-        "freshest": "2026-09-21T12:00:45Z (~0–1 min $ORCL/AI sample)",
+        "freshest": "",
         "window": "Posts/News recency ≤24–48h; Counts ~24h ($NVDA|NVDA / $TSLA|TSLA / $BTC|Bitcoin / $ORCL)",
         "credits_before_usd": 2.68,
         "credits_after_usd": 2.22,
@@ -40,7 +40,7 @@
           "oracle"
         ],
         "window": "hot/week",
-        "freshest_item_age": "~minutes (DeepSeek/Huawei 11:33Z; Einride+NVDA 11:27Z; ORCL weekly 10:01Z)",
+        "freshest_item_age": "",
         "run_id": "PFdseFVfoiC5bqxfy",
         "note": "trudax/reddit-scraper-lite aborted ~7min; 27 dataset rows → 25 usable stockish. run_id=PFdseFVfoiC5bqxfy"
       },
@@ -92,12 +92,12 @@
       }
     },
     "freshness": {
-      "freshest_absolute": "X post ~0–1 min",
+      "freshest_absolute": "",
       "primary_signal": "Minuten (X) bis Stunden–Tage (TikTok/Reddit); News same-day",
       "quality": "hoch X+Web+TikTok+Reddit; Bright Data 401; Treg ok_empty; Monid skip",
       "scrape_berlin": "2026-09-21T14:00:00+02:00",
       "sample_window": "X posts seconds–minutes; news ≤48h; TikTok ≤30d; Reddit hot/week",
-      "freshest_item_age": "~0–1 min",
+      "freshest_item_age": "",
       "oldest_usable_signal": "TikTok ~30d edge; older SoftBank/ORCL clips filtered"
     },
     "vector": {
@@ -105,7 +105,7 @@
       "magnitude": 39,
       "confidence": 80,
       "early_signal": true,
-      "early_signal_note": "Vorsicht wegen SoftBank-Schulden.",
+      "early_signal_note": "Vorsicht wegen SoftBank und Oracle-Schulden; Futures etwas fester",
       "direction_de": null
     },
     "top_themes": [
@@ -162,11 +162,11 @@
         }
       },
       {
-        "theme": "ORCL Jupiter Debt / AI Capex Overhang",
+        "theme": "ORCL SoftBank-Schulden / AI Capex",
         "sentiment": "bearish",
         "strength": 82,
         "symbol": "ORCL",
-        "symbol_note": "Project Jupiter $18B loans 89–91¢; OFSS clarifies independence; bullish RPO voices persist",
+        "symbol_note": "",
         "bias": "risk_off",
         "bias_label": "Vorsicht / Bias risk-off",
         "links": {
@@ -403,7 +403,7 @@
         "hype_bull": 10,
         "hype_bear": 8,
         "hype_net": 2,
-        "why": "Bulls und Bears halten sich die Waage. SoftBank-Schulden bleiben Risiko.",
+        "why": "Gemischt: Kursrückgänge werden gekauft, Schulden und. Social-Signal: Halten",
         "evidence": {
           "x_posts": 12,
           "reddit_posts": 3,
@@ -430,7 +430,7 @@
             },
             {
               "source": "X",
-              "text": "$ORCL 147.61: cloud +62%/infra +121%/$664B backlog; risk $125B debt + Jupiter 89–91¢",
+              "text": "$ORCL 147.61: cloud +62%/infra +121%/$664B backlog; risk $125B debt +",
               "url": "https://x.com/Mariusz_Invest/status/2101987302599999844",
               "lean": "mixed",
               "at": "2026-09-21T12:50:00+02:00"
@@ -465,7 +465,7 @@
             },
             {
               "source": "X",
-              "text": "Oracle credit concerns weighing; Project Jupiter key for $ORCL pressure",
+              "text": "Oracle credit concerns weighing;",
               "url": "https://x.com/manoj67368/status/2101968404940988843",
               "lean": "bear",
               "at": "2026-09-21T11:34:55+02:00"
@@ -486,7 +486,7 @@
             },
             {
               "source": "X",
-              "text": "Weekend FUD Project Jupiter distressed; SOFR+500bps ~8.85% — ugly but financing race",
+              "text": "Weekend FUD.85% — ugly but financing race",
               "url": "https://x.com/signalcalls/status/2101916544762593392",
               "lean": "mixed",
               "at": "2026-09-21T08:08:50+02:00"
@@ -507,7 +507,7 @@
             },
             {
               "source": "X",
-              "text": "Oracle-linked $18bn Project Jupiter debt slips to 89-91c as NM risks mount",
+              "text": "Oracle-linked $18bn",
               "url": "https://x.com/BNTBriefing/status/2101876972217626778",
               "lean": "bear",
               "at": "2026-09-21T05:31:35+02:00"
@@ -549,7 +549,7 @@
             },
             {
               "source": "News",
-              "text": "Oracle $18B Project Jupiter DC debt under pressure 89–91¢",
+              "text": "Oracle $18B",
               "url": "https://www.reuters.com/business/finance/oracles-18-billion-data-center-debt-under-pressure-ft-reports-2026-09-18/",
               "lean": "bear",
               "at": "2026-09-18T12:00:00+02:00"
@@ -614,7 +614,8 @@
         }
       }
     ],
-    "signals_disclaimer": ""
+    "signals_disclaimer": "",
+    "early_signal_note": "Vorsicht wegen SoftBank-Schulden."
   },
   "history": [
     {
@@ -750,5 +751,8 @@
   ],
   "signals_disclaimer": "",
   "early_signal_note": "Vorsicht wegen SoftBank-Schulden.",
-  "freshness": {}
+  "freshness": {
+    "freshest_item_age": "",
+    "freshest_absolute": ""
+  }
 }

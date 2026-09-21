@@ -58,12 +58,12 @@
   .voice a { color: var(--green); text-decoration: none; font-weight: 650; margin-left: 6px; font-size: 0.78rem; }
   footer { max-width: 980px; margin: 0 auto; padding: 0 14px 24px; color: var(--muted); font-size: 0.75rem; }
   a.ext { color: var(--green); text-decoration: none; font-weight: 650; margin-right: 10px; }
+  .voice-at { display:block; color: var(--muted); font-size: 11px; margin-bottom: 2px; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
 <header>
   <h1>BotBot · Aktien</h1>
-  <div class="meta"><span id="hdrFresh">—</span> · <span id="nextRefresh">Aktualisierung —</span></div>
 </header>
 <div class="wrap">
   <div class="row3">
@@ -81,7 +81,7 @@
       <div class="label">Beobachtung · Oracle (ORCL)</div>
       <div class="big"><span class="pill" id="orclSig">—</span></div>
       <div class="kpis">
-        <span>Impuls <b id="orclImp">—</b></span>
+        <span title="Social-Buzz von −100 (sehr negativ) bis +100 (sehr positiv)">Social-Buzz <b id="orclImp">—</b></span>
         <span>Bullish <b id="orclBull" style="color:var(--green)">—</b></span>
         <span>Bearish <b id="orclBear" style="color:var(--red)">—</b></span>
         <span>Saldo <b id="orclNet">—</b></span>
@@ -190,6 +190,15 @@ function ageLabel(iso){
     return Math.round(h/24)+' Tage';
   }catch(e){return '—';}
 }
+function tipOpts(ySuffix){
+  return {enabled:true, mode:'index', intersect:false,
+    callbacks:{
+      title:function(items){ return items&&items[0]?items[0].label:''; },
+      label:function(ctx){ var v=ctx.parsed.y; if(v==null) return (ctx.dataset.label||'')+': —';
+        return (ctx.dataset.label?ctx.dataset.label+': ':'')+v+(ySuffix||''); }
+    }};
+}
+function chartInteract(){ return {mode:'index', intersect:false, axis:'x'}; }
 function renderAll(){
   var t=(tickData&&tickData.tick)||{};
   var v=t.vector||{};
@@ -199,15 +208,15 @@ function renderAll(){
   var age=ageLabel(updated);
   var stale=false;
   try{ stale=(Date.now()-new Date(updated).getTime())>20*60*1000; }catch(e){}
-  document.getElementById('hdrFresh').innerHTML='Stand '+esc(fmtBerlin(updated))+' · vor '+esc(age);
   document.getElementById('freshAge').textContent=age||'—';
   document.getElementById('freshItems').textContent=(t.totals&&t.totals.content_items_usable)!=null?t.totals.content_items_usable:'—';
   document.getElementById('freshAt').textContent=fmtBerlin(updated);
-  document.getElementById('biasDir').textContent=DIR_DE[v.direction]||v.direction||'—';
+  var dir=String(v.direction||'');
+  document.getElementById('biasDir').textContent=DIR_DE[dir]||dir||'—';
   document.getElementById('biasMag').textContent=v.magnitude!=null?v.magnitude:'—';
   document.getElementById('biasConf').textContent=v.confidence!=null?v.confidence:'—';
-  document.getElementById('biasEarly').innerHTML=v.early_signal?'<span class="pill early">Frühsignal</span>':'';
-  document.getElementById('biasNote').textContent=v.early_signal_note||(tickData&&tickData.early_signal_note)||'';
+  document.getElementById('biasEarly').textContent=v.early_signal?'Frühsignal':'';
+  document.getElementById('biasNote').textContent=t.early_signal_note||v.note||'';
 
   var orcl=((wlData&&wlData.stocks)||{}).ORCL||{};
   var lat=orcl.latest||{};
@@ -216,7 +225,9 @@ function renderAll(){
   var sig=String(lat.signal||'').toLowerCase();
   document.getElementById('orclSig').className='pill '+cls(sig);
   document.getElementById('orclSig').textContent=SIG_DE[sig]||String(lat.signal||'—').toUpperCase();
-  document.getElementById('orclImp').textContent=lat.social_impulse!=null?lat.social_impulse:'—';
+  (function(){ var n=lat.social_impulse; var el=document.getElementById('orclImp');
+    if(n==null||n===''){ el.textContent='—'; return; }
+    var s=Number(n); el.textContent=(s>0?'+':'')+s+' (−100…+100)'; })();
   document.getElementById('orclBull').textContent=hyp.bull!=null?(hyp.bull+' %'):'—';
   document.getElementById('orclBear').textContent=hyp.bear!=null?(hyp.bear+' %'):'—';
   document.getElementById('orclNet').textContent=hyp.net!=null?hyp.net:'—';
@@ -227,17 +238,17 @@ function renderAll(){
   var hist=filterByAt(orcl.history||[], function(h){return h.at;});
   if(hypeChart) hypeChart.destroy();
   hypeChart=new Chart(document.getElementById('hypeChart'),{type:'line',data:{labels:hist.map(function(h){return fmtBerlin(h.at);}),datasets:[
-    {label:'Bullish',data:hist.map(function(h){return h.hype_bull;}),borderColor:'#00c761',tension:.3,pointRadius:0,borderWidth:2},
-    {label:'Bearish',data:hist.map(function(h){return h.hype_bear!=null?-Math.abs(h.hype_bear):null;}),borderColor:'#ff3b30',tension:.3,pointRadius:0,borderWidth:2},
-    {label:'Saldo',data:hist.map(function(h){return h.hype_net!=null?h.hype_net:h.social_impulse;}),borderColor:'#1b1b1f',borderDash:[4,4],tension:.3,pointRadius:0,borderWidth:1.5}
-  ]},options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6b6b76',boxWidth:8,font:{size:11}}}},scales:{x:{ticks:{color:'#6b6b76',maxTicksLimit:5,autoSkip:true},grid:{display:false}},y:{min:-100,max:100,ticks:{color:'#6b6b76'},grid:{color:'#f0f0f3'}}}}});
+    {label:'Bullish',data:hist.map(function(h){return h.hype_bull;}),borderColor:'#00c761',tension:.25,pointRadius:3,pointHoverRadius:6,borderWidth:2},
+    {label:'Bearish',data:hist.map(function(h){return h.hype_bear!=null?-Math.abs(h.hype_bear):null;}),borderColor:'#ff3b30',tension:.25,pointRadius:3,pointHoverRadius:6,borderWidth:2},
+    {label:'Saldo',data:hist.map(function(h){return h.hype_net!=null?h.hype_net:h.social_impulse;}),borderColor:'#1b1b1f',borderDash:[4,4],tension:.25,pointRadius:3,pointHoverRadius:6,borderWidth:1.5}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{labels:{color:'#6b6b76',boxWidth:8,font:{size:11}}},tooltip:tipOpts(' %')},scales:{x:{ticks:{color:'#6b6b76',maxTicksLimit:6,autoSkip:true},grid:{display:false}},y:{min:-100,max:100,ticks:{color:'#6b6b76'},grid:{color:'#f0f0f3'}}}}});
 
   var mhist=filterByAt(tickData.history||[], function(h){return h.scraped_at||h.tick_id||h.at;});
   if(!mhist.length && (t.mini_series||[]).length){
     mhist=filterByAt((t.mini_series||[]).map(function(m){return {scraped_at:m.at,magnitude:m.magnitude};}), function(h){return h.scraped_at;});
   }
   if(magChart) magChart.destroy();
-  magChart=new Chart(document.getElementById('magChart'),{type:'line',data:{labels:mhist.map(function(h){return fmtBerlin(h.scraped_at||h.tick_id);}),datasets:[{data:mhist.map(function(h){return h.magnitude;}),borderColor:'#1b1b1f',backgroundColor:'rgba(0,199,97,.08)',fill:true,tension:.3,pointRadius:0,borderWidth:2}]},options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b6b76',maxTicksLimit:5,autoSkip:true},grid:{display:false}},y:{min:0,max:100,ticks:{color:'#6b6b76'},grid:{color:'#f0f0f3'}}}}});
+  magChart=new Chart(document.getElementById('magChart'),{type:'line',data:{labels:mhist.map(function(h){return fmtBerlin(h.scraped_at||h.tick_id);}),datasets:[{label:'Stärke',data:mhist.map(function(h){return h.magnitude;}),borderColor:'#1b1b1f',backgroundColor:'rgba(0,199,97,.08)',fill:true,tension:.25,pointRadius:3,pointHoverRadius:6,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipOpts('')},scales:{x:{ticks:{color:'#6b6b76',maxTicksLimit:6,autoSkip:true},grid:{display:false}},y:{min:0,max:100,ticks:{color:'#6b6b76'},grid:{color:'#f0f0f3'}}}}});
 
   var voices=filterByAt(ev.voices||orcl.voices_archive||[], function(v){return v.at;});
   var counts={bull:0,mixed:0,bear:0};
@@ -258,7 +269,7 @@ function renderAll(){
     var arr=groups[g]; if(!arr.length) return;
     html+='<details class="acc '+g+'"><summary>'+titles[g]+' <span>('+arr.length+')</span></summary>';
     arr.slice(0,8).forEach(function(v){
-      html+='<div class="voice">'+esc(v.text||'')+(v.url?' <a href="'+esc(v.url)+'" target="_blank" rel="noopener">Öffnen</a>':'')+'</div>';
+      html+='<div class="voice"><span class="voice-at">'+esc(fmtBerlin(v.at)||'ohne Datum')+' · '+esc((String(v.source||v.src||'Social')).toUpperCase())+'</span>'+esc(v.text||'')+(v.url?' <a href="'+esc(v.url)+'" target="_blank" rel="noopener">Öffnen</a>':'')+'</div>';
     });
     html+='</details>';
   });
@@ -290,11 +301,9 @@ document.getElementById('rangeBar').onclick=function(e){
   Array.prototype.forEach.call(document.querySelectorAll('#rangeBar button'), function(b){b.classList.toggle('active', b===btn);});
   renderAll();
 };
-var REFRESH_MS=60000, _next=Date.now()+REFRESH_MS;
-function paint(){ var el=document.getElementById('nextRefresh'); if(!el)return; el.textContent='Aktualisierung in '+Math.max(0,Math.ceil((_next-Date.now())/1000))+' Sek.'; }
-setInterval(paint,1000); paint();
+var REFRESH_MS=60000;
 load();
-setInterval(function(){ _next=Date.now()+REFRESH_MS; paint(); load(); }, REFRESH_MS);
+setInterval(function(){ load(); }, REFRESH_MS);
 </script>
 </body>
 </html>
