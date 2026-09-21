@@ -162,7 +162,7 @@
 
     <div class="card chart-card-lg">
     <div class="label">Oracle · Innerer Wert vs Kurs <span class="meta" id="ivNow"></span></div>
-    <div class="meta" style="margin:0 0 12px">Grün = Kurs · Schwarz = Innerer Wert · Rot = Gewinnkraft je Aktie. Alles in Euro, kein EBITDA.</div>
+    <div class="meta" style="margin:0 0 12px">Grün = Kurs · Schwarz = Innerer Wert · Rot = Gewinnkraft je Aktie. Alles in Euro.</div>
     <div class="chart-wrap chart-wrap-lg"><canvas id="ivChart"></canvas></div>
     <div class="meta" id="ivNote" style="margin-top:10px"></div>
   </div>
@@ -373,7 +373,7 @@ function renderAll(){
   }
   var ivNote=document.getElementById('ivNote');
   if(ivNote&&ivData){
-    ivNote.textContent='Gewinnkraft = Gewinn + Abschreibungen − Investitionen. Kein EBITDA. Wenn Gewinnkraft negativ → Innerer Wert 0.';
+    ivNote.textContent='Gewinnkraft = Gewinn + Abschreibungen − Investitionen. Wenn Gewinnkraft negativ → Innerer Wert 0.';
   }
   ivChart=new Chart(document.getElementById('ivChart'),{type:'line',data:{labels:ivAxis,datasets:[
     {label:'Kurs',data:ivHist.map(function(h){return h.price_eur;}),borderColor:'#00c761',backgroundColor:'#00c761',fill:false,tension:.2,pointRadius:0,pointHoverRadius:6,borderWidth:2.5},
