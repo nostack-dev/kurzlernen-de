@@ -51,6 +51,7 @@
   
   .range button.active { background: var(--text); color: #fff; border-color: var(--text); }
   canvas { width: 100% !important; max-height: 190px; }
+  .chart-wrap canvas { max-height: none !important; }
   .stimmen-box{display:grid;grid-template-columns:140px 1fr;gap:16px;align-items:start;max-width:100%}
   @media (max-width: 800px) { .stimmen-box { grid-template-columns: 1fr; } }
   details.acc { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; background: #fff; }
@@ -67,9 +68,9 @@
 
   .chart-wrap { position: relative; width: 100%; }
   .chart-wrap-lg { height: 300px; margin-top: 4px; overflow: visible; }
-  .chart-wrap-lg canvas { width: 100% !important; height: 300px !important; }
+  .chart-wrap-lg canvas { width: 100% !important; height: 300px !important; max-height: none !important; }
   .chart-wrap-sm { height: 160px; margin-top: 4px; }
-  .chart-wrap-sm canvas { width: 100% !important; height: 160px !important; }
+  .chart-wrap-sm canvas { width: 100% !important; height: 160px !important; max-height: none !important; }
   .chart-card-lg, .chart-card-sm { margin-bottom: 12px; }
   .card { padding: 14px 16px; }
   .label { font-size: 12px; letter-spacing: .02em; }
@@ -77,9 +78,9 @@
   #magNow { font-weight: 700; color: var(--ink); margin-left: 6px; }
   @media (max-width:700px){
      .chart-wrap-lg { height: 300px; }
-    .chart-wrap-lg canvas { height: 280px !important; }
+    .chart-wrap-lg canvas { height: 300px !important; max-height: none !important; }
     .chart-wrap-sm { height: 160px; }
-    .chart-wrap-sm canvas { height: 180px !important; }
+    .chart-wrap-sm canvas { height: 160px !important; max-height: none !important; }
   }
 
   .range{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;width:100%}
@@ -91,9 +92,9 @@
   footer{color:#4a4a52;font-size:12px;opacity:1}
   @media (max-width:700px){
     .chart-wrap-lg{height:260px}
-    .chart-wrap-lg canvas{height:260px !important}
+    .chart-wrap-lg canvas{height:260px !important;max-height:none !important}
     .chart-wrap-sm{height:150px}
-    .chart-wrap-sm canvas{height:150px !important}
+    .chart-wrap-sm canvas{height:150px !important;max-height:none !important}
     .label{font-size:13px}
     .meta{font-size:12px}
   }
@@ -360,11 +361,11 @@ function rangeBounds(rows,getAt){
   var adaptive=(wlRange&&wlRange!=='all'&&(coverage<0.72||startsLate||endsEarly));
   if(!adaptive) return {min:requestedMin,max:now,adaptive:false};
   var pad=Math.max(actualSpan*0.08, stats.median?stats.median*2:30*60*1000);
-  return {min:Math.max(0,first-pad),max:last+pad,adaptive:true};
+  return {min:Math.max(0,first-pad),max:Math.min(now,last+pad),adaptive:true};
 }
 function axisX(rows,getAt){
   var mob=window.matchMedia&&window.matchMedia('(max-width:700px)').matches,b=rangeBounds(rows,getAt);
-  return {type:'linear',min:b.min,max:b.max,ticks:{color:'#6b6b76',maxRotation:0,autoSkip:true,maxTicksLimit:mob?4:6,font:{size:mob?12:11},callback:function(v){return fmtAxisValue(v);}},grid:{display:false}};
+  return {type:'linear',min:b.min,max:b.max,offset:false,bounds:'ticks',ticks:{color:'#6b6b76',maxRotation:0,autoSkip:true,maxTicksLimit:mob?4:6,font:{size:mob?12:11},callback:function(v){return fmtAxisValue(v);}},grid:{display:false},border:{display:false}};
 }
 function chartInteract(){return {mode:'nearest',intersect:false,axis:'x'};}
 function coverageText(rows,getAt){
@@ -432,7 +433,7 @@ function renderAll(){
     {label:'Bullisch %',data:seriesWithGaps(hist,function(h){return h.at;},function(h){return directionalPct(h).bull;}),parsing:false,spanGaps:false,borderColor:'#00c761',backgroundColor:'#00c761',tension:.18,pointRadius:2,pointHoverRadius:6,borderWidth:2},
     {label:'Bearisch %',data:seriesWithGaps(hist,function(h){return h.at;},function(h){return directionalPct(h).bear;}),parsing:false,spanGaps:false,borderColor:'#ff3b30',backgroundColor:'#ff3b30',tension:.18,pointRadius:2,pointHoverRadius:6,borderWidth:2},
     {label:'Stimmung',data:seriesWithGaps(hist,function(h){return h.at;},function(h){return stimmungNorm(h);}),parsing:false,spanGaps:false,borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',borderDash:[5,4],tension:.18,pointRadius:2,pointHoverRadius:6,borderWidth:2.5}
-  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:16,bottom:12,left:12,right:10}},interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:13},padding:10}},tooltip:tipBase('hype')},scales:{x:axisX(hist,function(h){return h.at;}),y:{min:0,max:100,ticks:{color:'#6b6b76',font:{size:11},callback:function(v){return v+' %';}},grid:{color:'#f0f0f3'}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:16,bottom:12,left:12,right:10}},interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:13},padding:10}},tooltip:tipBase('hype')},scales:{x:axisX(hist,function(h){return h.at;}),y:{grace:'12%',suggestedMin:0,suggestedMax:100,ticks:{color:'#6b6b76',font:{size:11},callback:function(v){return v+' %';}},grid:{color:'#f0f0f3'},border:{display:false}}}}});
 
   var mhist=filterByAt(tickData.history||[], function(h){return h.scraped_at||h.tick_id||h.at;});
   if(!mhist.length && (t.mini_series||[]).length){
@@ -445,7 +446,7 @@ function renderAll(){
   var magNowEl=document.getElementById('magNow'); if(magNowEl) magNowEl.textContent=magIst!=null?('· jetzt '+magIst):'';
   magChart=new Chart(document.getElementById('magChart'),{type:'line',data:{datasets:[
     {label:'Stimmungsstärke',data:seriesWithGaps(mhist,function(h){return h.scraped_at||h.tick_id||h.at;},function(h){return h.magnitude;}),parsing:false,spanGaps:false,borderColor:'#00c761',backgroundColor:'rgba(0,199,97,.12)',fill:true,tension:.18,pointRadius:3,pointHoverRadius:7,borderWidth:2.5}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase('mag')},scales:{x:axisX(mhist,function(h){return h.scraped_at||h.tick_id||h.at;}),y:{min:0,max:100,ticks:{color:'#6b6b76',font:{size:11}},grid:{color:'#f0f0f3'}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:10,bottom:6,left:8,right:8}},interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase('mag')},scales:{x:axisX(mhist,function(h){return h.scraped_at||h.tick_id||h.at;}),y:{grace:'8%',suggestedMin:0,suggestedMax:100,ticks:{color:'#6b6b76',font:{size:11}},grid:{color:'#f0f0f3'},border:{display:false}}}}});
 
   if(ivChart) ivChart.destroy();
   var ivHist=filterByAt((ivData&&ivData.history)||[], function(h){return h.at;});
@@ -466,7 +467,7 @@ function renderAll(){
     {label:'Konservativer Wert',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return h.intrinsic_low_usd;}),parsing:false,spanGaps:false,borderColor:'#ff3b30',backgroundColor:'#ff3b30',borderDash:[4,4],tension:0,pointRadius:0,pointHoverRadius:5,borderWidth:1.5},
     {label:'Basiswert',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return h.intrinsic_base_usd;}),parsing:false,spanGaps:false,borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',tension:0,pointRadius:0,pointHoverRadius:5,borderWidth:2.2},
     {label:'Obere Sensitivität',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return h.intrinsic_high_usd;}),parsing:false,spanGaps:false,borderColor:'#8e8e93',backgroundColor:'#8e8e93',borderDash:[4,4],tension:0,pointRadius:0,pointHoverRadius:5,borderWidth:1.5}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:12},padding:8}},tooltip:tipBase('iv')},scales:{x:axisX(ivHist,function(h){return h.at;}),y:{ticks:{color:'#6b6b76',callback:function(v){return Number(v).toLocaleString('de-DE',{maximumFractionDigits:0})+' $';},font:{size:11}},grid:{color:'#f0f0f3'}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:12,bottom:8,left:8,right:8}},interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:12},padding:8}},tooltip:tipBase('iv')},scales:{x:axisX(ivHist,function(h){return h.at;}),y:{grace:'10%',ticks:{color:'#6b6b76',callback:function(v){return Number(v).toLocaleString('de-DE',{maximumFractionDigits:0})+' $';},font:{size:11}},grid:{color:'#f0f0f3'},border:{display:false}}}}});
 
 
   var voices=filterByAt(ev.voices||orcl.voices_archive||[], function(v){return v.at;});
