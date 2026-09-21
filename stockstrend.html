@@ -59,6 +59,8 @@
   footer { max-width: 980px; margin: 0 auto; padding: 0 14px 24px; color: var(--muted); font-size: 0.75rem; }
   a.ext { color: var(--green); text-decoration: none; font-weight: 650; margin-right: 10px; }
   .voice-at { display:block; color: var(--muted); font-size: 11px; margin-bottom: 2px; font-variant-numeric: tabular-nums; }
+  .chart-wrap { position: relative; height: 220px; width: 100%; }
+  .chart-wrap canvas { width: 100% !important; height: 220px !important; }
 </style>
 </head>
 <body>
@@ -84,7 +86,7 @@
         <span title="Social-Buzz von −100 (sehr negativ) bis +100 (sehr positiv)">Social-Buzz <b id="orclImp">—</b></span>
         <span>Bullish <b id="orclBull" style="color:var(--green)">—</b></span>
         <span>Bearish <b id="orclBear" style="color:var(--red)">—</b></span>
-        <span>Saldo <b id="orclNet">—</b></span>
+        <span title="Netto = Anteil positiv minus Anteil negativ">Netto <b id="orclNet">—</b></span>
       </div>
       <div class="note" id="orclWhy"></div>
       <div class="meta" style="margin-top:8px" id="orclLinks"></div>
@@ -114,11 +116,13 @@
   <div class="row2">
     <div class="card">
       <div class="label">Oracle · Stimmung über Zeit</div>
-      <canvas id="hypeChart" height="170"></canvas>
+      <div class="meta" style="margin:-4px 0 8px">Grün = positiv · Rot = negativ · Schwarz = Netto (positiv minus negativ)</div>
+      <div class="chart-wrap"><canvas id="hypeChart"></canvas></div>
     </div>
     <div class="card">
-      <div class="label">Markt · Stärke über Zeit</div>
-      <canvas id="magChart" height="170"></canvas>
+      <div class="label">Markt · Stimmungsstärke (0–100)</div>
+      <div class="meta" style="margin:-4px 0 8px">Wie stark die Marktstimmung gerade ist — nicht Kurs, nur Social-Druck</div>
+      <div class="chart-wrap"><canvas id="magChart"></canvas></div>
     </div>
   </div>
 
@@ -171,7 +175,18 @@ function filterByAt(arr, getAt){
   return out.length?out:arr.slice();
 }
 function fmtBerlin(iso){
-  try{return new Date(iso).toLocaleString('de-DE',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'short'});}catch(e){return iso||'—';}
+  try{return new Date(iso).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){return iso||'—';}
+}
+function fmtAxis(iso){
+  try{
+    var d=new Date(iso);
+    var opts={timeZone:'Europe/Berlin'};
+    if(wlRange==='today'||wlRange==='1d'){ opts.hour='2-digit'; opts.minute='2-digit'; }
+    else if(wlRange==='1w'){ opts.weekday='short'; opts.hour='2-digit'; opts.minute='2-digit'; }
+    else if(wlRange==='5m'||wlRange==='year'){ opts.day='2-digit'; opts.month='2-digit'; }
+    else { opts.day='2-digit'; opts.month='2-digit'; opts.year='2-digit'; }
+    return d.toLocaleString('de-DE', opts);
+  }catch(e){return '—';}
 }
 function euro(n){
   if(n==null||isNaN(n)) return '—';
@@ -190,15 +205,46 @@ function ageLabel(iso){
     return Math.round(h/24)+' Tage';
   }catch(e){return '—';}
 }
-function tipOpts(ySuffix){
-  return {enabled:true, mode:'index', intersect:false,
+function tipBase(fullLabels, kind){
+  return {
+    enabled:true,
+    mode:'index',
+    intersect:false,
+    backgroundColor:'#ffffff',
+    titleColor:'#1b1b1f',
+    bodyColor:'#1b1b1f',
+    borderColor:'#e8e8ec',
+    borderWidth:1,
+    padding:10,
+    displayColors:true,
+    boxPadding:4,
+    titleFont:{size:12, weight:'600'},
+    bodyFont:{size:12},
     callbacks:{
-      title:function(items){ return items&&items[0]?items[0].label:''; },
-      label:function(ctx){ var v=ctx.parsed.y; if(v==null) return (ctx.dataset.label||'')+': —';
-        return (ctx.dataset.label?ctx.dataset.label+': ':'')+v+(ySuffix||''); }
-    }};
+      title:function(items){
+        if(!items||!items[0]) return '';
+        var i=items[0].dataIndex;
+        return fullLabels[i]||items[0].label||'';
+      },
+      label:function(ctx){
+        var v=ctx.parsed.y;
+        if(v==null||isNaN(v)) return '  '+(ctx.dataset.label||'')+': —';
+        if(kind==='hype'){
+          var name=ctx.dataset.label||'';
+          if(name.indexOf('Bear')>=0) return '  Bearish: '+Math.abs(v)+' %';
+          if(name.indexOf('Bull')>=0) return '  Bullish: '+v+' %';
+          if(name.indexOf('Netto')>=0) return '  Netto (Bull−Bear): '+(v>0?'+':'')+v;
+          return '  '+name+': '+v;
+        }
+        return '  Stimmungsstärke: '+v+' / 100';
+      }
+    }
+  };
 }
 function chartInteract(){ return {mode:'index', intersect:false, axis:'x'}; }
+function axisX(){
+  return {ticks:{color:'#6b6b76', maxRotation:0, autoSkip:true, maxTicksLimit:wlRange==='today'||wlRange==='1d'?6:5, font:{size:11}}, grid:{display:false}};
+}
 function renderAll(){
   var t=(tickData&&tickData.tick)||{};
   var v=t.vector||{};
@@ -230,25 +276,29 @@ function renderAll(){
     var s=Number(n); el.textContent=(s>0?'+':'')+s+' (−100…+100)'; })();
   document.getElementById('orclBull').textContent=hyp.bull!=null?(hyp.bull+' %'):'—';
   document.getElementById('orclBear').textContent=hyp.bear!=null?(hyp.bear+' %'):'—';
-  document.getElementById('orclNet').textContent=hyp.net!=null?hyp.net:'—';
+  document.getElementById('orclNet').textContent=hyp.net!=null?((Number(hyp.net)>0?'+':'')+hyp.net):'—';
   document.getElementById('orclWhy').textContent=lat.why||'';
   var L=lat.links||{};
   document.getElementById('orclLinks').innerHTML=(L.yahoo?'<a class="ext" href="'+esc(L.yahoo)+'" target="_blank" rel="noopener">Yahoo</a>':'')+(L.tradingview?'<a class="ext" href="'+esc(L.tradingview)+'" target="_blank" rel="noopener">TradingView</a>':'');
 
   var hist=filterByAt(orcl.history||[], function(h){return h.at;});
+  var hypeFull=hist.map(function(h){return fmtBerlin(h.at);});
+  var hypeAxis=hist.map(function(h){return fmtAxis(h.at);});
   if(hypeChart) hypeChart.destroy();
-  hypeChart=new Chart(document.getElementById('hypeChart'),{type:'line',data:{labels:hist.map(function(h){return fmtBerlin(h.at);}),datasets:[
-    {label:'Bullish',data:hist.map(function(h){return h.hype_bull;}),borderColor:'#00c761',tension:.25,pointRadius:3,pointHoverRadius:6,borderWidth:2},
-    {label:'Bearish',data:hist.map(function(h){return h.hype_bear!=null?-Math.abs(h.hype_bear):null;}),borderColor:'#ff3b30',tension:.25,pointRadius:3,pointHoverRadius:6,borderWidth:2},
-    {label:'Saldo',data:hist.map(function(h){return h.hype_net!=null?h.hype_net:h.social_impulse;}),borderColor:'#1b1b1f',borderDash:[4,4],tension:.25,pointRadius:3,pointHoverRadius:6,borderWidth:1.5}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{labels:{color:'#6b6b76',boxWidth:8,font:{size:11}}},tooltip:tipOpts(' %')},scales:{x:{ticks:{color:'#6b6b76',maxTicksLimit:6,autoSkip:true},grid:{display:false}},y:{min:-100,max:100,ticks:{color:'#6b6b76'},grid:{color:'#f0f0f3'}}}}});
+  hypeChart=new Chart(document.getElementById('hypeChart'),{type:'line',data:{labels:hypeAxis,datasets:[
+    {label:'Bullish',data:hist.map(function(h){return h.hype_bull;}),borderColor:'#00c761',backgroundColor:'#00c761',tension:.25,pointRadius:3,pointHoverRadius:7,borderWidth:2},
+    {label:'Bearish',data:hist.map(function(h){return h.hype_bear!=null?-Math.abs(h.hype_bear):null;}),borderColor:'#ff3b30',backgroundColor:'#ff3b30',tension:.25,pointRadius:3,pointHoverRadius:7,borderWidth:2},
+    {label:'Netto (Bull−Bear)',data:hist.map(function(h){return h.hype_net!=null?h.hype_net:h.social_impulse;}),borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',borderDash:[5,4],tension:.25,pointRadius:3,pointHoverRadius:7,borderWidth:2}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:10,boxHeight:2,font:{size:11},padding:12}},tooltip:tipBase(hypeFull,'hype')},scales:{x:axisX(),y:{min:-100,max:100,ticks:{color:'#6b6b76',callback:function(v){return v+' %';},font:{size:11}},grid:{color:'#f0f0f3'}}}}});
 
   var mhist=filterByAt(tickData.history||[], function(h){return h.scraped_at||h.tick_id||h.at;});
   if(!mhist.length && (t.mini_series||[]).length){
     mhist=filterByAt((t.mini_series||[]).map(function(m){return {scraped_at:m.at,magnitude:m.magnitude};}), function(h){return h.scraped_at;});
   }
+  var magFull=mhist.map(function(h){return fmtBerlin(h.scraped_at||h.tick_id);});
+  var magAxis=mhist.map(function(h){return fmtAxis(h.scraped_at||h.tick_id);});
   if(magChart) magChart.destroy();
-  magChart=new Chart(document.getElementById('magChart'),{type:'line',data:{labels:mhist.map(function(h){return fmtBerlin(h.scraped_at||h.tick_id);}),datasets:[{label:'Stärke',data:mhist.map(function(h){return h.magnitude;}),borderColor:'#1b1b1f',backgroundColor:'rgba(0,199,97,.08)',fill:true,tension:.25,pointRadius:3,pointHoverRadius:6,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipOpts('')},scales:{x:{ticks:{color:'#6b6b76',maxTicksLimit:6,autoSkip:true},grid:{display:false}},y:{min:0,max:100,ticks:{color:'#6b6b76'},grid:{color:'#f0f0f3'}}}}});
+  magChart=new Chart(document.getElementById('magChart'),{type:'line',data:{labels:magAxis,datasets:[{label:'Stimmungsstärke',data:mhist.map(function(h){return h.magnitude;}),borderColor:'#00c761',backgroundColor:'rgba(0,199,97,.12)',fill:true,tension:.25,pointRadius:3,pointHoverRadius:7,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase(magFull,'mag')},scales:{x:axisX(),y:{min:0,max:100,ticks:{color:'#6b6b76',callback:function(v){return v;},font:{size:11}},grid:{color:'#f0f0f3'},title:{display:true,text:'0 = ruhig · 100 = extrem laut',color:'#6b6b76',font:{size:10}}}}}});
 
   var voices=filterByAt(ev.voices||orcl.voices_archive||[], function(v){return v.at;});
   var counts={bull:0,mixed:0,bear:0};
