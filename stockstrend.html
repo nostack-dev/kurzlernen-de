@@ -4,141 +4,150 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<title>BotBot · Stocks</title>
+<title>BotBot · Aktien</title>
+<link rel="icon" href="/favicon.ico" sizes="any"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script src="./tickers.js"></script>
 <style>
-  :root { --bg:#0a0e12; --card:#121821; --line:#243041; --text:#e7ecf1; --muted:#8b97a8; --bear:#e85d4c; --bull:#22c55e; --warn:#f0b429; --blue:#3d8bfd; }
+  :root {
+    --bg: #ffffff;
+    --card: #ffffff;
+    --soft: #f5f5f7;
+    --line: #e8e8ed;
+    --text: #1b1b1f;
+    --muted: #6b6b76;
+    --green: #00c761;
+    --red: #ff3b30;
+    --amber: #ff9500;
+  }
   * { box-sizing: border-box; }
-  body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
-  header { padding:16px 20px 8px; display:flex; flex-wrap:wrap; gap:8px 16px; align-items:baseline; justify-content:space-between; }
-  h1 { margin:0; font-size:1.2rem; }
-  .meta { color:var(--muted); font-size:.85rem; }
-  .fresh { color:var(--bull); font-weight:700; }
-  .stale { color:var(--bear); font-weight:700; }
-  .grid { display:grid; grid-template-columns:repeat(12,1fr); gap:12px; padding:8px 20px 24px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; }
-  .span4{grid-column:span 4}.span6{grid-column:span 6}.span8{grid-column:span 8}.span12{grid-column:span 12}
-  @media (max-width:800px){ .span4,.span6,.span8,.span12{grid-column:span 12} }
-  .label { color:var(--muted); font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
-  .big { font-size:2.2rem; font-weight:800; line-height:1.1; margin:4px 0; }
-  .sub { color:var(--muted); font-size:.9rem; line-height:1.35; }
-  .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:.8rem; font-weight:700; }
-  .buy { background:rgba(34,197,94,.18); color:var(--bull); }
-  .sell { background:rgba(232,93,76,.18); color:var(--bear); }
-  .hold { background:rgba(240,180,41,.18); color:var(--warn); }
-  .kpi-row { display:flex; flex-wrap:wrap; gap:10px 18px; margin-top:8px; align-items:center; }
-  .kpi { font-size:.9rem; color:var(--muted); }
-  .kpi b { color:var(--text); }
-  canvas { width:100% !important; max-height:200px; }
-  .search-row { display:flex; gap:8px; flex-wrap:wrap; }
-  .search-row input { flex:1; min-width:140px; background:#0f1419; border:1px solid var(--line); color:var(--text); border-radius:10px; padding:8px 10px; font-size:.9rem; }
-  .search-row button { background:#2a3340; color:#fff; border:0; border-radius:10px; padding:8px 12px; font-weight:700; cursor:pointer; font-size:.85rem; }
-  .search-row button:disabled { opacity:.5; }
-  .sug { padding:6px 8px; border-radius:8px; cursor:pointer; font-size:.85rem; }
-  .sug:hover, .sug.active { background:#1a222c; }
-  .range { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
-  .range button { min-height:34px; padding:6px 12px; border-radius:999px; border:1px solid var(--line); background:#0f1419; color:var(--text); cursor:pointer; font-weight:700; font-size:.8rem; }
-  .range button.active { border-color:var(--blue); background:#1a3350; color:#7dd3fc; }
-  .split { display:grid; grid-template-columns:200px 1fr; gap:12px; align-items:start; }
-  @media (max-width:800px){ .split { grid-template-columns:1fr; } }
-  details.acc { border:1px solid var(--line); border-radius:10px; background:#0f1419; margin-bottom:8px; }
-  details.acc > summary { list-style:none; cursor:pointer; padding:8px 10px; font-weight:700; font-size:.8rem; display:flex; justify-content:space-between; }
-  details.acc > summary::-webkit-details-marker { display:none; }
-  details.acc.bull > summary { color:var(--bull); }
-  details.acc.bear > summary { color:var(--bear); }
-  details.acc.mixed > summary { color:var(--warn); }
-  .voice { border-left:2px solid var(--line); padding:6px 8px; margin:6px 8px; font-size:.78rem; color:#c5ced8; }
-  .voice a { color:#7dd3fc; font-size:.72rem; margin-left:6px; }
-  footer { padding:8px 20px 20px; color:var(--muted); font-size:.72rem; }
-  a.stock { color:#7dd3fc; text-decoration:none; font-weight:700; }
+  body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--soft); color: var(--text); }
+  header { background: var(--bg); border-bottom: 1px solid var(--line); padding: 14px 18px; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
+  .meta { color: var(--muted); font-size: 0.82rem; }
+  .ok { color: var(--green); font-weight: 700; }
+  .bad { color: var(--red); font-weight: 700; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 14px 14px 28px; display: grid; gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .row2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; }
+  @media (max-width: 800px) { .row3, .row2 { grid-template-columns: 1fr; } }
+  .label { color: var(--muted); font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+  .big { font-size: 1.65rem; font-weight: 750; letter-spacing: -0.03em; margin: 0 0 8px; line-height: 1.15; }
+  .kpis { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 0.9rem; color: var(--muted); }
+  .kpis b { color: var(--text); font-weight: 700; }
+  .pill { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; }
+  .pill.hold { background: #fff4e5; color: var(--amber); }
+  .pill.buy { background: #e6f9ef; color: var(--green); }
+  .pill.sell { background: #ffeaea; color: var(--red); }
+  .pill.early { background: var(--soft); color: var(--muted); }
+  .note { color: var(--muted); font-size: 0.9rem; line-height: 1.35; margin-top: 8px; }
+  .range { display: flex; flex-wrap: wrap; gap: 6px; }
+  .range button { border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 999px; padding: 7px 12px; font-weight: 650; font-size: 0.8rem; cursor: pointer; }
+  .range button.active { background: var(--text); color: #fff; border-color: var(--text); }
+  canvas { width: 100% !important; max-height: 190px; }
+  .stimmen-box { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 14px; align-items: start; max-width: 720px; }
+  @media (max-width: 800px) { .stimmen-box { grid-template-columns: 1fr; } }
+  details.acc { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; background: #fff; }
+  details.acc > summary { list-style: none; cursor: pointer; padding: 10px 12px; font-size: 0.85rem; font-weight: 700; display: flex; justify-content: space-between; }
+  details.acc > summary::-webkit-details-marker { display: none; }
+  details.acc.bull > summary { color: var(--green); }
+  details.acc.bear > summary { color: var(--red); }
+  details.acc.mixed > summary { color: var(--amber); }
+  .voice { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 0.82rem; color: var(--text); line-height: 1.35; }
+  .voice a { color: var(--green); text-decoration: none; font-weight: 650; margin-left: 6px; font-size: 0.78rem; }
+  footer { max-width: 980px; margin: 0 auto; padding: 0 14px 24px; color: var(--muted); font-size: 0.75rem; }
+  a.ext { color: var(--green); text-decoration: none; font-weight: 650; margin-right: 10px; }
 </style>
 </head>
 <body>
 <header>
-  <div>
-    <h1>BotBot · Social Stocks</h1>
-    <div class="meta" id="hdrFresh">Frische: —</div>
-  </div>
-  <div class="meta" id="nextRefresh">Refresh —</div>
+  <h1>BotBot · Aktien</h1>
+  <div class="meta"><span id="hdrFresh">—</span> · <span id="nextRefresh">Aktualisierung —</span></div>
 </header>
-<div class="grid">
-  <div class="card span4" id="cardBias">
-    <div class="label">Markt-Bias (Social)</div>
-    <div class="big" id="biasDir">—</div>
-    <div class="kpi-row">
-      <span class="kpi">Stärke <b id="biasMag">—</b></span>
-      <span class="kpi">Klarheit <b id="biasConf">—</b></span>
-      <span id="biasEarly"></span>
+<div class="wrap">
+  <div class="row3">
+    <div class="card">
+      <div class="label">Marktstimmung</div>
+      <div class="big" id="biasDir">—</div>
+      <div class="kpis">
+        <span>Stärke <b id="biasMag">—</b></span>
+        <span>Sicherheit <b id="biasConf">—</b></span>
+        <span id="biasEarly"></span>
+      </div>
+      <div class="note" id="biasNote"></div>
     </div>
-    <div class="sub" id="biasNote" style="margin-top:8px"></div>
-  </div>
-  <div class="card span4" id="cardOrcl">
-    <div class="label">Watchlist · ORCL</div>
-    <div class="big"><span class="pill" id="orclSig">—</span></div>
-    <div class="kpi-row">
-      <span class="kpi">Impuls <b id="orclImp">—</b></span>
-      <span class="kpi">Bull <b id="orclBull" style="color:var(--bull)">—</b></span>
-      <span class="kpi">Bear <b id="orclBear" style="color:var(--bear)">—</b></span>
-      <span class="kpi">Net <b id="orclNet">—</b></span>
+    <div class="card">
+      <div class="label">Beobachtung · Oracle (ORCL)</div>
+      <div class="big"><span class="pill" id="orclSig">—</span></div>
+      <div class="kpis">
+        <span>Impuls <b id="orclImp">—</b></span>
+        <span>Bullisch <b id="orclBull" style="color:var(--green)">—</b></span>
+        <span>Bearisch <b id="orclBear" style="color:var(--red)">—</b></span>
+        <span>Saldo <b id="orclNet">—</b></span>
+      </div>
+      <div class="note" id="orclWhy"></div>
+      <div class="meta" style="margin-top:8px" id="orclLinks"></div>
     </div>
-    <div class="sub" id="orclWhy" style="margin-top:8px"></div>
-    <div class="meta" style="margin-top:6px" id="orclLinks"></div>
-  </div>
-  <div class="card span4" id="cardFresh">
-    <div class="label">Datenfrische</div>
-    <div class="big" id="freshAge">—</div>
-    <div class="kpi-row">
-      <span class="kpi">Items <b id="freshItems">—</b></span>
-      <span class="kpi">Stand <b id="freshAt">—</b></span>
+    <div class="card">
+      <div class="label">Aktualität</div>
+      <div class="big" id="freshAge">—</div>
+      <div class="kpis">
+        <span>Beiträge <b id="freshItems">—</b></span>
+        <span>Stand <b id="freshAt">—</b></span>
+      </div>
     </div>
-    <div class="sub" style="margin-top:8px">Nur echte Social-Counts (X / Reddit / News). Impuls = Buzz −100…+100.</div>
   </div>
 
-  <div class="card span12">
-    <div class="label">Zeitraum (gilt für Charts + Stimmen)</div>
+  <div class="card">
+    <div class="label">Zeitraum</div>
     <div class="range" id="rangeBar">
-      <button type="button" data-range="today">Today</button>
-      <button type="button" data-range="1d">1D</button>
+      <button type="button" data-range="today">Heute</button>
+      <button type="button" data-range="1d">1T</button>
       <button type="button" data-range="1w" class="active">1W</button>
       <button type="button" data-range="5m">5M</button>
-      <button type="button" data-range="year">Year</button>
-      <button type="button" data-range="all">All</button>
+      <button type="button" data-range="year">1J</button>
+      <button type="button" data-range="all">Gesamt</button>
     </div>
   </div>
 
-  <div class="card span6">
-    <div class="label">ORCL Hype-Verlauf · Bull / Bear / Net</div>
-    <canvas id="hypeChart" height="180"></canvas>
-  </div>
-  <div class="card span6">
-    <div class="label">Markt Magnitude-Verlauf</div>
-    <canvas id="magChart" height="180"></canvas>
+  <div class="row2">
+    <div class="card">
+      <div class="label">Oracle · Stimmung über Zeit</div>
+      <canvas id="hypeChart" height="170"></canvas>
+    </div>
+    <div class="card">
+      <div class="label">Markt · Stärke über Zeit</div>
+      <canvas id="magChart" height="170"></canvas>
+    </div>
   </div>
 
-  <div class="card span12">
-    <div class="label">ORCL Stimmen <span class="meta" id="stimmenRange"></span></div>
-    <div class="split">
-      <div><canvas id="pie" width="180" height="180"></canvas><div class="meta" id="pieLeg" style="text-align:center;margin-top:6px"></div></div>
+  <div class="card">
+    <div class="label">Oracle · Meinungen <span class="meta" id="stimmenRange"></span></div>
+    <div class="stimmen-box">
+      <div>
+        <canvas id="pie" width="150" height="150"></canvas>
+        <div class="meta" id="pieLeg" style="text-align:center;margin-top:6px"></div>
+      </div>
       <div id="stimmenList"></div>
     </div>
   </div>
-
-  <div class="card span12" style="padding:10px 14px;opacity:.9">
-    <div class="label">Stock suchen</div>
-    <div class="search-row">
-      <input id="q" type="search" placeholder="AAPL, NVDA…" autocomplete="off"/>
-      <button id="btn" type="button" disabled>watch</button>
-    </div>
-    <div id="suggest"></div>
-    <div class="meta" id="searchStatus" style="margin-top:6px"></div>
-  </div>
 </div>
-<footer>BotBot · https://kurzlernen.de/stockstrend.html · Refresh 60s</footer>
+<footer>BotBot · Social-Signal, keine Anlageberatung</footer>
 <script>
-var wlRange='1w', wlData=null, tickData=null, hypeChart=null, magChart=null, pieChart=null;
+var wlRange='1w', tickData=null, wlData=null, hypeChart=null, magChart=null, pieChart=null;
+var DIR_DE = {
+  mixed_cautious: 'Gemischt vorsichtig',
+  leicht_bearish_risk_off: 'Leicht negativ',
+  leicht_bullish_risk_on: 'Leicht positiv',
+  bearish_risk_off: 'Negativ',
+  bullish_risk_on: 'Positiv',
+  mixed: 'Gemischt',
+  neutral: 'Neutral'
+};
+var SIG_DE = { hold: 'Halten', buy: 'Kaufen', sell: 'Verkaufen' };
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function cls(s){s=(s||'').toLowerCase(); if(s.indexOf('buy')>=0)return 'buy'; if(s.indexOf('sell')>=0)return 'sell'; return 'hold';}
+function cls(s){s=String(s||'').toLowerCase(); if(s.indexOf('buy')>=0||s==='kaufen')return 'buy'; if(s.indexOf('sell')>=0||s==='verkaufen')return 'sell'; return 'hold';}
 function rangeCutoffMs(range){
   var now=Date.now(), d=new Date();
   if(range==='today') return new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
@@ -152,19 +161,27 @@ function filterByAt(arr, getAt){
   if(!arr||!arr.length) return [];
   if(!wlRange||wlRange==='all') return arr.slice();
   var cut=rangeCutoffMs(wlRange);
-  var out=arr.filter(function(x){ var t=new Date(getAt(x)||0).getTime(); return !isNaN(t)&&t>=cut; });
+  var out=arr.filter(function(x){var t=new Date(getAt(x)||0).getTime(); return !isNaN(t)&&t>=cut;});
   return out.length?out:arr.slice();
 }
 function fmtBerlin(iso){
   try{return new Date(iso).toLocaleString('de-DE',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'short'});}catch(e){return iso||'—';}
 }
+function euro(n){
+  if(n==null||isNaN(n)) return '—';
+  return new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n);
+}
 function ageLabel(iso){
   try{
-    var sec=Math.max(0,(Date.now()-new Date(iso).getTime())/1000);
-    if(sec<90) return Math.round(sec)+'s';
-    if(sec<3600) return Math.round(sec/60)+' Min';
-    if(sec<86400) return (sec/3600).toFixed(1)+' Std';
-    return Math.round(sec/86400)+'d';
+    var ms=Date.now()-new Date(iso).getTime();
+    if(isNaN(ms)) return '—';
+    var sec=Math.max(0,Math.round(ms/1000));
+    if(sec<90) return sec+' Sek.';
+    var min=Math.round(sec/60);
+    if(min<60) return min+' Min.';
+    var h=Math.round(min/60);
+    if(h<48) return h+' Std.';
+    return Math.round(h/24)+' Tage';
   }catch(e){return '—';}
 }
 function renderAll(){
@@ -172,15 +189,15 @@ function renderAll(){
   var v=t.vector||{};
   var fr=t.freshness||{};
   var updated=tickData&&tickData.updated_at;
+  // Prefer freshest social item age for "Aktualität", not page load lag text
   var freshest=fr.freshest_item_age||fr.freshest_absolute||'—';
   var age=ageLabel(updated);
-  var freshEl=document.getElementById('hdrFresh');
   var stale=(Date.now()-new Date(updated).getTime())>20*60*1000;
-  freshEl.innerHTML='Frische: <span class="'+(stale?'stale':'fresh')+'">'+esc(freshest)+'</span> · Stand vor '+esc(age);
-  document.getElementById('biasDir').textContent=v.direction||'—';
+  document.getElementById('hdrFresh').innerHTML='Daten <span class="'+(stale?'bad':'ok')+'">'+esc(freshest)+'</span> · Stand '+esc(fmtBerlin(updated))+' (vor '+esc(age)+')';
+  document.getElementById('biasDir').textContent=DIR_DE[v.direction]||v.direction||'—';
   document.getElementById('biasMag').textContent=v.magnitude!=null?v.magnitude:'—';
   document.getElementById('biasConf').textContent=v.confidence!=null?v.confidence:'—';
-  document.getElementById('biasEarly').innerHTML=v.early_signal?'<span class="pill hold">Frühsignal</span>':'';
+  document.getElementById('biasEarly').innerHTML=v.early_signal?'<span class="pill early">Frühsignal</span>':'';
   document.getElementById('biasNote').textContent=v.early_signal_note||'';
   document.getElementById('freshAge').textContent=freshest;
   document.getElementById('freshItems').textContent=(t.totals&&t.totals.content_items_usable)!=null?t.totals.content_items_usable:'—';
@@ -190,94 +207,70 @@ function renderAll(){
   var lat=orcl.latest||{};
   var hyp=lat.hype||{};
   var ev=lat.evidence||{};
-  document.getElementById('orclSig').className='pill '+cls(lat.signal);
-  document.getElementById('orclSig').textContent=String(lat.signal||'—').toUpperCase();
+  var sig=String(lat.signal||'').toLowerCase();
+  document.getElementById('orclSig').className='pill '+cls(sig);
+  document.getElementById('orclSig').textContent=SIG_DE[sig]||String(lat.signal||'—').toUpperCase();
   document.getElementById('orclImp').textContent=lat.social_impulse!=null?lat.social_impulse:'—';
-  document.getElementById('orclBull').textContent=hyp.bull!=null?hyp.bull+'%':'—';
-  document.getElementById('orclBear').textContent=hyp.bear!=null?hyp.bear+'%':'—';
+  document.getElementById('orclBull').textContent=hyp.bull!=null?(hyp.bull+' %'):'—';
+  document.getElementById('orclBear').textContent=hyp.bear!=null?(hyp.bear+' %'):'—';
   document.getElementById('orclNet').textContent=hyp.net!=null?hyp.net:'—';
   document.getElementById('orclWhy').textContent=lat.why||'';
   var L=lat.links||{};
-  document.getElementById('orclLinks').innerHTML=(L.yahoo?'<a class="stock" href="'+esc(L.yahoo)+'" target="_blank" rel="noopener">Yahoo</a> ':'')+(L.tradingview?'<a class="stock" href="'+esc(L.tradingview)+'" target="_blank" rel="noopener">TV</a>':'');
+  document.getElementById('orclLinks').innerHTML=(L.yahoo?'<a class="ext" href="'+esc(L.yahoo)+'" target="_blank" rel="noopener">Yahoo</a>':'')+(L.tradingview?'<a class="ext" href="'+esc(L.tradingview)+'" target="_blank" rel="noopener">TradingView</a>':'');
 
-  // charts
   var hist=filterByAt(orcl.history||[], function(h){return h.at;});
-  var labels=hist.map(function(h){return fmtBerlin(h.at);});
   if(hypeChart) hypeChart.destroy();
-  hypeChart=new Chart(document.getElementById('hypeChart'),{type:'line',data:{labels:labels,datasets:[
-    {label:'Bull',data:hist.map(function(h){return h.hype_bull;}),borderColor:'#22c55e',tension:.25,pointRadius:2},
-    {label:'Bear',data:hist.map(function(h){return h.hype_bear!=null?-Math.abs(h.hype_bear):null;}),borderColor:'#e85d4c',tension:.25,pointRadius:2},
-    {label:'Net',data:hist.map(function(h){return h.hype_net!=null?h.hype_net:h.social_impulse;}),borderColor:'#3d8bfd',borderDash:[4,4],tension:.25,pointRadius:2}
-  ]},options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8b97a8',boxWidth:10}}},scales:{x:{ticks:{color:'#8b97a8',maxTicksLimit:6,autoSkip:true},grid:{color:'#243041'}},y:{min:-100,max:100,ticks:{color:'#8b97a8'},grid:{color:'#243041'}}}}});
+  hypeChart=new Chart(document.getElementById('hypeChart'),{type:'line',data:{labels:hist.map(function(h){return fmtBerlin(h.at);}),datasets:[
+    {label:'Bullisch',data:hist.map(function(h){return h.hype_bull;}),borderColor:'#00c761',tension:.3,pointRadius:0,borderWidth:2},
+    {label:'Bearisch',data:hist.map(function(h){return h.hype_bear!=null?-Math.abs(h.hype_bear):null;}),borderColor:'#ff3b30',tension:.3,pointRadius:0,borderWidth:2},
+    {label:'Saldo',data:hist.map(function(h){return h.hype_net!=null?h.hype_net:h.social_impulse;}),borderColor:'#1b1b1f',borderDash:[4,4],tension:.3,pointRadius:0,borderWidth:1.5}
+  ]},options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6b6b76',boxWidth:8,font:{size:11}}}},scales:{x:{ticks:{color:'#6b6b76',maxTicksLimit:5,autoSkip:true},grid:{display:false}},y:{min:-100,max:100,ticks:{color:'#6b6b76'},grid:{color:'#f0f0f3'}}}}});
 
   var mhist=filterByAt(tickData.history||[], function(h){return h.scraped_at||h.tick_id||h.at;});
   if(!mhist.length && (t.mini_series||[]).length){
-    mhist=(t.mini_series||[]).map(function(m){return {scraped_at:m.at,magnitude:m.magnitude};});
-    mhist=filterByAt(mhist, function(h){return h.scraped_at;});
+    mhist=filterByAt((t.mini_series||[]).map(function(m){return {scraped_at:m.at,magnitude:m.magnitude};}), function(h){return h.scraped_at;});
   }
   if(magChart) magChart.destroy();
-  magChart=new Chart(document.getElementById('magChart'),{type:'line',data:{labels:mhist.map(function(h){return fmtBerlin(h.scraped_at||h.tick_id);}),datasets:[{data:mhist.map(function(h){return h.magnitude;}),borderColor:'#e85d4c',backgroundColor:'rgba(232,93,76,.12)',fill:true,tension:.25,pointRadius:2}]},options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b97a8',maxTicksLimit:6,autoSkip:true},grid:{color:'#243041'}},y:{min:0,max:100,ticks:{color:'#8b97a8'},grid:{color:'#243041'}}}}});
+  magChart=new Chart(document.getElementById('magChart'),{type:'line',data:{labels:mhist.map(function(h){return fmtBerlin(h.scraped_at||h.tick_id);}),datasets:[{data:mhist.map(function(h){return h.magnitude;}),borderColor:'#1b1b1f',backgroundColor:'rgba(0,199,97,.08)',fill:true,tension:.3,pointRadius:0,borderWidth:2}]},options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b6b76',maxTicksLimit:5,autoSkip:true},grid:{display:false}},y:{min:0,max:100,ticks:{color:'#6b6b76'},grid:{color:'#f0f0f3'}}}}});
 
   var voices=filterByAt(ev.voices||orcl.voices_archive||[], function(v){return v.at;});
   var counts={bull:0,mixed:0,bear:0};
   voices.forEach(function(v){var l=String(v.lean||'mixed').toLowerCase(); if(l!=='bull'&&l!=='bear')l='mixed'; counts[l]++;});
   var total=counts.bull+counts.mixed+counts.bear;
   if(pieChart) pieChart.destroy();
-  pieChart=new Chart(document.getElementById('pie'),{type:'doughnut',data:{labels:['Bull','Mixed','Bear'],datasets:[{data:[counts.bull,counts.mixed,counts.bear],backgroundColor:['#22c55e','#f0b429','#e85d4c'],borderWidth:0}]},options:{plugins:{legend:{display:false}},cutout:'62%'}});
-  document.getElementById('pieLeg').textContent=total?('Bull '+counts.bull+' · Mixed '+counts.mixed+' · Bear '+counts.bear):'Keine Stimmen';
-  document.getElementById('stimmenRange').textContent='('+({today:'Today','1d':'1D','1w':'1W','5m':'5M',year:'Year',all:'All'}[wlRange]||wlRange)+')';
-
+  pieChart=new Chart(document.getElementById('pie'),{type:'doughnut',data:{labels:['Bullisch','Unklar','Bearisch'],datasets:[{data:[counts.bull,counts.mixed,counts.bear],backgroundColor:['#00c761','#ff9500','#ff3b30'],borderWidth:0}]},options:{plugins:{legend:{display:false}},cutout:'64%'}});
+  document.getElementById('pieLeg').textContent=total?('Bullisch '+counts.bull+' · Unklar '+counts.mixed+' · Bearisch '+counts.bear):'Keine Meinungen';
+  var rn={today:'Heute','1d':'1T','1w':'1W','5m':'5M',year:'1J',all:'Gesamt'}[wlRange]||wlRange;
+  document.getElementById('stimmenRange').textContent='('+rn+')';
   var groups={bull:[],mixed:[],bear:[]};
   voices.slice().sort(function(a,b){return new Date(b.at||0)-new Date(a.at||0);}).forEach(function(v){
     var l=String(v.lean||'mixed').toLowerCase(); if(l!=='bull'&&l!=='bear')l='mixed'; groups[l].push(v);
   });
+  var titles={bull:'Bullisch',mixed:'Unklar',bear:'Bearisch'};
   var html='';
   ['bull','mixed','bear'].forEach(function(g){
     var arr=groups[g]; if(!arr.length) return;
-    html+='<details class="acc '+g+'"><summary>'+g.toUpperCase()+' <span>('+arr.length+')</span></summary>';
-    arr.slice(0,12).forEach(function(v){
+    html+='<details class="acc '+g+'"><summary>'+titles[g]+' <span>('+arr.length+')</span></summary>';
+    arr.slice(0,8).forEach(function(v){
       html+='<div class="voice">'+esc(v.text||'')+(v.url?' <a href="'+esc(v.url)+'" target="_blank" rel="noopener">Öffnen</a>':'')+'</div>';
     });
     html+='</details>';
   });
-  document.getElementById('stimmenList').innerHTML=html||'<div class="meta">Keine Stimmen in diesem Zeitraum.</div>';
+  document.getElementById('stimmenList').innerHTML=html||'<div class="meta">Keine Meinungen in diesem Zeitraum.</div>';
 }
-
 async function load(){
-  var [a,b]=await Promise.all([
-    fetch('stockstrend-data.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()),
-    fetch('watchlist-data.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json())
-  ]);
+  var a=await fetch('stockstrend-data.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json();});
+  var b=await fetch('watchlist-data.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json();});
   tickData=a; wlData=b; renderAll();
 }
 document.getElementById('rangeBar').onclick=function(e){
   var btn=e.target.closest('button[data-range]'); if(!btn) return;
   wlRange=btn.getAttribute('data-range');
-  Array.prototype.forEach.call(document.querySelectorAll('#rangeBar button'), function(b){ b.classList.toggle('active', b===btn); });
+  Array.prototype.forEach.call(document.querySelectorAll('#rangeBar button'), function(b){b.classList.toggle('active', b===btn);});
   renderAll();
 };
-// search → watch clipboard
-var selected=null;
-function scoreMatch(q,row){
-  q=String(q||'').toLowerCase().trim(); if(!q) return 0;
-  var s=String(row.s||'').toLowerCase(), n=String(row.n||'').toLowerCase();
-  if(s===q) return 100; if(n===q) return 95; if(s.indexOf(q)===0) return 90; if(n.indexOf(q)>=0) return 70; return 0;
-}
-document.getElementById('q').addEventListener('input', function(){
-  var q=this.value, list=window.BOTBOT_TICKERS||[];
-  var hits=list.map(function(r){return {s:r.s,n:r.n,score:scoreMatch(q,r)};}).filter(function(r){return r.score>0;}).sort(function(a,b){return b.score-a.score;}).slice(0,6);
-  selected=hits[0]||null;
-  document.getElementById('btn').disabled=!selected;
-  document.getElementById('suggest').innerHTML=hits.map(function(h){return '<div class="sug"><b>'+esc(h.s)+'</b> · '+esc(h.n)+'</div>';}).join('');
-});
-document.getElementById('btn').onclick=async function(){
-  if(!selected) return;
-  var cmd='watch '+selected.s;
-  document.getElementById('searchStatus').innerHTML='BotBot: <code>'+esc(cmd)+'</code>';
-  try{await navigator.clipboard.writeText(cmd);}catch(e){}
-};
 var REFRESH_MS=60000, _next=Date.now()+REFRESH_MS;
-function paint(){ var el=document.getElementById('nextRefresh'); if(!el)return; el.textContent='Refresh in '+Math.max(0,Math.ceil((_next-Date.now())/1000))+'s'; }
+function paint(){ var el=document.getElementById('nextRefresh'); if(!el)return; el.textContent='Aktualisierung in '+Math.max(0,Math.ceil((_next-Date.now())/1000))+' Sek.'; }
 setInterval(paint,1000); paint();
 load();
 setInterval(function(){ _next=Date.now()+REFRESH_MS; paint(); load(); }, REFRESH_MS);
