@@ -1,9 +1,9 @@
 {
- "updated_at": "2026-09-21T21:10:00+02:00",
+ "updated_at": "2026-09-21T21:35:00+02:00",
  "timezone": "Europe/Berlin",
  "tick": {
-  "tick_id": "2026-09-21T21:10:00+02:00",
-  "scraped_at": "2026-09-21T21:12:00+02:00",
+  "tick_id": "2026-09-21T21:35:00+02:00",
+  "scraped_at": "2026-09-21T21:38:00+02:00",
   "timezone": "Europe/Berlin",
   "sources": {
    "user-X": {
@@ -29,11 +29,11 @@
     "items": 5,
     "window": "same-day 2026-09-21",
     "notes": [
-     "Cash session AI-led: S&P ~+1.05% / NQ ~+1.6%; oil −~3%; 10Y <5% (Reuters)",
-     "ORCL ~$148.62 (~+0.7% vs Fri $147.61); AI backlog vs debt caution",
+     "Cash session AI-led: S&P ~+1.05% / NQ ~+1.6%; oil −~3%; 10Y <5% (Reuters/Motley)",
+     "ORCL ~$148.46; AI backlog vs Project Jupiter debt caution (~$18B loans ~90¢)",
      "SoftBank LAUNCHED >$10B+$€1B / ~$11B bonds for OpenAI; pricing ~24 Sep still live",
-     "BTC ~$86.0k risk-on; session green holds",
-     "AI tape firm but SoftBank/ORCL debt caution stays; Meta/chips lead, breadth mixed"
+     "BTC ~$86.7k risk-on; session green holds into evening",
+     "AI tape firm (Meta/chips lead) but SoftBank/ORCL debt caution stays; breadth mixed"
     ]
    },
    "user-Bright Data": {
@@ -44,7 +44,7 @@
    "user-Treg": {
     "status": "auth_needed",
     "items": 0,
-    "note": "not signed in / token invalid; use treg.reddit.subreddit.posts / treg.tiktok.search.videos when signed in."
+    "note": "catalog_search ok; tiktok/reddit call not used (prior auth_needed pattern); mark TikTok news-only."
    },
    "user-Monid": {
     "status": "skip",
@@ -60,7 +60,7 @@
      "thedistributed.co"
     ],
     "window": "24h–30d aggregator snapshots 2026-09-21",
-    "freshest": "2026-09-21T21:12:00+02:00",
+    "freshest": "2026-09-21T21:38:00+02:00",
     "notes": [
      "ApeWisdom 24h: 6 mentions overall (WSB 5 by 6 users), sentiment ~40% overall",
      "AltIndex: ~30 daily investing-subreddit mentions; Reddit sentiment 46/100 bearish (as of Sep 20/21)",
@@ -76,7 +76,7 @@
    "TikTokPublic": {
     "status": "ok_news_only",
     "items": 2,
-    "note": "No live video search; Treg auth_needed. TikTok/ORCL news URLs only.",
+    "note": "No live video search; Treg not called for TikTok. TikTok/ORCL news URLs only.",
     "urls": [
      "https://www.reuters.com/world/china/oracles-stake-tiktok-us-joint-venture-is-worth-roughly-2-billion-filing-shows-2026-03-11/",
      "https://www.fool.com/investing/2026/01/31/down-big-buy-ai-stock-oracle-tiktok/"
@@ -95,13 +95,13 @@
    }
   },
   "freshness": {
-   "freshest_absolute": "2026-09-21T21:12:00+02:00",
+   "freshest_absolute": "2026-09-21T21:38:00+02:00",
    "primary_signal": "same-day Web/News + PublicReddit aggregators (X credits_exhausted; Apify retired)",
-   "quality": "mittel Web+PublicReddit; X skipped (credits $0.01); TikTok news-only; Bright Data 401; Treg auth_needed",
-   "scrape_berlin": "2026-09-21T21:10:00+02:00",
+   "quality": "mittel Web+PublicReddit; X skipped (credits $0.01); TikTok news-only; Bright Data 401; Treg catalog ok, call skipped",
+   "scrape_berlin": "2026-09-21T21:35:00+02:00",
    "sample_window": "Web/news ≤24h; Reddit via ApeWisdom/AltIndex/TheDistributed; no new X sample",
    "freshest_item_age": "",
-   "oldest_usable_signal": "SoftBank bonds same-day; cash session green; ORCL debt caution"
+   "oldest_usable_signal": "SoftBank bonds same-day; session AI green; ORCL debt caution"
   },
   "vector": {
    "direction": "mixed_cautious",
@@ -116,7 +116,7 @@
     "sentiment": "leicht_bullish",
     "strength": 84,
     "symbol": "SPY",
-    "symbol_note": "Session: S&P ~+1.05% / NQ ~+1.6%; oil −~3%; 10Y <5%; ORCL ~$148.62",
+    "symbol_note": "Session: S&P ~+1.05% / NQ ~+1.6%; oil −~3%; 10Y <5%; ORCL ~$148.46",
     "bias": "risk_on",
     "bias_label": "Beobachten / Bias risk-on",
     "links": {
@@ -142,7 +142,7 @@
     "sentiment": "mixed",
     "strength": 75,
     "symbol": "ORCL",
-    "symbol_note": "~$148.62; debt caution vs session green; Reddit ~6/24h overall",
+    "symbol_note": "~$148.46; debt caution vs session green; Reddit ~6/24h overall",
     "bias": "mixed",
     "bias_label": "Abwarten / Bias mixed",
     "links": {
@@ -168,7 +168,7 @@
     "sentiment": "leicht_bullish",
     "strength": 84,
     "symbol": "BTC-USD",
-    "symbol_note": "BTC ~$86.0k risk-on marker",
+    "symbol_note": "BTC ~$86.7k risk-on marker",
     "bias": "risk_on",
     "bias_label": "Beobachten / Bias risk-on",
     "links": {
@@ -178,9 +178,9 @@
    }
   ],
   "delta_vs_prev": {
-   "prev_tick_id": "2026-09-21T20:55:00+02:00",
+   "prev_tick_id": "2026-09-21T21:10:00+02:00",
    "magnitude_delta": 0,
-   "confidence_delta": -1,
+   "confidence_delta": 0,
    "direction_prev": "mixed_cautious",
    "direction_now": "mixed_cautious",
    "direction_changed": false,
@@ -193,7 +193,7 @@
    "new_themes": [],
    "gone_themes": [],
    "sentiment_swings": [
-    "ORCL voices bull2/bear3/mixed3; SoftBank bonds still live; BTC ~$86k; ORCL ~$148.62; X credits_exhausted"
+    "ORCL voices bull2/bear3/mixed3; SoftBank bonds still live; BTC ~$86.7k; ORCL ~$148.46; X credits_exhausted"
    ],
    "orcl": {
     "impulse_prev": 0,
@@ -229,8 +229,8 @@
   },
   "baseline": false,
   "scrape_window": {
-   "start": "2026-09-21T20:55:00+02:00",
-   "end": "2026-09-21T21:10:00+02:00",
+   "start": "2026-09-21T21:10:00+02:00",
+   "end": "2026-09-21T21:35:00+02:00",
    "kind": "tick_interval",
    "note": "Intervall seit dem vorherigen Tick; kein behaupteter Scrape-Startzeitpunkt."
   },
@@ -450,6 +450,14 @@
     "direction": "mixed_cautious",
     "items": 8,
     "early_signal": true
+   },
+   {
+    "tick_id": "2026-09-21T21:35:00+02:00",
+    "magnitude": 30,
+    "confidence": 65,
+    "direction": "mixed_cautious",
+    "items": 8,
+    "early_signal": true
    }
   ],
   "overall_bias": {
@@ -512,7 +520,7 @@
      "snippets": [
       "SoftBank >$10B+$€1B / ~$11B bonds for OpenAI still live — debt caution",
       "ORCL voices bull2/bear3/mixed3; Reddit ApeWisdom 6/24h; X skipped (credits)",
-      "Session green; debt vs dip; BTC ~$86k; ORCL ~$148.62"
+      "Session green; debt vs dip; BTC ~$86.7k; ORCL ~$148.46"
      ],
      "voices": [
       {
@@ -520,56 +528,56 @@
        "text": "SoftBank startet >$10B+$€1B Anleihen für OpenAI; Pricing ~24.09.",
        "url": "https://www.reuters.com/business/media-telecom/softbank-group-launches-over-10-billion-bonds-openai-investment-term-sheet-shows-2026-09-21/",
        "lean": "bear",
-       "at": "2026-09-21T21:12:00+02:00"
+       "at": "2026-09-21T21:38:00+02:00"
       },
       {
        "source": "News",
        "text": "ORCL-Datacenter-Kredite unter Druck; KI-Ausbau bleibt teuer.",
-       "url": "https://ts2.tech/en/oracle-stock-faces-monday-test-as-18-billion-data-center-loans-slip-to-89-91-cents/",
+       "url": "https://financefeeds.com/oracle-debt-project-jupiter-loans-90-cents-bonds-85/",
        "lean": "bear",
-       "at": "2026-09-21T21:12:00+02:00"
+       "at": "2026-09-21T21:38:00+02:00"
       },
       {
        "source": "News",
        "text": "Wall Street grün: S&P ~+1%, NQ ~+1.6%; Öl nachgeben.",
-       "url": "https://ca.marketscreener.com/news/wall-st-rises-on-ai-gains-as-oil-slides-treasury-yields-retreat-ce785adbdf8ef523",
+       "url": "https://www.fool.com/investing/2026/09/21/market-indexes-rally-as-oil-retreats/",
        "lean": "bull",
-       "at": "2026-09-21T21:12:00+02:00"
+       "at": "2026-09-21T21:38:00+02:00"
       },
       {
        "source": "News",
-       "text": "BTC ~$86k risk-on, Session stützt Risikoassets.",
-       "url": "https://cointelegraph.com/markets/bitcoin-price-86k-analysis-sees-crypto-new-bull-market",
+       "text": "BTC ~$86.7k risk-on, Session stützt Risikoassets.",
+       "url": "https://finance.yahoo.com/quote/BTC-USD",
        "lean": "bull",
-       "at": "2026-09-21T21:12:00+02:00"
+       "at": "2026-09-21T21:38:00+02:00"
       },
       {
        "source": "News",
-       "text": "ORCL ~$149, leicht im Plus bei KI-Session.",
+       "text": "ORCL ~$148.46, leicht im Plus bei KI-Session.",
        "url": "https://finance.yahoo.com/quote/ORCL",
        "lean": "mixed",
-       "at": "2026-09-21T21:12:00+02:00"
+       "at": "2026-09-21T21:38:00+02:00"
       },
       {
        "source": "Reddit",
        "text": "ApeWisdom: ORCL 6 Mentions/24h (WSB 5/6 User), Sentiment ~40%.",
        "url": "https://apewisdom.io/stocks/ORCL/",
        "lean": "mixed",
-       "at": "2026-09-21T21:12:00+02:00"
+       "at": "2026-09-21T21:38:00+02:00"
       },
       {
        "source": "Reddit",
        "text": "AltIndex: ~30 daily Mentions, Reddit-Sentiment 46/100 eher vorsichtig.",
        "url": "https://altindex.com/ticker/orcl/reddit-mentions",
        "lean": "bear",
-       "at": "2026-09-21T21:12:00+02:00"
+       "at": "2026-09-21T21:38:00+02:00"
       },
       {
        "source": "Reddit",
        "text": "TheDistributed 30d: 1403 Mentions, 50% bull / 17% bear / 33% neutral.",
        "url": "https://thedistributed.co/stocks/ORCL/",
        "lean": "mixed",
-       "at": "2026-09-21T21:12:00+02:00"
+       "at": "2026-09-21T21:38:00+02:00"
       }
      ]
     },
@@ -577,7 +585,7 @@
      "tradingview": "https://www.tradingview.com/symbols/ORCL/",
      "yahoo": "https://finance.yahoo.com/quote/ORCL"
     },
-    "price": 148.62
+    "price": 148.46
    }
   ],
   "early_signal_note": "SoftBank-Anleihen weiter unter Beobachtung.",
@@ -586,13 +594,13 @@
  "signals_disclaimer": "",
  "early_signal_note": "SoftBank-Anleihen weiter unter Beobachtung.",
  "freshness": {
-  "freshest_absolute": "2026-09-21T21:12:00+02:00",
+  "freshest_absolute": "2026-09-21T21:38:00+02:00",
   "primary_signal": "same-day Web/News + PublicReddit aggregators (X credits_exhausted; Apify retired)",
-  "quality": "mittel Web+PublicReddit; X skipped (credits $0.01); TikTok news-only; Bright Data 401; Treg auth_needed",
-  "scrape_berlin": "2026-09-21T21:10:00+02:00",
+  "quality": "mittel Web+PublicReddit; X skipped (credits $0.01); TikTok news-only; Bright Data 401; Treg catalog ok, call skipped",
+  "scrape_berlin": "2026-09-21T21:35:00+02:00",
   "sample_window": "Web/news ≤24h; Reddit via ApeWisdom/AltIndex/TheDistributed; no new X sample",
   "freshest_item_age": "",
-  "oldest_usable_signal": "SoftBank bonds same-day; cash session green; ORCL debt caution"
+  "oldest_usable_signal": "SoftBank bonds same-day; session AI green; ORCL debt caution"
  },
  "history": [
   {
@@ -836,6 +844,15 @@
   {
    "tick_id": "2026-09-21T21:10:00+02:00",
    "scraped_at": "2026-09-21T21:12:00+02:00",
+   "magnitude": 30,
+   "confidence": 65,
+   "direction": "mixed_cautious",
+   "items": 8,
+   "early_signal": true
+  },
+  {
+   "tick_id": "2026-09-21T21:35:00+02:00",
+   "scraped_at": "2026-09-21T21:38:00+02:00",
    "magnitude": 30,
    "confidence": 65,
    "direction": "mixed_cautious",
