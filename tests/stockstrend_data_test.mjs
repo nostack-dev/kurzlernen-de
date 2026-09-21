@@ -39,7 +39,7 @@ assert(html.includes('seriesWithGaps'),'missing periods must break the line');
 assert(html.includes('spanGaps:false'),'charts must not bridge missing data');
 assert(html.includes('coverage<0.72||startsLate||endsEarly'),'adaptive chart bounds missing');
 assert(html.includes("Daten verfügbar '+fmtAxisValue(stats.xs[0])"),'coverage hint missing');
-assert(html.includes("axisX(hist"),'sentiment chart must use adaptive time bounds');
+assert(html.includes("axisX(hypeAgg"),'sentiment chart must use aggregated adaptive time bounds');
 assert(html.includes("axisX(mhist"),'magnitude chart must use adaptive time bounds');
 assert(html.includes("axisX(ivHist"),'intrinsic chart must use adaptive time bounds');
 assert(html.includes('data-range="5y"'),'5Y range missing');
