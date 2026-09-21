@@ -20,6 +20,14 @@ assert.equal(o.latest.confidence,tail.confidence,'latest/history confidence drif
 assert(html.includes('return out;'));
 assert(!html.includes('return out.length?out:arr.slice();'));
 assert(html.includes('directionalPct'));
+assert(html.includes('Investor-first compact view'),'compact investor UI missing');
+assert(html.includes('aggregateForRange'),'range aggregation missing');
+assert(html.includes("wlRange==='year'||wlRange==='5y'||wlRange==='all'"),'long-range aggregation missing');
+assert(!html.includes("{label:'Bullisch %',data:"),'bull line should not clutter primary chart');
+assert(!html.includes("{label:'Bearisch %',data:"),'bear line should not clutter primary chart');
+assert(html.includes("label:'Fair Value'"),'fair-value line missing');
+assert(!html.includes("{label:'Konservativer Wert',data:"),'conservative line should not clutter primary chart');
+assert(!html.includes("{label:'Obere Sensitivität',data:"),'upper line should not clutter primary chart');
 assert(html.includes("type:'linear'"),'charts must use a real numeric time axis');
 assert(html.includes('seriesWithGaps'),'missing periods must break the line');
 assert(html.includes('spanGaps:false'),'charts must not bridge missing data');

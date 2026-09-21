@@ -114,6 +114,38 @@
   .iv-details{margin-top:10px}
   .iv-details summary{cursor:pointer;color:var(--muted);font-size:12px;font-weight:650}
   .iv-details[open] summary{margin-bottom:4px}
+
+  /* Investor-first compact view */
+  .aux-card,.secondary-section{display:none!important}
+  .row3{grid-template-columns:1fr}
+  .card{border-color:#ececf0;border-radius:18px;padding:16px 18px}
+  .label{font-size:11px;letter-spacing:.055em;margin-bottom:6px}
+  .big{font-size:24px;margin:4px 0 8px}
+  .note{font-size:13px;line-height:1.35;margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .kpis{gap:6px 14px;font-size:13px}
+  .range-shell{padding:0 2px;overflow:hidden}
+  .range-shell .label{display:none}
+  .range{display:flex!important;gap:4px!important;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none}
+  .range::-webkit-scrollbar{display:none}
+  .range button{flex:0 0 auto!important;width:auto!important;padding:7px 12px!important;border:0!important;background:transparent!important;font-size:12px!important}
+  .range button.active{background:#1b1b1f!important;color:#fff!important}
+  .chart-card-lg{margin-bottom:0}
+  .chart-wrap-lg{height:230px}
+  .chart-wrap-lg canvas{height:230px!important}
+  .chart-sub{margin:0 0 6px;color:var(--muted);font-size:12px;line-height:1.25}
+  .value-summary{font-size:14px;font-weight:650;line-height:1.35;margin:0 0 4px;color:var(--text)}
+  .shock-card{border-left:0;box-shadow:none}
+  .shock-card .big{font-size:22px}
+  .shock-card #shockNote,.shock-events{display:none}
+  .shock-actions{margin-top:8px}
+  .shock-actions button{font-size:12px;padding:6px 10px}
+  .iv-details{margin-top:6px}
+  @media(max-width:700px){
+    .wrap{padding:10px 10px 24px;gap:9px}
+    .card{padding:14px}
+    .chart-wrap-lg{height:220px}
+    .chart-wrap-lg canvas{height:220px!important}
+  }
 </style>
 </head>
 <body>
@@ -122,7 +154,7 @@
 </header>
 <div class="wrap">
   <div class="row3">
-    <div class="card">
+    <div class="card aux-card">
       <div class="label">Marktstimmung</div>
       <div class="big" id="biasDir">—</div>
       <div class="kpis">
@@ -133,18 +165,18 @@
       <div class="note" id="biasNote"></div>
     </div>
     <div class="card">
-      <div class="label">Beobachtung · Oracle (ORCL)</div>
+      <div class="label">Oracle <span class="meta" id="orclFresh"></span></div>
       <div class="big"><span class="pill" id="orclSig">—</span></div>
       <div class="kpis">
-        <span title="Social-Druck von −100 (sehr negativ) bis +100 (sehr positiv)">Social-Druck <b id="orclImp">—</b></span>
+        <span style="display:none">Social-Druck <b id="orclImp">—</b></span>
         <span>Bullisch <b id="orclBull" style="color:var(--green)">—</b></span>
         <span>Bearisch <b id="orclBear" style="color:var(--red)">—</b></span>
         <span title="Stimmung normalisiert: 0 bearish · 50 neutral · 100 bullish">Stimmung <b id="orclNet">—</b></span>
       </div>
       <div class="note" id="orclWhy"></div>
-      <div class="meta" style="margin-top:8px" id="orclLinks"></div>
+      <div class="meta" style="display:none" id="orclLinks"></div>
     </div>
-    <div class="card">
+    <div class="card aux-card">
       <div class="label">Aktualität</div>
       <div class="big" id="freshAge">—</div>
       <div class="kpis">
@@ -156,21 +188,21 @@
   </div>
 
   <div class="card shock-card" id="shockCard">
-    <div class="label">Oracle · Preisimpuls <span class="meta" id="shockFeed">1-Minuten-Feed · lädt …</span></div>
+    <div class="label">Preisimpuls <span class="meta" id="shockFeed">lädt …</span></div>
     <div class="big"><span id="shockHeadline">—</span></div>
     <div class="kpis">
-      <span>Score <b id="shockScore">—</b></span>
+      <span style="display:none">Score <b id="shockScore">—</b></span>
       <span>Bewegung <b id="shockMove">—</b></span>
       <span>Fenster <b id="shockWindow">—</b></span>
-      <span>vs. normal <b id="shockZ">—</b></span>
-      <span>Volumen <b id="shockVol">—</b></span>
+      <span style="display:none">vs. normal <b id="shockZ">—</b></span>
+      <span style="display:none">Volumen <b id="shockVol">—</b></span>
     </div>
     <div class="note" id="shockNote">Suche nach plötzlichen Sprüngen, geraden Rampen und Beschleunigungen.</div>
     <div class="shock-actions"><button type="button" id="shockNotify">Preisalarm aktivieren</button></div>
     <div class="shock-events" id="shockEvents"></div>
   </div>
 
-  <div class="card">
+  <div class="range-shell">
     <div class="label">Zeitraum</div>
     <div class="range" id="rangeBar">
       <button type="button" data-range="today">Heute</button>
@@ -184,23 +216,24 @@
   </div>
 
   <div class="card chart-card-lg">
-    <div class="label">Oracle · Stimmung über Zeit</div>
-    <div class="meta" style="margin:0 0 12px">Grün = bullischer Anteil · Rot = bearischer Anteil. Basis sind nur gerichtete Stimmen; zusammen 100 %. <span id="hypeCoverage"></span></div>
+    <div class="label">Oracle · Stimmung</div>
+    <div class="chart-sub"><span id="hypeCoverage"></span></div>
     <div class="chart-wrap chart-wrap-lg"><canvas id="hypeChart"></canvas></div>
   </div>
-  <div class="card chart-card-sm">
+  <div class="card chart-card-sm secondary-section">
     <div class="label">Markt · Stimmungsstärke (0–100) <span class="meta" id="magNow"></span></div>
     <div class="meta" style="margin:0 0 10px">Aktueller Social-Druck am Markt — nicht der Kurs. <span id="magCoverage"></span></div>
     <div class="chart-wrap chart-wrap-sm"><canvas id="magChart"></canvas></div>
   </div>
 
     <div class="card chart-card-lg">
-    <div class="label">Oracle · Innerer Wert je Aktie vs Kurs <span class="meta" id="ivNow"></span></div>
-    <div class="meta" style="margin:0 0 12px">USD · Grün = Aktienkurs · Schwarz = Basiswert · Rot/Grau = konservative/obere Maintenance-CapEx-Sensitivität. <span id="ivCoverage"></span></div>
+    <div class="label">Oracle · Wert</div>
+    <div class="value-summary" id="ivNow"></div>
+    <div class="chart-sub"><span id="ivCoverage"></span></div>
     <div class="chart-wrap chart-wrap-lg"><canvas id="ivChart"></canvas></div>
     <details class="iv-details"><summary>Berechnung & Grenzen</summary><div class="meta" id="ivNote" style="margin-top:8px"></div></details>
   </div>
-<div class="card">
+<div class="card secondary-section">
     <div class="label">Oracle · Meinungen <span class="meta" id="stimmenRange"></span></div>
     <div class="stimmen-box">
       <div>
@@ -392,6 +425,32 @@ function coverageText(rows,getAt){
   if(stats.gaps) parts.push(stats.gaps+' '+(stats.gaps===1?'Datenlücke':'Datenlücken')+' nicht verbunden');
   return parts.length?'· '+parts.join(' · '):'';
 }
+function aggregateForRange(rows,getAt,getY){
+  var bucket=0;
+  if(wlRange==='1w') bucket=3*60*60*1000;
+  else if(wlRange==='5m') bucket=24*60*60*1000;
+  else if(wlRange==='year'||wlRange==='5y'||wlRange==='all') bucket=7*24*60*60*1000;
+  if(!bucket) return (rows||[]).map(function(r){return {at:getAt(r),value:getY(r)};});
+  var groups={};
+  (rows||[]).forEach(function(r){
+    var x=new Date(getAt(r)||0).getTime(), y=Number(getY(r));
+    if(!isFinite(x)||!isFinite(y)) return;
+    var k=Math.floor(x/bucket)*bucket;
+    if(!groups[k]) groups[k]={sum:0,n:0};
+    groups[k].sum+=y; groups[k].n++;
+  });
+  return Object.keys(groups).map(Number).sort(function(a,b){return a-b;}).map(function(k){
+    return {at:new Date(k+bucket/2).toISOString(),value:groups[k].sum/groups[k].n};
+  });
+}
+function compactCoverage(rows,getAt){
+  if(!rows||!rows.length) return 'Keine Daten im Zeitraum';
+  var xs=rows.map(function(r){return new Date(getAt(r)||0).getTime();}).filter(isFinite).sort(function(a,b){return a-b;});
+  if(!xs.length) return 'Keine Daten im Zeitraum';
+  var first=xs[0], last=xs[xs.length-1], requested=(wlRange&&wlRange!=='all')?rangeCutoffMs(wlRange):first;
+  var late=requested&&first>requested+Math.max(864e5,(Date.now()-requested)*.12);
+  return late?('Daten seit '+fmtAxisValue(first)+(last-first>864e5?' · bis '+fmtAxisValue(last):'')):'';
+}
 function renderAll(){
   var t=(tickData&&tickData.tick)||{};
   var v=t.vector||{};
@@ -405,6 +464,8 @@ function renderAll(){
   document.getElementById('freshItems').textContent=(t.totals&&t.totals.content_items_usable)!=null?t.totals.content_items_usable:'—';
   document.getElementById('freshAt').textContent=fmtBerlin(freshnessAt);
   var q=document.getElementById('freshQuality'); if(q) q.textContent=fr.quality||fr.primary_signal||'';
+  var of=document.getElementById('orclFresh');
+  if(of) of.textContent=stale?('· '+(age||'—')+' alt'):'· aktuell';
   var dir=String(v.direction||'');
   document.getElementById('biasDir').textContent=DIR_DE[dir]||dir||'—';
   document.getElementById('biasMag').textContent=v.magnitude!=null?v.magnitude:'—';
@@ -441,13 +502,13 @@ function renderAll(){
   document.getElementById('orclLinks').innerHTML=(L.yahoo?'<a class="ext" href="'+esc(L.yahoo)+'" target="_blank" rel="noopener">Yahoo</a>':'')+(L.tradingview?'<a class="ext" href="'+esc(L.tradingview)+'" target="_blank" rel="noopener">TradingView</a>':'');
 
   var hist=filterByAt(orcl.history||[], function(h){return h.at;});
-  var hypeCov=document.getElementById('hypeCoverage'); if(hypeCov) hypeCov.textContent=coverageText(hist,function(h){return h.at;});
+  var hypeAgg=aggregateForRange(hist,function(h){return h.at;},function(h){return stimmungNorm(h);});
+  var hypeCov=document.getElementById('hypeCoverage'); if(hypeCov) hypeCov.textContent=compactCoverage(hypeAgg,function(h){return h.at;});
   if(hypeChart) hypeChart.destroy();
+  var hypePts=seriesWithGaps(hypeAgg,function(h){return h.at;},function(h){return h.value;});
   hypeChart=new Chart(document.getElementById('hypeChart'),{type:'line',data:{datasets:[
-    {label:'Bullisch %',data:seriesWithGaps(hist,function(h){return h.at;},function(h){return directionalPct(h).bull;}),parsing:false,spanGaps:false,borderColor:'#00c761',backgroundColor:'#00c761',tension:.18,pointRadius:2,pointHoverRadius:6,borderWidth:2},
-    {label:'Bearisch %',data:seriesWithGaps(hist,function(h){return h.at;},function(h){return directionalPct(h).bear;}),parsing:false,spanGaps:false,borderColor:'#ff3b30',backgroundColor:'#ff3b30',tension:.18,pointRadius:2,pointHoverRadius:6,borderWidth:2},
-    {label:'Stimmung',data:seriesWithGaps(hist,function(h){return h.at;},function(h){return stimmungNorm(h);}),parsing:false,spanGaps:false,borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',borderDash:[5,4],tension:.18,pointRadius:2,pointHoverRadius:6,borderWidth:2.5}
-  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:16,bottom:12,left:12,right:10}},interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:13},padding:10}},tooltip:tipBase('hype')},scales:{x:axisX(hist,function(h){return h.at;}),y:{min:0,max:100,grace:'4%',ticks:{color:'#6b6b76',font:{size:11},callback:function(v){return v+' %';}},grid:{color:'#f0f0f3'},border:{display:false}}}}});
+    {label:'Stimmung',data:hypePts,parsing:false,spanGaps:false,borderColor:'#1b1b1f',backgroundColor:'rgba(27,27,31,.05)',fill:true,tension:.15,pointRadius:hypeAgg.length<14?3:0,pointHoverRadius:5,borderWidth:2}
+  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:6,bottom:2,left:4,right:4}},interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase('hype')},scales:{x:axisX(hist,function(h){return h.at;}),y:{min:0,max:100,grace:'4%',ticks:{color:'#6b6b76',font:{size:11},stepSize:50},grid:{color:'#f2f2f4'},border:{display:false}}}}});
 
   var mhist=filterByAt(tickData.history||[], function(h){return h.scraped_at||h.tick_id||h.at;});
   if(!mhist.length && (t.mini_series||[]).length){
@@ -464,25 +525,21 @@ function renderAll(){
 
   if(ivChart) ivChart.destroy();
   var ivHist=filterByAt((ivData&&ivData.history)||[], function(h){return h.at;});
-  var ivCov=document.getElementById('ivCoverage'); if(ivCov) ivCov.textContent=coverageText(ivHist,function(h){return h.at;});
+  var ivCov=document.getElementById('ivCoverage'); if(ivCov) ivCov.textContent=compactCoverage(ivHist,function(h){return h.at;});
   var ivNowEl=document.getElementById('ivNow'), latIv=ivData&&ivData.latest, ivCur=ivCurrency(ivData), ivSym=ivCur==='EUR'?' €':' $';
   if(ivNowEl&&latIv){
     var k=ivMoney(ivPick(latIv,'price'),ivCur,2);
-    var oeRaw=firstValue(latIv.normalized_owner_earnings_ps_usd,latIv.normalized_owner_earnings_ps_eur,latIv.owner_earnings_ps_usd,latIv.owner_earnings_ps_eur);
-    var oe=oeRaw!=null?ivMoney(oeRaw,ivCur,2):'—';
-    var lo=ivMoney(ivPick(latIv,'intrinsic_low'),ivCur,2);
-    var base=ivMoney(firstValue(latIv.intrinsic_base_usd,latIv.intrinsic_usd,latIv.intrinsic_base_eur,latIv.intrinsic_eur),ivCur,2);
-    var hi=ivMoney(ivPick(latIv,'intrinsic_high'),ivCur,2);
-    ivNowEl.textContent='· Kurs '+k+' · Owner Earnings '+oe+' · Wert '+lo+'–'+hi+' · Basis '+base;
+    var lo=ivMoney(ivPick(latIv,'intrinsic_low'),ivCur,0);
+    var base=ivMoney(firstValue(latIv.intrinsic_base_usd,latIv.intrinsic_usd,latIv.intrinsic_base_eur,latIv.intrinsic_eur),ivCur,0);
+    var hi=ivMoney(ivPick(latIv,'intrinsic_high'),ivCur,0);
+    ivNowEl.textContent='Kurs '+k+' · Fair '+base+' · Spanne '+lo+'–'+hi;
   }
   var ivNote=document.getElementById('ivNote');
   if(ivNote&&ivData) ivNote.textContent=(ivData.model&&ivData.model.summary_de?ivData.model.summary_de+' ':'')+(ivData.limitations_de||'');
   ivChart=new Chart(document.getElementById('ivChart'),{type:'line',data:{datasets:[
-    {label:'Aktienkurs',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return ivPick(h,'price');}),parsing:false,spanGaps:false,borderColor:'#00c761',backgroundColor:'#00c761',fill:false,tension:.12,pointRadius:0,pointHoverRadius:5,borderWidth:2.5},
-    {label:'Konservativer Wert',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return ivPick(h,'intrinsic_low');}),parsing:false,spanGaps:false,borderColor:'#ff3b30',backgroundColor:'#ff3b30',borderDash:[4,4],tension:0,pointRadius:0,pointHoverRadius:5,borderWidth:1.5},
-    {label:'Basiswert',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return firstValue(h.intrinsic_base_usd,h.intrinsic_usd,h.intrinsic_base_eur,h.intrinsic_eur);}),parsing:false,spanGaps:false,borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',tension:0,pointRadius:0,pointHoverRadius:5,borderWidth:2.2},
-    {label:'Obere Sensitivität',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return ivPick(h,'intrinsic_high');}),parsing:false,spanGaps:false,borderColor:'#8e8e93',backgroundColor:'#8e8e93',borderDash:[4,4],tension:0,pointRadius:0,pointHoverRadius:5,borderWidth:1.5}
-  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:12,bottom:8,left:8,right:8}},interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:12},padding:8}},tooltip:tipBase('iv')},scales:{x:axisX(ivHist,function(h){return h.at;}),y:{grace:'10%',ticks:{color:'#6b6b76',callback:function(v){var n=Number(v);return isFinite(n)?n.toLocaleString('de-DE',{maximumFractionDigits:0})+ivSym:'—';},font:{size:11}},grid:{color:'#f0f0f3'},border:{display:false}}}}});
+    {label:'Kurs',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return ivPick(h,'price');}),parsing:false,spanGaps:false,borderColor:'#00c761',backgroundColor:'#00c761',fill:false,tension:.10,pointRadius:0,pointHoverRadius:5,borderWidth:2.5},
+    {label:'Fair Value',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return firstValue(h.intrinsic_base_usd,h.intrinsic_usd,h.intrinsic_base_eur,h.intrinsic_eur);}),parsing:false,spanGaps:false,borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',stepped:true,pointRadius:0,pointHoverRadius:5,borderWidth:2}
+  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:6,bottom:2,left:4,right:4}},interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase('iv')},scales:{x:axisX(ivHist,function(h){return h.at;}),y:{grace:'10%',ticks:{color:'#6b6b76',callback:function(v){var n=Number(v);return isFinite(n)?n.toLocaleString('de-DE',{maximumFractionDigits:0})+ivSym:'—';},font:{size:11}},grid:{color:'#f2f2f4'},border:{display:false}}}}});
 
 
   var voices=filterByAt(ev.voices||orcl.voices_archive||[], function(v){return v.at;});
