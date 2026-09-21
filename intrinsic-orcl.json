@@ -10,7 +10,7 @@
   "params": {
     "r": 0.1,
     "g": 0.02,
-    "note_de": "Owner Earnings = Gewinn + Abschreibungen − gesamter CapEx. Kein EBITDA. Innerer Wert nur wenn OE > 0, sonst 0."
+    "note_de": "Gewinnkraft = Gewinn + Abschreibungen − gesamter Investitionen. Innerer Wert nur wenn Gewinnkraft > 0, sonst 0."
   },
   "latest": {
     "at": "2026-09-18T00:00:00+00:00",
@@ -20,7 +20,8 @@
     "owner_earnings_ps_eur": -8.66,
     "intrinsic_usd": 0.0,
     "intrinsic_eur": 0.0,
-    "oe_ttm_usd": -28931000000
+    "oe_fy_usd": -28931000000,
+    "oe_fy_note": "FY annual Owner Earnings (nicht TTM)"
   },
   "history": [
     {
