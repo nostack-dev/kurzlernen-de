@@ -106,7 +106,9 @@
       else if(w>=3&&r2>=0.88&&mono>=0.75) pattern='rampe';
       else if(accel>=3) pattern='beschleunigung';
       var c={triggered:triggered,score:score,direction:dir>0?'up':'down',pattern:pattern,window_minutes:w,move_pct:Number(move.toFixed(3)),z:Number(z.toFixed(2)),baseline_sigma_1m_pct:Number(sigma.toFixed(4)),linearity:Number(r2.toFixed(3)),monotonicity:Number(mono.toFixed(3)),acceleration:Number(accel.toFixed(2)),volume_ratio:volRatio==null?null:Number(volRatio.toFixed(2)),at:bars[bars.length-1].at,last_price:bars[bars.length-1].close,bars:bars.length};
-      if(!best||c.triggered&&!best.triggered||c.triggered===best.triggered&&c.score>best.score) best=c;
+      var rank=c.score+(c.triggered&&c.pattern==='rampe'?8:0)+(c.triggered&&c.pattern==='beschleunigung'?3:0);
+      var bestRank=best?(best.score+(best.triggered&&best.pattern==='rampe'?8:0)+(best.triggered&&best.pattern==='beschleunigung'?3:0)):-1;
+      if(!best||c.triggered&&!best.triggered||c.triggered===best.triggered&&(rank>bestRank||(rank===bestRank&&c.window_minutes>best.window_minutes))) best=c;
     });
     return best||{triggered:false,score:0,reason:'Kein Fenster'};
   }
