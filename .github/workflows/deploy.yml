@@ -136,6 +136,21 @@ jobs:
           console.log('ORCL minute feed OK:',good.length,'bars');
           NODE
 
+          FX1='https://query1.finance.yahoo.com/v8/finance/chart/EURUSD=X?range=10y&interval=1d&includePrePost=false&events=div%2Csplits'
+          FX2='https://query2.finance.yahoo.com/v8/finance/chart/EURUSD=X?range=10y&interval=1d&includePrePost=false&events=div%2Csplits'
+          if ! curl -fsSL --retry 2 --connect-timeout 10 --max-time 30 -A 'Mozilla/5.0' "$FX1" -o eurusd-history.json; then
+            curl -fsSL --retry 2 --connect-timeout 10 --max-time 30 -A 'Mozilla/5.0' "$FX2" -o eurusd-history.json
+          fi
+          node - <<'NODE'
+          const fs=require('fs');
+          const p=JSON.parse(fs.readFileSync('eurusd-history.json','utf8'));
+          const r=p?.chart?.result?.[0],ts=r?.timestamp||[],q=r?.indicators?.quote?.[0]||{};
+          const good=ts.filter((_,i)=>Number.isFinite(Number(q.close?.[i]))&&Number(q.close[i])>0);
+          if(good.length<500) throw new Error('EURUSD history feed has fewer than 500 valid bars');
+          if(p?.chart?.error) throw new Error('EURUSD chart error: '+JSON.stringify(p.chart.error));
+          console.log('EURUSD history feed OK:',good.length,'bars');
+          NODE
+
       - name: Fast browser boot gate
         timeout-minutes: 4
         run: |

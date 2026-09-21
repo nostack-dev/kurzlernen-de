@@ -21,12 +21,26 @@ assert(html.includes('return out;'));
 assert(!html.includes('return out.length?out:arr.slice();'));
 assert(html.includes('directionalPct'));
 assert(html.includes('Investor-first compact view'),'compact investor UI missing');
+assert(html.includes('class="hero-price" id="livePrice"'),'dominant live EUR price missing');
+assert(html.includes("wss://streamer.finance.yahoo.com/?version=2"),'real-time Yahoo websocket missing');
+assert(html.includes("subscribe:['ORCL','EURUSD=X']"),'ORCL+EURUSD live subscription missing');
+assert(html.includes("style:'currency',currency:'EUR'"),'visible prices must format as EUR');
+assert(html.includes("data-range=\"1m\""),'1M TR range missing');
+assert(!html.includes('data-range="today"'),'Heute range should be removed');
+assert(!html.includes('data-range="5m"'),'5M range should be removed');
+assert(html.includes(">MAX</button>"),'MAX range missing');
+assert(html.includes("function sentimentColor"),'sentiment threshold color missing');
+assert(html.includes("v>55?'#00a94f':v<45?'#e94035':'#151517'"),'sentiment red/black/green thresholds missing');
+assert(html.includes("priceRangeColor"),'range price color missing');
+assert(html.includes("label:'Innerer Wert'"),'German value label missing');
+assert(!html.includes('Berechnung & Grenzen'),'value explainer must stay removed');
+assert(!html.includes('keine Anlageberatung'),'disclaimer must stay removed');
 assert(html.includes('aggregateForRange'),'range aggregation missing');
 assert(html.includes("enabled:!isTouchChart()"),'mobile chart tooltip must be disabled');
 assert(html.includes("function chartEvents(){return isTouchChart()?[]"),'mobile chart events must be disabled');
-assert(html.includes("if(wlRange==='1w') mode='day'"),'1W must aggregate daily');
-assert(html.includes("wlRange==='5m') mode='week'"),'5M must aggregate weekly');
-assert(html.includes("wlRange==='year'||wlRange==='5y'||wlRange==='all') mode='month'"),'long ranges must aggregate monthly');
+assert(html.includes("if(wlRange==='1w'||wlRange==='1m') mode='day'"),'1W/1M must aggregate daily');
+assert(html.includes("else if(wlRange==='year') mode='week'"),'1J must aggregate weekly');
+assert(html.includes("wlRange==='5y'||wlRange==='all') mode='month'"),'5J/MAX must aggregate monthly');
 assert(html.includes("fill:false"),'sentiment chart must not use filled fragments');
 assert(html.includes("wlRange==='year'||wlRange==='5y'||wlRange==='all'"),'long-range aggregation missing');
 assert(!html.includes("{label:'Bullisch %',data:"),'bull line should not clutter primary chart');
@@ -112,3 +126,5 @@ assert(!('user-Apify-TikTok' in (trend.tick?.sources||{})),'user-Apify-TikTok mu
 assert(trend.tick?.sources?.PublicReddit,'PublicReddit aggregator source missing');
 
 console.log('stockstrend contract: OK');
+
+// UI expects the deploy workflow to generate eurusd-history.json for EUR conversion.
