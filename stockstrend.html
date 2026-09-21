@@ -311,9 +311,12 @@ function ageLabel(iso){
     return Math.round(h/24)+' Tage';
   }catch(e){return '—';}
 }
+function isTouchChart(){
+  return !!(window.matchMedia&&window.matchMedia('(hover: none), (pointer: coarse)').matches);
+}
 function tipBase(kind){
   return {
-    enabled:true,mode:'nearest',intersect:false,backgroundColor:'#ffffff',titleColor:'#1b1b1f',bodyColor:'#1b1b1f',
+    enabled:!isTouchChart(),mode:'nearest',intersect:false,backgroundColor:'#ffffff',titleColor:'#1b1b1f',bodyColor:'#1b1b1f',
     borderColor:'#e8e8ec',borderWidth:1,padding:10,displayColors:true,boxPadding:4,
     titleFont:{size:12,weight:'600'},bodyFont:{size:12},
     callbacks:{
@@ -415,6 +418,7 @@ function axisX(rows,getAt){
   return {type:'linear',min:b.min,max:b.max,offset:false,bounds:'ticks',ticks:{color:'#6b6b76',maxRotation:0,autoSkip:true,maxTicksLimit:mob?4:6,font:{size:mob?12:11},callback:function(v){return fmtAxisValue(v);}},grid:{display:false},border:{display:false}};
 }
 function chartInteract(){return {mode:'nearest',intersect:false,axis:'x'};}
+function chartEvents(){return isTouchChart()?[]:['mousemove','mouseout','click'];}
 function coverageText(rows,getAt){
   if(!rows||!rows.length) return 'Keine Messwerte im Zeitraum.';
   var stats=timeStats(rows,getAt), b=rangeBounds(rows,getAt), parts=[];
@@ -426,22 +430,31 @@ function coverageText(rows,getAt){
   return parts.length?'· '+parts.join(' · '):'';
 }
 function aggregateForRange(rows,getAt,getY){
-  var bucket=0;
-  if(wlRange==='1w') bucket=3*60*60*1000;
-  else if(wlRange==='5m') bucket=24*60*60*1000;
-  else if(wlRange==='year'||wlRange==='5y'||wlRange==='all') bucket=7*24*60*60*1000;
-  if(!bucket) return (rows||[]).map(function(r){return {at:getAt(r),value:getY(r)};});
-  var groups={};
+  var groups={}, mode='raw';
+  if(wlRange==='1w') mode='day';
+  else if(wlRange==='5m') mode='week';
+  else if(wlRange==='year'||wlRange==='5y'||wlRange==='all') mode='month';
+  var raw=[];
   (rows||[]).forEach(function(r){
     var x=new Date(getAt(r)||0).getTime(), y=Number(getY(r));
     if(!isFinite(x)||!isFinite(y)) return;
-    var k=Math.floor(x/bucket)*bucket;
-    if(!groups[k]) groups[k]={sum:0,n:0};
-    groups[k].sum+=y; groups[k].n++;
+    if(mode==='raw'){raw.push({at:new Date(x).toISOString(),value:y});return;}
+    var key;
+    if(mode==='day'){
+      key=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(x));
+    }else if(mode==='month'){
+      key=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit'}).format(new Date(x));
+    }else{
+      key=String(Math.floor(x/(7*864e5)));
+    }
+    if(!groups[key]) groups[key]={sum:0,n:0,xsum:0};
+    groups[key].sum+=y; groups[key].n++; groups[key].xsum+=x;
   });
-  return Object.keys(groups).map(Number).sort(function(a,b){return a-b;}).map(function(k){
-    return {at:new Date(k+bucket/2).toISOString(),value:groups[k].sum/groups[k].n};
-  });
+  if(mode==='raw') return raw.sort(function(a,b){return new Date(a.at)-new Date(b.at);});
+  return Object.keys(groups).map(function(k){
+    var g=groups[k];
+    return {at:new Date(g.xsum/g.n).toISOString(),value:g.sum/g.n};
+  }).sort(function(a,b){return new Date(a.at)-new Date(b.at);});
 }
 function compactCoverage(rows,getAt){
   if(!rows||!rows.length) return 'Keine Daten im Zeitraum';
@@ -505,10 +518,10 @@ function renderAll(){
   var hypeAgg=aggregateForRange(hist,function(h){return h.at;},function(h){return stimmungNorm(h);});
   var hypeCov=document.getElementById('hypeCoverage'); if(hypeCov) hypeCov.textContent=compactCoverage(hypeAgg,function(h){return h.at;});
   if(hypeChart) hypeChart.destroy();
-  var hypePts=seriesWithGaps(hypeAgg,function(h){return h.at;},function(h){return h.value;});
+  var hypePts=hypeAgg.map(function(h){return {x:new Date(h.at).getTime(),y:Number(h.value)};});
   hypeChart=new Chart(document.getElementById('hypeChart'),{type:'line',data:{datasets:[
-    {label:'Stimmung',data:hypePts,parsing:false,spanGaps:false,borderColor:'#1b1b1f',backgroundColor:'rgba(27,27,31,.05)',fill:true,tension:.15,pointRadius:hypeAgg.length<14?3:0,pointHoverRadius:5,borderWidth:2}
-  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:6,bottom:2,left:4,right:4}},interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase('hype')},scales:{x:axisX(hist,function(h){return h.at;}),y:{min:0,max:100,grace:'4%',ticks:{color:'#6b6b76',font:{size:11},stepSize:50},grid:{color:'#f2f2f4'},border:{display:false}}}}});
+    {label:'Stimmung',data:hypePts,parsing:false,spanGaps:false,borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',fill:false,tension:.12,pointRadius:hypeAgg.length<=12?3:0,pointHoverRadius:0,borderWidth:2}
+  ]},options:{events:chartEvents(),responsive:true,maintainAspectRatio:false,layout:{padding:{top:6,bottom:2,left:4,right:4}},interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase('hype')},scales:{x:axisX(hypeAgg,function(h){return h.at;}),y:{min:0,max:100,ticks:{color:'#6b6b76',font:{size:11},stepSize:50},grid:{color:'#f2f2f4'},border:{display:false}}}}});
 
   var mhist=filterByAt(tickData.history||[], function(h){return h.scraped_at||h.tick_id||h.at;});
   if(!mhist.length && (t.mini_series||[]).length){
@@ -539,7 +552,7 @@ function renderAll(){
   ivChart=new Chart(document.getElementById('ivChart'),{type:'line',data:{datasets:[
     {label:'Kurs',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return ivPick(h,'price');}),parsing:false,spanGaps:false,borderColor:'#00c761',backgroundColor:'#00c761',fill:false,tension:.10,pointRadius:0,pointHoverRadius:5,borderWidth:2.5},
     {label:'Fair Value',data:seriesWithGaps(ivHist,function(h){return h.at;},function(h){return firstValue(h.intrinsic_base_usd,h.intrinsic_usd,h.intrinsic_base_eur,h.intrinsic_eur);}),parsing:false,spanGaps:false,borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',stepped:true,pointRadius:0,pointHoverRadius:5,borderWidth:2}
-  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:6,bottom:2,left:4,right:4}},interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase('iv')},scales:{x:axisX(ivHist,function(h){return h.at;}),y:{grace:'10%',ticks:{color:'#6b6b76',callback:function(v){var n=Number(v);return isFinite(n)?n.toLocaleString('de-DE',{maximumFractionDigits:0})+ivSym:'—';},font:{size:11}},grid:{color:'#f2f2f4'},border:{display:false}}}}});
+  ]},options:{events:chartEvents(),responsive:true,maintainAspectRatio:false,layout:{padding:{top:6,bottom:2,left:4,right:4}},interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase('iv')},scales:{x:axisX(ivHist,function(h){return h.at;}),y:{grace:'10%',ticks:{color:'#6b6b76',callback:function(v){var n=Number(v);return isFinite(n)?n.toLocaleString('de-DE',{maximumFractionDigits:0})+ivSym:'—';},font:{size:11}},grid:{color:'#f2f2f4'},border:{display:false}}}}});
 
 
   var voices=filterByAt(ev.voices||orcl.voices_archive||[], function(v){return v.at;});
