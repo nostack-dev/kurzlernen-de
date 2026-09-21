@@ -59,8 +59,20 @@
   footer { max-width: 980px; margin: 0 auto; padding: 0 14px 24px; color: var(--muted); font-size: 0.75rem; }
   a.ext { color: var(--green); text-decoration: none; font-weight: 650; margin-right: 10px; }
   .voice-at { display:block; color: var(--muted); font-size: 11px; margin-bottom: 2px; font-variant-numeric: tabular-nums; }
-  .chart-wrap { position: relative; height: 220px; width: 100%; }
-  .chart-wrap canvas { width: 100% !important; height: 220px !important; }
+
+  .chart-wrap { position: relative; width: 100%; }
+  .chart-wrap-lg { height: 340px; margin-top: 4px; }
+  .chart-wrap-lg canvas { width: 100% !important; height: 340px !important; }
+  .chart-wrap-sm { height: 200px; margin-top: 4px; }
+  .chart-wrap-sm canvas { width: 100% !important; height: 200px !important; }
+  .chart-card-lg, .chart-card-sm { margin-bottom: 16px; }
+  #magNow { font-weight: 700; color: var(--ink); margin-left: 6px; }
+  @media (max-width:700px){
+    .chart-wrap-lg { height: 280px; }
+    .chart-wrap-lg canvas { height: 280px !important; }
+    .chart-wrap-sm { height: 180px; }
+    .chart-wrap-sm canvas { height: 180px !important; }
+  }
 </style>
 </head>
 <body>
@@ -86,7 +98,7 @@
         <span title="Social-Buzz von −100 (sehr negativ) bis +100 (sehr positiv)">Social-Buzz <b id="orclImp">—</b></span>
         <span>Bullish <b id="orclBull" style="color:var(--green)">—</b></span>
         <span>Bearish <b id="orclBear" style="color:var(--red)">—</b></span>
-        <span title="Netto = Anteil positiv minus Anteil negativ">Netto <b id="orclNet">—</b></span>
+        <span title="Stimmung normalisiert: 0 bearish · 50 neutral · 100 bullish">Stimmung <b id="orclNet">—</b></span>
       </div>
       <div class="note" id="orclWhy"></div>
       <div class="meta" style="margin-top:8px" id="orclLinks"></div>
@@ -113,17 +125,15 @@
     </div>
   </div>
 
-  <div class="row2">
-    <div class="card">
-      <div class="label">Oracle · Stimmung über Zeit</div>
-      <div class="meta" style="margin:-4px 0 8px">Grün = positiv · Rot = negativ · Schwarz = Netto (positiv minus negativ)</div>
-      <div class="chart-wrap"><canvas id="hypeChart"></canvas></div>
-    </div>
-    <div class="card">
-      <div class="label">Markt · Stimmungsstärke (0–100)</div>
-      <div class="meta" style="margin:-4px 0 8px">Wie stark die Marktstimmung gerade ist — nicht Kurs, nur Social-Druck</div>
-      <div class="chart-wrap"><canvas id="magChart"></canvas></div>
-    </div>
+  <div class="card chart-card-lg">
+    <div class="label">Oracle · Stimmung über Zeit</div>
+    <div class="meta" style="margin:0 0 12px">Grün = Bullish % · Rot = Bearish % · Linie = Stimmung normalisiert (50 = neutral)</div>
+    <div class="chart-wrap chart-wrap-lg"><canvas id="hypeChart"></canvas></div>
+  </div>
+  <div class="card chart-card-sm">
+    <div class="label">Markt · Stimmungsstärke (0–100) <span class="meta" id="magNow"></span></div>
+    <div class="meta" style="margin:0 0 10px">Aktueller Social-Druck am Markt — nicht der Kurs</div>
+    <div class="chart-wrap chart-wrap-sm"><canvas id="magChart"></canvas></div>
   </div>
 
   <div class="card">
@@ -233,13 +243,20 @@ function tipBase(fullLabels, kind){
           var name=ctx.dataset.label||'';
           if(name.indexOf('Bear')>=0) return '  Bearish: '+Math.abs(v)+' %';
           if(name.indexOf('Bull')>=0) return '  Bullish: '+v+' %';
-          if(name.indexOf('Netto')>=0) return '  Netto (Bull−Bear): '+(v>0?'+':'')+v;
+          if(name.indexOf('Stimmung')>=0) return '  Stimmung: '+v+' / 100 (50 = neutral)';
           return '  '+name+': '+v;
         }
         return '  Stimmungsstärke: '+v+' / 100';
       }
     }
   };
+}
+function stimmungNorm(h){
+  var b=Number(h.hype_bull), r=Number(h.hype_bear);
+  if(!isNaN(b)&&!isNaN(r)&&(b+r)>0) return Math.round(100*b/(b+r));
+  var n=h.hype_net!=null?Number(h.hype_net):(h.social_impulse!=null?Number(h.social_impulse):null);
+  if(n==null||isNaN(n)) return null;
+  return Math.round((n+100)/2);
 }
 function chartInteract(){ return {mode:'index', intersect:false, axis:'x'}; }
 function axisX(){
@@ -276,7 +293,7 @@ function renderAll(){
     var s=Number(n); el.textContent=(s>0?'+':'')+s+' (−100…+100)'; })();
   document.getElementById('orclBull').textContent=hyp.bull!=null?(hyp.bull+' %'):'—';
   document.getElementById('orclBear').textContent=hyp.bear!=null?(hyp.bear+' %'):'—';
-  document.getElementById('orclNet').textContent=hyp.net!=null?((Number(hyp.net)>0?'+':'')+hyp.net):'—';
+  document.getElementById('orclNet').textContent=(function(){var s=stimmungNorm({hype_bull:hyp.bull,hype_bear:hyp.bear,hype_net:hyp.net,social_impulse:lat.social_impulse});return s!=null?(s+' / 100'):'—';})();
   document.getElementById('orclWhy').textContent=lat.why||'';
   var L=lat.links||{};
   document.getElementById('orclLinks').innerHTML=(L.yahoo?'<a class="ext" href="'+esc(L.yahoo)+'" target="_blank" rel="noopener">Yahoo</a>':'')+(L.tradingview?'<a class="ext" href="'+esc(L.tradingview)+'" target="_blank" rel="noopener">TradingView</a>':'');
@@ -286,10 +303,10 @@ function renderAll(){
   var hypeAxis=hist.map(function(h){return fmtAxis(h.at);});
   if(hypeChart) hypeChart.destroy();
   hypeChart=new Chart(document.getElementById('hypeChart'),{type:'line',data:{labels:hypeAxis,datasets:[
-    {label:'Bullish',data:hist.map(function(h){return h.hype_bull;}),borderColor:'#00c761',backgroundColor:'#00c761',tension:.25,pointRadius:3,pointHoverRadius:7,borderWidth:2},
-    {label:'Bearish',data:hist.map(function(h){return h.hype_bear!=null?-Math.abs(h.hype_bear):null;}),borderColor:'#ff3b30',backgroundColor:'#ff3b30',tension:.25,pointRadius:3,pointHoverRadius:7,borderWidth:2},
-    {label:'Netto (Bull−Bear)',data:hist.map(function(h){return h.hype_net!=null?h.hype_net:h.social_impulse;}),borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',borderDash:[5,4],tension:.25,pointRadius:3,pointHoverRadius:7,borderWidth:2}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:10,boxHeight:2,font:{size:11},padding:12}},tooltip:tipBase(hypeFull,'hype')},scales:{x:axisX(),y:{min:-100,max:100,ticks:{color:'#6b6b76',callback:function(v){return v+' %';},font:{size:11}},grid:{color:'#f0f0f3'}}}}});
+    {label:'Bullish %',data:hist.map(function(h){return h.hype_bull;}),borderColor:'#00c761',backgroundColor:'#00c761',tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5},
+    {label:'Bearish %',data:hist.map(function(h){return h.hype_bear!=null?Math.abs(h.hype_bear):null;}),borderColor:'#ff3b30',backgroundColor:'#ff3b30',tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5},
+    {label:'Stimmung (0–100)',data:hist.map(stimmungNorm),borderColor:'#1b1b1f',backgroundColor:'#1b1b1f',borderDash:[6,4],tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{position:'bottom',labels:{color:'#6b6b76',boxWidth:12,boxHeight:3,font:{size:12},padding:16}},tooltip:tipBase(hypeFull,'hype')},scales:{x:axisX(),y:{min:0,max:100,ticks:{color:'#6b6b76',font:{size:11}},grid:{color:'#f0f0f3'},title:{display:true,text:'0 = bearish · 50 = neutral · 100 = bullish',color:'#6b6b76',font:{size:10}}}}}});
 
   var mhist=filterByAt(tickData.history||[], function(h){return h.scraped_at||h.tick_id||h.at;});
   if(!mhist.length && (t.mini_series||[]).length){
@@ -298,7 +315,11 @@ function renderAll(){
   var magFull=mhist.map(function(h){return fmtBerlin(h.scraped_at||h.tick_id);});
   var magAxis=mhist.map(function(h){return fmtAxis(h.scraped_at||h.tick_id);});
   if(magChart) magChart.destroy();
-  magChart=new Chart(document.getElementById('magChart'),{type:'line',data:{labels:magAxis,datasets:[{label:'Stimmungsstärke',data:mhist.map(function(h){return h.magnitude;}),borderColor:'#00c761',backgroundColor:'rgba(0,199,97,.12)',fill:true,tension:.25,pointRadius:3,pointHoverRadius:7,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase(magFull,'mag')},scales:{x:axisX(),y:{min:0,max:100,ticks:{color:'#6b6b76',callback:function(v){return v;},font:{size:11}},grid:{color:'#f0f0f3'},title:{display:true,text:'0 = ruhig · 100 = extrem laut',color:'#6b6b76',font:{size:10}}}}}});
+  var magVals=mhist.map(function(h){return h.magnitude;});
+  var magIst=magVals.length?magVals[magVals.length-1]:(v.magnitude!=null?v.magnitude:null);
+  var magNowEl=document.getElementById('magNow');
+  if(magNowEl) magNowEl.textContent=magIst!=null?('· jetzt '+magIst):'';
+  magChart=new Chart(document.getElementById('magChart'),{type:'line',data:{labels:magAxis,datasets:[{label:'Stimmungsstärke',data:magVals,borderColor:'#00c761',backgroundColor:'rgba(0,199,97,.12)',fill:true,tension:.25,pointRadius:4,pointHoverRadius:8,borderWidth:2.5,pointBackgroundColor:magVals.map(function(_,i,a){return i===a.length-1?'#00c761':'#1b1b1f';})}]},options:{responsive:true,maintainAspectRatio:false,interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase(magFull,'mag')},scales:{x:axisX(),y:{min:0,max:100,ticks:{color:'#6b6b76',font:{size:11}},grid:{color:'#f0f0f3'}}}}});
 
   var voices=filterByAt(ev.voices||orcl.voices_archive||[], function(v){return v.at;});
   var counts={bull:0,mixed:0,bear:0};
