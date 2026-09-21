@@ -1,9 +1,9 @@
 {
-  "updated_at": "2026-09-21T13:30:00+02:00",
+  "updated_at": "2026-09-21T14:00:00+02:00",
   "timezone": "Europe/Berlin",
   "tick": {
-    "tick_id": "2026-09-21T13:30:00+02:00",
-    "scraped_at": "2026-09-21T13:30:00+02:00",
+    "tick_id": "2026-09-21T14:00:00+02:00",
+    "scraped_at": "2026-09-21T14:00:00+02:00",
     "timezone": "Europe/Berlin",
     "sources": {
       "user-X": {
@@ -16,22 +16,22 @@
           "posts_sampled": 40
         },
         "counts_24h": {
-          "nvda": 2669,
-          "tsla": 2080,
-          "btc": 112276,
-          "orcl": 405,
-          "composite": 116495
+          "nvda": 6257,
+          "tsla": 5284,
+          "btc": 114272,
+          "orcl": 398,
+          "composite": 126211
         },
         "counts_7d": {},
-        "freshest": "2026-09-21T11:31:40Z (~0–1 min BTC/$ORCL/SoftBank sample)",
-        "window": "Posts/News recency ≤24–48h; Counts ~24h ($NVDA/$TSLA/$BTC|Bitcoin/$ORCL)",
-        "credits_before_usd": 2.92,
-        "credits_after_usd": 2.68,
-        "credits_spent_usd": 0.24
+        "freshest": "2026-09-21T12:00:45Z (~0–1 min $ORCL/AI sample)",
+        "window": "Posts/News recency ≤24–48h; Counts ~24h ($NVDA|NVDA / $TSLA|TSLA / $BTC|Bitcoin / $ORCL)",
+        "credits_before_usd": 2.68,
+        "credits_after_usd": 2.22,
+        "credits_spent_usd": 0.46
       },
       "user-Apify-Reddit": {
         "status": "ok",
-        "items": 22,
+        "items": 25,
         "subreddits": [
           "OracleStock",
           "wallstreetbets",
@@ -40,17 +40,17 @@
           "oracle"
         ],
         "window": "hot/week",
-        "freshest_item_age": "~minutes (OracleStock weekly 10:01Z; WSB daily/Jensen; stocks mispriced 10:28Z)",
-        "run_id": "dQLrxtOLoYzZdrsfZ",
-        "note": "trudax/reddit-scraper-lite aborted ~6.4min; 27 dataset rows → 22 usable stockish. run_id=dQLrxtOLoYzZdrsfZ"
+        "freshest_item_age": "~minutes (DeepSeek/Huawei 11:33Z; Einride+NVDA 11:27Z; ORCL weekly 10:01Z)",
+        "run_id": "PFdseFVfoiC5bqxfy",
+        "note": "trudax/reddit-scraper-lite aborted ~7min; 27 dataset rows → 25 usable stockish. run_id=PFdseFVfoiC5bqxfy"
       },
       "user-Apify-TikTok": {
         "status": "ok",
-        "items": 28,
-        "freshest": "2026-09-21T11:00:00Z BTC hold / SoftBank $11B 07:41Z",
-        "oldest": "stale >30d filtered from 40→28",
-        "note": "Free-Cap clockworks/free-tiktok-scraper; 40 rows → 28 usable ≤30d. run_id=Gcsj1C08UAGSyfqe2",
-        "run_id": "Gcsj1C08UAGSyfqe2"
+        "items": 32,
+        "freshest": "2026-09-21T09:55:51Z BTC >$85k DailyMail; stockmarket 02:24Z",
+        "oldest": "stale >30d filtered from 48→usable",
+        "note": "Free-Cap clockworks/free-tiktok-scraper; 48 rows → usable ≤30d. run_id=U7BvHlHJWLSWj7Pqk",
+        "run_id": "U7BvHlHJWLSWj7Pqk"
       },
       "WebSearch": {
         "status": "ok",
@@ -58,10 +58,10 @@
         "window": "same-day 2026-09-21",
         "notes": [
           "Mon futures firm: ES ~7761 (+0.63%), NQ ~30209 (+0.97%); Dow e-minis ~+0.6% (Stooq/Reuters)",
-          "CNN equity Fear&Greed ~29 Fear; BTC crypto F&G ~70; BTC ~$84.3–85.3k after squeeze",
-          "SoftBank launches >$11B junk ($10B+$€1B) for OpenAI ~Oct 1; pricing ~24 Sep (Reuters)",
-          "ORCL Project Jupiter $18B DC loans still soft 89–91¢; OFSS clarifies parent-debt independence (X/Reuters)",
-          "Oil −~2% (Brent ~$101.7); AI rebound (INTC/MRVL/META/DELL) + Accenture+Anthropic $2B"
+          "CNN equity Fear&Greed still Fear band (~26–33; tick17 ~29); X breadth warning (narrow mega-cap leadership)",
+          "BTC ~$84–85k (TikTok DailyMail >$85k; CoinGecko ~$84.9k / short-squeeze prints)",
+          "SoftBank LAUNCHED >$11B junk ($10B+$€1B) for OpenAI ~Oct 1; pricing ~24 Sep (Reuters term sheet)",
+          "ORCL Project Jupiter $18B DC loans soft 89–91¢; OFSS clarifies parent-debt independence; oil Brent ~$101.7 (−~2%)"
         ]
       },
       "user-Bright Data": {
@@ -81,13 +81,13 @@
       }
     },
     "totals": {
-      "content_items_usable": 140,
+      "content_items_usable": 147,
       "breakdown": {
         "x_trends": 35,
         "x_news": 10,
         "x_posts": 40,
-        "reddit": 22,
-        "tiktok": 28,
+        "reddit": 25,
+        "tiktok": 32,
         "websearch": 5
       }
     },
@@ -95,25 +95,25 @@
       "freshest_absolute": "X post ~0–1 min",
       "primary_signal": "Minuten (X) bis Stunden–Tage (TikTok/Reddit); News same-day",
       "quality": "hoch X+Web+TikTok+Reddit; Bright Data 401; Treg ok_empty; Monid skip",
-      "scrape_berlin": "2026-09-21T13:30:00+02:00",
+      "scrape_berlin": "2026-09-21T14:00:00+02:00",
       "sample_window": "X posts seconds–minutes; news ≤48h; TikTok ≤30d; Reddit hot/week",
       "freshest_item_age": "~0–1 min",
       "oldest_usable_signal": "TikTok ~30d edge; older SoftBank/ORCL clips filtered"
     },
     "vector": {
       "direction": "mixed_cautious",
-      "magnitude": 38,
-      "confidence": 79,
+      "magnitude": 39,
+      "confidence": 80,
       "early_signal": true,
-      "early_signal_note": "BTC ~$84.3–85.3k (X/TikTok) + Mon futures firmer (ES~+0.63/~7761, NQ~+0.97/~30209) + oil −~2%; CNN equity F&G~29 Fear + SoftBank >$11B junk LAUNCHED (term sheet) + ORCL Jupiter 89–91¢/OFSS keep caution"
+      "early_signal_note": "BTC ~$84–85k (TikTok DailyMail >$85k) + Mon futures firmer (ES~+0.63/~7761, NQ~+0.97/~30209) + oil −~2%; CNN equity F&G Fear band (~26–33) + SoftBank >$11B junk LAUNCHED + ORCL Jupiter 89–91¢/OFSS keep caution"
     },
     "top_themes": [
       {
         "theme": "BTC ~$84–85k / Crypto Risk-On",
         "sentiment": "bullish",
-        "strength": 88,
+        "strength": 89,
         "symbol": "BTC-USD",
-        "symbol_note": "BTC ~$84.3–85.3k after squeeze; crypto F&G~70; risk-on vs oil soft",
+        "symbol_note": "BTC ~$84–85k (TikTok >$85k / CoinGecko ~$84.9k); crypto risk-on vs oil soft",
         "bias": "risk_on",
         "bias_label": "Beobachten / Bias risk-on",
         "links": {
@@ -135,11 +135,11 @@
         }
       },
       {
-        "theme": "CNN F&G ~29 Fear / Narrow Breadth",
+        "theme": "CNN F&G Fear band / Narrow Breadth",
         "sentiment": "bearish",
         "strength": 80,
         "symbol": "SPY",
-        "symbol_note": "Equity F&G Fear ~29; mega-cap leadership / weak breadth warning",
+        "symbol_note": "Equity F&G Fear (~26–33); mega-cap leadership / weak breadth (X news)",
         "bias": "risk_off",
         "bias_label": "Vorsicht / Bias risk-off",
         "links": {
@@ -152,43 +152,30 @@
         "sentiment": "bearish",
         "strength": 86,
         "symbol": "SFTBY",
-        "symbol_note": ">$11B junk ($10B+$€1B) term sheet live; pricing ~24 Sep for OpenAI Oct 1",
+        "symbol_note": ">$11B junk ($10B+$€1B) term sheet for OpenAI ~Oct 1; pricing ~24 Sep",
         "bias": "risk_off",
         "bias_label": "Vorsicht / Bias risk-off",
         "links": {
-          "tradingview": "https://www.tradingview.com/symbols/OTC-SFTBY/",
+          "tradingview": "https://www.tradingview.com/symbols/TSE:9984/",
           "yahoo": "https://finance.yahoo.com/quote/SFTBY"
         }
       },
       {
-        "theme": "ORCL Jupiter Debt / Mixed Social",
-        "sentiment": "mixed",
-        "strength": 78,
+        "theme": "ORCL Jupiter Debt / AI Capex Overhang",
+        "sentiment": "bearish",
+        "strength": 82,
         "symbol": "ORCL",
-        "symbol_note": "$18B Jupiter marks 89–91¢ + OFSS parent-debt clarify vs dip-buy + Reddit DD; Hold",
-        "bias": "neutral",
-        "bias_label": "Abwarten / Bias neutral",
+        "symbol_note": "Project Jupiter $18B loans 89–91¢; OFSS clarifies independence; bullish RPO voices persist",
+        "bias": "risk_off",
+        "bias_label": "Vorsicht / Bias risk-off",
         "links": {
-          "tradingview": "https://www.tradingview.com/symbols/NYSE-ORCL/",
+          "tradingview": "https://www.tradingview.com/symbols/ORCL/",
           "yahoo": "https://finance.yahoo.com/quote/ORCL"
-        }
-      },
-      {
-        "theme": "Oil Soft / Geopolitics Cap",
-        "sentiment": "mixed",
-        "strength": 72,
-        "symbol": "CL=F",
-        "symbol_note": "Oil −~2% aids yields/futures; Mideast headlines still a ceiling",
-        "bias": "neutral",
-        "bias_label": "Abwarten / Bias neutral",
-        "links": {
-          "tradingview": "https://www.tradingview.com/symbols/NYMEX-CL1!/",
-          "yahoo": "https://finance.yahoo.com/quote/CL=F"
         }
       }
     ],
     "delta_vs_prev": {
-      "prev_tick_id": "2026-09-21T13:00:00+02:00",
+      "prev_tick_id": "2026-09-21T13:30:00+02:00",
       "magnitude_delta": 1,
       "confidence_delta": 1,
       "direction_prev": "mixed_cautious",
@@ -197,43 +184,43 @@
       "early_signal_prev": true,
       "early_signal_now": true,
       "early_signal_flipped": false,
-      "volume_prev": 144,
-      "volume_now": 140,
-      "volume_change_pct": -2.8,
+      "volume_prev": 140,
+      "volume_now": 147,
+      "volume_change_pct": 5.0,
       "new_themes": [
-        "SoftBank Junk LAUNCHED / AI Leverage",
+        "CNN F&G Fear band / Narrow Breadth",
         "BTC ~$84–85k / Crypto Risk-On"
       ],
       "gone_themes": [
-        "SoftBank Junk Pricing / AI Leverage",
-        "BTC >$85k Hold / Crypto Risk-On"
+        "CNN F&G ~29 Fear / Narrow Breadth",
+        "BTC ~$84–85k / Crypto Risk-On"
       ],
       "sentiment_swings": [
         {
-          "theme": "SoftBank",
-          "from": "pricing ~24 Sep (rumor/prep)",
-          "to": "term sheet LAUNCHED >$11B junk"
-        },
-        {
-          "theme": "Futures",
-          "from": "ES~+0.3–0.6/NQ~+0.6–1.1",
-          "to": "ES~+0.63/~7761 NQ~+0.97/~30209 firmer"
-        },
-        {
           "theme": "BTC",
-          "from": "hold >$85k",
-          "to": "~$84.3–85.3k post-squeeze / still risk-on"
+          "from": "~$84.3–85.3k post-squeeze",
+          "to": "~$84–85k confirmed (TikTok >$85k / CoinGecko)"
+        },
+        {
+          "theme": "F&G",
+          "from": "~29 Fear",
+          "to": "Fear band ~26–33 (breadth warning persists)"
+        },
+        {
+          "theme": "ORCL voices",
+          "from": "bull9/bear11",
+          "to": "bull10/bear8"
         }
       ]
     },
     "material_change": false,
     "material_change_reasons": [
-      "|Δmag|=1<5 (37→38)",
+      "|Δmag|=1<5 (38→39)",
       "direction mixed_cautious unchanged",
-      "early_signal unchanged (true)",
+      "early_signal unchanged (True)",
       "watchlist ORCL hold unchanged",
-      "volume abs Δ=-4 (144→140)",
-      "SoftBank junk LAUNCHED (confirm) + futures firmer vs F&G Fear/ORCL Jupiter; ORCL Hold impulse −1 (not material); Reddit ok-partial 22 posts"
+      "volume abs Δ=7 (140→147)",
+      "SoftBank junk still LAUNCHED + futures firm + BTC ~$84–85k vs F&G Fear/ORCL Jupiter; ORCL Hold; Reddit ok-partial"
     ],
     "chart": {},
     "baseline": false,
@@ -354,6 +341,13 @@
         "direction": "mixed_cautious",
         "magnitude": 38,
         "confidence": 79
+      },
+      {
+        "tick": 18,
+        "at": "2026-09-21T14:00:00+02:00",
+        "direction": "mixed_cautious",
+        "magnitude": 39,
+        "confidence": 80
       }
     ],
     "overall_bias": {
@@ -403,396 +397,222 @@
         "name": "Oracle",
         "hype_state": "mixed",
         "signal": "hold",
-        "confidence": 77,
-        "social_impulse": -1,
-        "hype_bull": 9,
-        "hype_bear": 11,
-        "hype_net": -2,
-        "why": "SoftBank >$11B junk LAUNCHED (term sheet; pricing ~24 Sep) + Project Jupiter/$18B marks ~89–91¢ + OFSS parent-debt overhang outweigh dip-buy lists + Reddit bullish DD + consol TikToks; BTC ~$84–85k + NQ futures ~+0.97% softens tape only. $ORCL vol ~405/24h. Voices bull9/bear11/mixed10 → Hold impulse -1.",
+        "confidence": 78,
+        "social_impulse": 1,
+        "hype_bull": 10,
+        "hype_bear": 8,
+        "hype_net": 2,
+        "why": "SoftBank >$11B junk LAUNCHED (term sheet; pricing ~24 Sep) + Project Jupiter/$18B marks ~89–91¢ + OFSS parent-debt overhang vs dip-buy lists + Reddit bullish DD + ORCL TikToks; BTC ~$84–85k + NQ futures ~+0.97% softens tape only. $ORCL vol ~398/24h. Voices bull10/bear8/mixed10 → Hold impulse +1.",
         "evidence": {
           "x_posts": 12,
-          "reddit_posts": 9,
+          "reddit_posts": 3,
           "news": 3,
           "snippets": [
             "SoftBank >$11B junk LAUNCHED for OpenAI (term sheet) — AI-infra leverage scare",
             "Project Jupiter / Oracle $18B DC loan soft marks 89–91¢; OFSS clarifies independence (X)",
-            "Futures ES~+0.63/NQ~+0.97; CNN F&G~29 Fear; BTC ~$84–85k; SoftBank adjacent"
+            "Futures ES~+0.63/NQ~+0.97; CNN F&G Fear band; BTC ~$84–85k; SoftBank adjacent"
           ],
           "voices": [
             {
               "source": "X",
-              "text": "$ORCL at $140 in top-10 buys below fair value.",
-              "url": "https://x.com/933Athkar/status/2101983759176454218",
+              "text": "Roger has been bearish on $ORCL forever... Oracle hasn't imploded. financially strong + massive RPO",
+              "url": "https://x.com/lidokidz/status/2102003339936288896",
               "lean": "bull",
-              "at": "2026-09-21T12:35:55+02:00"
+              "at": "2026-09-21T13:53:44+02:00"
             },
             {
               "source": "X",
-              "text": "Don't understand long-term bearishness: FY27–30 rev/EPS ramp + $664B RPO.",
-              "url": "https://x.com/YulioEsEm/status/2101981979595903214",
+              "text": "$ORCL — AI Cloud Growth Remains the Focus; triple-digit cloud infra growth",
+              "url": "https://x.com/DerekCollinsF51/status/2102002831708594681",
               "lean": "bull",
-              "at": "2026-09-21T12:28:51+02:00"
+              "at": "2026-09-21T13:51:43+02:00"
             },
             {
               "source": "X",
-              "text": "$ORCL is a strong buy (waiting dips elsewhere).",
-              "url": "https://x.com/HKIStrategies/status/2101950940723003591",
-              "lean": "bull",
-              "at": "2026-09-21T10:25:31+02:00"
-            },
-            {
-              "source": "X",
-              "text": "$ORCL 147.61: cloud +62% / infra +121% / $664B backlog; risk $125B debt + Jupiter 89–91¢.",
+              "text": "$ORCL 147.61: cloud +62%/infra +121%/$664B backlog; risk $125B debt + Jupiter 89–91¢",
               "url": "https://x.com/Mariusz_Invest/status/2101987302599999844",
               "lean": "mixed",
               "at": "2026-09-21T12:50:00+02:00"
             },
             {
               "source": "X",
-              "text": "Hyperscaler debt wave: $ORCL $50.8B issued since 2025 (vs MSFT absent).",
-              "url": "https://x.com/medflixszn/status/2101993346495569999",
-              "lean": "mixed",
-              "at": "2026-09-21T13:14:01+02:00"
+              "text": "$ORCL at $140 in top-10 buys below fair value",
+              "url": "https://x.com/933Athkar/status/2101983759176454218",
+              "lean": "bull",
+              "at": "2026-09-21T12:35:55+02:00"
             },
             {
               "source": "X",
-              "text": "Jupiter FUD: deal SOFR+250→~SOFR+500 (~8.85%); everyone financing compute at once.",
+              "text": "Don't understand long-term bearishness: FY27–30 rev/EPS ramp + $664B RPO",
+              "url": "https://x.com/YulioEsEm/status/2101981979595903214",
+              "lean": "bull",
+              "at": "2026-09-21T12:28:51+02:00"
+            },
+            {
+              "source": "X",
+              "text": "Possible buys for the week includes $ORCL",
+              "url": "https://x.com/HKIStrategies/status/2101977850291081387",
+              "lean": "bull",
+              "at": "2026-09-21T12:12:27+02:00"
+            },
+            {
+              "source": "X",
+              "text": "SoftBank $11B+ OpenAI → more compute; $ORCL clearest beneficiary",
+              "url": "https://x.com/Scalpers16779/status/2101975073892470966",
+              "lean": "bull",
+              "at": "2026-09-21T12:01:25+02:00"
+            },
+            {
+              "source": "X",
+              "text": "Oracle credit concerns weighing; Project Jupiter key for $ORCL pressure",
+              "url": "https://x.com/manoj67368/status/2101968404940988843",
+              "lean": "bear",
+              "at": "2026-09-21T11:34:55+02:00"
+            },
+            {
+              "source": "X",
+              "text": "$ORCL is a strong buy",
+              "url": "https://x.com/HKIStrategies/status/2101950940723003591",
+              "lean": "bull",
+              "at": "2026-09-21T10:25:31+02:00"
+            },
+            {
+              "source": "X",
+              "text": "OFSS selling on Oracle parent $ORCL AI debt/data-centre concerns",
+              "url": "https://x.com/AnuragPattana10/status/2101934473701138705",
+              "lean": "bear",
+              "at": "2026-09-21T09:20:05+02:00"
+            },
+            {
+              "source": "X",
+              "text": "Weekend FUD Project Jupiter distressed; SOFR+500bps ~8.85% — ugly but financing race",
               "url": "https://x.com/signalcalls/status/2101916544762593392",
               "lean": "mixed",
               "at": "2026-09-21T08:08:50+02:00"
             },
             {
               "source": "X",
-              "text": "OFSS clarifies independence from Oracle parent $18B DC debt rumors after −6.5%.",
-              "url": "https://x.com/myAlerts_in/status/2101995977846788175",
+              "text": "Barron's disfavor: $ORCL $3.60 LT debt per $1 equity — over-leveraged / weakest tech giant",
+              "url": "https://x.com/npunwani/status/2101886735215132676",
               "lean": "bear",
-              "at": "2026-09-21T13:24:28+02:00"
+              "at": "2026-09-21T06:10:23+02:00"
             },
             {
               "source": "X",
-              "text": "SoftBank >$11B junk (yield ~8.2%) for OpenAI — insolvency theater framing.",
-              "url": "https://x.com/PenguinX01/status/2101996485231706549",
+              "text": "$ORCL only Neo-Cloud not taking off; Ellison messed up",
+              "url": "https://x.com/rdd147/status/2101877126475706843",
               "lean": "bear",
-              "at": "2026-09-21T13:26:29+02:00"
+              "at": "2026-09-21T05:32:12+02:00"
             },
             {
               "source": "X",
-              "text": "SoftBank borrowing another $11B junk after $15B junk YTD for OpenAI.",
-              "url": "https://x.com/thisisgurgavin/status/2101995548722987503",
+              "text": "Oracle-linked $18bn Project Jupiter debt slips to 89-91c as NM risks mount",
+              "url": "https://x.com/BNTBriefing/status/2101876972217626778",
               "lean": "bear",
-              "at": "2026-09-21T13:22:46+02:00"
-            },
-            {
-              "source": "X",
-              "text": "Coreweave bk / Oracle debt up to eyeballs framing.",
-              "url": "https://x.com/Scott169371391/status/2101992691798036908",
-              "lean": "bear",
-              "at": "2026-09-21T13:11:25+02:00"
-            },
-            {
-              "source": "X",
-              "text": "Jim Cramer sends strong signal to Oracle stock investors (TheStreet).",
-              "url": "https://x.com/TheStreet/status/2101994875730223217",
-              "lean": "mixed",
-              "at": "2026-09-21T13:20:06+02:00"
-            },
-            {
-              "source": "X",
-              "text": "Oracle credit concerns weighing; key is whether Jupiter eases pressure.",
-              "url": "https://x.com/manoj67368/status/2101968404940988843",
-              "lean": "bear",
-              "at": "2026-09-21T11:34:55+02:00"
+              "at": "2026-09-21T05:31:35+02:00"
             },
             {
               "source": "Reddit",
-              "text": "Oracle stock bullish research — substantial position DD.",
+              "text": "Oracle stock bullish research",
               "url": "https://www.reddit.com/r/OracleStock/comments/1wlzo9e/oracle_stock_bullish_research/",
               "lean": "bull",
               "at": "2026-09-21T04:00:28+02:00"
             },
             {
               "source": "Reddit",
-              "text": "Let thesis play out: OCI +121% YoY, ~$31B cash; one red day ≠ thesis break.",
-              "url": "https://www.reddit.com/r/OracleStock/comments/1wi1czv/oracle_is_down_omg/",
-              "lean": "bull",
-              "at": "2026-09-16T18:01:43+02:00"
-            },
-            {
-              "source": "Reddit",
-              "text": "Neoclouds down / Oracle up — sold 30% at $150 after buys ~140–145.",
-              "url": "https://www.reddit.com/r/OracleStock/comments/1wiuinx/wow_all_neoclouds_down_and_oracle_up/",
-              "lean": "mixed",
-              "at": "2026-09-17T15:48:35+02:00"
-            },
-            {
-              "source": "Reddit",
-              "text": "Weekly ORCL discussion thread Sep 21–25 open.",
+              "text": "[Sep 21 – Sep 25] Weekly ORCL Discussion Thread",
               "url": "https://www.reddit.com/r/OracleStock/comments/1wm8hfz/sep_21_sep_25_weekly_orcl_discussion_thread/",
               "lean": "mixed",
               "at": "2026-09-21T12:01:33+02:00"
             },
             {
               "source": "Reddit",
-              "text": "Good entry ~$140? Watching Zscaler/Adobe-style consolidation rebound.",
-              "url": "https://www.reddit.com/r/OracleStock/comments/1whoro1/what_is_a_good_entry_price/",
+              "text": "OpenAI surpasses Anthropic in user spending on OpenRouter",
+              "url": "https://www.reddit.com/r/OracleStock/comments/1wks0n2/openai_surpasses_anthropic_in_user_spending_on/",
               "lean": "bull",
-              "at": "2026-09-16T08:03:53+02:00"
+              "at": "2026-09-19T19:23:46+02:00"
             },
             {
               "source": "Reddit",
-              "text": "Sell-the-news until constantly positive FCF; AI slowdown as ORCL bull case.",
-              "url": "https://www.reddit.com/r/OracleStock/comments/1wg9tfl/where_is_the_recovery_or_rebound/",
+              "text": "SoftBank seeks $11 billion in junk bonds for OpenAI Bet",
+              "url": "https://www.reddit.com/r/wallstreetbets/comments/1wm5i24/softbank_seeks_11_billion_in_junk_bonds_for/",
               "lean": "bear",
-              "at": "2026-09-14T19:23:26+02:00"
-            },
-            {
-              "source": "Reddit",
-              "text": "$2.8B restructuring + layoffs as AI capex soars (−3.1% day).",
-              "url": "https://www.reddit.com/r/OracleStock/comments/1whb6ps/orcl_slipping_31_today_28_billion_restructuring/",
-              "lean": "bear",
-              "at": "2026-09-15T22:01:50+02:00"
-            },
-            {
-              "source": "Reddit",
-              "text": "Jensen: AI CEOs have ulterior reasons in doomsday warnings (WSB).",
-              "url": "https://www.reddit.com/r/wallstreetbets/comments/1wm2l6t/jensen_huang_ai_ceos_have_ulterior_reasons_in/",
-              "lean": "mixed",
-              "at": "2026-09-21T06:24:54+02:00"
+              "at": "2026-09-21T09:05:04+02:00"
             },
             {
               "source": "News",
-              "text": "SoftBank launches >$11B junk ($10B+$€1B) for OpenAI tranche ~Oct 1; pricing ~24 Sep.",
+              "text": "SoftBank launches >$11B junk for OpenAI (term sheet)",
               "url": "https://www.reuters.com/business/media-telecom/softbank-group-launches-over-10-billion-bonds-openai-investment-term-sheet-shows-2026-09-21/",
               "lean": "bear",
-              "at": "2026-09-21T13:00:00+02:00"
+              "at": "2026-09-21T14:00:00+02:00"
             },
             {
               "source": "News",
-              "text": "ORCL $18B Project Jupiter loans still soft 89–91¢ (FT/Reuters).",
+              "text": "Oracle $18B Project Jupiter DC debt under pressure 89–91¢",
               "url": "https://www.reuters.com/business/finance/oracles-18-billion-data-center-debt-under-pressure-ft-reports-2026-09-18/",
               "lean": "bear",
-              "at": "2026-09-21T12:00:00+02:00"
+              "at": "2026-09-18T12:00:00+02:00"
             },
             {
               "source": "News",
-              "text": "Wall St futures rise as AI stocks gain, oil slides (ES~+0.63% NQ~+0.97%).",
+              "text": "Wall St futures rise as AI stocks gain, oil slides",
               "url": "https://www.reuters.com/business/wall-st-futures-rise-ai-stocks-gain-oil-prices-slide-2026-09-21/",
               "lean": "bull",
-              "at": "2026-09-21T11:38:00+02:00"
+              "at": "2026-09-21T14:00:00+02:00"
             },
             {
               "source": "TikTok",
-              "text": "SoftBank $11B debt to bet on AI — growth vs pricing perfection.",
-              "url": "https://www.tiktok.com/@patrimnio.com.cab/video/7687890334658891030",
-              "lean": "bear",
-              "at": "2026-09-21T09:41:10+02:00"
-            },
-            {
-              "source": "TikTok",
-              "text": "Oracle: undervalued AI winner or hidden risk?",
-              "url": "https://www.tiktok.com/@just.my.trades/video/7687107830628814110",
+              "text": "Oracle interesting options activity",
+              "url": "https://www.tiktok.com/@stock.genius28/video/7686476648387988737",
               "lean": "mixed",
-              "at": "2026-09-19T07:04:43+02:00"
+              "at": "2026-09-17T14:15:16+02:00"
             },
             {
               "source": "TikTok",
-              "text": "Oracle good stock for long-term growth.",
-              "url": "https://www.tiktok.com/@stock.genius28/video/7684238892777639184",
-              "lean": "bull",
-              "at": "2026-09-11T13:32:03+02:00"
-            },
-            {
-              "source": "TikTok",
-              "text": "BTC holds bullish trend during consolidation (Sep 21).",
-              "url": "https://www.tiktok.com/@titovlogs77/video/7687881435713146133",
-              "lean": "bull",
-              "at": "2026-09-21T13:00:00+02:00"
-            },
-            {
-              "source": "TikTok",
-              "text": "SoftBank more loan for OpenAI — stock −13% same day framing.",
-              "url": "https://www.tiktok.com/@iaparamarcas/video/7685418001360882966",
-              "lean": "bear",
-              "at": "2026-09-14T17:46:44+02:00"
-            },
-            {
-              "source": "Reddit",
-              "text": "ORCL loses key support then rebound to $147.61; watch $149–151 resistance.",
-              "url": "https://www.reddit.com/r/OracleStock/comments/1whevaw/orcl_loses_key_support_after_five_straight_red/",
+              "text": "ORCL gave us one heck of a Friday daytrade",
+              "url": "https://www.tiktok.com/@the.half.percent.club/video/7684375466878274846",
               "lean": "mixed",
-              "at": "2026-09-16T00:22:51+02:00"
+              "at": "2026-09-11T22:21:47+02:00"
             },
             {
-              "source": "X",
-              "text": "SoftBank $11B+ junk to double down on OpenAI (missed NVDA framing).",
-              "url": "https://x.com/RealNickMugalli/status/2101996267836469731",
+              "source": "TikTok",
+              "text": "THESE STOCKS LOOK BULLISH SEPTEMBER 9 $ORCL",
+              "url": "https://www.tiktok.com/@overkilltrading.com/video/7684042062496386317",
               "lean": "mixed",
-              "at": "2026-09-21T13:25:38+02:00"
+              "at": "2026-09-11T00:47:40+02:00"
+            },
+            {
+              "source": "TikTok",
+              "text": "This stock could go insane very soon",
+              "url": "https://www.tiktok.com/@jefetrades/video/7684044908423925022",
+              "lean": "mixed",
+              "at": "2026-09-11T00:58:52+02:00"
+            },
+            {
+              "source": "TikTok",
+              "text": "Ellison tried to sell $7.5B ORCL — reversed 24h",
+              "url": "https://www.tiktok.com/@scott_investing/video/7685155130173607199",
+              "lean": "mixed",
+              "at": "2026-09-14T00:47:15+02:00"
+            },
+            {
+              "source": "TikTok",
+              "text": "ORCL to $350",
+              "url": "https://www.tiktok.com/@sammrr.ai/video/7682508938532621598",
+              "lean": "mixed",
+              "at": "2026-09-06T21:38:33+02:00"
+            },
+            {
+              "source": "TikTok",
+              "text": "Oracle needs 850 MW power",
+              "url": "https://www.tiktok.com/@jakobtrades1/video/7684296961113066765",
+              "lean": "mixed",
+              "at": "2026-09-11T17:17:38+02:00"
             }
           ]
-        },
-        "links": {
-          "tradingview": "https://www.tradingview.com/symbols/NYSE-ORCL/",
-          "yahoo": "https://finance.yahoo.com/quote/ORCL"
         }
       }
     ],
     "signals_disclaimer": ""
-  },
-  "history": [
-    {
-      "tick_id": "2026-09-17T10:37:00+02:00",
-      "scraped_at": "2026-09-17T10:37:00+02:00",
-      "magnitude": 65,
-      "confidence": 72,
-      "direction": "leicht_bearish_risk_off",
-      "items": 214,
-      "early_signal": true
-    },
-    {
-      "tick_id": "2026-09-17T10:58:00+02:00",
-      "scraped_at": "2026-09-17T10:58:00+02:00",
-      "magnitude": 60,
-      "confidence": 74,
-      "direction": "leicht_bearish_risk_off",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-17T11:15:00+02:00",
-      "scraped_at": "2026-09-17T11:15:00+02:00",
-      "magnitude": 56,
-      "confidence": 76,
-      "direction": "leicht_bearish_risk_off",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-17T11:45:00+02:00",
-      "scraped_at": "2026-09-17T11:45:00+02:00",
-      "magnitude": 53,
-      "confidence": 77,
-      "direction": "leicht_bearish_risk_off",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-17T12:00:00+02:00",
-      "scraped_at": "2026-09-17T12:00:00+02:00",
-      "magnitude": 51,
-      "confidence": 78,
-      "direction": "leicht_bearish_risk_off",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-21T08:15:00+02:00",
-      "scraped_at": "2026-09-21T08:15:00+02:00",
-      "magnitude": 40,
-      "confidence": 71,
-      "direction": "mixed_cautious",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-21T08:55:00+02:00",
-      "scraped_at": "2026-09-21T08:55:00+02:00",
-      "magnitude": 38,
-      "confidence": 73,
-      "direction": "mixed_cautious",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-21T09:20:00+02:00",
-      "scraped_at": "2026-09-21T09:20:00+02:00",
-      "magnitude": 37,
-      "confidence": 74,
-      "direction": "mixed_cautious",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-21T10:00:00+02:00",
-      "scraped_at": "2026-09-21T10:00:00+02:00",
-      "magnitude": 36,
-      "confidence": 75,
-      "direction": "mixed_cautious",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-21T10:30:00+02:00",
-      "scraped_at": "2026-09-21T10:30:00+02:00",
-      "magnitude": 37,
-      "confidence": 76,
-      "direction": "mixed_cautious",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-21T10:45:00+02:00",
-      "scraped_at": "2026-09-21T10:45:00+02:00",
-      "magnitude": 36,
-      "confidence": 77,
-      "direction": "mixed_cautious",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-21T11:15:00+02:00",
-      "scraped_at": "2026-09-21T11:15:00+02:00",
-      "magnitude": 35,
-      "confidence": 74,
-      "direction": "mixed_cautious",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-21T11:35:00+02:00",
-      "scraped_at": "2026-09-21T11:35:00+02:00",
-      "magnitude": 34,
-      "confidence": 75,
-      "direction": "mixed_cautious",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-21T12:15:00+02:00",
-      "scraped_at": "2026-09-21T12:15:00+02:00",
-      "magnitude": 35,
-      "confidence": 76,
-      "direction": "mixed_cautious",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-21T12:45:00+02:00",
-      "scraped_at": "2026-09-21T12:45:00+02:00",
-      "magnitude": 36,
-      "confidence": 77,
-      "direction": "mixed_cautious",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-21T13:00:00+02:00",
-      "scraped_at": "2026-09-21T13:00:00+02:00",
-      "magnitude": 37,
-      "confidence": 78,
-      "direction": "mixed_cautious",
-      "items": null,
-      "early_signal": null
-    },
-    {
-      "tick_id": "2026-09-21T13:30:00+02:00",
-      "scraped_at": "2026-09-21T13:30:00+02:00",
-      "magnitude": 38,
-      "confidence": 79,
-      "direction": "mixed_cautious",
-      "items": 140,
-      "early_signal": true
-    }
-  ],
-  "signals_disclaimer": ""
+  }
 }
