@@ -84,10 +84,11 @@ assert(html.includes("if(kind==='price'){priceRange=r;saveChartRange(kind,r);syn
 assert(html.includes("else if(kind==='sentiment'){sentimentRange=r;saveChartRange(kind,r);syncRangeButtons();renderSentimentChart();renderOpinions();}"),'sentiment range must only rerender sentiment surface');
 assert(html.includes("else if(kind==='magnitude'){magnitudeRange=r;saveChartRange(kind,r);syncRangeButtons();renderMagnitudeChart();}"),'magnitude range must only rerender magnitude chart');
 assert(html.includes("T:ugc)',200"),'TickerTick UGC sample must request max 200');
-assert(html.includes('public.api.bsky.app/xrpc/app.bsky.feed.searchPosts'),'Bluesky realtime social source missing');
+assert(html.includes("(and E:oracle T:ugc)',200"),'second TickerTick entity UGC sample missing');
 assert(html.includes('minSocial=50'),'minimum realtime social sample gate missing');
 assert(html.includes("throw new Error('Zu wenig frische Social-Daten: '+social.length+'/'+minSocial)"),'social minimum must fail closed');
 assert(html.includes('social_breakdown:s.socialBreakdown||{}'),'social source breakdown metadata missing');
+assert(!html.includes('public.api.bsky.app'),'blocked Bluesky dependency must stay out of production');
 assert(html.includes('function liveRecencyWeight(ms)'),'realtime recency weighting missing');
 assert(html.includes('if(age<=2*3600e3)return 1.5'),'2h sentiment recency weight missing');
 assert(html.includes('if(age<=8*3600e3)return 1.25'),'8h sentiment recency weight missing');
