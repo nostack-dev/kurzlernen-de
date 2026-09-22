@@ -127,10 +127,10 @@ assert(!html.includes("{label:'Obere Sensitivität',data:"),'upper line should n
 assert(html.includes("type:'linear'"),'charts must use a real numeric time axis');
 assert(html.includes('spanGaps:false'),'charts must not bridge missing data');
 assert(html.includes('coverage<0.72||startsLate||endsEarly'),'adaptive chart bounds missing');
-assert(html.includes("Daten verfügbar '+fmtAxisValue(stats.xs[0])"),'coverage hint missing');
-assert(html.includes("axisX(hypeAgg"),'sentiment chart must use aggregated adaptive time bounds');
-assert(html.includes("axisX(mhist"),'magnitude chart must use adaptive time bounds');
-assert(html.includes("axisX(priceRows"),'price chart must use selected price rows');
+assert(html.includes("Daten verfügbar '+fmtAxisValue(stats.xs[0],range)"),'coverage hint missing');
+assert(html.includes("axisX(agg"),'sentiment chart must use aggregated adaptive time bounds');
+assert(html.includes("axisX(hist"),'magnitude chart must use adaptive time bounds');
+assert(html.includes("axisX(s.priceRows"),'price chart must use selected price rows');
 assert(html.includes('data-price-range="5y"')&&html.includes('data-sentiment-range="5y"')&&html.includes('data-magnitude-range="5y"'),'5J chart-local ranges missing');
 assert(html.includes("style:'currency',currency:'EUR'"),'UI must format money in EUR');
 assert(html.includes('function usdToEur'),'USD to EUR conversion missing');
