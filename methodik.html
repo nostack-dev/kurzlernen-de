@@ -38,7 +38,7 @@ ul{padding-left:18px}.exact{border-left:3px solid #151517;padding-left:12px}
 <ul>
 <li><b>News:</b> TickerTick API, Query <code>(and tt:orcl (or T:curated T:market T:analysis T:industry T:earning T:sec))</code>, maximal 40 Treffer.</li>
 <li><b>UGC/Social:</b> TickerTick API, Query <code>(and tt:orcl T:ugc)</code>, bis zu 200 Treffer pro Abruf.</li>
-<li><b>Zusätzliche Social-Quelle:</b> öffentliche Bluesky-Suche über <code>public.api.bsky.app/xrpc/app.bsky.feed.searchPosts</code>, zwei ORCL-bezogene Suchläufe mit bis zu 100 Treffern je Lauf; anschließend Relevanzfilter und Deduplizierung.</li>
+<li><b>Zusätzlicher Social-Abruf:</b> zweiter TickerTick-UGC-Lauf über die Entity <code>E:oracle</code>, ebenfalls bis zu 200 Treffer. Danach werden nur ORCL-/aktienrelevante Treffer behalten und mit dem tickergebundenen Feed dedupliziert.</li>
 <li><b>Mindeststichprobe:</b> mindestens 50 deduplizierte Social-/UGC-Beiträge im 36-Stunden-Fenster. Darunter wird der Live-Sentiment-Sync verworfen statt eine scheinpräzise Stimmung anzuzeigen.</li>
 <li><b>Freshness-Gate:</b> nur Datensätze mit Zeitstempel innerhalb der letzten 36 Stunden.</li>
 <li><b>News-Fallback:</b> Google News RSS für <code>Oracle ORCL stock when:1d</code>, browserseitig über RSS2JSON gelesen.</li>
@@ -56,9 +56,9 @@ News = 1 Stimme pro Treffer
 UGC/Social = 2 Stimmen pro Treffer
 
 Social-Stichprobe:
-TickerTick UGC bis 200 Treffer
-+ Bluesky bis 2 × 100 Treffer
-→ Relevanzfilter
+TickerTick ORCL-UGC bis 200 Treffer
++ TickerTick Oracle-Entity-UGC bis 200 Treffer
+→ Aktien-/ORCL-Relevanzfilter
 → Deduplizierung
 → Mindestgröße 50
 
