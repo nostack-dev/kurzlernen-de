@@ -50,7 +50,10 @@ assert(html.includes('refreshFreshSignals'),'manual sync must perform real live 
 assert(html.includes('fetchTickerTick'),'browser live source fetch missing');
 assert(html.includes('lastBrowserSyncAt=s.at'),'sync timestamp must only advance after fresh live signal calculation');
 assert(!html.includes('lastBrowserSyncAt=new Date().toISOString()'),'loading a static snapshot must not fake a sync timestamp');
-assert(html.includes("' · '+state"),'sync state label missing');
+assert(html.includes("'Letzte Aktualisierung '+footerClock(lastAt)"),'last refresh timestamp missing');
+assert(!html.includes('Sync-Fehler'),'sync error wording must stay off the main surface');
+assert(!html.includes('Kurs nicht verfügbar'),'transient unavailable price wording must stay off the loading state');
+assert(html.includes("btn.textContent=syncBusy?'↻ Aktualisiert …':'↻ Aktualisieren'"),'neutral refresh button wording missing');
 assert(html.includes('market-clock-core.js'),'market clock core missing');
 assert(!html.includes('positiv <span class="swatch neu"></span>neutral'),'persistent sentiment legend should stay off the TR-like main surface');
 assert(html.includes('pointHoverRadius:4'),'line-chart hover marker missing');
