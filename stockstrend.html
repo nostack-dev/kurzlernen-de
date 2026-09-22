@@ -199,15 +199,14 @@
   .sentiment-key .pos{background:#00a94f}.sentiment-key .neu{background:#8e8e93}.sentiment-key .neg{background:#e94035}
   .chart-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
   .chart-head .label{margin:0;min-width:0}
-  .chart-controls{display:flex;align-items:center;gap:9px;flex:0 0 auto}
-  .mini-range{display:inline-flex;align-items:center;gap:8px;padding:0;background:transparent}
-  .mini-range button{border:0;border-bottom:1.5px solid transparent;background:transparent;color:#9a9aa2;font:inherit;font-size:10px;font-weight:600;line-height:1;padding:3px 0 4px;cursor:pointer;min-width:0;border-radius:0}
-  .mini-range button.active{background:transparent;color:#151517;border-bottom-color:#151517;font-weight:760}
-  .line-toggle{border:0;background:transparent;color:#9a9aa2;font:inherit;font-size:10px;font-weight:650;padding:3px 0 4px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+  .mini-range{display:flex;align-items:center;justify-content:space-between;width:100%;margin:5px 0 0;padding:0 2px;background:transparent}
+  .mini-range button{border:0;background:transparent;color:#a0a0a7;font:inherit;font-size:10px;font-weight:600;line-height:1;padding:3px 2px;cursor:pointer;min-width:0;border-radius:0}
+  .mini-range button.active{background:transparent;color:#151517;font-weight:780}
+  .line-toggle{border:0;background:transparent;color:#9a9aa2;font:inherit;font-size:10px;font-weight:650;padding:2px 0;cursor:pointer;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
   .line-toggle:before{content:"";width:11px;height:2px;background:#c6c6cc;display:inline-block;border-radius:2px}
   .line-toggle.active{color:#151517}
   .line-toggle.active:before{background:#151517}
-  @media(max-width:700px){.chart-head{align-items:center;gap:7px}.chart-controls{gap:7px}.mini-range{gap:6px}.mini-range button,.line-toggle{font-size:9px}}
+  @media(max-width:700px){.mini-range button,.line-toggle{font-size:9px}.mini-range{margin-top:4px}}
   .sentiment-source{font-size:12px;line-height:1.4;color:#74747c;margin:6px 0 9px;font-variant-numeric:tabular-nums}
 
   .sync-footer{display:flex!important;align-items:center;justify-content:space-between;gap:10px;max-width:760px;margin:0 auto;padding:11px 18px 18px;color:#8a8a92;font-size:11px;line-height:1.2;font-variant-numeric:tabular-nums}
@@ -279,29 +278,32 @@
   </div>
 
   <div class="card chart-card-lg">
-    <div class="chart-head"><div class="label">Oracle · Kurs & Wert <a class="info-link info-inline" href="methodik.html#intrinsic" aria-label="Berechnung des inneren Werts erklären" title="Berechnung des inneren Werts">i</a></div><div class="chart-controls"><button type="button" class="line-toggle active" id="intrinsicToggle" aria-pressed="true">Wert</button><div class="mini-range" id="priceRange">
-      <button type="button" data-price-range="1d">1T</button><button type="button" data-price-range="1w">1W</button><button type="button" data-price-range="1m">1M</button><button type="button" data-price-range="year">1J</button><button type="button" data-price-range="5y">5J</button><button type="button" data-price-range="all">MAX</button>
-    </div></div></div>
+    <div class="chart-head"><div class="label">Oracle · Kurs & Wert <a class="info-link info-inline" href="methodik.html#intrinsic" aria-label="Berechnung des inneren Werts erklären" title="Berechnung des inneren Werts">i</a></div><button type="button" class="line-toggle active" id="intrinsicToggle" aria-pressed="true">Wert</button></div>
     <div class="value-summary" id="ivNow"></div>
     <div class="value-status flat" id="ivStatus"></div>
     <div class="chart-sub"><span id="ivCoverage"></span></div>
     <div class="chart-wrap chart-wrap-lg"><canvas id="ivChart"></canvas></div>
+    <div class="mini-range" id="priceRange" aria-label="Zeitraum Kurs und Wert">
+      <button type="button" data-price-range="1d">1T</button><button type="button" data-price-range="1w">1W</button><button type="button" data-price-range="1m">1M</button><button type="button" data-price-range="year">1J</button><button type="button" data-price-range="5y">5J</button><button type="button" data-price-range="all">MAX</button>
+    </div>
   </div>
 
   <div class="card chart-card-lg">
-    <div class="chart-head"><div class="label">Oracle · Stimmung <a class="info-link info-inline" href="methodik.html#sentiment" aria-label="Quellen und Berechnung der Stimmung erklären" title="Quellen und Berechnung der Stimmung">i</a></div><div class="mini-range" id="sentimentRange">
-      <button type="button" data-sentiment-range="1d">1T</button><button type="button" data-sentiment-range="1w">1W</button><button type="button" data-sentiment-range="1m">1M</button><button type="button" data-sentiment-range="year">1J</button><button type="button" data-sentiment-range="5y">5J</button><button type="button" data-sentiment-range="all">MAX</button>
-    </div></div>
+    <div class="chart-head"><div class="label">Oracle · Stimmung <a class="info-link info-inline" href="methodik.html#sentiment" aria-label="Quellen und Berechnung der Stimmung erklären" title="Quellen und Berechnung der Stimmung">i</a></div></div>
     <div class="sentiment-source" id="sentimentSource">Quellen werden geladen …</div>
     <div class="chart-sub"><span class="sentiment-key"><span class="swatch pos"></span>positiv <span class="swatch neu"></span>neutral <span class="swatch neg"></span>negativ</span> <span id="hypeCoverage"></span></div>
     <div class="chart-wrap chart-wrap-lg"><canvas id="hypeChart"></canvas></div>
+    <div class="mini-range" id="sentimentRange" aria-label="Zeitraum Stimmung">
+      <button type="button" data-sentiment-range="1d">1T</button><button type="button" data-sentiment-range="1w">1W</button><button type="button" data-sentiment-range="1m">1M</button><button type="button" data-sentiment-range="year">1J</button><button type="button" data-sentiment-range="5y">5J</button><button type="button" data-sentiment-range="all">MAX</button>
+    </div>
   </div>
   <div class="card chart-card-sm secondary-section">
-    <div class="chart-head"><div class="label">Markt · Stimmungsstärke (0–100) <span class="meta" id="magNow"></span></div><div class="mini-range" id="magnitudeRange">
-      <button type="button" data-magnitude-range="1d">1T</button><button type="button" data-magnitude-range="1w">1W</button><button type="button" data-magnitude-range="1m">1M</button><button type="button" data-magnitude-range="year">1J</button><button type="button" data-magnitude-range="5y">5J</button><button type="button" data-magnitude-range="all">MAX</button>
-    </div></div>
+    <div class="chart-head"><div class="label">Markt · Stimmungsstärke (0–100) <span class="meta" id="magNow"></span></div></div>
     <div class="meta" style="margin:0 0 10px">Aktueller Social-Druck am Markt — nicht der Kurs. <span id="magCoverage"></span></div>
     <div class="chart-wrap chart-wrap-sm"><canvas id="magChart"></canvas></div>
+    <div class="mini-range" id="magnitudeRange" aria-label="Zeitraum Stimmungsstärke">
+      <button type="button" data-magnitude-range="1d">1T</button><button type="button" data-magnitude-range="1w">1W</button><button type="button" data-magnitude-range="1m">1M</button><button type="button" data-magnitude-range="year">1J</button><button type="button" data-magnitude-range="5y">5J</button><button type="button" data-magnitude-range="all">MAX</button>
+    </div>
   </div>
 <div class="card secondary-section">
     <div class="label">Oracle · Meinungen <span class="meta" id="stimmenRange"></span></div>
