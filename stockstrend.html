@@ -265,17 +265,22 @@
   }
 
   /* Paired core metrics */
-  .row3{display:grid!important;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:20px;align-items:end;border-bottom:1px solid #eeeeef}
-  .row3>.card:not(.aux-card){min-width:0;border-bottom:0!important}
-  .sentiment-hero-card{text-align:right}
-  .sentiment-hero-card .label,.sentiment-hero-card .market-clock{text-align:right}
-  .row3 .hero-price{font-size:40px!important;white-space:nowrap}
+  .row3{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:32px;align-items:start;border-bottom:1px solid #eeeeef}
+  .row3>.card:not(.aux-card){min-width:0;border-bottom:0!important;padding-top:12px!important;padding-bottom:16px!important}
+  .sentiment-hero-card{text-align:left;padding-left:28px!important;border-left:1px solid #eeeeef!important}
+  .sentiment-hero-card .label,.sentiment-hero-card .market-clock{text-align:left}
+  .row3 .label{min-height:18px}
+  .row3 .market-clock{min-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row3 .hero-price{font-size:40px!important;line-height:1.05!important;white-space:nowrap;margin-top:9px!important}
+  .sentiment-denom{font-size:.62em;font-weight:700;vertical-align:.08em}
   @media(max-width:700px){
-    .row3{grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:12px}
-    .row3 .hero-price{font-size:30px!important}
-    .row3 .hero-change{font-size:12px!important}
-    .row3 .live-state{display:block;margin-left:0;margin-top:2px}
+    .row3{grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:14px}
+    .sentiment-hero-card{padding-left:14px!important}
+    .row3 .hero-price{font-size:29px!important}
+    .row3 .hero-change{font-size:12px!important;white-space:nowrap}
+    .row3 .live-state{display:inline;margin-left:4px;margin-top:0}
     .row3 .market-clock{font-size:9px!important}
+    .sentiment-denom{font-size:.58em}
   }
 
 </style>
@@ -541,6 +546,20 @@ function syncRangeButtons(){
   Array.prototype.forEach.call(document.querySelectorAll('#priceRange button'),function(b){b.classList.toggle('active',b.getAttribute('data-price-range')===priceRange);});
   Array.prototype.forEach.call(document.querySelectorAll('#sentimentRange button'),function(b){b.classList.toggle('active',b.getAttribute('data-sentiment-range')===sentimentRange);});
   Array.prototype.forEach.call(document.querySelectorAll('#magnitudeRange button'),function(b){b.classList.toggle('active',b.getAttribute('data-magnitude-range')===magnitudeRange);});
+}
+function sentimentHeroMetaText(t){
+  t=t||{};
+  var live=t.live_sources||null,fr=t.freshness||{},count=0,at=null;
+  if(live){
+    count=Number(live.social_count||0)+Number(live.news_count||0);
+    at=live.at||fr.freshest_absolute||t.scraped_at;
+  }else{
+    var src=t.sources||{},social=src.PublicReddit?Number(src.PublicReddit.items||0):0;
+    var news=src.NewsRSS?Number(src.NewsRSS.items||0):(src.WebSearch?Number(src.WebSearch.items||0):0);
+    count=social+news;at=fr.freshest_absolute||t.scraped_at;
+  }
+  var time=at?new Date(at).toLocaleTimeString('de-DE',{timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit'}):'—';
+  return (count?count+' Signale':'Signale')+' · '+time;
 }
 function sentimentSourceText(t){
   t=t||{};
@@ -965,7 +984,7 @@ function renderOverview(){
     shn.className='sentiment-hero-number '+moodCls;
     shn.textContent=sentimentScore!=null?String(sentimentScore):'—';
     shl.className='hero-change '+moodCls;shl.textContent=mood;
-    shm.textContent=sentimentSourceText(t);
+    shm.textContent=sentimentHeroMetaText(t);
     var sat=fr.freshest_absolute||updated;
     shst.className='live-state'+(sat?' live':'');
     shst.textContent=sat?'Aktuell':'Lädt …';
