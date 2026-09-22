@@ -993,31 +993,20 @@ function dedupeSocial(items){
   });
   return out.sort(function(a,b){return Number(b.time||0)-Number(a.time||0)});
 }
-async function fetchBlueskySocial(q){
-  var u='https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?q='+encodeURIComponent(q)+'&sort=latest&limit=100&_='+Date.now();
-  var r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error('Bluesky HTTP '+r.status);
-  var j=await r.json(),cut=Date.now()-36*60*60*1000;
-  return (j.posts||[]).map(function(p){
-    var rec=p&&p.record||{},text=String(rec.text||'').replace(/\s+/g,' ').trim(),ms=Date.parse(rec.createdAt||'');
-    if(!text||!isFinite(ms)||ms<cut)return null;
-    var low=text.toLowerCase(),relevant=/\$orcl\b|\borcl\b/.test(low)||(low.indexOf('oracle')>=0&&/(stock|share|earn|cloud|ai|market|bull|bear|buy|sell)/.test(low));
-    if(!relevant)return null;
-    var handle=p&&p.author&&p.author.handle||'',uri=String(p&&p.uri||''),rk=uri.split('/').pop();
-    return {title:text,url:handle&&rk?('https://bsky.app/profile/'+encodeURIComponent(handle)+'/post/'+encodeURIComponent(rk)):'https://bsky.app',site:'Bluesky',time:ms,provider:'Bluesky'};
-  }).filter(Boolean);
-}
 async function fetchFreshSignalSources(){
-  var news=null,tickSocial=[],blue1=[],blue2=[],newsProviders=[],socialProviders=[];
+  var news=null,tickerSocial=[],entitySocial=[],newsProviders=[],socialProviders=[];
   try{news=await fetchTickerTick('(and tt:orcl (or T:curated T:market T:analysis T:industry T:earning T:sec))',100);newsProviders.push('TickerTick News');}
   catch(e){news=await fetchGoogleNewsFallback('Oracle ORCL stock');newsProviders.push('Google News RSS');}
-  try{tickSocial=await fetchTickerTick('(and tt:orcl T:ugc)',200);socialProviders.push('TickerTick UGC');}catch(e){}
-  try{blue1=await fetchBlueskySocial('$ORCL');}catch(e){}
-  try{blue2=await fetchBlueskySocial('Oracle stock');}catch(e){}
-  var bluesky=dedupeSocial(blue1.concat(blue2));if(bluesky.length)socialProviders.push('Bluesky');
-  var social=dedupeSocial(tickSocial.concat(bluesky)),minSocial=50;
+  try{tickerSocial=await fetchTickerTick('(and tt:orcl T:ugc)',200);socialProviders.push('TickerTick ORCL UGC');}catch(e){}
+  try{entitySocial=await fetchTickerTick('(and E:oracle T:ugc)',200);socialProviders.push('TickerTick Oracle Entity UGC');}catch(e){}
+  entitySocial=entitySocial.filter(function(x){
+    var s=String(x&&x.title||'').toLowerCase();
+    return /\$orcl\b|\borcl\b/.test(s)||(s.indexOf('oracle')>=0&&/(stock|share|earn|cloud|ai|market|bull|bear|buy|sell|valuation|price)/.test(s));
+  });
+  var social=dedupeSocial(tickerSocial.concat(entitySocial)),minSocial=50;
   if(social.length<minSocial)throw new Error('Zu wenig frische Social-Daten: '+social.length+'/'+minSocial);
   if(!news||news.length<3)throw new Error('Zu wenig frische News-Daten');
-  var breakdown={'TickerTick UGC':dedupeSocial(tickSocial).length,'Bluesky':bluesky.length};
+  var breakdown={'TickerTick ORCL UGC':dedupeSocial(tickerSocial).length,'TickerTick Oracle Entity UGC':dedupeSocial(entitySocial).length};
   return {news:news||[],social:social.slice(0,300),providers:newsProviders.concat(socialProviders),newsProviders:newsProviders,socialProviders:socialProviders,socialBreakdown:breakdown,minSocial:minSocial};
 }
 function liveRecencyWeight(ms){
