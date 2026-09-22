@@ -473,7 +473,7 @@ function initChartPanels(){
     };
   });
 }
-var tickData=null, wlData=null, ivData=null, fxData=null, orclMinutePayload=null, orclHistoryPayload=null;
+var tickData=null, wlData=null, ivData=null, fxData=null, orclMinutePayload=null, orclHistoryPayload=null, sentimentBackfillData=null;
 var hypeChart=null, magChart=null, ivChart=null, pieChart=null;
 var fxBars=[], orclMinuteBars=[], orclDailyBars=[];
 var liveMarket={orclUsd:null,eurusd:null,prevOrclUsd:null,prevEurusd:null,at:null,connected:false,lastRenderedEur:null};
@@ -503,7 +503,8 @@ function saveLocalSentimentPoint(p){
   }catch(e){}
 }
 function mergedSentimentHistory(serverRows){
-  var all=(serverRows||[]).concat(loadLocalSentimentHistory()),by={};
+  var backfill=(sentimentBackfillData&&Array.isArray(sentimentBackfillData.history))?sentimentBackfillData.history:[];
+  var all=backfill.concat(serverRows||[],loadLocalSentimentHistory()),by={};
   all.forEach(function(x){
     var t=new Date(x&&x.at||0).getTime();
     if(!isFinite(t)||t<=0)return;
@@ -1321,7 +1322,8 @@ async function load(){
     var d=await fetchJson('eurusd-history.json',true);
     var m=await fetchJson('orcl-minute.json',true);
     var h=await fetchJson('orcl-history.json',true);
-    tickData=a; wlData=b; ivData=c; fxData=d||fxData; orclMinutePayload=m||orclMinutePayload; orclHistoryPayload=h||orclHistoryPayload;
+    var sb=await fetchJson('orcl-sentiment-history.json',true);
+    tickData=a; wlData=b; ivData=c; fxData=d||fxData; orclMinutePayload=m||orclMinutePayload; orclHistoryPayload=h||orclHistoryPayload; sentimentBackfillData=sb||sentimentBackfillData;
     fallbackMarket();
     syncRangeButtons();
     renderAll();
