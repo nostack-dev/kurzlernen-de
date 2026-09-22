@@ -289,31 +289,9 @@
     .sentiment-denom{font-size:.58em}
   }
 
-  /* Native iOS-style rubber-band even when content exactly fits */
-  @media (hover:none) and (pointer:coarse){
-    html{min-height:100%;overscroll-behavior-y:auto}
-    body{min-height:calc(100dvh + 1px);overscroll-behavior-y:auto;-webkit-overflow-scrolling:touch}
-  }
-
-  /* Subtle desktop edge elasticity */
-  @media (hover:hover) and (pointer:fine){
-    body.edge-bounce > header,
-    body.edge-bounce > .wrap,
-    body.edge-bounce > footer{
-      transform:translate3d(0,var(--edge-bounce-y,0px),0);
-      will-change:transform;
-    }
-    body.edge-bounce.edge-bounce-return > header,
-    body.edge-bounce.edge-bounce-return > .wrap,
-    body.edge-bounce.edge-bounce-return > footer{
-      transition:transform 220ms cubic-bezier(.2,.85,.25,1);
-    }
-  }
-  @media (prefers-reduced-motion:reduce){
-    body.edge-bounce > header,
-    body.edge-bounce > .wrap,
-    body.edge-bounce > footer{transform:none!important;transition:none!important}
-  }
+  /* Native browser overscroll/rubber-band when the platform supports it */
+  html{min-height:100%;overscroll-behavior-y:auto}
+  body{min-height:calc(100dvh + 1px);overscroll-behavior-y:auto;-webkit-overflow-scrolling:touch}
 
 </style>
 </head>
@@ -547,25 +525,39 @@ function oneBerlinDay(arr,getAt){
   var key=hasToday?today:berlinDayKey(getAt(valid[valid.length-1]));
   return valid.filter(function(x){return berlinDayKey(getAt(x))===key;});
 }
-function nyRegularSessionAt(value){
-  if(typeof MarketClock==='undefined'||!MarketClock.parts||!MarketClock.sessions||!MarketClock.isTradingDay)return null;
-  var ms=new Date(value||0).getTime();if(!isFinite(ms)||ms<=0)return null;
-  var p=MarketClock.parts(ms,'America/New_York');
-  if(!p||!MarketClock.isTradingDay(p.year,p.month,p.day))return null;
-  var s=MarketClock.sessions(p.year,p.month,p.day);
-  if(ms<s.open||ms>s.close)return null;
-  return {key:p.year+'-'+String(p.month).padStart(2,'0')+'-'+String(p.day).padStart(2,'0'),open:s.open,close:s.close};
+function berlinPartsAt(value){
+  var t=new Date(value||0);if(isNaN(t.getTime()))return null;
+  var out={};
+  new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(t).forEach(function(p){if(p.type!=='literal')out[p.type]=p.value;});
+  return {year:+out.year,month:+out.month,day:+out.day,hour:+out.hour,minute:+out.minute,second:+out.second};
 }
-function latestNyRegularSession(arr,getAt){
-  var groups={};
+function berlinZonedMs(y,m,d,h,min){
+  var target=Date.UTC(y,m-1,d,h,min||0,0),guess=target;
+  for(var i=0;i<4;i++){
+    var p=berlinPartsAt(guess),shown=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second||0);
+    var diff=target-shown;if(Math.abs(diff)<1000)break;guess+=diff;
+  }
+  return guess;
+}
+function berlinTradingWindowFor(value){
+  var p=berlinPartsAt(value);if(!p)return null;
+  return {
+    key:p.year+'-'+String(p.month).padStart(2,'0')+'-'+String(p.day).padStart(2,'0'),
+    open:berlinZonedMs(p.year,p.month,p.day,8,0),
+    close:berlinZonedMs(p.year,p.month,p.day,22,0)
+  };
+}
+function latestBerlinTradingWindow(arr,getAt){
+  var by={};
   (arr||[]).forEach(function(x){
-    var info=nyRegularSessionAt(getAt(x));if(!info)return;
-    if(!groups[info.key])groups[info.key]={key:info.key,open:info.open,close:info.close,rows:[]};
-    groups[info.key].rows.push(x);
+    var ms=new Date(getAt(x)||0).getTime();if(!isFinite(ms))return;
+    var w=berlinTradingWindowFor(ms);if(!w||ms<w.open||ms>w.close)return;
+    if(!by[w.key])by[w.key]={key:w.key,open:w.open,close:w.close,rows:[]};
+    by[w.key].rows.push(x);
   });
-  var keys=Object.keys(groups).sort();
+  var keys=Object.keys(by).sort();
   if(!keys.length)return {key:null,open:null,close:null,rows:[]};
-  var g=groups[keys[keys.length-1]];
+  var today=berlinDayKey(Date.now()),key=by[today]?today:keys[keys.length-1],g=by[key];
   g.rows.sort(function(a,b){return new Date(getAt(a))-new Date(getAt(b));});
   return g;
 }
@@ -1206,7 +1198,7 @@ function renderMagnitudeChart(){
 function valueSeries(){
   var ivHist=filterByAt((ivData&&ivData.history)||[],function(h){return h.at;},priceRange),priceRows,session=null;
   if(priceRange==='1d'&&orclMinuteBars.length){
-    session=latestNyRegularSession(orclMinuteBars,function(h){return h.at;});
+    session=latestBerlinTradingWindow(orclMinuteBars,function(h){return h.at;});
     priceRows=session.rows.map(function(h){return {at:h.at,value:usdToEur(h.close,h.at)};}).filter(function(h){return isFinite(h.value);});
   }else if(priceRange==='1w'&&orclMinuteBars.length)priceRows=filterByAt(orclMinuteBars,function(h){return h.at;},priceRange).map(function(h){return {at:h.at,value:usdToEur(h.close,h.at)};}).filter(function(h){return isFinite(h.value);});
   else if(orclDailyBars.length)priceRows=filterByAt(orclDailyBars,function(h){return h.at;},priceRange).map(function(h){return {at:h.at,value:usdToEur(h.close,h.at)};}).filter(function(h){return isFinite(h.value);});
@@ -1215,8 +1207,9 @@ function valueSeries(){
     var le=usdToEur(liveMarket.orclUsd,Date.now());
     if(isFinite(le)){
       var la=new Date(liveMarket.at||Date.now()).toISOString(),lp=priceRows.length?priceRows[priceRows.length-1]:null;
-      var liveSession=priceRange==='1d'?nyRegularSessionAt(la):null;
-      var sameSelectedSession=priceRange!=='1d'||(session&&liveSession&&session.key===liveSession.key);
+      var liveSession=priceRange==='1d'?berlinTradingWindowFor(la):null;
+      var liveMs=new Date(la).getTime();
+      var sameSelectedSession=priceRange!=='1d'||(session&&liveSession&&session.key===liveSession.key&&liveMs>=session.open&&liveMs<=session.close);
       if(sameSelectedSession){
         if(lp&&Math.abs(new Date(lp.at).getTime()-new Date(la).getTime())<60000)lp.value=le;
         else priceRows.push({at:la,value:le});
@@ -1602,39 +1595,7 @@ document.getElementById('shockNotify').onclick=async function(){
   setShockNotifyButton();
 };
 window.addEventListener('resize',function(){if(sentiment3d)renderSentimentChart();},{passive:true});
-function initDesktopEdgeBounce(){
-  if(!window.matchMedia||!window.matchMedia('(hover:hover) and (pointer:fine)').matches)return;
-  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
-  var body=document.body,offset=0,returnTimer=null,lastWheelAt=0;
-  body.classList.add('edge-bounce');
-  function apply(y,returning){
-    offset=y;
-    body.classList.toggle('edge-bounce-return',!!returning);
-    body.style.setProperty('--edge-bounce-y',y.toFixed(2)+'px');
-  }
-  function spring(){
-    clearTimeout(returnTimer);
-    body.classList.add('edge-bounce-return');
-    requestAnimationFrame(function(){apply(0,true);});
-    returnTimer=setTimeout(function(){body.classList.remove('edge-bounce-return');},240);
-  }
-  window.addEventListener('wheel',function(e){
-    var doc=document.documentElement,max=Math.max(0,doc.scrollHeight-window.innerHeight);
-    var y=window.scrollY||doc.scrollTop||0;
-    var atTop=y<=0.5,atBottom=y>=max-0.5;
-    var outward=(atTop&&e.deltaY<0)||(atBottom&&e.deltaY>0);
-    if(!outward){if(Math.abs(offset)>.1)spring();return;}
-    var now=performance.now(),dt=Math.max(8,Math.min(40,now-lastWheelAt||16));lastWheelAt=now;
-    var raw=Math.max(-70,Math.min(70,e.deltaY));
-    var impulse=-raw*0.055*(dt/16);
-    var next=Math.max(-12,Math.min(12,offset+impulse));
-    apply(next,false);
-    clearTimeout(returnTimer);
-    returnTimer=setTimeout(spring,55);
-  },{passive:true});
-}
 
-initDesktopEdgeBounce();
 initChartPanels();
 renderShockEvents(); setShockNotifyButton(); pollShock();
 renderMarketClock();
