@@ -139,7 +139,7 @@ assert(html.includes("fetch('orcl-minute.json?t='"),'price shock fallback must b
 assert(html.includes("fetchJson('orcl-history.json'"),'long-range ORCL history feed missing');
 assert(html.includes('orclDailyBars'),'daily ORCL chart series missing');
 assert(html.includes("else if(orclDailyBars.length)"),'1M/1J/5J/MAX must prefer fresh daily ORCL prices');
-assert(html.includes('liveChartTimer=setTimeout(function(){liveChartTimer=null;renderAll();}'),'live chart must refresh in every selected range');
+assert(html.includes('liveChartTimer=setTimeout(function(){liveChartTimer=null;renderValueChart();}'),'live quote must update only the price/value chart');
 assert(html.includes(".chart-wrap canvas { max-height: none"),'chart canvases must not inherit 190px max-height clip');
 assert(html.includes("grace:'8%'"),'price/value chart needs light y-grace');
 assert(html.includes('Math.min(now,last+pad)'),'adaptive x-max must not run past now');
