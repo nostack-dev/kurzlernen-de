@@ -241,12 +241,13 @@
   .flow-phase.up{color:#45a944}.flow-phase.down{color:#d93a31}.flow-phase.flat{color:#777780}
   .flow-sub{font-size:10px;font-weight:650;color:#8d8d95}
   .flow-geometry{margin-top:4px}
-  .flow-geometry svg{display:block;width:100%;height:54px;overflow:visible}
-  .flow-zero{stroke:#d9d9de;stroke-width:1}
-  .flow-guide{stroke:#ededf0;stroke-width:1}
+  .flow-scale{height:54px;position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:linear-gradient(to bottom,transparent calc(50% - .5px),#d9d9de calc(50% - .5px),#d9d9de calc(50% + .5px),transparent calc(50% + .5px))}
+  .flow-link-layer{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
   .flow-link{fill:none;stroke:#8e8e93;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-  .flow-node{fill:#fff;stroke-width:2.4}
-  .flow-node.up{stroke:#45a944}.flow-node.down{stroke:#d93a31}.flow-node.flat{stroke:#8e8e93}
+  .flow-col{position:relative;z-index:1}
+  .flow-col:after{content:"";position:absolute;left:50%;top:5px;bottom:5px;border-left:1px solid #ededf0}
+  .flow-node{position:absolute;left:50%;width:10px;height:10px;border-radius:50%;transform:translate(-50%,-50%);background:#fff;border:2.4px solid #8e8e93;z-index:2}
+  .flow-node.up{border-color:#45a944}.flow-node.down{border-color:#d93a31}.flow-node.flat{border-color:#8e8e93}
   .flow-labels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin-top:0}
   .flow-label{text-align:center;font-size:10px;font-weight:720;color:#777780;white-space:nowrap}
   .flow-label.up{color:#3f9d3e}.flow-label.down{color:#c9362e}.flow-label.flat{color:#777780}
@@ -254,7 +255,7 @@
     .market-flow{margin-top:6px}
     .flow-phase{font-size:14px}
     .flow-sub{font-size:9px}
-    .flow-geometry svg{height:50px}
+    .flow-scale{height:50px}
     .flow-label{font-size:9px}
   }
 
@@ -1273,10 +1274,10 @@ function renderMarketFlowVisual(f){
     {name:'Volumen',v:flowComponentValue(f,'Volumen',f.volumeDir)},
     {name:'Kurs',v:flowComponentValue(f,'Kurs',f.priceDir)}
   ];
-  var xs=[50,150,250],ys=vals.map(function(x){return 27-19*x.v;});
-  var points=xs.map(function(x,i){return x+','+ys[i].toFixed(2);}).join(' ');
+  var xs=[50,150,250],yp=vals.map(function(x){return 50-35*x.v;});
+  var points=xs.map(function(x,i){return x+','+yp[i].toFixed(2);}).join(' ');
   var nodes=vals.map(function(x,i){
-    return '<circle class="flow-node '+flowClass(x.v)+'" cx="'+xs[i]+'" cy="'+ys[i].toFixed(2)+'" r="5"/>';
+    return '<div class="flow-col"><span class="flow-node '+flowClass(x.v)+'" style="top:'+yp[i].toFixed(2)+'%"></span></div>';
   }).join('');
   var labels=vals.map(function(x){
     return '<div class="flow-label '+flowClass(x.v)+'">'+x.name+' '+flowArrow(x.v)+'</div>';
@@ -1284,13 +1285,10 @@ function renderMarketFlowVisual(f){
   el.innerHTML=
     '<div class="flow-head"><span class="flow-phase '+flowClass(dir)+'">'+(dir?flowArrow(dir)+' ':'')+phase+'</span>'+(sub?'<span class="flow-sub">'+sub+'</span>':'')+'</div>'+
     '<div class="flow-geometry" role="img" aria-label="'+phase+'. Crowd '+flowArrow(vals[0].v)+', Volumen '+flowArrow(vals[1].v)+', Kurs '+flowArrow(vals[2].v)+'.">'+
-      '<svg viewBox="0 0 300 54" preserveAspectRatio="none" aria-hidden="true">'+
-        '<line class="flow-zero" x1="0" y1="27" x2="300" y2="27"/>'+
-        '<line class="flow-guide" x1="50" y1="5" x2="50" y2="49"/>'+
-        '<line class="flow-guide" x1="150" y1="5" x2="150" y2="49"/>'+
-        '<line class="flow-guide" x1="250" y1="5" x2="250" y2="49"/>'+
-        '<polyline class="flow-link" points="'+points+'"/>'+nodes+
-      '</svg>'+
+      '<div class="flow-scale">'+
+        '<svg class="flow-link-layer" viewBox="0 0 300 100" preserveAspectRatio="none" aria-hidden="true"><polyline class="flow-link" points="'+points+'"/></svg>'+
+        nodes+
+      '</div>'+
       '<div class="flow-labels">'+labels+'</div>'+
     '</div>';
 }
