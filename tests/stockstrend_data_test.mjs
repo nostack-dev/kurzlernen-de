@@ -41,10 +41,15 @@ assert(!html.includes('data-price-range="5m"')&&!html.includes('data-sentiment-r
 assert(html.includes(">MAX</button>"),'MAX range missing');
 assert(html.includes("function sentimentColor"),'sentiment threshold color missing');
 assert(html.includes('function mixRgb(a,b,t)'),'continuous sentiment RGB interpolation missing');
-assert(html.includes("return v<=50?mixRgb(red,gray,v/50):mixRgb(gray,green,(v-50)/50)"),'sentiment color must interpolate red-gray-green continuously');
+assert(html.includes("return v<=50?mixRgb(red,neutral,v/50):mixRgb(neutral,green,(v-50)/50)"),'sentiment color must interpolate red-black-green continuously');
 assert(html.includes('function sentimentSegmentGradient(ctx)'),'per-segment sentiment gradient missing');
 assert(html.includes('ctx.chart.ctx.createLinearGradient(x0,py0,x1,py1)'),'sentiment gradient must follow actual segment x/y geometry');
 assert(html.includes('g.addColorStop(0,c0);g.addColorStop(1,c1)'),'segment gradient endpoints missing');
+assert(html.includes('Subtle desktop edge elasticity'),'desktop edge bounce missing');
+assert(html.includes('function initDesktopEdgeBounce()'),'desktop edge bounce controller missing');
+assert(html.includes("Math.max(-12,Math.min(12,offset+impulse))"),'desktop edge bounce must stay subtle');
+assert(html.includes("window.matchMedia('(hover:hover) and (pointer:fine)')"),'desktop edge bounce must stay pointer-fine only');
+assert(html.includes("window.matchMedia('(prefers-reduced-motion: reduce)')"),'desktop edge bounce must honor reduced motion');
 assert(html.includes("y:{min:-4,max:104"),'sentiment bounds need visual headroom');
 assert(html.includes("scale.ticks=[{value:0},{value:50},{value:100}]"),'sentiment axis must still show semantic 0/50/100 ticks');
 assert(html.includes("priceRangeColor"),'range price color missing');
