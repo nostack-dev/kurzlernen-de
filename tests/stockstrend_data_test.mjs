@@ -88,6 +88,10 @@ assert(html.includes('public.api.bsky.app/xrpc/app.bsky.feed.searchPosts'),'Blue
 assert(html.includes('minSocial=50'),'minimum realtime social sample gate missing');
 assert(html.includes("throw new Error('Zu wenig frische Social-Daten: '+social.length+'/'+minSocial)"),'social minimum must fail closed');
 assert(html.includes('social_breakdown:s.socialBreakdown||{}'),'social source breakdown metadata missing');
+assert(html.includes('function liveRecencyWeight(ms)'),'realtime recency weighting missing');
+assert(html.includes('if(age<=2*3600e3)return 1.5'),'2h sentiment recency weight missing');
+assert(html.includes('if(age<=8*3600e3)return 1.25'),'8h sentiment recency weight missing');
+assert(html.includes('return 0.65'),'older sentiment decay missing');
 assert(html.includes("border-bottom:1.5px solid transparent"),'TR-like compact range control styling missing');
 assert(!html.includes(".mini-range{display:inline-flex;flex:0 0 auto;gap:1px;background:#f5f5f7"),'pill-style chart range regression');
 
