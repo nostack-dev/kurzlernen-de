@@ -766,9 +766,25 @@ function ivEur(row,base){
   var usd=firstValue(row[base+'_usd'],row[base]);
   return usdToEur(usd,row.at);
 }
+function mixRgb(a,b,t){
+  t=Math.max(0,Math.min(1,Number(t)||0));
+  var r=Math.round(a[0]+(b[0]-a[0])*t),g=Math.round(a[1]+(b[1]-a[1])*t),bl=Math.round(a[2]+(b[2]-a[2])*t);
+  return 'rgb('+r+','+g+','+bl+')';
+}
 function sentimentColor(v){
-  v=Number(v);
-  return v>55?'#5dcb5b':v<45?'#e94035':'#8e8e93';
+  v=Math.max(0,Math.min(100,Number(v)));
+  var red=[233,64,53],gray=[142,142,147],green=[93,203,91];
+  if(!isFinite(v))return 'rgb(142,142,147)';
+  return v<=50?mixRgb(red,gray,v/50):mixRgb(gray,green,(v-50)/50);
+}
+function sentimentSegmentGradient(ctx){
+  var y0=Number(ctx.p0&&ctx.p0.parsed&&ctx.p0.parsed.y),y1=Number(ctx.p1&&ctx.p1.parsed&&ctx.p1.parsed.y);
+  var x0=Number(ctx.p0&&ctx.p0.x),py0=Number(ctx.p0&&ctx.p0.y),x1=Number(ctx.p1&&ctx.p1.x),py1=Number(ctx.p1&&ctx.p1.y);
+  var c0=sentimentColor(y0),c1=sentimentColor(y1);
+  if(!ctx.chart||!ctx.chart.ctx||![x0,py0,x1,py1].every(isFinite)||Math.abs(x1-x0)+Math.abs(py1-py0)<.5)return c1;
+  var g=ctx.chart.ctx.createLinearGradient(x0,py0,x1,py1);
+  g.addColorStop(0,c0);g.addColorStop(1,c1);
+  return g;
 }
 function priceRangeColor(points){
   var ys=(points||[]).map(function(p){return Number(p&&p.y);}).filter(isFinite);
@@ -1001,7 +1017,7 @@ function renderSentimentChart(){
   var agg=aggregateForRange(hist,function(h){return h.at;},function(h){return stimmungNorm(h);},sentimentRange);
   var cov=document.getElementById('hypeCoverage');if(cov){var ct=compactCoverage(agg,function(h){return h.at;},sentimentRange);cov.textContent=ct;cov.parentElement.style.display=ct?'block':'none';}
   var pts=agg.map(function(h){return {x:new Date(h.at).getTime(),y:Number(h.value)};});
-  var ds={label:'Stimmung',data:pts,parsing:false,spanGaps:false,borderColor:'#8e8e93',backgroundColor:'#8e8e93',fill:false,tension:.12,pointRadius:agg.length<=12?2:0,pointHoverRadius:4,pointHoverBorderWidth:2,pointHoverBorderColor:'#fff',pointHoverBackgroundColor:function(ctx){return sentimentColor(ctx.raw&&ctx.raw.y);},borderWidth:2,segment:{borderColor:function(ctx){return sentimentColor((Number(ctx.p0.parsed.y)+Number(ctx.p1.parsed.y))/2);}},pointBackgroundColor:function(ctx){return sentimentColor(ctx.raw&&ctx.raw.y);}};
+  var ds={label:'Stimmung',data:pts,parsing:false,spanGaps:false,borderColor:'#8e8e93',backgroundColor:'#8e8e93',fill:false,tension:.12,pointRadius:agg.length<=12?2:0,pointHoverRadius:4,pointHoverBorderWidth:2,pointHoverBorderColor:'#fff',pointHoverBackgroundColor:function(ctx){return sentimentColor(ctx.raw&&ctx.raw.y);},borderWidth:2,segment:{borderColor:function(ctx){return sentimentSegmentGradient(ctx);}},pointBackgroundColor:function(ctx){return sentimentColor(ctx.raw&&ctx.raw.y);}};
   if(!hypeChart){
     hypeChart=new Chart(document.getElementById('hypeChart'),{type:'line',data:{datasets:[ds]},options:{animation:false,events:chartEvents(),responsive:true,maintainAspectRatio:false,layout:{padding:{top:6,bottom:2,left:4,right:4}},interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase('hype')},scales:{x:axisX(agg,function(h){return h.at;},sentimentRange),y:{min:-4,max:104,afterBuildTicks:function(scale){scale.ticks=[{value:0},{value:50},{value:100}];},ticks:{color:'#6b6b76',font:{size:11},callback:function(v){return v===0||v===50||v===100?v:'';}},grid:{color:'#f2f2f4'},border:{display:false}}}}});
   }else{
