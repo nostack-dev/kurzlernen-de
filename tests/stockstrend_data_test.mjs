@@ -73,6 +73,24 @@ assert(html.includes('function sentimentSourceText'),'sentiment source renderer 
 assert(html.includes('tickData.tick.live_sources'),'browser live source metadata missing');
 assert(html.includes('SENTIMENT_HISTORY_LS'),'persistent browser sentiment history missing');
 assert(html.includes('mergedSentimentHistory(orcl.history||[])'),'server/local sentiment history merge missing');
+assert(html.includes('id="intrinsicToggle"'),'intrinsic visibility toggle missing');
+assert(html.includes("INTRINSIC_VISIBLE_LS='alantu_intrinsic_visible_v1'"),'intrinsic toggle persistence missing');
+assert(html.includes("ivChart.update('none')"),'intrinsic toggle must update in place');
+assert(!html.includes('hypeChart.destroy'),'sentiment chart must not be destroyed on updates');
+assert(!html.includes('ivChart.destroy'),'value chart must not be destroyed on updates');
+assert(!html.includes('magChart.destroy'),'magnitude chart must not be destroyed on updates');
+assert(html.includes("liveChartTimer=setTimeout(function(){liveChartTimer=null;renderValueChart();}"),'live quote must only update price/value chart');
+assert(html.includes("if(kind==='price'){priceRange=r;saveChartRange(kind,r);syncRangeButtons();renderValueChart();}"),'price range must only rerender price chart');
+assert(html.includes("else if(kind==='sentiment'){sentimentRange=r;saveChartRange(kind,r);syncRangeButtons();renderSentimentChart();renderOpinions();}"),'sentiment range must only rerender sentiment surface');
+assert(html.includes("else if(kind==='magnitude'){magnitudeRange=r;saveChartRange(kind,r);syncRangeButtons();renderMagnitudeChart();}"),'magnitude range must only rerender magnitude chart');
+assert(html.includes("T:ugc)',200"),'TickerTick UGC sample must request max 200');
+assert(html.includes('public.api.bsky.app/xrpc/app.bsky.feed.searchPosts'),'Bluesky realtime social source missing');
+assert(html.includes('minSocial=50'),'minimum realtime social sample gate missing');
+assert(html.includes("throw new Error('Zu wenig frische Social-Daten: '+social.length+'/'+minSocial)"),'social minimum must fail closed');
+assert(html.includes('social_breakdown:s.socialBreakdown||{}'),'social source breakdown metadata missing');
+assert(html.includes("border-bottom:1.5px solid transparent"),'TR-like compact range control styling missing');
+assert(!html.includes(".mini-range{display:inline-flex;flex:0 0 auto;gap:1px;background:#f5f5f7"),'pill-style chart range regression');
+
 assert(!html.includes('Berechnung & Grenzen'),'large inline value explainer should stay off the compact view');
 assert(methodik.includes('Innerer Wert: exakte Berechnung'),'detailed intrinsic methodology page missing');
 assert(methodik.includes('Owner Earnings ='),'owner earnings formula missing from methodology');
