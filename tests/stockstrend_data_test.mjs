@@ -93,6 +93,10 @@ assert(!html.includes("+' · same-origin'"),'internal transport wording leaked t
 assert(!html.includes('query1.finance.yahoo.com'),'browser must not use Yahoo REST directly');
 assert(!html.includes('query2.finance.yahoo.com'),'browser must not use Yahoo REST directly');
 assert(html.includes("fetch('orcl-minute.json?t='"),'price shock fallback must be same-origin');
+assert(html.includes("fetchJson('orcl-history.json'"),'long-range ORCL history feed missing');
+assert(html.includes('orclDailyBars'),'daily ORCL chart series missing');
+assert(html.includes("else if(orclDailyBars.length)"),'1M/1J/5J/MAX must prefer fresh daily ORCL prices');
+assert(html.includes('liveChartTimer=setTimeout(function(){liveChartTimer=null;renderAll();}'),'live chart must refresh in every selected range');
 assert(html.includes(".chart-wrap canvas { max-height: none"),'chart canvases must not inherit 190px max-height clip');
 assert(html.includes("grace:'8%'"),'price/value chart needs light y-grace');
 assert(html.includes('Math.min(now,last+pad)'),'adaptive x-max must not run past now');
