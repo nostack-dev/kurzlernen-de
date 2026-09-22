@@ -41,6 +41,8 @@ assert(!html.includes('data-price-range="5m"')&&!html.includes('data-sentiment-r
 assert(html.includes(">MAX</button>"),'MAX range missing');
 assert(html.includes("function sentimentColor"),'sentiment threshold color missing');
 assert(html.includes("v>55?'#00a94f':v<45?'#e94035':'#8e8e93'"),'sentiment red/gray/green thresholds missing');
+assert(html.includes("y:{min:-4,max:104"),'sentiment bounds need visual headroom');
+assert(html.includes("scale.ticks=[{value:0},{value:50},{value:100}]"),'sentiment axis must still show semantic 0/50/100 ticks');
 assert(html.includes("priceRangeColor"),'range price color missing');
 assert(html.includes('id="marketClock"'),'German market clock missing');
 assert(html.includes('id="syncFooter"'),'sync footer missing');
@@ -81,7 +83,10 @@ assert(html.includes('id="sentimentHeroMeta"'),'sentiment core metric metadata m
 assert(html.includes('Paired core metrics'),'paired core metric layout missing');
 assert(html.includes('grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr)'),'sentiment core metric must sit beside live price');
 assert(html.includes('.sentiment-hero-card{text-align:right}'),'right-side sentiment alignment missing');
-assert(html.includes("sentimentScore+' / 100'"),'sentiment core metric must use 0-100 score');
+assert(html.includes('id="sentimentHeroNumber"'),'sentiment hero number span missing');
+assert(html.includes('class="sentiment-denom"> / 100</span>'),'sentiment denominator span missing');
+assert(html.includes('.sentiment-denom{color:#151517!important}'),'sentiment denominator must stay black');
+assert(html.includes("shn.textContent=sentimentScore!=null?String(sentimentScore):'—'"),'sentiment score must render independently from denominator');
 assert(html.includes("CHART_OPEN_LS='alantu_chart_open_v1'"),'chart open-state storage missing');
 assert(html.includes("function chartIsOpen(key){return chartOpenState[key]!==false;}"),'charts must default open');
 assert(html.includes('data-chart-panel="price"')&&html.includes('data-chart-panel="sentiment"'),'main chart panels missing');
