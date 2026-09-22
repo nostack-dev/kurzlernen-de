@@ -670,7 +670,10 @@ function tipBase(kind){
         var name=ctx.dataset.label||'';
         if(kind==='hype'){
           var hdr=ctx.raw&&ctx.raw.hdr;
-          if(name==='Struktur'&&hdr)return '  '+hdr.label;
+          if(name==='Struktur'&&hdr){
+            var hz=(hdr.z>=0?'+':'')+hdr.z.toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})+'σ';
+            return '  '+hdr.label+' · P'+hdr.percentile+' · '+hz+' · '+Math.round(hdr.impact*100)+'% Spanne · '+hdr.agree+'/'+hdr.neighbors+' Nachbarn';
+          }
           if(name.indexOf('Bear')>=0) return '  Bearisch: '+v+' %';
           if(name.indexOf('Bull')>=0) return '  Bullisch: '+v+' %';
           if(name.indexOf('Stimmung')>=0) return '  Stimmung: '+Math.round(v)+' / 100 (50 = neutral)';
@@ -1148,10 +1151,10 @@ function hdrRelationSeries(rows){
 }
 function hdrCurrentText(rel){
   if(!rel||!rel.hdr)return '';
-  var h=rel.hdr,z=(h.z>=0?'+':'')+h.z.toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})+'σ';
-  var parts=['Gesamt P'+h.percentile,'lokal '+z];
+  var h=rel.hdr,z=(h.z>=0?'+':'')+h.z.toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})+'σ',parts=[];
+  if(h.label)parts.push(h.label);
+  parts.push('P'+h.percentile,'lokal '+z);
   if(h.neighbors)parts.push(h.agree+'/'+h.neighbors+' Nachbarn '+(h.z>=0?'↑':'↓'));
-  if(h.impact>=.08)parts.push(Math.round(h.impact*100)+'% Jahresspanne');
   return parts.join(' · ');
 }
 function hdrVisibleMarkers(relations,range){
