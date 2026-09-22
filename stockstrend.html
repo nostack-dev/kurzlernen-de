@@ -465,7 +465,7 @@ var tickData=null, wlData=null, ivData=null, fxData=null, orclMinutePayload=null
 var hypeChart=null, magChart=null, ivChart=null, pieChart=null;
 var fxBars=[], orclMinuteBars=[], orclDailyBars=[];
 var liveMarket={orclUsd:null,eurusd:null,prevOrclUsd:null,prevEurusd:null,at:null,connected:false,lastRenderedEur:null};
-var livePriceTicks=[],liveWs=null,liveHeartbeat=null,liveReconnect=null,liveShockTimer=null,lastFlowRenderAt=0,waveCache=null,waveCacheAt=0,lastLiveTickPruneAt=0;
+var livePriceTicks=[],liveWs=null,liveHeartbeat=null,liveReconnect=null,liveShockTimer=null,lastFlowRenderAt=0,lastLiveTickPruneAt=0;
 function loadAccOpen(){ try{ return JSON.parse(localStorage.getItem(LS_ACC)||'{}'); }catch(e){ return {}; } }
 function saveAccOpen(map){ try{ localStorage.setItem(LS_ACC, JSON.stringify(map)); }catch(e){} }
 function loadLocalSentimentHistory(){
@@ -1207,10 +1207,7 @@ function marketWaveVector(){
   };
 }
 function getMarketWaveVector(){
-  var now=Date.now();
-  if(waveCache&&now-waveCacheAt<15000)return waveCache;
-  waveCache=marketWaveVector();waveCacheAt=now;
-  return waveCache;
+  return marketWaveVector();
 }
 function marketFlowText(f){
   if(!f||!f.label)return '→ Kein gekoppelter Impuls';
@@ -1272,7 +1269,7 @@ function updateLivePriceChart1d(){
 var liveChartTimer=null;
 function scheduleLiveChartUpdate(){
   if(liveChartTimer)return;
-  var delay=priceRange==='1d'?250:(priceRange==='1w'?1200:5000);
+  var delay=priceRange==='1d'?180:(priceRange==='1w'?1200:5000);
   liveChartTimer=setTimeout(function(){
     liveChartTimer=null;
     if(priceRange==='1d'&&updateLivePriceChart1d())return;
