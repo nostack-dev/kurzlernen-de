@@ -76,6 +76,16 @@ assert(html.includes('class="mini-range"'),'compact chart-local ranges missing')
 assert(html.includes("var priceRange=loadChartRange('price','1d')"),'independent price range state missing');
 assert(html.includes("var sentimentRange=loadChartRange('sentiment','1m')"),'independent sentiment range state missing');
 assert(html.includes("var magnitudeRange=loadChartRange('magnitude','1m')"),'independent magnitude range state missing');
+assert(html.includes('id="sentimentHeroScore"'),'sentiment core metric missing');
+assert(html.includes('id="sentimentHeroMeta"'),'sentiment core metric metadata missing');
+assert(html.includes("sentimentScore+' / 100'"),'sentiment core metric must use 0-100 score');
+assert(html.includes("CHART_OPEN_LS='alantu_chart_open_v1'"),'chart open-state storage missing');
+assert(html.includes("function chartIsOpen(key){return chartOpenState[key]!==false;}"),'charts must default open');
+assert(html.includes('data-chart-panel="price"')&&html.includes('data-chart-panel="sentiment"'),'main chart panels missing');
+assert(html.includes('data-chart-panel="magnitude"')&&html.includes('data-chart-panel="opinions"'),'secondary chart panels missing');
+assert(html.includes("localStorage.setItem(CHART_OPEN_LS,JSON.stringify(chartOpenState))"),'chart open-state persistence missing');
+assert(html.includes("if(ch&&typeof ch.resize==='function')ch.resize();"),'chart reopen must resize in place');
+assert(html.includes("b.textContent=open?'▴':'▾'"),'chart collapse affordance missing');
 assert(html.includes('function sentimentSourceText'),'sentiment source renderer missing');
 assert(html.includes('tickData.tick.live_sources'),'browser live source metadata missing');
 assert(html.includes('SENTIMENT_HISTORY_LS'),'persistent browser sentiment history missing');
