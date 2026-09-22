@@ -92,7 +92,7 @@ assert(html.includes('function liveRecencyWeight(ms)'),'realtime recency weighti
 assert(html.includes('if(age<=2*3600e3)return 1.5'),'2h sentiment recency weight missing');
 assert(html.includes('if(age<=8*3600e3)return 1.25'),'8h sentiment recency weight missing');
 assert(html.includes('return 0.65'),'older sentiment decay missing');
-assert(html.includes("border-bottom:1.5px solid transparent"),'TR-like compact range control styling missing');
+assert(html.includes('justify-content:space-between;width:100%;margin:5px 0 0'),'TR-like flat bottom range layout missing');
 assert(!html.includes(".mini-range{display:inline-flex;flex:0 0 auto;gap:1px;background:#f5f5f7"),'pill-style chart range regression');
 
 assert(!html.includes('Berechnung & Grenzen'),'large inline value explainer should stay off the compact view');
