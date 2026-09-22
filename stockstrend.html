@@ -327,7 +327,7 @@
 <script src="market-clock-core.js"></script>
 <script src="price-shock-core.js"></script>
 <script>
-var LS_RANGE='botbot_wl_range', LS_ACC='botbot_acc_open';
+var LS_RANGE='botbot_wl_range', LS_ACC='botbot_acc_open', SENTIMENT_HISTORY_LS='alantu_orcl_sentiment_history_v1';
 var wlRange=(function(){
   try{
     var r=localStorage.getItem(LS_RANGE)||'1d';
@@ -343,6 +343,38 @@ var liveWs=null,liveHeartbeat=null,liveReconnect=null,liveShockTimer=null;
 function saveRange(r){ try{ localStorage.setItem(LS_RANGE, r); }catch(e){} }
 function loadAccOpen(){ try{ return JSON.parse(localStorage.getItem(LS_ACC)||'{}'); }catch(e){ return {}; } }
 function saveAccOpen(map){ try{ localStorage.setItem(LS_ACC, JSON.stringify(map)); }catch(e){} }
+function loadLocalSentimentHistory(){
+  try{
+    var a=JSON.parse(localStorage.getItem(SENTIMENT_HISTORY_LS)||'[]');
+    return Array.isArray(a)?a:[];
+  }catch(e){return [];}
+}
+function saveLocalSentimentPoint(p){
+  try{
+    var a=loadLocalSentimentHistory(),last=a.length?a[a.length-1]:null,pt={at:p.at,hype_bull:p.hype_bull,hype_bear:p.hype_bear,hype_mixed:p.hype_mixed,hype_net:p.hype_net,confidence:p.confidence,signal:p.signal,price:p.price};
+    if(!last||new Date(pt.at).getTime()-new Date(last.at||0).getTime()>=5*60*1000)a.push(pt);
+    var now=Date.now(),by={};
+    a=a.filter(function(x){var t=new Date(x.at||0).getTime();return isFinite(t)&&t>0;}).sort(function(x,y){return new Date(x.at)-new Date(y.at);}).filter(function(x){
+      var t=new Date(x.at).getTime(),age=now-t,key;
+      if(age<=7*864e5)return true;
+      if(age<=365*864e5)key='h'+Math.floor(t/3600000);
+      else key='d'+Math.floor(t/86400000);
+      if(by[key])return false; by[key]=1; return true;
+    });
+    if(a.length>12000)a=a.slice(-12000);
+    localStorage.setItem(SENTIMENT_HISTORY_LS,JSON.stringify(a));
+  }catch(e){}
+}
+function mergedSentimentHistory(serverRows){
+  var all=(serverRows||[]).concat(loadLocalSentimentHistory()),by={};
+  all.forEach(function(x){
+    var t=new Date(x&&x.at||0).getTime();
+    if(!isFinite(t)||t<=0)return;
+    var k=String(t);
+    if(!by[k]||Object.keys(x||{}).length>Object.keys(by[k]||{}).length)by[k]=x;
+  });
+  return Object.keys(by).map(function(k){return by[k];}).sort(function(a,b){return new Date(a.at)-new Date(b.at);});
+}
 
 var DIR_DE = {
   mixed_cautious: 'Gemischt, vorsichtig',
@@ -826,7 +858,7 @@ function renderAll(){
   var sentimentMeta=document.getElementById('sentimentSource'); if(sentimentMeta) sentimentMeta.textContent=sentimentSourceText(t);
   syncRangeButtons();
 
-  var hist=filterByAt(orcl.history||[], function(h){return h.at;});
+  var hist=filterByAt(mergedSentimentHistory(orcl.history||[]), function(h){return h.at;});
   var hypeAgg=aggregateForRange(hist,function(h){return h.at;},function(h){return stimmungNorm(h);});
   var hypeCov=document.getElementById('hypeCoverage'); if(hypeCov) hypeCov.textContent=compactCoverage(hypeAgg,function(h){return h.at;});
   if(hypeChart) hypeChart.destroy();
@@ -1088,6 +1120,7 @@ function applyFreshSignal(s){
     o.history.push({at:s.at,signal:s.signal,social_impulse:o.social_impulse,confidence:s.confidence,hype_bull:s.bull,hype_bear:s.bear,hype_mixed:s.mixed,hype_net:s.net,price:s.price});
     if(o.history.length>600)o.history=o.history.slice(-600);
   }
+  saveLocalSentimentPoint({at:s.at,signal:s.signal,confidence:s.confidence,hype_bull:s.bull,hype_bear:s.bear,hype_mixed:s.mixed,hype_net:s.net,price:s.price});
   lastBrowserSyncAt=s.at;
   syncLastError=false;
   renderAll();
