@@ -88,7 +88,8 @@ assert(html.includes("impact=Math.abs(cur.value-mean)/span"),'HDR proportional m
 assert(html.includes("deltas.filter(function(v){return v===dir;}).length"),'HDR neighbor direction confirmation missing');
 assert(html.includes("if(visible.length>8)"),'HDR chart markers must stay visually sparse');
 assert(html.includes("label:'Struktur'"),'HDR structural chart marker dataset missing');
-assert(html.includes("Gesamt P'+h.percentile"),'HDR current relation summary missing');
+assert(html.includes("parts.push('P'+h.percentile,'lokal '+z)"),'HDR current relation summary missing');
+assert(html.includes("hdr.label+' · P'+hdr.percentile"),'HDR marker tooltip must expose relation details');
 assert(!html.includes('sentiment3dToggle')&&!html.includes('hypeChart3d'),'3D sentiment view must stay out of realtime UI');
 assert(!html.includes('sentimentReliability(h)')&&!html.includes('Z = Belastbarkeit'),'3D reliability rendering must stay removed for performance');
 assert(html.includes('id="priceRange"'),'price-specific range controls missing');
