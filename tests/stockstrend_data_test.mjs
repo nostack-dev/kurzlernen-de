@@ -72,7 +72,7 @@ assert(html.includes("var magnitudeRange=loadChartRange('magnitude','1m')"),'ind
 assert(html.includes('function sentimentSourceText'),'sentiment source renderer missing');
 assert(html.includes('tickData.tick.live_sources'),'browser live source metadata missing');
 assert(html.includes('SENTIMENT_HISTORY_LS'),'persistent browser sentiment history missing');
-assert(html.includes('mergedSentimentHistory(orcl.history||[])'),'server/local sentiment history merge missing');
+assert(html.includes('mergedSentimentHistory(x.orcl.history||[])'),'server/local sentiment history merge missing');
 assert(html.includes('id="intrinsicToggle"'),'intrinsic visibility toggle missing');
 assert(html.includes("INTRINSIC_VISIBLE_LS='alantu_intrinsic_visible_v1'"),'intrinsic toggle persistence missing');
 assert(html.includes("ivChart.update('none')"),'intrinsic toggle must update in place');
