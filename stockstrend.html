@@ -1127,7 +1127,7 @@ function marketWaveVector(){
 function getMarketWaveVector(){
   var now=Date.now();
   if(waveCache&&now-waveCacheAt<15000)return waveCache;
-  waveCache=getMarketWaveVector();waveCacheAt=now;
+  waveCache=marketWaveVector();waveCacheAt=now;
   return waveCache;
 }
 function marketFlowText(f){
