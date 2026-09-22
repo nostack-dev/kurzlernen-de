@@ -78,6 +78,9 @@ assert(html.includes("var sentimentRange=loadChartRange('sentiment','1m')"),'ind
 assert(html.includes("var magnitudeRange=loadChartRange('magnitude','1m')"),'independent magnitude range state missing');
 assert(html.includes('id="sentimentHeroScore"'),'sentiment core metric missing');
 assert(html.includes('id="sentimentHeroMeta"'),'sentiment core metric metadata missing');
+assert(html.includes('Paired core metrics'),'paired core metric layout missing');
+assert(html.includes('grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr)'),'sentiment core metric must sit beside live price');
+assert(html.includes('.sentiment-hero-card{text-align:right}'),'right-side sentiment alignment missing');
 assert(html.includes("sentimentScore+' / 100'"),'sentiment core metric must use 0-100 score');
 assert(html.includes("CHART_OPEN_LS='alantu_chart_open_v1'"),'chart open-state storage missing');
 assert(html.includes("function chartIsOpen(key){return chartOpenState[key]!==false;}"),'charts must default open');
