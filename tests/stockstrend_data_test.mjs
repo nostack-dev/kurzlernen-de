@@ -56,6 +56,14 @@ assert(html.includes("' · Kaufen unter '+euro(buyAt,0)"),'buy-under price missi
 assert(html.includes('var buyAt=base!=null?base*0.75:null;'),'25 percent margin-of-safety calculation missing');
 assert(!html.includes("' · Spanne '"),'value corridor must not be shown as a buy range');
 assert(html.indexOf('Oracle · Kurs & Wert')>=0&&html.indexOf('Oracle · Kurs & Wert')<html.indexOf('Oracle · Stimmung'),'price/value chart must appear before sentiment chart');
+assert(html.includes('href="methodik.html#sentiment"'),'sentiment info link missing');
+assert(html.includes('id="sentimentSource"'),'sentiment source/count line missing');
+assert(html.includes('id="sentimentRange"'),'sentiment-specific range controls missing');
+assert(html.includes('data-sentiment-range="1d"')&&html.includes('data-sentiment-range="all"'),'sentiment range options incomplete');
+assert(html.includes('function sentimentSourceText'),'sentiment source renderer missing');
+assert(html.includes('tickData.tick.live_sources'),'browser live source metadata missing');
+assert(html.includes('SENTIMENT_HISTORY_LS'),'persistent browser sentiment history missing');
+assert(html.includes('mergedSentimentHistory(orcl.history||[])'),'server/local sentiment history merge missing');
 assert(!html.includes('Berechnung & Grenzen'),'large inline value explainer should stay off the compact view');
 assert(methodik.includes('Innerer Wert: exakte Berechnung'),'detailed intrinsic methodology page missing');
 assert(methodik.includes('Owner Earnings ='),'owner earnings formula missing from methodology');
@@ -64,6 +72,8 @@ assert(methodik.includes('ApeWisdom'),'fallback Reddit source documentation miss
 assert(methodik.includes('Yahoo Finance WebSocket'),'live price source documentation missing');
 assert(methodik.includes('Exakte SEC-Inputdatensätze'),'SEC input table missing');
 assert(methodik.includes('Kaufen unter = Basis-Intrinsic-Value × (1 - 0,25)'),'25 percent margin-of-safety documentation missing');
+assert(methodik.includes('Historischer Stimmungsverlauf'),'historical sentiment methodology missing');
+assert(methodik.includes('18.08.2026'),'real sentiment history start disclosure missing');
 assert(methodik.includes('exactLiveSources'),'methodology must use the same browser live/fallback source contract');
 assert(methodik.includes('Aktueller Fallback-Datensatz (raw)'),'raw fallback dataset disclosure missing');
 const methodikScripts=[...methodik.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map(x=>x[1]);
