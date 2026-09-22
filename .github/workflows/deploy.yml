@@ -50,6 +50,7 @@ jobs:
           node tests/gameplay_fun_logic_test.mjs
           node tools/build-intrinsic-orcl.mjs --check
           node tests/stockstrend_data_test.mjs
+          node tests/market_clock_test.cjs
           node tests/price_shock_test.cjs
           node --check sim/player_walk_mode_v4.mjs
           node --check sim/gameplay_final_runtime_v2.mjs

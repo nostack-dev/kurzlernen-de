@@ -192,6 +192,13 @@
     .chart-wrap-lg{height:230px!important}
     .chart-wrap-lg canvas{height:230px!important}
   }
+  .market-clock{font-size:13px;font-weight:700;line-height:1.3;margin:8px 0 0;color:#151517;font-variant-numeric:tabular-nums}
+  .market-clock.open{color:#00a94f}
+  .market-clock.closed{color:#74747c}
+  .sentiment-key{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  .sentiment-key .swatch{display:inline-block;width:7px;height:7px;border-radius:50%;vertical-align:1px}
+  .sentiment-key .pos{background:#00a94f}.sentiment-key .neu{background:#8e8e93}.sentiment-key .neg{background:#e94035}
+
 </style>
 </head>
 <body>
@@ -212,6 +219,7 @@
     </div>
     <div class="card">
       <div class="label">Oracle <span class="live-state" id="liveState">Kurs wird geladen</span></div>
+      <div class="market-clock" id="marketClock">US-Marktstatus wird geladen</div>
       <div class="hero-price" id="livePrice">—</div>
       <div class="hero-change flat" id="liveChange">—</div>
       <div class="oracle-secondary"><div class="big"><span class="pill" id="orclSig">—</span></div>
@@ -264,7 +272,7 @@
 
   <div class="card chart-card-lg">
     <div class="label">Oracle · Stimmung</div>
-    <div class="chart-sub"><span id="hypeCoverage"></span></div>
+    <div class="chart-sub"><span class="sentiment-key"><span class="swatch pos"></span>positiv <span class="swatch neu"></span>neutral <span class="swatch neg"></span>negativ</span> <span id="hypeCoverage"></span></div>
     <div class="chart-wrap chart-wrap-lg"><canvas id="hypeChart"></canvas></div>
   </div>
   <div class="card chart-card-sm secondary-section">
@@ -292,6 +300,7 @@
   </div>
 </div>
 <footer>BotBot</footer>
+<script src="market-clock-core.js"></script>
 <script src="price-shock-core.js"></script>
 <script>
 var LS_RANGE='botbot_wl_range', LS_ACC='botbot_acc_open';
@@ -548,7 +557,7 @@ function ivEur(row,base){
 }
 function sentimentColor(v){
   v=Number(v);
-  return v>55?'#00a94f':v<45?'#e94035':'#151517';
+  return v>55?'#00a94f':v<45?'#e94035':'#8e8e93';
 }
 function priceRangeColor(points){
   var ys=(points||[]).map(function(p){return Number(p&&p.y);}).filter(isFinite);
@@ -567,6 +576,13 @@ function fallbackMarket(){
   if(fm&&fm.meta)liveMarket.prevEurusd=Number(fm.meta.previousClose||fm.meta.chartPreviousClose)||liveMarket.prevEurusd;
   if(ol)liveMarket.at=ol.at;
   renderLiveMarket(false);
+}
+function renderMarketClock(){
+  var el=document.getElementById('marketClock');
+  if(!el||typeof MarketClock==='undefined')return;
+  var m=MarketClock.state(Date.now());
+  el.className='market-clock '+(m.phase==='open'?'open':m.phase==='closed'?'closed':'');
+  el.textContent=m.text;
 }
 function renderLiveMarket(isLive){
   var p=document.getElementById('livePrice'),c=document.getElementById('liveChange'),s=document.getElementById('liveState');
@@ -756,7 +772,7 @@ function renderAll(){
   if(hypeChart) hypeChart.destroy();
   var hypePts=hypeAgg.map(function(h){return {x:new Date(h.at).getTime(),y:Number(h.value)};});
   hypeChart=new Chart(document.getElementById('hypeChart'),{type:'line',data:{datasets:[
-    {label:'Stimmung',data:hypePts,parsing:false,spanGaps:false,borderColor:'#151517',backgroundColor:'#151517',fill:false,tension:.12,pointRadius:hypeAgg.length<=12?3:0,pointHoverRadius:0,borderWidth:2,segment:{borderColor:function(ctx){return sentimentColor((Number(ctx.p0.parsed.y)+Number(ctx.p1.parsed.y))/2);}},pointBackgroundColor:function(ctx){return sentimentColor(ctx.raw&&ctx.raw.y);}}
+    {label:'Stimmung',data:hypePts,parsing:false,spanGaps:false,borderColor:'#8e8e93',backgroundColor:'#8e8e93',fill:false,tension:.12,pointRadius:hypeAgg.length<=12?2:0,pointHoverRadius:4,pointHoverBorderWidth:2,pointHoverBorderColor:'#fff',pointHoverBackgroundColor:function(ctx){return sentimentColor(ctx.raw&&ctx.raw.y);},borderWidth:2,segment:{borderColor:function(ctx){return sentimentColor((Number(ctx.p0.parsed.y)+Number(ctx.p1.parsed.y))/2);}},pointBackgroundColor:function(ctx){return sentimentColor(ctx.raw&&ctx.raw.y);}}
   ]},options:{events:chartEvents(),responsive:true,maintainAspectRatio:false,layout:{padding:{top:6,bottom:2,left:4,right:4}},interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase('hype')},scales:{x:axisX(hypeAgg,function(h){return h.at;}),y:{min:0,max:100,ticks:{color:'#6b6b76',font:{size:11},stepSize:50},grid:{color:'#f2f2f4'},border:{display:false}}}}});
 
   var mhist=filterByAt(tickData.history||[], function(h){return h.scraped_at||h.tick_id||h.at;});
@@ -769,7 +785,7 @@ function renderAll(){
   var magIst=magVals.length?magVals[magVals.length-1]:(v.magnitude!=null?v.magnitude:null);
   var magNowEl=document.getElementById('magNow'); if(magNowEl) magNowEl.textContent=magIst!=null?('· jetzt '+magIst):'';
   magChart=new Chart(document.getElementById('magChart'),{type:'line',data:{datasets:[
-    {label:'Stimmungsstärke',data:seriesWithGaps(mhist,function(h){return h.scraped_at||h.tick_id||h.at;},function(h){return h.magnitude;}),parsing:false,spanGaps:false,borderColor:'#00c761',backgroundColor:'rgba(0,199,97,.12)',fill:true,tension:.18,pointRadius:3,pointHoverRadius:7,borderWidth:2.5}
+    {label:'Stimmungsstärke',data:seriesWithGaps(mhist,function(h){return h.scraped_at||h.tick_id||h.at;},function(h){return h.magnitude;}),parsing:false,spanGaps:false,borderColor:'#00c761',backgroundColor:'rgba(0,199,97,.12)',fill:true,tension:.18,pointRadius:0,pointHoverRadius:4,pointHoverBorderWidth:2,pointHoverBorderColor:'#fff',pointHoverBackgroundColor:'#00a94f',borderWidth:2.5}
   ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:10,bottom:6,left:8,right:8}},interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase('mag')},scales:{x:axisX(mhist,function(h){return h.scraped_at||h.tick_id||h.at;}),y:{min:0,max:100,grace:'4%',ticks:{color:'#6b6b76',font:{size:11}},grid:{color:'#f0f0f3'},border:{display:false}}}}});
 
   if(ivChart) ivChart.destroy();
@@ -797,8 +813,8 @@ function renderAll(){
   }
   var pColor=priceRangeColor(pricePts);
   ivChart=new Chart(document.getElementById('ivChart'),{type:'line',data:{datasets:[
-    {label:'Kurs',data:pricePts,parsing:false,spanGaps:false,borderColor:pColor,backgroundColor:pColor,fill:false,tension:.10,pointRadius:0,pointHoverRadius:0,borderWidth:2.4},
-    {label:'Innerer Wert',data:fairPts,parsing:false,spanGaps:false,borderColor:'#151517',backgroundColor:'#151517',stepped:true,pointRadius:0,pointHoverRadius:0,borderWidth:1.7,borderDash:[5,4]}
+    {label:'Kurs',data:pricePts,parsing:false,spanGaps:false,borderColor:pColor,backgroundColor:pColor,fill:false,tension:.10,pointRadius:0,pointHoverRadius:4,pointHoverBorderWidth:2,pointHoverBorderColor:'#fff',pointHoverBackgroundColor:pColor,borderWidth:2.4},
+    {label:'Innerer Wert',data:fairPts,parsing:false,spanGaps:false,borderColor:'#151517',backgroundColor:'#151517',stepped:true,pointRadius:0,pointHoverRadius:4,pointHoverBorderWidth:2,pointHoverBorderColor:'#fff',pointHoverBackgroundColor:'#151517',borderWidth:1.7,borderDash:[5,4]}
   ]},options:{events:chartEvents(),responsive:true,maintainAspectRatio:false,layout:{padding:{top:6,bottom:2,left:4,right:4}},interaction:chartInteract(),plugins:{legend:{display:false},tooltip:tipBase('iv')},scales:{x:axisX(priceRows,function(h){return h.at;}),y:{grace:'8%',ticks:{color:'#6b6b76',callback:function(v){var n=Number(v);return isFinite(n)?n.toLocaleString('de-DE',{maximumFractionDigits:0})+' €':'—';},font:{size:11}},grid:{color:'#f2f2f4'},border:{display:false}}}}});
 
 
@@ -951,6 +967,8 @@ document.getElementById('shockNotify').onclick=async function(){
   setShockNotifyButton();
 };
 renderShockEvents(); setShockNotifyButton(); pollShock();
+renderMarketClock();
+setInterval(renderMarketClock,30000);
 setInterval(pollShock,20000);
 connectLiveMarket();
 
