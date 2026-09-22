@@ -77,6 +77,18 @@ assert(!html.includes("' · Spanne '"),'value corridor must not be shown as a bu
 assert(html.indexOf('id="ivChart"')>=0&&html.indexOf('id="ivChart"')<html.indexOf('Oracle · Stimmung'),'price/value chart must appear before sentiment chart');
 assert(html.includes('href="methodik.html#sentiment"'),'sentiment info link missing');
 assert(html.includes('id="sentimentSource"'),'sentiment source/count line missing');
+assert(html.includes('id="sentimentRelation"'),'HDR relational sentiment line missing');
+assert(html.includes('function hdrDailySentiment(rows)'),'HDR daily canonicalization missing');
+assert(html.includes('function hdrRelationSeries(rows)'),'HDR relational engine missing');
+assert(html.includes('daily.slice(0,i).filter'),'HDR relation must be past-only / no look-ahead');
+assert(html.includes("cur.t-p.t<=366*864e5"),'HDR global baseline must be rolling one-year history');
+assert(html.includes("prior.slice(-5)"),'HDR local neighborhood must use prior neighbors only');
+assert(html.includes("Math.exp(-Math.LN2*(cur.t-p.t)/half)"),'HDR local neighbors must be time-distance weighted');
+assert(html.includes("impact=Math.abs(cur.value-mean)/span"),'HDR proportional movement ratio missing');
+assert(html.includes("deltas.filter(function(v){return v===dir;}).length"),'HDR neighbor direction confirmation missing');
+assert(html.includes("if(visible.length>8)"),'HDR chart markers must stay visually sparse');
+assert(html.includes("label:'Struktur'"),'HDR structural chart marker dataset missing');
+assert(html.includes("Gesamt P'+h.percentile"),'HDR current relation summary missing');
 assert(!html.includes('sentiment3dToggle')&&!html.includes('hypeChart3d'),'3D sentiment view must stay out of realtime UI');
 assert(!html.includes('sentimentReliability(h)')&&!html.includes('Z = Belastbarkeit'),'3D reliability rendering must stay removed for performance');
 assert(html.includes('id="priceRange"'),'price-specific range controls missing');
