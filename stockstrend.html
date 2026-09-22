@@ -1018,11 +1018,18 @@ async function fetchFreshSignalSources(){
   var breakdown={'TickerTick UGC':dedupeSocial(tickSocial).length,'Bluesky':bluesky.length};
   return {news:news||[],social:social.slice(0,300),providers:newsProviders.concat(socialProviders),newsProviders:newsProviders,socialProviders:socialProviders,socialBreakdown:breakdown,minSocial:minSocial};
 }
+function liveRecencyWeight(ms){
+  var age=Math.max(0,Date.now()-Number(ms||0));
+  if(age<=2*3600e3)return 1.5;
+  if(age<=8*3600e3)return 1.25;
+  if(age<=24*3600e3)return 1;
+  return 0.65;
+}
 function deriveFreshSignal(src){
   var items=src.news.concat(src.social);
   var votes={bull:0,bear:0,mixed:0};
-  src.news.forEach(function(x){votes[liveHeadlineLean(x.title)]++;});
-  src.social.forEach(function(x){votes[liveHeadlineLean(x.title)]++;votes[liveHeadlineLean(x.title)]++;});
+  src.news.forEach(function(x){votes[liveHeadlineLean(x.title)]+=liveRecencyWeight(x.time);});
+  src.social.forEach(function(x){votes[liveHeadlineLean(x.title)]+=2*liveRecencyWeight(x.time);});
   var total=Math.max(1,votes.bull+votes.bear+votes.mixed);
   var bull=Math.round(100*votes.bull/total),bear=Math.round(100*votes.bear/total),mixed=liveClamp(100-bull-bear,0,100);
   var net=bull-bear;
