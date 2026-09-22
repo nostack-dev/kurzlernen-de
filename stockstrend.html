@@ -279,6 +279,14 @@
   </div>
 
   <div class="card chart-card-lg">
+    <div class="label">Oracle · Kurs & Wert <a class="info-link info-inline" href="methodik.html#intrinsic" aria-label="Berechnung des inneren Werts erklären" title="Berechnung des inneren Werts">i</a></div>
+    <div class="value-summary" id="ivNow"></div>
+    <div class="value-status flat" id="ivStatus"></div>
+    <div class="chart-sub"><span id="ivCoverage"></span></div>
+    <div class="chart-wrap chart-wrap-lg"><canvas id="ivChart"></canvas></div>
+  </div>
+
+  <div class="card chart-card-lg">
     <div class="label">Oracle · Stimmung</div>
     <div class="chart-sub"><span class="sentiment-key"><span class="swatch pos"></span>positiv <span class="swatch neu"></span>neutral <span class="swatch neg"></span>negativ</span> <span id="hypeCoverage"></span></div>
     <div class="chart-wrap chart-wrap-lg"><canvas id="hypeChart"></canvas></div>
@@ -287,14 +295,6 @@
     <div class="label">Markt · Stimmungsstärke (0–100) <span class="meta" id="magNow"></span></div>
     <div class="meta" style="margin:0 0 10px">Aktueller Social-Druck am Markt — nicht der Kurs. <span id="magCoverage"></span></div>
     <div class="chart-wrap chart-wrap-sm"><canvas id="magChart"></canvas></div>
-  </div>
-
-    <div class="card chart-card-lg">
-    <div class="label">Oracle · Wert <a class="info-link info-inline" href="methodik.html#intrinsic" aria-label="Berechnung des inneren Werts erklären" title="Berechnung des inneren Werts">i</a></div>
-    <div class="value-summary" id="ivNow"></div>
-    <div class="value-status flat" id="ivStatus"></div>
-    <div class="chart-sub"><span id="ivCoverage"></span></div>
-    <div class="chart-wrap chart-wrap-lg"><canvas id="ivChart"></canvas></div>
   </div>
 <div class="card secondary-section">
     <div class="label">Oracle · Meinungen <span class="meta" id="stimmenRange"></span></div>
