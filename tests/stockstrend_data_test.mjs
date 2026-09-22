@@ -33,6 +33,12 @@ assert(html.includes("function sentimentColor"),'sentiment threshold color missi
 assert(html.includes("v>55?'#00a94f':v<45?'#e94035':'#8e8e93'"),'sentiment red/gray/green thresholds missing');
 assert(html.includes("priceRangeColor"),'range price color missing');
 assert(html.includes('id="marketClock"'),'German market clock missing');
+assert(html.includes('id="syncFooter"'),'sync footer missing');
+assert(html.includes('id="syncNow"'),'manual sync button missing');
+assert(html.includes("age>20*60*1000"),'stale sync threshold missing');
+assert(html.includes("orclMinuteBars=[]"),'manual sync must force minute-feed refresh');
+assert(html.includes("lastBrowserSyncAt=new Date().toISOString()"),'browser sync timestamp missing');
+assert(html.includes("' · '+state"),'sync state label missing');
 assert(html.includes('market-clock-core.js'),'market clock core missing');
 assert(html.includes('positiv <span class="swatch neu"></span>neutral'),'clean sentiment legend missing');
 assert(html.includes('pointHoverRadius:4'),'line-chart hover marker missing');

@@ -199,6 +199,12 @@
   .sentiment-key .swatch{display:inline-block;width:7px;height:7px;border-radius:50%;vertical-align:1px}
   .sentiment-key .pos{background:#00a94f}.sentiment-key .neu{background:#8e8e93}.sentiment-key .neg{background:#e94035}
 
+  .sync-footer{display:flex!important;align-items:center;justify-content:space-between;gap:10px;max-width:760px;margin:0 auto;padding:11px 18px 18px;color:#8a8a92;font-size:11px;line-height:1.2;font-variant-numeric:tabular-nums}
+  .sync-footer.stale #syncStatus,.sync-footer.error #syncStatus{color:#e94035;font-weight:700}
+  .sync-footer button{border:0;background:transparent;color:#5d5d64;font:inherit;font-weight:700;padding:5px 0;cursor:pointer;white-space:nowrap}
+  .sync-footer button:disabled{opacity:.45;cursor:default}
+  @media(max-width:700px){.sync-footer{padding:10px 18px 16px}}
+
 </style>
 </head>
 <body>
@@ -299,7 +305,10 @@
     </div>
   </div>
 </div>
-<footer>BotBot</footer>
+<footer class="sync-footer" id="syncFooter">
+  <span id="syncStatus">Daten — · Sync —</span>
+  <button type="button" id="syncNow" aria-label="Daten jetzt synchronisieren">↻ Sync</button>
+</footer>
 <script src="market-clock-core.js"></script>
 <script src="price-shock-core.js"></script>
 <script>
@@ -853,6 +862,27 @@ function renderAll(){
     });
   });
 }
+var lastBrowserSyncAt=null, syncBusy=false;
+function syncDataAt(){
+  var t=(tickData&&tickData.tick)||{}, fr=t.freshness||{};
+  return fr.freshest_absolute||(tickData&&tickData.updated_at)||null;
+}
+function footerClock(iso){
+  try{return new Date(iso).toLocaleTimeString('de-DE',{timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit'});}catch(e){return '—';}
+}
+function renderSyncFooter(error){
+  var foot=document.getElementById('syncFooter'),el=document.getElementById('syncStatus'),btn=document.getElementById('syncNow');
+  if(!foot||!el||!btn)return;
+  var dataAt=syncDataAt(), dataMs=dataAt?new Date(dataAt).getTime():NaN;
+  var age=isFinite(dataMs)?Date.now()-dataMs:Infinity;
+  var stale=age>20*60*1000;
+  foot.classList.toggle('stale',stale&&!error);
+  foot.classList.toggle('error',!!error);
+  var state=error?'Fehler':(stale?'veraltet':'aktuell');
+  el.textContent='Daten '+(dataAt?footerClock(dataAt):'—')+' · Sync '+(lastBrowserSyncAt?footerClock(lastBrowserSyncAt):'—')+' · '+state;
+  btn.disabled=syncBusy;
+  btn.textContent=syncBusy?'↻ Sync …':'↻ Sync';
+}
 async function fetchJson(url,optional){
   try{var r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);return await r.json();}
   catch(e){if(optional)return null;throw e;}
@@ -868,13 +898,36 @@ async function load(){
     fallbackMarket();
     Array.prototype.forEach.call(document.querySelectorAll('#rangeBar button'),function(b){b.classList.toggle('active',b.getAttribute('data-range')===wlRange);});
     renderAll();
+    lastBrowserSyncAt=new Date().toISOString();
+    renderSyncFooter(false);
     connectLiveMarket();
   }catch(e){
     var age=document.getElementById('freshAge'),q=document.getElementById('freshQuality');
     if(age)age.textContent='Datenfehler';
     if(q)q.textContent='Aktuelle JSON-Daten konnten nicht vollständig geladen werden.';
+    renderSyncFooter(true);
   }
 }
+document.getElementById('syncNow').onclick=async function(){
+  if(syncBusy)return;
+  syncBusy=true; renderSyncFooter(false);
+  try{
+    orclMinuteBars=[];
+    orclMinutePayload=null;
+    await load();
+    try{await pollShock();}catch(e){}
+    try{
+      if(liveWs){liveWs.onclose=null;liveWs.close();}
+    }catch(e){}
+    liveWs=null;
+    connectLiveMarket();
+  }finally{
+    syncBusy=false;
+    renderSyncFooter(false);
+  }
+};
+setInterval(function(){renderSyncFooter(false);},30000);
+
 document.getElementById('rangeBar').onclick=function(e){
   var btn=e.target.closest('button[data-range]'); if(!btn) return;
   wlRange=btn.getAttribute('data-range');
@@ -973,6 +1026,7 @@ setInterval(pollShock,20000);
 connectLiveMarket();
 
 var REFRESH_MS=60000;
+renderSyncFooter(false);
 load();
 setInterval(function(){ load(); }, REFRESH_MS);
 </script>
