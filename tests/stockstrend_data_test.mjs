@@ -40,7 +40,11 @@ assert(!html.includes('data-price-range="today"')&&!html.includes('data-sentimen
 assert(!html.includes('data-price-range="5m"')&&!html.includes('data-sentiment-range="5m"')&&!html.includes('data-magnitude-range="5m"'),'5M range should be removed');
 assert(html.includes(">MAX</button>"),'MAX range missing');
 assert(html.includes("function sentimentColor"),'sentiment threshold color missing');
-assert(html.includes("v>55?'#5dcb5b':v<45?'#e94035':'#8e8e93'"),'sentiment red/gray/green thresholds missing');
+assert(html.includes('function mixRgb(a,b,t)'),'continuous sentiment RGB interpolation missing');
+assert(html.includes("return v<=50?mixRgb(red,gray,v/50):mixRgb(gray,green,(v-50)/50)"),'sentiment color must interpolate red-gray-green continuously');
+assert(html.includes('function sentimentSegmentGradient(ctx)'),'per-segment sentiment gradient missing');
+assert(html.includes('ctx.chart.ctx.createLinearGradient(x0,py0,x1,py1)'),'sentiment gradient must follow actual segment x/y geometry');
+assert(html.includes('g.addColorStop(0,c0);g.addColorStop(1,c1)'),'segment gradient endpoints missing');
 assert(html.includes("y:{min:-4,max:104"),'sentiment bounds need visual headroom');
 assert(html.includes("scale.ticks=[{value:0},{value:50},{value:100}]"),'sentiment axis must still show semantic 0/50/100 ticks');
 assert(html.includes("priceRangeColor"),'range price color missing');
