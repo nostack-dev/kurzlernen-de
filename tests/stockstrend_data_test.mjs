@@ -31,9 +31,9 @@ assert(html.includes('class="hero-price" id="livePrice"'),'dominant live EUR pri
 assert(html.includes("wss://streamer.finance.yahoo.com/?version=2"),'real-time Yahoo websocket missing');
 assert(html.includes("subscribe:['ORCL','EURUSD=X']"),'ORCL+EURUSD live subscription missing');
 assert(html.includes("style:'currency',currency:'EUR'"),'visible prices must format as EUR');
-assert(html.includes("data-range=\"1m\""),'1M TR range missing');
-assert(!html.includes('data-range="today"'),'Heute range should be removed');
-assert(!html.includes('data-range="5m"'),'5M range should be removed');
+assert(html.includes('data-price-range="1m"')&&html.includes('data-sentiment-range="1m"')&&html.includes('data-magnitude-range="1m"'),'1M chart-local ranges missing');
+assert(!html.includes('data-price-range="today"')&&!html.includes('data-sentiment-range="today"')&&!html.includes('data-magnitude-range="today"'),'Heute range should be removed');
+assert(!html.includes('data-price-range="5m"')&&!html.includes('data-sentiment-range="5m"')&&!html.includes('data-magnitude-range="5m"'),'5M range should be removed');
 assert(html.includes(">MAX</button>"),'MAX range missing');
 assert(html.includes("function sentimentColor"),'sentiment threshold color missing');
 assert(html.includes("v>55?'#00a94f':v<45?'#e94035':'#8e8e93'"),'sentiment red/gray/green thresholds missing');
