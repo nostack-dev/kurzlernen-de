@@ -1497,7 +1497,7 @@ function renderWaveForecasts(){
   var el=document.getElementById('waveForecasts');if(!el)return;
   var model=orclWaveModel||{},state=waveForecastState||{},live={};
   (state.forecasts||[]).forEach(function(x){live[String(x.horizon_minutes)]=x;});
-  var hs=[2,10,30];
+  var hs=[5,15,30];
   el.innerHTML=hs.map(function(h){
     var mh=(model.horizons||[]).find(function(x){return Number(x.horizon_minutes)===h;})||{},f=live[String(h)]||null,cls='flat',v='WARTEN',meta='';
     if(mh.status==='validated'&&f){
