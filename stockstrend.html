@@ -1433,6 +1433,7 @@ function connectMicrostructureRelay(){
       var d=JSON.parse(ev.data||'{}');
       if(d&&d.provider==='alpaca'&&d.feed==='sip'&&d.symbol==='ORCL'&&d.mode==='live-relay'){
         microstructureData=d;
+        if(d.wave_forecast){waveForecastState=d.wave_forecast;renderWaveForecasts();}
         lastFlowRenderAt=0;
         try{renderMarketFlowVisual(getMarketWaveVector());}catch(e){}
       }
@@ -1497,7 +1498,7 @@ function renderWaveForecasts(){
   var el=document.getElementById('waveForecasts');if(!el)return;
   var model=orclWaveModel||{},state=waveForecastState||{},live={};
   (state.forecasts||[]).forEach(function(x){live[String(x.horizon_minutes)]=x;});
-  var hs=[5,15,30];
+  var hs=[2,6,10,20,30];
   el.innerHTML=hs.map(function(h){
     var mh=(model.horizons||[]).find(function(x){return Number(x.horizon_minutes)===h;})||{},f=live[String(h)]||null,cls='flat',v='WARTEN',meta='';
     if(mh.status==='validated'&&f){
