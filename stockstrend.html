@@ -1431,7 +1431,7 @@ function connectMicrostructureRelay(){
   es.addEventListener('market',function(ev){
     try{
       var d=JSON.parse(ev.data||'{}');
-      if(d&&d.provider==='alpaca'&&d.feed==='sip'&&d.symbol==='ORCL'&&d.mode==='live-relay'){
+      if(d&&d.provider==='alpaca'&&d.feed==='sip'&&d.symbol==='ORCL'&&d.mode==='raw-sip-live'){
         microstructureData=d;
         if(d.wave)orclWaveModel=d.wave;
         if(d.wave_forecast){waveForecastState=d.wave_forecast;renderWaveForecasts();}
@@ -1487,12 +1487,8 @@ function scheduleWaveForecast(){
 function validatedWaveForecast(){
   var s=waveForecastState||{},m=(microstructureData&&microstructureData.wave)||orclWaveModel||{},a=Array.isArray(s.forecasts)?s.forecasts.filter(function(x){return Number(x.dir)===1||Number(x.dir)===-1;}):[];
   if(s.status!=='ok'||!a.length||m.status!=='validated'||m.production_enabled!==true)return null;
-  a=a.filter(function(x){return !m.model_id||x.model_id===m.model_id;});
-  if(!a.length)return null;
-  a.sort(function(x,y){
-    var dm=Number(y.margin||0)-Number(x.margin||0);if(Math.abs(dm)>.12)return dm;
-    return Number(x.horizon_minutes)-Number(y.horizon_minutes);
-  });
+  a=a.filter(function(x){return !m.model_id||x.model_id===m.model_id;});if(!a.length)return null;
+  a.sort(function(x,y){var dm=Number(y.margin||0)-Number(x.margin||0);if(Math.abs(dm)>.12)return dm;return Number(x.horizon_minutes)-Number(y.horizon_minutes);});
   var f=a[0],hit=Number(f.proof&&f.proof.holdout&&f.proof.holdout.hit);
   return Object.assign({},f,{source:'raw_sip',asof:s.asof,social_context:waveSocialContext(Number(f.dir)),holdout_hit:isFinite(hit)?hit:null});
 }
