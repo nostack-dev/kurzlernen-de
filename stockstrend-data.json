@@ -1,31 +1,31 @@
 {
-  "updated_at": "2026-09-29T10:15:00+02:00",
+  "updated_at": "2026-09-29T22:05:00+02:00",
   "timezone": "Europe/Berlin",
-  "early_signal_note": "Kurs ~132.60; Force-Majeure lastet weiter.",
+  "early_signal_note": "Kurs ~137.90; NetApp hebt, Schuldenlast bleibt.",
   "tick": {
-    "tick_id": "2026-09-29T10:15:00+02:00",
-    "scraped_at": "2026-09-29T10:17:21+02:00",
+    "tick_id": "2026-09-29T22:05:00+02:00",
+    "scraped_at": "2026-09-29T22:11:22+02:00",
     "timezone": "Europe/Berlin",
     "scrape_window": {
-      "after": "2026-09-29T10:10:00+02:00",
-      "until": "2026-09-29T10:15:00+02:00"
+      "after": "2026-09-29T22:00:00+02:00",
+      "until": "2026-09-29T22:05:00+02:00"
     },
     "baseline": {
-      "prior_tick_id": "2026-09-29T10:05:00+02:00",
-      "prior_tick_num": 131
+      "prior_tick_id": "2026-09-29T10:15:00+02:00",
+      "prior_tick_num": 132
     },
     "volume_enriched": true,
     "vector": {
       "direction": "mixed_cautious",
-      "magnitude": 40,
-      "confidence": 66,
+      "magnitude": 42,
+      "confidence": 65,
       "early_signal": true,
-      "early_signal_note": "Kurs ~132.60; Force-Majeure lastet weiter."
+      "early_signal_note": "Kurs ~137.90; NetApp hebt, Schuldenlast bleibt."
     },
-    "early_signal_note": "Kurs ~132.60; Force-Majeure lastet weiter.",
+    "early_signal_note": "Kurs ~137.90; NetApp hebt, Schuldenlast bleibt.",
     "chart": {
-      "magnitude": 40,
-      "confidence": 66,
+      "magnitude": 42,
+      "confidence": 65,
       "direction": "mixed_cautious",
       "items": 8
     },
@@ -64,11 +64,11 @@
         "items": 5,
         "window": "same-day 2026-09-29",
         "notes": [
-          "ORCL ~$132.60 (+0.00 vs prior $132.60); Force-Majeure / Jupiter overhang still heavy",
-          "Ellison cancels large sale + Bernstein Buy vs data-center cost shield / AI caution — mixed",
-          "SPY ~765.61 / QQQ ~736.53; BTC ~$84,043.96 (+59.35 vs prior)",
-          "Force-Majeure Project Jupiter + Ellison sale cancel + Bernstein Buy + AI-buildout caution still dominate headlines",
-          "Macro: Fed path / CPI / earnings-week tone — mixed risk, no Buy call"
+          "ORCL ~$137.90 (+5.30 vs prior $132.60); NetApp AI-storage tie-up lifts session",
+          "Debt/junk-notch warning + PeopleSoft breach vs Ellison pledge / NetApp pop — mixed",
+          "SPY ~764.30 / QQQ ~737.93; BTC ~$83,556.97 (-486.99 vs prior)",
+          "TipRanks: ORCL pops on NetApp AI cloud storage; Yahoo bullish 51% upside piece same day",
+          "Macro: Fed path / labour / earnings-bubble tone — mixed risk, no Buy call"
         ]
       },
       "user-Bright Data": {
@@ -95,24 +95,24 @@
           "thedistributed.co"
         ],
         "window": "24h–30d aggregator snapshots 2026-09-29",
-        "freshest": "2026-09-29T10:17:21+02:00",
+        "freshest": "2026-09-29T22:11:22+02:00",
         "notes": [
-          "ApeWisdom 24h: 30 mentions, upvotes 1069, rank 18, sentiment ~75% overall (API JSON + page)",
-          "AltIndex: page Hold; score ~46/100; Reddit mentions up ~239% (24h spike); Hold bias",
-          "The Distributed: live 30d ~1807 mentions / ~49% bullish / 18% bearish (fresh this tick via thedistributed.co/stocks/ORCL/)"
+          "ApeWisdom 24h: 41 mentions (+71% vs 24h ago 24), upvotes 210, rank 16, sentiment ~65% (API JSON + page)",
+          "AltIndex: page Hold; score ~50/100; Reddit mentions down ~25.7%; Hold bias",
+          "The Distributed: live 30d ~1858 mentions / ~49% bullish / 18% bearish (fresh this tick via thedistributed.co/stocks/ORCL/)"
         ],
         "orcl_hint": {
-          "apewisdom_mentions_24h": 30,
-          "apewisdom_wsb_mentions": 30,
-          "apewisdom_upvotes": 1069,
-          "apewisdom_rank": 18,
-          "apewisdom_sentiment_pct": 75,
+          "apewisdom_mentions_24h": 41,
+          "apewisdom_wsb_mentions": 41,
+          "apewisdom_upvotes": 210,
+          "apewisdom_rank": 16,
+          "apewisdom_sentiment_pct": 65,
           "altindex_signal": "Hold",
-          "altindex_score": 46,
-          "altindex_reddit_up_pct_24h": 239,
-          "distributed_mentions_30d": 1807,
+          "altindex_score": 50,
+          "altindex_reddit_up_pct_24h": -25.7,
+          "distributed_mentions_30d": 1858,
           "distributed_sentiment_bullish": 0.49,
-          "distributed_note": "live 30d 1807 mentions; 49% bullish / 18% bearish / 33% neither"
+          "distributed_note": "live 30d 1858 mentions; 49% bullish / 18% bearish / 33% neither"
         }
       },
       "TikTokPublic": {
@@ -125,33 +125,33 @@
         "items": 4,
         "note": "query1 chart meta OK for ORCL/SPY/QQQ/BTC-USD; quote endpoint may 401",
         "prices": {
-          "ORCL": 132.6,
-          "SPY": 765.61,
-          "QQQ": 736.53,
-          "BTC-USD": 84043.96
+          "ORCL": 137.9,
+          "SPY": 764.3,
+          "QQQ": 737.93,
+          "BTC-USD": 83556.97
         }
       }
     },
     "top_themes": [
       {
-        "theme": "Force-Majeure Project Jupiter",
-        "sentiment": "bearish",
-        "strength": 84,
+        "theme": "NetApp AI storage + session recovery",
+        "sentiment": "bullish",
+        "strength": 70,
         "symbol": "ORCL",
-        "symbol_note": "Force majeure + cost shield still priced; ORCL ~$132.60",
-        "bias": "risk_off",
-        "bias_label": "Vorsicht / Bias risk-off",
+        "symbol_note": "NetApp tie-up + session bounce; ORCL ~$137.90",
+        "bias": "mixed",
+        "bias_label": "Gemischt / Erholung",
         "links": {
           "tradingview": "https://www.tradingview.com/symbols/ORCL/",
           "yahoo": "https://finance.yahoo.com/quote/ORCL"
         }
       },
       {
-        "theme": "AI backlog vs credit/CapEx caution",
+        "theme": "Debt / security overhang vs AI CapEx",
         "sentiment": "mixed",
-        "strength": 72,
+        "strength": 74,
         "symbol": "ORCL",
-        "symbol_note": "Ellison sale cancel + Bernstein Buy + Jupiter overhang — mixed",
+        "symbol_note": "Junk-notch debt warning + PeopleSoft breach vs Ellison pledge — mixed",
         "bias": "mixed",
         "bias_label": "Gemischt",
         "links": {
@@ -160,11 +160,11 @@
         }
       },
       {
-        "theme": "Fed / Inflation week tone",
+        "theme": "Fed / labour / earnings tone",
         "sentiment": "mixed",
-        "strength": 62,
+        "strength": 60,
         "symbol": "SPY",
-        "symbol_note": "SPY ~765.61; Fed path / CPI week — mixed risk tone",
+        "symbol_note": "SPY ~764.30; Fed path / labour / earnings-bubble talk — mixed",
         "bias": "mixed",
         "bias_label": "Gemischt",
         "links": {
@@ -179,326 +179,120 @@
         "name": "Oracle",
         "hype_state": "mixed",
         "signal": "hold",
-        "confidence": 65,
-        "social_impulse": -4,
-        "hype_bull": 2,
+        "confidence": 64,
+        "social_impulse": -2,
+        "hype_bull": 3,
         "hype_bear": 3,
-        "hype_net": -1,
-        "why": "Kurs bei etwa 132.60 Dollar, Force-Majeure bleibt Last. Ellison-Verkauf stoppt und Bernstein hält Buy — Bild bleibt gemischt.",
+        "hype_net": 0,
+        "why": "Kurs erholt sich auf etwa 137.90 Dollar nach der NetApp-Partnerschaft. Schuldenwarnung und Sicherheitslücke halten das Bild gemischt.",
         "evidence": {
           "x_posts": 0,
           "reddit_posts": 0,
           "news": 5,
           "snippets": [
-            "ORCL ~$132.60 (+0.00 vs prior $132.60); Force-Majeure / Jupiter overhang still heavy",
-            "Ellison cancels large sale + Bernstein Buy vs data-center cost shield / AI caution — mixed",
-            "SPY ~765.61 / QQQ ~736.53; BTC ~$84,043.96 (+59.35 vs prior)"
+            "ORCL ~$137.90 (+5.30 vs prior $132.60); NetApp AI-storage tie-up lifts session",
+            "Debt/junk-notch warning + PeopleSoft breach vs Ellison pledge / NetApp pop — mixed",
+            "SPY ~764.30 / QQQ ~737.93; BTC ~$83,556.97 (-486.99 vs prior)"
           ],
           "voices": [
             {
               "source": "News",
-              "text": "Force-Majeure zu Project Jupiter bleibt Last — Kurs weiter unter Druck.",
-              "url": "https://finance.yahoo.com/news/oracle-stock-drops-company-moves",
-              "lean": "bear",
-              "at": "2026-09-29T10:17:21+02:00"
+              "text": "NetApp-Partnerschaft für KI-Cloud-Speicher treibt den Kurs an.",
+              "url": "https://www.tipranks.com/news/oracle-stock-orcl-pops-on-netapp-tie-up-for-new-ai-cloud-storage-service",
+              "lean": "bull",
+              "at": "2026-09-29T22:11:22+02:00"
             },
             {
               "source": "News",
-              "text": "Analyst sieht KI-Trade-Risiko und stuft Oracle vorsichtiger ein.",
-              "url": "https://seekingalpha.com/article/oracle-ai-trade",
-              "lean": "bear",
-              "at": "2026-09-29T10:17:21+02:00"
+              "text": "Ellison stellt weitere Aktien bereit — Signal gegen Verkaufsdruck.",
+              "url": "https://stocksdownunder.com/",
+              "lean": "bull",
+              "at": "2026-09-29T22:11:22+02:00"
             },
             {
               "source": "News",
-              "text": "Montagsschwäche und Kostenschild für Rechenzentrum halten Druck hoch.",
-              "url": "https://finance.yahoo.com/quote/ORCL",
-              "lean": "bear",
-              "at": "2026-09-29T10:17:21+02:00"
-            },
-            {
-              "source": "News",
-              "text": "Ellison sagt großen Aktienverkauf ab — leichte Entlastung für den Titel.",
+              "text": "Analyse sieht rund 51 Prozent Upside trotz jüngstem Abverkauf.",
               "url": "https://finance.yahoo.com/quote/ORCL",
               "lean": "bull",
-              "at": "2026-09-29T10:17:21+02:00"
+              "at": "2026-09-29T22:11:22+02:00"
             },
             {
               "source": "News",
-              "text": "Bernstein hält am Buy fest — gegen den vorsichtigen Markt-Ton.",
-              "url": "https://www.marketbeat.com/stocks/NYSE/ORCL/",
-              "lean": "bull",
-              "at": "2026-09-29T10:17:21+02:00"
+              "text": "Schuldenwarnung knapp über Ramsch-Niveau lastet weiter.",
+              "url": "https://seekingalpha.com/",
+              "lean": "bear",
+              "at": "2026-09-29T22:11:22+02:00"
             },
             {
               "source": "News",
-              "text": "Kurs bei etwa 132.60 Dollar; kaum Bewegung im aktuellen Fenster.",
+              "text": "Neue PeopleSoft-Sicherheitslücke sorgt für Vorsicht.",
+              "url": "https://www.benzinga.com/",
+              "lean": "bear",
+              "at": "2026-09-29T22:11:22+02:00"
+            },
+            {
+              "source": "News",
+              "text": "KI-Trade-Risiko bleibt Thema — Stimmen bleiben vorsichtig.",
+              "url": "https://seekingalpha.com/",
+              "lean": "bear",
+              "at": "2026-09-29T22:11:22+02:00"
+            },
+            {
+              "source": "News",
+              "text": "Kurs bei etwa 137.90 Dollar; Erholung im Tagesfenster.",
               "url": "https://finance.yahoo.com/quote/ORCL",
               "lean": "mixed",
-              "at": "2026-09-29T10:17:21+02:00"
+              "at": "2026-09-29T22:11:22+02:00"
             },
             {
               "source": "News",
               "text": "The Distributed: 30-Tage-Stimmung etwa halb bullish, Rest gemischt.",
               "url": "https://thedistributed.co/stocks/ORCL/",
               "lean": "mixed",
-              "at": "2026-09-29T10:17:21+02:00"
+              "at": "2026-09-29T22:11:22+02:00"
             },
             {
               "source": "News",
-              "text": "AltIndex weiter Hold bei Score 46 — Reddit kurz lebhafter, Bias unverändert.",
+              "text": "AltIndex weiter Hold bei Score 50 — Reddit etwas ruhiger.",
               "url": "https://altindex.com/ticker/orcl",
               "lean": "mixed",
-              "at": "2026-09-29T10:17:21+02:00"
+              "at": "2026-09-29T22:11:22+02:00"
             }
           ]
         },
-        "price": 132.6,
+        "price": 137.9,
         "links": {
           "tradingview": "https://www.tradingview.com/symbols/ORCL/",
           "yahoo": "https://finance.yahoo.com/quote/ORCL"
         },
-        "updated_at": "2026-09-29T10:15:00+02:00"
+        "updated_at": "2026-09-29T22:05:00+02:00"
       }
     ],
     "freshness": {
-      "freshest_absolute": "2026-09-29T10:17:21+02:00",
+      "freshest_absolute": "2026-09-29T22:11:22+02:00",
       "primary_signal": "same-day Web/News + PublicReddit aggregators (X credits_exhausted; Apify retired)",
       "quality": "mittel Web+PublicReddit; X skipped (credits $0.00); TikTok fail (Treg auth_needed); Bright Data 401; Apify retired; Distributed live OK",
-      "scrape_berlin": "2026-09-29T10:15:00+02:00",
+      "scrape_berlin": "2026-09-29T22:05:00+02:00",
       "sample_window": "Web/news ≤24h; Reddit via ApeWisdom/AltIndex/TheDistributed(live); X fully credits_depleted",
       "freshest_item_age": "",
-      "oldest_usable_signal": "Force-Majeure Project Jupiter still overhang after ~3% drop"
+      "oldest_usable_signal": "Debt/junk-notch + PeopleSoft breach still in headline set; NetApp pop same day"
     },
     "delta_vs_prev": {
-      "prev_tick_id": "2026-09-29T10:05:00+02:00",
-      "magnitude": 0,
-      "confidence": 0,
+      "prev_tick_id": "2026-09-29T10:15:00+02:00",
+      "magnitude": 2,
+      "confidence": -1,
       "direction_changed": false,
       "items": 0,
-      "orcl_price": 0.0,
-      "btc_price": 59.35,
+      "orcl_price": 5.3,
+      "btc_price": -486.99,
       "signal_changed": false
     },
-    "material_change": false,
-    "material_change_reasons": [],
+    "material_change": true,
+    "material_change_reasons": [
+      "ORCL price move +5.30 ($132.60 → $137.90, ~+4.0%)",
+      "Δmag +2 (40 → 42) on session recovery / NetApp headline"
+    ],
     "mini_series": [
-      {
-        "tick_id": "2026-09-28T19:55:00+02:00",
-        "scraped_at": "2026-09-28T19:56:31+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-28T20:05:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-28T20:15:00+02:00",
-        "scraped_at": "2026-09-28T20:21:32+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-28T20:30:00+02:00",
-        "scraped_at": "2026-09-28T20:32:41+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-28T20:35:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "orcl_price": 133.41
-      },
-      {
-        "tick_id": "2026-09-28T20:50:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-28T21:05:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-28T21:20:00+02:00",
-        "scraped_at": "2026-09-28T21:24:20+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-28T21:30:00+02:00",
-        "scraped_at": "2026-09-28T21:36:08+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-28T21:45:00+02:00",
-        "scraped_at": "2026-09-28T21:47:13+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-28T21:51:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-28T22:05:00+02:00",
-        "scraped_at": "2026-09-28T22:11:18+02:00",
-        "direction": "mixed_cautious",
-        "magnitude": 40,
-        "confidence": 66,
-        "early_signal": true,
-        "items": 8
-      },
-      {
-        "tick_id": "2026-09-28T22:21:00+02:00",
-        "scraped_at": "2026-09-28T22:23:03+02:00",
-        "direction": "mixed_cautious",
-        "magnitude": 40,
-        "confidence": 66,
-        "early_signal": true,
-        "items": 8
-      },
-      {
-        "tick_id": "2026-09-28T22:31:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "orcl_price": 132.6
-      },
-      {
-        "tick_id": "2026-09-28T22:42:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "orcl_price": 132.6
-      },
-      {
-        "tick_id": "2026-09-28T22:53:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "orcl_price": 132.6
-      },
-      {
-        "tick_id": "2026-09-28T23:02:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "orcl_price": 132.6
-      },
-      {
-        "tick_id": "2026-09-29T08:02:00+02:00",
-        "scraped_at": "2026-09-29T08:04:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-29T08:10:00+02:00",
-        "scraped_at": "2026-09-29T08:12:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-29T08:19:00+02:00",
-        "scraped_at": "2026-09-29T08:21:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-29T08:25:00+02:00",
-        "scraped_at": "2026-09-29T08:27:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-29T08:34:00+02:00",
-        "scraped_at": "2026-09-29T08:36:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-29T08:39:00+02:00",
-        "scraped_at": "2026-09-29T08:41:00+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-29T08:45:00+02:00",
-        "scraped_at": "2026-09-29T08:46:28+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
-      {
-        "tick_id": "2026-09-29T08:54:00+02:00",
-        "scraped_at": "2026-09-29T08:56:40+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
       {
         "tick_id": "2026-09-29T09:01:00+02:00",
         "scraped_at": "2026-09-29T09:02:40+02:00",
@@ -597,6 +391,16 @@
         "direction": "mixed_cautious",
         "items": 8,
         "early_signal": true
+      },
+      {
+        "tick_id": "2026-09-29T22:05:00+02:00",
+        "scraped_at": "2026-09-29T22:11:22+02:00",
+        "magnitude": 42,
+        "confidence": 65,
+        "direction": "mixed_cautious",
+        "items": 8,
+        "early_signal": true,
+        "orcl_price": 137.9
       }
     ],
     "signals_disclaimer": ""
@@ -1766,11 +1570,20 @@
       "confidence": 66,
       "early_signal": true,
       "items": 8
+    },
+    {
+      "tick_id": "2026-09-29T22:05:00+02:00",
+      "scraped_at": "2026-09-29T22:11:22+02:00",
+      "direction": "mixed_cautious",
+      "magnitude": 42,
+      "confidence": 65,
+      "early_signal": true,
+      "items": 8
     }
   ],
   "freshness": {
-    "updated_at": "2026-09-29T10:15:00+02:00",
-    "scraped_at": "2026-09-29T10:17:21+02:00",
+    "updated_at": "2026-09-29T22:05:00+02:00",
+    "scraped_at": "2026-09-29T22:11:22+02:00",
     "quality": "mittel Web+PublicReddit; X skipped (credits $0.00); TikTok fail (Treg auth_needed); Bright Data 401; Apify retired; Distributed live OK"
   },
   "disclaimer": "",
