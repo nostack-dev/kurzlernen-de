@@ -1,18 +1,18 @@
 {
-  "updated_at": "2026-09-29T22:46:00+02:00",
+  "updated_at": "2026-09-29T22:51:00+02:00",
   "timezone": "Europe/Berlin",
-  "early_signal_note": "Kurs flach ~137.80; Schuldenlast bleibt.",
+  "early_signal_note": "Kurs flach ~137.80; Schuldenwarnung bleibt.",
   "tick": {
-    "tick_id": "2026-09-29T22:46:00+02:00",
-    "scraped_at": "2026-09-29T22:47:10+02:00",
+    "tick_id": "2026-09-29T22:51:00+02:00",
+    "scraped_at": "2026-09-29T22:56:40+02:00",
     "timezone": "Europe/Berlin",
     "scrape_window": {
-      "after": "2026-09-29T22:41:00+02:00",
-      "until": "2026-09-29T22:46:00+02:00"
+      "after": "2026-09-29T22:46:00+02:00",
+      "until": "2026-09-29T22:51:00+02:00"
     },
     "baseline": {
-      "prior_tick_id": "2026-09-29T22:36:00+02:00",
-      "prior_tick_num": 136
+      "prior_tick_id": "2026-09-29T22:46:00+02:00",
+      "prior_tick_num": 137
     },
     "volume_enriched": true,
     "vector": {
@@ -20,9 +20,9 @@
       "magnitude": 42,
       "confidence": 65,
       "early_signal": true,
-      "early_signal_note": "Kurs flach ~137.80; Schuldenlast bleibt."
+      "early_signal_note": "Kurs flach ~137.80; Schuldenwarnung bleibt."
     },
-    "early_signal_note": "Kurs flach ~137.80; Schuldenlast bleibt.",
+    "early_signal_note": "Kurs flach ~137.80; Schuldenwarnung bleibt.",
     "chart": {
       "magnitude": 42,
       "confidence": 65,
@@ -65,10 +65,10 @@
         "window": "same-day 2026-09-29",
         "notes": [
           "ORCL ~$137.79 (+0.00 vs prior $137.79); flat after hours, rebound holds",
-          "Debt warning + data-center delay overhang vs 51% upside / Ellison sale cancel — mixed",
-          "SPY ~764.20 / QQQ ~737.93; BTC ~$83,598.34 (+17.81 vs prior)",
-          "Seeking Alpha downgrade risk vs TradingView session-up / Yahoo bull case still in tape",
-          "Macro: Fed path / labour / earnings-season tone — mixed risk, no Buy call"
+          "Debt warning (one notch above junk) + PeopleSoft breach vs NetApp/Ellison pledge — mixed",
+          "SPY ~764.20 / QQQ ~737.93; BTC ~$83,619.56 (+21.22 vs prior)",
+          "Seeking Alpha debt warning played out / Ellison $9.2B pledge vs PeopleSoft breach — mixed",
+          "Macro: Fed path / NFP / FOMC calendar talk — mixed risk, no Buy call"
         ]
       },
       "user-Bright Data": {
@@ -95,21 +95,20 @@
           "thedistributed.co"
         ],
         "window": "24h–30d aggregator snapshots 2026-09-29",
-        "freshest": "2026-09-29T22:47:10+02:00",
+        "freshest": "2026-09-29T22:56:40+02:00",
         "notes": [
-          "ApeWisdom 24h: 38 mentions (+58% vs 24h ago 24), upvotes 208, rank 18, sentiment ~56% (API JSON)",
-          "AltIndex: page Hold; score ~50/100; Reddit mentions down ~25.7%; Hold bias",
+          "ApeWisdom 24h: 30 mentions (vs 24h ago 9; prior tick 38), upvotes 1049, rank 18 (API JSON)",
+          "AltIndex: ~81 Reddit mentions/day (meta); Hold bias; no clear direction flip",
           "The Distributed: live 30d ~1858 mentions / ~49% bullish / 18% bearish (fresh this tick via thedistributed.co/stocks/ORCL/)"
         ],
         "orcl_hint": {
-          "apewisdom_mentions_24h": 38,
-          "apewisdom_wsb_mentions": 38,
-          "apewisdom_upvotes": 208,
+          "apewisdom_mentions_24h": 30,
+          "apewisdom_wsb_mentions": 30,
+          "apewisdom_upvotes": 1049,
           "apewisdom_rank": 18,
-          "apewisdom_sentiment_pct": 56,
+          "apewisdom_mentions_24h_ago": 9,
           "altindex_signal": "Hold",
-          "altindex_score": 50,
-          "altindex_reddit_up_pct_24h": -25.7,
+          "altindex_reddit_mentions_day": 81,
           "distributed_mentions_30d": 1858,
           "distributed_sentiment_bullish": 0.49,
           "distributed_note": "live 30d 1858 mentions; 49% bullish / 18% bearish / 33% neither"
@@ -128,7 +127,7 @@
           "ORCL": 137.79,
           "SPY": 764.2,
           "QQQ": 737.93,
-          "BTC-USD": 83598.34
+          "BTC-USD": 83619.56
         }
       }
     },
@@ -147,11 +146,11 @@
         }
       },
       {
-        "theme": "Debt / data-center overhang vs AI CapEx",
+        "theme": "Debt / security overhang vs AI CapEx",
         "sentiment": "mixed",
         "strength": 72,
         "symbol": "ORCL",
-        "symbol_note": "Debt warning + datacenter delays vs Ellison/NetApp — mixed",
+        "symbol_note": "Debt warning + PeopleSoft breach vs NetApp/Ellison — mixed",
         "bias": "mixed",
         "bias_label": "Gemischt",
         "links": {
@@ -164,7 +163,7 @@
         "sentiment": "mixed",
         "strength": 60,
         "symbol": "SPY",
-        "symbol_note": "SPY ~764.20; Fed path / labour / earnings-bubble talk — mixed",
+        "symbol_note": "SPY ~764.20; Fed path / NFP / FOMC talk — mixed",
         "bias": "mixed",
         "bias_label": "Gemischt",
         "links": {
@@ -184,79 +183,79 @@
         "hype_bull": 3,
         "hype_bear": 3,
         "hype_net": 0,
-        "why": "Kurs bleibt bei etwa 137.80 Dollar ohne neuen Schub. Schuldenwarnung und Datacenter-Sorgen halten das Bild gemischt.",
+        "why": "Kurs bleibt bei etwa 137.80 Dollar ohne neuen Schub. Schuldenwarnung und Security-Meldungen halten das Bild gemischt.",
         "evidence": {
           "x_posts": 0,
           "reddit_posts": 0,
           "news": 5,
           "snippets": [
             "ORCL ~$137.79 (+0.00 vs prior $137.79); flat after hours, rebound holds",
-            "Debt warning + data-center delay overhang vs 51% upside / Ellison sale cancel — mixed",
-            "SPY ~764.20 / QQQ ~737.93; BTC ~$83,598.34 (+17.81 vs prior)"
+            "Debt warning (one notch above junk) + PeopleSoft breach vs NetApp/Ellison pledge — mixed",
+            "SPY ~764.20 / QQQ ~737.93; BTC ~$83,619.56 (+21.22 vs prior)"
           ],
           "voices": [
             {
               "source": "News",
-              "text": "Yahoo sieht weiter rund 51 Prozent Upside trotz Abverkauf.",
+              "text": "NetApp-Partnerschaft für AI-Cloud-Storage gibt kurzen Schub.",
+              "url": "https://www.tipranks.com/",
+              "lean": "bull",
+              "at": "2026-09-29T22:56:40+02:00"
+            },
+            {
+              "source": "News",
+              "text": "Ellison stockt Aktien-Pledge auf — etwas Entspannung.",
               "url": "https://finance.yahoo.com/quote/ORCL",
               "lean": "bull",
-              "at": "2026-09-29T22:47:10+02:00"
+              "at": "2026-09-29T22:56:40+02:00"
             },
             {
               "source": "News",
-              "text": "TradingView: Kurs handelt im Tagesfenster weiter nach oben.",
-              "url": "https://www.tradingview.com/",
+              "text": "Motley Fool hält die Kauf-Frage weiter im Raum.",
+              "url": "https://www.fool.com/",
               "lean": "bull",
-              "at": "2026-09-29T22:47:10+02:00"
+              "at": "2026-09-29T22:56:40+02:00"
             },
             {
               "source": "News",
-              "text": "Ellison verzichtet auf Aktienverkauf — etwas Entspannung.",
-              "url": "https://finance.yahoo.com/quote/ORCL",
-              "lean": "bull",
-              "at": "2026-09-29T22:47:10+02:00"
-            },
-            {
-              "source": "News",
-              "text": "Seeking Alpha warnt vor KI-Trade-Risiko und Downgrade.",
+              "text": "Seeking Alpha: Schuldenwarnung knapp über Junk-Niveau.",
               "url": "https://seekingalpha.com/",
               "lean": "bear",
-              "at": "2026-09-29T22:47:10+02:00"
+              "at": "2026-09-29T22:56:40+02:00"
             },
             {
               "source": "News",
-              "text": "Datacenter-Kosten und Verzögerungen belasten weiter.",
+              "text": "Mandiant meldet neue PeopleSoft-Sicherheitslücke.",
+              "url": "https://www.benzinga.com/",
+              "lean": "bear",
+              "at": "2026-09-29T22:56:40+02:00"
+            },
+            {
+              "source": "News",
+              "text": "Abverkauf und Vorsicht nach dem Wochenminus bleiben.",
               "url": "https://finance.yahoo.com/quote/ORCL",
               "lean": "bear",
-              "at": "2026-09-29T22:47:10+02:00"
+              "at": "2026-09-29T22:56:40+02:00"
             },
             {
               "source": "News",
-              "text": "Wochenminus und Vorsicht nach dem Abverkauf bleiben.",
-              "url": "https://www.tikr.com/",
-              "lean": "bear",
-              "at": "2026-09-29T22:47:10+02:00"
-            },
-            {
-              "source": "News",
-              "text": "Kurs flach bei etwa 137.80 Dollar; Erholung ohne neuen Impuls.",
+              "text": "Kurs flach bei etwa 137.80 Dollar; Erholung ohne neuen Schub.",
               "url": "https://finance.yahoo.com/quote/ORCL",
               "lean": "mixed",
-              "at": "2026-09-29T22:47:10+02:00"
+              "at": "2026-09-29T22:56:40+02:00"
             },
             {
               "source": "News",
               "text": "The Distributed: 30-Tage-Stimmung etwa halb bullish, Rest gemischt.",
               "url": "https://thedistributed.co/stocks/ORCL/",
               "lean": "mixed",
-              "at": "2026-09-29T22:47:10+02:00"
+              "at": "2026-09-29T22:56:40+02:00"
             },
             {
               "source": "News",
-              "text": "AltIndex weiter Hold bei Score 50 — Reddit etwas ruhiger.",
+              "text": "AltIndex: rund 81 Reddit-Mentions am Tag — ohne klaren Richtungswechsel.",
               "url": "https://altindex.com/ticker/orcl",
               "lean": "mixed",
-              "at": "2026-09-29T22:47:10+02:00"
+              "at": "2026-09-29T22:56:40+02:00"
             }
           ]
         },
@@ -265,36 +264,27 @@
           "tradingview": "https://www.tradingview.com/symbols/ORCL/",
           "yahoo": "https://finance.yahoo.com/quote/ORCL"
         },
-        "updated_at": "2026-09-29T22:46:00+02:00"
+        "updated_at": "2026-09-29T22:51:00+02:00"
       }
     ],
     "freshness": {
-      "updated_at": "2026-09-29T22:46:00+02:00",
-      "scraped_at": "2026-09-29T22:47:10+02:00",
+      "updated_at": "2026-09-29T22:51:00+02:00",
+      "scraped_at": "2026-09-29T22:56:40+02:00",
       "quality": "mittel Web+PublicReddit; X skipped (credits $0.00); TikTok fail (Treg auth_needed); Bright Data 401; Apify retired; Distributed live OK"
     },
     "delta_vs_prev": {
-      "prev_tick_id": "2026-09-29T22:36:00+02:00",
+      "prev_tick_id": "2026-09-29T22:46:00+02:00",
       "magnitude": 0,
       "confidence": 0,
       "direction_changed": false,
       "items": 0,
       "orcl_price": 0.0,
-      "btc_price": 17.81,
+      "btc_price": 21.22,
       "signal_changed": false
     },
     "material_change": false,
     "material_change_reasons": [],
     "mini_series": [
-      {
-        "tick_id": "2026-09-29T09:25:00+02:00",
-        "scraped_at": "2026-09-29T09:31:07+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
       {
         "tick_id": "2026-09-29T09:35:00+02:00",
         "scraped_at": "2026-09-29T09:36:40+02:00",
@@ -389,6 +379,16 @@
       {
         "tick_id": "2026-09-29T22:46:00+02:00",
         "scraped_at": "2026-09-29T22:47:10+02:00",
+        "magnitude": 42,
+        "confidence": 65,
+        "direction": "mixed_cautious",
+        "items": 8,
+        "early_signal": true,
+        "orcl_price": 137.79
+      },
+      {
+        "tick_id": "2026-09-29T22:51:00+02:00",
+        "scraped_at": "2026-09-29T22:56:40+02:00",
         "magnitude": 42,
         "confidence": 65,
         "direction": "mixed_cautious",
@@ -1609,11 +1609,20 @@
       "confidence": 65,
       "early_signal": true,
       "items": 8
+    },
+    {
+      "tick_id": "2026-09-29T22:51:00+02:00",
+      "scraped_at": "2026-09-29T22:56:40+02:00",
+      "direction": "mixed_cautious",
+      "magnitude": 42,
+      "confidence": 65,
+      "early_signal": true,
+      "items": 8
     }
   ],
   "freshness": {
-    "updated_at": "2026-09-29T22:46:00+02:00",
-    "scraped_at": "2026-09-29T22:47:10+02:00",
+    "updated_at": "2026-09-29T22:51:00+02:00",
+    "scraped_at": "2026-09-29T22:56:40+02:00",
     "quality": "mittel Web+PublicReddit; X skipped (credits $0.00); TikTok fail (Treg auth_needed); Bright Data 401; Apify retired; Distributed live OK"
   },
   "disclaimer": "",
