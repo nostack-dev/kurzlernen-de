@@ -1,18 +1,18 @@
 {
-  "updated_at": "2026-09-29T22:20:00+02:00",
+  "updated_at": "2026-09-29T22:30:00+02:00",
   "timezone": "Europe/Berlin",
-  "early_signal_note": "Kurs ~137.80; Erholung hält, Schuldenlast bleibt.",
+  "early_signal_note": "Kurs flach ~137.80; Schuldenlast bleibt.",
   "tick": {
-    "tick_id": "2026-09-29T22:20:00+02:00",
-    "scraped_at": "2026-09-29T22:23:41+02:00",
+    "tick_id": "2026-09-29T22:30:00+02:00",
+    "scraped_at": "2026-09-29T22:32:09+02:00",
     "timezone": "Europe/Berlin",
     "scrape_window": {
-      "after": "2026-09-29T22:15:00+02:00",
-      "until": "2026-09-29T22:20:00+02:00"
+      "after": "2026-09-29T22:25:00+02:00",
+      "until": "2026-09-29T22:30:00+02:00"
     },
     "baseline": {
-      "prior_tick_id": "2026-09-29T22:05:00+02:00",
-      "prior_tick_num": 133
+      "prior_tick_id": "2026-09-29T22:20:00+02:00",
+      "prior_tick_num": 134
     },
     "volume_enriched": true,
     "vector": {
@@ -20,9 +20,9 @@
       "magnitude": 42,
       "confidence": 65,
       "early_signal": true,
-      "early_signal_note": "Kurs ~137.80; Erholung hält, Schuldenlast bleibt."
+      "early_signal_note": "Kurs flach ~137.80; Schuldenlast bleibt."
     },
-    "early_signal_note": "Kurs ~137.80; Erholung hält, Schuldenlast bleibt.",
+    "early_signal_note": "Kurs flach ~137.80; Schuldenlast bleibt.",
     "chart": {
       "magnitude": 42,
       "confidence": 65,
@@ -64,11 +64,11 @@
         "items": 5,
         "window": "same-day 2026-09-29",
         "notes": [
-          "ORCL ~$137.79 (-0.11 vs prior $137.9); rebound holds after NetApp/OpenAI headlines",
-          "Debt warning + data-center delay overhang vs NetApp OCI / 51% upside pieces — mixed",
-          "SPY ~764.20 / QQQ ~737.93; BTC ~$83,590.77 (+33.80 vs prior)",
-          "TradingView/MarketBeat: ORCL trading up / jumps on session; TipRanks/NetApp roll-out still in tape",
-          "Macro: Fed path / labour / earnings-bubble tone — mixed risk, no Buy call"
+          "ORCL ~$137.79 (+0.00 vs prior $137.79); flat after hours, rebound holds",
+          "Debt warning + data-center delay overhang vs 51% upside / Ellison sale cancel — mixed",
+          "SPY ~764.20 / QQQ ~737.93; BTC ~$83,590.77 (+0.00 vs prior)",
+          "Seeking Alpha downgrade risk vs TradingView session-up / Yahoo bull case still in tape",
+          "Macro: Fed path / labour / earnings-season tone — mixed risk, no Buy call"
         ]
       },
       "user-Bright Data": {
@@ -95,9 +95,9 @@
           "thedistributed.co"
         ],
         "window": "24h–30d aggregator snapshots 2026-09-29",
-        "freshest": "2026-09-29T22:23:41+02:00",
+        "freshest": "2026-09-29T22:32:09+02:00",
         "notes": [
-          "ApeWisdom 24h: 40 mentions (+74% vs 24h ago 23), upvotes 209, rank 16, sentiment ~65% (API JSON + page)",
+          "ApeWisdom 24h: 40 mentions (+74% vs 24h ago 23), upvotes 209, rank 16, sentiment ~65% (API JSON)",
           "AltIndex: page Hold; score ~50/100; Reddit mentions down ~25.7%; Hold bias",
           "The Distributed: live 30d ~1858 mentions / ~49% bullish / 18% bearish (fresh this tick via thedistributed.co/stocks/ORCL/)"
         ],
@@ -184,79 +184,79 @@
         "hype_bull": 3,
         "hype_bear": 3,
         "hype_net": 0,
-        "why": "Kurs hält bei etwa 137.80 Dollar nach der Tageserholung. Schuldenwarnung und Datacenter-Sorgen halten das Bild gemischt.",
+        "why": "Kurs bleibt bei etwa 137.80 Dollar ohne neuen Schub. Schuldenwarnung und Datacenter-Sorgen halten das Bild gemischt.",
         "evidence": {
           "x_posts": 0,
           "reddit_posts": 0,
           "news": 5,
           "snippets": [
-            "ORCL ~$137.79 (-0.11 vs prior $137.9); rebound holds after NetApp/OpenAI headlines",
-            "Debt warning + data-center delay overhang vs NetApp OCI / 51% upside pieces — mixed",
-            "SPY ~764.20 / QQQ ~737.93; BTC ~$83,590.77 (+33.80 vs prior)"
+            "ORCL ~$137.79 (+0.00 vs prior $137.79); flat after hours, rebound holds",
+            "Debt warning + data-center delay overhang vs 51% upside / Ellison sale cancel — mixed",
+            "SPY ~764.20 / QQQ ~737.93; BTC ~$83,590.77 (+0.00 vs prior)"
           ],
           "voices": [
-            {
-              "source": "News",
-              "text": "NetApp-OCI-Speicher und OpenAI-Ausblick stützen die Erholung.",
-              "url": "https://www.tradingview.com/",
-              "lean": "bull",
-              "at": "2026-09-29T22:23:41+02:00"
-            },
             {
               "source": "News",
               "text": "Yahoo sieht weiter rund 51 Prozent Upside trotz Abverkauf.",
               "url": "https://finance.yahoo.com/quote/ORCL",
               "lean": "bull",
-              "at": "2026-09-29T22:23:41+02:00"
+              "at": "2026-09-29T22:32:09+02:00"
             },
             {
               "source": "News",
-              "text": "Kurs springt im Tagesfenster — Rebound-Berichte überwiegen kurzfristig.",
-              "url": "https://www.marketbeat.com/",
+              "text": "TradingView: Kurs handelt im Tagesfenster weiter nach oben.",
+              "url": "https://www.tradingview.com/",
               "lean": "bull",
-              "at": "2026-09-29T22:23:41+02:00"
+              "at": "2026-09-29T22:32:09+02:00"
             },
             {
               "source": "News",
-              "text": "Schuldenwarnung knapp über Ramsch-Niveau lastet weiter.",
+              "text": "Ellison verzichtet auf Aktienverkauf — etwas Entspannung.",
+              "url": "https://finance.yahoo.com/quote/ORCL",
+              "lean": "bull",
+              "at": "2026-09-29T22:32:09+02:00"
+            },
+            {
+              "source": "News",
+              "text": "Seeking Alpha warnt vor KI-Trade-Risiko und Downgrade.",
               "url": "https://seekingalpha.com/",
               "lean": "bear",
-              "at": "2026-09-29T22:23:41+02:00"
+              "at": "2026-09-29T22:32:09+02:00"
             },
             {
               "source": "News",
-              "text": "Datacenter-Verzögerungen und Wochenminus halten Vorsicht wach.",
+              "text": "Datacenter-Kosten und Verzögerungen belasten weiter.",
+              "url": "https://finance.yahoo.com/quote/ORCL",
+              "lean": "bear",
+              "at": "2026-09-29T22:32:09+02:00"
+            },
+            {
+              "source": "News",
+              "text": "Wochenminus und Vorsicht nach dem Abverkauf bleiben.",
               "url": "https://www.tikr.com/",
               "lean": "bear",
-              "at": "2026-09-29T22:23:41+02:00"
+              "at": "2026-09-29T22:32:09+02:00"
             },
             {
               "source": "News",
-              "text": "KI-Trade-Risiko und Downgrade-Töne bleiben im Raum.",
-              "url": "https://seekingalpha.com/",
-              "lean": "bear",
-              "at": "2026-09-29T22:23:41+02:00"
-            },
-            {
-              "source": "News",
-              "text": "Kurs bei etwa 137.80 Dollar; Erholung hält, aber ohne neuen Schub.",
+              "text": "Kurs flach bei etwa 137.80 Dollar; Erholung ohne neuen Impuls.",
               "url": "https://finance.yahoo.com/quote/ORCL",
               "lean": "mixed",
-              "at": "2026-09-29T22:23:41+02:00"
+              "at": "2026-09-29T22:32:09+02:00"
             },
             {
               "source": "News",
               "text": "The Distributed: 30-Tage-Stimmung etwa halb bullish, Rest gemischt.",
               "url": "https://thedistributed.co/stocks/ORCL/",
               "lean": "mixed",
-              "at": "2026-09-29T22:23:41+02:00"
+              "at": "2026-09-29T22:32:09+02:00"
             },
             {
               "source": "News",
               "text": "AltIndex weiter Hold bei Score 50 — Reddit etwas ruhiger.",
               "url": "https://altindex.com/ticker/orcl",
               "lean": "mixed",
-              "at": "2026-09-29T22:23:41+02:00"
+              "at": "2026-09-29T22:32:09+02:00"
             }
           ]
         },
@@ -265,36 +265,27 @@
           "tradingview": "https://www.tradingview.com/symbols/ORCL/",
           "yahoo": "https://finance.yahoo.com/quote/ORCL"
         },
-        "updated_at": "2026-09-29T22:20:00+02:00"
+        "updated_at": "2026-09-29T22:30:00+02:00"
       }
     ],
     "freshness": {
-      "updated_at": "2026-09-29T22:20:00+02:00",
-      "scraped_at": "2026-09-29T22:23:41+02:00",
+      "updated_at": "2026-09-29T22:30:00+02:00",
+      "scraped_at": "2026-09-29T22:32:09+02:00",
       "quality": "mittel Web+PublicReddit; X skipped (credits $0.00); TikTok fail (Treg auth_needed); Bright Data 401; Apify retired; Distributed live OK"
     },
     "delta_vs_prev": {
-      "prev_tick_id": "2026-09-29T22:05:00+02:00",
+      "prev_tick_id": "2026-09-29T22:20:00+02:00",
       "magnitude": 0,
       "confidence": 0,
       "direction_changed": false,
       "items": 0,
-      "orcl_price": -0.11,
-      "btc_price": 33.8,
+      "orcl_price": 0.0,
+      "btc_price": 0.0,
       "signal_changed": false
     },
     "material_change": false,
     "material_change_reasons": [],
     "mini_series": [
-      {
-        "tick_id": "2026-09-29T09:08:00+02:00",
-        "scraped_at": "2026-09-29T09:10:20+02:00",
-        "magnitude": 40,
-        "confidence": 66,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true
-      },
       {
         "tick_id": "2026-09-29T09:15:00+02:00",
         "scraped_at": "2026-09-29T09:17:18+02:00",
@@ -395,9 +386,18 @@
         "items": 8,
         "early_signal": true,
         "orcl_price": 137.79
+      },
+      {
+        "tick_id": "2026-09-29T22:30:00+02:00",
+        "scraped_at": "2026-09-29T22:32:09+02:00",
+        "magnitude": 42,
+        "confidence": 65,
+        "direction": "mixed_cautious",
+        "items": 8,
+        "early_signal": true
       }
     ],
-    "signals_disclaimer": ""
+    "material_why": "quiet: ORCL ~flat (+0.00 vs $137.79), Δmag 0, signal HOLD unchanged"
   },
   "history": [
     {
@@ -1577,6 +1577,15 @@
     {
       "tick_id": "2026-09-29T22:20:00+02:00",
       "scraped_at": "2026-09-29T22:23:41+02:00",
+      "direction": "mixed_cautious",
+      "magnitude": 42,
+      "confidence": 65,
+      "early_signal": true,
+      "items": 8
+    },
+    {
+      "tick_id": "2026-09-29T22:30:00+02:00",
+      "scraped_at": "2026-09-29T22:32:09+02:00",
       "direction": "mixed_cautious",
       "magnitude": 42,
       "confidence": 65,
