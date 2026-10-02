@@ -20,17 +20,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Assemble single-file Editor3D
+      - name: Assemble exact single-file Editor3D
         run: |
           set -euxo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          parts=sorted(Path('.editor3d-staging').glob('payload-*.txt'))
-          assert parts, 'missing Editor3D payload parts'
+          import base64, gzip, hashlib
+          expected=[f'release-{i:02d}.txt' for i in range(13)]
+          parts=sorted(Path('.editor3d-staging').glob('release-*.txt'))
+          assert [p.name for p in parts] == expected, f'incomplete Editor3D release chunks: {[p.name for p in parts]}'
           payload=''.join(p.read_text().strip() for p in parts)
+          assert len(payload)==48780, len(payload)
+          assert hashlib.sha256(payload.encode()).hexdigest()=='946eaf4b9cdf6cf1894476c3c6acde505423c87eded2b8bcc71ba40804037d50'
+          source=gzip.decompress(base64.b64decode(payload))
+          assert len(source)==119934, len(source)
+          assert hashlib.sha256(source).hexdigest()=='19d74c2c48c8b63da7ef1e4b1b1ecc4f18ffe50a2f7f733a8addabd6848abaed'
           wrapper=f'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Editor3D — Box3D physics scene editor</title></head><body style="margin:0;background:#20242a;color:#ddd;font:13px Arial;display:grid;place-items:center;height:100vh">Loading Editor3D…<script>(async()=>{{try{{const EDITOR3D_GZIP_BASE64='{payload}';const bytes=Uint8Array.from(atob(EDITOR3D_GZIP_BASE64),c=>c.charCodeAt(0));const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));const html=await new Response(stream).text();document.open();document.write(html);document.close()}}catch(e){{document.body.textContent='Editor3D failed to start: '+e.message;console.error(e)}}}})();</script></body></html>'''
           Path('editor3d.html').write_text(wrapper)
-          assert len(wrapper)>30000
+          assert len(wrapper)>49000
+          print('Editor3D source SHA256:',hashlib.sha256(source).hexdigest())
           PY
           node tests/editor3d_contract_test.mjs
       - name: Install exact runtime test dependencies
@@ -38,22 +46,23 @@ jobs:
           set -euxo pipefail
           npm init -y >/dev/null
           npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 puppeteer-core@24.16.0
-      - name: Real browser test before commit
+      - name: Real Chromium + Three.js + Box3D smoke before publish
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME_BIN"
           python3 -m http.server 4180 --bind 127.0.0.1 >/tmp/editor3d-http.log 2>&1 &
           HTTP_PID=$!
           trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true' EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" EDITOR3D_LOCAL_DEPS=1 REPO_ROOT="$GITHUB_WORKSPACE" node tests/editor3d_browser_smoke.mjs
-      - name: Commit final single file and remove staging chunks
+      - name: Commit tested final single file and remove staging
         id: publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euxo pipefail
-          rm -rf .editor3d-staging
+          rm -rf .editor3d-staging node_modules package.json package-lock.json
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A editor3d.html .editor3d-staging
