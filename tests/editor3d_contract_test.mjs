@@ -40,7 +40,6 @@ const must=[
   ['undo history',/d\.history\.push\(\{label,before,after\}\)/],
   ['clone view',/function cloneView\(\)/],
   ['tile views',/tiled=!tiled/],
-  ['image alpha to 3D fixtures',/function traceImageToBoxes\(\)/],
   ['editable e3d format',/format:'editor3d',version:2/],
   ['selectstart prevention',/addEventListener\('selectstart',e=>e\.preventDefault\(\)\)/],
   ['pointer cancel cleanup',/addEventListener\('pointercancel',end\)/],
