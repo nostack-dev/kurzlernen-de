@@ -1,4 +1,6 @@
 import {normalizedPointer,endPointerDrag} from "./control_semantics.mjs";
+import "./direct_fire_missiles.mjs";
+import "./spawn_visibility_guard.mjs";
 
 let installed=false;
 const active=new Map();
@@ -10,11 +12,13 @@ function footWeapons(){return globalThis.__arondightFootWeapons||null;}
 function isFoot(){return walk()?.mode==="foot"&&document.body.classList.contains("on-foot-mode");}
 function touchDevice(){return (navigator.maxTouchPoints||0)>0;}
 function interactive(target){return Boolean(target?.closest?.("button,input,select,textarea,a,label,dialog,#soloTopbar,.phone-settings-dialog,#footWeaponToggle"));}
+function activeMovePointerId(){for(const[id,entry]of active)if(entry.kind==="move")return id;return null;}
 function rewriteForMove(event,entry,axes){try{Object.defineProperty(event,"clientX",{configurable:true,value:entry.cx+axes.x*entry.walkRadius});Object.defineProperty(event,"clientY",{configurable:true,value:entry.cy+axes.y*entry.walkRadius});Object.defineProperty(event,"__arondightLogicalPointer",{configurable:true,value:true});}catch{}}
 function paintLook(entry,axes){const knob=entry.element.querySelector(".knob");if(knob){knob.style.left=`${50+axes.x*42}%`;knob.style.top=`${50+axes.y*42}%`;}}
 function resetLook(entry){paintLook(entry,{x:0,y:0});walk()?.endTouchLook?.("right-stick");entry.axes={x:0,y:0};}
 function ensureLookLoop(){if(lookLoop)return;const frame=now=>{lookLoop=requestAnimationFrame(frame);const dt=Math.max(1/240,Math.min(.05,(now-lastLookFrame)/1000));lastLookFrame=now;for(const entry of active.values())if(entry.kind==="look")walk()?.applyTouchLookStick?.({x:entry.axes.x,y:entry.axes.y,dt,now,source:"right-stick"});};lastLookFrame=performance.now();lookLoop=requestAnimationFrame(frame);}
-function fireScreen(event){const api=footWeapons();api?.fireAt?.({clientX:event.clientX,clientY:event.clientY});window.dispatchEvent(new CustomEvent("arondight:foot-screen-fire",{detail:{clientX:event.clientX,clientY:event.clientY,source:"screen-touch"}}));const view=viewport();if(view){view.dataset.walkTouchContract="drone-normalized-pointer-origin-v2";view.dataset.walkScreenTouch="fire-only-v1";view.dataset.walkWeaponTouchVector="screen-ray+hand-anchor-v1";}}
+function fireScreen(event){const api=footWeapons();api?.fireAt?.({clientX:event.clientX,clientY:event.clientY});window.dispatchEvent(new CustomEvent("arondight:foot-screen-fire",{detail:{clientX:event.clientX,clientY:event.clientY,source:"screen-touch"}}));const view=viewport();if(view){view.dataset.walkTouchContract="drone-normalized-pointer-origin-v2";view.dataset.walkScreenTouch="fire-only-v1";view.dataset.walkWeaponTouchVector="screen-ray+hand-anchor-v1";view.dataset.walkMultiTouchMoveIsolation="pointer-id-owned-v1";}}
+function protectMoveOwnership(event){const moveId=activeMovePointerId();if(moveId===null||event.pointerId===moveId)return;event.stopImmediatePropagation();const view=viewport();if(view)view.dataset.walkMoveForeignCaptureIgnored=String((Number(view.dataset.walkMoveForeignCaptureIgnored)||0)+1);}
 
 function capture(event){
   if(!touchDevice()||event.pointerType==="mouse"||!isFoot())return;
@@ -26,7 +30,7 @@ function capture(event){
       active.set(event.pointerId,entry);
       if(entry.kind==="move")rewriteForMove(event,entry,axes);
       else{event.preventDefault();event.stopImmediatePropagation();element.setPointerCapture?.(event.pointerId);walk()?.beginTouchLook?.("right-stick");paintLook(entry,axes);ensureLookLoop();}
-      const view=viewport();if(view)view.dataset.walkStickSemantics="drone-normalizedPointer-v1";
+      const view=viewport();if(view){view.dataset.walkStickSemantics="drone-normalizedPointer-v1";view.dataset.walkMultiTouchMoveIsolation="pointer-id-owned-v1";}
       return;
     }
     if(interactive(target))return;
@@ -47,7 +51,7 @@ function capture(event){
 
 function installStyle(){
   if(document.querySelector("style[data-flight-first-cleanup]"))return;
-  const style=document.createElement("style");style.dataset.flightFirstCleanup="v2";style.textContent=`
+  const style=document.createElement("style");style.dataset.flightFirstCleanup="v3";style.textContent=`
 /* Arcade state can keep its internal geometry for compatibility, but nothing is drawn or interactive. */
 #gameplayContractHud{visibility:hidden!important;opacity:0!important;pointer-events:none!important}
 #gameplayScorePill,#gameplayToast,#gameplayMomentum{display:none!important;visibility:hidden!important;pointer-events:none!important}
@@ -67,7 +71,7 @@ dialog.phone-settings-dialog[open] .phone-settings-titlebar{position:sticky!impo
   document.head.appendChild(style);
 }
 
-function publish(){const view=viewport();if(!view)return;view.dataset.flightFirstUi="real-estate-first-v1";view.dataset.walkTouchContract="drone-normalized-pointer-origin-v2";view.dataset.walkFullscreenLook="disabled";view.dataset.walkScreenTouch="fire-only-v1";view.dataset.walkFireOverlay="removed";view.dataset.gameplayArcadeHud="hidden";}
+function publish(){const view=viewport();if(!view)return;view.dataset.flightFirstUi="real-estate-first-v1";view.dataset.walkTouchContract="drone-normalized-pointer-origin-v2";view.dataset.walkFullscreenLook="disabled";view.dataset.walkScreenTouch="fire-only-v1";view.dataset.walkFireOverlay="removed";view.dataset.gameplayArcadeHud="hidden";view.dataset.walkMultiTouchMoveIsolation="pointer-id-owned-v1";}
 function frame(){publish();requestAnimationFrame(frame);}
 
-export function installFlightFirstCleanup(){if(installed)return;installed=true;installStyle();window.addEventListener("pointerdown",capture,{capture:true,passive:false});window.addEventListener("pointermove",capture,{capture:true,passive:false});window.addEventListener("pointerup",capture,{capture:true,passive:false});window.addEventListener("pointercancel",capture,{capture:true,passive:false});requestAnimationFrame(frame);}
+export function installFlightFirstCleanup(){if(installed)return;installed=true;installStyle();window.addEventListener("pointerdown",capture,{capture:true,passive:false});window.addEventListener("pointermove",capture,{capture:true,passive:false});window.addEventListener("pointerup",capture,{capture:true,passive:false});window.addEventListener("pointercancel",capture,{capture:true,passive:false});window.addEventListener("lostpointercapture",protectMoveOwnership,{capture:true,passive:false});requestAnimationFrame(frame);}
