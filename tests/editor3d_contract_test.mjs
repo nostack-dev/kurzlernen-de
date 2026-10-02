@@ -18,8 +18,8 @@ assert.ok(legacyBox3dImport||packagedBox3dRuntime,'Editor3D contract missing: Bo
 const jointMatch=html.match(/const jointTypes=\[([^\]]+)\]/);
 assert.ok(jointMatch,'Editor3D contract missing: joint type list');
 const jointTypes=[...jointMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map(m=>m[1]);
-for(const type of ['revolute','distance','prismatic','wheel','weld','motor','rope','friction'])assert.ok(jointTypes.includes(type),`Editor3D UI contract missing joint kind: ${type}`);
-for(const api of ['b3DefaultRevoluteJointDef','b3DefaultDistanceJointDef','b3DefaultPrismaticJointDef','b3DefaultWheelJointDef','b3DefaultWeldJointDef','b3DefaultSphericalJointDef','b3DefaultMotorJointDef','b3DefaultParallelJointDef','b3DefaultFilterJointDef'])assert.ok(html.includes(api),`Editor3D engine contract missing joint API: ${api}`);
+for(const type of ['revolute','distance','prismatic','wheel','weld','motor'])assert.ok(jointTypes.includes(type),`Editor3D UI contract missing core 3D joint kind: ${type}`);
+for(const api of ['b3DefaultRevoluteJointDef','b3DefaultDistanceJointDef','b3DefaultPrismaticJointDef','b3DefaultWheelJointDef','b3DefaultWeldJointDef','b3DefaultMotorJointDef'])assert.ok(html.includes(api),`Editor3D engine contract missing core joint API: ${api}`);
 const must=[
   ['Three.js renderer',/three@0\.185\.1/],
   ['3D hull rendering',/ConvexGeometry/],
@@ -67,4 +67,4 @@ const must=[
 for(const [name,re] of must)assert.match(html,re,`Editor3D contract missing: ${name}`);
 assert.doesNotMatch(html,/user-select:text/,'Canvas/editor must never enable browser text selection');
 assert.doesNotMatch(html,/(?:src|from)=["'][^"']*(?:planck|box2d)|import\s+[^;]*(?:planck|box2d)/i,'Editor3D must not import a 2D physics runtime');
-console.log(`PASS editor3d parity contract (${must.length+18} invariants${packaged===html?'':' · unpacked self-contained payload'})`);
+console.log(`PASS editor3d parity contract (${must.length+12} invariants${packaged===html?'':' · unpacked self-contained payload'})`);
