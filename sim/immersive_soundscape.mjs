@@ -1,9 +1,13 @@
 import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./audio_settings.mjs";
 import "./walk_input_lifecycle_guard.mjs";
 import "./gameplay_final_runtime_v2.mjs";
+import "./first_person_fire_contract_v1.mjs";
 import "./gameplay_final_ui_dock.mjs";
 import "./gameplay_final_realism_patch.mjs";
 import "./first_person_weapon_runtime_v3.mjs";
+import "./first_person_weapon_anchor_v4.mjs";
+import "./world_traffic_motion_guard_v1.mjs";
+import "./world_crowd_density_v1.mjs";
 
 let installed=false,ctx=null,master=null,engine=null,noiseBuffer=null,lastFrame=performance.now(),lastStepAt=-Infinity,lastWalkX=NaN,lastWalkY=NaN,settings=loadAudioSettings();
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -18,5 +22,5 @@ function updateEngine(){const e=ensureEngine();if(!e||ctx.state!=="running")retu
 function updateFootsteps(now){const walk=globalThis.__arondightWalkMode,drive=globalThis.__arondightVehicleDrive;if(walk?.mode!=="foot"||drive?.active||walk?.dead||!walk.position){lastWalkX=lastWalkY=NaN;return;}const x=Number(walk.position.x)||0,y=Number(walk.position.y)||0;if(!Number.isFinite(lastWalkX)){lastWalkX=x;lastWalkY=y;return;}const dt=Math.max(.001,(now-lastFrame)/1000),speed=Math.hypot(x-lastWalkX,y-lastWalkY)/dt;lastWalkX=x;lastWalkY=y;if(speed<.65)return;const interval=speed>6?305:speed>4?390:485;if(now-lastStepAt<interval)return;lastStepAt=now;const alt=(Math.floor(now/interval)&1)?1.05:.95;burst({gain:.018*alt,low:75,high:980,duration:.095,pitch:88*alt,category:"footsteps"});const view=viewport();if(view){view.dataset.footstepAudio="filtered-impact-soft-v3";view.dataset.footstepVolumePct=String(settings.footstepsVolume);view.dataset.footstepCount=String((Number(view.dataset.footstepCount)||0)+1);}}
 function frame(now=performance.now()){updateFootsteps(now);updateEngine();lastFrame=now;requestAnimationFrame(frame);}
 function impact(event){const drive=globalThis.__arondightVehicleDrive,detail=event?.detail;if(!drive?.active||String(detail?.id||"")!==drive.vehicleId)return;const dv=Number(detail?.deltaVelocityMps)||0;if(dv<1.8)return;burst({gain:clamp(.015+dv*.004,.02,.07),low:55,high:560,duration:clamp(.09+dv*.012,.1,.22),pitch:65,category:"fx"});}
-export function installImmersiveSoundscape(){if(installed)return;installed=true;addEventListener("pointerdown",unlock,{capture:true,passive:true});addEventListener("keydown",unlock,{capture:true});addEventListener(AUDIO_SETTINGS_EVENT,event=>{settings=normalizeAudioSettings(event.detail||loadAudioSettings());syncMaster();});addEventListener("arondight:world-physics-impact",impact);const view=viewport();if(view)view.dataset.soundscapeRuntime="drone+combat+footsteps+vehicle-mixer-v3";requestAnimationFrame(frame);}
+export function installImmersiveSoundscape(){if(installed)return;installed=true;addEventListener("pointerdown",unlock,{capture:true,passive:true});addEventListener("keydown",unlock,{capture:true});addEventListener(AUDIO_SETTINGS_EVENT,event=>{settings=normalizeAudioSettings(event.detail||loadAudioSettings());syncMaster();});addEventListener("arondight:world-physics-impact",impact);const view=viewport();if(view)view.dataset.soundscapeRuntime="drone+combat+footsteps+vehicle-mixer-v4";requestAnimationFrame(frame);}
 installImmersiveSoundscape();
