@@ -1,0 +1,60 @@
+name: Mobile gameplay regression
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "sim/**"
+      - "drone_simulator.html"
+      - "tests/mobile_gameplay_live_smoke.mjs"
+      - ".github/workflows/mobile-gameplay-regression.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-gameplay-regression
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install browser harness
+        run: |
+          set -euxo pipefail
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund puppeteer-core@24.16.0
+      - name: Wait for exact live build
+        env:
+          GH_SHA: ${{ github.sha }}
+        run: |
+          set -euxo pipefail
+          ok=0
+          for attempt in $(seq 1 36); do
+            if curl -fsSL --retry 1 --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}-${attempt}" -o /tmp/mobile-live.html \
+              && grep -q "ARONDIGHT45_BUILD_SHA:${GH_SHA}" /tmp/mobile-live.html; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok" = 1
+      - name: Test portrait controls and capture mobile gameplay
+        env:
+          GH_SHA: ${{ github.sha }}
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_gameplay_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-gameplay-${{ github.sha }}
+          path: artifacts/mobile-gameplay.png
+          if-no-files-found: warn
+          retention-days: 14
