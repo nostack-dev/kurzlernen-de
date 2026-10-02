@@ -5,6 +5,7 @@ export const PLAYER_CAPSULE_TERRAIN_CATEGORY=1n;
 const CONTACT_MARGIN_M=.008;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
 const finitePoint=p=>p&&Number.isFinite(Number(p.x))&&Number.isFinite(Number(p.y));
+const acceptMoverShape=()=>true;
 
 function bodyShapes(b3,body){
   if(!body||typeof b3?.b3Body_GetShapes!=="function")return[];
@@ -34,7 +35,9 @@ function castFraction(b3,world,origin,delta,{radiusM=PLAYER_CAPSULE_RADIUS_M,hei
   if(typeof b3?.b3World_CastMover!=="function")return null;
   const radius=clamp(radiusM,.18,.45),height=Math.max(radius*2+.20,Number(heightM)||PLAYER_CAPSULE_HEIGHT_M),capsule={center1:[0,0,radius],center2:[0,0,height-radius],radius};
   const filter=typeof b3.b3DefaultQueryFilter==="function"?b3.b3DefaultQueryFilter():{};filter.categoryBits=PLAYER_CAPSULE_QUERY_CATEGORY;filter.maskBits=PLAYER_CAPSULE_TERRAIN_CATEGORY;
-  const fraction=Number(b3.b3World_CastMover(world,[Number(origin.x)||0,Number(origin.y)||0,0],capsule,[Number(delta.x)||0,Number(delta.y)||0,0],filter,null,null));
+  // box3d.js 0.1.1's Embind layer requires a callable even though upstream C accepts NULL here.
+  // Category/mask bits remain authoritative; this callback accepts every shape that survived them.
+  const fraction=Number(b3.b3World_CastMover(world,[Number(origin.x)||0,Number(origin.y)||0,0],capsule,[Number(delta.x)||0,Number(delta.y)||0,0],filter,acceptMoverShape,null));
   return Number.isFinite(fraction)?clamp(fraction,0,1):null;
 }
 function safeTravel(start,delta,fraction){const length=Math.hypot(delta.x,delta.y);if(length<1e-8)return{x:start.x,y:start.y};const allowed=Math.max(0,length*fraction-CONTACT_MARGIN_M),scale=clamp(allowed/length,0,1);return{x:start.x+delta.x*scale,y:start.y+delta.y*scale};}
