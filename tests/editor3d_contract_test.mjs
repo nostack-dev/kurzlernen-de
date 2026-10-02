@@ -12,8 +12,10 @@ function unpackEditor3D(source){
   return gunzipSync(Buffer.from(chunks.join(''),'base64')).toString('utf8');
 }
 const html=unpackEditor3D(packaged);
+const legacyBox3dImport=/box3d\.js@0\.1\.1\/dist\/box3d\.inline\.mjs/.test(html);
+const packagedBox3dRuntime=packaged!==html&&/b3CreateHull\(pts\.flat\(\)\)[\s\S]*b3CreateHullShape\(bodyId,sd,hull\)/.test(html)&&/b3CreateSphereShape\(bodyId,sd/.test(html)&&/b3CreateCapsuleShape\(bodyId,sd/.test(html)&&/b3CreateMotorJoint\(v\.sim\.world,jd\)/.test(html);
+assert.ok(legacyBox3dImport||packagedBox3dRuntime,'Editor3D contract missing: Box3D inline/self-contained runtime');
 const must=[
-  ['Box3D inline runtime',/box3d\.js@0\.1\.1\/dist\/box3d\.inline\.mjs/],
   ['Three.js renderer',/three@0\.185\.1/],
   ['3D hull rendering',/ConvexGeometry/],
   ['RUBE-style menu bar',/data-menu="File"[\s\S]*data-menu="Edit"[\s\S]*data-menu="View"[\s\S]*data-menu="Scene"[\s\S]*data-menu="Window"[\s\S]*data-menu="Tools"[\s\S]*data-menu="Help"/],
@@ -63,4 +65,4 @@ const must=[
 for(const [name,re] of must)assert.match(html,re,`Editor3D contract missing: ${name}`);
 assert.doesNotMatch(html,/user-select:text/,'Canvas/editor must never enable browser text selection');
 assert.doesNotMatch(html,/(?:src|from)=["'][^"']*(?:planck|box2d)|import\s+[^;]*(?:planck|box2d)/i,'Editor3D must not import a 2D physics runtime');
-console.log(`PASS editor3d parity contract (${must.length} invariants${packaged===html?'':' · unpacked payload'})`);
+console.log(`PASS editor3d parity contract (${must.length+1} invariants${packaged===html?'':' · unpacked self-contained payload'})`);
