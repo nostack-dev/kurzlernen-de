@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
 import {resolve} from "node:path";
 import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,findClearBuildingLaunchPoint,resolveBox3dCameraPath} from "../sim/world_building_collision_physics.mjs";
+import {PLAYER_CAPSULE_RADIUS_M,ensurePlayerQueryAcceptedByTerrain,resolvePlayerCapsuleMove} from "../sim/player_capsule_collision.mjs";
 
 const modulePath=process.argv[2];
 if(!modulePath)throw new Error("usage: node tests/world_building_collision_box3d_test.mjs <box3d.inline.mjs>");
@@ -47,6 +48,20 @@ const clearCamera=resolveBox3dCameraPath(b3,world,[0,0,1],[0,0,2],{queryCategory
 const lowAnchorCamera=resolveBox3dCameraPath(b3,world,[0,0,.024],[.095,0,.084],{queryCategoryBits:8n,terrainCategoryBits:1n,clearanceM:.01,cameraRadiusM:.09});
 assert.ok(lowAnchorCamera.cameraRadiusM<.025,`low FPV anchor did not reduce camera volume: ${JSON.stringify(lowAnchorCamera)}`);assert.ok(lowAnchorCamera.position.every(Number.isFinite));
 
+// Player regression: Box3D's geometric character mover is a vertical capsule.
+// Its query filter accepts terrain/buildings only. Dynamic gameplay bodies are
+// deliberately absent from its mask, so firing/FX/vehicles do not become an
+// accidental physical blocker for the player controller.
+const playerEngine={b3,world,ground,buildingState:buildings};
+assert.equal(ensurePlayerQueryAcceptedByTerrain(playerEngine),true);
+assert.equal(typeof b3.b3World_CastMover,"function","Box3D character mover API is missing");
+const playerWall=resolvePlayerCapsuleMove(playerEngine,{x:1.40,y:0},{x:3.40,y:0});
+assert.equal(playerWall?.source,"box3d-capsule-mover-v1");assert.equal(playerWall?.blocked,true);assert.ok(playerWall.x<=2-PLAYER_CAPSULE_RADIUS_M+.03,`player capsule crossed wall: ${JSON.stringify(playerWall)}`);
+const playerClear=resolvePlayerCapsuleMove(playerEngine,{x:-2.0,y:-2.0},{x:-1.0,y:-2.0});
+assert.equal(playerClear?.blocked,false);assert.ok(Math.abs(playerClear.x+1)<1e-6&&Math.abs(playerClear.y+2)<1e-6,`clear capsule move changed unexpectedly: ${JSON.stringify(playerClear)}`);
+const dynamicDef=b3.b3DefaultBodyDef();dynamicDef.type=b3.b3BodyType.b3_dynamicBody;dynamicDef.position=[-1.5,-3,1];const dynamicBody=b3.b3CreateBody(world,dynamicDef),dynamicShape=b3.b3DefaultShapeDef();dynamicShape.filter={categoryBits:2n,maskBits:1n,groupIndex:0};b3.b3CreateBoxShape(dynamicBody,dynamicShape,.35,.35,.7);
+const throughDynamic=resolvePlayerCapsuleMove(playerEngine,{x:-2.2,y:-3},{x:-.8,y:-3});assert.equal(throughDynamic?.blocked,false,`terrain-only player filter incorrectly collided with dynamic body: ${JSON.stringify(throughDynamic)}`);b3.b3DestroyBody(dynamicBody);
+
 function makeProbe({position=[0,0,1],velocity=[8,0,0]}={}){
   const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;bodyDef.position=position;bodyDef.enableSleep=false;bodyDef.isBullet=true;
   const body=b3.b3CreateBody(world,bodyDef),shapeDef=b3.b3DefaultShapeDef();shapeDef.filter={categoryBits:2n,maskBits:1n,groupIndex:0};shapeDef.baseMaterial.friction=.2;shapeDef.baseMaterial.restitution=0;b3.b3CreateBoxShape(body,shapeDef,.1,.1,.1);b3.b3Body_SetLinearVelocity(body,velocity);return body;
@@ -60,4 +75,4 @@ destroyWorldBuildingCollisionBodies(b3,buildings);assert.equal(b3.b3Body_IsValid
 const clear=makeProbe({position:[1.5,0,1]}),clearPosition=advance(clear);assert.ok(clearPosition[0]>3.5,`destroyed house collider still blocks: ${clearPosition}`);b3.b3DestroyBody(clear);
 b3.b3DestroyWorld(world);
 
-console.log("WORLD Box3D building collision passed: safe outdoor launch, stable ground-only AGL, swept camera-volume wall/ground/corner occlusion, unrelated wall contact and collider teardown.");
+console.log("WORLD Box3D building collision passed: safe outdoor launch, swept camera volume, terrain-only player capsule mover, unrelated wall contact and collider teardown.");
