@@ -1,7 +1,9 @@
 import {WorldRigidBodyPhysics} from "./world_rigid_body_physics.mjs";
 
 const FIXED_DT=1/60;
-const MAX_STEPS_PER_FRAME=3;
+const MOBILE=globalThis.matchMedia?.("(pointer:coarse)")?.matches||/Android|iPhone|iPad|Mobile/i.test(globalThis.navigator?.userAgent||"");
+const MAX_STEPS_PER_FRAME=MOBILE?2:3;
+const SOLVER_SUBSTEPS=MOBILE?2:4;
 const pendingBodies=new Map(),pendingTargets=new Map();
 let engine=null,lastFrame=performance.now(),accumulator=0,lastBuildingSync=-Infinity,lastTelemetry=-Infinity,bootError="";
 
@@ -20,9 +22,9 @@ function removeBody(id){const key=String(id||"");pendingBodies.delete(key);pendi
 function applyImpulse(id,impulse,options){return ensureEngine()?.applyImpulse(String(id||""),impulse,options)??false;}
 function pose(id){return ensureEngine()?.pose(String(id||""))||null;}
 
-function updateTelemetry(now){if(now-lastTelemetry<250)return;lastTelemetry=now;const v=viewport(),current=engine;if(!v)return;const records=current?[...current.records.values()]:[],vehicles=records.filter(record=>!record.drone).length,drones=records.length-vehicles;v.dataset.worldRigidBodyPhysics=current?"box3d-dynamic-forces-v1":bootError?"error":"waiting-box3d";v.dataset.worldPhysicsBodies=String(records.length);v.dataset.worldPhysicsVehicles=String(vehicles);v.dataset.worldPhysicsDrones=String(drones);v.dataset.worldPhysicsImpacts=String(current?.impactCount||0);v.dataset.worldPhysicsSteps=String(current?.stepCount||0);v.dataset.worldPhysicsBuildingPrisms=String(current?.buildingState?.shapeCount||0);v.dataset.worldPhysicsContinuous="1";v.dataset.worldPhysicsControl="force+torque+impulse";v.dataset.worldPhysicsGravityScale="runtime-v1";}
+function updateTelemetry(now){if(now-lastTelemetry<250)return;lastTelemetry=now;const v=viewport(),current=engine;if(!v)return;const records=current?[...current.records.values()]:[],vehicles=records.filter(record=>!record.drone).length,drones=records.length-vehicles;v.dataset.worldRigidBodyPhysics=current?"box3d-dynamic-forces-v1":bootError?"error":"waiting-box3d";v.dataset.worldPhysicsBodies=String(records.length);v.dataset.worldPhysicsVehicles=String(vehicles);v.dataset.worldPhysicsDrones=String(drones);v.dataset.worldPhysicsImpacts=String(current?.impactCount||0);v.dataset.worldPhysicsSteps=String(current?.stepCount||0);v.dataset.worldPhysicsBuildingPrisms=String(current?.buildingState?.shapeCount||0);v.dataset.worldPhysicsContinuous="1";v.dataset.worldPhysicsControl="force+torque+impulse";v.dataset.worldPhysicsGravityScale="runtime-v1";v.dataset.worldPhysicsBudget=`${MAX_STEPS_PER_FRAME}x${SOLVER_SUBSTEPS}`;}
 function frame(now=performance.now()){
-  requestAnimationFrame(frame);const current=ensureEngine(),elapsed=Math.max(0,Math.min(.10,(now-lastFrame)/1000));lastFrame=now;if(!current){updateTelemetry(now);return;}if(now-lastBuildingSync>350){lastBuildingSync=now;current.syncBuildings(bridge()?.buildingCollisionSnapshot);}if(current.records.size){accumulator=Math.min(.075,accumulator+elapsed);let steps=0;while(accumulator>=FIXED_DT&&steps<MAX_STEPS_PER_FRAME){current.step(FIXED_DT,4,now);accumulator-=FIXED_DT;steps++;}}else accumulator=0;updateTelemetry(now);
+  requestAnimationFrame(frame);const current=ensureEngine(),elapsed=Math.max(0,Math.min(.10,(now-lastFrame)/1000));lastFrame=now;if(!current){updateTelemetry(now);return;}if(now-lastBuildingSync>350){lastBuildingSync=now;current.syncBuildings(bridge()?.buildingCollisionSnapshot);}if(current.records.size){accumulator=Math.min(.075,accumulator+elapsed);let steps=0;while(accumulator>=FIXED_DT&&steps<MAX_STEPS_PER_FRAME){current.step(FIXED_DT,SOLVER_SUBSTEPS,now);accumulator-=FIXED_DT;steps++;}}else accumulator=0;updateTelemetry(now);
 }
 
 export const worldRigidBodyRuntime=Object.freeze({upsertBody,setTarget,clearTarget,setPose,setGravityScale,removeBody,applyImpulse,pose,get ready(){return Boolean(ensureEngine());},get engine(){return ensureEngine();}});
