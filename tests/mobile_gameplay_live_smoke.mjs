@@ -44,6 +44,10 @@ try{
   if(layout.legacyWeapon&&layout.legacyWeapon.display!=="none")throw new Error(`legacy foot weapon button still visible under compact dock: ${JSON.stringify(layout.legacyWeapon)}`);
   if(layout.actions&&layout.actions.display!=="none")throw new Error(`expanded legacy toolbar visible by default: ${JSON.stringify(layout.actions)}`);
 
-  await mkdir("artifacts",{recursive:true});await page.screenshot({path:"artifacts/mobile-gameplay.png",fullPage:true});
-  console.log(`Mobile gameplay regression passed: portrait touch axes, conventional Xbox look directions and compact non-overlapping HUD. ${JSON.stringify({upMove,rightMove,pose,layout})}`);
+  await page.evaluate(()=>globalThis.__arondightWalkMode.setMode("drone",{persist:false}));
+  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.playerMode==="drone"&&document.querySelector("#mobileGameplayMode")?.textContent==="DRONE"&&!document.querySelector("#mobileGameplayStart")?.hidden,{timeout:5000});
+  const droneLayout=await page.evaluate(()=>({mode:document.querySelector("#mobileGameplayMode")?.textContent,start:document.querySelector("#mobileGameplayStart")?.textContent,startHidden:document.querySelector("#mobileGameplayStart")?.hidden,weapon:document.querySelector("#mobileGameplayWeapon")?.textContent,actions:getComputedStyle(document.querySelector("#soloTopbarActions")).display,compact:document.body.classList.contains("mobile-gameplay-compact")}));
+  if(droneLayout.mode!=="DRONE"||droneLayout.startHidden||!droneLayout.compact||droneLayout.actions!=="none"||!String(droneLayout.weapon).startsWith("WEAPON ·"))throw new Error(`compact drone HUD contract failed: ${JSON.stringify(droneLayout)}`);
+  await mkdir("artifacts",{recursive:true});await page.screenshot({path:"artifacts/mobile-gameplay.png",captureBeyondViewport:false});
+  console.log(`Mobile gameplay regression passed: portrait touch axes, conventional Xbox look directions and compact non-overlapping HUD. ${JSON.stringify({upMove,rightMove,pose,layout,droneLayout})}`);
 }finally{await browser.close();}
