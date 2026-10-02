@@ -3,7 +3,7 @@ import {mkdir} from "node:fs/promises";
 
 const input=process.argv[2]||"https://kurzlernen.de/drone_simulator.html",url=new URL(input),executablePath=process.env.CHROME_BIN;
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
-const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]}),page=await browser.newPage();
+const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]}),page=await browser.newPage(),cdp=await page.createCDPSession();
 await page.setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1");
 await page.evaluateOnNewDocument(()=>{const state={axes:[0,0,0,0],buttons:Array(17).fill(0)},pad={id:"Xbox Wireless Controller (Vendor: 045e Product: 0b13)",index:0,mapping:"standard",connected:true,timestamp:0,get axes(){return state.axes;},get buttons(){return state.buttons.map(value=>({pressed:value>.5,touched:value>0,value}));}};Object.defineProperty(navigator,"getGamepads",{configurable:true,value:()=>[pad]});globalThis.__mobilePad={axis(index,value){state.axes[index]=Math.max(-1,Math.min(1,Number(value)||0));},reset(){state.axes.fill(0);state.buttons.fill(0);}};});
 const pause=ms=>page.evaluate(delay=>new Promise(resolve=>setTimeout(resolve,delay)),ms);
@@ -19,8 +19,14 @@ try{
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.playerMode==="foot"&&v.dataset.soloOrientation==="css-landscape"&&v.dataset.mobileGameplayUi==="compact-actions-v1"&&document.querySelector("#footMove")&&document.querySelector("#footLookZone");},{timeout:8000});
 
   const touchMove=async(direction)=>{
-    await page.evaluate(dir=>{const el=document.querySelector("#footMove"),r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,span=Math.min(r.width,r.height)*.32,id=700+(dir==="up"?1:2);el.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,cancelable:true,pointerId:id,pointerType:"touch",clientX:cx,clientY:cy,buttons:1}));const point=dir==="up"?{x:cx+span,y:cy}:{x:cx,y:cy+span};el.dispatchEvent(new PointerEvent("pointermove",{bubbles:true,cancelable:true,pointerId:id,pointerType:"touch",clientX:point.x,clientY:point.y,buttons:1}));},direction);
-    await pause(80);const value=await page.$eval("#viewport",v=>({move:v.dataset.walkMove,guard:v.dataset.walkPortraitInput}));await page.evaluate(()=>dispatchEvent(new Event("blur")));await pause(40);return value;
+    const point=await page.$eval("#footMove",(el,dir)=>{const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,span=Math.min(r.width,r.height)*.32;return dir==="up"?{start:{x:cx,y:cy},end:{x:cx+span,y:cy}}:{start:{x:cx,y:cy},end:{x:cx,y:cy+span}};},direction);
+    const touch=(p,id=1)=>({x:p.x,y:p.y,radiusX:2,radiusY:2,force:1,id});
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[touch(point.start)]});
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[touch(point.end)]});
+    await pause(100);
+    const value=await page.$eval("#viewport",v=>({move:v.dataset.walkMove,guard:v.dataset.walkPortraitInput,raw:v.dataset.walkMoveStickRaw}));
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+    await pause(50);return value;
   };
   const up=await touchMove("up"),right=await touchMove("right");
   const parse=value=>String(value||"").split(",").map(Number),upMove=parse(up.move),rightMove=parse(right.move);
