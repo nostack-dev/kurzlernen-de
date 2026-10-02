@@ -26,20 +26,20 @@
   <div id="hint">
     <b>kern3d</b> auf kurzlernen.de. Eine Datei, Vanilla-JS, CDN wie Three.js.
     Ziehen dreht, Shift-Ziehen schiebt, Rad zoomt.
-    <a href="https://cdn.jsdelivr.net/gh/ChristianHohlfeld/kern3d@0.1.1/dist/kern3d.js">CDN</a>
+    <a href="https://cdn.jsdelivr.net/gh/ChristianHohlfeld/kern3d@0.1.2/dist/kern3d.js">CDN</a>
   </div>
   <div id="hud">lädt…</div>
 
-  <script src="https://cdn.jsdelivr.net/gh/ChristianHohlfeld/kern3d@0.1.1/dist/kern3d.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/ChristianHohlfeld/kern3d@0.1.2/dist/kern3d.js"></script>
   <script>
     var canvas = document.getElementById("view");
     var hud = document.getElementById("hud");
     var renderer = new KERN.WebGLRenderer({ canvas: canvas, antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
     renderer.setClearColor(0x0e1116);
+    canvas.style.background = "#0e1116";
 
     var scene = new KERN.Scene();
-    scene.fog = new KERN.Fog(0x0e1116, 18, 46);
     scene.background = new KERN.Color(0x0e1116);
 
     var camera = new KERN.PerspectiveCamera(50, 1, 0.1, 100);
@@ -48,16 +48,16 @@
     controls.target.set(0, 0.8, 0);
     controls.update();
 
-    scene.add(new KERN.AmbientLight(0x8aa0c8, 0.28));
-    var sun = new KERN.DirectionalLight(0xfff4e0, 0.7);
+    scene.add(new KERN.AmbientLight(0xb7c3d6, 0.45));
+    var sun = new KERN.DirectionalLight(0xfff4e0, 0.55);
     sun.position.set(6, 10, 4);
     scene.add(sun);
     scene.add(sun.target);
 
-    var warm = new KERN.PointLight(0xff7a3c, 1.1, 16);
+    var warm = new KERN.PointLight(0xff7a3c, 0.45, 18);
     warm.position.set(-3.2, 2.2, 2.4);
     scene.add(warm);
-    var cool = new KERN.PointLight(0x4aa3ff, 0.9, 16);
+    var cool = new KERN.PointLight(0x4aa3ff, 0.4, 18);
     cool.position.set(3.4, 1.6, -2.6);
     scene.add(cool);
 
