@@ -1,6 +1,7 @@
 import puppeteer from "puppeteer-core";
 import {mkdir} from "node:fs/promises";
 
+const VISUAL_CONTRACT="giant-nuke-camera-v3";
 const input=process.argv[2]||"https://kurzlernen.de/drone_simulator.html",url=new URL(input),executablePath=process.env.CHROME_BIN;
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]}),page=await browser.newPage();
@@ -27,5 +28,5 @@ try{
   if(!(impact.impacts>=1&&impact.effect==="whiteout-fireball-shockwave-mushroom-v3"&&impact.cinematic==="whiteout+massive-fireball+physical-shockwave+giant-mushroom+delayed-damage-v3"&&impact.radius===120&&impact.shockSpeed===343&&impact.shockRadius>80&&impact.mushroomHeight>=108&&impact.cloud>.14&&impact.shake==="shockwave-arrival-v3"&&impact.shakeStrength>0&&impact.damageDelay>=4200&&impact.damageState==="cinematic-grace"&&impact.visiblePhase==="cinematic"&&impact.flash&&impact.pressure&&impact.visibleParts>=30&&impact.crownInView&&impact.crownPixelRadius>=24&&impact.mushroomPixelHeight>=45&&!impact.destroyed&&impact.mode==="nuke"))throw new Error(`visible cinematic nuke is incomplete: ${JSON.stringify({shot,impact})}`);
   await mkdir("artifacts",{recursive:true});
   await page.screenshot({path:"artifacts/nuke-cinematic.png",captureBeyondViewport:false});
-  console.log(`Visible cinematic nuke live regression passed. ${JSON.stringify({modes,shot,impact})}`);
+  console.log(`${VISUAL_CONTRACT} passed. ${JSON.stringify({modes,shot,impact})}`);
 }finally{await browser.close();}
