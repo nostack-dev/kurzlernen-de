@@ -5,6 +5,8 @@ on:
     branches: ["main"]
     paths:
       - ".editor3d-staging/**"
+      - "tests/editor3d_contract_test.mjs"
+      - "tests/editor3d_browser_smoke.mjs"
       - ".github/workflows/editor3d-assemble.yml"
   workflow_dispatch:
 
