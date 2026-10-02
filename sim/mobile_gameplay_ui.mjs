@@ -6,7 +6,7 @@ function droneWeapons(){return globalThis.__arondightDroneWeapons||null;}
 function compactWanted(){return (navigator.maxTouchPoints||0)>0;}
 function currentWeaponName(onFoot){const api=onFoot?footWeapons():droneWeapons(),mode=String(api?.mode||"").trim();return(mode||"weapon").replaceAll("_"," ").toUpperCase();}
 function clickSource(id){const el=document.getElementById(id);if(!el||el.disabled)return false;el.click();return true;}
-function openSettings(){const buttons=[...document.querySelectorAll(".phone-settings-button")].filter(el=>getComputedStyle(el).display!=="none");const button=buttons.at(-1)||buttons[0];if(!button)return false;button.click();return true;}
+function openSettings(){const buttons=[...document.querySelectorAll(".phone-settings-button")],button=buttons.at(-1)||buttons[0];if(!button)return false;button.click();return true;}
 function installModeTransitionDisarmGuard(){document.addEventListener("click",event=>{const kill=event.target?.closest?.("#soloKill");if(!kill||event.isTrusted||walk()?.mode!=="foot")return;event.preventDefault();event.stopImmediatePropagation();const arm=document.getElementById("soloArm"),state=(document.getElementById("soloState")?.textContent||"").trim().toUpperCase(),active=state==="ARMED"||state==="ARMING"||arm?.classList.contains("armed")||arm?.classList.contains("arming");if(active)arm?.click?.();const view=viewport();if(view){view.dataset.droneStowDisarm="graceful-v1";view.dataset.droneStowEmergencyKill="0";}},true);}
 function installStyle(){if(document.querySelector("style[data-mobile-gameplay-ui]"))return;const style=document.createElement("style");style.dataset.mobileGameplayUi="flight-first-v1";style.textContent=`
 #mobileGameplayDock{display:none}
