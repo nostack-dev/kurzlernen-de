@@ -1,25 +1,25 @@
 {
-  "updated_at": "2026-10-02T22:28:00+02:00",
+  "updated_at": "2026-10-02T22:35:00+02:00",
   "timezone": "Europe/Berlin",
   "disclaimer": "",
   "signals_disclaimer": "",
   "early_signal_note": "ORCL flach ~142.30; Reddit ruhig.",
   "freshness": {
-    "updated_at": "2026-10-02T22:28:00+02:00",
-    "scraped_at": "2026-10-02T22:31:15+0200",
+    "updated_at": "2026-10-02T22:35:00+02:00",
+    "scraped_at": "2026-10-02T22:36:43+0200",
     "quality": "mittel Web+PublicReddit; X skipped (credits $0.00); TikTok fail (Treg auth_needed); Bright Data 401"
   },
   "tick": {
-    "tick_id": "2026-10-02T22:28:00+02:00",
+    "tick_id": "2026-10-02T22:35:00+02:00",
     "timezone": "Europe/Berlin",
-    "scraped_at": "2026-10-02T22:31:15+0200",
+    "scraped_at": "2026-10-02T22:36:43+0200",
     "scrape_window": {
-      "after": "2026-10-02T22:18:00+02:00",
-      "until": "2026-10-02T22:28:00+02:00"
+      "after": "2026-10-02T22:28:00+02:00",
+      "until": "2026-10-02T22:35:00+02:00"
     },
     "baseline": {
-      "prior_tick_id": "2026-10-02T22:18:00+02:00",
-      "prior_tick_num": 156
+      "prior_tick_id": "2026-10-02T22:28:00+02:00",
+      "prior_tick_num": 157
     },
     "vector": {
       "direction": "mixed_cautious",
@@ -39,15 +39,15 @@
     "material_change_reasons": [
       "none_below_threshold"
     ],
-    "material_why": "ORCL flach (142.30→142.30, +0.00%); Δmag +0; Signal HOLD unverändert; News-Katalysatoren unverändert (Director-Buy/Citizens/Tencent/Jobs)",
+    "material_why": "ORCL flach (142.30→142.30, +0.00%); Δmag +0; Signal HOLD unverändert; News-Katalysatoren unverändert (NetApp/Tencent/Director-Buy/Jobs)",
     "delta_vs_prev": {
-      "prev_tick_id": "2026-10-02T22:18:00+02:00",
+      "prev_tick_id": "2026-10-02T22:28:00+02:00",
       "magnitude": 0,
       "confidence": 0,
       "direction_changed": false,
       "items": 0,
       "orcl_price": 0.0,
-      "btc_price": -30.71,
+      "btc_price": 44.11,
       "signal_changed": false
     },
     "totals": {
@@ -86,9 +86,9 @@
         "window": "same-day 2026-10-02",
         "notes": [
           "ORCL ~$142.30 (+0.00% vs prior $142.30); flat hold",
-          "Director Rusckowski ~$3.5M buy + Citizens Outperform/$285 still in headlines",
-          "Tencent cloud deal reports continue; overnight jump headlines vs flat session print",
-          "Jobs report: Sept payrolls cool (~29k), unemployment 4.2% — Fed hike less likely",
+          "NetApp AI-Cloud-Storage Tie-Up + Tencent cloud deal still in headlines",
+          "Yahoo: down ~60% from high — buy interest still cautious",
+          "Fed may skip October hike (Reuters); Jobs cool remains backdrop",
           "Google News RSS ORCL + macro OK"
         ]
       },
@@ -100,7 +100,7 @@
       "user-Treg": {
         "status": "auth_needed",
         "items": 0,
-        "note": "balance/auth probe: not signed in, or this token is invalid or expired"
+        "note": "token invalid/expired (not signed in)"
       },
       "user-Monid": {
         "status": "skip",
@@ -116,9 +116,9 @@
           "thedistributed.co"
         ],
         "window": "24h–30d aggregator snapshots 2026-10-02",
-        "freshest": "2026-10-02T22:31:15+0200",
+        "freshest": "2026-10-02T22:36:43+0200",
         "notes": [
-          "ApeWisdom all-stocks ORCL rank 95 mentions 5 (24h ago 12)",
+          "ApeWisdom all-stocks ORCL rank 95 mentions 5 (24h ago 10)",
           "ApeWisdom WSB ORCL rank 78 mentions 5",
           "AltIndex AI Score ~57 Hold",
           "thedistributed.co 30d 1854 mentions / 49% bullish; 7d 279"
@@ -127,18 +127,19 @@
       "TikTokPublic": {
         "status": "fail",
         "items": 0,
-        "note": "Treg auth_needed; Apify retired — TikTok skipped"
+        "note": "Treg auth_needed; Apify retired"
       },
       "Yahoo": {
         "status": "ok",
         "items": 4,
-        "note": "query1 chart meta OK (interval=5m range=1d after 429 on 1m); quote may 401",
         "prices": {
           "ORCL": 142.3,
           "SPY": 769.64,
           "QQQ": 749.58,
-          "BTC-USD": 84338.51
-        }
+          "BTC-USD": 84382.62
+        },
+        "note": "query1 chart meta interval=5m; quote may 401",
+        "freshest": "2026-10-02T22:36:43+0200"
       }
     },
     "stock_signals": [
@@ -159,72 +160,72 @@
           "news": 5,
           "snippets": [
             "ORCL ~$142.30 (+0.00% vs prior $142.30); flat hold",
-            "ApeWisdom 24h mentions 5 (was 12 24h ago) — social still cool",
-            "SPY ~769.64 / QQQ ~749.58; BTC ~$84,338.51 (-30.71)"
+            "ApeWisdom 24h mentions 5 (was 10 24h ago) — social still cool",
+            "SPY ~769.64 / QQQ ~749.58; BTC ~$84,382.62 (+44.11)"
           ],
           "voices": [
             {
               "source": "News",
-              "text": "Director Rusckowski kauft Oracle-Aktien für etwa 3,5 Mio. Dollar.",
-              "url": "https://www.benzinga.com/",
+              "text": "NetApp-Partnerschaft für neues KI-Cloud-Speicherangebot treibt kurze Kursfantasien.",
+              "url": "https://www.tipranks.com/",
               "lean": "bull",
-              "at": "2026-10-02T22:31:15+0200"
-            },
-            {
-              "source": "News",
-              "text": "Citizens bestätigt Outperform mit Kursziel 285 Dollar.",
-              "url": "https://www.investing.com/",
-              "lean": "bull",
-              "at": "2026-10-02T22:31:15+0200"
+              "at": "2026-10-02T22:36:43+0200"
             },
             {
               "source": "News",
               "text": "Berichte über Tencent-Cloud-Deal halten den Bull-Case am Leben.",
               "url": "https://www.investors.com/",
               "lean": "bull",
-              "at": "2026-10-02T22:31:15+0200"
+              "at": "2026-10-02T22:36:43+0200"
+            },
+            {
+              "source": "News",
+              "text": "Director Rusckowski kauft Oracle-Aktien für etwa 3,5 Mio. Dollar.",
+              "url": "https://www.benzinga.com/",
+              "lean": "bull",
+              "at": "2026-10-02T22:36:43+0200"
             },
             {
               "source": "News",
               "text": "Reddit-Mentions bleiben niedrig (ApeWisdom nur 5).",
               "url": "https://apewisdom.io/stocks/ORCL/",
               "lean": "bear",
-              "at": "2026-10-02T22:31:15+0200"
+              "at": "2026-10-02T22:36:43+0200"
             },
             {
               "source": "News",
               "text": "Kurs bleibt flach bei etwa 142.30 Dollar.",
               "url": "https://finance.yahoo.com/quote/ORCL",
               "lean": "bear",
-              "at": "2026-10-02T22:31:15+0200"
+              "at": "2026-10-02T22:36:43+0200"
             },
             {
               "source": "News",
-              "text": "Berichte über Druck Richtung 52-Wochen-Tief halten Unsicherheit.",
-              "url": "https://stocktwits.com/",
+              "text": "Yahoo: Aktie weiter weit unter dem Hoch — Kaufinteresse bleibt verhalten.",
+              "url": "https://finance.yahoo.com/",
               "lean": "bear",
-              "at": "2026-10-02T22:31:15+0200"
+              "at": "2026-10-02T22:36:43+0200"
             },
             {
               "source": "News",
               "text": "AltIndex hält Hold bei Score etwa 57.",
               "url": "https://altindex.com/ticker/orcl",
               "lean": "mixed",
-              "at": "2026-10-02T22:31:15+0200"
+              "at": "2026-10-02T22:36:43+0200"
             },
             {
               "source": "News",
               "text": "The Distributed: 30-Tage weiter etwa halb bullish.",
               "url": "https://thedistributed.co/stocks/ORCL/",
               "lean": "mixed",
-              "at": "2026-10-02T22:31:15+0200"
+              "at": "2026-10-02T22:36:43+0200"
             },
             {
               "source": "News",
-              "text": "Schwache Jobs-Zahlen; Fed-Zinserhöhung im Oktober unwahrscheinlicher.",
+              "text": "Fed könnte Oktober auslassen; Zinserhöhung unwahrscheinlicher.",
               "url": "https://www.reuters.com/",
               "lean": "mixed",
-              "at": "2026-10-02T22:31:15+0200"
+              "at": "2026-10-02T22:36:43+0200"
             }
           ]
         },
@@ -236,7 +237,7 @@
     ],
     "top_themes": [
       {
-        "theme": "ORCL flach; Director-buy/Citizens/Tencent still in tape",
+        "theme": "ORCL flach; NetApp/Tencent/Director-buy still in tape",
         "sentiment": "mixed",
         "strength": 66,
         "symbol": "ORCL",
@@ -255,14 +256,14 @@
         "symbol": "ORCL",
         "symbol_note": "PublicReddit-Aggregatoren only (kein X)",
         "bias": "mixed",
-        "bias_label": "Mentions weicher als gestern",
+        "bias_label": "Mentions weiter weich",
         "links": {
           "yahoo": "https://finance.yahoo.com/quote/ORCL",
           "tradingview": "https://www.tradingview.com/symbols/ORCL/"
         }
       },
       {
-        "theme": "Jobs cool (Sept ~29k); Fed-Hike unwahrscheinlicher — Makro-Nebennotiz",
+        "theme": "Fed kann Oktober auslassen — Makro-Nebennotiz",
         "sentiment": "mixed",
         "strength": 50,
         "symbol": "SPY",
@@ -276,16 +277,6 @@
       }
     ],
     "mini_series": [
-      {
-        "tick_id": "2026-10-02T20:41:00+02:00",
-        "scraped_at": "2026-10-02T20:44:07+02:00",
-        "magnitude": 47,
-        "confidence": 64,
-        "direction": "mixed_cautious",
-        "items": 8,
-        "early_signal": true,
-        "orcl_price": 141.81
-      },
       {
         "tick_id": "2026-10-02T20:46:00+02:00",
         "scraped_at": "2026-10-02T20:52:20+02:00",
@@ -405,6 +396,14 @@
         "items": 8,
         "early_signal": true,
         "orcl_price": 142.3
+      },
+      {
+        "tick_id": "2026-10-02T22:35:00+02:00",
+        "magnitude": 47,
+        "confidence": 64,
+        "direction": "mixed_cautious",
+        "items": 8,
+        "orcl": 142.3
       }
     ],
     "freshness": {
@@ -1799,6 +1798,15 @@
     {
       "tick_id": "2026-10-02T22:28:00+02:00",
       "scraped_at": "2026-10-02T22:31:15+0200",
+      "direction": "mixed_cautious",
+      "magnitude": 47,
+      "confidence": 64,
+      "early_signal": true,
+      "items": 8
+    },
+    {
+      "tick_id": "2026-10-02T22:35:00+02:00",
+      "scraped_at": "2026-10-02T22:36:43+0200",
       "direction": "mixed_cautious",
       "magnitude": 47,
       "confidence": 64,
