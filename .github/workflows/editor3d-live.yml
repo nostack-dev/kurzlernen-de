@@ -4,19 +4,25 @@ on:
   workflow_run:
     workflows: ["Deploy static site"]
     types: [completed]
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/editor3d-live.yml"
 
 jobs:
   live-editor3d:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 7
+    env:
+      VERIFY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ env.VERIFY_SHA }}
       - name: Wait for exact Editor3D file on Pages
         env:
-          SHA: ${{ github.event.workflow_run.head_sha }}
+          SHA: ${{ env.VERIFY_SHA }}
         run: |
           set -euxo pipefail
           ok=0
@@ -38,4 +44,5 @@ jobs:
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?live=${{ github.event.workflow_run.head_sha }}" node tests/editor3d_browser_smoke.mjs
+          test -n "$CHROME_BIN"
+          CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?live=${VERIFY_SHA}" node tests/editor3d_browser_smoke.mjs
