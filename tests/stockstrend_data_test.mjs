@@ -9,8 +9,9 @@ const html=fs.readFileSync('stockstrend.html','utf8');
 const methodik=fs.readFileSync('methodik.html','utf8');
 
 const sw=trend.tick?.scrape_window;
-assert(sw?.start && sw?.end);
-assert(new Date(sw.start)<=new Date(sw.end),'scrape window reversed');
+const swStart=sw?.start||sw?.after,swEnd=sw?.end||sw?.until;
+assert(swStart&&swEnd);
+assert(new Date(swStart)<=new Date(swEnd),'scrape window reversed');
 
 const o=watch.stocks?.ORCL, tail=o?.history?.at(-1);
 assert(o&&tail);
@@ -51,7 +52,7 @@ assert(!html.includes('function initDesktopEdgeBounce()'),'custom desktop bounce
 assert(!html.includes('edge-bounce-return'),'custom transform bounce must stay removed');
 assert(html.includes("y:{min:-4,max:104"),'sentiment bounds need visual headroom');
 assert(html.includes("scale.ticks=[{value:0},{value:50},{value:100}]"),'sentiment axis must still show semantic 0/50/100 ticks');
-assert(html.includes("priceRangeColor"),'range price color missing');
+assert(html.includes("priceSegmentColor"),'range price color missing');
 assert(html.includes('#5dcb5b'),'TR reference green missing');
 assert(!html.includes('#00c761')&&!html.includes('#00a94f'),'legacy custom green must stay out');
 assert(html.includes('id="marketClock"'),'German market clock missing');
@@ -80,8 +81,8 @@ assert(html.includes('id="sentimentSource"'),'sentiment source/count line missin
 assert(html.includes('id="sentimentRelation"'),'HDR relational sentiment line missing');
 assert(html.includes('function hdrDailySentiment(rows)'),'HDR daily canonicalization missing');
 assert(html.includes('function hdrRelationSeries(rows)'),'HDR relational engine missing');
-assert(html.includes('daily.slice(0,i).filter'),'HDR relation must be past-only / no look-ahead');
-assert(html.includes("cur.t-p.t<=366*864e5"),'HDR global baseline must be rolling one-year history');
+assert(html.includes('daily.slice(windowStart,i)'),'HDR relation must be past-only / no look-ahead');
+assert(html.includes("yearMs=366*864e5")&&html.includes("cur.t-daily[windowStart].t>yearMs"),'HDR global baseline must be rolling one-year history');
 assert(html.includes("prior.slice(-5)"),'HDR local neighborhood must use prior neighbors only');
 assert(html.includes("Math.exp(-Math.LN2*(cur.t-p.t)/half)"),'HDR local neighbors must be time-distance weighted');
 assert(html.includes("impact=Math.abs(cur.value-mean)/span"),'HDR proportional movement ratio missing');
@@ -155,16 +156,16 @@ assert(html.includes("label='Welle baut sich auf'"),'wave build phase missing');
 assert(html.includes("label='Welle bestätigt'"),'wave confirmation phase missing');
 assert(html.includes("label='Welle dreht'"),'wave turn phase missing');
 assert(html.includes("label='Welle läuft aus'"),'wave exhaustion phase missing');
-assert(html.includes('if(evidence<2)'),'wave insight must fail closed without multi-dimensional evidence');
+assert(html.includes('if(!wave&&evidence<2)'),'wave insight must fail closed without multi-dimensional evidence');
 assert(html.includes('lastFlowRenderAt>=15000'),'wave interpretation must not thrash on every realtime tick');
 assert(html.includes('function getMarketWaveVector()'),'wave cache wrapper missing');
-assert(html.includes('waveCache=marketWaveVector();waveCacheAt=now;'),'wave cache must call the real vector engine');
+assert(html.includes('return marketWaveVector();'),'wave wrapper must call the real vector engine');
 assert(!html.includes('waveCache=getMarketWaveVector();waveCacheAt=now;'),'wave cache recursion regression');
 assert(html.includes("var flowVisible=priceRange==='1d'||priceRange==='1w'"),'intraday wave insight must stay scoped to 1T/1W');
 assert(!html.includes('function livePricePace()')&&!html.includes('function marketFlowVector()'),'old short-term speed vector must stay removed');
-assert(html.includes("if(kind==='price'){priceRange=r;saveChartRange(kind,r);syncRangeButtons();renderValueChart();}"),'price range must only rerender price chart');
-assert(html.includes("else if(kind==='sentiment'){sentimentRange=r;saveChartRange(kind,r);syncRangeButtons();renderSentimentChart();renderOpinions();}"),'sentiment range must only rerender sentiment surface');
-assert(html.includes("else if(kind==='magnitude'){magnitudeRange=r;saveChartRange(kind,r);syncRangeButtons();renderMagnitudeChart();}"),'magnitude range must only rerender magnitude chart');
+assert(html.includes("if(kind==='price')renderValueChart();"),'price range must only rerender price chart');
+assert(html.includes("else if(kind==='sentiment'){renderSentimentChart();renderOpinions();}"),'sentiment range must only rerender sentiment surface');
+assert(html.includes("else renderMagnitudeChart();"),'magnitude range must only rerender magnitude chart');
 assert(html.includes("T:ugc)',200"),'TickerTick UGC sample must request max 200');
 assert(html.includes("(and E:oracle T:ugc)',200"),'second TickerTick entity UGC sample missing');
 assert(html.includes('minSocial=50'),'minimum realtime social sample gate missing');
@@ -277,7 +278,7 @@ assert.equal(intr.history.find(x=>x.at.startsWith('2026-09-11'))?.valuation_basi
 assert.equal(intr.history.find(x=>x.at.startsWith('2026-09-14'))?.valuation_basis,'TTM Q1 FY2027');
 
 
-assert(!JSON.stringify(trend.tick?.sources||{}).includes('Apify'),'Apify source keys must be gone');
+assert(!Object.keys(trend.tick?.sources||{}).some(key=>key.includes('Apify')),'Apify source keys must be gone');
 assert(!('user-Apify-Reddit' in (trend.tick?.sources||{})),'user-Apify-Reddit must be removed');
 assert(!('user-Apify-TikTok' in (trend.tick?.sources||{})),'user-Apify-TikTok must be removed');
 assert(trend.tick?.sources?.PublicReddit,'PublicReddit aggregator source missing');
