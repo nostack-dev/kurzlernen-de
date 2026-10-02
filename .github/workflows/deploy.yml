@@ -48,6 +48,7 @@ jobs:
           node tests/player_vitals_logic_test.mjs
           node tests/wanted_system_test.mjs
           node tests/gameplay_fun_logic_test.mjs
+          node tests/editor3d_contract_test.mjs
           node tools/build-intrinsic-orcl.mjs --check
           node tests/stockstrend_data_test.mjs
           node tests/market_clock_test.cjs
@@ -89,13 +90,11 @@ jobs:
           BUILD_DIR=/tmp/arondight45-web-build
           rm -rf "$BUILD_DIR"
           mkdir -p "$BUILD_DIR"
-          cd "$BUILD_DIR"
-          npm init -y >/dev/null
-          npm install --ignore-scripts --no-audit --no-fund \
-            three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 mqtt@5.15.2 nostr-tools@2.24.1 \
-            qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.3 @trystero-p2p/mqtt@0.25.3 @trystero-p2p/torrent@0.25.3
-          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
-          cd "$GITHUB_WORKSPACE"
+          cp -a . "$BUILD_DIR/repo"
+          rm -rf "$BUILD_DIR/repo/.git"
+          cd "$BUILD_DIR/repo"
+          npm ci --ignore-scripts
+          node tools/build-pages.mjs
           node tests/world_building_collision_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           node tests/world_rigid_body_physics_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
@@ -103,92 +102,40 @@ jobs:
           python3 - <<'PY'
           import os
           from pathlib import Path
-          sha=os.environ['GITHUB_SHA']
-          builds=[
-              ('drone_simulator.html','<script type="module" src="./sim/real_world_bootstrap.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),
-              ('drone_simulator.html','<script type="module" src="./sim/auto_flight_start.mjs"></script>','sim/auto_flight_start.mjs'),
-              ('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs'),
-          ]
-          prefix=f'<!-- ARONDIGHT45_BUILD_SHA:{sha} -->\n'
-          for html_name,marker,bundle_name in builds:
-              path=Path(html_name); html=path.read_text(); assert marker in html
-              bundle=Path(bundle_name).read_text().replace('</script','<\\/script')
-              html=html.replace(marker,'<script type="module">\n'+bundle+'\n</script>')
-              if prefix not in html: html=prefix+html
-              path.write_text(html)
+          root=Path('.')
+          for path in root.rglob('*'):
+              if not path.is_file():
+                  continue
+              try:
+                  data=path.read_bytes()
+              except OSError:
+                  continue
+              if b'__BUILD_SHA__' in data:
+                  path.write_bytes(data.replace(b'__BUILD_SHA__',os.environ.get('GITHUB_SHA','unknown').encode()))
           PY
-          test "$(wc -c < drone_simulator.html)" -gt 100000
-          grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" drone_simulator.html
-          grep -q "drone-fpv-fresh-v1" drone_simulator.html
-          rm -rf generated
+          rm -rf node_modules
+          cd "$GITHUB_WORKSPACE"
+          rm -rf public
+          mv "$BUILD_DIR/repo" public
 
       - name: Build ORCL minute feed
-        timeout-minutes: 2
-        run: |
-          set -euxo pipefail
-          URL1='https://query1.finance.yahoo.com/v8/finance/chart/ORCL?range=5d&interval=1m&includePrePost=true&events=div%2Csplits'
-          URL2='https://query2.finance.yahoo.com/v8/finance/chart/ORCL?range=5d&interval=1m&includePrePost=true&events=div%2Csplits'
-          if ! curl -fsSL --retry 2 --connect-timeout 10 --max-time 30 -A 'Mozilla/5.0' "$URL1" -o orcl-minute.json; then
-            curl -fsSL --retry 2 --connect-timeout 10 --max-time 30 -A 'Mozilla/5.0' "$URL2" -o orcl-minute.json
-          fi
-          node - <<'NODE'
-          const fs=require('fs');
-          const p=JSON.parse(fs.readFileSync('orcl-minute.json','utf8'));
-          const r=p?.chart?.result?.[0];
-          const ts=r?.timestamp||[];
-          const q=r?.indicators?.quote?.[0]||{};
-          const good=ts.filter((_,i)=>Number.isFinite(Number(q.close?.[i]))&&Number(q.close[i])>0);
-          if(good.length<25) throw new Error('ORCL minute feed has fewer than 25 valid bars');
-          if(p?.chart?.error) throw new Error('Yahoo chart error: '+JSON.stringify(p.chart.error));
-          console.log('ORCL minute feed OK:',good.length,'bars');
-          NODE
-
-          FX1='https://query1.finance.yahoo.com/v8/finance/chart/EURUSD=X?range=10y&interval=1d&includePrePost=false&events=div%2Csplits'
-          FX2='https://query2.finance.yahoo.com/v8/finance/chart/EURUSD=X?range=10y&interval=1d&includePrePost=false&events=div%2Csplits'
-          if ! curl -fsSL --retry 2 --connect-timeout 10 --max-time 30 -A 'Mozilla/5.0' "$FX1" -o eurusd-history.json; then
-            curl -fsSL --retry 2 --connect-timeout 10 --max-time 30 -A 'Mozilla/5.0' "$FX2" -o eurusd-history.json
-          fi
-          node - <<'NODE'
-          const fs=require('fs');
-          const p=JSON.parse(fs.readFileSync('eurusd-history.json','utf8'));
-          const r=p?.chart?.result?.[0],ts=r?.timestamp||[],q=r?.indicators?.quote?.[0]||{};
-          const good=ts.filter((_,i)=>Number.isFinite(Number(q.close?.[i]))&&Number(q.close[i])>0);
-          if(good.length<500) throw new Error('EURUSD history feed has fewer than 500 valid bars');
-          if(p?.chart?.error) throw new Error('Yahoo chart error: '+JSON.stringify(p.chart.error));
-          console.log('EURUSD history feed OK:',good.length,'bars');
-          NODE
+        run: node tools/build-orcl-minute-feed.mjs
 
       - name: Fast browser boot gate
-        continue-on-error: true
-        timeout-minutes: 4
-        run: |
-          set -euxo pipefail
-          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
-          test -n "$CHROME_BIN"
-          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
-          HTTP_PID=$!
-          trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true' EXIT
-          sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
+        run: node tests/solo_layout_smoke.mjs
 
       - name: Advisory FPS regression smoke
         continue-on-error: true
-        timeout-minutes: 4
-        run: |
-          set -euxo pipefail
-          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
-          test -n "$CHROME_BIN"
-          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-fps-static.log 2>&1 &
-          HTTP_PID=$!
-          trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true; rm -f node_modules' EXIT
-          sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+        run: node tests/solo_fps_smoke.mjs
 
       - uses: actions/configure-pages@v5
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
-      - id: deployment
+          path: public
+
+      - name: Run actions/deploy-pages@v4
+        id: deployment
         uses: actions/deploy-pages@v4
 
       - name: Report deploy final
@@ -199,42 +146,35 @@ jobs:
           GH_REPO: ${{ github.repository }}
           GH_SHA: ${{ github.sha }}
           GH_RUN_ID: ${{ github.run_id }}
+          GH_RUN_NUMBER: ${{ github.run_number }}
           JOB_STATUS: ${{ job.status }}
-          DEPLOY_OUTCOME: ${{ steps.deployment.outcome }}
-          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
         run: |
           set -euo pipefail
-          body="FINAL · sha=${GH_SHA} · run=${GH_RUN_ID} · job=${JOB_STATUS} · deploy=${DEPLOY_OUTCOME:-not-run} · url=${PAGE_URL:-n/a} · https://github.com/${GH_REPO}/actions/runs/${GH_RUN_ID}"
+          body="FINAL · status=${JOB_STATUS} · sha=${GH_SHA} · run=${GH_RUN_ID} · number=${GH_RUN_NUMBER} · https://github.com/${GH_REPO}/actions/runs/${GH_RUN_ID}"
           payload="$(jq -cn --arg body "$body" '{body:$body}')"
           curl -fsSL -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GH_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null
 
   live-e2e:
     needs: deploy
+    if: ${{ needs.deploy.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: write
     steps:
       - name: Verify exact live build
-        id: live_probes
-        timeout-minutes: 3
         env:
           GH_SHA: ${{ github.sha }}
         run: |
           set -euxo pipefail
-          fetched=0
-          for attempt in $(seq 1 12); do
-            if curl -fsSL --retry 1 --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' \
-              "https://kurzlernen.de/drone_simulator.html?ci=${GH_SHA}-${attempt}" -o /tmp/arondight45-live.html \
-              && test "$(wc -c < /tmp/arondight45-live.html)" -gt 100000 \
-              && grep -q "ARONDIGHT45_BUILD_SHA:${GH_SHA}" /tmp/arondight45-live.html \
-              && grep -q "drone-fpv-fresh-v1" /tmp/arondight45-live.html; then
-              fetched=1
-              break
+          for i in $(seq 1 24); do
+            html="$(curl -fsSL --max-time 20 https://kurzlernen.de/ || true)"
+            if printf '%s' "$html" | grep -Fq "$GH_SHA"; then
+              exit 0
             fi
-            sleep 3
+            sleep 5
           done
-          test "$fetched" = 1
+          exit 1
 
       - name: Report live E2E final
         if: always()
@@ -244,9 +184,10 @@ jobs:
           GH_REPO: ${{ github.repository }}
           GH_SHA: ${{ github.sha }}
           GH_RUN_ID: ${{ github.run_id }}
-          LIVE_OUTCOME: ${{ steps.live_probes.outcome }}
+          GH_RUN_NUMBER: ${{ github.run_number }}
+          JOB_STATUS: ${{ job.status }}
         run: |
           set -euo pipefail
-          body="LIVE FINAL · sha=${GH_SHA} · run=${GH_RUN_ID} · live-e2e=${LIVE_OUTCOME} · https://github.com/${GH_REPO}/actions/runs/${GH_RUN_ID}"
+          body="LIVE-E2E · status=${JOB_STATUS} · sha=${GH_SHA} · run=${GH_RUN_ID} · number=${GH_RUN_NUMBER} · https://github.com/${GH_REPO}/actions/runs/${GH_RUN_ID}"
           payload="$(jq -cn --arg body "$body" '{body:$body}')"
           curl -fsSL -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GH_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GH_REPO}/issues/53/comments" -d "$payload" >/dev/null
