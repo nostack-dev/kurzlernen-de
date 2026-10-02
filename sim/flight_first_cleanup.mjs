@@ -1,0 +1,65 @@
+let installed=false;
+const active=new Map();
+let lookLoop=0,lastLookFrame=performance.now();
+
+function viewport(){return document.getElementById("viewport");}
+function walk(){return globalThis.__arondightWalkMode||null;}
+function footWeapons(){return globalThis.__arondightFootWeapons||null;}
+function isFoot(){return walk()?.mode==="foot"&&document.body.classList.contains("on-foot-mode");}
+function touchDevice(){return (navigator.maxTouchPoints||0)>0;}
+function quarterTurn(){return viewport()?.dataset?.soloOrientation==="css-landscape";}
+function clamp(v,a=-1,b=1){return Math.max(a,Math.min(b,Number(v)||0));}
+function unit(x,y){const length=Math.hypot(x,y);return length>1?{x:x/length,y:y/length}:{x:clamp(x),y:clamp(y)};}
+function interactive(target){return Boolean(target?.closest?.("button,input,select,textarea,a,label,dialog,#soloTopbar,.phone-settings-dialog,#footWeaponToggle"));}
+function axesFor(entry,event){const sx=event.clientX-entry.startX,sy=event.clientY-entry.startY;return unit((entry.turn?sy:sx)/entry.radius,(entry.turn?-sx:sy)/entry.radius);}
+function rewriteForMove(event,entry,axes){try{Object.defineProperty(event,"clientX",{configurable:true,value:entry.cx+axes.x*entry.radius});Object.defineProperty(event,"clientY",{configurable:true,value:entry.cy+axes.y*entry.radius});Object.defineProperty(event,"__arondightLogicalPointer",{configurable:true,value:true});}catch{}}
+function paintLook(entry,axes){const knob=entry.element.querySelector(".knob");if(knob){knob.style.left=`${50+axes.x*42}%`;knob.style.top=`${50+axes.y*42}%`;}}
+function resetLook(entry){paintLook(entry,{x:0,y:0});walk()?.endTouchLook?.("right-stick");entry.axes={x:0,y:0};}
+function ensureLookLoop(){if(lookLoop)return;const frame=now=>{lookLoop=requestAnimationFrame(frame);const dt=Math.max(1/240,Math.min(.05,(now-lastLookFrame)/1000));lastLookFrame=now;for(const entry of active.values())if(entry.kind==="look")walk()?.applyTouchLookStick?.({x:entry.axes.x,y:entry.axes.y,dt,now,source:"right-stick"});};lastLookFrame=performance.now();lookLoop=requestAnimationFrame(frame);}
+function fireScreen(event){const api=footWeapons();api?.fireAt?.({clientX:event.clientX,clientY:event.clientY});window.dispatchEvent(new CustomEvent("arondight:foot-screen-fire",{detail:{clientX:event.clientX,clientY:event.clientY,source:"screen-touch"}}));const view=viewport();if(view){view.dataset.walkTouchContract="sticks-own-drag-screen-tap-fires-v1";view.dataset.walkScreenTouch="fire-only-v1";}}
+
+function capture(event){
+  if(!touchDevice()||event.pointerType==="mouse"||!isFoot())return;
+  const target=event.target instanceof Element?event.target:null;
+  if(event.type==="pointerdown"){
+    const move=target?.closest("#footMove"),lookStick=target?.closest("#footLook");
+    if(move||lookStick){const element=move||lookStick,r=element.getBoundingClientRect(),entry={kind:move?"move":"look",element,startX:event.clientX,startY:event.clientY,cx:r.left+r.width/2,cy:r.top+r.height/2,radius:Math.max(1,Math.min(r.width,r.height)*.42),turn:quarterTurn(),axes:{x:0,y:0}};active.set(event.pointerId,entry);if(entry.kind==="move"){rewriteForMove(event,entry,entry.axes);}else{event.preventDefault();event.stopImmediatePropagation();element.setPointerCapture?.(event.pointerId);walk()?.beginTouchLook?.("right-stick");paintLook(entry,entry.axes);ensureLookLoop();}return;}
+    if(interactive(target))return;
+    fireScreen(event);event.preventDefault();event.stopImmediatePropagation();return;
+  }
+  const entry=active.get(event.pointerId);if(!entry)return;
+  if(event.type==="pointermove"){
+    entry.axes=axesFor(entry,event);
+    if(entry.kind==="move")rewriteForMove(event,entry,entry.axes);else{paintLook(entry,entry.axes);event.preventDefault();event.stopImmediatePropagation();}
+    return;
+  }
+  if(event.type==="pointerup"||event.type==="pointercancel"){
+    active.delete(event.pointerId);if(entry.kind==="look"){resetLook(entry);event.preventDefault();event.stopImmediatePropagation();}
+  }
+}
+
+function installStyle(){
+  if(document.querySelector("style[data-flight-first-cleanup]"))return;
+  const style=document.createElement("style");style.dataset.flightFirstCleanup="v1";style.textContent=`
+/* No arcade contract/momentum/score overlays over the flight image. */
+#gameplayContractHud,#gameplayScorePill,#gameplayToast,#gameplayMomentum{display:none!important;visibility:hidden!important;pointer-events:none!important}
+/* FPV: exactly two sticks. Screen touch is fire; fullscreen look and FIRE overlay are gone. */
+body.on-foot-mode #footLookZone,body.on-foot-mode #footFire,body.on-foot-mode #footReadout{display:none!important;pointer-events:none!important}
+body.on-foot-mode .foot-stick{position:absolute!important;width:min(25vw,150px)!important;aspect-ratio:1!important;bottom:max(20px,var(--solo-safe-bottom,env(safe-area-inset-bottom)))!important;border:0!important;border-radius:50%!important;background:transparent!important;box-shadow:none!important;opacity:1!important;pointer-events:auto!important;touch-action:none!important;z-index:20!important}
+body.on-foot-mode #footMove{left:max(12px,var(--solo-safe-left,env(safe-area-inset-left)))!important}
+body.on-foot-mode #footLook{right:max(12px,var(--solo-safe-right,env(safe-area-inset-right)))!important;width:min(25vw,150px)!important;opacity:1!important;background:transparent!important}
+body.on-foot-mode .foot-stick .ring{position:absolute!important;inset:0!important;border-radius:50%!important;border:2px solid #ffffff66!important;background:#0b18265c!important;box-shadow:inset 0 0 45px #0005,0 6px 22px #0005!important}
+body.on-foot-mode .foot-stick .knob{position:absolute!important;left:50%;top:50%;width:31%!important;aspect-ratio:1!important;transform:translate(-50%,-50%)!important;border-radius:50%!important;background:#f3f7ffcc!important;border:2px solid #fff!important;box-shadow:0 3px 14px #0008!important}
+body.on-foot-mode .foot-stick span{bottom:-15px!important;font-size:9px!important}
+/* Landscape settings must fit and genuinely scroll. */
+dialog.phone-settings-dialog[open]{box-sizing:border-box!important;position:fixed!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%)!important;margin:0!important;width:min(94vw,560px)!important;height:min(94dvh,calc(100dvh - 10px))!important;max-height:none!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior-y:contain!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important;padding-bottom:max(20px,env(safe-area-inset-bottom))!important}
+dialog.phone-settings-dialog[open] .phone-settings-titlebar{position:sticky!important;top:-16px!important;z-index:20!important}
+@media(max-height:430px){dialog.phone-settings-dialog[open]{width:min(96vw,680px)!important;height:calc(100dvh - 8px)!important;padding:10px 14px 20px!important}dialog.phone-settings-dialog[open] .phone-settings-titlebar{top:-10px!important;margin:-10px -14px 8px!important;padding:8px 12px!important}.phone-settings-row{margin:9px 0!important}.phone-settings-toggle{margin:8px 0 6px!important;padding:7px 0!important}.phone-settings-profile{margin-bottom:10px!important;padding:8px 10px!important}}
+`;
+  document.head.appendChild(style);
+}
+
+function publish(){const view=viewport();if(!view)return;view.dataset.flightFirstUi="real-estate-first-v1";view.dataset.walkTouchContract="stick-origin-owned-drag-v1";view.dataset.walkFullscreenLook="disabled";view.dataset.walkScreenTouch="fire-only-v1";view.dataset.walkFireOverlay="removed";view.dataset.gameplayArcadeHud="hidden";}
+function frame(){publish();requestAnimationFrame(frame);}
+
+export function installFlightFirstCleanup(){if(installed)return;installed=true;installStyle();window.addEventListener("pointerdown",capture,{capture:true,passive:false});window.addEventListener("pointermove",capture,{capture:true,passive:false});window.addEventListener("pointerup",capture,{capture:true,passive:false});window.addEventListener("pointercancel",capture,{capture:true,passive:false});requestAnimationFrame(frame);}
