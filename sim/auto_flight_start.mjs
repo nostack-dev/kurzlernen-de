@@ -1,4 +1,5 @@
 const $=id=>document.getElementById(id);
+const PLAYER_MODE_KEY="arondight45PlayerModeV2";
 
 function requestStartupLocation(){
   if(!navigator.geolocation)return Promise.resolve({fix:null,error:Error("Geolocation is not available in this browser")});
@@ -11,8 +12,6 @@ function requestStartupLocation(){
 
 // Surface the browser GPS permission immediately. Flight startup never waits for
 // this promise, so denied GPS or an offline network cannot block local SIM.
-// Release validation proves long-range NAV, realtime catch-up and visual cadence.
-// This comment intentionally triggers the final exact-SHA Deploy + S31 gate.
 const startupLocation=requestStartupLocation();
 
 async function waitForBridge(timeoutMs=30000){
@@ -37,9 +36,23 @@ function syncWorldButton(){
   button.textContent=bridge.loading?"WORLD…":bridge.active?"WORLD ✓":"WORLD";
 }
 
+function normalizeStartupPlayerState(){
+  try{localStorage.setItem(PLAYER_MODE_KEY,"drone");}catch{}
+  const viewport=$("viewport"),playerDead=Boolean(globalThis.__arondightPlayerDamageModel?.dead),droneDead=Boolean(globalThis.__arondightDroneDamageModel?.destroyed),combatDead=Boolean(bridge?.vsLocalDead);
+  if(playerDead||droneDead||combatDead){
+    $("soloReset")?.click();
+    if(bridge){bridge.vsLocalDead=false;bridge.vsLocalHealth=100;bridge.vsLocalPoseSample=null;bridge.updateVsCombatHud?.(true);}
+  }
+  const mode=globalThis.__arondightWalkMode?.setMode?.("drone",{persist:false,reason:"startup-default"});
+  if(viewport){
+    viewport.dataset.autoStartupPlayerMode=String(mode||globalThis.__arondightWalkMode?.mode||"drone");
+    viewport.dataset.autoStartupDeathReset=(playerDead||droneDead||combatDead)?"1":"0";
+    viewport.dataset.autoStartupContract="drone-fpv-fresh-v1";
+  }
+}
+
 function launchDefaultFlight(){
-  // Reuse the exact existing UI paths so automatic startup cannot diverge from
-  // a human selecting FPV and START SIM manually.
+  normalizeStartupPlayerState();
   $("camFpv")?.click();
   const cameraButton=$("soloCamera");if(cameraButton)cameraButton.textContent="FPV";
   $("camSolo")?.click();
@@ -65,9 +78,6 @@ async function autoWorld(locationResultPromise){
   if(error){trainingFallback(`TRAINING RANGE · GPS unavailable · ${error.message}`);return;}
   if(navigator.onLine===false){trainingFallback("TRAINING RANGE · offline · GPS permission ready");return;}
   try{
-    // The permission prompt's high-accuracy fix is the WORLD origin. Do not ask
-    // the platform for a second fix during startup; manual WORLD activation still
-    // acquires a fresh position when no startup fix is supplied.
     const pending=bridge.activate(fix);syncWorldButton();await pending;markWorldStartup("startup-gps");syncWorldButton();
   }catch(error){trainingFallback(`TRAINING RANGE · WORLD unavailable · ${error?.message||error}`);}
 }

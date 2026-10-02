@@ -57,6 +57,7 @@ jobs:
           node --check sim/flight_fire_fx.mjs
           node --check sim/world_rigid_body_runtime.mjs
           node --check sim/wanted_police_drones.mjs
+          node --check sim/auto_flight_start.mjs
           grep -q 'kMaxHorizontalAccelerationMps2 = 7.5f' esp32/Arondight45_StateControl.hpp
           grep -q 'box3d_hitscan.mjs' sim/flight_fire_fx.mjs
 
@@ -105,15 +106,20 @@ jobs:
           sha=os.environ['GITHUB_SHA']
           builds=[
               ('drone_simulator.html','<script type="module" src="./sim/real_world_bootstrap.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),
+              ('drone_simulator.html','<script type="module" src="./sim/auto_flight_start.mjs"></script>','sim/auto_flight_start.mjs'),
               ('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs'),
           ]
+          prefix=f'<!-- ARONDIGHT45_BUILD_SHA:{sha} -->\n'
           for html_name,marker,bundle_name in builds:
               path=Path(html_name); html=path.read_text(); assert marker in html
               bundle=Path(bundle_name).read_text().replace('</script','<\\/script')
-              path.write_text(f'<!-- ARONDIGHT45_BUILD_SHA:{sha} -->\n'+html.replace(marker,'<script type="module">\n'+bundle+'\n</script>'))
+              html=html.replace(marker,'<script type="module">\n'+bundle+'\n</script>')
+              if prefix not in html: html=prefix+html
+              path.write_text(html)
           PY
           test "$(wc -c < drone_simulator.html)" -gt 100000
           grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" drone_simulator.html
+          grep -q "drone-fpv-fresh-v1" drone_simulator.html
           rm -rf generated
 
       - name: Build ORCL minute feed
@@ -221,7 +227,8 @@ jobs:
             if curl -fsSL --retry 1 --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' \
               "https://kurzlernen.de/drone_simulator.html?ci=${GH_SHA}-${attempt}" -o /tmp/arondight45-live.html \
               && test "$(wc -c < /tmp/arondight45-live.html)" -gt 100000 \
-              && grep -q "ARONDIGHT45_BUILD_SHA:${GH_SHA}" /tmp/arondight45-live.html; then
+              && grep -q "ARONDIGHT45_BUILD_SHA:${GH_SHA}" /tmp/arondight45-live.html \
+              && grep -q "drone-fpv-fresh-v1" /tmp/arondight45-live.html; then
               fetched=1
               break
             fi

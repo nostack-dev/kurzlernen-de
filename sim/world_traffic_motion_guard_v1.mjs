@@ -7,7 +7,7 @@ function ready(){return Boolean(document.getElementById("status")?.textContent?.
 function bridge(){return globalThis.__arondightRealWorld||null;}
 function rigid(){return globalThis.__arondightWorldRigidBodies||null;}
 function vehicleId(id){return /^(?:car|bus)-/.test(String(id||""));}
-function publish(){const v=viewport();if(!v)return;v.dataset.worldTrafficMotion="forward-collinear-v3";v.dataset.worldTrafficLaneContinuity="no-cross-lane-u-turn-v3";v.dataset.worldTrafficUturnCorrections=String(uturnCorrections);v.dataset.worldTrafficHeadingFixes=String(fixes);v.dataset.worldTrafficMotionCadenceMs="100";v.dataset.worldTrafficBootGuard="after-sim-ready-v1";}
+function publish(){const v=viewport();if(!v)return;v.dataset.worldTrafficMotion="forward-collinear-v2";v.dataset.worldTrafficLaneContinuity="no-cross-lane-u-turn-v2";v.dataset.worldTrafficUturnCorrections=String(uturnCorrections);v.dataset.worldTrafficHeadingFixes=String(fixes);v.dataset.worldTrafficMotionCadenceMs="100";v.dataset.worldTrafficBootGuard="after-sim-ready-v1";}
 function patchTargets(){
   const api=rigid();if(!api||typeof api.setTarget!=="function"||typeof api.pose!=="function")return false;if(api===lastApi&&api.setTarget?.__trafficLaneGuardV1)return true;
   baseSetTarget=api.setTarget.bind(api);
