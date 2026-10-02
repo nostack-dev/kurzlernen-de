@@ -47,7 +47,7 @@ function alignBodies(now){
 }
 function tick(){
   if(!ready()){setTimeout(tick,200);return;}
-  patchTargets();alignBodies(performance.now());setTimeout(tick,100);
+  publish();patchTargets();alignBodies(performance.now());setTimeout(tick,100);
 }
 export function installWorldTrafficMotionGuardV1(){if(installed)return;installed=true;setTimeout(tick,0);}
 installWorldTrafficMotionGuardV1();
