@@ -1,0 +1,71 @@
+name: Assemble Editor3D release
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".editor3d-staging/**"
+      - ".github/workflows/editor3d-assemble.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  assemble-test-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Assemble single-file Editor3D
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          parts=sorted(Path('.editor3d-staging').glob('payload-*.txt'))
+          assert parts, 'missing Editor3D payload parts'
+          payload=''.join(p.read_text().strip() for p in parts)
+          wrapper=f'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Editor3D — Box3D physics scene editor</title></head><body style="margin:0;background:#20242a;color:#ddd;font:13px Arial;display:grid;place-items:center;height:100vh">Loading Editor3D…<script>(async()=>{{try{{const EDITOR3D_GZIP_BASE64='{payload}';const bytes=Uint8Array.from(atob(EDITOR3D_GZIP_BASE64),c=>c.charCodeAt(0));const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));const html=await new Response(stream).text();document.open();document.write(html);document.close()}}catch(e){{document.body.textContent='Editor3D failed to start: '+e.message;console.error(e)}}}})();</script></body></html>'''
+          Path('editor3d.html').write_text(wrapper)
+          assert len(wrapper)>30000
+          PY
+          node tests/editor3d_contract_test.mjs
+      - name: Install exact runtime test dependencies
+        run: |
+          set -euxo pipefail
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 puppeteer-core@24.16.0
+      - name: Real browser test before commit
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          python3 -m http.server 4180 --bind 127.0.0.1 >/tmp/editor3d-http.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" EDITOR3D_LOCAL_DEPS=1 REPO_ROOT="$GITHUB_WORKSPACE" node tests/editor3d_browser_smoke.mjs
+      - name: Commit final single file and remove staging chunks
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          rm -rf .editor3d-staging
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A editor3d.html .editor3d-staging
+          git commit -m 'Finish Editor3D parity with Box3D browser coverage'
+          git pull --rebase origin main
+          git push origin HEAD:main || { git pull --rebase origin main; git push origin HEAD:main; }
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Dispatch canonical Pages deploy and Editor3D E2E
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          gh workflow run deploy.yml --ref main
+          gh workflow run editor3d-e2e.yml --ref main
+          echo "Final Editor3D commit: ${{ steps.publish.outputs.sha }}"
