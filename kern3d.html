@@ -26,11 +26,11 @@
   <div id="hint">
     <b>kern3d</b> auf kurzlernen.de. Eine Datei, Vanilla-JS, CDN wie Three.js.
     Ziehen dreht, Shift-Ziehen schiebt, Rad zoomt.
-    <a href="https://cdn.jsdelivr.net/gh/ChristianHohlfeld/kern3d@0.1.4/dist/kern3d.js">CDN</a>
+    <a href="https://cdn.jsdelivr.net/gh/ChristianHohlfeld/kern3d@0.1.5/dist/kern3d.js">CDN</a>
   </div>
   <div id="hud">lädt…</div>
 
-  <script src="https://cdn.jsdelivr.net/gh/ChristianHohlfeld/kern3d@0.1.4/dist/kern3d.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/ChristianHohlfeld/kern3d@0.1.5/dist/kern3d.js"></script>
   <script>
     var canvas = document.getElementById("view");
     var hud = document.getElementById("hud");
@@ -116,8 +116,10 @@
     }
 
     function resize() {
-      var w = canvas.clientWidth || window.innerWidth;
-      var h = canvas.clientHeight || window.innerHeight;
+      var box = canvas.parentElement || document.body;
+      var w = box.clientWidth || window.innerWidth;
+      var h = box.clientHeight || window.innerHeight;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
