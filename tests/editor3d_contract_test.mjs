@@ -2,51 +2,67 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 
-const packaged=fs.readFileSync(new URL('../editor3d.html',import.meta.url),'utf8');
-function unpackEditor3D(source){
-  if(!source.includes("DecompressionStream('gzip')"))return source;
-  const expr=source.match(/const payload=([\s\S]*?);const b=Uint8Array/);
-  assert.ok(expr,'Editor3D compressed wrapper must expose its payload expression');
-  const chunks=[...expr[1].matchAll(/'([A-Za-z0-9+/=]*)'/g)].map(m=>m[1]);
-  assert.ok(chunks.length,'Editor3D compressed wrapper must contain base64 payload chunks');
-  return gunzipSync(Buffer.from(chunks.join(''),'base64')).toString('utf8');
-}
-const html=unpackEditor3D(packaged);
-const hasBox3dRuntime=/box3d\.js@0\.1\.1\/dist\/box3d\.inline\.mjs/.test(html)||(
-  html.includes('b3CreateSphereShape')&&html.includes('b3CreateCapsuleShape')&&
-  (html.includes('b3CreateHullShape')||html.includes('b3CreateTransformedHullShape'))&&
-  html.includes('b3CreateMotorJoint')
-);
-assert.ok(hasBox3dRuntime,'Editor3D contract missing: Box3D inline/self-contained runtime');
-const jointMatch=html.match(/const jointTypes=\[([^\]]+)\]/);
-assert.ok(jointMatch,'Editor3D contract missing: joint type list');
-const jointTypes=[...jointMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map(m=>m[1]);
-for(const type of ['revolute','distance','prismatic','wheel','weld','motor'])assert.ok(jointTypes.includes(type),`Editor3D UI contract missing core 3D joint kind: ${type}`);
-for(const api of ['b3DefaultRevoluteJointDef','b3DefaultDistanceJointDef','b3DefaultPrismaticJointDef','b3DefaultWheelJointDef','b3DefaultWeldJointDef','b3DefaultMotorJointDef'])assert.ok(html.includes(api),`Editor3D engine contract missing core joint API: ${api}`);
-const semanticTokens=[
-  ['Three.js renderer','three@0.185.1'],['3D hull rendering','ConvexGeometry'],['items dock','id="itemsPanel"'],['context dock','id="contextPanel"'],['undo dock','id="undoPanel"'],['properties dock','id="propertiesPanel"'],['message log dock','id="logPanel"'],['multi fixture bodies','fixtures:[]'],['sphere fixture','b3CreateSphereShape'],['capsule fixture','b3CreateCapsuleShape'],['kinematic mouse body','b3_kinematicBody'],['motor joint definition','b3DefaultMotorJointDef'],['motor joint creation','b3CreateMotorJoint'],['local grab point','b3Body_GetLocalPoint'],['official mouse spring hertz','linearHertz=7.5'],['critical damping','linearDampingRatio=1'],['mass-scaled spring force','b3Body_GetMass'],['target-transform dragging','b3Body_SetTargetTransform'],['joint cleanup','b3DestroyJoint'],['mouse-body cleanup','b3DestroyBody'],['selection suppression','user-select:none'],['iOS callout suppression','-webkit-touch-callout:none'],['canvas touch ownership','touch-action:none']
-];
-for(const [name,token] of semanticTokens)assert.ok(html.includes(token),`Editor3D contract missing: ${name}`);
+const raw=fs.readFileSync(new URL('../editor3d.html', import.meta.url),'utf8');
+const packed=raw.match(/EDITOR3D_GZIP_BASE64='([^']+)'/);
+const html=packed?gunzipSync(Buffer.from(packed[1],'base64')).toString('utf8'):raw;
 const must=[
-  ['RUBE-style menu bar',/data-menu="File"[\s\S]*data-menu="Edit"[\s\S]*data-menu="View"[\s\S]*data-menu="Scene"[\s\S]*data-menu="Window"[\s\S]*data-menu="Tools"[\s\S]*data-menu="Help"/],
-  ['document + view model',/documents=\[\],views=\[\],activeView=null/],
-  ['player Box3D world',/buildWorld\((?:v\.source|source)\)/],
+  ['Box3D inline runtime',/box3d\.js@0\.1\.1\/dist\/box3d\.inline\.mjs/],
+  ['Three.js renderer',/three@0\.185\.1/],
+  ['3D convex hull rendering',/ConvexGeometry/],
+  ['RUBE menu bar',/data-menu="File"[\s\S]*data-menu="Edit"[\s\S]*data-menu="View"[\s\S]*data-menu="Scene"[\s\S]*data-menu="Window"[\s\S]*data-menu="Tools"[\s\S]*data-menu="Help"/],
+  ['dockable panels',/id="itemsPanel"[\s\S]*id="contextPanel"[\s\S]*id="undoPanel"[\s\S]*id="propertiesPanel"[\s\S]*id="helpPanel"[\s\S]*id="logPanel"/],
+  ['documents and views',/documents=\[\],views=\[\],activeView=null/],
   ['editor modes',/body:'Body',fixture:'Fixture',vertex:'Vertex',joint:'Joint',image:'Image',sampler:'Sampler',world:'World'/],
-  ['X Y Z transform axes',/\['x','y','z'\]\.includes\(key\)/],
-  ['typed transform input',/operation\.typed/],
-  ['Space action menu',/openPopup\(actionMenu\(\)/],
-  ['body fixture vertex joint image shortcuts',/const m=\{b:'body',f:'fixture',v:'vertex',j:'joint',i:'image'\}\[key\]/],
-  ['duplicate remaps connected joints',/map\.has\(j\.bodyA\)&&map\.has\(j\.bodyB\)/],
-  ['undo history',/d\.history\.push\(\{label,before,after\}\)/],
-  ['clone view',/function cloneView\(\)/],
+  ['RUBE + Box3D joint vocabulary',/\['revolute','distance','prismatic','wheel','rope','weld','friction','motor','spherical','parallel','filter'\]/],
+  ['compound document bodies',/fixtures:\[\]/],
+  ['separate player source',/source=clone\(d\.scene\)/],
+  ['Box3D player world',/v\.sim=buildWorld\(source\)/],
+  ['box hull shape',/b3CreateHullShape\(bodyId,sd,hull\)/],
+  ['sphere shape',/b3CreateSphereShape\(bodyId,sd/],
+  ['capsule shape',/b3CreateCapsuleShape\(bodyId,sd/],
+  ['native revolute joint',/b3CreateRevoluteJoint\(sim\.world,d\)/],
+  ['native prismatic joint',/b3CreatePrismaticJoint\(sim\.world,d\)/],
+  ['native wheel joint',/b3CreateWheelJoint\(sim\.world,d\)/],
+  ['native spherical joint',/b3CreateSphericalJoint\(sim\.world,d\)/],
+  ['native filter joint',/b3CreateFilterJoint\(sim\.world,d\)/],
+  ['rope maps to distance limits',/j\.type==='distance'\|\|j\.type==='rope'[\s\S]*d\.maxLength/],
+  ['friction maps to motor constraint',/j\.type==='motor'\|\|j\.type==='friction'[\s\S]*maxVelocityForce/],
+  ['three axis operations',/\['x','y','z'\]\.includes\(key\)/],
+  ['typed transforms',/applyTypedOperation/],
+  ['joint limit keyboard operation',/kind==='limit'[\s\S]*lowerLimit[\s\S]*upperLimit/],
+  ['space action menu',/openPopup\(actionMenu\(\)/],
+  ['mode keys',/\{b:'body',f:'fixture',v:'vertex',j:'joint',i:'image'\}/],
+  ['connected duplicate remaps joints',/map\.get\(j\.bodyA\)[\s\S]*map\.get\(j\.bodyB\)/],
+  ['full clipboard paste',/function pasteData\(data=clipboard\)/],
+  ['undo journal',/d\.history\.push\(\{label,before,after\}\)/],
+  ['clone view',/function cloneView\(/],
   ['tile views',/tiled=!tiled/],
+  ['box selection',/function selectInBox\(/],
+  ['image alpha fixture generation',/function traceImageToBoxes\(/],
+  ['sampler composition',/function composeSampler\(/],
+  ['editable e3d v2',/format:'editor3d',version:2/],
+  ['negative mirror support',/sx\*sy\*sz<0/],
+  ['mirrored limits',/j\.lowerLimit=-old\.upperLimit;j\.upperLimit=-old\.lowerLimit/],
+  ['mirrored motor direction',/j\.motorSpeed=-\(old\.motorSpeed\|\|0\)/],
+  ['world sleep forwarded',/wd\.enableSleep=!!s\.world\.allowSleep/],
+  ['continuous physics forwarded',/wd\.enableContinuous=!!s\.world\.continuousPhysics/],
+  ['kinematic mouse body',/b3_kinematicBody/],
+  ['mouse MotorJoint',/b3CreateMotorJoint\(v\.sim\.world,jd\)/],
+  ['local grab point',/b3Body_GetLocalPoint\(\[0,0,0\],bodyId,h\.point\.toArray\(\)\)/],
+  ['official mouse spring frequency',/jd\.linearHertz=7\.5/],
+  ['critical mouse damping',/jd\.linearDampingRatio=1/],
+  ['mass scaled mouse force',/jd\.maxSpringForce=100\*mass\*Math\.max\(g,1\)/],
+  ['mouse target transform',/b3Body_SetTargetTransform\(g\.mouseBody/],
+  ['mouse joint cleanup',/b3DestroyJoint\(g\.joint,true\)/],
+  ['mouse body cleanup',/b3DestroyBody\(g\.mouseBody\)/],
+  ['canvas selection disabled',/user-select:none/],
+  ['iOS callout disabled',/-webkit-touch-callout:none/],
+  ['canvas touch ownership',/touch-action:none/],
   ['selectstart prevention',/addEventListener\('selectstart',e=>e\.preventDefault\(\)\)/],
   ['pointer cancel cleanup',/addEventListener\('pointercancel',end\)/],
   ['lost pointer capture cleanup',/addEventListener\('lostpointercapture',end\)/],
 ];
-for(const [name,re] of must)assert.match(html,re,`Editor3D contract missing: ${name}`);
-assert.ok(html.includes('b3CreateHullShape')||html.includes('b3CreateTransformedHullShape'),'Editor3D contract missing: Box3D hull fixture');
-assert.ok(html.includes('maxSpringForce'),'Editor3D contract missing: mouse spring max force');
+for(const [name,re] of must) assert.match(html,re,`Editor3D contract missing: ${name}`);
+assert.doesNotMatch(html,/(?:src|from)=[#'][^"']*(?:planck|box2d)|import\s+[^;]*(?:planck|box2d)/i,'Editor3D must not import a 2D physics runtime');
 assert.doesNotMatch(html,/user-select:text/,'Canvas/editor must never enable browser text selection');
-assert.doesNotMatch(html,/(?:src|from)=["'][^"']*(?:planck|box2d)|import\s+[^;]*(?:planck|box2d)/i,'Editor3D must not import a 2D physics runtime');
-console.log(`PASS editor3d semantic parity contract (${semanticTokens.length+must.length+14} invariants${packaged===html?'':' · unpacked self-contained payload'})`);
+console.log(`PASS editor3d parity contract (${must.length} invariants)`);

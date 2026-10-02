@@ -1,0 +1,41 @@
+name: Editor3D live verification
+
+on:
+  workflow_run:
+    workflows: ["Deploy static site"]
+    types: [completed]
+
+jobs:
+  live-editor3d:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Wait for exact Editor3D file on Pages
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euxo pipefail
+          ok=0
+          for attempt in $(seq 1 15); do
+            if curl -fsSL --retry 1 --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' \
+              "https://kurzlernen.de/editor3d.html?ci=${SHA}-${attempt}" -o /tmp/editor3d-live.html \
+              && test "$(wc -c < /tmp/editor3d-live.html)" -gt 30000 \
+              && grep -q 'Editor3D' /tmp/editor3d-live.html; then
+              ok=1; break
+            fi
+            sleep 3
+          done
+          test "$ok" = 1
+      - name: Install live browser probe
+        run: |
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund puppeteer-core@24.16.0
+      - name: Run Editor3D against deployed URL
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?live=${{ github.event.workflow_run.head_sha }}" node tests/editor3d_browser_smoke.mjs
