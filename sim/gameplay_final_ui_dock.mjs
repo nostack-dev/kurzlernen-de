@@ -1,4 +1,5 @@
 import "./gameplay_final_input_extras.mjs";
+import "./player_box3d_capsule_runtime.mjs";
 import {installMobileGameplayUi} from "./mobile_gameplay_ui.mjs";
 import {installFlightFirstCleanup} from "./flight_first_cleanup.mjs";
 
