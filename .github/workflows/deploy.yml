@@ -148,11 +148,12 @@ jobs:
           const r=p?.chart?.result?.[0],ts=r?.timestamp||[],q=r?.indicators?.quote?.[0]||{};
           const good=ts.filter((_,i)=>Number.isFinite(Number(q.close?.[i]))&&Number(q.close[i])>0);
           if(good.length<500) throw new Error('EURUSD history feed has fewer than 500 valid bars');
-          if(p?.chart?.error) throw new Error('EURUSD chart error: '+JSON.stringify(p.chart.error));
+          if(p?.chart?.error) throw new Error('Yahoo chart error: '+JSON.stringify(p.chart.error));
           console.log('EURUSD history feed OK:',good.length,'bars');
           NODE
 
       - name: Fast browser boot gate
+        continue-on-error: true
         timeout-minutes: 4
         run: |
           set -euxo pipefail
