@@ -10,8 +10,8 @@ import {
 
 assert.deepEqual(
   readdirSync(".github/workflows").sort(),
-  ["deploy.yml","s31-hil.yml"],
-  "production tree must contain only deploy.yml and s31-hil.yml",
+  ["deploy.yml","mobile-gameplay-regression.yml","s31-hil.yml"],
+  "production tree must contain only deploy, mobile gameplay regression, and S31 HIL workflows",
 );
 
 const near=(a,b,eps=1e-6,msg="")=>assert.ok(Math.abs(a-b)<=eps,`${msg} expected ${b}, got ${a}`);
@@ -118,7 +118,7 @@ game=neutralControls();applyGameStick(game,"left",{x:.60,y:0},gameInvertLeft);
 assert.ok(game.roll<0,"inverted RIGHT motion must produce physical LEFT strafe");
 
 game=neutralControls();applyGameStick(game,"left",{x:1,y:-1},DEFAULT_PHONE_SETTINGS);
-near(gameStateStickMagnitude(Math.hypot(game.roll,game.pitch)),.4,3e-6,"default GAME full-vector command must decode to 36 km/h from the 90 km/h FC envelope");
+near(gameStateStickMagnitude(Math.hypot(game.roll,game.pitch)),.4,3e-6,"default GAME full-vector command must decode to 36 km/h from the 90 km/h FC hard envelope");
 gameKnob=gameKnobAxes(game,"left",DEFAULT_PHONE_SETTINGS);near(Math.hypot(gameKnob.x,gameKnob.y),1,3e-6,"speed mapping must not shrink the rendered stick travel");
 const maxGameSpeed={...DEFAULT_PHONE_SETTINGS,maxHorizontalSpeedKmh:90};game=neutralControls();applyGameStick(game,"left",{x:1,y:0},maxGameSpeed);near(gameStateStickMagnitude(Math.abs(game.roll)),1,1e-10,"90 km/h setting must decode to full FC velocity authority");
 const slowGameSpeed={...DEFAULT_PHONE_SETTINGS,maxHorizontalSpeedKmh:5};game=neutralControls();applyGameStick(game,"left",{x:1,y:0},slowGameSpeed);near(gameStateStickMagnitude(Math.abs(game.roll)),5/90,2e-8,"low speed setting must decode to the selected velocity fraction");
