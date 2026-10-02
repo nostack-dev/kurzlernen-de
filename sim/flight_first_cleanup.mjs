@@ -41,8 +41,9 @@ function capture(event){
 function installStyle(){
   if(document.querySelector("style[data-flight-first-cleanup]"))return;
   const style=document.createElement("style");style.dataset.flightFirstCleanup="v1";style.textContent=`
-/* No arcade contract/momentum/score overlays over the flight image. */
-#gameplayContractHud,#gameplayScorePill,#gameplayToast,#gameplayMomentum{display:none!important;visibility:hidden!important;pointer-events:none!important}
+/* Arcade state can keep its internal geometry for compatibility, but nothing is drawn or interactive. */
+#gameplayContractHud{visibility:hidden!important;opacity:0!important;pointer-events:none!important}
+#gameplayScorePill,#gameplayToast,#gameplayMomentum{display:none!important;visibility:hidden!important;pointer-events:none!important}
 /* FPV: exactly two sticks. Screen touch is fire; fullscreen look and FIRE overlay are gone. */
 body.on-foot-mode #footLookZone,body.on-foot-mode #footFire,body.on-foot-mode #footReadout{display:none!important;pointer-events:none!important}
 body.on-foot-mode .foot-stick{position:absolute!important;width:min(25vw,150px)!important;aspect-ratio:1!important;bottom:max(20px,var(--solo-safe-bottom,env(safe-area-inset-bottom)))!important;border:0!important;border-radius:50%!important;background:transparent!important;box-shadow:none!important;opacity:1!important;pointer-events:auto!important;touch-action:none!important;z-index:20!important}
