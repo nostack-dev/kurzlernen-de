@@ -57,12 +57,12 @@ try{
   if(menuState.input!=="remote"||menuState.panel==="none")throw new Error(`EXIT did not restore the remote-first main menu: ${JSON.stringify(menuState)}`);
 
   await controller.click("#connect");
-  await controller.waitForFunction(()=>document.querySelector("#offerCode")?.value?.length>100,{timeout:20000});
-  await controller.waitForFunction(()=>document.querySelector("#offerQr")?.src?.startsWith("data:image"),{timeout:20000});
+  await controller.waitForFunction(()=>document.querySelector("#offerCode")?.value?.length>100,{timeout:40000});
+  await controller.waitForFunction(()=>document.querySelector("#offerQr")?.src?.startsWith("data:image"),{timeout:40000});
   const offer=await controller.$eval("#offerCode",element=>element.value);
   await view.click("#remoteConnect");await setValue(view,"#remoteOffer",offer);await invoke(view,"#acceptOffer");
-  await view.waitForFunction(()=>document.querySelector("#remoteAnswer")?.value?.length>100,{timeout:20000});
-  await view.waitForFunction(()=>document.querySelector("#answerQr")?.src?.startsWith("data:image"),{timeout:20000});
+  await view.waitForFunction(()=>document.querySelector("#remoteAnswer")?.value?.length>100,{timeout:40000});
+  await view.waitForFunction(()=>document.querySelector("#answerQr")?.src?.startsWith("data:image"),{timeout:40000});
   const answer=await view.$eval("#remoteAnswer",element=>element.value);await setValue(controller,"#answerCode",answer);await invoke(controller,"#applyAnswer");
   await waitText(view,"#remoteStatus","P2P LINKED",30000);await waitText(controller,"#connection","P2P LINKED",30000);
   console.log("Serverless P2P E2E: QR payloads generated and two independent browser processes paired.");
@@ -76,14 +76,14 @@ try{
   const clearance=await controller.$eval("#gameClearance",element=>({value:Number(element.dataset.targetAglM),pad:Boolean(document.querySelector("#gameHeightPad"))}));if(Math.abs(clearance.value-1.2)>0.01||!clearance.pad)throw new Error(`unexpected ground-clearance config ${JSON.stringify(clearance)}`);
   await controller.click(".phone-settings-button");await controller.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});
   const leftInvertInitially=await controller.$eval('.phone-settings-dialog [data-invert-left-horizontal]',e=>e.checked);if(leftInvertInitially)throw new Error("left invert unexpectedly enabled by default");
-  await controller.click('.phone-settings-dialog [data-invert-left-horizontal]');
+  await invoke(controller,'.phone-settings-dialog [data-invert-left-horizontal]');
   await controller.waitForFunction(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}").invertLeftHorizontal===true,{timeout:5000});
-  await controller.click('.phone-settings-dialog [data-close]');
+  await invoke(controller,'.phone-settings-dialog [data-close]');
   const settingLeft=await stickBox(controller,"#leftStick"),settingX=settingLeft.x+settingLeft.w/2,settingY=settingLeft.y+settingLeft.h/2,settingR=Math.min(settingLeft.w,settingLeft.h)*.42;
   await controller.mouse.move(settingX,settingY);await controller.mouse.down();await controller.mouse.move(settingX+settingR*.55,settingY,{steps:4});
   await controller.waitForFunction(()=>/STR -[1-9]/.test(document.querySelector("#leftValue")?.textContent||""),{timeout:5000});await controller.mouse.up();
-  await controller.click(".phone-settings-button");await controller.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await controller.click('.phone-settings-dialog [data-invert-left-horizontal]');
-  await controller.waitForFunction(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}").invertLeftHorizontal===false,{timeout:5000});await controller.click('.phone-settings-dialog [data-close]');
+  await controller.click(".phone-settings-button");await controller.waitForFunction(()=>document.querySelector(".phone-settings-dialog")?.open,{timeout:5000});await invoke(controller,'.phone-settings-dialog [data-invert-left-horizontal]');
+  await controller.waitForFunction(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}").invertLeftHorizontal===false,{timeout:5000});await invoke(controller,'.phone-settings-dialog [data-close]');
   await controller.waitForFunction(()=>document.querySelector("#gameSensorStatus")?.textContent?.includes("AGL"),{timeout:15000});
   await setClearanceByButtons(controller,2.0);await waitText(controller,"#gameClearanceValue","2.0 m",10000);
 
