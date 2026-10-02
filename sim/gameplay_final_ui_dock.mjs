@@ -1,5 +1,6 @@
 import "./gameplay_final_input_extras.mjs";
 import {installMobileGameplayUi} from "./mobile_gameplay_ui.mjs";
+import {installFlightFirstCleanup} from "./flight_first_cleanup.mjs";
 
 let installed=false,footDownMode="",footDownAt=-Infinity,droneDownMode="",droneDownAt=-Infinity;
 function dockWeapon(){const button=document.getElementById("droneWeaponToggle"),top=document.getElementById("soloTopbarActions")||document.getElementById("soloTopbar");if(!button||!top)return false;if(button.parentElement!==top)top.appendChild(button);button.classList.add("final-drone-weapon-topbar");return true;}
@@ -11,3 +12,4 @@ function frame(){dockWeapon();dockFootWeapon();bindReliableButton(document.getEl
 export function installGameplayFinalUiDock(){if(installed)return;installed=true;installStyle();requestAnimationFrame(frame);}
 installGameplayFinalUiDock();
 installMobileGameplayUi();
+installFlightFirstCleanup();
