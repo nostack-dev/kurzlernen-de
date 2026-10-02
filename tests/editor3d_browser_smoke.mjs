@@ -93,10 +93,10 @@ try{
   });
 
   await check('independent Player advances while document remains unchanged',async()=>{
-    const r=await page.evaluate(async()=>{
-      Editor3D.loadDemo('mechanism'); const before=JSON.stringify(Editor3D.scene); Editor3D.openPlayer(); await new Promise(r=>setTimeout(r,250)); const p=Editor3D.views.at(-1); const out={type:p.type,separate:p.source!==p.doc.scene,steps:p.sim?.steps||0,same:before===JSON.stringify(p.doc.scene)}; p.playing=false; return out;
-    });
-    assert.equal(r.type,'player'); assert.ok(r.separate&&r.steps>0&&r.same);
+    const before=await page.evaluate(()=>{Editor3D.loadDemo('mechanism'); const s=JSON.stringify(Editor3D.scene); Editor3D.openPlayer(); return s;});
+    await page.waitForFunction(()=>Editor3D.views.at(-1)?.type==='player'&&Editor3D.views.at(-1)?.sim?.steps>0,{timeout:5000});
+    const r=await page.evaluate(before=>{const p=Editor3D.views.at(-1); const out={type:p.type,separate:p.source!==p.doc.scene,steps:p.sim?.steps||0,same:before===JSON.stringify(p.doc.scene)}; p.playing=false; return out;},before);
+    assert.equal(r.type,'player'); assert.ok(r.separate&&r.steps>0&&r.same,JSON.stringify(r));
   });
 
   await check('real play-mode mouse grab creates and releases Box3D MotorJoint',async()=>{
