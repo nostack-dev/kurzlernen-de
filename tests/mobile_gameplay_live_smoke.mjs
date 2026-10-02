@@ -10,11 +10,14 @@ const pause=ms=>page.evaluate(delay=>new Promise(resolve=>setTimeout(resolve,del
 const setAxis=(index,value)=>page.evaluate((i,v)=>globalThis.__mobilePad.axis(i,v),index,value);
 const resetPad=()=>page.evaluate(()=>globalThis.__mobilePad.reset());
 function overlap(a,b){return Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left))*Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));}
+async function droneReadySnapshot(){return page.evaluate(()=>{const v=document.querySelector("#viewport"),start=document.querySelector("#mobileGameplayStart"),arm=document.querySelector("#soloArm"),toolbar=document.querySelector("#soloArmToolbar");return{fcState:document.querySelector("#soloState")?.textContent?.trim(),start:start?.textContent?.trim(),startDisabled:start?.disabled,startState:start?.dataset.state,arm:arm?.textContent?.trim(),armDisabled:arm?.disabled,toolbar:toolbar?.textContent?.trim(),toolbarDisabled:toolbar?.disabled,toolbarState:toolbar?.dataset.state,playerMode:v?.dataset.playerMode,controlSource:v?.dataset.controlSource,gamepadEnabled:v?.dataset.gamepadEnabled,gamepadConnected:v?.dataset.gamepadConnected,stowDisarm:v?.dataset.droneStowDisarm,stowEmergencyKill:v?.dataset.droneStowEmergencyKill};});}
 
 try{
   await page.setViewport({width:390,height:844,deviceScaleFactor:1,isMobile:true,hasTouch:true});
   await page.goto(url.href,{waitUntil:"load",timeout:45000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&globalThis.__arondightWalkMode&&document.querySelector("#mobileGameplayDock"),{timeout:45000});
+  await page.waitForFunction(()=>{const arm=document.querySelector("#soloArm"),start=document.querySelector("#mobileGameplayStart");return arm&&start&&!arm.disabled&&!start.disabled&&arm.textContent.trim()==="ARM"&&start.textContent.trim()==="START";},{timeout:30000});
+  const initialReady=await droneReadySnapshot();
   await page.evaluate(()=>globalThis.__arondightWalkMode.setMode("foot",{persist:false}));
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.playerMode==="foot"&&v.dataset.soloOrientation==="css-landscape"&&v.dataset.mobileGameplayUi==="compact-actions-v1"&&document.querySelector("#footMove")&&document.querySelector("#footLookZone");},{timeout:8000});
 
@@ -46,14 +49,14 @@ try{
 
   await page.evaluate(()=>globalThis.__arondightWalkMode.setMode("drone",{persist:false}));
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.playerMode==="drone"&&document.querySelector("#mobileGameplayMode")?.textContent==="DRONE"&&!document.querySelector("#mobileGameplayStart")?.hidden,{timeout:5000});
-  await page.waitForFunction(()=>{const start=document.querySelector("#mobileGameplayStart"),arm=document.querySelector("#soloArm");return start&&arm&&!start.disabled&&!arm.disabled&&start.textContent.trim()==="START";},{timeout:20000});
+  try{await page.waitForFunction(()=>{const start=document.querySelector("#mobileGameplayStart"),arm=document.querySelector("#soloArm");return start&&arm&&!start.disabled&&!arm.disabled&&start.textContent.trim()==="START";},{timeout:20000});}catch(error){throw new Error(`drone did not return to START-ready state: ${JSON.stringify({initialReady,afterReturn:await droneReadySnapshot()})}`);}
   const droneLayout=await page.evaluate(()=>({mode:document.querySelector("#mobileGameplayMode")?.textContent,start:document.querySelector("#mobileGameplayStart")?.textContent,startHidden:document.querySelector("#mobileGameplayStart")?.hidden,startDisabled:document.querySelector("#mobileGameplayStart")?.disabled,weapon:document.querySelector("#mobileGameplayWeapon")?.textContent,actions:getComputedStyle(document.querySelector("#soloTopbarActions")).display,compact:document.body.classList.contains("mobile-gameplay-compact")}));
   if(droneLayout.mode!=="DRONE"||droneLayout.startHidden||droneLayout.startDisabled||!droneLayout.compact||droneLayout.actions!=="none"||!String(droneLayout.weapon).startsWith("WEAPON ·"))throw new Error(`compact drone HUD contract failed: ${JSON.stringify(droneLayout)}`);
   await page.click("#mobileGameplayStart");
   await page.waitForFunction(()=>{const start=document.querySelector("#mobileGameplayStart"),state=document.querySelector("#soloState")?.textContent?.trim();return start?.dataset.state==="armed"&&start.textContent.trim()==="DISARM"&&state==="ARMED";},{timeout:10000});
   await pause(300);
-  const started=await page.evaluate(()=>({start:document.querySelector("#mobileGameplayStart")?.textContent,state:document.querySelector("#soloState")?.textContent?.trim(),armed:document.querySelector("#mobileGameplayStart")?.dataset.state,actions:getComputedStyle(document.querySelector("#soloTopbarActions")).display}));
-  if(started.start!=="DISARM"||started.state!=="ARMED"||started.armed!=="armed"||started.actions!=="none")throw new Error(`mobile START did not launch drone cleanly: ${JSON.stringify(started)}`);
+  const started=await page.evaluate(()=>({start:document.querySelector("#mobileGameplayStart")?.textContent,state:document.querySelector("#soloState")?.textContent?.trim(),armed:document.querySelector("#mobileGameplayStart")?.dataset.state,actions:getComputedStyle(document.querySelector("#soloTopbarActions")).display,emergencyStop:document.querySelector("#soloKill")?.textContent?.trim()}));
+  if(started.start!=="DISARM"||started.state!=="ARMED"||started.armed!=="armed"||started.actions!=="none"||started.emergencyStop!=="EMERGENCY STOP")throw new Error(`mobile START did not launch drone cleanly: ${JSON.stringify(started)}`);
   await mkdir("artifacts",{recursive:true});await page.screenshot({path:"artifacts/mobile-gameplay.png",captureBeyondViewport:false});
-  console.log(`Mobile gameplay regression passed: portrait touch axes, conventional Xbox look directions, compact HUD and real START→ARMED flow. ${JSON.stringify({upMove,rightMove,pose,layout,droneLayout,started})}`);
+  console.log(`Mobile gameplay regression passed: portrait touch axes, conventional Xbox look directions, compact HUD, graceful mode transition and real START→ARMED flow. ${JSON.stringify({initialReady,upMove,rightMove,pose,layout,droneLayout,started})}`);
 }finally{await browser.close();}
