@@ -15,6 +15,11 @@ const html=unpackEditor3D(packaged);
 const legacyBox3dImport=/box3d\.js@0\.1\.1\/dist\/box3d\.inline\.mjs/.test(html);
 const packagedBox3dRuntime=packaged!==html&&/b3CreateHull\(pts\.flat\(\)\)[\s\S]*b3CreateHullShape\(bodyId,sd,hull\)/.test(html)&&/b3CreateSphereShape\(bodyId,sd/.test(html)&&/b3CreateCapsuleShape\(bodyId,sd/.test(html)&&/b3CreateMotorJoint\(v\.sim\.world,jd\)/.test(html);
 assert.ok(legacyBox3dImport||packagedBox3dRuntime,'Editor3D contract missing: Box3D inline/self-contained runtime');
+const jointMatch=html.match(/const jointTypes=\[([^\]]+)\]/);
+assert.ok(jointMatch,'Editor3D contract missing: joint type list');
+const jointTypes=[...jointMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map(m=>m[1]);
+for(const type of ['revolute','distance','prismatic','wheel','weld','motor','spherical','parallel','filter'])assert.ok(jointTypes.includes(type),`Editor3D contract missing Box3D joint kind: ${type}`);
+for(const type of ['rope','friction'])assert.ok(jointTypes.includes(type),`Editor3D contract missing 2D workflow joint compatibility: ${type}`);
 const must=[
   ['Three.js renderer',/three@0\.185\.1/],
   ['3D hull rendering',/ConvexGeometry/],
@@ -28,8 +33,6 @@ const must=[
   ['independent player source',/const d=doc\(\),source=clone\(d\.scene\),v=createView\(d,'player'\);v\.source=source;v\.sim=buildWorld\(source\)/],
   ['player Box3D world',/v\.sim=buildWorld\((?:v\.source|source)\)/],
   ['editor modes',/body:'Body',fixture:'Fixture',vertex:'Vertex',joint:'Joint',image:'Image',sampler:'Sampler',world:'World'/],
-  ['all current Box3D joint kinds',/const jointTypes=\[[^\]]*'revolute'[^\]]*'distance'[^\]]*'prismatic'[^\]]*'wheel'[^\]]*'weld'[^\]]*'motor'[^\]]*'spherical'[^\]]*'parallel'[^\]]*'filter'[^\]]*\]/],
-  ['2D joint workflow compatibility',/const jointTypes=\[[^\]]*'rope'[^\]]*'friction'[^\]]*\]/],
   ['multi fixture bodies',/fixtures:\[\]/],
   ['Box3D hull fixture',/b3CreateHull\(pts\.flat\(\)\)[\s\S]*b3CreateHullShape\(bodyId,sd,hull\)/],
   ['sphere fixture',/b3CreateSphereShape\(bodyId,sd/],
@@ -65,4 +68,4 @@ const must=[
 for(const [name,re] of must)assert.match(html,re,`Editor3D contract missing: ${name}`);
 assert.doesNotMatch(html,/user-select:text/,'Canvas/editor must never enable browser text selection');
 assert.doesNotMatch(html,/(?:src|from)=["'][^"']*(?:planck|box2d)|import\s+[^;]*(?:planck|box2d)/i,'Editor3D must not import a 2D physics runtime');
-console.log(`PASS editor3d parity contract (${must.length+1} invariants${packaged===html?'':' · unpacked self-contained payload'})`);
+console.log(`PASS editor3d parity contract (${must.length+12} invariants${packaged===html?'':' · unpacked self-contained payload'})`);
