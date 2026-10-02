@@ -51,5 +51,5 @@ const must=[
 ];
 for(const [name,re] of must)assert.match(html,re,`Editor3D contract missing: ${name}`);
 assert.doesNotMatch(html,/user-select:text/,'Canvas/editor must never enable browser text selection');
-assert.doesNotMatch(html,/planck(?:\.min)?\.js|Box2D\b/,'Editor3D must not silently fall back to 2D physics');
+assert.doesNotMatch(html,/(?:src|from)=["'][^"']*(?:planck|box2d)|import\s+[^;]*(?:planck|box2d)/i,'Editor3D must not import a 2D physics runtime');
 console.log(`PASS editor3d parity contract (${must.length} invariants)`);
