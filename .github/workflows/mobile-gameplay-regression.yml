@@ -54,7 +54,16 @@ jobs:
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
           CHROME_BIN="$CHROME_BIN" node tests/mobile_startup_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
+      - name: Test screen-dominating live nuclear explosion
+        env:
+          GH_SHA: ${{ github.sha }}
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          CHROME_BIN="$CHROME_BIN" node tests/nuke_mobile_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
       - name: Test portrait controls and capture mobile gameplay
+        if: always()
         env:
           GH_SHA: ${{ github.sha }}
         run: |
@@ -63,14 +72,6 @@ jobs:
           test -n "$CHROME_BIN"
           CHROME_BIN="$CHROME_BIN" node tests/mobile_gameplay_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
       - name: Test grip anchor full-auto traffic crowd FPV and EMP
-        env:
-          GH_SHA: ${{ github.sha }}
-        run: |
-          set -euxo pipefail
-          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
-          test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/mobile_combat_traffic_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
-      - name: Test live nuke launch and impact stack
         if: always()
         env:
           GH_SHA: ${{ github.sha }}
@@ -78,7 +79,7 @@ jobs:
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/nuke_mobile_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_combat_traffic_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
