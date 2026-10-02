@@ -63,6 +63,6 @@ const must=[
   ['lost pointer capture cleanup',/addEventListener\('lostpointercapture',end\)/],
 ];
 for(const [name,re] of must) assert.match(html,re,`Editor3D contract missing: ${name}`);
-assert.doesNotMatch(html,/(?:src|from)=[#'][^"']*(?:planck|box2d)|import\s+[^;]*(?:planck|box2d)/i,'Editor3D must not import a 2D physics runtime');
+assert.doesNotMatch(html,/(?:src|from)=["'][^"']*(?:planck|box2d)|import\s+[^;]*(?:planck|box2d)/i,'Editor3D must not import a 2D physics runtime');
 assert.doesNotMatch(html,/user-select:text/,'Canvas/editor must never enable browser text selection');
 console.log(`PASS editor3d parity contract (${must.length} invariants)`);
