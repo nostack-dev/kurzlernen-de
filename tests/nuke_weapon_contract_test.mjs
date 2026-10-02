@@ -27,22 +27,27 @@ for(const marker of [
 ]) assert.ok(nuke.includes(marker),`missing nuke contract marker: ${marker}`);
 
 for(const marker of [
-  'screen-dominating-nuclear-v2',
-  'grounded-wide-in-frame-v2',
+  'screen-dominating-nuclear-v3',
+  'grounded-wide-screen-cloud-v3',
+  'mushroom-fireball-overlay-v1',
+  'nukeCinematicScreenCloud',
   'nukeOverkillMushroomM="78"',
   'nukeOverkillFireballM="110"',
   'nukeOverkillShockScreen',
+  'depthTest:false',
+  'renderOrder=800',
   'shock-ring-1',
   'shock-ring-2',
   'shock-ring-3',
   'hot-column',
   'hot-crown',
   'presentationAnchor(position)',
-  'nukeOverkillPhase'
+  'nukeOverkillPhase',
+  'nukeScreenCloudOpacity'
 ]) assert.ok(overkill.includes(marker),`missing nuclear overkill marker: ${marker}`);
 
 assert.ok(cleanup.includes('import "./nuke_weapon.mjs";'),"nuke runtime is not wired into flight-first cleanup");
 assert.ok(cleanup.includes('import "./nuke_overkill_fx.mjs";'),"nuclear overkill visual runtime is not wired into flight-first cleanup");
 assert.ok(mobile.includes('api?.displayMode||api?.mode'),"mobile HUD does not expose extended drone weapon mode");
 
-console.log("Nuke weapon v5 contract passed: grounded wide in-frame nuclear cinematic, physical shockwave, shared fire path and delayed blast damage.");
+console.log("Nuke weapon v6 contract passed: unoccluded 3D blast plus unmistakable screen-space mushroom/fireball cinematic.");
