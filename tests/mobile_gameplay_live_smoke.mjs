@@ -7,7 +7,7 @@ const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-s
 await page.setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1");
 const pause=ms=>page.evaluate(delay=>new Promise(resolve=>setTimeout(resolve,delay)),ms);
 const touch=p=>({x:p.x,y:p.y,radiusX:2,radiusY:2,force:1,id:1});
-async function drag(selector,screenDirection,scale=.45,holdMs=120){const points=await page.$eval(selector,(el,args)=>{const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,span=Math.min(r.width,r.height)*args.scale;return{start:{x:cx,y:cy},end:args.dir==="up"?{x:cx+span,y:cy}:args.dir==="right"?{x:cx,y:cy+span}:{x:cx,y:cy}};},{dir:screenDirection,scale});await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[touch(points.start)]});await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[touch(points.end)]});await pause(holdMs);const snapshot=await page.$eval("#viewport",v=>({move:v.dataset.walkMove,yaw:Number(v.dataset.walkYaw),pitch:Number(v.dataset.walkPitch),contract:v.dataset.walkTouchContract}));await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});await pause(60);return snapshot;}
+async function drag(selector,screenDirection,scale=.45,holdMs=120){const points=await page.$eval(selector,(el,args)=>{const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,span=Math.min(r.width,r.height)*args.scale;return{start:{x:cx,y:cy},end:args.dir==="up"?{x:cx+span,y:cy}:args.dir==="right"?{x:cx,y:cy+span}:{x:cx,y:cy}};},{dir:screenDirection,scale});await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[touch(points.start)]});await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[touch(points.end)]});await pause(holdMs);const snapshot=await page.$eval("#viewport",v=>({move:v.dataset.walkMove,yaw:Number(v.dataset.walkYaw),pitch:Number(v.dataset.walkPitch),contract:v.dataset.walkTouchContract,semantics:v.dataset.walkStickSemantics}));await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});await pause(60);return snapshot;}
 
 try{
   await page.setViewport({width:390,height:844,deviceScaleFactor:1,isMobile:true,hasTouch:true});
@@ -15,22 +15,24 @@ try{
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&globalThis.__arondightWalkMode&&document.querySelector("#mobileGameplayDock"),{timeout:45000});
   await page.waitForFunction(()=>document.querySelector("#soloArm")&&!document.querySelector("#soloArm").disabled,{timeout:30000});
   await page.evaluate(()=>globalThis.__arondightWalkMode.setMode("foot",{persist:false}));
-  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.playerMode==="foot"&&v.dataset.soloOrientation==="css-landscape"&&v.dataset.mobileGameplayUi==="flight-first-v1"&&v.dataset.walkTouchContract==="stick-origin-owned-drag-v1"&&document.querySelector("#footMove")&&document.querySelector("#footLook");},{timeout:8000});
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.playerMode==="foot"&&v.dataset.soloOrientation==="css-landscape"&&v.dataset.mobileGameplayUi==="flight-first-v1"&&v.dataset.walkTouchContract==="drone-normalized-pointer-origin-v2"&&document.querySelector("#footMove")&&document.querySelector("#footLook");},{timeout:8000});
 
   const up=await drag("#footMove","up"),right=await drag("#footMove","right"),parse=value=>String(value||"").split(",").map(Number),upMove=parse(up.move),rightMove=parse(right.move);
   if(!(upMove[1]<-.45&&Math.abs(upMove[0])<.22))throw new Error(`visual UP must be FPV forward: ${JSON.stringify({up,upMove})}`);
   if(!(rightMove[0]>.45&&Math.abs(rightMove[1])<.22))throw new Error(`visual RIGHT must be FPV strafe-right: ${JSON.stringify({right,rightMove})}`);
+  if(up.semantics!=="drone-normalizedPointer-v1"||right.semantics!=="drone-normalizedPointer-v1")throw new Error(`FPV left stick is not using drone pointer semantics: ${JSON.stringify({up,right})}`);
 
   await page.evaluate(()=>globalThis.__arondightWalkMode.setPose({yaw:0,pitch:0}));
   const look=await drag("#footLook","right",.72,260);
-  if(!(look.yaw>.08))throw new Error(`right-stick drag must turn right and may drift beyond its visual radius: ${JSON.stringify(look)}`);
+  if(!(look.yaw>.08&&Math.abs(look.pitch)<.08))throw new Error(`right-stick visual RIGHT must yaw right without pitching: ${JSON.stringify(look)}`);
+  if(look.semantics!=="drone-normalizedPointer-v1")throw new Error(`FPV right stick is not using drone pointer semantics: ${JSON.stringify(look)}`);
 
-  const before=await page.$eval("#viewport",v=>({yaw:Number(v.dataset.walkYaw),shots:Number(v.dataset.walkEnhancedShots)||0}));
+  const before=await page.$eval("#viewport",v=>({yaw:Number(v.dataset.walkYaw),pitch:Number(v.dataset.walkPitch),shots:Number(v.dataset.walkEnhancedShots)||0}));
   const centre=await page.$eval("#viewport",v=>{const r=v.getBoundingClientRect();return{x:r.left+r.width*.52,y:r.top+r.height*.46};});
-  await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[touch(centre)]});await pause(40);await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});await pause(120);
-  const after=await page.$eval("#viewport",v=>({yaw:Number(v.dataset.walkYaw),shots:Number(v.dataset.walkEnhancedShots)||0,screen:v.dataset.walkScreenTouch}));
-  if(Math.abs(after.yaw-before.yaw)>.015)throw new Error(`screen touch outside sticks moved camera: ${JSON.stringify({before,after})}`);
-  if(!(after.shots>before.shots&&after.screen==="fire-only-v1"))throw new Error(`screen touch outside sticks did not fire: ${JSON.stringify({before,after})}`);
+  await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[touch(centre)]});await pause(40);await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});await pause(140);
+  const after=await page.$eval("#viewport",v=>({yaw:Number(v.dataset.walkYaw),pitch:Number(v.dataset.walkPitch),shots:Number(v.dataset.walkEnhancedShots)||0,screen:v.dataset.walkScreenTouch,fireVector:v.dataset.walkWeaponFireVector,aimSource:v.dataset.walkWeaponAimSource,touchVector:v.dataset.walkWeaponTouchVector}));
+  if(Math.abs(after.yaw-before.yaw)>.015||Math.abs(after.pitch-before.pitch)>.015)throw new Error(`screen touch outside sticks moved camera: ${JSON.stringify({before,after})}`);
+  if(!(after.shots>before.shots&&after.screen==="fire-only-v1"&&after.fireVector==="touch-screen-ray-v4"&&after.aimSource==="screen-touch"&&after.touchVector==="screen-ray+hand-anchor-v1"))throw new Error(`screen touch did not use the authoritative shot/vector path: ${JSON.stringify({before,after})}`);
 
   const fpvUi=await page.evaluate(()=>{const contract=getComputedStyle(document.querySelector("#gameplayContractHud"));return{fire:getComputedStyle(document.querySelector("#footFire")).display,lookZone:getComputedStyle(document.querySelector("#footLookZone")).display,contractVisibility:contract.visibility,contractOpacity:contract.opacity,score:getComputedStyle(document.querySelector("#gameplayScorePill")).display,dock:[...document.querySelectorAll("#mobileGameplayDock button")].map(b=>b.textContent.trim())};});
   if(fpvUi.fire!=="none"||fpvUi.lookZone!=="none"||fpvUi.contractVisibility!=="hidden"||Number(fpvUi.contractOpacity)!==0||fpvUi.score!=="none")throw new Error(`flight-first FPV overlays still visible: ${JSON.stringify(fpvUi)}`);
