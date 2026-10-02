@@ -34,9 +34,9 @@ try{
   const movingBeforeFire=await page.$eval("#viewport",v=>({move:v.dataset.walkMove,isolation:v.dataset.walkMultiTouchMoveIsolation}));
   await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[touch(multiPoints.moveForward,11),touch(multiPoints.fire,12)]});await pause(70);
   const movingWhileFiring=await page.$eval("#viewport",v=>({move:v.dataset.walkMove,shots:Number(v.dataset.walkEnhancedShots)||0,isolation:v.dataset.walkMultiTouchMoveIsolation}));
-  await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[touch(multiPoints.moveForward,11)]});await pause(70);
+  await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[touch(multiPoints.fire,12)]});await pause(70);
   const movingAfterFireLift=await page.$eval("#viewport",v=>({move:v.dataset.walkMove,shots:Number(v.dataset.walkEnhancedShots)||0}));
-  await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});await pause(80);
+  await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[touch(multiPoints.moveForward,11)]});await pause(80);
   for(const snap of[movingBeforeFire,movingWhileFiring,movingAfterFireLift]){const m=parse(snap.move);if(!(m[1]<-.42&&Math.abs(m[0])<.25))throw new Error(`second touch interrupted left-stick movement: ${JSON.stringify({movingBeforeFire,movingWhileFiring,movingAfterFireLift})}`);}
   if(!(movingWhileFiring.shots>shotsBeforeMulti&&movingAfterFireLift.shots>=movingWhileFiring.shots&&movingWhileFiring.isolation==="pointer-id-owned-v1"))throw new Error(`multitouch fire/move ownership contract failed: ${JSON.stringify({shotsBeforeMulti,movingBeforeFire,movingWhileFiring,movingAfterFireLift})}`);
 
