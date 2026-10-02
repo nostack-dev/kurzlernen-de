@@ -46,8 +46,14 @@ try{
 
   await page.evaluate(()=>globalThis.__arondightWalkMode.setMode("drone",{persist:false}));
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.playerMode==="drone"&&document.querySelector("#mobileGameplayMode")?.textContent==="DRONE"&&!document.querySelector("#mobileGameplayStart")?.hidden,{timeout:5000});
-  const droneLayout=await page.evaluate(()=>({mode:document.querySelector("#mobileGameplayMode")?.textContent,start:document.querySelector("#mobileGameplayStart")?.textContent,startHidden:document.querySelector("#mobileGameplayStart")?.hidden,weapon:document.querySelector("#mobileGameplayWeapon")?.textContent,actions:getComputedStyle(document.querySelector("#soloTopbarActions")).display,compact:document.body.classList.contains("mobile-gameplay-compact")}));
-  if(droneLayout.mode!=="DRONE"||droneLayout.startHidden||!droneLayout.compact||droneLayout.actions!=="none"||!String(droneLayout.weapon).startsWith("WEAPON ·"))throw new Error(`compact drone HUD contract failed: ${JSON.stringify(droneLayout)}`);
+  await page.waitForFunction(()=>{const start=document.querySelector("#mobileGameplayStart"),arm=document.querySelector("#soloArm");return start&&arm&&!start.disabled&&!arm.disabled&&start.textContent.trim()==="START";},{timeout:20000});
+  const droneLayout=await page.evaluate(()=>({mode:document.querySelector("#mobileGameplayMode")?.textContent,start:document.querySelector("#mobileGameplayStart")?.textContent,startHidden:document.querySelector("#mobileGameplayStart")?.hidden,startDisabled:document.querySelector("#mobileGameplayStart")?.disabled,weapon:document.querySelector("#mobileGameplayWeapon")?.textContent,actions:getComputedStyle(document.querySelector("#soloTopbarActions")).display,compact:document.body.classList.contains("mobile-gameplay-compact")}));
+  if(droneLayout.mode!=="DRONE"||droneLayout.startHidden||droneLayout.startDisabled||!droneLayout.compact||droneLayout.actions!=="none"||!String(droneLayout.weapon).startsWith("WEAPON ·"))throw new Error(`compact drone HUD contract failed: ${JSON.stringify(droneLayout)}`);
+  await page.click("#mobileGameplayStart");
+  await page.waitForFunction(()=>{const start=document.querySelector("#mobileGameplayStart"),state=document.querySelector("#soloState")?.textContent?.trim();return start?.dataset.state==="armed"&&start.textContent.trim()==="DISARM"&&state==="ARMED";},{timeout:10000});
+  await pause(300);
+  const started=await page.evaluate(()=>({start:document.querySelector("#mobileGameplayStart")?.textContent,state:document.querySelector("#soloState")?.textContent?.trim(),armed:document.querySelector("#mobileGameplayStart")?.dataset.state,actions:getComputedStyle(document.querySelector("#soloTopbarActions")).display}));
+  if(started.start!=="DISARM"||started.state!=="ARMED"||started.armed!=="armed"||started.actions!=="none")throw new Error(`mobile START did not launch drone cleanly: ${JSON.stringify(started)}`);
   await mkdir("artifacts",{recursive:true});await page.screenshot({path:"artifacts/mobile-gameplay.png",captureBeyondViewport:false});
-  console.log(`Mobile gameplay regression passed: portrait touch axes, conventional Xbox look directions and compact non-overlapping HUD. ${JSON.stringify({upMove,rightMove,pose,layout,droneLayout})}`);
+  console.log(`Mobile gameplay regression passed: portrait touch axes, conventional Xbox look directions, compact HUD and real START→ARMED flow. ${JSON.stringify({upMove,rightMove,pose,layout,droneLayout,started})}`);
 }finally{await browser.close();}
