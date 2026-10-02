@@ -6,8 +6,6 @@ const executablePath=process.env.CHROME_BIN;
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
 const page=await browser.newPage();
-page.on("console",message=>{if(["error","warning"].includes(message.type()))console.log(`[browser:${message.type()}] ${message.text()}`);});
-page.on("pageerror",error=>console.log(`[browser:pageerror] ${error?.stack||error}`));
 
 try{
   for(const viewport of [{width:844,height:390,name:"landscape"},{width:844,height:300,name:"safari-bars"},{width:390,height:844,name:"iphone-portrait"}]){
@@ -15,6 +13,9 @@ try{
     await page.goto(simulatorUrl,{waitUntil:"load",timeout:30000});
     await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
     await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});
+    // SOLO sets the body class before the queued presentation-resize commit.
+    // Wait for that commit instead of sampling the previous/empty viewport
+    // policy during rapid same-page reloads (notably the Safari-bars fixture).
     await page.waitForFunction(()=>{const viewport=document.querySelector("#viewport");return viewport?.dataset.orientationPolicy==="landscape"&&Boolean(viewport.dataset.soloOrientation);},{timeout:5000});
     const g=await page.evaluate(()=>{
       const viewport=document.querySelector("#viewport"),viewportRect=viewport.getBoundingClientRect(),orientation=viewport.dataset.soloOrientation||"";
@@ -66,6 +67,8 @@ try{
 
     const disabledActionOpacity=await page.$eval("#soloArm",e=>{e.disabled=true;return Number(getComputedStyle(e).opacity);});
     if(disabledActionOpacity<.99)throw new Error(`${viewport.name}: CALIBRATING/disabled ARM action is visually dimmed: ${disabledActionOpacity}`);
+
+    // Validate the ARM attention affordance independent of calibration timing.
     const armCue=await page.evaluate(()=>{
       const e=document.querySelector("#soloArm");
       if(!e)throw new Error("ARM button missing");
@@ -74,7 +77,11 @@ try{
     });
     if(armCue.text!=="ARM"||!armCue.className.includes("attention")||armCue.animation==="none")throw new Error(`${viewport.name}: ARM attention cue missing: ${JSON.stringify(armCue)}`);
     const armHoverContract=await page.evaluate(()=>{
-      for(const sheet of document.styleSheets){let rules=[];try{rules=[...sheet.cssRules];}catch{continue;}for(const rule of rules){const css=rule.cssText||"";if(css.includes("#soloArm:not(:disabled):hover")&&css.includes("brightness(1.16)"))return css;}return "";
+      for(const sheet of document.styleSheets){
+        let rules=[];try{rules=[...sheet.cssRules];}catch{continue;}
+        for(const rule of rules){const css=rule.cssText||"";if(css.includes("#soloArm:not(:disabled):hover")&&css.includes("brightness(1.16)"))return css;}
+      }
+      return "";
     });
     if(!armHoverContract)throw new Error(`${viewport.name}: ARM hover/focus CSS contract missing`);
 
@@ -92,7 +99,12 @@ try{
 
     await page.click("#soloExit");
     await page.waitForFunction(()=>!document.body.classList.contains("solo-flight"),{timeout:5000});
-    const exited=await page.evaluate(()=>({panel:getComputedStyle(document.querySelector(".panel")).display,telemetry:getComputedStyle(document.querySelector(".telemetry")).display,camera:getComputedStyle(document.querySelector("#cameraModes")).display,soloHidden:document.querySelector("#soloHud")?.hidden}));
+    const exited=await page.evaluate(()=>({
+      panel:getComputedStyle(document.querySelector(".panel")).display,
+      telemetry:getComputedStyle(document.querySelector(".telemetry")).display,
+      camera:getComputedStyle(document.querySelector("#cameraModes")).display,
+      soloHidden:document.querySelector("#soloHud")?.hidden,
+    }));
     if(exited.panel==="none"||exited.telemetry==="none"||exited.camera==="none"||exited.soloHidden!==true)throw new Error(`${viewport.name}: EXIT did not restore the main menu: ${JSON.stringify(exited)}`);
     console.log(`Solo layout ${viewport.name} passed: always-landscape FPV startup, clear race-free HUD, mapped controls, and EXIT-only menu reveal.`);
   }
