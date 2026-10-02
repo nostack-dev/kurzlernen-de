@@ -1,0 +1,23 @@
+import * as THREE from "three";
+
+const MAX_VIEW_DISTANCE_M=240;
+const MIN_SPAWN_DISTANCE_M=24;
+const CONE_MARGIN_RAD=8*Math.PI/180;
+const projectionView=new THREE.Matrix4(),frustum=new THREE.Frustum(),cameraPos=new THREE.Vector3(),cameraForward=new THREE.Vector3(),candidatePos=new THREE.Vector3(),peerPos=new THREE.Vector3(),peerForward=new THREE.Vector3(),peerQuat=new THREE.Quaternion(),toCandidate=new THREE.Vector3();
+const withheld=new WeakSet(),seenVisible=new WeakMap();
+let installed=false,lastScene=null;
+
+function bridge(){return globalThis.__arondightRealWorld||null;}
+function viewport(){return document.getElementById("viewport");}
+function dynamicRoot(node){if(!node?.isGroup)return false;const kind=String(node.userData?.worldPopulationKind||"");return(kind==="car"||kind==="person")&&!node.userData?.worldPopulationClone;}
+function localViewer(){const camera=bridge()?.threeCamera;if(!camera?.getWorldPosition||!camera?.getWorldDirection)return null;camera.updateMatrixWorld?.(true);camera.getWorldPosition(cameraPos);camera.getWorldDirection(cameraForward).normalize();projectionView.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);frustum.setFromProjectionMatrix(projectionView);const vfov=(Number(camera.fov)||78)*Math.PI/180,aspect=Math.max(.2,Number(camera.aspect)||16/9),hfov=2*Math.atan(Math.tan(vfov/2)*aspect);return{kind:"local",position:cameraPos.clone(),forward:cameraForward.clone(),halfAngle:Math.max(vfov,hfov)/2+CONE_MARGIN_RAD,frustum:frustum.clone()};}
+function collectPeerViewers(scene,halfAngle){const byId=new Map();scene?.traverse?.(node=>{if(node.visible===false)return;const id=String(node.userData?.vsPlayerId||"");if(!id)return;const u=node.userData||{},isDrone=Boolean(u.vsMultiplayerPeer||u.vsLegacyPrimary||u.vsPeer),isHuman=Boolean(u.vsHumanAvatar&&!u.localHumanAvatar);if(!isDrone&&!isHuman)return;const priority=isDrone?2:1,existing=byId.get(id);if(existing&&existing.priority>=priority)return;node.getWorldPosition?.(peerPos);node.getWorldQuaternion?.(peerQuat);peerForward.set(0,1,0).applyQuaternion(peerQuat).normalize();const position=peerPos.clone();if(isHuman)position.z+=1.55;byId.set(id,{kind:isDrone?"peer-drone":"peer-human",priority,position,forward:peerForward.clone(),halfAngle});});return[...byId.values()];}
+function viewers(){const b=bridge(),scene=b?.threeScene,local=localViewer();if(!local||!scene)return local?[local]:[];return[local,...collectPeerViewers(scene,local.halfAngle)];}
+function insideViewerCone(point,viewer){toCandidate.copy(point).sub(viewer.position);const distance=toCandidate.length();if(distance<MIN_SPAWN_DISTANCE_M)return true;if(distance>MAX_VIEW_DISTANCE_M)return false;const direction=toCandidate.multiplyScalar(1/Math.max(distance,1e-6));if(viewer.kind==="local"&&viewer.frustum?.containsPoint(point))return true;return direction.dot(viewer.forward)>=Math.cos(viewer.halfAngle);}
+function safeSpawn(point,allViewers){if(!allViewers.length)return true;for(const viewer of allViewers)if(insideViewerCone(point,viewer))return false;if(allViewers.length===1){toCandidate.copy(point).sub(allViewers[0].position);if(toCandidate.lengthSq()<1e-6)return false;toCandidate.normalize();if(toCandidate.dot(allViewers[0].forward)>=-.05)return false;}return true;}
+function roots(scene){const out=[];scene?.traverse?.(node=>{if(dynamicRoot(node))out.push(node);});return out;}
+function publish(allViewers,held){const view=viewport();if(!view)return;view.dataset.spawnVisibilityGuard="joint-player-cones-v1";view.dataset.spawnVisibilityViewers=String(allViewers.length);view.dataset.spawnVisibilityWithheld=String(held);view.dataset.spawnVisibilityRule=allViewers.length>1?"outside-union-of-player-cones":"behind-local-player";}
+function frame(){const b=bridge(),scene=b?.threeScene;if(!scene){requestAnimationFrame(frame);return;}if(scene!==lastScene){lastScene=scene;}const allViewers=viewers();let held=0;for(const root of roots(scene)){root.getWorldPosition?.(candidatePos);const externallyVisible=root.visible!==false;if(!externallyVisible&&!withheld.has(root)){seenVisible.set(root,false);continue;}if(withheld.has(root)){if(safeSpawn(candidatePos,allViewers)){withheld.delete(root);root.visible=true;seenVisible.set(root,true);}else{root.visible=false;held++;}continue;}const wasVisible=seenVisible.get(root)===true;if(!wasVisible&&externallyVisible){if(safeSpawn(candidatePos,allViewers))seenVisible.set(root,true);else{withheld.add(root);root.visible=false;held++;}}else if(externallyVisible)seenVisible.set(root,true);}publish(allViewers,held);requestAnimationFrame(frame);}
+
+export function installSpawnVisibilityGuard(){if(installed)return;installed=true;requestAnimationFrame(frame);}
+installSpawnVisibilityGuard();
