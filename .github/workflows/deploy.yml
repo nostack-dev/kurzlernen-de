@@ -49,6 +49,7 @@ jobs:
           node tests/wanted_system_test.mjs
           node tests/gameplay_fun_logic_test.mjs
           node tests/editor3d_contract_test.mjs
+          node tests/nuke_weapon_contract_test.mjs
           node tools/build-intrinsic-orcl.mjs --check
           node tests/stockstrend_data_test.mjs
           node tests/market_clock_test.cjs
@@ -56,6 +57,7 @@ jobs:
           node --check sim/player_walk_mode_v4.mjs
           node --check sim/gameplay_final_runtime_v2.mjs
           node --check sim/flight_fire_fx.mjs
+          node --check sim/nuke_weapon.mjs
           node --check sim/world_rigid_body_runtime.mjs
           node --check sim/wanted_police_drones.mjs
           node --check sim/auto_flight_start.mjs
