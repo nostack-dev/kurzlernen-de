@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>kern3d — minimaler Render-Kern</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0e1116; color: #d5dde8; font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; }
+    canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+    #hud {
+      position: fixed; left: 16px; bottom: 14px;
+      padding: 8px 10px; border-radius: 8px;
+      background: rgba(8, 10, 14, 0.62); border: 1px solid rgba(255,255,255,0.08);
+      letter-spacing: 0.02em;
+    }
+    #hint {
+      position: fixed; left: 16px; top: 14px; max-width: 420px;
+      padding: 10px 12px; border-radius: 8px;
+      background: rgba(8, 10, 14, 0.62); border: 1px solid rgba(255,255,255,0.08);
+    }
+    #hint b { color: #fff; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div id="hint"><b>kern3d</b> — eigener Browser-Kern, keine Pakete. Ziehen zum Drehen, Shift-Ziehen zum Schieben, Rad zum Zoomen.</div>
+  <div id="hud">…</div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
