@@ -14,7 +14,6 @@ try{
   const modes=await page.evaluate(()=>{const api=globalThis.__arondightDroneWeapons;api.setMode("gun");const a=api.displayMode||api.mode;api.toggle();const b=api.displayMode||api.mode;api.toggle();const c=api.displayMode||api.mode;api.toggle();const d=api.displayMode||api.mode;api.setMode("nuke");return[a,b,c,d,api.displayMode||api.mode];});
   if(JSON.stringify(modes)!==JSON.stringify(["gun","missile","nuke","gun","nuke"]))throw new Error(`drone weapon cycle is wrong: ${JSON.stringify(modes)}`);
   await page.waitForFunction(()=>document.querySelector("#mobileGameplayWeapon")?.textContent?.trim()==="WEAPON · NUKE",{timeout:3000});
-  if(document.querySelector){}
   await page.click("#soloArm");
   await page.waitForFunction(()=>document.querySelector("#soloState")?.textContent?.trim()==="ARMED"&&document.querySelector("#viewport")?.dataset.fireArmed==="1",{timeout:10000});
   const shot=await page.evaluate(()=>{const v=document.querySelector("#viewport"),r=v.getBoundingClientRect(),api=globalThis.__arondightDroneWeapons,fired=api.fireMissile({clientX:r.left+r.width*.58,clientY:r.top+r.height*.63,source:"nuke-live-regression"});return{fired:Boolean(fired),mode:api.displayMode||api.mode,selected:v.dataset.nukeSelected,contract:v.dataset.nukeContract,launches:Number(v.dataset.nukeLaunches)||0,target:v.dataset.nukeTarget};});
