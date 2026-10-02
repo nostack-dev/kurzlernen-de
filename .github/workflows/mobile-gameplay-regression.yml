@@ -71,6 +71,7 @@ jobs:
           test -n "$CHROME_BIN"
           CHROME_BIN="$CHROME_BIN" node tests/mobile_combat_traffic_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
       - name: Test live nuke launch and impact stack
+        if: always()
         env:
           GH_SHA: ${{ github.sha }}
         run: |
