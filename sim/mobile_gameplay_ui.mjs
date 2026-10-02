@@ -4,7 +4,7 @@ function walk(){return globalThis.__arondightWalkMode||null;}
 function footWeapons(){return globalThis.__arondightFootWeapons||null;}
 function droneWeapons(){return globalThis.__arondightDroneWeapons||null;}
 function compactWanted(){return (navigator.maxTouchPoints||0)>0;}
-function currentWeaponName(onFoot){const api=onFoot?footWeapons():droneWeapons(),mode=String(api?.mode||"").trim();return(mode||"weapon").replaceAll("_"," ").toUpperCase();}
+function currentWeaponName(onFoot){const api=onFoot?footWeapons():droneWeapons(),mode=String((onFoot?api?.mode:(api?.displayMode||api?.mode))||"").trim();return(mode||"weapon").replaceAll("_"," ").toUpperCase();}
 function clickSource(id){const el=document.getElementById(id);if(!el||el.disabled)return false;el.click();return true;}
 function openSettings(){const buttons=[...document.querySelectorAll(".phone-settings-button")],button=buttons.at(-1)||buttons[0];if(!button)return false;button.click();return true;}
 function restoreDroneFpv(){const button=document.getElementById("camFpv"),view=viewport();if(!button||button.disabled)return false;button.click();if(view){view.dataset.mobileDroneCameraRoute="fpv-direct-v1";view.dataset.mobileDroneCameraRequested="fpv";}return true;}
