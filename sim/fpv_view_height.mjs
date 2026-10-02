@@ -1,4 +1,4 @@
-export const FPV_VIEW_EXTRA_UP_M=.020;
+export const FPV_VIEW_EXTRA_UP_M=.045;
 
 let installed=false,lastAppliedFrame=-1,retryTimer=0;
 
