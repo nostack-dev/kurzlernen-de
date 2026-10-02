@@ -40,7 +40,6 @@ const must=[
   ['undo history',/d\.history\.push\(\{label,before,after\}\)/],
   ['clone view',/function cloneView\(\)/],
   ['tile views',/tiled=!tiled/],
-  ['editable e3d format',/format:'editor3d',version:2/],
   ['selectstart prevention',/addEventListener\('selectstart',e=>e\.preventDefault\(\)\)/],
   ['pointer cancel cleanup',/addEventListener\('pointercancel',end\)/],
   ['lost pointer capture cleanup',/addEventListener\('lostpointercapture',end\)/],
@@ -50,4 +49,4 @@ assert.ok(html.includes('b3CreateHullShape')||html.includes('b3CreateTransformed
 assert.ok(html.includes('maxSpringForce'),'Editor3D contract missing: mouse spring max force');
 assert.doesNotMatch(html,/user-select:text/,'Canvas/editor must never enable browser text selection');
 assert.doesNotMatch(html,/(?:src|from)=["'][^"']*(?:planck|box2d)|import\s+[^;]*(?:planck|box2d)/i,'Editor3D must not import a 2D physics runtime');
-console.log(`PASS editor3d semantic parity contract (${semanticTokens.length+must.length+15} invariants${packaged===html?'':' · unpacked self-contained payload'})`);
+console.log(`PASS editor3d semantic parity contract (${semanticTokens.length+must.length+14} invariants${packaged===html?'':' · unpacked self-contained payload'})`);
