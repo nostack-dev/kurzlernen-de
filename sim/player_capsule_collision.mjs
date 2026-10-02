@@ -18,14 +18,16 @@ function bodyShapes(b3,body){
 
 export function ensurePlayerQueryAcceptedByTerrain(engine){
   const b3=engine?.b3;if(!b3||typeof b3.b3Shape_GetFilter!=="function"||typeof b3.b3Shape_SetFilter!=="function")return false;
-  const bodies=[engine.ground,engine.buildingState?.body].filter(Boolean);let touched=0;
+  const buildingBody=engine.buildingState?.body||null;if(engine.__playerCapsuleGround===engine.ground&&engine.__playerCapsuleBuildingBody===buildingBody)return true;
+  const bodies=[engine.ground,buildingBody].filter(Boolean);let touched=0;
   for(const body of bodies)for(const shape of bodyShapes(b3,body)){
     const current=b3.b3Shape_GetFilter(shape);if(!current)continue;
     const category=BigInt(current.categoryBits??0n);if((category&PLAYER_CAPSULE_TERRAIN_CATEGORY)===0n)continue;
     const mask=BigInt(current.maskBits??0n);if((mask&PLAYER_CAPSULE_QUERY_CATEGORY)!==0n)continue;
     b3.b3Shape_SetFilter(shape,{...current,categoryBits:category,maskBits:mask|PLAYER_CAPSULE_QUERY_CATEGORY},false);touched++;
   }
-  return touched>0||bodies.length>0;
+  engine.__playerCapsuleGround=engine.ground;engine.__playerCapsuleBuildingBody=buildingBody;engine.__playerCapsuleTerrainFilterUpdates=(Number(engine.__playerCapsuleTerrainFilterUpdates)||0)+touched;
+  return bodies.length>0;
 }
 
 function castFraction(b3,world,origin,delta,{radiusM=PLAYER_CAPSULE_RADIUS_M,heightM=PLAYER_CAPSULE_HEIGHT_M}={}){
