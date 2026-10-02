@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import {gunzipSync} from 'node:zlib';
 
-const html=fs.readFileSync(new URL('../editor3d.html',import.meta.url),'utf8');
+const packaged=fs.readFileSync(new URL('../editor3d.html',import.meta.url),'utf8');
+function unpackEditor3D(source){
+  if(!source.includes("DecompressionStream('gzip')"))return source;
+  const expr=source.match(/const payload=([\s\S]*?);const b=Uint8Array/);
+  assert.ok(expr,'Editor3D compressed wrapper must expose its payload expression');
+  const chunks=[...expr[1].matchAll(/'([A-Za-z0-9+/=]*)'/g)].map(m=>m[1]);
+  assert.ok(chunks.length,'Editor3D compressed wrapper must contain base64 payload chunks');
+  return gunzipSync(Buffer.from(chunks.join(''),'base64')).toString('utf8');
+}
+const html=unpackEditor3D(packaged);
 const must=[
   ['Box3D inline runtime',/box3d\.js@0\.1\.1\/dist\/box3d\.inline\.mjs/],
   ['Three.js renderer',/three@0\.185\.1/],
@@ -52,4 +62,4 @@ const must=[
 for(const [name,re] of must)assert.match(html,re,`Editor3D contract missing: ${name}`);
 assert.doesNotMatch(html,/user-select:text/,'Canvas/editor must never enable browser text selection');
 assert.doesNotMatch(html,/(?:src|from)=["'][^"']*(?:planck|box2d)|import\s+[^;]*(?:planck|box2d)/i,'Editor3D must not import a 2D physics runtime');
-console.log(`PASS editor3d parity contract (${must.length} invariants)`);
+console.log(`PASS editor3d parity contract (${must.length} invariants${packaged===html?'':' · unpacked payload'})`);
