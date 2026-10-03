@@ -18,6 +18,7 @@ if start < 0:
 if start < 0 or end < 0:
     raise SystemExit('missing Newton cradle branch')
 
+# Do not include the closing brace here: source[end:] begins with that brace before the following else.
 cradle=r"""}else if(kind==='cradle'){/* Editor3D Newton cradle example v2 */
 s.world.gravity=[0,0,-9.80665];s.world.allowSleep=false;s.world.continuousPhysics=true;
 const topZ=6.4,drop=3.65,radius=.5,spacing=1.0,count=5,wire=.32,pull=1.45,steel='#66727d',base='#4e5964',ballColor='#d9a0aa';
@@ -31,7 +32,7 @@ for(let i=0;i<count;i++){
  const ball=mk('cradle ball '+(i+1),2,[x,y,z],'sphere',[radius]);const f=ball.fixtures[0];f.density=1;f.friction=0;f.restitution=1;f.color=ballColor;ball.linearDamping=0;ball.angularDamping=0;ball.allowSleep=false;ball.awake=true;ball.bullet=true;
  for(const side of[-1,1]){const a=newBody(0,[restX,side*wire,topZ],'cradle anchor '+(i+1)+(side<0?' L':' R'));s.bodies.push(a);const j=jn('distance',a,ball,[restX,side*wire,topZ]);j.anchorA=V();j.anchorB=V();j.length=wireLen;j.enableLimit=false;j.enableSpring=false;j.frequency=0;j.dampingRatio=0}
 }
-s.cursor=[0,0,topZ-drop];report('Newton cradle loaded · balls are aligned and swing along X; Run → Grab to pull an end ball and release it.')}"""
+s.cursor=[0,0,topZ-drop];report('Newton cradle loaded · balls are aligned and swing along X; Run → Grab to pull an end ball and release it.')"""
 source=source[:start]+cradle+source[end:]
 
 # Fresh workspaces open the Newton cradle by default. Existing saved workspaces are preserved.
