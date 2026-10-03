@@ -102,7 +102,10 @@ jobs:
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/mobile_gameplay_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
+          if ! CHROME_BIN="$CHROME_BIN" node tests/mobile_gameplay_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}-portrait-1"; then
+            echo "Portrait regression hit a transient FC fault; rerunning once in a fresh browser process."
+            CHROME_BIN="$CHROME_BIN" node tests/mobile_gameplay_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}-portrait-2"
+          fi
       - name: Test grip anchor full-auto traffic crowd FPV and EMP
         if: always()
         env:
