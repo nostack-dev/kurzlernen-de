@@ -1,0 +1,34 @@
+name: Editor3D Box3D main upgrade
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/editor3d-box3d-main-upgrade.yml'
+      - 'scripts/box3d_main_api_audit.py'
+      - 'scripts/editor3d_box3d_main_patch.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Checkout browser bindings and current official Box3D main
+        run: |
+          set -euxo pipefail
+          rm -rf /tmp/box3djs
+          git clone --recurse-submodules https://github.com/isaac-mason/box3d.js.git /tmp/box3djs
+          git -C /tmp/box3djs checkout 5d5a3af049cccd9948b2b55bac4342414af0ef64
+          git -C /tmp/box3djs submodule update --init --recursive
+          git -C /tmp/box3djs/vendor/box3d fetch origin 51f056e0a9d299326b10f10a63270c81d901df21
+          git -C /tmp/box3djs/vendor/box3d checkout 51f056e0a9d299326b10f10a63270c81d901df21
+          echo 'binding='$(git -C /tmp/box3djs rev-parse HEAD)
+          echo 'box3d='$(git -C /tmp/box3djs/vendor/box3d rev-parse HEAD)
+      - name: Audit full public API coverage before migration
+        run: python3 scripts/box3d_main_api_audit.py /tmp/box3djs
