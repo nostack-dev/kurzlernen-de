@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Static parity contract
         run: node tests/editor3d_contract_test.mjs
-      - name: Static anti-flicker contract
+      - name: Static mobile anti-flicker regression contract
         run: node tests/editor3d_flicker_contract_test.mjs
       - name: Install exact browser dependencies
         run: |
