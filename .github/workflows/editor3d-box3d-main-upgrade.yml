@@ -8,6 +8,7 @@ on:
       - 'scripts/box3d_main_api_audit.py'
       - 'scripts/editor3d_box3d_main_patch.py'
       - 'scripts/editor3d_box3d_full_facade_patch.py'
+      - 'scripts/editor3d_box3d_browser_runtime_patch.py'
   workflow_dispatch:
 
 permissions:
@@ -35,6 +36,8 @@ jobs:
         run: python3 scripts/editor3d_box3d_main_patch.py /tmp/box3djs
       - name: Generate complete public C API browser mirror
         run: python3 scripts/editor3d_box3d_full_facade_patch.py /tmp/box3djs
+      - name: Complete browser runtime support for every public API class
+        run: python3 scripts/editor3d_box3d_browser_runtime_patch.py /tmp/box3djs
       - name: Inventory ergonomic typed API before build
         run: python3 scripts/box3d_main_api_audit.py /tmp/box3djs --report-only
       - name: Setup Emscripten 6.0.2
@@ -70,12 +73,18 @@ jobs:
           const missingRaw=official.filter(n=>typeof b3.raw?.[n]!=='function');
           const missingTop=official.filter(n=>typeof b3[n]!=='function');
           if(missingRaw.length||missingTop.length) throw new Error(`incomplete facade raw=${missingRaw.join(',')} top=${missingTop.join(',')}`);
+          if(typeof b3.FS?.readFile!=='function') throw new Error('MEMFS runtime missing for public file APIs');
+          if(typeof b3.addFunction!=='function'||typeof b3.removeFunction!=='function') throw new Error('dynamic callback runtime missing');
           const wd=b3.b3DefaultWorldDef();
           if(!('restitutionIterations' in wd)||!('enableRestitutionPropagation' in wd)) throw new Error('current b3WorldDef fields missing');
           wd.restitutionIterations=8; wd.enableRestitutionPropagation=true; wd.gravity=[0,0,-9.80665];
           const world=b3.b3CreateWorld(wd);
           if(b3.b3World_GetRestitutionIterations(world)!==8) throw new Error('restitutionIterations did not round-trip');
           if(!b3.b3World_IsRestitutionPropagationEnabled(world)) throw new Error('restitution propagation did not round-trip');
+          b3.b3World_DumpShapeBounds(world,b3.b3BodyType.b3_staticBody);
+          const boundsDump=b3.FS.readFile('box3d_bounds.txt',{encoding:'utf8'});
+          if(!boundsDump.startsWith('# shapeId bodyId ')) throw new Error('DumpShapeBounds browser implementation did not produce its file');
+          b3.FS.unlink('box3d_bounds.txt');
           b3.b3DestroyWorld(world);
           console.log(`PASS complete Box3D browser facade ${official.length}/${official.length}`, b3.b3GetVersion?.());
           NODE
