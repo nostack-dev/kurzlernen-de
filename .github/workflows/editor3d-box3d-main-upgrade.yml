@@ -30,5 +30,34 @@ jobs:
           git -C /tmp/box3djs/vendor/box3d checkout 51f056e0a9d299326b10f10a63270c81d901df21
           echo 'binding='$(git -C /tmp/box3djs rev-parse HEAD)
           echo 'box3d='$(git -C /tmp/box3djs/vendor/box3d rev-parse HEAD)
-      - name: Audit full public API coverage before migration
+      - name: Patch browser facade for current official world API
+        run: python3 scripts/editor3d_box3d_main_patch.py /tmp/box3djs
+      - name: Audit Editor3D-required current API coverage
         run: python3 scripts/box3d_main_api_audit.py /tmp/box3djs
+      - name: Setup Emscripten 6.0.2
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.2
+          actions-cache-folder: emsdk-cache
+      - name: Build browser runtime from official Box3D main
+        working-directory: /tmp/box3djs
+        run: |
+          set -euxo pipefail
+          node scripts/build.mjs
+      - name: Smoke current Box3D world API in WebAssembly
+        working-directory: /tmp/box3djs
+        run: |
+          node --input-type=module <<'NODE'
+          import Box3D from './dist/box3d.inline.mjs';
+          const b3=await Box3D();
+          const required=['b3World_SetRestitutionIterations','b3World_GetRestitutionIterations','b3World_EnableRestitutionPropagation','b3World_IsRestitutionPropagationEnabled'];
+          for(const n of required) if(typeof b3[n]!=='function') throw new Error('missing runtime API '+n);
+          const wd=b3.b3DefaultWorldDef();
+          if(!('restitutionIterations' in wd)||!('enableRestitutionPropagation' in wd)) throw new Error('current b3WorldDef fields missing');
+          wd.restitutionIterations=8; wd.enableRestitutionPropagation=true; wd.gravity=[0,0,-9.80665];
+          const world=b3.b3CreateWorld(wd);
+          if(b3.b3World_GetRestitutionIterations(world)!==8) throw new Error('restitutionIterations did not round-trip');
+          if(!b3.b3World_IsRestitutionPropagationEnabled(world)) throw new Error('restitution propagation did not round-trip');
+          b3.b3DestroyWorld(world);
+          console.log('PASS official Box3D main WASM world API', b3.b3GetVersion?.());
+          NODE
