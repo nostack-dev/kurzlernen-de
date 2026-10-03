@@ -11,6 +11,7 @@ on:
       - "tests/mobile_reset_readonly_live_smoke.mjs"
       - "tests/mobile_gameplay_live_smoke.mjs"
       - "tests/mobile_combat_traffic_live_smoke.mjs"
+      - "tests/mobile_multiplayer_live_smoke.mjs"
       - "tests/nuke_mobile_live_smoke.mjs"
       - ".github/workflows/mobile-gameplay-regression.yml"
   workflow_dispatch:
@@ -111,6 +112,15 @@ jobs:
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
           CHROME_BIN="$CHROME_BIN" node tests/mobile_combat_traffic_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
+      - name: Test dual-mobile live multiplayer pairing
+        if: always()
+        env:
+          GH_SHA: ${{ github.sha }}
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_multiplayer_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
