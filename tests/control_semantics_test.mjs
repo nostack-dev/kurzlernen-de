@@ -10,7 +10,7 @@ import {
 
 assert.deepEqual(
   readdirSync(".github/workflows").sort(),
-  ["deploy.yml","editor3d-assemble.yml","editor3d-e2e.yml","editor3d-live.yml","mobile-gameplay-regression.yml","s31-hil.yml"],
+  ["deploy.yml","editor3d-assemble.yml","editor3d-e2e.yml","editor3d-flicker-fix.yml","editor3d-live.yml","editor3d-mobile-orbit.yml","editor3d-newton-cradle.yml","mobile-gameplay-regression.yml","s31-hil.yml"],
   "production tree must contain only the approved Pages, Editor3D, mobile gameplay, and S31 HIL workflows",
 );
 
