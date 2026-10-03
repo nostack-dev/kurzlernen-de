@@ -1,0 +1,57 @@
+name: Repair Editor3D flicker fix
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/editor3d_apply_flicker_fix.py"
+      - ".github/workflows/editor3d-flicker-fix.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  repair-test-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Rebuild from last known-good Editor3D and apply anti-flicker patch
+        run: |
+          set -euxo pipefail
+          git show bd7a320050a239e46435a99ae80a3debc9577c8b:editor3d.html > /tmp/editor3d-known-good.html
+          python3 scripts/editor3d_apply_flicker_fix.py /tmp/editor3d-known-good.html editor3d.html
+          node tests/editor3d_contract_test.mjs
+          node tests/editor3d_flicker_contract_test.mjs
+      - name: Install exact runtime test dependencies
+        run: |
+          set -euxo pipefail
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 puppeteer-core@24.16.0
+      - name: Browser-test repaired editor before publish
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4180 --bind 127.0.0.1 >/tmp/editor3d-http.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" EDITOR3D_LOCAL_DEPS=1 REPO_ROOT="$GITHUB_WORKSPACE" node tests/editor3d_browser_smoke.mjs
+          CHROME_BIN="$CHROME_BIN" EDITOR3D_LOCAL_DEPS=1 REPO_ROOT="$GITHUB_WORKSPACE" node tests/editor3d_flicker_browser_smoke.mjs
+      - name: Publish repaired single file
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          rm -rf node_modules package.json package-lock.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add editor3d.html
+          git commit -m 'Repair Editor3D iOS canvas flicker safely'
+          git pull --rebase origin main
+          git push origin HEAD:main || { git pull --rebase origin main; git push origin HEAD:main; }
