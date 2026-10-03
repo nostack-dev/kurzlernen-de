@@ -7,6 +7,7 @@ on:
       - '.github/workflows/editor3d-box3d-main-upgrade.yml'
       - 'scripts/box3d_main_api_audit.py'
       - 'scripts/editor3d_box3d_main_patch.py'
+      - 'scripts/editor3d_box3d_full_facade_patch.py'
   workflow_dispatch:
 
 permissions:
@@ -30,9 +31,11 @@ jobs:
           git -C /tmp/box3djs/vendor/box3d checkout 51f056e0a9d299326b10f10a63270c81d901df21
           echo 'binding='$(git -C /tmp/box3djs rev-parse HEAD)
           echo 'box3d='$(git -C /tmp/box3djs/vendor/box3d rev-parse HEAD)
-      - name: Patch browser facade for current official world API
+      - name: Patch typed browser facade for current official world API
         run: python3 scripts/editor3d_box3d_main_patch.py /tmp/box3djs
-      - name: Audit Editor3D-required current API coverage
+      - name: Generate complete public C API browser mirror
+        run: python3 scripts/editor3d_box3d_full_facade_patch.py /tmp/box3djs
+      - name: Audit Editor3D typed API before build
         run: python3 scripts/box3d_main_api_audit.py /tmp/box3djs
       - name: Setup Emscripten 6.0.2
         uses: mymindstorm/setup-emsdk@v14
@@ -44,14 +47,29 @@ jobs:
         run: |
           set -euxo pipefail
           node scripts/build.mjs
-      - name: Smoke current Box3D world API in WebAssembly
+      - name: Require complete Box3D public API mirror in WebAssembly
         working-directory: /tmp/box3djs
         run: |
           node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
           import Box3D from './dist/box3d.inline.mjs';
+          const includeDir='./vendor/box3d/include/box3d';
+          const names=new Set();
+          for(const file of fs.readdirSync(includeDir)){
+            if(!file.endsWith('.h')) continue;
+            const src=fs.readFileSync(path.join(includeDir,file),'utf8');
+            for(const m of src.matchAll(/B3_API\s+[\s\S]{0,240}?\b(b3[A-Za-z0-9_]+)\s*\(/g)) names.add(m[1]);
+          }
+          const official=[...names].sort();
           const b3=await Box3D();
-          const required=['b3World_SetRestitutionIterations','b3World_GetRestitutionIterations','b3World_EnableRestitutionPropagation','b3World_IsRestitutionPropagationEnabled'];
-          for(const n of required) if(typeof b3[n]!=='function') throw new Error('missing runtime API '+n);
+          if(!Array.isArray(b3.publicApi)) throw new Error('publicApi manifest missing');
+          if(official.length!==b3.publicApi.length) throw new Error(`public API count mismatch official=${official.length} facade=${b3.publicApi.length}`);
+          const missingManifest=official.filter((n,i)=>b3.publicApi[i]!==n);
+          if(missingManifest.length) throw new Error('publicApi manifest drift: '+missingManifest.join(' '));
+          const missingRaw=official.filter(n=>typeof b3.raw?.[n]!=='function');
+          const missingTop=official.filter(n=>typeof b3[n]!=='function');
+          if(missingRaw.length||missingTop.length) throw new Error(`incomplete facade raw=${missingRaw.join(',')} top=${missingTop.join(',')}`);
           const wd=b3.b3DefaultWorldDef();
           if(!('restitutionIterations' in wd)||!('enableRestitutionPropagation' in wd)) throw new Error('current b3WorldDef fields missing');
           wd.restitutionIterations=8; wd.enableRestitutionPropagation=true; wd.gravity=[0,0,-9.80665];
@@ -59,5 +77,5 @@ jobs:
           if(b3.b3World_GetRestitutionIterations(world)!==8) throw new Error('restitutionIterations did not round-trip');
           if(!b3.b3World_IsRestitutionPropagationEnabled(world)) throw new Error('restitution propagation did not round-trip');
           b3.b3DestroyWorld(world);
-          console.log('PASS official Box3D main WASM world API', b3.b3GetVersion?.());
+          console.log(`PASS complete Box3D browser facade ${official.length}/${official.length}`, b3.b3GetVersion?.());
           NODE
