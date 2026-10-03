@@ -81,9 +81,16 @@ jobs:
           const world=b3.b3CreateWorld(wd);
           if(b3.b3World_GetRestitutionIterations(world)!==8) throw new Error('restitutionIterations did not round-trip');
           if(!b3.b3World_IsRestitutionPropagationEnabled(world)) throw new Error('restitution propagation did not round-trip');
+          const bd=b3.b3DefaultBodyDef();
+          bd.type=b3.b3BodyType.b3_staticBody;
+          bd.position=[0,0,0];
+          const body=b3.b3CreateBody(world,bd);
+          const sd=b3.b3DefaultShapeDef();
+          b3.b3CreateBoxShape(body,sd,1,2,3);
           b3.b3World_DumpShapeBounds(world,b3.b3BodyType.b3_staticBody);
-          const boundsDump=b3.FS.readFile('box3d_bounds.txt',{encoding:'utf8'});
-          if(!boundsDump.startsWith('# shapeId bodyId ')) throw new Error('DumpShapeBounds browser implementation did not produce its file');
+          const boundsDump=b3.FS.readFile('box3d_bounds.txt',{encoding:'utf8'}).trim();
+          const values=boundsDump.split(/\s+/).map(Number);
+          if(values.length<6||values.some(v=>!Number.isFinite(v))) throw new Error('DumpShapeBounds browser implementation produced invalid upstream-format bounds data');
           b3.FS.unlink('box3d_bounds.txt');
           b3.b3DestroyWorld(world);
           console.log(`PASS complete Box3D browser facade ${official.length}/${official.length}`, b3.b3GetVersion?.());
