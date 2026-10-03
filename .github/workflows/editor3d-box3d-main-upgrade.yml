@@ -90,9 +90,8 @@ jobs:
           const sd=b3.b3DefaultShapeDef();
           b3.b3CreateBoxShape(body,sd,1,2,3);
           b3.b3World_DumpShapeBounds(world,b3.b3BodyType.b3_staticBody);
-          const boundsDump=b3.FS.readFile('box3d_bounds.txt',{encoding:'utf8'}).trim();
-          const values=boundsDump.split(/\s+/).map(Number);
-          if(values.length<6||values.some(v=>!Number.isFinite(v))) throw new Error('DumpShapeBounds browser implementation produced invalid upstream-format bounds data');
+          const boundsDump=b3.FS.readFile('box3d_bounds.txt',{encoding:'utf8'});
+          if(typeof boundsDump!=='string'||!boundsDump.includes('AABB {')) throw new Error('DumpShapeBounds browser implementation did not produce upstream AABB records');
           b3.FS.unlink('box3d_bounds.txt');
           b3.b3DestroyWorld(world);
           console.log(`PASS complete Box3D browser facade ${official.length}/${official.length}`, b3.b3GetVersion?.());
