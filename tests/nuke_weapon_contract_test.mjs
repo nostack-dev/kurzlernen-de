@@ -9,7 +9,7 @@ const mobile=readFileSync("sim/mobile_gameplay_ui.mjs","utf8");
 const mobileLive=readFileSync("tests/nuke_mobile_live_smoke.mjs","utf8");
 
 for(const marker of [
-  'const BLAST_RADIUS_M=120','const SHOCKWAVE_SPEED_MPS=343','const SHOCKWAVE_MAX_M=520','const MUSHROOM_HEIGHT_M=108','const CINEMATIC_GRACE_MS=4200','const COOLDOWN_MS=4500','"gun","missile","nuke"','displayMode==="gun"?"missile":displayMode==="missile"?"nuke":"gun"','api.fireNuke=fireNuke','api.fireMissile=args=>displayMode==="nuke"?fireNuke(args)','kind:"nuke"','whiteout-fireball-shockwave-mushroom-v3','drone-targeted-fixed-impact-v2','mushroom-crown','mushroom-stem-base'
+  'const GROUND_BURST_Z=0','groundBurstPoint(hit.point)','nukeTargetResolver="ground-burst-xy-v1"','const BLAST_RADIUS_M=120','const SHOCKWAVE_SPEED_MPS=343','const SHOCKWAVE_MAX_M=520','const MUSHROOM_HEIGHT_M=108','const CINEMATIC_GRACE_MS=4200','const COOLDOWN_MS=4500','"gun","missile","nuke"','displayMode==="gun"?"missile":displayMode==="missile"?"nuke":"gun"','api.fireNuke=fireNuke','api.fireMissile=args=>displayMode==="nuke"?fireNuke(args)','kind:"nuke"','whiteout-fireball-shockwave-mushroom-v3','drone-targeted-fixed-impact-v2','mushroom-crown','mushroom-stem-base'
 ]) assert.ok(nuke.includes(marker),`missing nuke contract marker: ${marker}`);
 
 for(const marker of [
@@ -24,10 +24,10 @@ const mushroomMatch=overkill.match(/nukeOverkillMushroomM="(\d+(?:\.\d+)?)"/);
 assert.ok(mushroomMatch,"missing nuclear mushroom height marker");
 assert.ok(Number(mushroomMatch[1])>=120,`3D mushroom presentation regressed below 120 m: ${mushroomMatch[1]}`);
 
-for(const marker of ['page.touchscreen.tap(','legacyMissilesAfter===shot.legacyMissilesBefore','inputRoute==="window-capture-fireNuke-v1"','legacyBypass==="blocked-v1"','worldAnchorError','screenCloudRemoved','depthPriorityVolumetric','depthPriorityOverkill','cinematic-depth-priority-v1']) assert.ok(mobileLive.includes(marker),`real-touch live nuke gate missing: ${marker}`);
+for(const marker of ['page.touchscreen.tap(','legacyMissilesAfter===shot.legacyMissilesBefore','inputRoute==="window-capture-fireNuke-v1"','legacyBypass==="blocked-v1"','targetResolver==="ground-burst-xy-v1"','Math.abs(shot.targetXYZ[2])<.05','worldAnchorError','screenCloudRemoved','depthPriorityVolumetric','depthPriorityOverkill','cinematic-depth-priority-v1']) assert.ok(mobileLive.includes(marker),`real-touch live nuke gate missing: ${marker}`);
 
 assert.ok(cleanup.includes('import "./nuke_weapon.mjs";'),"nuke runtime is not wired into flight-first cleanup");
 assert.ok(cleanup.includes('import "./nuke_overkill_fx.mjs";'),"nuclear overkill visual runtime is not wired into flight-first cleanup");
 assert.ok(mobile.includes('api?.displayMode||api?.mode'),"mobile HUD does not expose extended drone weapon mode");
 
-console.log("Nuke weapon v11 contract passed: impact-locked 3D nuclear FX retain cinematic depth priority and cannot disappear behind scene occluders.");
+console.log("Nuke weapon v12 contract passed: screen aim resolves to a ground burst, then impact-locked 3D FX retain cinematic depth priority.");
