@@ -35,6 +35,7 @@ try{
 
   await page.goto(base+(base.includes('?')?'&':'?')+'visual='+Date.now(),{waitUntil:'networkidle2',timeout:90000});
   await page.waitForFunction(()=>window.Editor3D?.b3&&window.Editor3D?.scene?.bodies?.length>0,{timeout:90000});
+  await page.evaluate(()=>Editor3D.loadDemo('cradle'));
   await settle(page,800);
 
   const shell=await page.evaluate(()=>{
@@ -46,10 +47,20 @@ try{
       docW:document.documentElement.scrollWidth,docH:document.documentElement.scrollHeight,
       canvas:rect?{x:rect.x,y:rect.y,w:rect.width,h:rect.height}:null,
       bodyCount:Editor3D.scene.bodies.length,
+      fixtureCount:Editor3D.scene.bodies.reduce((n,b)=>n+(b.fixtures?.length||0),0),
       jointCount:Editor3D.scene.joints.length,
+      hasGround:Editor3D.scene.bodies.some(b=>b.name==='ground'),
+      visualFitMarker:document.documentElement.innerHTML.includes('Editor3D visual fit v1: scale-aware camera; cradle excludes 24m demo ground'),
+      box3dMarker:document.documentElement.innerHTML.includes('main:51f056e0a9d299326b10f10a63270c81d901df21 api:594'),
       title:document.title
     };
   });
+  assert.ok(shell.visualFitMarker,'visual-fit build marker missing: '+JSON.stringify(shell));
+  assert.ok(shell.box3dMarker,'Box3D 594/594 main marker missing: '+JSON.stringify(shell));
+  assert.equal(shell.hasGround,false,'Newton cradle must not contain the 24 m demo ground');
+  assert.equal(shell.bodyCount,26,'unexpected Newton cradle body count');
+  assert.equal(shell.fixtureCount,16,'unexpected Newton cradle fixture count');
+  assert.equal(shell.jointCount,10,'unexpected Newton cradle joint count');
   assert.ok(shell.canvas&&shell.canvas.w>300&&shell.canvas.h>250,JSON.stringify(shell));
   assert.ok(shell.docW<=shell.width+1,JSON.stringify(shell));
   await snap(page,'01-desktop-default');
