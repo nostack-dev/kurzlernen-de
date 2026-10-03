@@ -41,18 +41,55 @@ if 'void b3World_DumpShapeBounds( b3WorldId worldId, b3BodyType type )' not in w
 # The full-facade patch intentionally turns FILESYSTEM=0 into FILESYSTEM=1 first.
 # Upgrade either state to the complete browser runtime needed by public file and
 # callback APIs: MEMFS plus a growable function table and registration bridges.
-if "'-sFORCE_FILESYSTEM=1'," not in b:
-    b = regex_once(
-        b,
-        r"(?P<indent>\s*)'-sFILESYSTEM=(?:0|1)',",
-        lambda m: (
-            f"{m.group('indent')}'-sFORCE_FILESYSTEM=1',\n"
-            f"{m.group('indent')}'-sALLOW_TABLE_GROWTH=1',\n"
-            f"{m.group('indent')}'-sEXPORTED_RUNTIME_METHODS=[\\\"FS\\\",\\\"addFunction\\\",\\\"removeFunction\\\",\\\"UTF8ToString\\\",\\\"stringToUTF8\\\",\\\"lengthBytesUTF8\\\"]',"
-        ),
-        'browser filesystem/callback runtime',
-    )
+if "'-sALLOW_TABLE_GROWTH=1'," not in b:
+    if "'-sFORCE_FILESYSTEM=1'," in b:
+        b = b.replace(
+            "\t'-sFORCE_FILESYSTEM=1',",
+            "\t'-sFORCE_FILESYSTEM=1',\n\t'-sALLOW_TABLE_GROWTH=1',\n\t'-sEXPORTED_RUNTIME_METHODS=[\\\"FS\\\",\\\"addFunction\\\",\\\"removeFunction\\\",\\\"UTF8ToString\\\",\\\"stringToUTF8\\\",\\\"lengthBytesUTF8\\\"]',",
+            1,
+        )
+    else:
+        b = regex_once(
+            b,
+            r"(?P<indent>\s*)'-sFILESYSTEM=(?:0|1)',",
+            lambda m: (
+                f"{m.group('indent')}'-sFORCE_FILESYSTEM=1',\n"
+                f"{m.group('indent')}'-sALLOW_TABLE_GROWTH=1',\n"
+                f"{m.group('indent')}'-sEXPORTED_RUNTIME_METHODS=[\\\"FS\\\",\\\"addFunction\\\",\\\"removeFunction\\\",\\\"UTF8ToString\\\",\\\"stringToUTF8\\\",\\\"lengthBytesUTF8\\\"]',"
+            ),
+            'browser filesystem/callback runtime',
+        )
+
+# box3d.js 0.1.1 deliberately pins Emscripten 6.0.2 and its validateESModule()
+# rewrites Node require() calls to await import(). With filesystem support enabled,
+# emcc adds a *synchronous* require("crypto") inside initRandomFill(). Blindly
+# rewriting that nested require produces invalid JS: await inside a non-async arrow.
+# Hoist only that Node crypto load to the surrounding async MODULARIZE factory;
+# initRandomFill remains synchronous and browser execution stays unchanged.
+crypto_fix_marker = '__box3dNodeCrypto'
+if crypto_fix_marker not in b:
+    anchor = "\t// require() -> await import\n\tsrc = src.replaceAll( /\\brequire\\(\\s*[\"']([^\"']+)[\"']\\s*\\)/g, '(await import(\"$1\"))' );"
+    insert = """\t// Emscripten 6.0.2 + FORCE_FILESYSTEM emits require(\"crypto\") inside
+\t// synchronous initRandomFill(). Hoist that one import to this async factory
+\t// scope before the generic require -> await import rewrite below.
+\tconst syncCryptoRequire = /var nodeCrypto=require\\(\\s*[\"'](?:node:)?crypto[\"']\\s*\\)/;
+\tif ( syncCryptoRequire.test( src ) )
+\t{
+\t\tif ( !src.includes( 'var initRandomFill=' ) )
+\t\t\tthrow new Error( `${file}: crypto require found but initRandomFill anchor changed` );
+\t\tsrc = src.replace(
+\t\t\t'var initRandomFill=',
+\t\t\t'var __box3dNodeCrypto=ENVIRONMENT_IS_NODE?await import(\"node:crypto\"):null;var initRandomFill=',
+\t\t);
+\t\tsrc = src.replace( syncCryptoRequire, 'var nodeCrypto=__box3dNodeCrypto' );
+\t}
+
+\t// require() -> await import
+\tsrc = src.replaceAll( /\\brequire\\(\\s*[\"']([^\"']+)[\"']\\s*\\)/g, '(await import(\"$1\"))' );"""
+    if anchor not in b:
+        raise SystemExit('missing patch anchor: validateESModule require rewrite')
+    b = b.replace(anchor, insert, 1)
 
 build_path.write_text(b, encoding='utf-8')
 core_path.write_text(core, encoding='utf-8')
-print('patched Box3D browser runtime: public assert symbol + MEMFS + callback bridge')
+print('patched Box3D browser runtime: public assert symbol + MEMFS/callback bridge + valid ESM crypto loader')
