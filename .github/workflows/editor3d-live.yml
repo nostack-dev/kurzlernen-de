@@ -22,18 +22,40 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.VERIFY_SHA }}
-      - name: Wait for Editor3D file on Pages
+      - name: Wait for exact Editor3D build on Pages
         env:
           SHA: ${{ env.VERIFY_SHA }}
         run: |
           set -euxo pipefail
           ok=0
-          for attempt in $(seq 1 20); do
+          for attempt in $(seq 1 40); do
             if curl -fsSL --retry 1 --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' \
-              "https://kurzlernen.de/editor3d.html?ci=${SHA}-${attempt}" -o /tmp/editor3d-live.html \
-              && test "$(wc -c < /tmp/editor3d-live.html)" -gt 30000 \
-              && grep -q 'Editor3D' /tmp/editor3d-live.html; then
-              ok=1; break
+              "https://kurzlernen.de/editor3d.html?ci=${SHA}-${attempt}" -o /tmp/editor3d-live.html; then
+              if python3 - <<'PY'
+          import base64,gzip,hashlib,re
+          from pathlib import Path
+          expected=Path('editor3d.html').read_text(encoding='utf-8')
+          live=Path('/tmp/editor3d-live.html').read_text(encoding='utf-8')
+          pat=r"EDITOR3D_GZIP_BASE64='([^']+)'"
+          em=re.search(pat,expected); lm=re.search(pat,live)
+          if not em or not lm:
+              raise SystemExit('packed Editor3D payload missing')
+          if hashlib.sha256(em.group(1).encode()).hexdigest()!=hashlib.sha256(lm.group(1).encode()).hexdigest():
+              raise SystemExit('Pages is still serving a different Editor3D payload')
+          source=gzip.decompress(base64.b64decode(lm.group(1))).decode('utf-8')
+          required=(
+              'Editor3D visual fit v1: scale-aware camera; cradle excludes 24m demo ground',
+              'main:51f056e0a9d299326b10f10a63270c81d901df21 api:594',
+              "if(kind!=='cradle')mk('ground',0,[0,0,-.5],'box',[24,24,1])",
+          )
+          missing=[x for x in required if x not in source]
+          if missing:
+              raise SystemExit('live Editor3D build markers missing: '+repr(missing))
+          print('exact live Editor3D payload',hashlib.sha256(source.encode()).hexdigest())
+          PY
+              then
+                ok=1; break
+              fi
             fi
             sleep 3
           done
@@ -47,48 +69,26 @@ jobs:
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           test -n "$CHROME_BIN"
-          ok=0
-          for attempt in $(seq 1 24); do
-            if CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?flicker=${VERIFY_SHA}-${attempt}" node tests/editor3d_flicker_browser_smoke.mjs; then
-              ok=1; break
-            fi
-            sleep 5
-          done
-          test "$ok" = 1
-      - name: Wait for mobile Orbit ownership and Earth gravity live
+          CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?flicker=${VERIFY_SHA}" node tests/editor3d_flicker_browser_smoke.mjs
+      - name: Verify mobile Orbit ownership and Earth gravity live
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           test -n "$CHROME_BIN"
-          ok=0
-          for attempt in $(seq 1 24); do
-            if CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?orbit=${VERIFY_SHA}-${attempt}" node tests/editor3d_mobile_orbit_browser_smoke.mjs; then
-              ok=1; break
-            fi
-            sleep 5
-          done
-          test "$ok" = 1
-      - name: Wait for Newton cradle example live
+          CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?orbit=${VERIFY_SHA}" node tests/editor3d_mobile_orbit_browser_smoke.mjs
+      - name: Verify Newton cradle example live
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           test -n "$CHROME_BIN"
-          ok=0
-          for attempt in $(seq 1 24); do
-            if CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?cradle=${VERIFY_SHA}-${attempt}" node tests/editor3d_newton_cradle_browser_smoke.mjs; then
-              ok=1; break
-            fi
-            sleep 5
-          done
-          test "$ok" = 1
+          CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?cradle=${VERIFY_SHA}" node tests/editor3d_newton_cradle_browser_smoke.mjs
       - name: Run full Editor3D against deployed URL
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           test -n "$CHROME_BIN"
           CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?live=${VERIFY_SHA}" node tests/editor3d_browser_smoke.mjs
-      - name: Capture live visual states
-        if: always()
+      - name: Capture exact live visual states
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
