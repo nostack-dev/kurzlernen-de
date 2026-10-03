@@ -55,10 +55,11 @@ function spawn(position){
     }
   }
 
-  // Massive rounded crown volumes give the silhouette a mushroom head instead of a ring.
-  smoke.push(puff(group,{role:"crown-volumetric-core",r:34,x:0,y:0,z:102,color:0x55504d,scale:[2.15,2.05,1.15]}));
-  smoke.push(puff(group,{role:"crown-volumetric-upper",r:27,x:-5,y:4,z:119,color:0x454849,scale:[2.05,1.95,1.05]}));
-  smoke.push(puff(group,{role:"crown-volumetric-lower",r:29,x:5,y:-3,z:85,color:0x65554d,scale:[2.1,2.0,.95]}));
+  // Massive rounded crown volumes dominate the silhouette from gameplay standoff range.
+  // Keep the stem anchored at impact while widening only the mushroom head.
+  smoke.push(puff(group,{role:"crown-volumetric-core",r:34,x:0,y:0,z:102,color:0x55504d,scale:[3.75,3.55,1.35]}));
+  smoke.push(puff(group,{role:"crown-volumetric-upper",r:27,x:-5,y:4,z:119,color:0x454849,scale:[3.55,3.35,1.25]}));
+  smoke.push(puff(group,{role:"crown-volumetric-lower",r:29,x:5,y:-3,z:85,color:0x65554d,scale:[3.65,3.45,1.15]}));
 
   // Warm inner glow stays buried inside smoke; no visible orange saucer.
   const glow=tag(new THREE.PointLight(0xff6a18,1250,360,1.35),"volumetric-inner-glow");glow.position.set(0,0,76);group.add(glow);
