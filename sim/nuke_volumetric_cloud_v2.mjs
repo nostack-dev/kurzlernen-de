@@ -16,8 +16,6 @@ function suppressLegacyPrimitives(root){root?.traverse?.(node=>{const role=Strin
 
 function spawn(position){
   const world=scene();if(!world)return;
-  // Existing nuke effect is already rooted at the exact impact point. Hide only its
-  // primitive helper meshes that read as a flat orange disc / straight tube.
   world.traverse?.(node=>{if(node.userData?.nukeOverkillPart)suppressLegacyPrimitives(node);});
 
   const group=tag(new THREE.Group(),"volumetric-world-root");
@@ -41,6 +39,19 @@ function spawn(position){
     smoke.push(puff(group,{role:`crown-collar-${i}`,r:12+(i%5)*1.4,x:Math.cos(a)*rad,y:Math.sin(a)*rad,z,color:i%2?0x64554e:0x514b48,scale:[2.2,2.05,1.35]}));
   }
 
+  // Low, wide cap: this is the readable mushroom silhouette in a normal low FPV view.
+  // It remains physically rooted at the exact impact position; cinematic depth priority
+  // only prevents nearby scenery from hiding the signature nuclear cloud completely.
+  for(let i=0;i<18;i++){
+    const a=i/18*Math.PI*2;
+    const rad=30+(i%4)*7.5+(seededNoise(i,31)-.5)*5;
+    const z=36+(i%5)*3.3+(seededNoise(i,32)-.5)*4;
+    const r=20+(i%4)*2.6+seededNoise(i,33)*3.5;
+    const color=i%3===0?0x2b2726:i%3===1?0x3a302d:0x4b3933;
+    smoke.push(puff(group,{role:`crown-visible-${i}`,r,x:Math.cos(a)*rad,y:Math.sin(a)*rad,z,color,scale:[3.0,2.85,1.45]}));
+  }
+  smoke.push(puff(group,{role:"crown-visible-core",r:30,x:0,y:0,z:46,color:0x352d2b,scale:[3.25,3.05,1.35]}));
+
   // Four genuinely three-dimensional billowing crown rings. These are deliberately
   // huge in world space so the mushroom head remains unmistakable at gameplay range.
   for(let ring=0;ring<4;ring++){
@@ -56,19 +67,17 @@ function spawn(position){
     }
   }
 
-  // Massive rounded crown volumes dominate the silhouette from gameplay standoff range.
-  // Keep the stem anchored at impact while widening only the mushroom head.
+  // Massive rounded upper crown completes the mushroom above the low readable cap.
   smoke.push(puff(group,{role:"crown-volumetric-core",r:34,x:0,y:0,z:102,color:0x55504d,scale:[3.75,3.55,1.35]}));
   smoke.push(puff(group,{role:"crown-volumetric-upper",r:27,x:-5,y:4,z:119,color:0x454849,scale:[3.55,3.35,1.25]}));
   smoke.push(puff(group,{role:"crown-volumetric-lower",r:29,x:5,y:-3,z:85,color:0x65554d,scale:[3.65,3.45,1.15]}));
 
-  // Warm inner glow stays buried inside smoke; no visible orange saucer.
   const glow=tag(new THREE.PointLight(0xff6a18,1250,360,1.35),"volumetric-inner-glow");glow.position.set(0,0,76);group.add(glow);
   const topGlow=tag(new THREE.PointLight(0xffa047,650,300,1.5),"volumetric-crown-glow");topGlow.position.set(0,0,105);group.add(topGlow);
 
   group.scale.setScalar(.035);
   clouds.push({group,world,smoke,glow,topGlow,born:performance.now(),position:position.clone()});
-  const v=viewport();if(v){v.dataset.nukeVolumetricCloud="lit-billowing-world-v1";v.dataset.nukeVolumetricAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;v.dataset.nukeVolumetricParts=String(smoke.length);v.dataset.nukeVolumetricScreenSpace="none";v.dataset.nukeVolumetricVisibility="cinematic-depth-priority-v1";}
+  const v=viewport();if(v){v.dataset.nukeVolumetricCloud="lit-billowing-world-v1";v.dataset.nukeVolumetricAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;v.dataset.nukeVolumetricParts=String(smoke.length);v.dataset.nukeVolumetricScreenSpace="none";v.dataset.nukeVolumetricVisibility="cinematic-depth-priority-v2";v.dataset.nukeVolumetricReadableCrown="low-wide-world-cap-v1";}
 }
 
 function update(item,now){
@@ -83,7 +92,6 @@ function update(item,now){
     const mesh=item.smoke[i],delay=(i%9)*.018;
     const local=clamp((grow-delay)/(1-delay),0,1);
     mesh.material.opacity=(.74+.18*seededNoise(i,17))*local*fade;
-    // Very slow billowing keeps the cloud alive without detaching it from the impact.
     mesh.scale.x*=1.00008;mesh.scale.y*=1.00008;mesh.rotation.z+=.00011*((i%3)-1);
   }
   item.glow.intensity=1250*Math.max(0,1-age/9500);
