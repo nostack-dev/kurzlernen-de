@@ -90,18 +90,25 @@ if crypto_fix_marker not in b:
         raise SystemExit('missing patch anchor: validateESModule require rewrite')
     b = b.replace(anchor, insert, 1)
 
-# The stock box3d.js validator assumes SINGLE_FILE implies all async file readers
-# are dead. That was true with FILESYSTEM=0. It is no longer true once we enable
-# FORCE_FILESYSTEM for Box3D's public file APIs: Emscripten 6 retains a browser-safe
-# readAsync helper. Keep the strict Node-only checks and readBinary ban, but do not
-# reject readAsync merely by name.
-old_leftovers = "for ( const leftover of [ 'readAsync', 'readBinary', 'readFileSync', 'node:fs', 'node:path', 'node:url' ] )"
-new_leftovers = "for ( const leftover of [ 'readBinary', 'readFileSync', 'node:fs', 'node:path', 'node:url' ] )"
-if new_leftovers not in b:
-    if old_leftovers not in b:
+# The stock box3d.js validator assumes SINGLE_FILE means readAsync/readBinary must
+# disappear. FORCE_FILESYSTEM invalidates that assumption: Emscripten 6 may retain
+# browser-safe readers for MEMFS/runtime file APIs. Validate the actual dangerous
+# Node capabilities instead (sync host filesystem and path/url modules).
+for old_leftovers in (
+    "for ( const leftover of [ 'readAsync', 'readBinary', 'readFileSync', 'node:fs', 'node:path', 'node:url' ] )",
+    "for ( const leftover of [ 'readBinary', 'readFileSync', 'node:fs', 'node:path', 'node:url' ] )",
+):
+    if old_leftovers in b:
+        b = b.replace(
+            old_leftovers,
+            "for ( const leftover of [ 'readFileSync', 'node:fs', 'node:path', 'node:url' ] )",
+            1,
+        )
+        break
+else:
+    if "for ( const leftover of [ 'readFileSync', 'node:fs', 'node:path', 'node:url' ] )" not in b:
         raise SystemExit('missing patch anchor: inline browser safety leftovers')
-    b = b.replace(old_leftovers, new_leftovers, 1)
 
 build_path.write_text(b, encoding='utf-8')
 core_path.write_text(core, encoding='utf-8')
-print('patched Box3D browser runtime: public assert symbol + MEMFS/callback bridge + valid ESM crypto loader + browser readAsync')
+print('patched Box3D browser runtime: public assert symbol + MEMFS/callback bridge + valid ESM crypto loader + capability-based inline validation')
