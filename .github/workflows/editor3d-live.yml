@@ -13,20 +13,20 @@ jobs:
   live-editor3d:
     if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 7
+    timeout-minutes: 8
     env:
       VERIFY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.VERIFY_SHA }}
-      - name: Wait for exact Editor3D file on Pages
+      - name: Wait for Editor3D file on Pages
         env:
           SHA: ${{ env.VERIFY_SHA }}
         run: |
           set -euxo pipefail
           ok=0
-          for attempt in $(seq 1 15); do
+          for attempt in $(seq 1 20); do
             if curl -fsSL --retry 1 --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' \
               "https://kurzlernen.de/editor3d.html?ci=${SHA}-${attempt}" -o /tmp/editor3d-live.html \
               && test "$(wc -c < /tmp/editor3d-live.html)" -gt 30000 \
@@ -40,7 +40,20 @@ jobs:
         run: |
           npm init -y >/dev/null
           npm install --ignore-scripts --no-audit --no-fund puppeteer-core@24.16.0
-      - name: Run Editor3D against deployed URL
+      - name: Wait for anti-flicker build and probe live canvas
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME_BIN"
+          ok=0
+          for attempt in $(seq 1 24); do
+            if CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?flicker=${VERIFY_SHA}-${attempt}" node tests/editor3d_flicker_browser_smoke.mjs; then
+              ok=1; break
+            fi
+            sleep 5
+          done
+          test "$ok" = 1
+      - name: Run full Editor3D against deployed URL
         run: |
           set -euxo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
