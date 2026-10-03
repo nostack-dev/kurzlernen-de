@@ -37,11 +37,11 @@ function spawn(position){
   // Thick rolling collar where the rising column mushrooms outward.
   for(let i=0;i<24;i++){
     const a=i/24*Math.PI*2,rad=19+(i%4)*3.8,z=73+(i%3)*4.2;
-    smoke.push(puff(group,{role:`crown-collar-${i}`,r:12+(i%5)*1.4,x:Math.cos(a)*rad,y:Math.sin(a)*rad,z,color:i%2?0x64554e:0x514b48,scale:[1.55,1.45,1.15]}));
+    smoke.push(puff(group,{role:`crown-collar-${i}`,r:12+(i%5)*1.4,x:Math.cos(a)*rad,y:Math.sin(a)*rad,z,color:i%2?0x64554e:0x514b48,scale:[2.2,2.05,1.35]}));
   }
 
-  // Four genuinely three-dimensional billowing crown rings. Not a flat disc: puffs
-  // occupy different radii/heights/depths and are individually lit by the world.
+  // Four genuinely three-dimensional billowing crown rings. These are deliberately
+  // huge in world space so the mushroom head remains unmistakable at gameplay range.
   for(let ring=0;ring<4;ring++){
     const count=18+ring*4;
     for(let i=0;i<count;i++){
@@ -51,7 +51,7 @@ function spawn(position){
       const z=88+ring*6+(seededNoise(i,ring+7)-.5)*12;
       const r=14+ring*1.8+seededNoise(i,ring+11)*5;
       const color=[0x6a5c55,0x59514d,0x4d4b49,0x414446][ring];
-      smoke.push(puff(group,{role:`crown-volumetric-${ring}-${i}`,r,x:Math.cos(a)*rad,y:Math.sin(a)*rad,z,color,scale:[1.45+ring*.12,1.4+ring*.12,1.05+ring*.08]}));
+      smoke.push(puff(group,{role:`crown-volumetric-${ring}-${i}`,r,x:Math.cos(a)*rad,y:Math.sin(a)*rad,z,color,scale:[2.85+ring*.24,2.75+ring*.24,1.55+ring*.14]}));
     }
   }
 
