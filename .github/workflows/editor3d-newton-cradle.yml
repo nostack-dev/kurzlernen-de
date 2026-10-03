@@ -5,6 +5,7 @@ on:
     branches: ["main"]
     paths:
       - "scripts/editor3d_apply_newton_cradle.py"
+      - "scripts/editor3d_apply_visual_fit.py"
       - "tests/editor3d_newton_cradle_contract_test.mjs"
       - "tests/editor3d_newton_cradle_browser_smoke.mjs"
       - ".github/workflows/editor3d-newton-cradle.yml"
@@ -22,11 +23,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Apply Newton cradle patch to canonical Editor3D
+      - name: Apply Newton cradle and visual-fit patches to canonical Editor3D
         run: |
           set -euxo pipefail
           python3 scripts/editor3d_apply_newton_cradle.py editor3d.html /tmp/editor3d-next.html
-          mv /tmp/editor3d-next.html editor3d.html
+          python3 scripts/editor3d_apply_visual_fit.py /tmp/editor3d-next.html editor3d.html
           node tests/editor3d_contract_test.mjs
           node tests/editor3d_flicker_contract_test.mjs
           node tests/editor3d_mobile_orbit_contract_test.mjs
@@ -62,7 +63,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           else
-            git commit -m 'Add Newton cradle example to Editor3D'
+            git commit -m 'Fix Editor3D scale-aware scene framing'
             git pull --rebase origin main
             git push origin HEAD:main || { git pull --rebase origin main; git push origin HEAD:main; }
             echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
