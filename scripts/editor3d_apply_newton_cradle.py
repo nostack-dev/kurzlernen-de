@@ -53,6 +53,7 @@ markers=[
     "}else if(kind==='cradle'){/* Editor3D Newton cradle example v1 */",
     "}else if(kind==='cradle'){/* Editor3D Newton cradle example v2 */",
     "}else if(kind==='cradle'){/* Editor3D Newton cradle example v3 MKS */",
+    "}else if(kind==='cradle'){/* Editor3D Newton cradle example v4 equilibrium */",
 ]
 start=-1
 for marker in markers:
@@ -62,19 +63,19 @@ end=source.find("}else{const ramp=mk('ramp',0,[4,0,.6],'box',[5,4,.3]);",start)
 if start<0 or end<0:
     raise SystemExit('missing Newton cradle branch')
 
-cradle=r"""}else if(kind==='cradle'){/* Editor3D Newton cradle example v3 MKS */
-s.world.gravity=[0,0,-9.80665];s.world.allowSleep=false;s.world.continuousPhysics=true;s.world.stepsPerSecond=120;s.world.subStepCount=8;s.world.restitutionThreshold=.05;s.world.restitutionIterations=8;s.world.restitutionPropagation=true;
-const topZ=.34,drop=.20,radius=.025,spacing=2*radius,count=5,wire=.018,pull=.09,steelDensity=7850,steel='#66727d',base='#4e5964',ballColor='#d9a0aa';
+cradle=r"""}else if(kind==='cradle'){/* Editor3D Newton cradle example v4 equilibrium */
+s.world.gravity=[0,0,-9.80665];s.world.allowSleep=false;s.world.continuousPhysics=true;s.world.stepsPerSecond=120;s.world.subStepCount=12;s.world.restitutionThreshold=.01;s.world.restitutionIterations=12;s.world.restitutionPropagation=true;
+const topZ=.34,drop=.20,radius=.025,spacing=2*radius,count=5,wire=.018,steelDensity=7850,steel='#66727d',base='#4e5964',ballColor='#d9a0aa';
 const part=(name,p,size,color)=>{const b=mk(name,0,p,'box',size);b.fixtures[0].color=color;return b};
 part('top beam',[0,0,topZ+.018],[.38,.055,.025],steel);part('left base rail',[0,-.085,.012],[.42,.025,.024],base);part('right base rail',[0,.085,.012],[.42,.025,.024],base);
 for(const x of[-.19,.19]){part('frame post L '+x,[x,-.085,.17],[.018,.018,.32],steel);part('frame post R '+x,[x,.085,.17],[.018,.018,.32],steel);part('frame cross '+x,[x,0,.025],[.024,.19,.018],base);part('frame shoulder '+x,[x,0,topZ],[.018,.19,.018],steel)}
-const wireLen=Math.sqrt(drop*drop+wire*wire),pulledZ=topZ-Math.sqrt(Math.max(.0001,drop*drop-pull*pull));
+const wireLen=Math.sqrt(drop*drop+wire*wire);
 for(let i=0;i<count;i++){
- const restX=(i-(count-1)/2)*spacing,x=restX+(i===0?-pull:0),y=0,z=i===0?pulledZ:topZ-drop;
- const ball=mk('cradle ball '+(i+1),2,[x,y,z],'sphere',[radius]);const f=ball.fixtures[0];f.density=steelDensity;f.friction=.02;f.restitution=.96;f.rollingResistance=0;f.color=ballColor;ball.linearDamping=0;ball.angularDamping=0;ball.allowSleep=false;ball.awake=true;ball.bullet=false;
+ const restX=(i-(count-1)/2)*spacing,x=restX,y=0,z=topZ-drop;
+ const ball=mk('cradle ball '+(i+1),2,[x,y,z],'sphere',[radius]);const f=ball.fixtures[0];f.density=steelDensity;f.friction=.005;f.restitution=.995;f.rollingResistance=0;f.color=ballColor;ball.linearDamping=0;ball.angularDamping=0;ball.allowSleep=false;ball.awake=true;ball.bullet=false;
  for(const side of[-1,1]){const a=newBody(0,[restX,side*wire,topZ],'cradle anchor '+(i+1)+(side<0?' L':' R'));s.bodies.push(a);const j=jn('distance',a,ball,[restX,side*wire,topZ]);j.anchorA=V();j.anchorB=V();j.length=wireLen;j.enableLimit=false;j.enableSpring=false;j.frequency=0;j.dampingRatio=0}
 }
-s.cursor=[0,0,topZ-drop];report('Newton cradle · MKS scale · 50 mm steel balls (~0.514 kg each) · 120 Hz / 8 substeps · restitution threshold 0.05 m/s. Run → Grab an end ball and release it.')"""
+s.cursor=[0,0,topZ-drop];report('Newton cradle · equilibrium start · 50 mm steel balls (~0.514 kg each) · restitution 0.995 · 120 Hz / 12 substeps · threshold 0.01 m/s. Run → Grab an end ball, pull it back and release.')"""
 source=source[:start]+cradle+source[end:]
 
 old="if(!loaded){addDocument(scene('Suspension test'));loadDemo('mechanism',true)}"
@@ -82,17 +83,19 @@ new="if(!loaded){addDocument(scene('Newton cradle'));loadDemo('cradle',true)}"
 if old in source: source=source.replace(old,new,1)
 elif new not in source: raise SystemExit('missing default scene bootstrap')
 
-assert 'Editor3D Newton cradle example v3 MKS' in source
+assert 'Editor3D Newton cradle example v4 equilibrium' in source
 assert 'steelDensity=7850' in source
 assert 'radius=.025' in source
 assert 's.world.stepsPerSecond=120' in source
-assert 's.world.subStepCount=8' in source
-assert 's.world.restitutionThreshold=.05' in source
+assert 's.world.subStepCount=12' in source
+assert 's.world.restitutionThreshold=.01' in source
 assert 'ball.bullet=false' in source
-assert 'f.restitution=.96' in source
+assert 'f.restitution=.995' in source
+assert 'f.friction=.005' in source
+assert 'x=restX,y=0,z=topZ-drop' in source
 assert 'rollingResistance' in source
 assert "if(!loaded){addDocument(scene('Newton cradle'));loadDemo('cradle',true)}" in source
 payload=base64.b64encode(gzip.compress(source.encode('utf-8'),compresslevel=9,mtime=0)).decode('ascii')
 fixed=raw[:m.start(1)]+payload+raw[m.end(1):]
 out_path.write_text(fixed,encoding='utf-8')
-print('patched MKS Newton cradle source bytes',len(source.encode('utf-8')),'wrapper bytes',len(fixed.encode('utf-8')))
+print('patched equilibrium steel Newton cradle source bytes',len(source.encode('utf-8')),'wrapper bytes',len(fixed.encode('utf-8')))
