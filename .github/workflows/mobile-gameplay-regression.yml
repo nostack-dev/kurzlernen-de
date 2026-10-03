@@ -6,6 +6,7 @@ on:
     paths:
       - "sim/**"
       - "drone_simulator.html"
+      - "tests/desktop_controls_live_smoke.mjs"
       - "tests/mobile_startup_live_smoke.mjs"
       - "tests/mobile_reset_readonly_live_smoke.mjs"
       - "tests/mobile_gameplay_live_smoke.mjs"
@@ -24,7 +25,7 @@ permissions:
 jobs:
   mobile-live:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 9
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install browser harness
@@ -60,6 +61,14 @@ jobs:
             sleep 5
           done
           test "$ok" = 1
+      - name: Test desktop weapon STOP and EMP controls
+        env:
+          GH_SHA: ${{ github.sha }}
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          CHROME_BIN="$CHROME_BIN" node tests/desktop_controls_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?desktop-ci=${GH_SHA}"
       - name: Test deterministic mobile startup
         env:
           GH_SHA: ${{ github.sha }}
