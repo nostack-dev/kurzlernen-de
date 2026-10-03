@@ -67,6 +67,19 @@ jobs:
             sleep 5
           done
           test "$ok" = 1
+      - name: Wait for Newton cradle example live
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME_BIN"
+          ok=0
+          for attempt in $(seq 1 24); do
+            if CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?cradle=${VERIFY_SHA}-${attempt}" node tests/editor3d_newton_cradle_browser_smoke.mjs; then
+              ok=1; break
+            fi
+            sleep 5
+          done
+          test "$ok" = 1
       - name: Run full Editor3D against deployed URL
         run: |
           set -euxo pipefail
