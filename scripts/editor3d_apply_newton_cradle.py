@@ -9,7 +9,7 @@ if not m:
     raise SystemExit('missing Editor3D payload')
 source=gzip.decompress(base64.b64decode(m.group(1))).decode('utf-8')
 
-# Upgrade the already-shipped v1 example in place. Keep a single canonical editor3d.html.
+# Reapply the realistic v2 scene idempotently on the current canonical editor3d.html.
 start=source.find("}else if(kind==='cradle'){/* Editor3D Newton cradle example v1 */")
 end=source.find("}else{const ramp=mk('ramp',0,[4,0,.6],'box',[5,4,.3]);", start)
 if start < 0:
