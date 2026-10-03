@@ -9,6 +9,8 @@ on:
       - "tests/editor3d_browser_smoke.mjs"
       - "tests/editor3d_flicker_contract_test.mjs"
       - "tests/editor3d_flicker_browser_smoke.mjs"
+      - "tests/editor3d_mobile_orbit_contract_test.mjs"
+      - "tests/editor3d_mobile_orbit_browser_smoke.mjs"
       - ".github/workflows/editor3d-e2e.yml"
   workflow_dispatch:
 
@@ -22,6 +24,8 @@ jobs:
         run: node tests/editor3d_contract_test.mjs
       - name: Static mobile anti-flicker regression contract
         run: node tests/editor3d_flicker_contract_test.mjs
+      - name: Static mobile orbit ownership and Earth gravity contract
+        run: node tests/editor3d_mobile_orbit_contract_test.mjs
       - name: Install exact browser dependencies
         run: |
           set -euxo pipefail
@@ -37,3 +41,4 @@ jobs:
           sleep 1
           CHROME_BIN="$CHROME_BIN" EDITOR3D_LOCAL_DEPS=1 REPO_ROOT="$GITHUB_WORKSPACE" node tests/editor3d_browser_smoke.mjs
           CHROME_BIN="$CHROME_BIN" EDITOR3D_LOCAL_DEPS=1 REPO_ROOT="$GITHUB_WORKSPACE" node tests/editor3d_flicker_browser_smoke.mjs
+          CHROME_BIN="$CHROME_BIN" EDITOR3D_LOCAL_DEPS=1 REPO_ROOT="$GITHUB_WORKSPACE" node tests/editor3d_mobile_orbit_browser_smoke.mjs
