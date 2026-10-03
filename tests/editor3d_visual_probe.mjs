@@ -50,12 +50,12 @@ try{
       fixtureCount:Editor3D.scene.bodies.reduce((n,b)=>n+(b.fixtures?.length||0),0),
       jointCount:Editor3D.scene.joints.length,
       hasGround:Editor3D.scene.bodies.some(b=>b.name==='ground'),
-      visualFitMarker:document.documentElement.innerHTML.includes('Editor3D visual fit v1: scale-aware camera; cradle excludes 24m demo ground'),
+      visualFitMarker:document.documentElement.innerHTML.includes('Editor3D visual fit v2: physical bounds + scale-aware helpers; cradle excludes 24m demo ground'),
       box3dMarker:document.documentElement.innerHTML.includes('main:51f056e0a9d299326b10f10a63270c81d901df21 api:594'),
       title:document.title
     };
   });
-  assert.ok(shell.visualFitMarker,'visual-fit build marker missing: '+JSON.stringify(shell));
+  assert.ok(shell.visualFitMarker,'visual-fit v2 build marker missing: '+JSON.stringify(shell));
   assert.ok(shell.box3dMarker,'Box3D 594/594 main marker missing: '+JSON.stringify(shell));
   assert.equal(shell.hasGround,false,'Newton cradle must not contain the 24 m demo ground');
   assert.equal(shell.bodyCount,26,'unexpected Newton cradle body count');
