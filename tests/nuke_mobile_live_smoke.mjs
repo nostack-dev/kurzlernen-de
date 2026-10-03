@@ -1,7 +1,7 @@
 import puppeteer from "puppeteer-core";
 import {mkdir} from "node:fs/promises";
 
-const VISUAL_CONTRACT="unmistakable-screen-cloud-nuke-v6";
+const VISUAL_CONTRACT="unmistakable-screen-cloud-nuke-v7";
 const input=process.argv[2]||"https://kurzlernen.de/drone_simulator.html",url=new URL(input),executablePath=process.env.CHROME_BIN;
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]}),page=await browser.newPage();
