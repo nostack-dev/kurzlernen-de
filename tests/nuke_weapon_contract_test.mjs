@@ -5,6 +5,7 @@ const nuke=readFileSync("sim/nuke_weapon.mjs","utf8");
 const overkill=readFileSync("sim/nuke_overkill_fx.mjs","utf8");
 const cleanup=readFileSync("sim/flight_first_cleanup.mjs","utf8");
 const mobile=readFileSync("sim/mobile_gameplay_ui.mjs","utf8");
+const mobileLive=readFileSync("tests/nuke_mobile_live_smoke.mjs","utf8");
 
 for(const marker of [
   'const BLAST_RADIUS_M=120',
@@ -31,7 +32,6 @@ for(const marker of [
   'grounded-wide-screen-cloud-v3',
   'mushroom-fireball-overlay-v1',
   'nukeCinematicScreenCloud',
-  'nukeOverkillMushroomM="78"',
   'nukeOverkillFireballM="110"',
   'nukeOverkillShockScreen',
   'depthTest:false',
@@ -43,11 +43,27 @@ for(const marker of [
   'hot-crown',
   'presentationAnchor(position)',
   'nukeOverkillPhase',
-  'nukeScreenCloudOpacity'
+  'nukeScreenCloudOpacity',
+  'nukeVisibleRenderer="overkill-only-v1"',
+  'nukeCloudShape="irregular-filled-cap-v2"',
+  'window.addEventListener("pointerdown",routeNukePointer,{capture:true,passive:false})',
+  'nukeLegacyMissileBypass="blocked-v1"'
 ]) assert.ok(overkill.includes(marker),`missing nuclear overkill marker: ${marker}`);
+
+const mushroomMatch=overkill.match(/nukeOverkillMushroomM="(\d+(?:\.\d+)?)"/);
+assert.ok(mushroomMatch,"missing nuclear mushroom height marker");
+assert.ok(Number(mushroomMatch[1])>=78,`nuclear mushroom presentation regressed below 78 m: ${mushroomMatch[1]}`);
+assert.ok(overkill.includes('node?.userData?.nukeRole!=="impact-root"'),"legacy nuke impact renderer is not explicitly suppressed");
+
+for(const marker of [
+  'page.touchscreen.tap(',
+  'legacyMissilesAfter===shot.legacyMissilesBefore',
+  'inputRoute==="window-capture-fireNuke-v1"',
+  'legacyBypass==="blocked-v1"'
+]) assert.ok(mobileLive.includes(marker),`real-touch live nuke gate missing: ${marker}`);
 
 assert.ok(cleanup.includes('import "./nuke_weapon.mjs";'),"nuke runtime is not wired into flight-first cleanup");
 assert.ok(cleanup.includes('import "./nuke_overkill_fx.mjs";'),"nuclear overkill visual runtime is not wired into flight-first cleanup");
 assert.ok(mobile.includes('api?.displayMode||api?.mode'),"mobile HUD does not expose extended drone weapon mode");
 
-console.log("Nuke weapon v6 contract passed: unoccluded 3D blast plus unmistakable screen-space mushroom/fireball cinematic.");
+console.log("Nuke weapon v8 contract passed: real touch routes only to NUKE, legacy impact is hidden, and the irregular overkill mushroom remains screen-dominating.");
