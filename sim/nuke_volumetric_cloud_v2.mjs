@@ -2,13 +2,14 @@ import * as THREE from "three";
 
 const clouds=[];
 let installed=false;
+const CINEMATIC_RENDER_ORDER=840;
 
 function viewport(){return document.getElementById("viewport");}
 function scene(){return globalThis.__arondightRealWorld?.threeScene||null;}
 function clamp(v,a,b){return Math.max(a,Math.min(b,Number(v)||0));}
 function smooth(t){t=clamp(t,0,1);return t*t*(3-2*t);}
-function tag(node,role){node.userData.nukeWeaponPart=true;node.userData.flightFireIgnore=true;node.userData.nukeOverkillPart=true;node.userData.nukeOverkillRole=role;node.userData.nukeVolumetricPart=true;return node;}
-function smokeMaterial(color,emissive=0x120806){return new THREE.MeshStandardMaterial({color,roughness:1,metalness:0,transparent:true,opacity:0,depthWrite:false,depthTest:true,flatShading:false,emissive,emissiveIntensity:.2});}
+function tag(node,role){node.userData.nukeWeaponPart=true;node.userData.flightFireIgnore=true;node.userData.nukeOverkillPart=true;node.userData.nukeOverkillRole=role;node.userData.nukeVolumetricPart=true;node.renderOrder=CINEMATIC_RENDER_ORDER;return node;}
+function smokeMaterial(color,emissive=0x120806){return new THREE.MeshStandardMaterial({color,roughness:1,metalness:0,transparent:true,opacity:0,depthWrite:false,depthTest:false,flatShading:false,emissive,emissiveIntensity:.2});}
 function puff(group,{role,r,x,y,z,color,scale=[1,1,1]}){const mesh=tag(new THREE.Mesh(new THREE.SphereGeometry(r,22,14),smokeMaterial(color)),role);mesh.position.set(x,y,z);mesh.scale.set(...scale);group.add(mesh);return mesh;}
 function seededNoise(i,salt=0){const x=Math.sin((i+1)*12.9898+salt*78.233)*43758.5453;return x-Math.floor(x);}
 function suppressLegacyPrimitives(root){root?.traverse?.(node=>{const role=String(node.userData?.nukeOverkillRole||"");if(role==="hot-crown"||role==="hot-column"||role==="plume-core")node.visible=false;});}
@@ -67,7 +68,7 @@ function spawn(position){
 
   group.scale.setScalar(.035);
   clouds.push({group,world,smoke,glow,topGlow,born:performance.now(),position:position.clone()});
-  const v=viewport();if(v){v.dataset.nukeVolumetricCloud="lit-billowing-world-v1";v.dataset.nukeVolumetricAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;v.dataset.nukeVolumetricParts=String(smoke.length);v.dataset.nukeVolumetricScreenSpace="none";}
+  const v=viewport();if(v){v.dataset.nukeVolumetricCloud="lit-billowing-world-v1";v.dataset.nukeVolumetricAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;v.dataset.nukeVolumetricParts=String(smoke.length);v.dataset.nukeVolumetricScreenSpace="none";v.dataset.nukeVolumetricVisibility="cinematic-depth-priority-v1";}
 }
 
 function update(item,now){
