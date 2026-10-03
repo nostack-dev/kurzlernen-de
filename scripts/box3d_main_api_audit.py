@@ -2,41 +2,41 @@
 import re, sys
 from pathlib import Path
 
-if len(sys.argv) != 2:
-    raise SystemExit('usage: box3d_main_api_audit.py <box3d.js checkout>')
+if len(sys.argv) not in (2, 4):
+    raise SystemExit('usage: box3d_main_api_audit.py <box3d.js checkout> [--manifest <path>]')
 root=Path(sys.argv[1])
 headers=list((root/'vendor/box3d/include/box3d').glob('*.h'))
 source='\n'.join(p.read_text(encoding='utf-8',errors='ignore') for p in headers)
 bindings=(root/'src/bindings.cpp').read_text(encoding='utf-8')
+facade_path=root/'src/facade.js'
+facade=facade_path.read_text(encoding='utf-8') if facade_path.exists() else ''
+
+# Canonical contract: every public Box3D C entry point must exist in the browser
+# facade under the exact same b3* name. No Editor3D-only allowlist and no silent
+# "not needed in JS" exceptions. Ergonomic aliases may be added in addition, never
+# instead of the canonical API.
 api=set(re.findall(r'B3_API\s+[\s\S]{0,240}?\b(b3[A-Za-z0-9_]+)\s*\(',source))
+# bindings.cpp embeds canonical names in the embind signature strings. facade.js may
+# add canonical JS implementations/aliases; count exact b3* function/property names.
 bound=set(re.findall(r'"(b3[A-Za-z0-9_]+)\s*\(',bindings))
-intentional={
- 'b3Cross','b3CrossSV','b3CrossVS','b3Dot','b3Length','b3LengthSquared','b3Normalize',
- 'b3Add','b3Sub','b3Mul','b3Neg','b3Lerp','b3MulAdd','b3MulSub','b3Abs','b3Min','b3Max',
- 'b3IsValidVec3','b3IsValidQuat','b3IsNormalized','b3IsNormalizedPlane','b3RotateVector',
- 'b3InvRotateVector','b3TransformPoint','b3InvTransformPoint','b3MulTransforms','b3InvMulTransforms',
- 'b3MakeQuatFromAxisAngle','b3IntegrateRotation','b3NLerp','b3ComputeAngularVelocity',
-}
-missing_all=sorted(api-bound-intentional)
-required={
- 'b3DefaultWorldDef','b3CreateWorld','b3DestroyWorld','b3World_Step','b3World_SetGravity',
- 'b3World_EnableContinuous','b3World_SetRestitutionThreshold','b3World_GetRestitutionThreshold',
- 'b3World_SetRestitutionIterations','b3World_GetRestitutionIterations',
- 'b3World_EnableRestitutionPropagation','b3World_IsRestitutionPropagationEnabled',
- 'b3DefaultBodyDef','b3CreateBody','b3DestroyBody','b3Body_GetPosition','b3Body_GetRotation',
- 'b3Body_SetTransform','b3Body_GetMass','b3Body_SetAwake','b3Body_SetBullet',
- 'b3DefaultShapeDef','b3CreateBoxShape','b3CreateSphereShape','b3CreateCapsuleShape','b3CreateHullShape',
- 'b3CreateHull','b3DestroyHull','b3DefaultDistanceJointDef','b3CreateDistanceJoint',
- 'b3DefaultMotorJointDef','b3CreateMotorJoint','b3DestroyJoint',
-}
-missing_required=sorted(required-bound)
+facade_names=set(re.findall(r'\b(?:function\s+|Module\.)(b3[A-Za-z0-9_]+)\b',facade))
+represented=bound|facade_names
+missing=sorted(api-represented)
+extra=sorted(represented-api)
+
 print(f'Official Box3D public B3_API functions: {len(api)}')
-print(f'Browser facade currently names: {len(bound)}')
-print(f'Non-editor public APIs not exposed by the upstream JS facade: {len(missing_all)}')
-if missing_all:
-    print('UNEXPOSED_PUBLIC_API='+' '.join(missing_all))
-if missing_required:
-    msg=' '.join(missing_required)
-    print(f'::error title=Editor3D Box3D API coverage::Missing required current APIs: {msg}')
+print(f'Canonical names represented by browser source: {len(represented & api)}')
+print(f'Canonical public API coverage: {len(api)-len(missing)}/{len(api)}')
+if extra:
+    print('Browser-only helpers/extra names: '+str(len(extra)))
+if len(sys.argv)==4:
+    if sys.argv[2] != '--manifest':
+        raise SystemExit('expected --manifest <path>')
+    Path(sys.argv[3]).write_text('\n'.join(sorted(api))+'\n',encoding='utf-8')
+    print('Wrote public API manifest:',sys.argv[3])
+if missing:
+    msg=' '.join(missing)
+    print('MISSING_PUBLIC_API='+msg)
+    print(f'::error title=Box3D browser facade incomplete::Missing {len(missing)} of {len(api)} public Box3D APIs: {msg}')
     raise SystemExit(2)
-print('PASS: every Editor3D-required current Box3D API is represented in browser bindings')
+print('PASS: browser source represents every public Box3D B3_API entry point by canonical name')
