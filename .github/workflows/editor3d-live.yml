@@ -8,6 +8,7 @@ on:
     branches: ["main"]
     paths:
       - ".github/workflows/editor3d-live.yml"
+      - "tests/editor3d_visual_probe.mjs"
   workflow_dispatch:
 
 jobs:
@@ -86,3 +87,21 @@ jobs:
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           test -n "$CHROME_BIN"
           CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?live=${VERIFY_SHA}" node tests/editor3d_browser_smoke.mjs
+      - name: Capture live visual states
+        if: always()
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME_BIN"
+          rm -rf /tmp/editor3d-visual
+          CHROME_BIN="$CHROME_BIN" \
+            EDITOR3D_URL="https://kurzlernen.de/editor3d.html?visual=${VERIFY_SHA}" \
+            EDITOR3D_SCREENSHOT_DIR=/tmp/editor3d-visual \
+            node tests/editor3d_visual_probe.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: editor3d-visual-${{ env.VERIFY_SHA }}
+          path: /tmp/editor3d-visual/*.png
+          if-no-files-found: warn
+          retention-days: 7
