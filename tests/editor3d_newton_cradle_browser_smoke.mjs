@@ -27,7 +27,7 @@ try{
    for(let i=0;i<480;i++){
      b3.b3World_Step(sim.world,1/s.world.stepsPerSecond,s.world.subStepCount);
      const ps=ids.map(id=>b3.b3Body_GetPosition([0,0,0],id));
-     const vs=ids.map(id=>b3.b3Body_GetLinearVelocity(id));
+     const vs=ids.map(id=>{const out=[0,0,0];b3.b3Body_GetLinearVelocity(out,id);return out});
      maxLastDx=Math.max(maxLastDx,Math.abs(ps.at(-1)[0]-initial.at(-1)[0]));
      maxLastSpeed=Math.max(maxLastSpeed,Math.abs(vs.at(-1)[0]));
      for(let k=1;k<balls.length-1;k++)maxMiddleDx=Math.max(maxMiddleDx,Math.abs(ps[k][0]-initial[k][0]));
