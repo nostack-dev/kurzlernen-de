@@ -62,7 +62,8 @@ try{
   if(!(settings.clientHeight>120&&settings.scrollHeight>=settings.clientHeight&&settings.overflowY==="auto"&&settings.touchAction.includes("pan-y")&&(settings.scrollHeight===settings.clientHeight||settings.scrollTop>0)))throw new Error(`landscape settings are not fully scrollable: ${JSON.stringify(settings)}`);
   await page.$eval("dialog.phone-settings-dialog[open]",d=>d.close());
 
-  await page.evaluate(()=>globalThis.__arondightWalkMode.setMode("drone",{persist:false}));
+  const droneReset=await page.evaluate(()=>{const damage=globalThis.__arondightDroneDamageModel;const before={destroyed:Boolean(damage?.destroyed),canDeploy:Boolean(damage?.canDeploy)};damage?.reset?.();const mode=globalThis.__arondightWalkMode.setMode("drone",{persist:false,reason:"mobile-regression-return"});return{before,after:{destroyed:Boolean(damage?.destroyed),canDeploy:Boolean(damage?.canDeploy)},mode};});
+  if(!(droneReset.after.destroyed===false&&droneReset.after.canDeploy===true&&droneReset.mode==="drone"))throw new Error(`drone reset/return path failed: ${JSON.stringify(droneReset)}`);
   await page.setViewport({width:844,height:390,deviceScaleFactor:1,isMobile:true,hasTouch:true});await pause(300);
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.playerMode==="drone"&&document.querySelector("#mobileGameplayMode")?.textContent==="DRONE"&&!document.querySelector("#soloArm")?.disabled,{timeout:10000});
   const droneUi=await page.evaluate(()=>{const contract=getComputedStyle(document.querySelector("#gameplayContractHud")),v=document.querySelector("#viewport");return{topbar:getComputedStyle(document.querySelector("#soloTopbar")).display,arm:getComputedStyle(document.querySelector("#soloArm")).display,armText:document.querySelector("#soloArm")?.textContent?.trim(),contractVisibility:contract.visibility,contractOpacity:contract.opacity,buttons:[...document.querySelectorAll("#mobileGameplayDock button")].map(b=>b.textContent.trim()),cameraExtra:v?.dataset.fpvViewExtraUpOffsetM||null,missileContract:v?.dataset.droneMissileContract,spawnGuard:v?.dataset.spawnVisibilityGuard};});
@@ -72,5 +73,5 @@ try{
   const missile=await page.evaluate(()=>{const v=document.querySelector("#viewport"),r=v.getBoundingClientRect(),fired=globalThis.__arondightDroneWeapons?.fireMissile?.({clientX:r.left+r.width*.55,clientY:r.top+r.height*.44,source:"mobile-regression"});return{fired:Boolean(fired),guidance:v.dataset.droneMissileGuidance,direction:v.dataset.droneMissileDirection,active:Number(v.dataset.droneActiveMissiles)||0};});
   if(!(missile.fired&&missile.guidance==="fixed-screen-ray-no-homing-v1"&&missile.direction&&missile.active>=1))throw new Error(`missile is not fixed to the launch screen ray: ${JSON.stringify(missile)}`);
   await mkdir("artifacts",{recursive:true});await page.screenshot({path:"artifacts/mobile-gameplay.png",captureBeyondViewport:false});
-  console.log(`Flight-first mobile regression passed. ${JSON.stringify({upMove,rightMove,look,movingBeforeFire,movingWhileFiring,movingAfterFireLift,before,after,fpvUi,settings,droneUi,missile})}`);
+  console.log(`Flight-first mobile regression passed. ${JSON.stringify({upMove,rightMove,look,movingBeforeFire,movingWhileFiring,movingAfterFireLift,before,after,fpvUi,settings,droneReset,droneUi,missile})}`);
 }finally{await browser.close();}
