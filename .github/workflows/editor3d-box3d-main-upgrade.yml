@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   audit-build:
@@ -176,9 +177,16 @@ jobs:
           git add editor3d.html
           if git diff --cached --quiet; then
             echo 'Editor3D already contains this exact Box3D main runtime.'
-            exit 0
+          else
+            git commit -m 'Embed verified Box3D main runtime in Editor3D'
+            git pull --rebase origin main
+            git push origin HEAD:main || { git pull --rebase origin main; git push origin HEAD:main; }
+            echo 'Published Editor3D commit:' $(git rev-parse HEAD)
           fi
-          git commit -m 'Embed verified Box3D main runtime in Editor3D'
-          git pull --rebase origin main
-          git push origin HEAD:main || { git pull --rebase origin main; git push origin HEAD:main; }
-          echo 'Published Editor3D commit:' $(git rev-parse HEAD)
+      - name: Dispatch canonical Pages deploy and Editor3D E2E
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          gh workflow run deploy.yml --ref main
+          gh workflow run editor3d-e2e.yml --ref main
