@@ -11,7 +11,7 @@ if not m:
 source=gzip.decompress(base64.b64decode(m.group(1))).decode()
 
 # Earth gravity as the default for newly created scenes. Imported scenes keep their own value.
-pat=re.compile(r"(world:\{gravity:)\[[^\]]+\](,allowSleep:)")
+pat=re.compile(r"(gravity:)\[[^\]]+\](,allowSleep:)")
 matches=list(pat.finditer(source))
 if len(matches)!=1:
     raise SystemExit(f'expected exactly one default world gravity, got {len(matches)}')
