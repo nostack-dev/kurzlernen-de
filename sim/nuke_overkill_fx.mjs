@@ -3,9 +3,13 @@ import * as THREE from "three";
 const effects=[];
 let installed=false;
 const tmpCam=new THREE.Vector3(),tmpDir=new THREE.Vector3();
+const NUKE_BLOCKED_SELECTOR="#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#wantedEmpButton,#droneWeaponToggle,#mobileGameplayDock,dialog,button,input,select,textarea,a,label";
 
 function viewport(){return document.getElementById("viewport");}
 function bridge(){return globalThis.__arondightRealWorld||null;}
+function walk(){return globalThis.__arondightWalkMode||null;}
+function drive(){return globalThis.__arondightVehicleDrive||null;}
+function isDrone(){return walk()?.mode!=="foot"&&!drive()?.active;}
 function clamp(v,a,b){return Math.max(a,Math.min(b,Number(v)||0));}
 function easeOut(t){t=clamp(t,0,1);return 1-Math.pow(1-t,3);}
 function smooth(t){t=clamp(t,0,1);return t*t*(3-2*t);}
@@ -51,6 +55,14 @@ function update(item,now){const age=now-item.born,fireT=easeOut(age/2100),fade=1
   const view=viewport(),screenCloud=document.getElementById("nukeCinematicScreenCloud");if(view){view.dataset.nukeOverkillPhase=age<1100?"whiteout":age<3100?"fireball":age<6500?"shockwave+mushroom":"mushroom";view.dataset.nukeOverkillShockM=r1.toFixed(0);view.dataset.nukeOverkillCloud=cloudT.toFixed(3);view.dataset.nukeScreenCloudOpacity=screenCloud?Number(getComputedStyle(screenCloud).opacity).toFixed(3):"0";}
   return age<30000;
 }
+function routeNukePointer(event){
+  if(event.type!=="pointerdown"||event.button!==0||!isDrone())return;
+  const api=globalThis.__arondightDroneWeapons;if(String(api?.displayMode||"")!=="nuke")return;
+  const target=event.target instanceof Element?event.target:null;if(target?.closest?.(NUKE_BLOCKED_SELECTOR))return;
+  event.preventDefault();event.stopImmediatePropagation();
+  const fired=Boolean(api?.fireNuke?.({clientX:event.clientX,clientY:event.clientY,source:event.pointerType||"pointer"})),view=viewport();
+  if(view){view.dataset.nukeInputRoute="window-capture-fireNuke-v1";view.dataset.nukeInputRouteFired=fired?"1":"0";view.dataset.nukeLegacyMissileBypass="blocked-v1";}
+}
 function frame(now){for(let i=effects.length-1;i>=0;i--){const item=effects[i];if(update(item,now))continue;item.scene?.remove(item.group);item.group.traverse?.(n=>{n.geometry?.dispose?.();const mats=Array.isArray(n.material)?n.material:[n.material];mats.filter(Boolean).forEach(m=>m.dispose?.());});effects.splice(i,1);}requestAnimationFrame(frame);}
-function install(){if(installed)return;installed=true;window.addEventListener("arondight:nuke-impact",event=>{const p=event?.detail?.position;if(!Array.isArray(p)||p.length<3)return;spawn(new THREE.Vector3(Number(p[0])||0,Number(p[1])||0,Number(p[2])||0));});requestAnimationFrame(frame);}
+function install(){if(installed)return;installed=true;window.addEventListener("pointerdown",routeNukePointer,{capture:true,passive:false});window.addEventListener("arondight:nuke-impact",event=>{const p=event?.detail?.position;if(!Array.isArray(p)||p.length<3)return;spawn(new THREE.Vector3(Number(p[0])||0,Number(p[1])||0,Number(p[2])||0));});requestAnimationFrame(frame);}
 install();
