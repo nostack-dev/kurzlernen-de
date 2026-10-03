@@ -24,7 +24,7 @@ function bridge(){return globalThis.__arondightRealWorld||null;}
 function walk(){return globalThis.__arondightWalkMode||null;}
 function drive(){return globalThis.__arondightVehicleDrive||null;}
 function isDrone(){return walk()?.mode!=="foot"&&!drive()?.active;}
-function clamp(v,a,b){return Math.max(a,Math.min(b,Number(v)||0);}
+function clamp(v,a,b){return Math.max(a,Math.min(b,Number(v)||0));}
 function persistedMode(){try{const value=localStorage.getItem(STORAGE_KEY);return ["gun","missile","nuke"].includes(value)?value:null;}catch{return null;}}
 function saveMode(value){try{localStorage.setItem(STORAGE_KEY,value);}catch{}}
 function logicalPoint(clientX,clientY){const view=viewport(),screen=view?.getBoundingClientRect();if(!view||!screen)return null;const width=Math.max(1,view.clientWidth),height=Math.max(1,view.clientHeight),cx=Number.isFinite(Number(clientX))?Number(clientX):screen.left+screen.width/2,cy=Number.isFinite(Number(clientY))?Number(clientY):screen.top+screen.height/2,rotated=view.dataset.soloOrientation==="css-landscape",x=rotated?cy-screen.top:cx-screen.left,y=rotated?screen.right-cx:cy-screen.top;return{x:clamp(x,0,width),y:clamp(y,0,height),width,height};}
