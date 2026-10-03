@@ -82,4 +82,54 @@ replace_once(
     'recording player destroy rename')
 
 p.write_text(s,encoding='utf-8')
+
+# Current Box3D main at the pinned commit still publicly declares
+# b3World_DumpShapeBounds but accidentally no longer defines it. Restore the last
+# real upstream behavior (v0.1.0), ported to the current dynamic-tree node flags,
+# rather than weakening the facade contract or adding a no-op symbol.
+world_path=root/'vendor/box3d/src/physics_world.c'
+w=world_path.read_text(encoding='utf-8')
+if 'void b3World_DumpShapeBounds( b3WorldId worldId, b3BodyType type )' not in w:
+    w += r'''
+
+// Browser binding compatibility: this API is declared in current box3d.h but the
+// implementation disappeared upstream. This is the original Erin Catto dump
+// behavior ported from v0.1.0 to the current dynamic-tree flag representation.
+void b3World_DumpShapeBounds( b3WorldId worldId, b3BodyType type )
+{
+	B3_ASSERT( b3_staticBody <= type && type <= b3_dynamicBody );
+	b3World* world = b3GetUnlockedWorldFromId( worldId );
+	if ( world == NULL )
+	{
+		return;
+	}
+
+	FILE* file = fopen( "box3d_bounds.txt", "w" );
+	if ( file == NULL )
+	{
+		return;
+	}
+
+	b3DynamicTree* tree = world->broadPhase.trees + type;
+	b3TreeNode* nodes = tree->nodes;
+	int capacity = tree->nodeCapacity;
+	for ( int i = 0; i < capacity; ++i )
+	{
+		b3TreeNode* node = nodes + i;
+		if ( b3IsEmptyNode( node ) || b3IsLeaf( node ) == false )
+		{
+			continue;
+		}
+
+		b3Vec3 a = node->aabb.lowerBound;
+		b3Vec3 b = node->aabb.upperBound;
+		fprintf( file, "%.9f %.9f %.9f %.9f %.9f %.9f\n", a.x, a.y, a.z, b.x, b.y, b.z );
+	}
+
+	fclose( file );
+}
+'''
+    world_path.write_text(w,encoding='utf-8')
+    print('restored declared b3World_DumpShapeBounds implementation from upstream semantics')
+
 print('patched box3d.js typed bindings for current Box3D main compatibility')
