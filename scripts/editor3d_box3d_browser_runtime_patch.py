@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import re
 import sys
 from pathlib import Path
 
@@ -13,41 +14,56 @@ b = build.read_text(encoding='utf-8')
 w = world.read_text(encoding='utf-8')
 
 
-def swap(text, old, new, label):
-    if new in text:
+def regex_once(text, pattern, replacement, label, already=None):
+    if already and already in text:
         return text
-    if old not in text:
+    out, count = re.subn(pattern, replacement, text, count=1, flags=re.MULTILINE)
+    if count != 1:
         raise SystemExit(f'missing patch anchor: {label}')
-    return text.replace(old, new, 1)
+    return out
 
 
 # b3InternalAssert is a public B3_API entry point, but Box3D only compiles its
 # implementation in non-NDEBUG builds or when B3_ENABLE_ASSERT is explicitly
 # enabled. Keep Release optimisation while retaining the official public symbol.
-b = swap(
+b = regex_once(
     b,
-    "const stLib = buildBox3dLib( 'build/box3d', null );\nconst mtLib = buildBox3dLib( 'build/box3d-mt', '-pthread -sSHARED_MEMORY' );",
-    "const stLib = buildBox3dLib( 'build/box3d', '-DB3_ENABLE_ASSERT=1' );\nconst mtLib = buildBox3dLib( 'build/box3d-mt', '-pthread -sSHARED_MEMORY -DB3_ENABLE_ASSERT=1' );",
-    'B3_ENABLE_ASSERT engine builds',
+    r"buildBox3dLib\(\s*'build/box3d'\s*,\s*null\s*\)",
+    "buildBox3dLib( 'build/box3d', '-DB3_ENABLE_ASSERT=1' )",
+    'B3_ENABLE_ASSERT ST engine build',
+    "buildBox3dLib( 'build/box3d', '-DB3_ENABLE_ASSERT=1' )",
+)
+b = regex_once(
+    b,
+    r"buildBox3dLib\(\s*'build/box3d-mt'\s*,\s*'-pthread -sSHARED_MEMORY'\s*\)",
+    "buildBox3dLib( 'build/box3d-mt', '-pthread -sSHARED_MEMORY -DB3_ENABLE_ASSERT=1' )",
+    'B3_ENABLE_ASSERT MT engine build',
+    "buildBox3dLib( 'build/box3d-mt', '-pthread -sSHARED_MEMORY -DB3_ENABLE_ASSERT=1' )",
 )
 
 # The bindings compile against the same public-header configuration as libbox3d.
-b = swap(
-    b,
-    "\t'-std=c++17',\n\t'-lembind',",
-    "\t'-std=c++17',\n\t'-DB3_ENABLE_ASSERT=1',\n\t'-lembind',",
-    'B3_ENABLE_ASSERT bindings',
-)
+if "'-DB3_ENABLE_ASSERT=1'," not in b:
+    b = regex_once(
+        b,
+        r"(?P<indent>\s*)'-std=c\+\+17',",
+        lambda m: f"{m.group('indent')}'-std=c++17',\n{m.group('indent')}'-DB3_ENABLE_ASSERT=1',",
+        'B3_ENABLE_ASSERT bindings',
+    )
 
 # The public C API contains file-based recording/height-field/debug helpers and
 # callback-taking functions. A complete browser mirror therefore needs Emscripten
 # MEMFS plus dynamic function-table support instead of the old FILESYSTEM=0 build.
-b = swap(
-    b,
-    "\t'-sFILESYSTEM=0',\n\t'-sENVIRONMENT=web,worker,node',",
-    "\t'-sFORCE_FILESYSTEM=1',\n\t'-sALLOW_TABLE_GROWTH=1',\n\t'-sEXPORTED_RUNTIME_METHODS=[\"FS\",\"addFunction\",\"removeFunction\",\"UTF8ToString\",\"stringToUTF8\",\"lengthBytesUTF8\"]',\n\t'-sENVIRONMENT=web,worker,node',",
-    'browser filesystem/callback runtime',
-)
+if "'-sFORCE_FILESYSTEM=1'," not in b:
+    b = regex_once(
+        b,
+        r"(?P<indent>\s*)'-sFILESYSTEM=0',",
+        lambda m: (
+            f"{m.group('indent')}'-sFORCE_FILESYSTEM=1',\n"
+            f"{m.group('indent')}'-sALLOW_TABLE_GROWTH=1',\n"
+            f"{m.group('indent')}'-sEXPORTED_RUNTIME_METHODS=[\\\"FS\\\",\\\"addFunction\\\",\\\"removeFunction\\\",\\\"UTF8ToString\\\",\\\"stringToUTF8\\\",\\\"lengthBytesUTF8\\\"]',"
+        ),
+        'browser filesystem/callback runtime',
+    )
 
 # Upstream main currently declares b3World_DumpShapeBounds as B3_API in
 # box3d.h but has no implementation in the source tree. Keep the public API
