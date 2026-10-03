@@ -40,9 +40,14 @@ const rawExports = [ '_malloc', '_free', ...publicBox3DApi.map( n => '_' + n ) ]
 """
 b=swap(b,anchor,insert,'public API discovery')
 
+# Full public API means conditional assert API is compiled even in optimized builds,
+# and public save/load/dump APIs have a real Emscripten virtual filesystem.
+b=swap(b,"const stLib = buildBox3dLib( 'build/box3d', null );\nconst mtLib = buildBox3dLib( 'build/box3d-mt', '-pthread -sSHARED_MEMORY' );","const stLib = buildBox3dLib( 'build/box3d', '-DB3_ENABLE_ASSERT' );\nconst mtLib = buildBox3dLib( 'build/box3d-mt', '-DB3_ENABLE_ASSERT -pthread -sSHARED_MEMORY' );",'assert-enabled Box3D libs')
+b=swap(b,"\t'-sFILESYSTEM=0',","\t'-sFILESYSTEM=1',",'filesystem')
+
 # Keep every official C entry point alive/exported from WASM, in addition to embind.
 anchor="\t'-sENVIRONMENT=web,worker,node',\n\t// NDEBUG in release matches how libbox3d.a is built,"
-insert="\t'-sENVIRONMENT=web,worker,node',\n\t'-sEXPORTED_FUNCTIONS=' + JSON.stringify( rawExports ),\n\t// NDEBUG in release matches how libbox3d.a is built,"
+insert="\t'-sENVIRONMENT=web,worker,node',\n\t'-sEXPORTED_FUNCTIONS=' + JSON.stringify( rawExports ),\n\t'-DB3_ENABLE_ASSERT',\n\t// NDEBUG in release matches how libbox3d.a is built,"
 b=swap(b,anchor,insert,'EXPORTED_FUNCTIONS')
 
 # Expose the same authoritative list to the generated facade template.
