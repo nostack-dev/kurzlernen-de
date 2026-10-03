@@ -11,11 +11,13 @@ if not m:
 source=gzip.decompress(base64.b64decode(m.group(1))).decode()
 
 # Earth gravity as the default for newly created scenes. Imported scenes keep their own value.
-pat=re.compile(r"(gravity:)\[[^\]]+\](,allowSleep:)")
+# Anchor to the single document-default declaration rather than runtime/world copies.
+pat=re.compile(r"(const\s+defaults\s*=\s*\{\s*gravity\s*:\s*)\[[^\]]+\]")
 matches=list(pat.finditer(source))
 if len(matches)!=1:
-    raise SystemExit(f'expected exactly one default world gravity, got {len(matches)}')
-source=pat.sub(r"\1[0,0,-9.80665]\2",source,count=1)
+    contexts=[source[max(0,m.start()-80):m.start()+160] for m in re.finditer(r'gravity',source,re.I)][:12]
+    raise SystemExit(f'expected exactly one default world gravity, got {len(matches)}; gravity contexts={contexts!r}')
+source=pat.sub(r"\1[0,0,-9.80665]",source,count=1)
 
 marker='Editor3D mobile orbit toggle v1'
 if marker not in source:
