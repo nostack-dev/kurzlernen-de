@@ -2,6 +2,7 @@ import {normalizedPointer,endPointerDrag} from "./control_semantics.mjs";
 import "./direct_fire_missiles.mjs";
 import "./nuke_weapon.mjs";
 import "./nuke_overkill_fx.mjs";
+import "./nuke_volumetric_cloud_v2.mjs";
 import "./spawn_visibility_guard.mjs";
 
 let installed=false;
