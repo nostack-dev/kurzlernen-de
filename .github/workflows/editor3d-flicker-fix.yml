@@ -5,6 +5,8 @@ on:
     branches: ["main"]
     paths:
       - "scripts/editor3d_apply_flicker_fix.py"
+      - "tests/editor3d_flicker_contract_test.mjs"
+      - "tests/editor3d_flicker_browser_smoke.mjs"
       - ".github/workflows/editor3d-flicker-fix.yml"
   workflow_dispatch:
 
