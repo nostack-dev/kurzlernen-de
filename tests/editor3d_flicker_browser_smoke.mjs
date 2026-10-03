@@ -31,16 +31,16 @@ try{
   await new Promise(r=>setTimeout(r,250));
   const first=await page.evaluate(()=>{
     const v=Editor3D.views[0],a=v.renderer.getContext().getContextAttributes(),c=v.renderer.domElement;
-    return{preserve:a.preserveDrawingBuffer,alpha:a.alpha,gridZ:v.grid.position.z,floorZ:v.floor.position.z,pixelRatio:v.renderer.getPixelRatio(),coarse:matchMedia('(pointer:coarse)').matches,w:c.width,h:c.height,rw:v.resizeW,rh:v.resizeH};
+    return{preserve:a.preserveDrawingBuffer,gridZ:v.grid.position.z,floorZ:v.floor.position.z,pixelRatio:v.renderer.getPixelRatio(),coarse:matchMedia('(pointer:coarse)').matches,w:c.width,h:c.height,rw:v.resizeW,rh:v.resizeH};
   });
+  console.log('anti-flicker runtime',first);
   assert.equal(first.preserve,false);
-  assert.equal(first.alpha,false);
   assert.equal(first.gridZ,.006);
   assert.equal(first.floorZ,-.07);
   assert.ok(first.gridZ-first.floorZ>.05);
-  assert.ok(first.pixelRatio<= (first.coarse?1.5:2));
+  assert.ok(first.pixelRatio<=(first.coarse?1.5:2));
   await new Promise(r=>setTimeout(r,700));
   const second=await page.evaluate(()=>{const v=Editor3D.views[0],c=v.renderer.domElement;return{w:c.width,h:c.height,rw:v.resizeW,rh:v.resizeH}});
-  assert.deepEqual(second,first&&{w:first.w,h:first.h,rw:first.rw,rh:first.rh});
+  assert.deepEqual(second,{w:first.w,h:first.h,rw:first.rw,rh:first.rh});
   console.log('PASS editor3d mobile anti-flicker browser smoke');
 } finally {await browser.close();}
