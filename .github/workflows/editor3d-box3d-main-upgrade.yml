@@ -17,6 +17,7 @@ permissions:
 jobs:
   audit-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -95,3 +96,89 @@ jobs:
           b3.b3DestroyWorld(world);
           console.log(`PASS complete Box3D browser facade ${official.length}/${official.length}`, b3.b3GetVersion?.());
           NODE
+      - name: Embed the verified Box3D main runtime in the single Editor3D HTML
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, gzip, hashlib, re
+
+          editor=Path('editor3d.html')
+          wrapper=editor.read_text(encoding='utf-8')
+          m=re.search(r"EDITOR3D_GZIP_BASE64='([^']+)'",wrapper)
+          if not m:
+              raise SystemExit('Editor3D packed payload missing')
+          source=gzip.decompress(base64.b64decode(m.group(1))).decode('utf-8')
+          old='https://cdn.jsdelivr.net/npm/box3d.js@0.1.1/dist/box3d.inline.mjs'
+          marker='<meta name="editor3d-box3d" content="main:51f056e0a9d299326b10f10a63270c81d901df21 api:594 binding:5d5a3af049cccd9948b2b55bac4342414af0ef64">'
+          if marker not in source:
+              if source.count(old)!=1:
+                  raise SystemExit(f'expected exactly one legacy Box3D import, found {source.count(old)}')
+              runtime=Path('/tmp/box3djs/dist/box3d.inline.mjs').read_bytes()
+              runtime_url='data:text/javascript;base64,'+base64.b64encode(runtime).decode('ascii')
+              source=source.replace(old,runtime_url,1)
+              if '<head>' not in source:
+                  raise SystemExit('Editor3D <head> anchor missing')
+              source=source.replace('<head>','<head>'+marker,1)
+          if old in source:
+              raise SystemExit('legacy Box3D CDN runtime still referenced')
+          if marker not in source:
+              raise SystemExit('Box3D main marker missing after embed')
+          packed=base64.b64encode(gzip.compress(source.encode('utf-8'),compresslevel=9,mtime=0)).decode('ascii')
+          wrapper=wrapper[:m.start(1)]+packed+wrapper[m.end(1):]
+          editor.write_text(wrapper,encoding='utf-8')
+          print('Editor3D source bytes',len(source.encode('utf-8')))
+          print('Editor3D packed bytes',len(wrapper.encode('utf-8')))
+          print('Editor3D source SHA256',hashlib.sha256(source.encode('utf-8')).hexdigest())
+          PY
+          node tests/editor3d_contract_test.mjs
+      - name: Real Chromium smoke on the embedded current Box3D runtime
+        run: |
+          set -euxo pipefail
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund three@0.185.1 puppeteer-core@24.16.0
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME_BIN"
+          python3 -m http.server 4180 --bind 127.0.0.1 >/tmp/editor3d-box3d-http.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" EDITOR3D_LOCAL_DEPS=1 REPO_ROOT="$GITHUB_WORKSPACE" node tests/editor3d_browser_smoke.mjs
+          CHROME_BIN="$CHROME_BIN" REPO_ROOT="$GITHUB_WORKSPACE" node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import puppeteer from 'puppeteer-core';
+          const chrome=process.env.CHROME_BIN;
+          const root=process.env.REPO_ROOT;
+          const browser=await puppeteer.launch({executablePath:chrome,headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--use-angle=swiftshader','--enable-webgl','--ignore-gpu-blocklist']});
+          try{
+            const page=await browser.newPage();
+            await page.setRequestInterception(true);
+            const deps=new Map([
+              ['https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js',path.join(root,'node_modules/three/build/three.module.js')],
+              ['https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/controls/OrbitControls.js',path.join(root,'node_modules/three/examples/jsm/controls/OrbitControls.js')],
+              ['https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/geometries/ConvexGeometry.js',path.join(root,'node_modules/three/examples/jsm/geometries/ConvexGeometry.js')],
+            ]);
+            page.on('request',req=>{const f=deps.get(req.url()); if(f) req.respond({status:200,contentType:'text/javascript; charset=utf-8',headers:{'Access-Control-Allow-Origin':'*'},body:fs.readFileSync(f)}).catch(()=>{}); else req.continue().catch(()=>{});});
+            await page.goto('http://127.0.0.1:4180/editor3d.html?fullapi='+Date.now(),{waitUntil:'domcontentloaded',timeout:60000});
+            await page.waitForFunction(()=>window.Editor3D?.b3?.publicApi?.length,{timeout:60000});
+            const result=await page.evaluate(()=>({count:Editor3D.b3.publicApi.length,raw:Editor3D.b3.publicApi.filter(n=>typeof Editor3D.b3.raw?.[n]==='function').length,top:Editor3D.b3.publicApi.filter(n=>typeof Editor3D.b3[n]==='function').length,version:Editor3D.b3.b3GetVersion?.()}));
+            if(result.count!==594||result.raw!==594||result.top!==594) throw new Error('embedded Box3D API incomplete '+JSON.stringify(result));
+            console.log('PASS embedded Editor3D Box3D API 594/594',result.version);
+          } finally { await browser.close(); }
+          NODE
+      - name: Publish the tested single-file Editor3D runtime
+        run: |
+          set -euxo pipefail
+          rm -rf node_modules package.json package-lock.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add editor3d.html
+          if git diff --cached --quiet; then
+            echo 'Editor3D already contains this exact Box3D main runtime.'
+            exit 0
+          fi
+          git commit -m 'Embed verified Box3D main runtime in Editor3D'
+          git pull --rebase origin main
+          git push origin HEAD:main || { git pull --rebase origin main; git push origin HEAD:main; }
+          echo 'Published Editor3D commit:' $(git rev-parse HEAD)
