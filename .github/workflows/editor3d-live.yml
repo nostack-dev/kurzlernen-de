@@ -8,10 +8,11 @@ on:
     branches: ["main"]
     paths:
       - ".github/workflows/editor3d-live.yml"
+  workflow_dispatch:
 
 jobs:
   live-editor3d:
-    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
