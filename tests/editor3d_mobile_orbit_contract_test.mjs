@@ -5,7 +5,7 @@ const raw=fs.readFileSync(new URL('../editor3d.html',import.meta.url),'utf8');
 const packed=raw.match(/EDITOR3D_GZIP_BASE64='([^']+)'/);
 const html=packed?gunzipSync(Buffer.from(packed[1],'base64')).toString('utf8'):raw;
 for(const [name,re] of [
-  ['earth gravity default',/world:\{gravity:\[0,0,-9\.80665\],allowSleep:/],
+  ['earth gravity default',/const\s+defaults\s*=\s*\{\s*gravity\s*:\s*\[0,0,-9\.80665\]/],
   ['mobile orbit marker',/Editor3D mobile orbit toggle v1/],
   ['mobile orbit button',/e3d-mobile-orbit-toggle/],
   ['orbit default',/v\.mobileOrbitMode=true/],
