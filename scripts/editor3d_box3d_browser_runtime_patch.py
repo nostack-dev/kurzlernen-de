@@ -38,13 +38,13 @@ if assert_define not in core:
 if 'void b3World_DumpShapeBounds( b3WorldId worldId, b3BodyType type )' not in world:
     raise SystemExit('b3World_DumpShapeBounds implementation missing after main compatibility patch')
 
-# The public API contains file-based recording/debug helpers and callback-taking
-# functions. A complete browser facade therefore needs MEMFS plus a growable
-# function table and the runtime bridge methods used to register JS callbacks.
+# The full-facade patch intentionally turns FILESYSTEM=0 into FILESYSTEM=1 first.
+# Upgrade either state to the complete browser runtime needed by public file and
+# callback APIs: MEMFS plus a growable function table and registration bridges.
 if "'-sFORCE_FILESYSTEM=1'," not in b:
     b = regex_once(
         b,
-        r"(?P<indent>\s*)'-sFILESYSTEM=0',",
+        r"(?P<indent>\s*)'-sFILESYSTEM=(?:0|1)',",
         lambda m: (
             f"{m.group('indent')}'-sFORCE_FILESYSTEM=1',\n"
             f"{m.group('indent')}'-sALLOW_TABLE_GROWTH=1',\n"
