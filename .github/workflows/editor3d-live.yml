@@ -44,9 +44,11 @@ jobs:
               raise SystemExit('Pages is still serving a different Editor3D payload')
           source=gzip.decompress(base64.b64decode(lm.group(1))).decode('utf-8')
           required=(
-              'Editor3D visual fit v1: scale-aware camera; cradle excludes 24m demo ground',
+              'Editor3D visual fit v2: physical bounds + scale-aware helpers; cradle excludes 24m demo ground',
               'main:51f056e0a9d299326b10f10a63270c81d901df21 api:594',
               "if(kind!=='cradle')mk('ground',0,[0,0,-.5],'box',[24,24,1])",
+              "new THREE.SphereGeometry(sj.has(j.id)?selectedHelper:helper,10,8)",
+              'else box=contentBounds(v)',
           )
           missing=[x for x in required if x not in source]
           if missing:
