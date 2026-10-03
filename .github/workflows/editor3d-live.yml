@@ -14,7 +14,7 @@ jobs:
   live-editor3d:
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     env:
       VERIFY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
     steps:
@@ -49,6 +49,19 @@ jobs:
           ok=0
           for attempt in $(seq 1 24); do
             if CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?flicker=${VERIFY_SHA}-${attempt}" node tests/editor3d_flicker_browser_smoke.mjs; then
+              ok=1; break
+            fi
+            sleep 5
+          done
+          test "$ok" = 1
+      - name: Wait for mobile Orbit ownership and Earth gravity live
+        run: |
+          set -euxo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME_BIN"
+          ok=0
+          for attempt in $(seq 1 24); do
+            if CHROME_BIN="$CHROME_BIN" EDITOR3D_URL="https://kurzlernen.de/editor3d.html?orbit=${VERIFY_SHA}-${attempt}" node tests/editor3d_mobile_orbit_browser_smoke.mjs; then
               ok=1; break
             fi
             sleep 5
