@@ -1,4 +1,4 @@
-// Release revalidation marker: simulator behavior unchanged; this file is in the shared Mobile/S31 path filters.
+// Final release revalidation marker: simulator behavior unchanged; this file is in the shared Mobile/S31 path filters.
 export const FPV_VIEW_EXTRA_UP_M=.045;
 
 let installed=false,lastAppliedFrame=-1,retryTimer=0;
