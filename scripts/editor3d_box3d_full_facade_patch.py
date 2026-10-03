@@ -74,20 +74,17 @@ export interface Box3DFacade {
   getNumShapeIds(buf: ShapeIdBuffer): number;"""
 b=swap(b,anchor,insert,'raw API types')
 
-# Emscripten 6 emits RuntimeExports in the MainModule alias. Preserve whatever
-# module basis this compiler emitted and append our two facade surfaces. This also
-# stays compatible with the older `WasmModule & EmbindModule` form.
-anchor="""let tsd = readFileSync( tsdPath, 'utf8' )
-	.replaceAll( 'MainModuleFactory', 'Box3DFactory' )
-	.replaceAll( 'MainModule', 'Box3DModule' )
+# Emscripten 6 adds `typeof RuntimeExports` to MainModule. Preserve whatever
+# module basis the active compiler emitted instead of replacing one historical
+# spelling. Patch only the old box3d.js exact-replacement stanza, then append the
+# facade types to the discovered alias at build time.
+old=r"""	.replaceAll( 'MainModule', 'Box3DModule' )
 	.replace(
 		'export type Box3DModule = WasmModule & EmbindModule;',
 		`${facadeTypes}\nexport type Box3DModule = WasmModule & EmbindModule & Box3DFacade;`,
 	);
 if ( !tsd.includes( '& Box3DFacade' ) ) throw new Error( 'tsd: Box3DModule alias not found — did --emit-tsd output change?' );"""
-insert="""let tsd = readFileSync( tsdPath, 'utf8' )
-	.replaceAll( 'MainModuleFactory', 'Box3DFactory' )
-	.replaceAll( 'MainModule', 'Box3DModule' );
+new=r"""	.replaceAll( 'MainModule', 'Box3DModule' );
 const box3dModuleAlias = /^export type Box3DModule = ([^;]+);$/m;
 const box3dModuleMatch = tsd.match( box3dModuleAlias );
 if ( !box3dModuleMatch ) throw new Error( 'tsd: Box3DModule alias not found — did --emit-tsd output change?' );
@@ -97,7 +94,7 @@ tsd = tsd.replace(
 	`${facadeTypes}\nexport type Box3DModule = ${box3dModuleBase} & Box3DFacade & Box3DFullApi;`,
 );
 if ( !tsd.includes( '& Box3DFacade & Box3DFullApi' ) ) throw new Error( 'tsd: full Box3D facade alias injection failed' );"""
-b=swap(b,anchor,insert,'Emscripten 6 Box3DModule alias')
+b=swap(b,old,new,'Emscripten 6 Box3DModule alias')
 
 # Facade template gets the generated symbol list and exposes raw + top-level fallback.
 anchor="const LAYOUT = __B3_LAYOUT__;"
