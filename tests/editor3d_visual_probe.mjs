@@ -38,7 +38,8 @@ try{
   await settle(page,800);
 
   const shell=await page.evaluate(()=>{
-    const canvas=document.querySelector('canvas');
+    const canvases=[...document.querySelectorAll('canvas')];
+    const canvas=canvases.find(c=>{const r=c.getBoundingClientRect(),s=getComputedStyle(c);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'})||canvases[0];
     const rect=canvas?.getBoundingClientRect();
     return {
       width:innerWidth,height:innerHeight,
@@ -71,7 +72,8 @@ try{
   await page.setViewport({width:390,height:844,deviceScaleFactor:1});
   await settle(page,700);
   const mobile=await page.evaluate(()=>{
-    const canvas=document.querySelector('canvas');
+    const canvases=[...document.querySelectorAll('canvas')];
+    const canvas=canvases.find(c=>{const r=c.getBoundingClientRect(),s=getComputedStyle(c);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'})||canvases[0];
     const r=canvas?.getBoundingClientRect();
     return {w:innerWidth,h:innerHeight,docW:document.documentElement.scrollWidth,canvas:r?{x:r.x,y:r.y,w:r.width,h:r.height}:null};
   });
