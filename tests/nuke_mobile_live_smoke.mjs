@@ -1,7 +1,7 @@
 import puppeteer from "puppeteer-core";
 import {mkdir} from "node:fs/promises";
 
-const VISUAL_CONTRACT="world-anchored-3d-nuke-v13";
+const VISUAL_CONTRACT="world-anchored-3d-nuke-v14";
 const input=process.argv[2]||"https://kurzlernen.de/drone_simulator.html";
 const url=new URL(input);
 const executablePath=process.env.CHROME_BIN;
@@ -32,7 +32,7 @@ try{
   const armPrep=await armDroneAtomically();
 
   const beforeShot=await page.$eval("#viewport",v=>({nukeLaunches:Number(v.dataset.nukeLaunches)||0,legacyMissiles:Number(v.dataset.droneMissiles)||0}));
-  const tapPoint=await page.$eval("#viewport",v=>{const r=v.getBoundingClientRect();return{x:r.left+r.width*.30,y:r.top+r.height*.50};});
+  const tapPoint=await page.$eval("#viewport",v=>{const r=v.getBoundingClientRect();return{x:r.left+r.width*.50,y:r.top+r.height*.32};});
   await page.touchscreen.tap(tapPoint.x,tapPoint.y);
   await page.waitForFunction(before=>Number(document.querySelector("#viewport")?.dataset.nukeLaunches)>before,{timeout:3000},beforeShot.nukeLaunches);
 
