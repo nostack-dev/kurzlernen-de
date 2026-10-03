@@ -1,7 +1,7 @@
 import puppeteer from "puppeteer-core";
 import {mkdir} from "node:fs/promises";
 
-const VISUAL_CONTRACT="world-anchored-3d-nuke-v14";
+const VISUAL_CONTRACT="world-anchored-3d-nuke-v15";
 const input=process.argv[2]||"https://kurzlernen.de/drone_simulator.html";
 const url=new URL(input);
 const executablePath=process.env.CHROME_BIN;
