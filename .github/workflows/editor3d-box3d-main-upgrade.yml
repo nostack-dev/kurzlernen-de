@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/editor3d-box3d-main-upgrade.yml'
       - 'scripts/box3d_main_api_audit.py'
+      - 'scripts/box3d_browser_api_report.py'
       - 'scripts/editor3d_box3d_main_patch.py'
       - 'scripts/editor3d_box3d_full_facade_patch.py'
       - 'scripts/editor3d_box3d_browser_runtime_patch.py'
@@ -42,6 +43,15 @@ jobs:
         run: python3 scripts/editor3d_box3d_browser_runtime_patch.py /tmp/box3djs
       - name: Inventory ergonomic typed API before build
         run: python3 scripts/box3d_main_api_audit.py /tmp/box3djs --report-only
+      - name: Write strict browser wrapper report
+        run: python3 scripts/box3d_browser_api_report.py /tmp/box3djs --out /tmp/box3d-browser-api-report.json
+      - name: Upload strict browser wrapper report
+        uses: actions/upload-artifact@v4
+        with:
+          name: box3d-browser-api-report
+          path: /tmp/box3d-browser-api-report.json
+          if-no-files-found: error
+          retention-days: 3
       - name: Setup Emscripten 6.0.2
         uses: mymindstorm/setup-emsdk@v14
         with:
