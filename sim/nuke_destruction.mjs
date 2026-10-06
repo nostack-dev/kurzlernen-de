@@ -18,12 +18,12 @@ const SHOCK_MPS=343;
 const FULL_DESTROY_M=180;          // overpressure intensity 1.0 here
 const MAX_EFFECT_M=900;
 const RUBBLE_M=1.6;
-const DEBRIS_POOL=1400,DEBRIS_LIFE_S=22,GRAVITY=9.81;
+const DEBRIS_POOL=2000,DEBRIS_LIFE_S=22,GRAVITY=9.81;
 const FLING_LIFE_S=9,MAX_FLUNG=48,MAX_SECONDARY=10;
 const CRATER_R=210,CRATER_DEPTH=22,CRATER_RIM=7,CRATER_RINGS=30,CRATER_SEGMENTS=72,MAX_CRATERS=3;
 
 let installed=false,debris=null,debrisFree=[],events=[],flung=[],craters=[],secondaryLeft=0,lastFrame=performance.now(),pendingCommit=false;
-const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),m4=new THREE.Matrix4(),qa=new THREE.Quaternion(),sc=new THREE.Vector3(),col=new THREE.Color();
+const UP=new THREE.Vector3(0,0,1),tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),m4=new THREE.Matrix4(),qa=new THREE.Quaternion(),sc=new THREE.Vector3(),col=new THREE.Color();
 
 const viewport=()=>document.getElementById("viewport");
 const bridge=()=>globalThis.__arondightRealWorld||null;
@@ -33,20 +33,35 @@ function setData(key,value){const v=viewport();if(v){const s=String(value);if(v.
 function intensityAt(distance){return Math.pow(FULL_DESTROY_M/Math.max(8,distance),1.5);}
 
 // ---------------------------------------------------------------- debris
+// Debris material: same look as everything else (dark fill, neon edges) in a
+// single instanced draw call. Edges come from the box UVs + fwidth, so every
+// chunk is outlined without any extra line geometry.
+function debrisMaterial(){
+  return new THREE.RawShaderMaterial({glslVersion:THREE.GLSL3,
+    vertexShader:`precision highp float;
+in vec3 position;in vec2 uv;in mat4 instanceMatrix;in vec3 instanceColor;
+uniform mat4 modelViewMatrix;uniform mat4 projectionMatrix;
+out vec2 vUv;out vec3 vEdge;
+void main(){vUv=uv;vEdge=instanceColor;gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.0);}`,
+    fragmentShader:`precision highp float;
+in vec2 vUv;in vec3 vEdge;out vec4 outColor;
+void main(){vec2 w=fwidth(vUv)*1.6;vec2 a=smoothstep(vec2(0.0),w,vUv);vec2 b=smoothstep(vec2(0.0),w,1.0-vUv);float inside=min(min(a.x,a.y),min(b.x,b.y));
+vec3 fill=vec3(0.012,0.086,0.051);outColor=vec4(mix(vEdge,fill,inside),1.0);}`});
+}
 function ensureDebris(scene){
   if(debris?.mesh.parent===scene)return debris;
   if(debris?.mesh.parent)debris.mesh.parent.remove(debris.mesh);
-  const geometry=new THREE.BoxGeometry(1,1,1),material=new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false});
+  const geometry=new THREE.BoxGeometry(1,1,1),material=debrisMaterial();
   const mesh=new THREE.InstancedMesh(geometry,material,DEBRIS_POOL);mesh.name="NUKE_DEBRIS";mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   mesh.userData.flightFireIgnore=true;mesh.userData.neonSkip=true;mesh.userData.nukeWeaponPart=true;
-  const zero=new THREE.Matrix4().makeScale(0,0,0);for(let i=0;i<DEBRIS_POOL;i++){mesh.setMatrixAt(i,zero);mesh.setColorAt(i,col.set(0x0d2418));}
+  const zero=new THREE.Matrix4().makeScale(0,0,0);for(let i=0;i<DEBRIS_POOL;i++){mesh.setMatrixAt(i,zero);mesh.setColorAt(i,col.set(0x00ff9c));}
   mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;scene.add(mesh);
-  const items=Array.from({length:DEBRIS_POOL},()=>({alive:false,p:new THREE.Vector3(),v:new THREE.Vector3(),axis:new THREE.Vector3(1,0,0),angle:0,spin:0,size:new THREE.Vector3(1,1,1),age:0,rest:false}));
+  const items=Array.from({length:DEBRIS_POOL},()=>({alive:false,p:new THREE.Vector3(),v:new THREE.Vector3(),base:new THREE.Quaternion(),axis:new THREE.Vector3(1,0,0),angle:0,spin:0,size:new THREE.Vector3(1,1,1),age:0,rest:false}));
   debrisFree=items.map((_,i)=>DEBRIS_POOL-1-i);debris={mesh,items};return debris;
 }
-function spawnDebris(scene,at,velocity,size,color){
+function spawnDebris(scene,at,velocity,size,color,yaw=null){
   const d=ensureDebris(scene);if(!debrisFree.length)return;const i=debrisFree.pop(),item=d.items[i];
-  item.alive=true;item.rest=false;item.age=0;item.p.copy(at);item.v.copy(velocity);item.axis.set(rand(-1,1),rand(-1,1),rand(-1,1)).normalize();item.angle=rand(0,6.28);item.spin=rand(-9,9);item.size.copy(size);
+  item.alive=true;item.rest=false;item.age=0;item.p.copy(at);item.v.copy(velocity);item.base.setFromAxisAngle(UP,yaw??Math.random()*6.28);item.axis.set(rand(-1,1),rand(-1,1),rand(-1,1)).normalize();item.angle=rand(0,6.28);item.spin=rand(-9,9);item.size.copy(size);
   d.mesh.setColorAt(i,color);d.mesh.instanceColor.needsUpdate=true;
 }
 function stepDebris(dt){
@@ -56,7 +71,7 @@ function stepDebris(dt){
       if(it.p.z<floor){it.p.z=floor;if(Math.abs(it.v.z)<2.2&&Math.hypot(it.v.x,it.v.y)<1.5){it.rest=true;it.v.set(0,0,0);it.spin=0;}else{it.v.z=-it.v.z*.28;it.v.x*=.55;it.v.y*=.55;it.spin*=.5;}}}
     let sink=0;if(it.age>DEBRIS_LIFE_S-3)sink=(it.age-(DEBRIS_LIFE_S-3))/3*it.size.z;
     if(it.age>DEBRIS_LIFE_S){it.alive=false;debrisFree.push(i);m4.makeScale(0,0,0);mesh.setMatrixAt(i,m4);continue;}
-    qa.setFromAxisAngle(it.axis,it.angle);tmp.copy(it.p);tmp.z-=sink;m4.compose(tmp,qa,it.size);mesh.setMatrixAt(i,m4);}
+    qa.setFromAxisAngle(it.axis,it.angle).multiply(it.base);tmp.copy(it.p);tmp.z-=sink;m4.compose(tmp,qa,it.size);mesh.setMatrixAt(i,m4);}
   mesh.instanceMatrix.needsUpdate=true;return alive;
 }
 
@@ -64,7 +79,7 @@ function stepDebris(dt){
 function buildingsFromSnapshot(){
   const prisms=bridge()?.buildingCollisionSnapshot?.prisms||[],groups=new Map();
   for(const prism of prisms){const key=String(prism?.buildingKey||"");if(!key||prism.leveled)continue;const pts=(prism.points||[]).filter(p=>Number.isFinite(Number(p?.[0]))&&Number.isFinite(Number(p?.[1])));if(pts.length<3)continue;
-    let g=groups.get(key);if(!g){g={key,points:[],base:Number(prism.base)||0,top:Number(prism.top)||8};groups.set(key,g);}g.points.push(...pts);g.base=Math.min(g.base,Number(prism.base)||0);g.top=Math.max(g.top,Number(prism.top)||0);}
+    let g=groups.get(key);if(!g){g={key,points:[],rings:[],base:Number(prism.base)||0,top:Number(prism.top)||8};groups.set(key,g);}g.points.push(...pts);g.rings.push(pts);g.base=Math.min(g.base,Number(prism.base)||0);g.top=Math.max(g.top,Number(prism.top)||0);}
   const list=[];for(const g of groups.values()){let cx=0,cy=0;for(const p of g.points){cx+=+p[0];cy+=+p[1];}cx/=g.points.length;cy/=g.points.length;let r=0,minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;for(const p of g.points){r=Math.max(r,Math.hypot(p[0]-cx,p[1]-cy));minX=Math.min(minX,p[0]);maxX=Math.max(maxX,p[0]);minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);}list.push({...g,cx,cy,r,minX,maxX,minY,maxY,height:Math.max(1,g.top-g.base)});}
   return list;
 }
@@ -86,16 +101,39 @@ function planBuildings(center){
   }
   return list.length;
 }
-const WALL=new THREE.Color(0x10291b),EMBER=new THREE.Color(0xff6a1a),CHAR=new THREE.Color(0x1c1a12);
+// Edge colors of the debris: neon green structure, hot embers.
+const GREEN=new THREE.Color(0x00ff9c),EMBER=new THREE.Color(0xff7a1a),DIM=new THREE.Color(0x0c8a55);
+// Structural fracture: the removed part of a building breaks along its real
+// geometry — façade panels per outline edge and floor band, plus roof slabs —
+// instead of random cubes. Piece count adapts to size (cap per building) and
+// the whole city's debris stays one instanced draw call.
+const FLOOR_M=3.2,PANEL_MAX_M=7,MAX_PIECES=40;
 function collapseBuilding(scene,b,center){
   setBuildingDamage(b.key,{top:b.newTop,leveled:b.leveled});pendingCommit=true;
-  const removed=Math.max(0,b.top-b.newTop),area=(b.maxX-b.minX)*(b.maxY-b.minY),volume=removed*Math.max(20,area*.6),count=clamp(Math.round(volume/90),5,40),chunk=clamp(Math.cbrt(volume/count),1.2,5.5);
-  const dir=tmp2.set(b.cx-center.x,b.cy-center.y,0);if(dir.lengthSq()<1)dir.set(1,0,0);dir.normalize();const I=Math.min(b.intensity,2.5);
-  for(let i=0;i<count;i++){
-    const at=new THREE.Vector3(rand(b.minX,b.maxX),rand(b.minY,b.maxY),b.newTop+rand(0,removed));
-    const speed=(10+34*I)*rand(.55,1.25),v=new THREE.Vector3(dir.x*speed+rand(-6,6),dir.y*speed+rand(-6,6),rand(3,9)+9*I*rand(.3,1));
-    spawnDebris(scene,at,v,new THREE.Vector3(chunk*rand(.6,1.4),chunk*rand(.6,1.4),chunk*rand(.4,1.1)),Math.random()<.22?EMBER:Math.random()<.5?CHAR:WALL);
-  }
+  const removed=Math.max(0,b.top-b.newTop);if(removed<.5)return;
+  const outward=tmp2.set(b.cx-center.x,b.cy-center.y,0);if(outward.lengthSq()<1)outward.set(1,0,0);outward.normalize();const I=Math.min(b.intensity,2.5);
+  const segments=[];for(const ring of b.rings)for(let i=0;i<ring.length;i++){const a=ring[i],c=ring[(i+1)%ring.length],len=Math.hypot(c[0]-a[0],c[1]-a[1]);if(len<.4)continue;const parts=Math.max(1,Math.ceil(len/PANEL_MAX_M));for(let k=0;k<parts;k++){const t0=k/parts,t1=(k+1)/parts;segments.push({x:a[0]+(c[0]-a[0])*(t0+t1)/2,y:a[1]+(c[1]-a[1])*(t0+t1)/2,len:len/parts,yaw:Math.atan2(c[1]-a[1],c[0]-a[0])});}}
+  let floors=Math.max(1,Math.round(removed/FLOOR_M));const roofCells=Math.max(1,Math.min(10,Math.round((b.maxX-b.minX)*(b.maxY-b.minY)/60)));
+  while(segments.length*floors+roofCells>MAX_PIECES&&floors>1)floors--;
+  const stride=Math.max(1,Math.ceil(segments.length*floors/(MAX_PIECES-roofCells))),band=removed/floors;
+  const launch=(at,size,yaw,edge)=>{const radial=tmp.set(at.x-center.x,at.y-center.y,0);if(radial.lengthSq()<1)radial.copy(outward);radial.normalize();const speed=(9+30*I)*rand(.55,1.2),v=new THREE.Vector3(radial.x*speed+rand(-5,5),radial.y*speed+rand(-5,5),rand(2,8)+8*I*rand(.2,1));spawnDebris(scene,at,v,size,edge,yaw);};
+  for(let f=0;f<floors;f++)for(let i=f%stride;i<segments.length;i+=stride){const sg=segments[i],z=b.newTop+band*(f+.5);launch(new THREE.Vector3(sg.x,sg.y,z),new THREE.Vector3(sg.len*rand(.85,1),.45,band*rand(.8,1)),sg.yaw,Math.random()<.18?EMBER:Math.random()<.35?DIM:GREEN);}
+  for(let i=0;i<roofCells;i++)launch(new THREE.Vector3(rand(b.minX,b.maxX),rand(b.minY,b.maxY),b.top-.3),new THREE.Vector3(rand(3,7),rand(3,7),.5),Math.random()*6.28,Math.random()<.25?EMBER:GREEN);
+}
+
+// Static instanced props (trees, street lamps): flattened when the shock
+// passes and thrown as debris. Animated instanced crowds rewrite their own
+// matrices every frame and are handled by their population modules.
+const flattenedProps=[],instM=new THREE.Matrix4(),instP=new THREE.Vector3(),instQ=new THREE.Quaternion(),instS=new THREE.Vector3(),ZERO=new THREE.Matrix4().makeScale(0,0,0);
+function planInstancedProps(scene,center){
+  scene.traverse(node=>{if(!node.isInstancedMesh||node.userData?.nukeWeaponPart||node.userData?.neonSkip)return;node.updateWorldMatrix(true,false);
+    for(let i=0;i<node.count;i++){node.getMatrixAt(i,instM);instM.premultiply(node.matrixWorld);instM.decompose(instP,instQ,instS);if(instS.x<1e-4)continue;const d=Math.hypot(instP.x-center.x,instP.y-center.y);if(d>FULL_DESTROY_M*1.25)continue;
+      events.push({at:performance.now()+d/SHOCK_MPS*1000,type:"prop",mesh:node,index:i,position:instP.clone(),size:Math.max(.5,instS.z),distance:d,center:center.clone()});}});
+}
+function flattenProp(scene,e){
+  const node=e.mesh;if(!node.parent)return;const original=new THREE.Matrix4();node.getMatrixAt(e.index,original);flattenedProps.push({mesh:node,index:e.index,matrix:original});node.setMatrixAt(e.index,ZERO);node.instanceMatrix.needsUpdate=true;
+  const dir=tmp.set(e.position.x-e.center.x,e.position.y-e.center.y,0);if(dir.lengthSq()<1)dir.set(1,0,0);dir.normalize();const I=Math.min(intensityAt(e.distance),2.5),speed=(10+26*I)*rand(.6,1.1);
+  for(let k=0;k<2;k++)spawnDebris(scene,e.position.clone().add(new THREE.Vector3(0,0,1+k)),new THREE.Vector3(dir.x*speed,dir.y*speed,4+6*I),new THREE.Vector3(.5,.5,Math.min(4,e.size)*rand(.4,.7)),Math.random()<.3?EMBER:GREEN);
 }
 
 // --------------------------------------------- vehicles, people, bodies
@@ -161,12 +199,13 @@ function stepCraters(now){
 function onImpact(event){
   const p=event?.detail?.position,scene=bridge()?.threeScene;if(!Array.isArray(p)||!scene)return;const center=new THREE.Vector3(+p[0]||0,+p[1]||0,0);
   secondaryLeft=MAX_SECONDARY;spawnCrater(scene,center);ensureDebris(scene);
-  const buildings=planBuildings(center),actors=planActors(scene,center);events.sort((a,b)=>a.at-b.at);
+  const buildings=planBuildings(center),actors=planActors(scene,center);planInstancedProps(scene,center);events.sort((a,b)=>a.at-b.at);
   setData("nukeDestruction",NUKE_DESTRUCTION_VERSION);setData("nukeDestructionBuildings",buildings);setData("nukeDestructionActors",actors);setData("nukeDestructionFullRadiusM",FULL_DESTROY_M);
 }
 function runEvent(scene,e){
   const I=intensityAt(e.distance??0);
   if(e.type==="building")collapseBuilding(scene,e.b,e.center);
+  else if(e.type==="prop")flattenProp(scene,e);
   else if(e.type==="actor")hitActor(scene,e);
   else if(e.type==="local"){const t=e.target;if(t.kind==="player"&&globalThis.__arondightPlayerShield?.nukeImmune?.())return;if(t.kind==="drone"){const amount=Math.min(35,8*I);if(amount>1)t.model?.damage?.(amount,"explosion:nuke");}else{const amount=I>=1?1000:260*I;if(amount>2)t.model?.damage?.(amount,"explosion:nuke");}}
   else if(e.type==="rigid"){const rigid=globalThis.__arondightWorldRigidBodies,q=rigid?.pose?.(e.record.id)?.position;if(!q)return;tmp.set(q[0]-e.center.x,q[1]-e.center.y,0);if(tmp.lengthSq()<.01)tmp.set(1,0,0);tmp.normalize();const mass=Math.max(.1,Number(e.record.massKg)||1),dv=e.record.drone?Math.min(7,4*I):Math.min(70,28*I);rigid.applyImpulse?.(e.record.id,[tmp.x*mass*dv,tmp.y*mass*dv,mass*dv*.55],{point:q});}
@@ -182,7 +221,7 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 function resetWorld(){
-  events.length=0;for(const f of flung){f.clone.parent?.remove(f.clone);f.root.visible=true;}flung.length=0;
+  events.length=0;for(const f of flattenedProps.splice(0)){f.mesh.setMatrixAt(f.index,f.matrix);f.mesh.instanceMatrix.needsUpdate=true;}for(const f of flung){f.clone.parent?.remove(f.clone);f.root.visible=true;}flung.length=0;
   if(debris){const zero=new THREE.Matrix4().makeScale(0,0,0);debris.items.forEach((it,i)=>{if(it.alive){it.alive=false;debris.mesh.setMatrixAt(i,zero);}});debrisFree=debris.items.map((_,i)=>DEBRIS_POOL-1-i);debris.mesh.instanceMatrix.needsUpdate=true;}
   for(const c of craters){c.mesh.parent?.remove(c.mesh);c.mesh.geometry.dispose();c.mesh.material.dispose();c.rim.geometry.dispose();c.rim.material.dispose();}craters.length=0;
   setData("nukeDebrisAlive",0);setData("nukeFlungActors",0);
