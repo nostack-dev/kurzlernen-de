@@ -1,79 +1,106 @@
 import * as THREE from "three";
-import {FX,sphereGeometry,fxMaterial,smokeMaterial,disposeEffect,setData} from "./nuke_fx_shared.mjs";
+import {disposeEffect,setData} from "./nuke_fx_shared.mjs";
+import {fatLineMaterial,fatLineGeometry,fatLineSegments} from "./box3d_collider_debug.mjs";
 
-const clouds=[];
-let installed=false;
+// The classic mushroom, sculpted instead of a pile of cloud puffs:
+//   * stem   – a lathe surface with the typical narrow neck, flaring into the
+//              cap and spreading at the ground,
+//   * cap    – a rolling toroidal vortex ring under a domed top,
+//   * collar – the condensation (Wilson) ring that forms around the stem,
+//   * base surge – a wide ring rolling outward along the ground.
+// Each part is a dark silhouette (the game's flat look) with an additive heat
+// shell whose glow sits where real fireballs glow — inside the stem and on
+// the cap's underside — fading as it cools. Neon flow rings scroll up the
+// stem and roll around the vortex ring so the cloud visibly churns.
+// ~25 draw calls in total, no lights, no per-frame geometry rebuilds.
+
 const CINEMATIC_RENDER_ORDER=840;
 const NUKE_SCALE=3;
+const HEIGHT_M=112*NUKE_SCALE;       // final top of the dome (~336 m)
+const RISE_TAU_S=3.6,LIFE_S=34;
+const STEM_RINGS=10,TORUS_FLOWS=7;
+
+const clouds=[];let installed=false,unitCircle=null;
 
 function viewport(){return document.getElementById("viewport");}
 function scene(){return globalThis.__arondightRealWorld?.threeScene||null;}
 function clamp(v,a,b){return Math.max(a,Math.min(b,Number(v)||0));}
 function smooth(t){t=clamp(t,0,1);return t*t*(3-2*t);}
-function tag(node,role){node.userData.nukeWeaponPart=true;node.userData.flightFireIgnore=true;node.userData.nukeOverkillPart=true;node.userData.nukeOverkillRole=role;node.userData.nukeVolumetricPart=true;node.renderOrder=CINEMATIC_RENDER_ORDER;return node;}
-// Depth-tested so buildings in front correctly hide the cloud instead of the
-// cloud bleeding through them. Smoke is Lambert-lit by the scene's existing
-// lights; heat is additive and unlit. No lights are ever added.
-function puff(group,{role,r,x,y,z,color,scale=[1,1,1]}){const mesh=tag(new THREE.Mesh(sphereGeometry(r,16,11),smokeMaterial(color,{depthTest:true})),role);mesh.position.set(x,y,z);mesh.scale.set(...scale);group.add(mesh);return mesh;}
-function hotPuff(group,{role,r,x,y,z,color,scale=[1,1,1]}){const mesh=tag(new THREE.Mesh(sphereGeometry(r,14,9),fxMaterial(color,{opacity:0,additive:true,depthTest:true,side:THREE.BackSide})),role);mesh.position.set(x,y,z);mesh.scale.set(...scale);group.add(mesh);return mesh;}
-function seededNoise(i,salt=0){const x=Math.sin((i+1)*12.9898+salt*78.233)*43758.5453;return x-Math.floor(x);}
+function tag(node,role){node.userData.nukeWeaponPart=true;node.userData.flightFireIgnore=true;node.userData.nukeOverkillPart=true;node.userData.nukeOverkillRole=role;node.userData.nukeVolumetricPart=true;node.userData.neonSkip=true;node.renderOrder=CINEMATIC_RENDER_ORDER;return node;}
 
-// ~70 large puffs instead of ~190 small ones: the silhouette reads the same,
-// but transparent overdraw (the dominant cost on phones) drops by ~3x.
+// Stem profile (radius, height) as fractions of HEIGHT_M.
+const STEM_PROFILE=[[.30,0],[.22,.025],[.15,.07],[.095,.16],[.072,.30],[.066,.46],[.07,.60],[.085,.70],[.12,.775]];
+function stemRadiusAt(h){if(h<=0)return STEM_PROFILE[0][0];for(let i=1;i<STEM_PROFILE.length;i++){const[a,ha]=STEM_PROFILE[i-1],[b,hb]=STEM_PROFILE[i];if(h<=hb)return a+(b-a)*(h-ha)/(hb-ha);}return STEM_PROFILE.at(-1)[0];}
+const CAP={z:.80,R:.24,r:.105};       // vortex ring centre height, major and tube radius
+const DOME={z:.84,r:.27,squash:.62};
+
+// Heat pattern baked into vertex colours (black = no glow).
+function heatColors(geometry,fn){const pos=geometry.attributes.position,colors=new Float32Array(pos.count*3),c=new THREE.Color();for(let i=0;i<pos.count;i++){const h=clamp(fn(pos.getX(i),pos.getY(i),pos.getZ(i)),0,1);c.setRGB(1,.42+.4*h*h,.12+.2*h*h).multiplyScalar(h);colors[i*3]=c.r;colors[i*3+1]=c.g;colors[i*3+2]=c.b;}geometry.setAttribute("color",new THREE.BufferAttribute(colors,3));return geometry;}
+function darkMaterial(){return new THREE.MeshBasicMaterial({color:0x140a07,toneMapped:false,fog:false,side:THREE.FrontSide,transparent:true,opacity:1,depthWrite:true});}
+function heatMaterial(){return new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,fog:false,side:THREE.FrontSide});}
+// Lathe/Torus in three are built around +Y / in the XY plane; stand the lathe on +Z.
+function zUp(geometry){geometry.rotateX(Math.PI/2);return geometry;}
+
+// Geometry is built once and shared by every detonation (flagged so
+// disposeEffect keeps it); only materials are per-cloud.
+let shared=null;
+function sharedGeometries(){
+  if(shared)return shared;const mark=g=>{g.userData.nukeSharedGeometry=true;return g;};
+  const domeGeo=new THREE.SphereGeometry(DOME.r,40,14,0,Math.PI*2,0,Math.PI/2);domeGeo.rotateX(Math.PI/2);domeGeo.scale(1,1,DOME.squash);
+  shared={
+    stem:mark(zUp(new THREE.LatheGeometry(STEM_PROFILE.map(([r,h])=>new THREE.Vector2(r,h)),40))),
+    stemHeat:mark(heatColors(zUp(new THREE.LatheGeometry(STEM_PROFILE.map(([r,h])=>new THREE.Vector2(r*1.03,h)),40)),(x,y,z)=>.35+.65*(1-z/.78))),
+    cap:mark(new THREE.TorusGeometry(CAP.R,CAP.r,22,56)),
+    capHeat:mark(heatColors(new THREE.TorusGeometry(CAP.R,CAP.r*1.04,22,56),(x,y,z)=>clamp(.55-z/CAP.r*.9,0,1))),
+    dome:mark(domeGeo),
+    collar:mark(new THREE.TorusGeometry(.16,.016,10,48)),
+    surge:mark(new THREE.TorusGeometry(.42,.045,10,64)),
+    surgeHeat:mark(heatColors(new THREE.TorusGeometry(.42,.047,10,64),()=>.6)),
+  };return shared;
+}
+function buildParts(group){
+  const parts={},G=sharedGeometries();
+  parts.stem=tag(new THREE.Mesh(G.stem,darkMaterial()),"stem-silhouette");
+  parts.stemHeat=tag(new THREE.Mesh(G.stemHeat,heatMaterial()),"hot-plume-visible-stem");
+  parts.cap=tag(new THREE.Mesh(G.cap,darkMaterial()),"crown-visible-core");parts.cap.position.z=CAP.z;
+  parts.capHeat=tag(new THREE.Mesh(G.capHeat,heatMaterial()),"hot-crown-visible-core");parts.capHeat.position.z=CAP.z;
+  parts.dome=tag(new THREE.Mesh(G.dome,darkMaterial()),"crown-volumetric-core");parts.dome.position.z=DOME.z;
+  parts.collar=tag(new THREE.Mesh(G.collar,new THREE.MeshBasicMaterial({color:0xd8ffe9,transparent:true,opacity:0,depthWrite:false,toneMapped:false,fog:false})),"crown-collar");parts.collar.position.z=.5;
+  parts.surge=tag(new THREE.Mesh(G.surge,darkMaterial()),"base-surge");parts.surge.position.z=.03;
+  parts.surgeHeat=tag(new THREE.Mesh(G.surgeHeat,heatMaterial()),"hot-plume-visible-surge");parts.surgeHeat.position.z=.03;
+  for(const key of Object.keys(parts))group.add(parts[key]);
+  unitCircle??=(()=>{const pts=[],n=64;for(let i=0;i<n;i++){const a=i/n*Math.PI*2,b=(i+1)/n*Math.PI*2;pts.push(Math.cos(a),Math.sin(a),0,Math.cos(b),Math.sin(b),0);}const g=fatLineGeometry(pts);g.userData.nukeSharedGeometry=true;return g;})();
+  const lineMat=fatLineMaterial(0x00ff9c,{width:1.6,opacity:.85,additive:true});
+  parts.stemRings=[];for(let i=0;i<STEM_RINGS;i++){const ring=tag(fatLineSegments(unitCircle,lineMat),`plume-volumetric-ring-${i}`);delete ring.userData.neonEdge;group.add(ring);parts.stemRings.push(ring);}
+  parts.capFlows=[];for(let i=0;i<TORUS_FLOWS;i++){const ring=tag(fatLineSegments(unitCircle,lineMat),`crown-volumetric-flow-${i}`);delete ring.userData.neonEdge;group.add(ring);parts.capFlows.push(ring);}
+  parts.lineMat=lineMat;
+  return parts;
+}
+
 function spawn(position){
   const world=scene();if(!world)return;
-  const group=tag(new THREE.Group(),"volumetric-world-root");
-  group.position.copy(position);
-  world.add(group);
-  const smoke=[],hot=[];
-  // Turbulent stem with a narrow neck.
-  for(let i=0;i<12;i++){
-    const t=i/11,z=4+t*80,neck=.6+Math.abs(t-.5)*.8,radius=(10+t*5)*neck,angle=i*1.77,offset=(1.8+t*4.4)*(.55+seededNoise(i,1));
-    smoke.push(puff(group,{role:`plume-volumetric-${i}`,r:radius,x:Math.cos(angle)*offset,y:Math.sin(angle)*offset,z,color:i<4?FX.smokeLight:i<9?FX.smoke:FX.smokeLight,scale:[1.3,1.22,1.6]}));
-  }
-  // Incandescent core inside the stem.
-  for(let i=0;i<6;i++){const a=i*1.31,rad=.8+(i%3)*.65;hot.push(hotPuff(group,{role:`hot-plume-visible-${i}`,r:4.4+i*.25,x:Math.cos(a)*rad,y:Math.sin(a)*rad,z:6+i*7.2,color:i<2?FX.core:i<4?FX.yellow:FX.orange,scale:[1.35,1.25,1.7]}));}
-  // Rolling collar where the stem opens into the cap.
-  for(let i=0;i<12;i++){const a=i/12*Math.PI*2,rad=18+(i%3)*3.6;smoke.push(puff(group,{role:`crown-collar-${i}`,r:12.5+(i%4)*1.3,x:Math.cos(a)*rad,y:Math.sin(a)*rad,z:67+(i%3)*3.4,color:i%2?FX.smokeLight:FX.smoke,scale:[1.9,1.82,1.2]}));}
-  // Readable lower cap with a glowing underside.
-  for(let i=0;i<10;i++){const a=i/10*Math.PI*2,rad=23+(i%3)*4.6;smoke.push(puff(group,{role:`crown-visible-${i}`,r:15.5+(i%3)*2,x:Math.cos(a)*rad,y:Math.sin(a)*rad,z:35+(i%4)*2.6,color:i%2?FX.smokeLight:FX.smoke,scale:[1.95,1.85,1.12]}));}
-  smoke.push(puff(group,{role:"crown-visible-core",r:22,x:0,y:0,z:43,color:FX.smoke,scale:[2.35,2.18,1.18]}));
-  for(let i=0;i<8;i++){const a=i/8*Math.PI*2,rad=16+(i%2)*5;hot.push(hotPuff(group,{role:`hot-crown-visible-${i}`,r:6.8+(i%3)*1.1,x:Math.cos(a)*rad,y:Math.sin(a)*rad,z:28+(i%3)*2.2,color:i%3===0?FX.core:i%2?FX.orange:FX.yellow,scale:[1.85,1.6,.7]}));}
-  hot.push(hotPuff(group,{role:"hot-crown-visible-core",r:10.5,x:0,y:0,z:29,color:FX.yellow,scale:[2.05,1.78,.72]}));
-  // Billowing upper crown.
-  for(let ring=0;ring<3;ring++){
-    const count=10+ring*3;
-    for(let i=0;i<count;i++){
-      const a=(i/count)*Math.PI*2+ring*.31,rad=24+ring*12+(seededNoise(i,ring+3)-.5)*6,z=80+ring*7+(seededNoise(i,ring+7)-.5)*10,r=15+ring*1.8+seededNoise(i,ring+11)*4;
-      smoke.push(puff(group,{role:`crown-volumetric-${ring}-${i}`,r,x:Math.cos(a)*rad,y:Math.sin(a)*rad,z,color:[FX.smokeLight,FX.smoke,FX.smokeDark][ring],scale:[2.15+ring*.18,2.08+ring*.18,1.34+ring*.1]}));
-    }
-  }
-  smoke.push(puff(group,{role:"crown-volumetric-core",r:28,x:0,y:0,z:94,color:FX.smoke,scale:[2.8,2.65,1.22]}));
-  smoke.push(puff(group,{role:"crown-volumetric-upper",r:23,x:-4,y:3,z:109,color:FX.smokeDark,scale:[2.65,2.5,1.16]}));
-  group.scale.setScalar(.035*NUKE_SCALE);
-  clouds.push({group,world,smoke,hot,baseScale:smoke.map(m=>[m.scale.x,m.scale.y]),born:performance.now(),position:position.clone()});
-  const v=viewport();if(v){v.dataset.nukeVolumetricCloud="lit-billowing-world-v2";v.dataset.nukeVolumetricStyle="lambert-smoke+additive-heat-v1";v.dataset.nukeVolumetricAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;v.dataset.nukeVolumetricParts=String(smoke.length+hot.length);v.dataset.nukeVolumetricHotParts=String(hot.length);v.dataset.nukeVolumetricScreenSpace="none";v.dataset.nukeVolumetricVisibility="depth-tested-v4";}
+  const group=tag(new THREE.Group(),"volumetric-world-root");group.position.copy(position);world.add(group);
+  const parts=buildParts(group);group.scale.setScalar(.001);
+  clouds.push({group,world,parts,born:performance.now(),position:position.clone()});
+  const v=viewport();if(v){v.dataset.nukeVolumetricCloud="sculpted-mushroom-v3";v.dataset.nukeVolumetricStyle="silhouette+heat-shell+flow-rings-v1";v.dataset.nukeVolumetricAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;v.dataset.nukeVolumetricParts=String(group.children.length);v.dataset.nukeVolumetricHotParts="3";v.dataset.nukeVolumetricScreenSpace="none";v.dataset.nukeVolumetricVisibility="depth-tested-v4";}
 }
 
 function update(item,now){
-  const age=now-item.born;
-  const grow=smooth(clamp(age/2200,0,1));
-  const settle=smooth(clamp((age-1200)/6200,0,1));
-  const fade=1-clamp((age-22000)/8500,0,1);
-  const s=NUKE_SCALE*(.035+grow*1.08);
-  item.group.scale.set(s,s,s*(1+.06*settle));
-  item.group.position.z=item.position.z+settle*4.2*NUKE_SCALE;
-  const heat=Math.max(0,1-age/9000);
-  for(let i=0;i<item.smoke.length;i++){
-    const mesh=item.smoke[i],delay=(i%9)*.016;
-    const local=clamp((grow-delay)/(1-delay),0,1);
-    mesh.material.opacity=(.78+.14*seededNoise(i,17))*local*fade;mesh.material.emissive.setRGB(.42*heat,.16*heat,.05*heat);
-    const swell=1+age*.0000036,base=item.baseScale[i];mesh.scale.x=base[0]*swell;mesh.scale.y=base[1]*swell;mesh.rotation.z=age*.000006*((i%3)-1);
-  }
-  const heatFade=Math.max(0,1-age/11500),heatOpacity=clamp(grow*1.65,0,.78)*heatFade;
-  for(let i=0;i<item.hot.length;i++)item.hot[i].material.opacity=heatOpacity*(.76+.24*seededNoise(i,41));
-  const v=viewport();setData(v,"nukeVolumetricProgress",grow.toFixed(2));setData(v,"nukeVolumetricRiseM",(settle*4.2).toFixed(1));setData(v,"nukeVolumetricHeat",heatOpacity.toFixed(2));
-  return age<30500;
+  const age=(now-item.born)/1000,p=item.parts;
+  const rise=1-Math.exp(-age/RISE_TAU_S),spread=.55+.45*smooth(age/9)+.12*smooth((age-9)/25);
+  item.group.scale.set(HEIGHT_M*spread,HEIGHT_M*spread,HEIGHT_M*Math.max(.02,rise));
+  const open=smooth((age-.6)/5);p.cap.scale.set(.6+.4*open,.6+.4*open,1+.25*(1-open));p.capHeat.scale.copy(p.cap.scale);p.dome.scale.set(.75+.25*open,.75+.25*open,1);
+  const fade=1-smooth((age-(LIFE_S-9))/9),heat=Math.max(0,1-age/16)*fade;
+  for(const m of[p.stem,p.cap,p.dome,p.surge]){m.material.opacity=fade;m.material.depthWrite=fade>.98;}
+  p.stemHeat.material.opacity=.95*heat;p.capHeat.material.opacity=heat;p.surgeHeat.material.opacity=.8*Math.max(0,1-age/6)*fade;
+  p.collar.material.opacity=.55*smooth((age-3)/2)*(1-smooth((age-10)/5));p.collar.position.z=.46+.06*smooth(age/8);p.collar.scale.setScalar(1+.25*smooth((age-3)/8));
+  const surge=1+2.2*(1-Math.exp(-age/4));p.surge.scale.set(surge,surge,1);p.surgeHeat.scale.set(surge,surge,1);
+  const flow=age*.06;
+  for(let i=0;i<p.stemRings.length;i++){const h=((i/p.stemRings.length+flow)%1)*.76,r=stemRadiusAt(h),ring=p.stemRings[i];ring.position.z=h;ring.scale.set(r*1.06,r*1.06,1);ring.visible=fade>.02;}
+  for(let i=0;i<p.capFlows.length;i++){const phi=i/p.capFlows.length*Math.PI*2+age*.9,R=(CAP.R+CAP.r*1.05*Math.cos(phi))*(.6+.4*open),ring=p.capFlows[i];ring.position.z=CAP.z+CAP.r*1.05*Math.sin(phi)*(1+.25*(1-open));ring.scale.set(R,R,1);ring.visible=fade>.02;}
+  p.lineMat.opacity=.85*fade;
+  const v=viewport();setData(v,"nukeVolumetricProgress",clamp(rise,0,1).toFixed(2));setData(v,"nukeVolumetricRiseM",(HEIGHT_M*rise).toFixed(0));setData(v,"nukeVolumetricHeat",heat.toFixed(2));
+  return age<LIFE_S;
 }
 
 function frame(now){for(let i=clouds.length-1;i>=0;i--){const item=clouds[i];if(update(item,now))continue;item.world?.remove(item.group);disposeEffect(item.group);clouds.splice(i,1);}requestAnimationFrame(frame);}

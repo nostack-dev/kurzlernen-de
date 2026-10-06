@@ -20,7 +20,8 @@ for(const marker of [
 ]) assert.ok(overkill.includes(marker),`missing world-space fireball marker: ${marker}`);
 assert.ok(!/mushroom-plume|crown-core|makeSmokePuff/.test(overkill),"overkill layer draws a second mushroom on top of the volumetric one (double overdraw)");
 
-for(const marker of ['depthTest:true','CINEMATIC_RENDER_ORDER=840','nukeVolumetricVisibility="depth-tested-v4"','lit-billowing-world-v2','nukeVolumetricHotParts','hot-crown-visible-core','hot-plume-visible-','crown-visible-core','crown-volumetric-core','nukeVolumetricScreenSpace="none"','smokeMaterial(']) assert.ok(volumetric.includes(marker),`missing volumetric silhouette/readability marker: ${marker}`);
+for(const marker of ['CINEMATIC_RENDER_ORDER=840','nukeVolumetricVisibility="depth-tested-v4"','sculpted-mushroom-v3','LatheGeometry(STEM_PROFILE','TorusGeometry(CAP.R,CAP.r','crown-collar','base-surge','hot-crown-visible-core','hot-plume-visible-','crown-visible-core','crown-volumetric-core','nukeVolumetricScreenSpace="none"','stemRings','capFlows']) assert.ok(volumetric.includes(marker),`missing classic mushroom marker: ${marker}`);
+assert.ok(!/SphereGeometry\(r,|puff\(group/.test(volumetric),"mushroom must be sculpted (stem/vortex ring/dome), not a pile of puff spheres");
 assert.ok(!volumetric.includes("wireframe"),"mushroom cloud must be solid, not line art");
 
 for(const forbidden of ['function ensureScreenCloud','nukeCinematicScreenCloud\");if(root)return root','presentationAnchor(position)']) assert.ok(!overkill.includes(forbidden),`forbidden nuclear renderer remains: ${forbidden}`);
@@ -36,7 +37,7 @@ assert.ok(mobile.includes('api?.displayMode||api?.mode'),"mobile HUD does not ex
 // part, and must not animate CSS filters on fullscreen layers.
 for(const [name,source] of [["nuke_weapon",nuke],["nuke_overkill_fx",overkill],["nuke_volumetric_cloud_v2",volumetric]]){
   assert.ok(!/new THREE\.PointLight|new THREE\.SpotLight/.test(source),`${name} adds a runtime light on detonation`);
-  assert.ok(!source.includes("new THREE.SphereGeometry"),`${name} allocates sphere geometry per impact instead of the shared cache`);
+  assert.ok(!source.includes("new THREE.SphereGeometry")||source.includes("userData.nukeSharedGeometry=true"),`${name} allocates geometry per impact instead of a shared cache`);
   assert.ok(!/filter:\s*[`"]?(?:blur|brightness)\(/.test(source)&&!source.includes('filter:`brightness'),`${name} animates a CSS filter on a fullscreen layer`);
   assert.ok(source.includes("disposeEffect("),`${name} leaks per-impact materials`);
   assert.ok(source.includes("from \"./nuke_fx_shared.mjs\""),`${name} bypasses shared nuke resources`);
