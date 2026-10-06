@@ -7,9 +7,9 @@ import {buildTrafficRoute,collectRenderedDrivableRoads,makeBuildingsOpaque} from
 import {syncWorldBuildingDepthOcclusion} from "./world_building_depth_occlusion.mjs";
 
 const MOBILE=/(?:android|iphone|ipad|ipod|macintosh.*mobile)/i.test(globalThis.navigator?.userAgent||"");
-const CAR_COUNT=MOBILE?14:24;
-const PERSON_COUNT=MOBILE?18:30;
-const BUS_COUNT=MOBILE?3:5;
+const CAR_COUNT=MOBILE?24:36;
+const PERSON_COUNT=MOBILE?34:52;
+const BUS_COUNT=MOBILE?5:8;
 const BIRD_COUNT=MOBILE?10:16;
 const TREE_COUNT=MOBILE?16:28;
 const LAMP_COUNT=MOBILE?12:20;

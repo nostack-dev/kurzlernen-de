@@ -7,8 +7,8 @@ import {spawnWorldCarExplosion} from "./world_car_explosion.mjs";
 
 const MOBILE_RE=/(?:android|iphone|ipad|ipod|macintosh.*mobile)/i;
 const MOBILE=MOBILE_RE.test(globalThis.navigator?.userAgent||"");
-const EXTRA_CARS=MOBILE?6:10;
-const EXTRA_PEOPLE=MOBILE?10:16;
+const EXTRA_CARS=MOBILE?10:16;
+const EXTRA_PEOPLE=MOBILE?18:26;
 const BUS_COUNT=MOBILE?3:5;
 const BIRD_COUNT=MOBILE?10:16;
 const TREE_COUNT=MOBILE?16:28;

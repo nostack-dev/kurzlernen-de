@@ -2,7 +2,7 @@ import * as THREE from "three";
 import {spawnWorldPersonRagdoll} from "./world_person_ragdoll.mjs";
 
 const MOBILE=/(?:android|iphone|ipad|ipod|macintosh.*mobile)/i.test(globalThis.navigator?.userAgent||"");
-const EXTRA_COUNT=MOBILE?16:24;
+const EXTRA_COUNT=MOBILE?28:40;
 const extras=[];
 const tmp=new THREE.Vector3(),cameraPos=new THREE.Vector3(),cameraForward=new THREE.Vector3(),peerPos=new THREE.Vector3(),peerForward=new THREE.Vector3(),peerQuat=new THREE.Quaternion(),toCandidate=new THREE.Vector3();
 let installed=false,sceneRef=null,root=null,wrappedBridge=null,lastFrame=performance.now(),cachedPeople=[],cachedViewers=[],lastPeopleScan=-Infinity,lastViewerScan=-Infinity;

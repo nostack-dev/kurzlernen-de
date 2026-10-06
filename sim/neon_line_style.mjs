@@ -36,7 +36,7 @@ const FRAME_BUDGET_MS=2.5;
 const GRID_SIZE_M=640;
 const GRID_STEP_M=8;
 
-let installed=false,queue=[],lastScan=-Infinity,gridGroup=null,styledScene=null,converted=0;
+let lastCull=-Infinity,cullStats={roots:0,culled:0,edgesHidden:0},installed=false,queue=[],lastScan=-Infinity,gridGroup=null,styledScene=null,converted=0;
 const edgeCache=new WeakMap(),lineMaterials=new Map(),processedMaterials=new WeakSet();
 
 function bridge(){return globalThis.__arondightRealWorld||null;}
@@ -135,10 +135,26 @@ function styleScene(scene){
   if(scene.fog)scene.fog.color=new THREE.Color(NEON_PALETTE.background);
 }
 
+// Performance: city actors far from the camera are dropped from the render
+// layer (they are a few pixels tall), and neon edges are only drawn within
+// EDGE_DISTANCE_M — far edges are sub-pixel noise but still cost draw calls.
+// Layers are used instead of .visible so population code that toggles
+// visibility (death, respawn) is never fought.
+const ACTOR_CULL_M=260,EDGE_DISTANCE_M=150,CULL_INTERVAL_MS=400;
+const cullPos=new THREE.Vector3();
+function setLayer(root,on){root.traverse(n=>{if(on)n.layers.enable(0);else n.layers.disable(0);});}
+function cullActors(scene,now){
+  if(now-lastCull<CULL_INTERVAL_MS)return;lastCull=now;const camera=bridge()?.threeCamera;if(!camera)return;let roots=0,culled=0,edgesHidden=0;
+  const actorId=n=>String(n?.userData?.worldPopulationId||n?.userData?.worldLifeId||"");
+  scene.traverse(n=>{
+    const id=actorId(n);if(id&&actorId(n.parent)!==id){const u=n.userData;roots++;n.getWorldPosition(cullPos);const far=cullPos.distanceTo(camera.position)>ACTOR_CULL_M;if(Boolean(u.neonCulled)!==far){u.neonCulled=far;setLayer(n,!far);}if(far)culled++;}
+    if(!n.userData?.neonEdge)return;const parent=n.parent;if(!parent)return;parent.getWorldPosition(cullPos);const show=cullPos.distanceTo(camera.position)<EDGE_DISTANCE_M+(parent.geometry?.boundingSphere?.radius||0)*4;if(n.visible!==show)n.visible=show;if(!show)edgesHidden++;});
+  cullStats={roots,culled,edgesHidden};const view=viewport();if(view){const s=`${roots}/${culled}/${edgesHidden}`;if(view.dataset.neonPerfCull!==s)view.dataset.neonPerfCull=s;}
+}
 function frame(now){
   const scene=bridge()?.threeScene;
   if(scene){
-    styleScene(scene);ensureGrid(scene);followGrid();enforceMap(now);
+    styleScene(scene);ensureGrid(scene);followGrid();enforceMap(now);cullActors(scene,now);
     if(!queue.length&&now-lastScan>SCAN_INTERVAL_MS){lastScan=now;scene.traverse(node=>{if(needsWork(node))queue.push(node);});}
     const deadline=performance.now()+FRAME_BUDGET_MS;
     while(queue.length&&performance.now()<deadline){const mesh=queue.pop();if(mesh.parent||mesh===scene)convert(mesh);}
