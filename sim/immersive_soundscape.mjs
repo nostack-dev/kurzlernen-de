@@ -5,7 +5,7 @@ import "./first_person_fire_contract_v1.mjs";
 import "./gameplay_final_ui_dock.mjs";
 import "./gameplay_final_realism_patch.mjs";
 import "./first_person_weapon_runtime_v3.mjs";
-import "./first_person_weapon_anchor_v4.mjs";
+import "./first_person_controller_v5.mjs";
 import "./world_traffic_motion_guard_v1.mjs";
 import "./world_crowd_density_v1.mjs";
 

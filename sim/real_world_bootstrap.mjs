@@ -226,6 +226,10 @@ class RealWorldBridge{
   stepLook(now){const dt=clamp((now-this.lookFrameMs)/1000,0,.05);this.lookFrameMs=now;if(this.lookSnapping&&!this.lookDragging&&!this.gamepadLookActive){const decay=Math.exp(-WORLD_LOOK_SNAP_RATE*dt);this.lookYawDeg*=decay;this.lookPitchDeg*=decay;if(Math.abs(this.lookYawDeg)<.08&&Math.abs(this.lookPitchDeg)<.08){this.lookYawDeg=0;this.lookPitchDeg=0;this.lookSnapping=false;}this.renderLookHud();}}
   airframeFor(scene){if(this.airframe?.parent)return this.airframe;this.airframe=null;scene.traverse(node=>{if(!this.airframe&&node.userData?.arondightAirframe)this.airframe=node;});return this.airframe;}
   attachCameraCollisionResolver(resolver){this.cameraCollisionResolver=typeof resolver==="function"?resolver:null;}
+  // Hooks that run with the final camera pose immediately before the frame is
+  // drawn (first-person aim + presented-camera snapshot for exact touch rays).
+  addPreRenderHook(fn){if(typeof fn==="function")(this.preRenderHooks??=new Set()).add(fn);return()=>this.preRenderHooks?.delete(fn);}
+  runPreRenderHooks(scene,camera){if(!this.preRenderHooks?.size)return;const now=performance.now();for(const fn of this.preRenderHooks){try{fn(scene,camera,now);}catch(error){console.warn("pre-render hook failed",error);}}}
   attachPresentationCameraProvider(provider){this.presentationCameraProvider=provider&&typeof provider.isActive==="function"&&typeof provider.apply==="function"?provider:null;}
   constrainCameraToPhysics(anchor,camera){
     if(typeof this.cameraCollisionResolver!=="function"||!anchor||!camera?.position)return false;let result=null;try{result=this.cameraCollisionResolver([anchor.x,anchor.y,anchor.z],[camera.position.x,camera.position.y,camera.position.z]);}catch{return false;}const position=result?.position;if(Array.isArray(position)&&position.length===3&&position.every(Number.isFinite))camera.position.set(...position);const viewport=$("viewport");if(viewport){viewport.dataset.cameraCollision=result?.collided?"blocked":"clear";viewport.dataset.cameraCollisionHitDistanceM=Number(result?.hitDistanceM||0).toFixed(3);}return Boolean(result?.collided);
@@ -409,14 +413,14 @@ class RealWorldBridge{
     if(!skipFreeLook)this.applyLookCamera(scene,camera);this.syncMapCamera(camera,this.presentationFrameSerial,cameraMode);this.drawMinimap(performance.now());const renderer=this.threeRenderer;if(!renderer){camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);return;}
     this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;
     const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);
-    try{renderer.render(scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);camera.updateMatrixWorld();}
+    try{this.runPreRenderHooks(scene,camera);renderer.render(scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);camera.updateMatrixWorld();}
   }
   renderFrame(renderer,scene,camera){
     this.attachThree(renderer,scene,camera);this.updateVsPose();
     const provider=this.presentationCameraProvider,providerActive=Boolean(provider?.isActive()),viewport=$("viewport");
     if(!providerActive){if(viewport)viewport.dataset.presentationCameraMode=viewport.dataset.cameraMode||"follow";if(!this.active){this.applyLookCamera(scene,camera);return false;}this.syncBuildingCollisions();this.renderReal(scene,camera);return true;}
     const basePosition=camera.position.clone(),baseQuaternion=camera.quaternion.clone(),baseUp=camera.up.clone(),baseFov=camera.fov;
-    try{const presentation=provider.apply({camera,scene,now:performance.now()}),owned=Boolean(presentation?.active);if(viewport)viewport.dataset.presentationCameraMode=owned?String(presentation.mode||"player"):viewport.dataset.cameraMode||"follow";if(!owned)throw Error("Active presentation camera provider did not supply a camera pose");if(!this.active){renderer.render(scene,camera);return true;}this.syncBuildingCollisions();this.renderReal(scene,camera,{cameraMode:String(presentation.mode||"player"),skipFreeLook:true});return true;}
+    try{const presentation=provider.apply({camera,scene,now:performance.now()}),owned=Boolean(presentation?.active);if(viewport)viewport.dataset.presentationCameraMode=owned?String(presentation.mode||"player"):viewport.dataset.cameraMode||"follow";if(!owned)throw Error("Active presentation camera provider did not supply a camera pose");if(!this.active){this.runPreRenderHooks(scene,camera);renderer.render(scene,camera);return true;}this.syncBuildingCollisions();this.renderReal(scene,camera,{cameraMode:String(presentation.mode||"player"),skipFreeLook:true});return true;}
     finally{camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);if(camera.fov!==baseFov){camera.fov=baseFov;camera.updateProjectionMatrix();}camera.updateMatrixWorld();}
   }
 }

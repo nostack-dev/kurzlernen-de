@@ -52,12 +52,12 @@ function capture(event){
   if(event.type==="pointermove"){
     if(entry.kind==="move"){entry.axes=normalizedPointer(entry.element,event);rewriteForMove(event,entry,entry.axes);return;}
     if(entry.kind==="look"){entry.axes=normalizedPointer(entry.element,event);paintLook(entry,entry.axes);event.preventDefault();event.stopImmediatePropagation();return;}
-    if(entry.kind==="fire"){entry.x=event.clientX;entry.y=event.clientY;event.preventDefault();event.stopImmediatePropagation();return;}
+    if(entry.kind==="fire"){entry.x=event.clientX;entry.y=event.clientY;window.dispatchEvent(new CustomEvent("arondight:foot-aim",{detail:{clientX:entry.x,clientY:entry.y,phase:"move"}}));event.preventDefault();event.stopImmediatePropagation();return;}
   }
   if(event.type==="pointerup"||event.type==="pointercancel"){
     active.delete(event.pointerId);
     if(entry.kind==="look"){endPointerDrag(entry.element,event.pointerId);resetLook(entry);event.preventDefault();event.stopImmediatePropagation();}
-    else if(entry.kind==="fire"){const view=viewport();if(view){view.dataset.walkFirePointerActive="0";view.dataset.walkFirePointerRelease=event.type;}event.preventDefault();event.stopImmediatePropagation();}
+    else if(entry.kind==="fire"){window.dispatchEvent(new CustomEvent("arondight:foot-aim",{detail:{clientX:event.clientX,clientY:event.clientY,phase:"end"}}));const view=viewport();if(view){view.dataset.walkFirePointerActive="0";view.dataset.walkFirePointerRelease=event.type;}event.preventDefault();event.stopImmediatePropagation();}
     else if(entry.kind==="move")endPointerDrag(entry.element,event.pointerId);
   }
 }

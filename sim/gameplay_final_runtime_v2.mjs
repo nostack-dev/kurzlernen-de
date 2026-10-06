@@ -39,6 +39,8 @@ function logicalPoint(clientX,clientY){
   return{x:clamp(x,0,width),y:clamp(y,0,height),width,height,screen};
 }
 function footRay(clientX,clientY){
+  // Exact: cast through the camera as it was presented on screen.
+  const exact=globalThis.__arondightFirstPersonController?.screenRay?.(clientX,clientY);if(exact)return exact;
   const w=walk(),p=logicalPoint(clientX,clientY);if(!w?.position||!p)return null;
   shotCamera.fov=clamp(Number(viewport()?.dataset.walkCameraFovDeg)||Number(bridge()?.threeCamera?.fov)||78,45,120);shotCamera.aspect=p.width/p.height;shotCamera.near=.01;shotCamera.far=220;shotCamera.position.set(Number(w.position.x)||0,Number(w.position.y)||0,Number(w.position.z)||1.68);shotCamera.up.set(0,0,1);
   const cp=Math.cos(Number(w.pitch)||0);forward.set(Math.sin(Number(w.yaw)||0)*cp,Math.cos(Number(w.yaw)||0)*cp,Math.sin(Number(w.pitch)||0)).normalize();shotCamera.lookAt(tmp.copy(shotCamera.position).add(forward));shotCamera.updateProjectionMatrix();shotCamera.updateMatrixWorld(true);ndc.set(p.x/p.width*2-1,1-p.y/p.height*2);shotRaycaster.setFromCamera(ndc,shotCamera);return{origin:shotRaycaster.ray.origin.clone(),direction:shotRaycaster.ray.direction.clone(),point:p};
