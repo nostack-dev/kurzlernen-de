@@ -1,7 +1,8 @@
 import * as THREE from "three";
+import {neonLineMaterial,NEON_DEBUG_PALETTE} from "./box3d_collider_debug.mjs";
 
 const MAX_PRISMS=512;
-let mesh=null,lastHash="",sceneRef=null;
+let mesh=null,edges=null,lastHash="",sceneRef=null;
 
 function viewport(){return globalThis.document?.getElementById?.("viewport")||null;}
 function finitePoint(point){return Array.isArray(point)&&point.length>=2&&Number.isFinite(Number(point[0]))&&Number.isFinite(Number(point[1]));}
@@ -30,6 +31,29 @@ export function buildBuildingDepthGeometry(prisms,{maxPrisms=MAX_PRISMS}={}){
   const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));if(positions.length)geometry.computeBoundingSphere();geometry.userData.worldBuildingOccluderPrisms=used;return geometry;
 }
 
+// Outer outline edges of the prisms. Non-convex buildings are split into
+// several prisms; edges shared by two prisms of the same building are
+// interior seams and are skipped so roofs don't get diagonal lines.
+function edgeKey(a,b){const ka=`${a.x.toFixed(2)},${a.y.toFixed(2)}`,kb=`${b.x.toFixed(2)},${b.y.toFixed(2)}`;return ka<kb?`${ka}|${kb}`:`${kb}|${ka}`;}
+export function buildBuildingOutlineGeometry(prisms,{maxPrisms=MAX_PRISMS}={}){
+  const rings=[],counts=new Map();let used=0;
+  for(const prism of Array.isArray(prisms)?prisms:[]){
+    if(used>=maxPrisms)break;const raw=(prism?.points||[]).filter(finitePoint).map(point=>new THREE.Vector2(Number(point[0]),Number(point[1])));
+    if(raw.length<3)continue;if(raw[0].distanceToSquared(raw.at(-1))<1e-10)raw.pop();if(raw.length<3)continue;
+    const base=Number(prism.base)||0,top=Math.max(base+.05,Number(prism.top)||8),building=String(prism.buildingKey||used);
+    rings.push({raw,base,top,building});for(let i=0;i<raw.length;i++){const key=`${building}#${edgeKey(raw[i],raw[(i+1)%raw.length])}`;counts.set(key,(counts.get(key)||0)+1);}used++;
+  }
+  const positions=[],corners=new Set();
+  for(const {raw,base,top,building} of rings){
+    for(let i=0;i<raw.length;i++){
+      const a=raw[i],b=raw[(i+1)%raw.length];if(counts.get(`${building}#${edgeKey(a,b)}`)>1)continue;
+      positions.push(a.x,a.y,top,b.x,b.y,top,a.x,a.y,base,b.x,b.y,base);
+      for(const p of[a,b]){const key=`${building}#${p.x.toFixed(2)},${p.y.toFixed(2)}`;if(corners.has(key))continue;corners.add(key);positions.push(p.x,p.y,base,p.x,p.y,top);}
+    }
+  }
+  const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));if(positions.length)geometry.computeBoundingSphere();return geometry;
+}
+
 // ---- Stylized solid buildings ----------------------------------------------
 // The nearby Box3D collision prisms are rendered as real, opaque 3D buildings
 // instead of an invisible depth-only occluder. MapLibre clips extrusions that
@@ -39,9 +63,11 @@ export function buildBuildingDepthGeometry(prisms,{maxPrisms=MAX_PRISMS}={}){
 // what you see is exactly what you collide with. Shading is baked into vertex
 // colors (sun-facing walls brighter, darker plinth, light roofs), so the
 // material is unlit MeshBasic: one draw call, no lights, cheap on phones.
+// Neon-night palette: deep blue/violet solids that read as real volumes,
+// outlined by cyan edges (same Box3D debug-draw line material as everything).
 export const STYLIZED_BUILDING_PALETTE=Object.freeze({
-  walls:["#e9dfcf","#dcd3c6","#d3dde0","#e6d5c4","#d8dfcf","#ece4d8","#cfd6dd"],
-  roofs:["#a7aea9","#b6ada3","#9eaab0","#b3a89c","#a9b3a2"],
+  walls:["#1b2445","#1f2140","#18283f","#22203f","#1a2238","#24284a"],
+  roofs:["#2a3560","#2f2c5c","#26395a","#332f60"],
 });
 const SUN_DIR_2D=(()=>{const x=-.55,y=-.83,l=Math.hypot(x,y);return[x/l,y/l];})();
 const tmpColor=new THREE.Color(),wallColor=new THREE.Color(),roofColor=new THREE.Color();
@@ -61,7 +87,7 @@ export function buildStylizedBuildingGeometry(prisms,{maxPrisms=MAX_PRISMS}={}){
     const plinth=tmpColor.clone();
     for(let i=0;i<raw.length;i++){
       const a=raw[i],b=raw[(i+1)%raw.length],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1,nx=dy/len,ny=-dx/len;
-      const light=.68+.32*Math.max(0,-(nx*SUN_DIR_2D[0]+ny*SUN_DIR_2D[1]))+.06*Math.abs(nx);
+      const light=.75+.45*Math.max(0,-(nx*SUN_DIR_2D[0]+ny*SUN_DIR_2D[1]))+.06*Math.abs(nx);
       const upper=tmpColor.copy(wallColor).multiplyScalar(light),lower=plinth.copy(wallColor).multiplyScalar(light*.78);
       push(a.x,a.y,base,lower);push(b.x,b.y,base,lower);push(b.x,b.y,top,upper);
       push(a.x,a.y,base,lower);push(b.x,b.y,top,upper);push(a.x,a.y,top,upper);
@@ -75,15 +101,18 @@ export function buildStylizedBuildingGeometry(prisms,{maxPrisms=MAX_PRISMS}={}){
 function ensureMesh(scene){
   if(mesh&&sceneRef===scene)return mesh;
   if(mesh?.parent)mesh.parent.remove(mesh);mesh?.geometry?.dispose?.();
-  const material=new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.FrontSide,depthTest:true,depthWrite:true,transparent:false,toneMapped:false});
-  mesh=new THREE.Mesh(new THREE.BufferGeometry(),material);mesh.name="WORLD_BUILDING_DEPTH_OCCLUDER";mesh.renderOrder=-10000;mesh.frustumCulled=true;mesh.userData.worldBuildingDepthOccluder=true;mesh.userData.worldStylizedBuildings=true;mesh.userData.flightFireIgnore=true;scene.add(mesh);sceneRef=scene;lastHash="";return mesh;
+  const material=new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.FrontSide,depthTest:true,depthWrite:true,transparent:false,toneMapped:false,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:2});
+  mesh=new THREE.Mesh(new THREE.BufferGeometry(),material);mesh.name="WORLD_BUILDING_DEPTH_OCCLUDER";mesh.renderOrder=-10000;mesh.frustumCulled=true;mesh.userData.worldBuildingDepthOccluder=true;mesh.userData.worldStylizedBuildings=true;mesh.userData.flightFireIgnore=true;scene.add(mesh);
+  if(edges?.parent)edges.parent.remove(edges);edges?.geometry?.dispose?.();
+  edges=new THREE.LineSegments(new THREE.BufferGeometry(),neonLineMaterial(NEON_DEBUG_PALETTE.building));edges.name="WORLD_BUILDING_NEON_EDGES";edges.userData.neonSkip=true;edges.userData.flightFireIgnore=true;edges.raycast=()=>{};scene.add(edges);
+  sceneRef=scene;lastHash="";return mesh;
 }
 
 export function syncWorldBuildingDepthOcclusion(bridge=globalThis.__arondightRealWorld){
   const scene=bridge?.threeScene;if(!scene)return 0;const target=ensureMesh(scene),snapshot=bridge?.buildingCollisionSnapshot,prisms=Array.isArray(snapshot?.prisms)?snapshot.prisms:[],hash=String(snapshot?.hash||"");
-  if(!bridge?.active||!prisms.length){target.visible=false;const view=viewport();if(view){view.dataset.worldBuildingDepthOccluders="0";view.dataset.worldBuildingOcclusion="inactive";}return 0;}
-  if(hash!==lastHash){const geometry=buildStylizedBuildingGeometry(prisms);target.geometry.dispose?.();target.geometry=geometry;lastHash=hash;target.userData.worldBuildingDepthHash=hash;target.userData.worldBuildingDepthPrisms=geometry.userData.worldBuildingOccluderPrisms||0;}
-  const count=Number(target.userData.worldBuildingDepthPrisms)||0;target.visible=count>0;const view=viewport();if(view){view.dataset.worldBuildingDepthOccluders=String(count);view.dataset.worldBuildingOcclusion=count?"depth-active":"inactive";view.dataset.worldBuildingStyle=count?"stylized-solid-v1":"inactive";}return count;
+  if(!bridge?.active||!prisms.length){target.visible=false;if(edges)edges.visible=false;const view=viewport();if(view){view.dataset.worldBuildingDepthOccluders="0";view.dataset.worldBuildingOcclusion="inactive";}return 0;}
+  if(hash!==lastHash){const geometry=buildStylizedBuildingGeometry(prisms),outline=buildBuildingOutlineGeometry(prisms);edges.geometry.dispose?.();edges.geometry=outline;target.geometry.dispose?.();target.geometry=geometry;lastHash=hash;target.userData.worldBuildingDepthHash=hash;target.userData.worldBuildingDepthPrisms=geometry.userData.worldBuildingOccluderPrisms||0;}
+  const count=Number(target.userData.worldBuildingDepthPrisms)||0;target.visible=count>0;if(edges)edges.visible=count>0;const view=viewport();if(view){view.dataset.worldBuildingDepthOccluders=String(count);view.dataset.worldBuildingOcclusion=count?"depth-active":"inactive";view.dataset.worldBuildingStyle=count?"neon-solid-outlined-v1":"inactive";}return count;
 }
 
 export function buildingDepthOcclusionState(){return{mesh,hash:lastHash,scene:sceneRef};}

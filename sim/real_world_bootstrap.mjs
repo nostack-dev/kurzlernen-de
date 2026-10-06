@@ -5,6 +5,7 @@ import {FPS_WORLD_MAP_MAX_PITCH_DEG} from "./camera_pitch_contract.mjs";
 import {fpvTargetDistanceMeters,forwardTarget} from "./world_camera_math.mjs";
 import {LanVsFinder,discoveryRoomKeys} from "./lan_vs.mjs";
 import {VsPoseTimeline,normalizeVsOrigin,chooseCanonicalVsOrigin,poseMatchesVsFrame,vsFrameId,vsOriginKey} from "./vs_pose_sync.mjs";
+import {applyNeonMapStyle,NEON_BUILDING_EXTRUSION_COLOR} from "./neon_line_style.mjs";
 import {buildingFootprintsFromFeatures,buildingFootprintHash,buildingCollisionPrismsFromFootprints} from "./world_building_collisions.mjs";
 
 const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
@@ -13,9 +14,6 @@ const WORLD_IMAGERY_LAYER_ID="arondight45-world-imagery-raster";
 // Chase/free-look cameras never dip under the map ground plane (it would show
 // the underside of the map and slice every object at z=0).
 const WORLD_CHASE_CAMERA_FLOOR_M=.15;
-// Stylized world: flat, clean colors that match the Three.js buildings
-// (world_building_depth_occlusion.mjs). Satellite imagery is opt-in.
-export const STYLIZED_EXTRUSION_COLOR=["interpolate",["linear"],["coalesce",["to-number",["get","render_height"]],8],0,"#d9d0c3",20,"#e4dccf",60,"#ece6dc"];
 const WORLD_IMAGERY_TILE_URL="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 const WORLD_IMAGERY_ATTRIBUTION="Imagery © Esri, Vantor, Earthstar Geographics, and the GIS User Community";
 const WORLD_IMAGERY_MAX_ZOOM=19;
@@ -94,7 +92,7 @@ class RealWorldBridge{
       <div id="realWorldStatus" class="statusline">TRAINING RANGE · local metric world</div>`;
     const remote=document.querySelector(".remote-card");panel.insertBefore(card,remote||panel.children[3]||null);this.worldCard=card;
     const style=document.createElement("style");style.textContent=`
-      #geoViewport{position:absolute;inset:0;z-index:0;overflow:hidden;background:linear-gradient(180deg,#081a2d 0%,#103453 48%,#173d5c 68%,#142638 100%)}
+      #geoViewport{position:absolute;inset:0;z-index:0;overflow:hidden;background:linear-gradient(180deg,#05030f 0%,#120728 46%,#04060d 70%,#04060d 100%)}
       #geoViewport .maplibregl-map,#geoViewport .maplibregl-canvas-container{position:absolute;inset:0;width:100%!important;height:100%!important;overflow:hidden}
       #geoViewport .maplibregl-canvas{position:absolute;left:0;top:0;width:100%!important;height:100%!important}
       #geoViewport .geo-attribution{position:absolute;right:4px;bottom:3px;z-index:4;padding:2px 5px;border-radius:4px;background:#07101acc;color:#d8e0ea;font:8px/1.25 system-ui,-apple-system,sans-serif;pointer-events:none}
@@ -295,17 +293,8 @@ class RealWorldBridge{
   hideTrainingWorld(scene){this.identifyTrainingObjects(scene);this.frameVisibility.clear();for(const child of this.trainingObjects){this.frameVisibility.set(child,child.visible);if(child.isGridHelper){child.visible=this.gridEnabled;continue;}child.visible=false;}for(const child of scene.children){if(child.userData?.flightFireDecal&&!child.userData.flightFireWorld){this.frameVisibility.set(child,child.visible);child.visible=false;}}}
   restoreTrainingWorld(){for(const[child,visible]of this.frameVisibility)child.visible=visible;this.frameVisibility.clear();}
   applyFlightPalette(){
-    if(!this.map)return 0;let changed=0;const layers=this.map.getStyle()?.layers||[];
-    const set=(id,property,value)=>{try{this.map.setPaintProperty(id,property,value);changed++;}catch{}};
-    for(const layer of layers){const source=String(layer["source-layer"]||"").toLowerCase(),id=String(layer.id||"").toLowerCase();
-      if(layer.type==="background"){set(layer.id,"background-color","#d3dbc9");continue;}
-      if(layer.type==="fill"&&source==="water"){set(layer.id,"fill-color","#86bfd8");set(layer.id,"fill-opacity",1);continue;}
-      if(layer.type==="line"&&(source==="waterway"||source==="water")){set(layer.id,"line-color","#6fb3d6");set(layer.id,"line-opacity",1);continue;}
-      if(layer.type==="fill"&&(source==="landcover"||source==="landuse")){const green=/park|wood|forest|grass|garden|pitch|meadow|farmland|scrub/.test(id),industry=/industrial|commercial|retail|parking/.test(id);set(layer.id,"fill-color",green?"#a3c793":industry?"#d6cfc4":"#d9dfcf");set(layer.id,"fill-opacity",1);continue;}
-      if(layer.type==="fill"&&source==="building"){set(layer.id,"fill-color","#e3dbcf");set(layer.id,"fill-opacity",1);continue;}
-      if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);set(layer.id,"line-color",major?"#ffcf5c":mid?"#fff4d6":"#ffffff");set(layer.id,"line-opacity",1);set(layer.id,"line-width",major?3.6:mid?2.6:1.5);continue;}
-      if(layer.type==="line"&&source==="boundary"){set(layer.id,"line-color","#a99fc0");set(layer.id,"line-opacity",.8);}
-    }
+    // One visual theme for the whole game lives in neon_line_style.mjs.
+    if(!this.map)return 0;const changed=applyNeonMapStyle(this.map);
     const viewport=$("viewport");if(viewport)viewport.dataset.worldPaletteLayers=String(changed);return changed;
   }
   stripFlightClutter(){
@@ -342,7 +331,7 @@ class RealWorldBridge{
     if(!sourceId){console.warn("OpenFreeMap style has no vector source for 3D buildings");return;}
     this.buildingSourceId=sourceId;this.buildingCollisionDirty=true;
     const before=(style.layers||[]).find(layer=>layer.type==="symbol")?.id;
-    const height=["coalesce",["to-number",["get","render_height"]],8],layer={id:"arondight45-buildings-3d",type:"fill-extrusion",source:sourceId,"source-layer":"building",minzoom:14,paint:{"fill-extrusion-color":STYLIZED_EXTRUSION_COLOR,"fill-extrusion-height":height,"fill-extrusion-base":["coalesce",["to-number",["get","render_min_height"]],0],"fill-extrusion-opacity":1,"fill-extrusion-vertical-gradient":true}};
+    const height=["coalesce",["to-number",["get","render_height"]],8],layer={id:"arondight45-buildings-3d",type:"fill-extrusion",source:sourceId,"source-layer":"building",minzoom:14,paint:{"fill-extrusion-color":NEON_BUILDING_EXTRUSION_COLOR,"fill-extrusion-height":height,"fill-extrusion-base":["coalesce",["to-number",["get","render_min_height"]],0],"fill-extrusion-opacity":1,"fill-extrusion-vertical-gradient":true}};
     try{if(before)this.map.addLayer(layer,before);else this.map.addLayer(layer);}catch(error){console.warn("OpenFreeMap 3D building layer unavailable:",error);}
   }
   addVisualShotImpact(x,y,rect,ray){
