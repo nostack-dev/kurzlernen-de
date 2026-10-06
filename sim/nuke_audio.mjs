@@ -3,7 +3,7 @@ import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./a
 
 // Nuke sound design, synthesized once into PCM buffers (no oscillators at
 // runtime, nothing heavy on the detonation frame):
-//   launch  – falling bomb whistle over the warhead flight
+//   launch  – mechanical release clunk + short low air rush
 //   flash   – instant crack + hiss when the fireball appears (light arrives first)
 //   blast   – the shockwave: hard transient, sub-bass boom, rolling rumble tail
 // The blast is scheduled when the visual shockwave ring reaches the camera
@@ -22,10 +22,19 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,Number(v)||0));}
 function rng(seed){let state=seed>>>0||1;return()=>{state^=state<<13;state^=state>>>17;state^=state<<5;return(state>>>0)/4294967296;};}
 function normalize(data,target){let peak=1e-6;for(const v of data)peak=Math.max(peak,Math.abs(v));const gain=target/peak;for(let i=0;i<data.length;i++)data[i]=Math.tanh(data[i]*gain*1.2)/Math.tanh(1.2);return data;}
 
+// Bomb release: a heavy mechanical latch "clunk" followed by a short, low,
+// filtered air rush — no cartoon whistle.
 function renderLaunch(rate){
-  const duration=1.6,data=new Float32Array(Math.ceil(duration*rate)),random=rng(0x1a7c);let phase=0,air=0;
-  for(let i=0;i<data.length;i++){const t=i/rate,p=t/duration,f=1500-900*p*p;phase+=TAU*f/rate;const white=random()*2-1;air+=.25*(white-air);const amp=Math.min(1,t/.08)*Math.min(1,(duration-t)/.06)*(.35+.65*p);data[i]=(Math.sin(phase)*.55+Math.sin(phase*2.01)*.12+air*.25)*amp;}
-  return normalize(data,.7);
+  const duration=1.1,data=new Float32Array(Math.ceil(duration*rate)),random=rng(0x1a7c);let low=0,lower=0,phase=0;
+  for(let i=0;i<data.length;i++){
+    const t=i/rate,white=random()*2-1;low+=.06*(white-low);lower+=.02*(white-lower);
+    phase+=TAU*(95*Math.exp(-t*30)+48)/rate;
+    const clunk=(Math.sin(phase)*.9+white*.25*Math.exp(-t*90))*Math.exp(-t*26);
+    const latch=t>.045?Math.sin(TAU*310*(t-.045))*Math.exp(-(t-.045)*70)*.35:0;
+    const rush=(low*.7+lower*1.6)*Math.min(1,Math.max(0,t-.06)/.25)*Math.exp(-Math.max(0,t-.3)*3.2);
+    data[i]=clunk+latch+rush;
+  }
+  return normalize(data,.75);
 }
 function renderFlash(rate){
   const duration=1.5,data=new Float32Array(Math.ceil(duration*rate)),random=rng(0xf1a5);let low=0,phase=0;
@@ -79,9 +88,7 @@ function play(kind,{when=0,gain=1,distanceM=0,rate=1,stopAfterS=null}={}){
   }catch{return false;}
 }
 
-// Speed the whistle up so its pitch has fallen all the way by the time the
-// warhead lands, then cut it exactly at impact.
-function onLaunch(event){const seconds=clamp(event?.detail?.durationMs,300,2000)/1000;play("launch",{gain:.32,rate:clamp(1.6/seconds,1,2.2),stopAfterS:seconds});}
+function onLaunch(){play("launch",{gain:.38});}
 function onImpact(event){
   const distance=Number(event?.detail?.cameraDistanceM);const d=Number.isFinite(distance)?distance:150;
   play("flash",{gain:.55,distanceM:d*.4});

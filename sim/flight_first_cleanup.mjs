@@ -4,6 +4,7 @@ import "./nuke_weapon.mjs";
 import "./nuke_overkill_fx.mjs";
 import "./nuke_volumetric_cloud_v2.mjs";
 import "./nuke_audio.mjs";
+import "./music_player.mjs";
 import "./spawn_visibility_guard.mjs";
 
 let installed=false;

@@ -2,8 +2,8 @@ import "./impact_explosion_overlay.mjs";
 
 export const AUDIO_SETTINGS_KEY="arondight45AudioSettingsV1";
 export const AUDIO_SETTINGS_EVENT="arondight45-audio-settings-change";
-export const AUDIO_MIX_VERSION=3;
-export const DEFAULT_AUDIO_SETTINGS=Object.freeze({soundEnabled:true,droneVolume:50,shotsVolume:82,fxVolume:72,footstepsVolume:30,vehicleVolume:58,ambientVolume:46,mixVersion:AUDIO_MIX_VERSION});
+export const AUDIO_MIX_VERSION=4;
+export const DEFAULT_AUDIO_SETTINGS=Object.freeze({soundEnabled:true,droneVolume:50,shotsVolume:82,fxVolume:72,footstepsVolume:30,vehicleVolume:58,ambientVolume:46,musicEnabled:true,musicVolume:32,mixVersion:AUDIO_MIX_VERSION});
 const clampPercent=value=>Math.max(0,Math.min(100,Math.round(Number(value)||0)));
 export function normalizeAudioSettings(value={}){
   return{
@@ -14,11 +14,15 @@ export function normalizeAudioSettings(value={}){
     footstepsVolume:clampPercent(value.footstepsVolume??DEFAULT_AUDIO_SETTINGS.footstepsVolume),
     vehicleVolume:clampPercent(value.vehicleVolume??DEFAULT_AUDIO_SETTINGS.vehicleVolume),
     ambientVolume:clampPercent(value.ambientVolume??DEFAULT_AUDIO_SETTINGS.ambientVolume),
+    musicEnabled:value.musicEnabled===undefined?DEFAULT_AUDIO_SETTINGS.musicEnabled:Boolean(value.musicEnabled),
+    musicVolume:clampPercent(value.musicVolume??DEFAULT_AUDIO_SETTINGS.musicVolume),
     mixVersion:AUDIO_MIX_VERSION,
   };
 }
 function migrateAudioSettings(value={}){
   if(Number(value?.mixVersion)>=AUDIO_MIX_VERSION)return normalizeAudioSettings(value);
+  // v3 -> v4 adds the separate music track; the effect mix is kept as-is.
+  if(Number(value?.mixVersion)===3)return normalizeAudioSettings({...value,mixVersion:AUDIO_MIX_VERSION});
   return normalizeAudioSettings({...value,
     droneVolume:value.droneVolume==null?DEFAULT_AUDIO_SETTINGS.droneVolume:Math.min(clampPercent(value.droneVolume),60),
     footstepsVolume:value.footstepsVolume==null?DEFAULT_AUDIO_SETTINGS.footstepsVolume:Math.min(clampPercent(value.footstepsVolume),36),
@@ -44,12 +48,12 @@ export function mountAudioSettings({dialog,onChange=()=>{}}={}){
   if(!dialog)throw Error("audio settings dialog required");
   let settings=loadAudioSettings();
   const section=document.createElement("section");section.className="camera-settings-section audio-settings-section";section.dataset.audioSettings=String(AUDIO_MIX_VERSION);
-  section.innerHTML=`<h4>AUDIO MIXER</h4><label class="phone-settings-toggle"><span>SOUND</span><input data-audio-enabled type="checkbox"></label>${slider("DRONE","drone")}${slider("SHOTS","shots")}${slider("FX / EXPLOSIONS","fx")}${slider("FOOTSTEPS","footsteps")}${slider("VEHICLE","vehicle")}${slider("AMBIENT / OTHER","ambient")}<p class="phone-settings-note">Independent mix. Drone and footsteps are intentionally restrained by default; every category stays adjustable.</p>`;
+  section.innerHTML=`<h4>AUDIO MIXER</h4><label class="phone-settings-toggle"><span>SOUND</span><input data-audio-enabled type="checkbox"></label><h4>MUSIC</h4><label class="phone-settings-toggle"><span>MUSIC</span><input data-music-enabled type="checkbox"></label>${slider("MUSIC VOLUME","music")}<h4>SOUND EFFECTS</h4>${slider("DRONE","drone")}${slider("SHOTS","shots")}${slider("FX / EXPLOSIONS","fx")}${slider("FOOTSTEPS","footsteps")}${slider("VEHICLE","vehicle")}${slider("AMBIENT / OTHER","ambient")}<p class="phone-settings-note">Music and sound effects are separate tracks with independent volumes. SOUND mutes everything.</p>`;
   const actions=dialog.querySelector(".phone-settings-actions");dialog.insertBefore(section,actions);
-  const enabled=section.querySelector("[data-audio-enabled]"),inputs=Object.fromEntries(["drone","shots","fx","footsteps","vehicle","ambient"].map(key=>[key,section.querySelector(`[data-audio-slider="${key}"]`)]));
-  const render=()=>{enabled.checked=settings.soundEnabled;for(const[key,input]of Object.entries(inputs)){const prop=`${key}Volume`;input.value=String(settings[prop]);section.querySelector(`[data-audio-out="${key}"]`).value=`${settings[prop]}%`;}section.dataset.masterEnabled=settings.soundEnabled?"1":"0";section.dataset.mixVersion=String(AUDIO_MIX_VERSION);};
-  const apply=()=>{settings=saveAudioSettings({soundEnabled:enabled.checked,droneVolume:+inputs.drone.value,shotsVolume:+inputs.shots.value,fxVolume:+inputs.fx.value,footstepsVolume:+inputs.footsteps.value,vehicleVolume:+inputs.vehicle.value,ambientVolume:+inputs.ambient.value});render();onChange({...settings});};
-  enabled.addEventListener("change",apply);for(const input of Object.values(inputs))input.addEventListener("input",apply);
+  const enabled=section.querySelector("[data-audio-enabled]"),musicEnabled=section.querySelector("[data-music-enabled]"),inputs=Object.fromEntries(["music","drone","shots","fx","footsteps","vehicle","ambient"].map(key=>[key,section.querySelector(`[data-audio-slider="${key}"]`)]));
+  const render=()=>{enabled.checked=settings.soundEnabled;musicEnabled.checked=settings.musicEnabled;for(const[key,input]of Object.entries(inputs)){const prop=`${key}Volume`;input.value=String(settings[prop]);section.querySelector(`[data-audio-out="${key}"]`).value=`${settings[prop]}%`;}section.dataset.masterEnabled=settings.soundEnabled?"1":"0";section.dataset.mixVersion=String(AUDIO_MIX_VERSION);};
+  const apply=()=>{settings=saveAudioSettings({soundEnabled:enabled.checked,musicEnabled:musicEnabled.checked,musicVolume:+inputs.music.value,droneVolume:+inputs.drone.value,shotsVolume:+inputs.shots.value,fxVolume:+inputs.fx.value,footstepsVolume:+inputs.footsteps.value,vehicleVolume:+inputs.vehicle.value,ambientVolume:+inputs.ambient.value});render();onChange({...settings});};
+  enabled.addEventListener("change",apply);musicEnabled.addEventListener("change",apply);for(const input of Object.values(inputs))input.addEventListener("input",apply);
   const external=event=>{settings=normalizeAudioSettings(event.detail||loadAudioSettings());render();onChange({...settings});};window.addEventListener(AUDIO_SETTINGS_EVENT,external);
   dialog.addEventListener("close",()=>{settings=loadAudioSettings();render();});dialog.querySelector("[data-reset]")?.addEventListener("click",()=>{settings=saveAudioSettings(DEFAULT_AUDIO_SETTINGS);render();onChange({...settings});});
   render();onChange({...settings});return{section,get settings(){return{...settings};},reload(){settings=loadAudioSettings();render();onChange({...settings});return{...settings};}};
