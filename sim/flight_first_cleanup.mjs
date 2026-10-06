@@ -4,6 +4,8 @@ import "./nuke_weapon.mjs";
 import "./nuke_overkill_fx.mjs";
 import "./nuke_volumetric_cloud_v2.mjs";
 import "./nuke_audio.mjs";
+import "./nuke_destruction.mjs";
+import "./nuke_hazard_fx.mjs";
 import "./music_player.mjs";
 import "./spawn_visibility_guard.mjs";
 
@@ -17,7 +19,7 @@ function walk(){return globalThis.__arondightWalkMode||null;}
 function footWeapons(){return globalThis.__arondightFootWeapons||null;}
 function isFoot(){return walk()?.mode==="foot"&&document.body.classList.contains("on-foot-mode");}
 function touchDevice(){return (navigator.maxTouchPoints||0)>0;}
-function interactive(target){return Boolean(target?.closest?.("button,input,select,textarea,a,label,dialog,#soloTopbar,.phone-settings-dialog,#footWeaponToggle"));}
+function interactive(target){return Boolean(target?.closest?.("#worldLookHud,button,input,select,textarea,a,label,dialog,#soloTopbar,.phone-settings-dialog,#footWeaponToggle"));}
 function activeMovePointerId(){for(const[id,entry]of active)if(entry.kind==="move")return id;return null;}
 function rewriteForMove(event,entry,axes){try{Object.defineProperty(event,"clientX",{configurable:true,value:entry.cx+axes.x*entry.walkRadius});Object.defineProperty(event,"clientY",{configurable:true,value:entry.cy+axes.y*entry.walkRadius});Object.defineProperty(event,"__arondightLogicalPointer",{configurable:true,value:true});}catch{}}
 function paintLook(entry,axes){const knob=entry.element.querySelector(".knob");if(knob){knob.style.left=`${50+axes.x*42}%`;knob.style.top=`${50+axes.y*42}%`;}}

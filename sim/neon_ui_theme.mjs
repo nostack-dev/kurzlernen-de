@@ -1,42 +1,38 @@
-// Neon arcade skin for every on-screen control, matching the world style
+// Clean neon-green skin for every on-screen control, matching the world style
 // (neon_line_style.mjs). Only paint properties are touched — colors, borders,
 // glow, fonts — never display/position/size, so all existing layout and
 // visibility logic keeps working. Prefixed with html.neon-line-style for
 // specificity so it wins over the per-module !important rules.
 
-export const NEON_UI_THEME_VERSION="neon-arcade-ui-v1";
+export const NEON_UI_THEME_VERSION="clean-neon-green-ui-v2";
 
 const R="html.neon-line-style";
 const CSS=`
-${R}{--neon-cyan:#19ff8c;--neon-magenta:#b6ff3d;--neon-green:#19ff8c;--neon-amber:#ffb020;--neon-red:#ff2a4d;--neon-panel:rgba(2,12,7,.74);--neon-font:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
-/* Buttons and chips */
-${R} #viewport button,${R} #mobileGameplayDock button,${R} #soloTopbar button,${R} .phone-settings-button{
-  background:var(--neon-panel)!important;color:var(--neon-cyan)!important;border:1.5px solid var(--neon-cyan)!important;
-  box-shadow:0 0 10px rgba(25,255,140,.35),inset 0 0 10px rgba(25,255,140,.12)!important;text-shadow:0 0 6px rgba(25,255,140,.8)!important;
-  font-family:var(--neon-font)!important;letter-spacing:.12em!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-${R} #viewport button:active,${R} #mobileGameplayDock button:active{background:rgba(25,255,140,.18)!important}
-${R} #viewport button[disabled]{opacity:.45!important;box-shadow:none!important}
-/* Danger: reset / stop / exit */
-${R} #soloReset,${R} #mobileGameplayReset,${R} #soloExit,${R} #gtaVehicleExit,${R} #viewport button[id*="Stop"],${R} #viewport button[id*="stop"]{
-  color:var(--neon-red)!important;border-color:var(--neon-red)!important;box-shadow:0 0 10px rgba(255,42,77,.4),inset 0 0 10px rgba(255,42,77,.14)!important;text-shadow:0 0 6px rgba(255,42,77,.85)!important}
-/* Weapons */
-${R} #droneWeaponToggle,${R} #desktopDroneWeaponSwitch button,${R} #viewport button[id*="Weapon"],${R} #viewport button[id*="weapon"]{
-  color:var(--neon-amber)!important;border-color:var(--neon-amber)!important;box-shadow:0 0 10px rgba(255,176,32,.4),inset 0 0 10px rgba(255,176,32,.12)!important;text-shadow:0 0 6px rgba(255,176,32,.85)!important}
-/* Arm / go */
-${R} #soloArm,${R} #viewport .start-sim-cta{color:var(--neon-green)!important;border-color:var(--neon-green)!important;box-shadow:0 0 12px rgba(25,255,140,.45),inset 0 0 10px rgba(25,255,140,.14)!important;text-shadow:0 0 6px rgba(25,255,140,.85)!important}
-/* HUD panels */
-${R} #soloClearance,${R} #playerVitalsHud,${R} #wantedHud,${R} #footHud,${R} #vehicleHud,${R} #gtaVehicleHud,${R} #vsCombatHud,${R} #worldLookHud,${R} #soloRaceHud,${R} #worldMapLegend,${R} .solo-height-pad{
-  background:var(--neon-panel)!important;border:1px solid rgba(25,255,140,.55)!important;box-shadow:0 0 12px rgba(25,255,140,.22)!important;color:#d6ffe8!important;font-family:var(--neon-font)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-/* Joysticks */
-${R} .foot-stick .ring,${R} .solo-ring{border:2px solid var(--neon-cyan)!important;background:radial-gradient(circle,rgba(25,255,140,.06) 0,rgba(2,12,7,.35) 70%)!important;box-shadow:0 0 16px rgba(25,255,140,.4),inset 0 0 22px rgba(25,255,140,.18)!important}
-${R} .foot-stick .knob,${R} .solo-knob,${R} .solo-height-knob{background:rgba(2,12,7,.55)!important;border:2px solid var(--neon-magenta)!important;box-shadow:0 0 14px rgba(182,255,61,.6),inset 0 0 10px rgba(182,255,61,.35)!important}
-${R} .foot-stick,${R} .solo-stick{color:var(--neon-cyan)!important;font-family:var(--neon-font)!important;text-shadow:0 0 6px rgba(25,255,140,.8)!important}
+${R}{--ng:#00ff9c;--ng-dim:rgba(0,255,156,.55);--ng-glow:rgba(0,255,156,.28);--ng-fill:rgba(2,10,6,.62);--ng-text:#d6ffe8;--ng-font:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+/* One clean style for every control: near-black fill, single neon-green
+   hairline, green text, faint glow. No gradients, textures or blur. */
+${R} #viewport :is(button,[role="button"],a.linkbutton),${R} :is(#mobileGameplayDock,#soloTopbar,#cameraModes,#desktopDroneWeaponSwitch) button,${R} .phone-settings-button,
+${R} :is(#playerModeButton,#driveModeButton,#gtaVehicleButton,#lanVsButton,#wantedEmpButton,#droneWeaponToggle,#footWeaponToggle,#footFire,#soloArm,#soloReset,#soloExit,#soloWorld,#soloLogbook,#soloCamera,#mobileGameplayReset,#mobileGameplayMultiplayer,#gameplayContractButton,#soundToggle){
+  background:var(--ng-fill)!important;background-image:none!important;color:var(--ng)!important;border:1.5px solid var(--ng)!important;border-radius:10px!important;
+  box-shadow:0 0 8px var(--ng-glow)!important;text-shadow:none!important;filter:none!important;
+  font-family:var(--ng-font)!important;font-weight:700!important;letter-spacing:.12em!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+${R} #viewport :is(button,[role="button"]):active{background:rgba(0,255,156,.16)!important}
+${R} #viewport button[disabled]{opacity:.4!important;box-shadow:none!important}
+/* Panels and HUD read-outs */
+${R} :is(#soloHud,#soloClearance,#soloRaceHud,#soloHeightPad,.solo-height-pad,#playerVitalsHud,#wantedHud,#footHud,#vehicleHud,#gtaVehicleHud,#vsCombatHud,#vsRespawnHud,#worldLookHud,#worldMapLegend,#gameplayContractHud,#gameplayContractBar,#gameplayScorePill,#gameplayToast,#mobileGameplayDock,#mobileGameplayMultiplayerStatus,#soloArmToolbar,#cameraModes){
+  background:var(--ng-fill)!important;background-image:none!important;border:1.5px solid var(--ng-dim)!important;box-shadow:0 0 10px var(--ng-glow)!important;color:var(--ng-text)!important;
+  font-family:var(--ng-font)!important;text-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+${R} :is(#soloHud,#playerVitalsHud,#footHud,#vehicleHud,#wantedHud,#soloClearance,.solo-height-pad,#soloHeightPad) *{color:inherit;text-shadow:none!important;background-image:none!important}
+${R} :is(#playerVitalsHud,#soloClearance,.solo-height-pad,#soloHeightPad) :is(b,strong,output,[data-value]){color:var(--ng)!important}
+/* Joysticks: plain rings, no fill textures */
+${R} :is(.foot-stick .ring,.solo-ring){border:1.5px solid var(--ng)!important;background:rgba(2,10,6,.18)!important;background-image:none!important;box-shadow:0 0 10px var(--ng-glow)!important}
+${R} :is(.foot-stick .knob,.solo-knob,.solo-height-knob){background:rgba(2,10,6,.4)!important;background-image:none!important;border:2px solid var(--ng)!important;box-shadow:0 0 10px var(--ng-glow)!important}
+${R} :is(.foot-stick,.solo-stick),${R} :is(.foot-stick,.solo-stick) *{color:var(--ng)!important;font-family:var(--ng-font)!important;text-shadow:none!important}
 /* Settings dialog */
-${R} .phone-settings-dialog{background:#020c07f2!important;border:1.5px solid var(--neon-cyan)!important;box-shadow:0 0 30px rgba(25,255,140,.3)!important;color:#d6ffe8!important;font-family:var(--neon-font)!important}
-${R} .phone-settings-dialog h3,${R} .phone-settings-dialog h4{color:var(--neon-magenta)!important;text-shadow:0 0 8px rgba(182,255,61,.7)!important;letter-spacing:.14em!important}
-${R} .phone-settings-dialog input[type=range]{accent-color:var(--neon-cyan)!important}
-${R} .phone-settings-dialog input[type=checkbox]{accent-color:var(--neon-green)!important}
-${R} .phone-settings-dialog button{background:var(--neon-panel)!important;color:var(--neon-cyan)!important;border:1px solid var(--neon-cyan)!important}
+${R} :is(.phone-settings-dialog,#flightLogbookDialog,dialog){background:#020a06f2!important;background-image:none!important;border:1.5px solid var(--ng)!important;box-shadow:0 0 24px var(--ng-glow)!important;color:var(--ng-text)!important;font-family:var(--ng-font)!important}
+${R} :is(.phone-settings-dialog,dialog) :is(h2,h3,h4){color:var(--ng)!important;text-shadow:none!important;letter-spacing:.14em!important}
+${R} :is(.phone-settings-dialog,dialog) :is(button,select,input[type=number],input[type=text]){background:var(--ng-fill)!important;background-image:none!important;color:var(--ng)!important;border:1px solid var(--ng-dim)!important}
+${R} :is(.phone-settings-dialog,dialog) input[type=range],${R} :is(.phone-settings-dialog,dialog) input[type=checkbox]{accent-color:var(--ng)!important}
 `;
 
 let installed=false;

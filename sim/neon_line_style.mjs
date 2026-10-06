@@ -14,22 +14,24 @@ import {neonLineMaterial,NEON_DEBUG_PALETTE} from "./box3d_collider_debug.mjs";
 // people = magenta, hostiles = red, projectiles = white-yellow.
 
 export const NEON_STYLE_VERSION="box3d-debug-neon-lines-v1";
+// One green (sampled from the reference screenshot: #00ff9c). Only hostiles
+// get red so threats stay identifiable; everything else is uniform.
 export const NEON_PALETTE=Object.freeze({
-  airframe:NEON_DEBUG_PALETTE.airframe,
-  self:0xb6ff3d,
-  vehicle:0xffb020,
-  person:0xff3df2,
+  airframe:0x00ff9c,
+  self:0x00ff9c,
+  vehicle:0x00ff9c,
+  person:0x00ff9c,
   hostile:0xff2a4d,
-  projectile:0xfff36b,
-  wildlife:0xd8f7ff,
-  track:0x19ff8c,
-  world:0x19ff8c,
+  projectile:0xeafff4,
+  wildlife:0x00ff9c,
+  track:0x00ff9c,
+  world:0x00ff9c,
   ground:NEON_DEBUG_PALETTE.ground,
   background:0x020805,
 });
 const EDGE_THRESHOLD_DEG=28;
 const MAX_EDGE_SOURCE_TRIANGLES=40000;
-const SCAN_INTERVAL_MS=450;
+const SCAN_INTERVAL_MS=250;
 const FRAME_BUDGET_MS=2.5;
 const GRID_SIZE_M=640;
 const GRID_STEP_M=8;
@@ -55,7 +57,7 @@ function categoryOf(node){
   return "world";
 }
 function skip(node){
-  for(let n=node;n;n=n.parent){const u=n.userData||{};if(u.nukeWeaponPart||u.neonEdge||u.neonSkip||u.worldBuildingDepthOccluder||u.flightFireDecal||u.vsPeerHitProxy||u.vsCombatHitbox)return true;}
+  for(let n=node;n;n=n.parent){const u=n.userData||{};if(u.nukeWeaponPart||u.neonEdge||u.neonSkip||u.worldBuildingDepthOccluder||u.vsPeerHitProxy||u.vsCombatHitbox)return true;}
   return false;
 }
 function materialsOf(mesh){return(Array.isArray(mesh.material)?mesh.material:[mesh.material]).filter(Boolean);}
@@ -70,13 +72,16 @@ function chainProgram(material,key,inject){
   material.customProgramCacheKey=function(){return `${previousKey?previousKey.call(this):""}|${key}`;};
   material.needsUpdate=true;
 }
+const TEXTURE_SLOTS=["map","emissiveMap","aoMap","lightMap","bumpMap","normalMap","displacementMap","roughnessMap","metalnessMap","specularMap","envMap","gradientMap","matcap","clearcoatMap","sheenColorMap"];
+// No textures anywhere: the look is flat color + neon edges only.
+function stripTextures(material){let changed=false;for(const slot of TEXTURE_SLOTS)if(material[slot]){material[slot]=null;changed=true;}if(material.vertexColors&&material.userData?.neonKeepVertexColors!==true){}if(changed)material.needsUpdate=true;return changed;}
 function darkFill(material,color){
   if(processedMaterials.has(material)||material.isShaderMaterial||material.colorWrite===false)return;processedMaterials.add(material);
   const tint=new THREE.Color(color).multiplyScalar(.06);material.userData.neonTint=tint;
   chainProgram(material,"neonFill",shader=>{shader.uniforms.neonTint={value:tint};shader.fragmentShader="uniform vec3 neonTint;\n"+shader.fragmentShader.replace("#include <dithering_fragment>","#include <dithering_fragment>\n\tgl_FragColor.rgb = gl_FragColor.rgb * 0.6 + neonTint;");});
   // Push fills back in depth so the edge lines drawn on their faces always win.
   material.polygonOffset=true;material.polygonOffsetFactor=1;material.polygonOffsetUnits=2;
-  if(material.map)material.map=null;
+  stripTextures(material);
 }
 function edgesFor(geometry){
   let edges=edgeCache.get(geometry);if(edges!==undefined)return edges;
@@ -93,6 +98,8 @@ function attachEdges(mesh,color){
   mesh.userData.neonEdgesFor=mesh.geometry;
 }
 function convert(mesh){
+  // Sprites (blood puffs, markers): flat colored, no texture.
+  if(mesh.isSprite){if(!skip(mesh))for(const material of materialsOf(mesh))stripTextures(material);mesh.userData.neonStyled=NEON_STYLE_VERSION;mesh.userData.neonMaterial=mesh.material;return true;}
   if(!mesh.isMesh)return false;
   if(skip(mesh)){mesh.userData.neonStyled=NEON_STYLE_VERSION;mesh.userData.neonMaterial=mesh.material;return false;}
   const materials=materialsOf(mesh);if(!materials.length)return false;
@@ -103,12 +110,12 @@ function convert(mesh){
   const allFx=materials.every(isTransparentFx);
   // Instanced crowds/traffic can't carry per-instance edge children: they get
   // the same stylized fill. Transparent FX (fire, smoke) keep their own look.
-  if(mesh.isInstancedMesh||mesh.isSkinnedMesh){for(const material of materials)if(!isTransparentFx(material))darkFill(material,color);}
-  else if(allFx){}
+  if(mesh.isInstancedMesh||mesh.isSkinnedMesh){for(const material of materials)if(!isTransparentFx(material))darkFill(material,color);else stripTextures(material);}
+  else if(allFx){for(const material of materials)stripTextures(material);}
   else{for(const material of materials)if(!isTransparentFx(material))darkFill(material,color);attachEdges(mesh,color);}
   mesh.userData.neonStyled=NEON_STYLE_VERSION;mesh.userData.neonMaterial=mesh.material;mesh.userData.neonCategory=category;converted++;return true;
 }
-function needsWork(mesh){return mesh.isMesh&&(mesh.userData.neonStyled!==NEON_STYLE_VERSION||mesh.userData.neonMaterial!==mesh.material||(mesh.userData.neonEdgesFor&&mesh.userData.neonEdgesFor!==mesh.geometry));}
+function needsWork(mesh){return (mesh.isMesh||mesh.isSprite)&&(mesh.userData.neonStyled!==NEON_STYLE_VERSION||mesh.userData.neonMaterial!==mesh.material||(mesh.userData.neonEdgesFor&&mesh.userData.neonEdgesFor!==mesh.geometry));}
 
 function ensureGrid(scene){
   if(gridGroup?.parent===scene)return gridGroup;
@@ -152,7 +159,7 @@ installNeonLineStyle();
 // Other modules (liveliness palette, traffic "opaque buildings") repaint the
 // map once or periodically; the enforcer below re-applies the neon paint only
 // where a value actually differs, so the result is stable and cheap.
-const MAP_NEON={background:"#030a06",land:"#06100b",green:"#08180f",industry:"#0a120d",water:"#04131a",waterLine:"#0f7a6a",roadMajor:"#19ff8c",roadMid:"#11c46c",roadMinor:"#0b7a44",boundary:"#0f5e3a",buildingFlat:"#081a10"};
+const MAP_NEON={background:"#030a06",land:"#06100b",green:"#08180f",industry:"#0a120d",water:"#04131a",waterLine:"#0f7a6a",roadMajor:"#00ff9c",roadMid:"#11c46c",roadMinor:"#0b7a44",boundary:"#0f5e3a",buildingFlat:"#081a10"};
 export const NEON_BUILDING_EXTRUSION_COLOR=["interpolate",["linear"],["coalesce",["to-number",["get","render_height"]],8],0,"#07140d",30,"#0a1c12",90,"#0e2418"];
 export function neonMapPaint(layer){
   const source=String(layer?.["source-layer"]||"").toLowerCase(),id=String(layer?.id||"").toLowerCase(),out=[];

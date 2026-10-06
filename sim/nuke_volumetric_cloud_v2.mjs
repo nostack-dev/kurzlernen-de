@@ -4,6 +4,7 @@ import {FX,sphereGeometry,fxMaterial,smokeMaterial,disposeEffect,setData} from "
 const clouds=[];
 let installed=false;
 const CINEMATIC_RENDER_ORDER=840;
+const NUKE_SCALE=3;
 
 function viewport(){return document.getElementById("viewport");}
 function scene(){return globalThis.__arondightRealWorld?.threeScene||null;}
@@ -49,7 +50,7 @@ function spawn(position){
   }
   smoke.push(puff(group,{role:"crown-volumetric-core",r:28,x:0,y:0,z:94,color:FX.smoke,scale:[2.8,2.65,1.22]}));
   smoke.push(puff(group,{role:"crown-volumetric-upper",r:23,x:-4,y:3,z:109,color:FX.smokeDark,scale:[2.65,2.5,1.16]}));
-  group.scale.setScalar(.035);
+  group.scale.setScalar(.035*NUKE_SCALE);
   clouds.push({group,world,smoke,hot,baseScale:smoke.map(m=>[m.scale.x,m.scale.y]),born:performance.now(),position:position.clone()});
   const v=viewport();if(v){v.dataset.nukeVolumetricCloud="lit-billowing-world-v2";v.dataset.nukeVolumetricStyle="lambert-smoke+additive-heat-v1";v.dataset.nukeVolumetricAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;v.dataset.nukeVolumetricParts=String(smoke.length+hot.length);v.dataset.nukeVolumetricHotParts=String(hot.length);v.dataset.nukeVolumetricScreenSpace="none";v.dataset.nukeVolumetricVisibility="depth-tested-v4";}
 }
@@ -59,9 +60,9 @@ function update(item,now){
   const grow=smooth(clamp(age/2200,0,1));
   const settle=smooth(clamp((age-1200)/6200,0,1));
   const fade=1-clamp((age-22000)/8500,0,1);
-  const s=.035+grow*1.08;
+  const s=NUKE_SCALE*(.035+grow*1.08);
   item.group.scale.set(s,s,s*(1+.06*settle));
-  item.group.position.z=item.position.z+settle*4.2;
+  item.group.position.z=item.position.z+settle*4.2*NUKE_SCALE;
   const heat=Math.max(0,1-age/9000);
   for(let i=0;i<item.smoke.length;i++){
     const mesh=item.smoke[i],delay=(i%9)*.016;

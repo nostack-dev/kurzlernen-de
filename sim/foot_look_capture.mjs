@@ -3,7 +3,7 @@ import {normalizedPointer,endPointerDrag} from "./control_semantics.mjs";
 
 const MOUSE_YAW_PER_PX=.0028;
 const MOUSE_PITCH_PER_PX=.00235;
-const RESERVED_SELECTOR="#footMove,#footWeaponToggle,#footFire,#soloTopbar,#wantedEmpButton,.solo-action,dialog,button,input,select,textarea,a,label";
+const RESERVED_SELECTOR="#worldLookHud,#footMove,#footWeaponToggle,#footFire,#soloTopbar,#wantedEmpButton,.solo-action,dialog,button,input,select,textarea,a,label";
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
 let installed=false,pointer=null,surface=null,captureEl=null,lastX=0,lastY=0,stickKnob=null,stickEl=null,stickX=0,stickY=0,aimYaw=0,aimPitch=0,stickFrameMs=performance.now(),lastInputMs=performance.now();

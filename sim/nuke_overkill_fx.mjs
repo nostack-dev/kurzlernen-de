@@ -3,8 +3,9 @@ import {FX,sphereGeometry,ringGeometry,fxMaterial,disposeEffect,setData} from ".
 
 const effects=[];
 let installed=false;
-const NUKE_BLOCKED_SELECTOR="#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#wantedEmpButton,#droneWeaponToggle,#mobileGameplayDock,dialog,button,input,select,textarea,a,label";
+const NUKE_BLOCKED_SELECTOR="#worldLookHud,#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#wantedEmpButton,#droneWeaponToggle,#mobileGameplayDock,dialog,button,input,select,textarea,a,label";
 const CINEMATIC_RENDER_ORDER=820;
+const NUKE_SCALE=3;
 
 function viewport(){return document.getElementById("viewport");}
 function bridge(){return globalThis.__arondightRealWorld||null;}
@@ -29,22 +30,22 @@ function cameraBlast(){const flash=ensureFlash(),vignette=ensureVignette();flash
 function spawn(position){
   const scene=bridge()?.threeScene;if(!scene)return;
   const group=tag(new THREE.Group(),"world-root");group.position.copy(position);scene.add(group);
-  const white=sphere(group,7.5,FX.white,1,true,"white-core"),yellow=sphere(group,12,FX.yellow,.98,true,"yellow-core"),orange=sphere(group,18,FX.orange,.82,true,"orange-fireball"),red=sphere(group,25,FX.red,.48,true,"red-fireball");for(const m of[white,yellow,orange,red])m.position.z=9;
+  const white=sphere(group,7.5,FX.white,1,true,"white-core"),yellow=sphere(group,12,FX.yellow,.98,true,"yellow-core"),orange=sphere(group,18,FX.orange,.82,true,"orange-fireball"),red=sphere(group,25,FX.red,.48,true,"red-fireball");for(const m of[white,yellow,orange,red])m.position.z=9*NUKE_SCALE;
   const shock1=makeShock(group,"shock-ring-1",FX.white,.98),shock2=makeShock(group,"shock-ring-2",FX.shock,.82),shock3=makeShock(group,"shock-ring-3",FX.orange,.62);
   const dust=tag(new THREE.Mesh(ringGeometry(.72,1.28,96),basic(FX.dust,.46,false,THREE.DoubleSide)),"dust-ring");dust.position.z=.08;group.add(dust);
   const sparks=[];for(let i=0;i<14;i++){const a=i/14*Math.PI*2,p=sphere(group,1+(i%3)*.3,i%2?FX.yellow:FX.ember,.34,true,`spark-${i}`,8);p.position.set(Math.cos(a)*(8+(i%7)*2.3),Math.sin(a)*(8+(i%6)*2.1),5+(i%5)*2.5);sparks.push(p);}
   effects.push({scene,group,born:performance.now(),white,yellow,orange,red,shock1,shock2,shock3,dust,sparks,sparkBase:sparks.map(p=>p.scale.x),position:position.clone()});
-  const view=viewport();if(view){view.dataset.nukeOverkill="world-anchored-nuclear-v5";view.dataset.nukeOverkillParts=String(4+4+sparks.length);view.dataset.nukeOverkillFireballM="150";view.dataset.nukeOverkillAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;view.dataset.nukeOverkillComposition="world-space-impact-locked-v4";view.dataset.nukeScreenCloud="removed-v2";view.dataset.nukeVisibleRenderer="world-space-3d-v5";view.dataset.nukeVisibilityPolicy="cinematic-depth-priority-v1";}
+  const view=viewport();if(view){view.dataset.nukeOverkill="world-anchored-nuclear-v5";view.dataset.nukeOverkillParts=String(4+4+sparks.length);view.dataset.nukeOverkillFireballM="450";view.dataset.nukeOverkillAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;view.dataset.nukeOverkillComposition="world-space-impact-locked-v4";view.dataset.nukeScreenCloud="removed-v2";view.dataset.nukeVisibleRenderer="world-space-3d-v5";view.dataset.nukeVisibilityPolicy="cinematic-depth-priority-v1";}
   document.getElementById("nukeCinematicScreenCloud")?.remove();
   document.getElementById("nukeOverkillShockScreen")?.remove();
   cameraBlast();
 }
 function update(item,now){
   const age=now-item.born,fireT=easeOut(age/1500),shockT=clamp(age/4700,0,1),fade=1-clamp((age-18500)/7500,0,1);
-  item.white.scale.setScalar(.45+fireT*6.0);item.yellow.scale.setScalar(.5+fireT*5.2);item.orange.scale.setScalar(.55+fireT*4.45);item.red.scale.setScalar(.6+fireT*3.65);
+  item.white.scale.setScalar(NUKE_SCALE*(.45+fireT*6.0));item.yellow.scale.setScalar(NUKE_SCALE*(.5+fireT*5.2));item.orange.scale.setScalar(NUKE_SCALE*(.55+fireT*4.45));item.red.scale.setScalar(NUKE_SCALE*(.6+fireT*3.65));
   item.white.material.opacity=Math.max(0,1-age/1450);item.yellow.material.opacity=Math.max(0,.98-age/3000);item.orange.material.opacity=Math.max(0,.82-age/5200);item.red.material.opacity=Math.max(0,.48-age/7600);
   for(const m of[item.white,item.yellow,item.orange,item.red])m.visible=m.material.opacity>.003;
-  const r1=22+shockT*500,r2=16+clamp((age-160)/4700,0,1)*455,r3=9+clamp((age-360)/4900,0,1)*395;item.shock1.scale.setScalar(r1);item.shock2.scale.setScalar(r2);item.shock3.scale.setScalar(r3);item.dust.scale.setScalar(14+shockT*330);item.shock1.material.opacity=.96*fade;item.shock2.material.opacity=.76*fade;item.shock3.material.opacity=.54*fade;item.dust.material.opacity=.42*fade;
+  const r1=NUKE_SCALE*(22+shockT*500),r2=NUKE_SCALE*(16+clamp((age-160)/4700,0,1)*455),r3=NUKE_SCALE*(9+clamp((age-360)/4900,0,1)*395);item.shock1.scale.setScalar(r1);item.shock2.scale.setScalar(r2);item.shock3.scale.setScalar(r3);item.dust.scale.setScalar(NUKE_SCALE*(14+shockT*330));item.shock1.material.opacity=.96*fade;item.shock2.material.opacity=.76*fade;item.shock3.material.opacity=.54*fade;item.dust.material.opacity=.42*fade;
   for(let i=0;i<item.sparks.length;i++){const spark=item.sparks[i];spark.material.opacity=Math.max(0,.34-age/7800);spark.visible=spark.material.opacity>.002;spark.scale.setScalar(item.sparkBase[i]*Math.exp(age*.00009));}
   const view=viewport();setData(view,"nukeOverkillPhase",age<700?"whiteout":age<2100?"fireball":age<5800?"shockwave+mushroom":"mushroom");setData(view,"nukeOverkillShockM",r1.toFixed(0));
   return age<27000;

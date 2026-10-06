@@ -96,6 +96,16 @@ function onImpact(event){
   clearTimeout(pendingBlast);pendingBlast=setTimeout(()=>{pendingBlast=null;play("blast",{gain:1,distanceM:d});},Math.min(2400,d/SPEED_OF_SOUND_MPS*1000+250));
 }
 function onShockArrival(event){if(pendingBlast===null)return;clearTimeout(pendingBlast);pendingBlast=null;play("blast",{gain:1,distanceM:Number(event?.detail?.distanceM)||0});}
+// Vehicle / secondary / missile explosions: a real bang (the nuke blast sample
+// played faster = shorter, punchier) layered with the flash crack. The old
+// generic sample fell off with 1/d² and was inaudible beyond ~20 m.
+let lastBoomAt=-Infinity;
+function onWorldExplosion(event){
+  const d=event?.detail||{};if(d.kind==="nuke")return;const p=d.position,now=performance.now();if(!Array.isArray(p)&&!p?.x)return;if(now-lastBoomAt<90)return;lastBoomAt=now;
+  const c=globalThis.__arondightRealWorld?.threeCamera,x=Array.isArray(p)?+p[0]:+p.x,y=Array.isArray(p)?+p[1]:+p.y,z=Array.isArray(p)?+p[2]:+p.z;
+  const distance=c?Math.hypot(c.position.x-x,c.position.y-y,c.position.z-z):40,near=clamp(1/(1+distance/70),.14,1);
+  play("blast",{gain:.85*near,distanceM:distance*.6,rate:1.75,stopAfterS:2.6});play("flash",{gain:.5*near,distanceM:distance,rate:1.3});
+}
 function unlock(){const ctx=context({resume:true});if(ctx)ensureMaster(ctx);}
 
 export function installNukeAudio(){
@@ -103,6 +113,7 @@ export function installNukeAudio(){
   window.addEventListener("arondight:nuke-launch",onLaunch);
   window.addEventListener("arondight:nuke-impact",onImpact);
   window.addEventListener("arondight:nuke-shockwave-arrival",onShockArrival);
+  window.addEventListener("arondight:world-explosion",onWorldExplosion);
   window.addEventListener(AUDIO_SETTINGS_EVENT,event=>{settings=normalizeAudioSettings(event?.detail||loadAudioSettings());if(!level())for(const source of active){try{source.stop();}catch{}}});
   window.addEventListener("pointerdown",unlock,{capture:true,passive:true,once:true});
   // Synthesize the PCM while the game is idle, never on the detonation frame.

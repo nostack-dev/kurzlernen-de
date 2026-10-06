@@ -6,6 +6,7 @@ import {fpvTargetDistanceMeters,forwardTarget} from "./world_camera_math.mjs";
 import {LanVsFinder,discoveryRoomKeys} from "./lan_vs.mjs";
 import {VsPoseTimeline,normalizeVsOrigin,chooseCanonicalVsOrigin,poseMatchesVsFrame,vsFrameId,vsOriginKey} from "./vs_pose_sync.mjs";
 import {applyNeonMapStyle,NEON_BUILDING_EXTRUSION_COLOR} from "./neon_line_style.mjs";
+import {applyDamageToPrisms,destructionRevision,damagedFeatureIds,onDestruction} from "./world_destruction_state.mjs";
 import {buildingFootprintsFromFeatures,buildingFootprintHash,buildingCollisionPrismsFromFootprints} from "./world_building_collisions.mjs";
 
 const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
@@ -20,7 +21,7 @@ const WORLD_IMAGERY_MAX_ZOOM=19;
 const MODE_STORAGE="arondight45WorldModeV2";
 const EARTH_RADIUS_M=6378137;
 const WORLD_MAP_DIRECT_DEDUP_MS=8;
-const WORLD_BUILDING_COLLISION_SYNC_MS=750;
+const WORLD_BUILDING_COLLISION_SYNC_MS=300;
 const WORLD_PERF_WINDOW_MS=1000;
 const WORLD_FPS_CONSTRAINED=50;
 const WORLD_FPS_CRITICAL=36;
@@ -325,9 +326,9 @@ class RealWorldBridge{
     if(!this.map||!this.buildingSourceId)return[];try{const features=this.map.querySourceFeatures?.(this.buildingSourceId,{sourceLayer:"building"});if(Array.isArray(features)&&features.length)return features;}catch(error){console.warn("WORLD building collision source query warning:",error);}try{const features=this.map.getLayer("arondight45-buildings-3d")?this.map.queryRenderedFeatures?.(undefined,{layers:["arondight45-buildings-3d"]}):[];return Array.isArray(features)?features:[];}catch(error){console.warn("WORLD building collision render query warning:",error);return[];}
   }
   syncBuildingCollisions(force=false){
-    if(!this.active||!this.map||!this.buildingCollisionSink||!Number.isFinite(this.originLon)||!Number.isFinite(this.originLat))return false;const now=performance.now();if(!force&&now-this.buildingCollisionLastSyncMs<WORLD_BUILDING_COLLISION_SYNC_MS)return false;const airframe=this.airframeFor(this.threeScene),center=[Number(airframe?.position?.x)||0,Number(airframe?.position?.y)||0],moved=Math.hypot(center[0]-this.buildingCollisionLastCenter[0],center[1]-this.buildingCollisionLastCenter[1]);if(!force&&!this.buildingCollisionDirty&&moved<20)return false;this.buildingCollisionLastSyncMs=now;
-    const features=this.buildingCollisionFeatures();if(!features.length){const viewport=$("viewport");if(viewport)viewport.dataset.worldBuildingCollisionStatus="waiting-for-vector-tiles";return false;}const footprints=buildingFootprintsFromFeatures(features,{project:(longitude,latitude)=>lngLatToMeters(this.originLon,this.originLat,longitude,latitude),center}),hash=buildingFootprintHash(footprints);if(hash===this.buildingCollisionSnapshot.hash){this.buildingCollisionDirty=false;this.buildingCollisionLastCenter=center;return false;}
-    const prisms=buildingCollisionPrismsFromFootprints(footprints,(outer,holes)=>THREE.ShapeUtils.triangulateShape(outer.map(point=>new THREE.Vector2(...point)),holes.map(ring=>ring.map(point=>new THREE.Vector2(...point))))),snapshot=Object.freeze({hash,footprintCount:footprints.length,prismCount:prisms.length,prisms});this.buildingCollisionSink(snapshot);this.buildingCollisionSnapshot=snapshot;this.buildingCollisionDirty=false;this.buildingCollisionLastCenter=center;this.buildingCollisionRevisions++;const viewport=$("viewport");if(viewport){viewport.dataset.worldBuildingCollisionStatus=prisms.length?"box3d-active":"no-nearby-buildings";viewport.dataset.worldBuildingCollisionFootprints=String(footprints.length);viewport.dataset.worldBuildingCollisionPrisms=String(prisms.length);viewport.dataset.worldBuildingCollisionRevision=String(this.buildingCollisionRevisions);}return true;
+    if(!this.active||!this.map||!this.buildingCollisionSink||!Number.isFinite(this.originLon)||!Number.isFinite(this.originLat))return false;const now=performance.now();if(!force&&now-this.buildingCollisionLastSyncMs<WORLD_BUILDING_COLLISION_SYNC_MS)return false;const airframe=this.airframeFor(this.threeScene),center=[Number(airframe?.position?.x)||0,Number(airframe?.position?.y)||0],moved=Math.hypot(center[0]-this.buildingCollisionLastCenter[0],center[1]-this.buildingCollisionLastCenter[1]);if(!force&&!this.buildingCollisionDirty&&moved<10)return false;this.buildingCollisionLastSyncMs=now;
+    const features=this.buildingCollisionFeatures();if(!features.length){const viewport=$("viewport");if(viewport)viewport.dataset.worldBuildingCollisionStatus="waiting-for-vector-tiles";return false;}const footprints=buildingFootprintsFromFeatures(features,{project:(longitude,latitude)=>lngLatToMeters(this.originLon,this.originLat,longitude,latitude),center}),hash=`${buildingFootprintHash(footprints)}#d${destructionRevision()}`;if(hash===this.buildingCollisionSnapshot.hash){this.buildingCollisionDirty=false;this.buildingCollisionLastCenter=center;return false;}
+    const prisms=applyDamageToPrisms(buildingCollisionPrismsFromFootprints(footprints,(outer,holes)=>THREE.ShapeUtils.triangulateShape(outer.map(point=>new THREE.Vector2(...point)),holes.map(ring=>ring.map(point=>new THREE.Vector2(...point)))))),snapshot=Object.freeze({hash,footprintCount:footprints.length,prismCount:prisms.length,prisms});this.buildingCollisionSink(snapshot);this.buildingCollisionSnapshot=snapshot;this.buildingCollisionDirty=false;this.buildingCollisionLastCenter=center;this.buildingCollisionRevisions++;const viewport=$("viewport");if(viewport){viewport.dataset.worldBuildingCollisionStatus=prisms.length?"box3d-active":"no-nearby-buildings";viewport.dataset.worldBuildingCollisionFootprints=String(footprints.length);viewport.dataset.worldBuildingCollisionPrisms=String(prisms.length);viewport.dataset.worldBuildingCollisionRevision=String(this.buildingCollisionRevisions);}return true;
   }
   addBuildings(){
     if(!this.map)return;const existing=this.map.getLayer("arondight45-buildings-3d");if(existing){this.buildingSourceId=existing.source||this.buildingSourceId;this.buildingCollisionDirty=true;return;}
@@ -335,7 +336,7 @@ class RealWorldBridge{
     if(!sourceId){console.warn("OpenFreeMap style has no vector source for 3D buildings");return;}
     this.buildingSourceId=sourceId;this.buildingCollisionDirty=true;
     const before=(style.layers||[]).find(layer=>layer.type==="symbol")?.id;
-    const height=["coalesce",["to-number",["get","render_height"]],8],layer={id:"arondight45-buildings-3d",type:"fill-extrusion",source:sourceId,"source-layer":"building",minzoom:14,paint:{"fill-extrusion-color":NEON_BUILDING_EXTRUSION_COLOR,"fill-extrusion-height":height,"fill-extrusion-base":["coalesce",["to-number",["get","render_min_height"]],0],"fill-extrusion-opacity":1,"fill-extrusion-vertical-gradient":true}};
+    const height=["coalesce",["to-number",["get","render_height"]],8],layer={id:"arondight45-buildings-3d",type:"fill-extrusion",source:sourceId,"source-layer":"building",minzoom:13,paint:{"fill-extrusion-color":NEON_BUILDING_EXTRUSION_COLOR,"fill-extrusion-height":height,"fill-extrusion-base":["coalesce",["to-number",["get","render_min_height"]],0],"fill-extrusion-opacity":1,"fill-extrusion-vertical-gradient":true}};
     try{if(before)this.map.addLayer(layer,before);else this.map.addLayer(layer);}catch(error){console.warn("OpenFreeMap 3D building layer unavailable:",error);}
   }
   addVisualShotImpact(x,y,rect,ray){
@@ -427,5 +428,8 @@ class RealWorldBridge{
 
 const bridge=new RealWorldBridge();
 globalThis.__arondightRealWorld=bridge;
+// Building damage (nukes): rebuild collision + three.js solids immediately and
+// hide the damaged originals in the MapLibre extrusion layer.
+onDestruction(()=>{bridge.buildingCollisionDirty=true;try{bridge.syncBuildingCollisions(true);}catch(error){console.warn("destruction collision sync failed",error);}const map=bridge.map;if(map?.getLayer?.("arondight45-buildings-3d")){const ids=damagedFeatureIds();try{map.setFilter("arondight45-buildings-3d",ids.length?["!",["in",["id"],["literal",ids]]]:null);}catch(error){console.warn("destruction map filter failed",error);}}});
 
 await import("./simulator.mjs");

@@ -83,6 +83,8 @@ export function buildStylizedBuildingGeometry(prisms,{maxPrisms=MAX_PRISMS}={}){
     const base=Number(prism.base)||0,top=Math.max(base+.05,Number(prism.top)||8),hash=hashString(prism.buildingKey||`${raw[0].x.toFixed(1)},${raw[0].y.toFixed(1)}`);
     wallColor.set(STYLIZED_BUILDING_PALETTE.walls[hash%STYLIZED_BUILDING_PALETTE.walls.length]);
     roofColor.set(STYLIZED_BUILDING_PALETTE.roofs[(hash>>>8)%STYLIZED_BUILDING_PALETTE.roofs.length]);
+    // Nuked: leveled stumps are charred rubble, broken tops are scorched.
+    if(prism.leveled){wallColor.set("#1c1a12");roofColor.set("#2a2414");}else if(prism.damaged)roofColor.set("#3a2a12");
     for(const face of THREE.ShapeUtils.triangulateShape(raw,[])){const a=raw[face[0]];let b=raw[face[1]],c=raw[face[2]];if((b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x)<0)[b,c]=[c,b];push(a.x,a.y,top,roofColor);push(b.x,b.y,top,roofColor);push(c.x,c.y,top,roofColor);}
     const plinth=tmpColor.clone();
     for(let i=0;i<raw.length;i++){

@@ -4,15 +4,17 @@ import {FX,sphereGeometry,ringGeometry,cylinderGeometry,circleGeometry,fxMateria
 
 const STORAGE_KEY="arondight45DroneWeaponExtendedV1";
 const COOLDOWN_MS=4500;
-const MAX_RANGE_M=360;
+const MAX_RANGE_M=600;
 const GROUND_BURST_Z=0;
-const BLAST_RADIUS_M=120;
+// 3x scale (user request): blast, shock reach, cloud and fireball.
+export const NUKE_SCALE=3;
+const BLAST_RADIUS_M=360;
 const BLAST_MAX_DAMAGE=1000;
 const SHOCKWAVE_SPEED_MPS=343;
-const SHOCKWAVE_MAX_M=520;
-const MUSHROOM_HEIGHT_M=108;
+const SHOCKWAVE_MAX_M=1560;
+const MUSHROOM_HEIGHT_M=324;
 const MUSHROOM_LIFETIME_MS=32000;
-const CAMERA_SHAKE_MAX_DISTANCE_M=400;
+const CAMERA_SHAKE_MAX_DISTANCE_M=1200;
 const CINEMATIC_GRACE_MS=4200;
 const NUKE_PERF_CONTRACT="no-runtime-lights+shared-geometry+compositor-shake-v1";
 const raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2(),boxHits=new Box3dHitscanWorld();
@@ -64,7 +66,7 @@ function makeImpact(scene,position,now){const group=tag(new THREE.Group(),"impac
   const shock=tag(new THREE.Mesh(ringGeometry(.985,1.015,96),fxMaterial(FX.shock,{opacity:.98,additive:true,depthTest:true})),"shockwave-ring");shock.position.z=.28;group.add(shock);
   const dust=tag(new THREE.Mesh(ringGeometry(.88,1.12,64),fxMaterial(FX.dust,{opacity:.48,additive:false,depthTest:true})),"shockwave-dust");dust.position.z=.14;group.add(dust);
   const wall=tag(new THREE.Mesh(cylinderGeometry(1,1,8,48,2,true),fxMaterial(FX.shock,{opacity:.28,additive:true,depthTest:true,side:THREE.DoubleSide})),"shockwave-wall");wall.rotation.x=Math.PI/2;wall.position.z=4;group.add(wall);
-  const scorchMaterial=fxMaterial(FX.scorch,{opacity:.9,additive:false,depthTest:true});scorchMaterial.polygonOffset=true;scorchMaterial.polygonOffsetFactor=-4;const scorch=tag(new THREE.Mesh(circleGeometry(42,48),scorchMaterial),"scorch");scorch.position.z=.04;group.add(scorch);
+  const scorchMaterial=fxMaterial(FX.scorch,{opacity:.9,additive:false,depthTest:true});scorchMaterial.polygonOffset=true;scorchMaterial.polygonOffsetFactor=-4;const scorch=tag(new THREE.Mesh(circleGeometry(126,64),scorchMaterial),"scorch");scorch.position.z=.04;group.add(scorch);
   impacts.push({group,scene,position:position.clone(),flash,hot,fire,fireOuter,shock,dust,wall,scorch,born:now,until:now+MUSHROOM_LIFETIME_MS,shakeTriggered:false,damageTriggered:false,shockRadius:0});
   flashScreen();
   window.dispatchEvent(new CustomEvent("arondight:nuke-impact",{detail:{position:[position.x,position.y,position.z],radiusM:BLAST_RADIUS_M,shockwaveSpeedMps:SHOCKWAVE_SPEED_MPS,mushroomHeightM:MUSHROOM_HEIGHT_M,cameraDistanceM:cameraDistanceTo(position)}}));
@@ -72,7 +74,7 @@ function makeImpact(scene,position,now){const group=tag(new THREE.Group(),"impac
 }
 function updateWarheads(now){for(let i=warheads.length-1;i>=0;i--){const item=warheads[i],t=clamp((now-item.born)/item.duration,0,1),e=t*t*(3-2*t);item.group.position.lerpVectors(item.start,item.target,e);item.group.position.z+=Math.sin(Math.PI*t)*item.arc;const dir=tmp.copy(item.target).sub(item.group.position);if(dir.lengthSq()>.000001)item.group.quaternion.setFromUnitVectors(axis,dir.normalize());if(t>=1){item.scene.remove(item.group);disposeEffect(item.group);warheads.splice(i,1);makeImpact(item.scene,item.target,now);}}}
 function updateImpacts(now){const view=viewport();for(let i=impacts.length-1;i>=0;i--){const item=impacts[i],age=now-item.born,blastT=clamp(age/3200,0,1),blastEase=1-(1-blastT)**3;
-    item.flash.scale.setScalar(1+20*blastEase);item.hot.scale.setScalar(1+6.2*blastEase);item.fire.scale.setScalar(1+4.1*blastEase);item.fireOuter.scale.setScalar(1+2.8*blastEase);item.flash.material.opacity=Math.max(0,1-blastT*1.55);item.hot.material.opacity=.95*Math.max(.12,1-blastT*.7);item.fire.material.opacity=.9*Math.max(.1,1-blastT*.76);item.fireOuter.material.opacity=.55*Math.max(.06,1-blastT*.84);item.flash.visible=item.flash.material.opacity>.002;
+    item.flash.scale.setScalar(NUKE_SCALE*(1+20*blastEase));item.hot.scale.setScalar(NUKE_SCALE*(1+6.2*blastEase));item.fire.scale.setScalar(NUKE_SCALE*(1+4.1*blastEase));item.fireOuter.scale.setScalar(NUKE_SCALE*(1+2.8*blastEase));item.flash.material.opacity=Math.max(0,1-blastT*1.55);item.hot.material.opacity=.95*Math.max(.12,1-blastT*.7);item.fire.material.opacity=.9*Math.max(.1,1-blastT*.76);item.fireOuter.material.opacity=.55*Math.max(.06,1-blastT*.84);item.flash.visible=item.flash.material.opacity>.002;
     const shockRadius=Math.min(SHOCKWAVE_MAX_M,Math.max(1,age/1000*SHOCKWAVE_SPEED_MPS));item.shockRadius=shockRadius;item.shock.scale.setScalar(shockRadius);item.dust.scale.setScalar(shockRadius*.92);item.wall.scale.set(shockRadius,1,shockRadius);const shockFade=1-clamp(shockRadius/SHOCKWAVE_MAX_M,0,1);item.shock.material.opacity=.98*shockFade**.55;item.dust.material.opacity=.48*shockFade**.48;item.wall.material.opacity=.28*shockFade**.72;item.shock.visible=item.dust.visible=item.wall.visible=shockFade>.001;
     if(!item.shakeTriggered){const cameraDistance=cameraDistanceTo(item.position);if(Number.isFinite(cameraDistance)&&shockRadius>=cameraDistance){item.shakeTriggered=true;const strength=clamp(1-cameraDistance/CAMERA_SHAKE_MAX_DISTANCE_M,.12,1);shakeCamera(strength,cameraDistance);if(view)view.dataset.nukeShockArrivalMs=String(Math.round(age));}}
     item.scorch.material.opacity=.9*(1-clamp((age-23000)/9000,0,1));
