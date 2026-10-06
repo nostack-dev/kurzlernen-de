@@ -31,18 +31,26 @@ function setStatus(state){const view=viewport();if(view){view.dataset.musicPlaye
 function ensureGraph(){
   if(element)return true;
   context=getSharedCombatAudioContext({resume:true});
-  element=new Audio();element.src=DEFAULT_MUSIC_TRACK;element.loop=true;element.preload="auto";element.crossOrigin="anonymous";element.setAttribute("playsinline","");element.setAttribute("webkit-playsinline","");
+  // Adopt the menu's element (already playing since the page loaded).
+  element=globalThis.__oppMusicElement||null;
+  if(!element){element=new Audio();element.src=DEFAULT_MUSIC_TRACK;element.loop=true;element.preload="auto";element.setAttribute("playsinline","");element.setAttribute("webkit-playsinline","");}
   element.addEventListener("playing",()=>setStatus("playing"));element.addEventListener("pause",()=>setStatus(wanted()?"paused-unexpected":"paused"));
-  if(context){try{const source=context.createMediaElementSource(element);gain=context.createGain();gain.gain.value=0;source.connect(gain).connect(context.destination);}catch{gain=null;}}
-  if(!gain)element.volume=0;
+  // Route through a Web Audio gain (iOS ignores element.volume) — but only
+  // once the context is running, otherwise rerouting would mute music that
+  // is already playing. Until then element.volume is used.
+  connectGain();
   return true;
+}
+function connectGain(){
+  if(gain||!context||context.state!=="running"||!element)return;
+  try{const source=context.createMediaElementSource(element);gain=context.createGain();gain.gain.value=element.paused?0:element.volume;element.volume=1;source.connect(gain).connect(context.destination);}catch{gain=null;}
 }
 function ramp(level,seconds){
   if(gain&&context){const now=context.currentTime,param=gain.gain;param.cancelScheduledValues(now);param.setValueAtTime(param.value,now);param.linearRampToValueAtTime(level,now+Math.max(.02,seconds));}
   else if(element)element.volume=level;
 }
 function apply(fade=FADE_S){
-  if(!unlocked||!ensureGraph())return;clearTimeout(pauseTimer);
+  if(!unlocked||!ensureGraph())return;clearTimeout(pauseTimer);connectGain();
   const level=targetLevel();
   if(level>0){
     if(context?.state==="suspended")context.resume?.().catch(()=>{});
@@ -67,7 +75,8 @@ export function installMusicPlayer(){
   if(installed)return;installed=true;
   for(const type of["pointerdown","keydown","touchend"])window.addEventListener(type,onGesture,{capture:true,passive:true});
   window.addEventListener("click",event=>{const t=event.target instanceof Element?event.target:null;if(t?.closest?.("#soloReset,#mobileGameplayReset"))restartMusic();},{capture:true,passive:true});
-  window.addEventListener("arondight:game-start",()=>restartMusic());
+  // START keeps the menu music running (no restart); RESET restarts it.
+  window.addEventListener("arondight:game-start",()=>{unlocked=true;apply(.6);});
   window.addEventListener(AUDIO_SETTINGS_EVENT,event=>{settings=normalizeAudioSettings(event?.detail||loadAudioSettings());apply(.35);});
   document.addEventListener("visibilitychange",()=>apply(.4),{passive:true});
   setStatus("waiting-for-gesture");

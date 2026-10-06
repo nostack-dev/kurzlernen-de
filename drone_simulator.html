@@ -57,6 +57,23 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   <div class="gq-by">&mdash; J. Robert Oppenheimer</div>
 </div>
 <script>
+// Menu music starts right away: try autoplay on load, and if the browser
+// blocks it (iOS/Android do until the first touch), start on the very first
+// tap/key anywhere. The game's music module adopts this same element later,
+// so the track never restarts or doubles when START is pressed.
+(function(){
+  var cfg={};try{cfg=JSON.parse(localStorage.getItem("arondight45AudioSettingsV1")||"{}");}catch(e){}
+  if(cfg.soundEnabled===false||cfg.musicEnabled===false)return;
+  var vol=Math.max(0,Math.min(1,(cfg.musicVolume==null?32:cfg.musicVolume)/100))*0.45;
+  var a=new Audio("./sim/audio/8_bits_only.m4a");a.loop=true;a.preload="auto";a.volume=vol;a.setAttribute("playsinline","");
+  window.__oppMusicElement=a;
+  function go(){a.play().then(function(){document.documentElement.dataset.menuMusic="playing";off();}).catch(function(){document.documentElement.dataset.menuMusic="waiting-for-tap";});}
+  function off(){["pointerdown","touchend","keydown","click"].forEach(function(t){window.removeEventListener(t,go,true);});}
+  ["pointerdown","touchend","keydown","click"].forEach(function(t){window.addEventListener(t,go,true);});
+  go();
+})();
+</script>
+<script>
 (function(){
   if(/[?&]dev=1/.test(location.search))document.body.classList.add("dev-ui");
   // Neon flyover: wireframe towers and a ground grid rush past the camera.
