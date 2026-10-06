@@ -19,6 +19,32 @@ const AUTOSTART=Boolean(navigator.webdriver)||/[?&]autostart=1/.test(location.se
 const menu=$("gameMenu"),startButton=$("gameMenuStart"),menuStatus=$("gameMenuStatus");
 function setMenuStatus(text){if(menuStatus)menuStatus.textContent=text;}
 
+// Unlock on START (before any awaits), then play at the actual game reveal.
+// Web Audio preserves the gesture unlock across GPS / world loading on iOS.
+let introContext=null,introSource=null,introGeneration=0;
+const introBytes=AUTOSTART?Promise.resolve(null):fetch("./sim/audio/oppenheimer-intro.m4a")
+  .then(response=>response.ok?response.arrayBuffer():null).catch(()=>null);
+function introSoundEnabled(){try{return JSON.parse(localStorage.getItem("arondight45AudioSettingsV1")||"{}").soundEnabled!==false;}catch{return true;}}
+function unlockIntroAudio(){
+  if(AUTOSTART||!introSoundEnabled())return;
+  try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;introContext??=new AC();introContext.resume().catch(()=>{});}catch{}
+}
+function stopIntroAudio(){introGeneration++;if(introSource){try{introSource.stop();}catch{}introSource.disconnect();introSource=null;}}
+async function playIntroAudio(){
+  stopIntroAudio();const generation=introGeneration;
+  if(!introContext||!introSoundEnabled()||document.hidden)return;
+  try{
+    const bytes=await introBytes;if(!bytes)return;
+    const buffer=await introContext.decodeAudioData(bytes.slice(0));
+    if(generation!==introGeneration||!introSoundEnabled()||document.hidden||!menu?.hidden||introContext.state!=="running")return;
+    const source=introContext.createBufferSource();source.buffer=buffer;source.connect(introContext.destination);
+    source.onended=()=>{source.disconnect();if(introSource===source)introSource=null;};
+    introSource=source;source.start();
+  }catch{/* A missing/blocked audio asset must never block the game. */}
+}
+window.addEventListener("arondight45-audio-settings-change",()=>{if(!introSoundEnabled())stopIntroAudio();});
+document.addEventListener("visibilitychange",()=>{if(document.hidden)stopIntroAudio();});
+
 async function waitForBridge(timeoutMs=30000){
   const started=performance.now();
   while(performance.now()-started<timeoutMs){
@@ -102,6 +128,7 @@ async function compileScene(){const renderer=bridge?.threeRenderer,scene=bridge?
 let starting=false;
 async function startGame(){
   if(starting)return;starting=true;
+  unlockIntroAudio();
   if(startButton){startButton.disabled=true;startButton.textContent="LOADING";}
   if(!worldRequested){worldRequested=true;setMenuStatus("LOCATING");await withTimeout(autoWorld(requestStartupLocation()),15000);}
   setMenuStatus("BUILDING CITY");launchDefaultFlight();
@@ -111,9 +138,10 @@ async function startGame(){
   if(menu){menu.hidden=true;menu.classList.remove("gm-leaving");}
   // Opening quote over the live game (fades in and out, never blocks input).
   const quote=$("gameIntroQuote");if(quote&&!AUTOSTART){quote.hidden=false;quote.classList.remove("play");void quote.offsetWidth;quote.classList.add("play");setTimeout(()=>{quote.hidden=true;quote.classList.remove("play");},7400);}
+  if(!AUTOSTART)void playIntroAudio();
   starting=false;
 }
-function showMenu(){if(!menu)return;menu.hidden=false;starting=false;if(startButton){startButton.disabled=false;startButton.textContent="START";}setMenuStatus("READY");}
+function showMenu(){stopIntroAudio();if(!menu)return;menu.hidden=false;starting=false;if(startButton){startButton.disabled=false;startButton.textContent="START";}setMenuStatus("READY");}
 // Leaving the flight returns to the menu instead of the engineering panel.
 $("soloExit")?.addEventListener("click",()=>setTimeout(showMenu,0));
 if(AUTOSTART||!menu||!startButton){if(menu)menu.hidden=true;launchDefaultFlight();worldRequested=true;void autoWorld(requestStartupLocation());}
