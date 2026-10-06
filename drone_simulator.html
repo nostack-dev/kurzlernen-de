@@ -65,6 +65,29 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
     <div id="gameMenuStatus">PREPARING WORLD</div>
   </div>
 </div>
+<script>
+// Strict versioning for the installed app: the deployed page carries its
+// build SHA (first comment of the document). We compare it with the live
+// page fetched with no-store on start, on every return to the app and every
+// minute. A newer build reloads right away in the menu / on resume, or at
+// the next menu visit / app switch while a flight is running.
+(function(){
+  var first=document.firstChild,m=first&&first.nodeType===8&&/BUILD_SHA:([0-9a-f]{7,40})/.exec(first.nodeValue||""),mine=m&&m[1];if(!mine)return;
+  var pending=null,menu=function(){return document.getElementById("gameMenu");};
+  function fresh(sha){var u=new URL(location.href);u.searchParams.set("v",sha.slice(0,12));location.replace(u.toString());}
+  function inMenu(){var el=menu();return !el||!el.hidden;}
+  function check(reason){
+    fetch(location.pathname+"?vcheck="+Date.now(),{cache:"no-store",credentials:"same-origin"}).then(function(r){return r.ok?r.text():"";}).then(function(t){
+      var n=/BUILD_SHA:([0-9a-f]{7,40})/.exec(t.slice(0,300));if(!n||n[1]===mine)return;pending=n[1];
+      if(inMenu()||reason==="resume"||reason==="load")fresh(pending);
+    }).catch(function(){});
+  }
+  document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"){if(pending)fresh(pending);else check("resume");}});
+  window.addEventListener("pageshow",function(e){if(e.persisted)check("resume");});
+  setInterval(function(){if(pending&&inMenu())fresh(pending);else check("interval");},60000);
+  check("load");
+})();
+</script>
 <button id="installApp" type="button" hidden aria-label="Install on home screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>HOME SCREEN</button>
 <div id="installHint" hidden role="note"></div>
 <script>
