@@ -33,9 +33,13 @@
 #gameIntroQuote[hidden]{display:none!important}
 #gameIntroQuote.play{animation:gqFade 7.2s ease-in-out forwards}
 #gameIntroQuote .gq-name{font-weight:800;font-size:clamp(14px,2.4vw,22px);letter-spacing:.5em;text-shadow:0 0 14px rgba(0,255,156,.6)}
-#gameIntroQuote .gq-quote{max-width:min(86vw,900px);font-size:clamp(17px,3.3vw,34px);line-height:1.35;letter-spacing:.04em;color:#eafff4;text-shadow:0 0 18px rgba(0,255,156,.45)}
+#gameIntroQuote .gq-quote{max-width:min(86vw,900px);font-size:clamp(17px,3.3vw,34px);line-height:1.35;letter-spacing:.04em;color:#00ff9c;text-shadow:0 0 16px rgba(0,255,156,.6)}
 #gameIntroQuote .gq-by{font-size:clamp(10px,1.5vw,14px);letter-spacing:.3em;color:rgba(0,255,156,.75)}
 @keyframes gqFade{0%{opacity:0}16%{opacity:1}70%{opacity:1}100%{opacity:0}}
+#soundSwitch{position:fixed;z-index:100001;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));width:40px;height:32px;display:flex;align-items:center;justify-content:center;padding:0;background:rgba(2,10,6,.42);border:1px solid rgba(0,255,156,.42);border-radius:9px;color:rgba(0,255,156,.9);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+#soundSwitch svg{width:20px;height:20px;display:block}
+#soundSwitch[data-on="0"] .ss-wave{display:none}#soundSwitch[data-on="1"] .ss-x{display:none}
+#soundSwitch[hidden]{display:none!important}
 /* The engineering station panels are only shown with ?dev=1 */
 body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
 @media(max-width:900px){body:not(.dev-ui) .viewport{position:fixed;inset:0;height:auto;min-height:0;max-height:none}}
@@ -51,6 +55,29 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
     <div id="gameMenuStatus">PREPARING WORLD</div>
   </div>
 </div>
+<button id="soundSwitch" type="button" aria-label="Sound on/off" data-on="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="ss-wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="ss-x" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>
+<script>
+// Sound on/off (music + effects) — top right in the menu, and in game it
+// docks left of RESET. Writes the shared audio settings, so every audio
+// module (music, effects, Geiger, drone) follows immediately.
+(function(){
+  var KEY="arondight45AudioSettingsV1",btn=document.getElementById("soundSwitch");
+  function read(){try{return JSON.parse(localStorage.getItem(KEY)||"{}");}catch(e){return{};}}
+  function on(){return read().soundEnabled!==false;}
+  function render(){btn.dataset.on=on()?"1":"0";btn.setAttribute("aria-pressed",on()?"true":"false");}
+  btn.addEventListener("pointerdown",function(e){e.stopPropagation();},true);
+  btn.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();
+    var cfg=read();cfg.soundEnabled=!on();try{localStorage.setItem(KEY,JSON.stringify(cfg));}catch(err){}
+    var m=window.__oppMusicElement;if(m){if(cfg.soundEnabled===false)m.pause();else if(cfg.musicEnabled!==false)m.play().catch(function(){});}
+    window.dispatchEvent(new CustomEvent("arondight45-audio-settings-change",{detail:cfg}));render();});
+  window.addEventListener("arondight45-audio-settings-change",function(){render();});
+  // In game: sit just left of RESET (falls back to the menu's top-right spot).
+  function dock(){var reset=document.getElementById("mobileGameplayReset")||document.getElementById("soloReset"),menu=document.getElementById("gameMenu"),inGame=menu&&menu.hidden&&reset&&reset.offsetParent;
+    if(inGame){var r=reset.getBoundingClientRect();btn.style.top=r.top+"px";btn.style.right=(window.innerWidth-r.left+6)+"px";btn.style.height=r.height+"px";}else{btn.style.top="";btn.style.right="";btn.style.height="";}
+    setTimeout(dock,400);}
+  render();dock();
+})();
+</script>
 <div id="gameIntroQuote" aria-live="polite" hidden>
   <div class="gq-name">OPPENHEIMER</div>
   <div class="gq-quote">&ldquo;Now I am become Death, the destroyer of worlds.&rdquo;</div>
