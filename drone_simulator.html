@@ -106,28 +106,44 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   // Neon flyover: wireframe towers and a ground grid rush past the camera.
   var c=document.getElementById("gameMenuBg"),g=c.getContext("2d"),menu=document.getElementById("gameMenu"),boxes=[],t0=performance.now(),last=t0,W=0,H=0,DPR=Math.min(1.5,window.devicePixelRatio||1);
   function size(){W=c.clientWidth;H=c.clientHeight;c.width=Math.round(W*DPR);c.height=Math.round(H*DPR);g.setTransform(DPR,0,0,DPR,0,0);}
-  function spawn(z){var side=Math.random()<.5?-1:1;boxes.push({x:side*(10+Math.random()*60),z:z,w:6+Math.random()*12,d:6+Math.random()*14,h:8+Math.random()*(Math.random()<.2?90:40)});}
-  for(var i=0;i<46;i++)spawn(20+Math.random()*400);
-  function P(x,y,z,camY,f){return[W/2+x/z*f,H*.56-(y-camY)/z*f];}
+  // Hovering drone flight: soft altitude float, lateral drift with banking,
+  // gentle yaw into the drift, a slight pitch nod and speed surges.
+  var cam={x:0,y:8,yaw:0,roll:0,pitch:0,speed:90,dist:0};
+  function spawn(z){var side=Math.random()<.5?-1:1;boxes.push({x:cam.x+side*(10+Math.random()*70),z:z,w:6+Math.random()*12,d:6+Math.random()*14,h:8+Math.random()*(Math.random()<.2?90:40)});}
+  for(var i=0;i<52;i++)spawn(20+Math.random()*420);
+  var cy=Math.cos(0),sy=Math.sin(0);
+  // world (x,y,z ahead of camera) -> screen; null when behind the near plane
+  function P(x,y,z,f){var dx=x-cam.x,rx=dx*cy-z*sy,rz=dx*sy+z*cy;if(rz<1.5)return null;return[W/2+rx/rz*f,H*(.56+cam.pitch)-(y-cam.y)/rz*f];}
+  function seg(a,b){if(!a||!b)return;g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);}
   function frame(now){
     if(menu.hidden){requestAnimationFrame(frame);last=now;return;}
     var dt=Math.min(.05,(now-last)/1000);last=now;if(c.clientWidth!==W||c.clientHeight!==H)size();
-    var speed=95,camY=7+Math.sin(now*.0007)*2,f=H*.9,roll=Math.sin(now*.00045)*.04;
+    var t=now/1000,prevX=cam.x;
+    cam.speed=78+26*Math.pow(Math.sin(t*.13),2)+18*Math.max(0,Math.sin(t*.41))*Math.max(0,Math.sin(t*.07));
+    cam.x=Math.sin(t*.21)*16+Math.sin(t*.067)*34;
+    cam.y=8+Math.sin(t*.9)*.7+Math.sin(t*.23)*3.2;
+    var lateral=(cam.x-prevX)/Math.max(dt,1e-3);
+    cam.yaw+=((-lateral/cam.speed)*.9-cam.yaw)*Math.min(1,dt*2.5);cy=Math.cos(cam.yaw);sy=Math.sin(cam.yaw);
+    cam.roll+=((lateral/cam.speed)*.55+Math.sin(t*1.3)*.012-cam.roll)*Math.min(1,dt*3);
+    cam.pitch=Math.sin(t*.5)*.018+Math.sin(t*1.7)*.004;
+    cam.dist+=cam.speed*dt;
+    var f=H*.9;
     g.setTransform(DPR,0,0,DPR,0,0);g.fillStyle="#020805";g.fillRect(0,0,W,H);
-    g.translate(W/2,H*.56);g.rotate(roll);g.translate(-W/2,-H*.56);
-    // ground grid
-    var off=(now/1000*speed)%12;g.lineWidth=1;
-    for(var gz=4-off+12;gz<420;gz+=12){var a=P(-260,0,gz,camY,f),b=P(260,0,gz,camY,f);g.strokeStyle="rgba(0,255,156,"+Math.max(0,.55-gz/600)+")";g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();}
-    for(var gx=-260;gx<=260;gx+=20){var n=P(gx,0,4,camY,f),fz=P(gx,0,420,camY,f);g.strokeStyle="rgba(0,255,156,.16)";g.beginPath();g.moveTo(n[0],n[1]);g.lineTo(fz[0],fz[1]);g.stroke();}
+    g.translate(W/2,H*.56);g.rotate(cam.roll);g.translate(-W/2,-H*.56);
+    // ground grid (world-anchored, so drift and yaw read correctly)
+    g.lineWidth=1;var off=cam.dist%12;
+    for(var gz=12-off;gz<440;gz+=12){g.strokeStyle="rgba(0,255,156,"+Math.max(0,.55-gz/620)+")";g.beginPath();seg(P(cam.x-300,0,gz,f),P(cam.x+300,0,gz,f));g.stroke();}
+    var gx0=Math.floor((cam.x-300)/20)*20;g.strokeStyle="rgba(0,255,156,.16)";g.beginPath();for(var gx=gx0;gx<=cam.x+300;gx+=20)seg(P(gx,0,3,f),P(gx,0,440,f));g.stroke();
     // towers
+    for(var k=boxes.length-1;k>=0;k--){var o=boxes[k];o.z-=cam.speed*dt;if(o.z<2||Math.abs(o.x-cam.x)>140){boxes.splice(k,1);spawn(400+Math.random()*60);}}
     boxes.sort(function(p,q){return q.z-p.z;});
-    for(var k=boxes.length-1;k>=0;k--){var o=boxes[k];o.z-=speed*dt;if(o.z<3){boxes.splice(k,1);spawn(380+Math.random()*60);}}
-    for(var j=0;j<boxes.length;j++){var o2=boxes[j],al=Math.max(0,Math.min(1,1.1-o2.z/420)),x0=o2.x-o2.w/2,x1=o2.x+o2.w/2,z0=Math.max(3,o2.z),z1=o2.z+o2.d;
-      var pts=[[x0,0,z0],[x1,0,z0],[x1,o2.h,z0],[x0,o2.h,z0],[x0,0,z1],[x1,0,z1],[x1,o2.h,z1],[x0,o2.h,z1]].map(function(v){return P(v[0],v[1],v[2],camY,f);});
-      g.fillStyle="rgba(3,22,13,"+(.85*al)+")";g.beginPath();g.moveTo(pts[0][0],pts[0][1]);g.lineTo(pts[1][0],pts[1][1]);g.lineTo(pts[2][0],pts[2][1]);g.lineTo(pts[3][0],pts[3][1]);g.closePath();g.fill();
-      g.strokeStyle="rgba(0,255,156,"+al+")";g.lineWidth=1.2;g.beginPath();[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].forEach(function(e){g.moveTo(pts[e[0]][0],pts[e[0]][1]);g.lineTo(pts[e[1]][0],pts[e[1]][1]);});g.stroke();}
-    // speed streaks
-    g.strokeStyle="rgba(0,255,156,.35)";for(var s2=0;s2<14;s2++){var sx=((s2*97+now*.9)%W),sy=H*.56+((s2%2?-1:1)*(40+((s2*53)%Math.max(1,H*.4))));var len=40+((s2*31)%80);g.beginPath();g.moveTo(sx,sy);g.lineTo(sx+(sx-W/2)*.25,sy+(sy-H*.56)*.25);g.stroke();}
+    for(var j=0;j<boxes.length;j++){var o2=boxes[j],al=Math.max(0,Math.min(1,1.1-o2.z/440)),x0=o2.x-o2.w/2,x1=o2.x+o2.w/2,z0=Math.max(2,o2.z),z1=o2.z+o2.d;
+      var pts=[[x0,0,z0],[x1,0,z0],[x1,o2.h,z0],[x0,o2.h,z0],[x0,0,z1],[x1,0,z1],[x1,o2.h,z1],[x0,o2.h,z1]].map(function(v){return P(v[0],v[1],v[2],f);});
+      if(pts[0]&&pts[1]&&pts[2]&&pts[3]){g.fillStyle="rgba(3,22,13,"+(.85*al)+")";g.beginPath();g.moveTo(pts[0][0],pts[0][1]);g.lineTo(pts[1][0],pts[1][1]);g.lineTo(pts[2][0],pts[2][1]);g.lineTo(pts[3][0],pts[3][1]);g.closePath();g.fill();}
+      g.strokeStyle="rgba(0,255,156,"+al+")";g.lineWidth=1.2;g.beginPath();[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].forEach(function(e){seg(pts[e[0]],pts[e[1]]);});g.stroke();}
+    // speed streaks, longer while surging
+    var surge=Math.max(0,(cam.speed-90)/30);g.strokeStyle="rgba(0,255,156,"+(.22+.25*surge)+")";g.lineWidth=1;
+    for(var s2=0;s2<16;s2++){var sx=((s2*97+now*.9)%W),sy2=H*.56+((s2%2?-1:1)*(40+((s2*53)%Math.max(1,H*.4))));var k2=.18+.25*surge;g.beginPath();g.moveTo(sx,sy2);g.lineTo(sx+(sx-W/2)*k2,sy2+(sy2-H*.56)*k2);g.stroke();}
     requestAnimationFrame(frame);
   }
   size();requestAnimationFrame(frame);
