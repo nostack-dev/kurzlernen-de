@@ -65,16 +65,35 @@ function renderStep(sampleRate,variant){
   return finish(data,.72);
 }
 
-function renderReward(sampleRate,variant){
-  const duration=.42+variant*.035,data=new Float32Array(Math.ceil(duration*sampleRate)),notes=[[392,494,659],[440,554,698],[494,622,784]][variant%3],phases=[0,0,0];
-  for(let i=0;i<data.length;i++){const t=i/sampleRate,p=t/duration;let value=0;for(let n=0;n<notes.length;n++){const onset=n*.072,age=t-onset;if(age<0)continue;const frequency=notes[n]*(1+.008*Math.exp(-age*18));phases[n]+=TAU*frequency/sampleRate;const amp=Math.min(1,age/.008)*Math.exp(-age*(5.4+n*.35));value+=(Math.sin(phases[n])+.24*Math.sin(phases[n]*2))*amp;}const shimmer=Math.sin(TAU*(1450+variant*120)*t)*Math.exp(-t*10)*.12;data[i]=(value*.42+shimmer)*Math.min(1,t/.006)*Math.min(1,(duration-t)/.055)*(1-.12*p);}
-  return finish(data,.82);
-}
-
-function renderFail(sampleRate,variant){
-  const duration=.31+variant*.04,data=new Float32Array(Math.ceil(duration*sampleRate)),random=rng(0xfa11ed+variant*821);let phase=0,low=0;
-  for(let i=0;i<data.length;i++){const t=i/sampleRate,p=t/duration,white=random()*2-1;low+=.055*(white-low);const frequency=(210+variant*26)*(1-p*.72)+42;phase+=TAU*frequency/sampleRate;data[i]=(Math.sin(phase)*.58+low*.48)*Math.min(1,t/.012)*Math.min(1,(duration-t)/.09)*Math.exp(-t*2.8);}
+// Chiptune (NES/SNES-style) jingles: pulse waves with 12.5/25/50% duty,
+// a triangle bass, hard 1/60 s envelope steps and 4-bit amplitude
+// quantization — so rewards sit in the same world as the 8-bit soundtrack.
+const NOTE=n=>440*Math.pow(2,(n-69)/12);
+function pulse(phase,duty){return(phase%1)<duty?1:-1;}
+function triangle(phase){const p=phase%1;return p<.5?4*p-1:3-4*p;}
+function quantize(v){return Math.round(Math.max(-1,Math.min(1,v))*7.5)/7.5;}
+function renderChip(sampleRate,{notes,step,duty,bass=null,tail=1}){
+  const steps=notes.length,duration=steps*step+.18*tail,data=new Float32Array(Math.ceil(duration*sampleRate));let lead=0,low=0;
+  for(let i=0;i<data.length;i++){
+    const t=i/sampleRate,index=Math.min(steps-1,Math.floor(t/step)),local=t-index*step,note=notes[index];
+    const frame=Math.floor(local*60),env=note===null?0:Math.max(0,1-frame*.09-(index===steps-1?Math.max(0,local-step)*3:0));
+    if(note!==null)lead+=NOTE(note)/sampleRate;const leadV=note===null?0:pulse(lead,duty)*env*.55;
+    let bassV=0;if(bass){const b=bass[Math.min(bass.length-1,Math.floor(t/(step*2)))];if(b!==null){low+=NOTE(b)/sampleRate;bassV=triangle(low)*.42*Math.max(0,1-Math.max(0,t-steps*step)*5);}}
+    data[i]=quantize(leadV+bassV)*Math.min(1,(duration-t)/.03);
+  }
   return finish(data,.78);
+}
+// Original jingles (not taken from any existing game).
+function renderReward(sampleRate,variant){
+  const v=variant%3;
+  if(v===0)return renderChip(sampleRate,{notes:[76,83],step:.06,duty:.25});                       // pickup blip: E5→B5
+  if(v===1)return renderChip(sampleRate,{notes:[67,71,74,79,83,86],step:.045,duty:.125,bass:[43,47,50]}); // hit-confirm arpeggio up
+  return renderChip(sampleRate,{notes:[72,76,79,84,null,84,88],step:.055,duty:.25,bass:[48,52,55,60],tail:1.6}); // streak fanfare
+}
+function renderFail(sampleRate,variant){
+  const v=variant%2;
+  if(v===0)return renderChip(sampleRate,{notes:[71,67,64,59],step:.07,duty:.5,bass:[47,40]});
+  return renderChip(sampleRate,{notes:[64,63,62,61,60,59],step:.05,duty:.125,bass:[40,35,28]});
 }
 
 const renderers={shot:renderShot,hit:renderHit,damage:renderDamage,scream:renderScream,explosion:renderExplosion,step:renderStep,reward:renderReward,fail:renderFail};

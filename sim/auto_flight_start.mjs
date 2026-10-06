@@ -90,6 +90,8 @@ async function autoWorld(locationResultPromise){
 let worldRequested=false;
 function startGame(){
   if(menu)menu.hidden=true;launchDefaultFlight();window.dispatchEvent(new CustomEvent("arondight:game-start"));
+  // Opening quote over the live game (fades in and out, never blocks input).
+  const quote=$("gameIntroQuote");if(quote&&!AUTOSTART){quote.hidden=false;quote.classList.remove("play");void quote.offsetWidth;quote.classList.add("play");setTimeout(()=>{quote.hidden=true;quote.classList.remove("play");},7400);}
   if(!worldRequested){worldRequested=true;void autoWorld(requestStartupLocation());}
 }
 function showMenu(){if(!menu)return;menu.hidden=false;if(startButton){startButton.disabled=false;startButton.textContent="START";}setMenuStatus("READY");}

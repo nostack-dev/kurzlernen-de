@@ -1,4 +1,7 @@
 import * as THREE from "three";
+import {LineSegments2} from "three/examples/jsm/lines/LineSegments2.js";
+import {LineSegmentsGeometry} from "three/examples/jsm/lines/LineSegmentsGeometry.js";
+import {LineMaterial} from "three/examples/jsm/lines/LineMaterial.js";
 
 // Neon arcade palette. The collider debug draw is the reference look for the
 // whole game: neon_line_style.mjs reuses these line materials and edge
@@ -52,6 +55,26 @@ function addPropellerSweep(group,point,diameter,color=AIRFRAME_COLOR){
   const radius=Number(diameter)/2;if(!(radius>.018))return;
   const sweep=wireObject(new THREE.CylinderGeometry(radius,radius,PROPELLER_SWEEP_HALF_THICKNESS_M*2,24,1,true),color,.72);
   sweep.rotation.x=Math.PI/2;sweep.position.set(...point);sweep.name="BOX3D_PROPELLER_SWEEP";group.add(sweep);
+}
+// Screen-space "fat" neon lines (WebGL ignores lineWidth, so plain lines are
+// always a dim 1 px hairline). Width is in CSS pixels; every material created
+// here gets its resolution updated once per frame by syncFatLineResolution.
+const fatMaterials=new Set(),fatSize=new THREE.Vector2();
+export function fatLineMaterial(color,{width=2,opacity=1,additive=false,depthTest=true}={}){
+  const material=new LineMaterial({color,linewidth:width,transparent:opacity<1||additive,opacity,depthTest,depthWrite:!(opacity<1||additive),blending:additive?THREE.AdditiveBlending:THREE.NormalBlending,worldUnits:false,alphaToCoverage:false});
+  material.toneMapped=false;material.fog=false;fatMaterials.add(material);return material;
+}
+export function syncFatLineResolution(renderer){
+  if(!renderer?.getSize)return;renderer.getSize(fatSize);for(const material of fatMaterials)if(material.resolution.x!==fatSize.x||material.resolution.y!==fatSize.y)material.resolution.copy(fatSize);
+}
+export function fatLineGeometry(source){
+  const geometry=new LineSegmentsGeometry();
+  if(source?.isBufferGeometry){const position=source.getAttribute("position");if(position)geometry.setPositions(Array.from(position.array));}
+  else if(source?.length)geometry.setPositions(source);
+  return geometry;
+}
+export function fatLineSegments(geometry,material){
+  const lines=new LineSegments2(geometry,material);lines.raycast=()=>{};lines.userData.flightFireIgnore=true;lines.userData.neonEdge=true;lines.castShadow=false;lines.receiveShadow=false;return lines;
 }
 export function prismEdgePositions(prisms){
   const positions=[];

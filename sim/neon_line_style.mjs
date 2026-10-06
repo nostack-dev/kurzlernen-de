@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import "./neon_ui_theme.mjs";
-import {neonLineMaterial,NEON_DEBUG_PALETTE} from "./box3d_collider_debug.mjs";
+import {neonLineMaterial,NEON_DEBUG_PALETTE,fatLineMaterial,fatLineGeometry,fatLineSegments,syncFatLineResolution} from "./box3d_collider_debug.mjs";
 
 // Arcade neon line look for the whole world, built on the Box3D debug-draw
 // line pipeline (box3d_collider_debug.mjs):
@@ -62,7 +62,6 @@ function skip(node){
 }
 function materialsOf(mesh){return(Array.isArray(mesh.material)?mesh.material:[mesh.material]).filter(Boolean);}
 function isTransparentFx(material){return Boolean(material.transparent||material.opacity<1||(material.blending!==undefined&&material.blending!==THREE.NormalBlending));}
-function lineMaterial(color){let material=lineMaterials.get(color);if(!material){material=neonLineMaterial(color);lineMaterials.set(color,material);}return material;}
 
 // In-place shader patch so the original material object (which other modules
 // still animate, swap or compare by identity) keeps working.
@@ -92,18 +91,23 @@ function neonTranslucent(material,color){
   if(processedMaterials.has(material)||material.isShaderMaterial)return;processedMaterials.add(material);
   stripTextures(material);if(material.color)material.color.set(color);if(material.emissive)material.emissive.set(0);material.opacity=Math.min(material.opacity??1,.35);material.transparent=true;material.toneMapped=false;material.needsUpdate=true;
 }
+// Edges are screen-space fat lines (EDGE_WIDTH_PX) so they read as bright
+// neon strokes instead of dim 1 px hairlines. Geometry is shared per source.
+const EDGE_WIDTH_PX=1.8;
 function edgesFor(geometry){
   let edges=edgeCache.get(geometry);if(edges!==undefined)return edges;
   const triangles=(geometry.index?geometry.index.count:geometry.attributes?.position?.count||0)/3;
-  edges=triangles>0&&triangles<=MAX_EDGE_SOURCE_TRIANGLES?new THREE.EdgesGeometry(geometry,EDGE_THRESHOLD_DEG):null;
-  if(edges)edges.userData.neonSharedEdges=true;edgeCache.set(geometry,edges);return edges;
+  if(triangles>0&&triangles<=MAX_EDGE_SOURCE_TRIANGLES){const plain=new THREE.EdgesGeometry(geometry,EDGE_THRESHOLD_DEG);edges=fatLineGeometry(plain);plain.dispose();edges.userData.neonSharedEdges=true;}else edges=null;
+  edgeCache.set(geometry,edges);return edges;
 }
+function fatMaterial(color){let material=lineMaterials.get(color);if(!material){material=fatLineMaterial(color,{width:EDGE_WIDTH_PX});lineMaterials.set(color,material);}return material;}
 function attachEdges(mesh,color){
   let lines=mesh.children.find(child=>child.userData?.neonEdge);
   const edges=edgesFor(mesh.geometry);
   if(!edges){if(lines){mesh.remove(lines);}return;}
-  if(!lines){lines=new THREE.LineSegments(edges,lineMaterial(color));lines.name="NEON_EDGES";lines.userData.neonEdge=true;lines.userData.flightFireIgnore=true;lines.raycast=()=>{};lines.renderOrder=mesh.renderOrder;lines.castShadow=false;lines.receiveShadow=false;mesh.add(lines);}
-  else{lines.geometry=edges;lines.material=lineMaterial(color);}
+  if(lines&&!lines.isLineSegments2){mesh.remove(lines);lines=null;}
+  if(!lines){lines=fatLineSegments(edges,fatMaterial(color));lines.name="NEON_EDGES";lines.renderOrder=mesh.renderOrder;mesh.add(lines);}
+  else{lines.geometry=edges;lines.material=fatMaterial(color);}
   mesh.userData.neonEdgesFor=mesh.geometry;
 }
 function convert(mesh){
@@ -119,10 +123,10 @@ function convert(mesh){
   const allFx=materials.every(isTransparentFx);
   // Instanced crowds/traffic can't carry per-instance edge children: they get
   // the same stylized fill. Transparent FX (fire, smoke) keep their own look.
-  if(mesh.isInstancedMesh||mesh.isSkinnedMesh){for(const material of materials)if(!isTransparentFx(material))darkFill(material,color);else stripTextures(material);}
+  if(mesh.isInstancedMesh||mesh.isSkinnedMesh){for(const material of materials)if(!isTransparentFx(material))darkFill(material,color,{flat:true});else stripTextures(material);}
   else if(allFx&&category!=="airframe"){for(const material of materials)stripTextures(material);}
   else if(category==="airframe"){for(const material of materials)if(isTransparentFx(material))neonTranslucent(material,color);else darkFill(material,color,{flat:true});attachEdges(mesh,color);}
-  else{for(const material of materials)if(!isTransparentFx(material))darkFill(material,color);attachEdges(mesh,color);}
+  else{for(const material of materials)if(!isTransparentFx(material))darkFill(material,color,{flat:true});attachEdges(mesh,color);}
   mesh.userData.neonStyled=NEON_STYLE_VERSION;mesh.userData.neonMaterial=mesh.material;mesh.userData.neonCategory=category;converted++;return true;
 }
 function needsWork(mesh){return (mesh.isMesh||mesh.isSprite)&&(mesh.userData.neonStyled!==NEON_STYLE_VERSION||mesh.userData.neonMaterial!==mesh.material||(mesh.userData.neonEdgesFor&&mesh.userData.neonEdgesFor!==mesh.geometry));}
@@ -132,7 +136,7 @@ function ensureGrid(scene){
   const positions=[],half=GRID_SIZE_M/2;
   for(let v=-half;v<=half;v+=GRID_STEP_M){positions.push(-half,v,0,half,v,0,v,-half,0,v,half,0);}
   const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));
-  const grid=new THREE.LineSegments(geometry,neonLineMaterial(NEON_PALETTE.ground,{opacity:.34}));grid.raycast=()=>{};grid.frustumCulled=false;
+  const grid=new THREE.LineSegments(geometry,neonLineMaterial(0x00ff9c,{opacity:.32}));grid.raycast=()=>{};grid.frustumCulled=false;
   gridGroup=new THREE.Group();gridGroup.name="NEON_GROUND_GRID";gridGroup.userData.neonSkip=true;gridGroup.userData.flightFireIgnore=true;gridGroup.add(grid);gridGroup.renderOrder=-5;scene.add(gridGroup);return gridGroup;
 }
 function followGrid(){
@@ -164,7 +168,7 @@ function cullActors(scene,now){
 function frame(now){
   const scene=bridge()?.threeScene;
   if(scene){
-    styleScene(scene);ensureGrid(scene);followGrid();enforceMap(now);cullActors(scene,now);
+    styleScene(scene);ensureGrid(scene);followGrid();enforceMap(now);cullActors(scene,now);syncFatLineResolution(bridge()?.threeRenderer);
     if(!queue.length&&now-lastScan>SCAN_INTERVAL_MS){lastScan=now;scene.traverse(node=>{if(needsWork(node))queue.push(node);});}
     const deadline=performance.now()+FRAME_BUDGET_MS;
     while(queue.length&&performance.now()<deadline){const mesh=queue.pop();if(mesh.parent||mesh===scene)convert(mesh);}
@@ -185,8 +189,8 @@ installNeonLineStyle();
 // Other modules (liveliness palette, traffic "opaque buildings") repaint the
 // map once or periodically; the enforcer below re-applies the neon paint only
 // where a value actually differs, so the result is stable and cheap.
-const MAP_NEON={background:"#030a06",land:"#06100b",green:"#08180f",industry:"#0a120d",water:"#04131a",waterLine:"#0f7a6a",roadMajor:"#00ff9c",roadMid:"#11c46c",roadMinor:"#0b7a44",boundary:"#0f5e3a",buildingFlat:"#081a10"};
-export const NEON_BUILDING_EXTRUSION_COLOR=["interpolate",["linear"],["coalesce",["to-number",["get","render_height"]],8],0,"#07140d",30,"#0a1c12",90,"#0e2418"];
+const MAP_NEON={background:"#020805",land:"#020805",green:"#030b07",industry:"#020805",water:"#02090c",waterLine:"#0a4a3c",roadMajor:"#0d6b44",roadMid:"#0a5235",roadMinor:"#073d27",boundary:"#06301f",buildingFlat:"#03160d"};
+export const NEON_BUILDING_EXTRUSION_COLOR="#062818";
 export function neonMapPaint(layer){
   const source=String(layer?.["source-layer"]||"").toLowerCase(),id=String(layer?.id||"").toLowerCase(),out=[];
   if(layer.type==="background")out.push(["background-color",MAP_NEON.background]);
@@ -203,7 +207,7 @@ export function applyNeonMapStyle(map){
   if(!map?.getStyle||!map?.setPaintProperty)return 0;let changed=0;
   let layers=[];try{layers=map.getStyle()?.layers||[];}catch{return 0;}
   for(const layer of layers){if(!layer?.id||!map.getLayer?.(layer.id))continue;for(const [property,value] of neonMapPaint(layer)){try{const current=map.getPaintProperty?.(layer.id,property);if(JSON.stringify(current)===JSON.stringify(value))continue;map.setPaintProperty(layer.id,property,value);changed++;}catch{}}}
-  if(!map.__neonSkyApplied&&typeof map.setSky==="function"){try{map.setSky({"sky-color":"#020805","horizon-color":"#0a2a18","fog-color":"#030a06","sky-horizon-blend":.6,"horizon-fog-blend":.6,"fog-ground-blend":.8,"atmosphere-blend":0});map.__neonSkyApplied=true;}catch{}}
+  if(!map.__neonSkyApplied&&typeof map.setSky==="function"){try{map.setSky({"sky-color":"#020805","horizon-color":"#05140c","fog-color":"#020805","sky-horizon-blend":.6,"horizon-fog-blend":.6,"fog-ground-blend":.8,"atmosphere-blend":0});map.__neonSkyApplied=true;}catch{}}
   const view=viewport();if(view&&changed)view.dataset.worldVisualPalette="neon-tactical-v1";
   return changed;
 }

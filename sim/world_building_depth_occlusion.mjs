@@ -1,8 +1,8 @@
 import * as THREE from "three";
-import {neonLineMaterial,NEON_DEBUG_PALETTE} from "./box3d_collider_debug.mjs";
+import {NEON_DEBUG_PALETTE,fatLineMaterial,fatLineGeometry,fatLineSegments} from "./box3d_collider_debug.mjs";
 
 const MAX_PRISMS=512;
-let mesh=null,edges=null,lastHash="",sceneRef=null;
+let mesh=null,edges=null,halo=null,lastHash="",sceneRef=null;
 
 function viewport(){return globalThis.document?.getElementById?.("viewport")||null;}
 function finitePoint(point){return Array.isArray(point)&&point.length>=2&&Number.isFinite(Number(point[0]))&&Number.isFinite(Number(point[1]));}
@@ -66,8 +66,8 @@ export function buildBuildingOutlineGeometry(prisms,{maxPrisms=MAX_PRISMS}={}){
 // Neon-night palette: deep green solids that read as real volumes,
 // outlined by neon-green edges (same Box3D debug-draw line material as everything).
 export const STYLIZED_BUILDING_PALETTE=Object.freeze({
-  walls:["#0d2418","#10291b","#0b2016","#122d1f","#0e2619","#13301f"],
-  roofs:["#17402a","#1a4630","#153a26","#1c4a32"],
+  walls:["#03160d","#04180e","#03140c"],
+  roofs:["#05200f","#062212"],
 });
 const SUN_DIR_2D=(()=>{const x=-.55,y=-.83,l=Math.hypot(x,y);return[x/l,y/l];})();
 const tmpColor=new THREE.Color(),wallColor=new THREE.Color(),roofColor=new THREE.Color();
@@ -89,7 +89,7 @@ export function buildStylizedBuildingGeometry(prisms,{maxPrisms=MAX_PRISMS}={}){
     const plinth=tmpColor.clone();
     for(let i=0;i<raw.length;i++){
       const a=raw[i],b=raw[(i+1)%raw.length],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1,nx=dy/len,ny=-dx/len;
-      const light=.75+.45*Math.max(0,-(nx*SUN_DIR_2D[0]+ny*SUN_DIR_2D[1]))+.06*Math.abs(nx);
+      const light=.9+.25*Math.max(0,-(nx*SUN_DIR_2D[0]+ny*SUN_DIR_2D[1]))+.06*Math.abs(nx);
       const upper=tmpColor.copy(wallColor).multiplyScalar(light),lower=plinth.copy(wallColor).multiplyScalar(light*.78);
       push(a.x,a.y,base,lower);push(b.x,b.y,base,lower);push(b.x,b.y,top,upper);
       push(a.x,a.y,base,lower);push(b.x,b.y,top,upper);push(a.x,a.y,top,upper);
@@ -105,16 +105,21 @@ function ensureMesh(scene){
   if(mesh?.parent)mesh.parent.remove(mesh);mesh?.geometry?.dispose?.();
   const material=new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.FrontSide,depthTest:true,depthWrite:true,transparent:false,toneMapped:false,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:2});
   mesh=new THREE.Mesh(new THREE.BufferGeometry(),material);mesh.name="WORLD_BUILDING_DEPTH_OCCLUDER";mesh.renderOrder=-10000;mesh.frustumCulled=true;mesh.userData.worldBuildingDepthOccluder=true;mesh.userData.worldStylizedBuildings=true;mesh.userData.flightFireIgnore=true;scene.add(mesh);
-  if(edges?.parent)edges.parent.remove(edges);edges?.geometry?.dispose?.();
-  edges=new THREE.LineSegments(new THREE.BufferGeometry(),neonLineMaterial(NEON_DEBUG_PALETTE.building));edges.name="WORLD_BUILDING_NEON_EDGES";edges.userData.neonSkip=true;edges.userData.flightFireIgnore=true;edges.raycast=()=>{};scene.add(edges);
+  // Buildings get the brightest strokes: a 2.4 px core plus a soft additive
+  // 8 px halo (two draw calls for the whole city) for a real neon glow.
+  for(const old of[edges,halo]){if(old?.parent)old.parent.remove(old);old?.geometry?.dispose?.();}
+  const empty=fatLineGeometry([0,0,0,0,0,0]);
+  halo=fatLineSegments(empty,fatLineMaterial(NEON_DEBUG_PALETTE.building,{width:8,opacity:.16,additive:true}));halo.name="WORLD_BUILDING_NEON_HALO";
+  edges=fatLineSegments(empty,fatLineMaterial(NEON_DEBUG_PALETTE.building,{width:2.4}));edges.name="WORLD_BUILDING_NEON_EDGES";
+  for(const lines of[halo,edges]){delete lines.userData.neonEdge;lines.userData.neonSkip=true;scene.add(lines);}
   sceneRef=scene;lastHash="";return mesh;
 }
 
 export function syncWorldBuildingDepthOcclusion(bridge=globalThis.__arondightRealWorld){
   const scene=bridge?.threeScene;if(!scene)return 0;const target=ensureMesh(scene),snapshot=bridge?.buildingCollisionSnapshot,prisms=Array.isArray(snapshot?.prisms)?snapshot.prisms:[],hash=String(snapshot?.hash||"");
-  if(!bridge?.active||!prisms.length){target.visible=false;if(edges)edges.visible=false;const view=viewport();if(view){view.dataset.worldBuildingDepthOccluders="0";view.dataset.worldBuildingOcclusion="inactive";}return 0;}
-  if(hash!==lastHash){const geometry=buildStylizedBuildingGeometry(prisms),outline=buildBuildingOutlineGeometry(prisms);edges.geometry.dispose?.();edges.geometry=outline;target.geometry.dispose?.();target.geometry=geometry;lastHash=hash;target.userData.worldBuildingDepthHash=hash;target.userData.worldBuildingDepthPrisms=geometry.userData.worldBuildingOccluderPrisms||0;}
-  const count=Number(target.userData.worldBuildingDepthPrisms)||0;target.visible=count>0;if(edges)edges.visible=count>0;const view=viewport();if(view){view.dataset.worldBuildingDepthOccluders=String(count);view.dataset.worldBuildingOcclusion=count?"depth-active":"inactive";view.dataset.worldBuildingStyle=count?"neon-solid-outlined-v1":"inactive";}return count;
+  if(!bridge?.active||!prisms.length){target.visible=false;if(edges)edges.visible=false;if(halo)halo.visible=false;const view=viewport();if(view){view.dataset.worldBuildingDepthOccluders="0";view.dataset.worldBuildingOcclusion="inactive";}return 0;}
+  if(hash!==lastHash){const geometry=buildStylizedBuildingGeometry(prisms),outline=fatLineGeometry(buildBuildingOutlineGeometry(prisms));edges.geometry.dispose?.();edges.geometry=outline;halo.geometry=outline;target.geometry.dispose?.();target.geometry=geometry;lastHash=hash;target.userData.worldBuildingDepthHash=hash;target.userData.worldBuildingDepthPrisms=geometry.userData.worldBuildingOccluderPrisms||0;}
+  const count=Number(target.userData.worldBuildingDepthPrisms)||0;target.visible=count>0;if(edges)edges.visible=count>0;if(halo)halo.visible=count>0;const view=viewport();if(view){view.dataset.worldBuildingDepthOccluders=String(count);view.dataset.worldBuildingOcclusion=count?"depth-active":"inactive";view.dataset.worldBuildingStyle=count?"neon-solid-outlined-v1":"inactive";}return count;
 }
 
 export function buildingDepthOcclusionState(){return{mesh,hash:lastHash,scene:sceneRef};}

@@ -11,7 +11,7 @@ import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./a
 
 export const NUKE_HAZARD_VERSION="aftershock+hellfire+geiger-v1";
 const HELL_RADIUS_M=290,RAD_CORE_M=160,RAD_TAU_S=420,HEAT_HOLD_S=35,HEAT_TAU_S=150;
-const zones=[];let installed=false,settings=normalizeAudioSettings(loadAudioSettings()),overlay=null,embers=null,ectx=null,chip=null,nextClickAt=0,clickBuffer=null,clickCtx=null,lastFrame=performance.now(),emberList=[];
+const zones=[];let installed=false,settings=normalizeAudioSettings(loadAudioSettings()),overlay=null,embers=null,ectx=null,chip=null,clickCtx=null,lastFrame=performance.now(),emberList=[];
 
 const viewport=()=>document.getElementById("viewport");
 const bridge=()=>globalThis.__arondightRealWorld||null;
@@ -61,10 +61,28 @@ function ensureChip(){
 }
 
 // ------------------------------------------------------------- geiger
-function click(gain){
-  if(!settings.soundEnabled||settings.fxVolume<=0)return;const ctx=getSharedCombatAudioContext();if(!ctx||ctx.state!=="running")return;
-  if(clickCtx!==ctx){clickCtx=ctx;const n=Math.round(ctx.sampleRate*.006);clickBuffer=ctx.createBuffer(1,n,ctx.sampleRate);const d=clickBuffer.getChannelData(0);for(let i=0;i<n;i++){const t=i/ctx.sampleRate;d[i]=(Math.random()*2-1)*Math.exp(-t*900)+Math.sin(2*Math.PI*3400*t)*Math.exp(-t*1400)*.6;}}
-  const src=ctx.createBufferSource(),amp=ctx.createGain();src.buffer=clickBuffer;amp.gain.value=gain*settings.fxVolume/100;src.connect(amp).connect(ctx.destination);src.onended=()=>{try{src.disconnect();amp.disconnect();}catch{}};src.start();
+// Realistic Geiger–Müller clicks: each discharge is a sharp asymmetric
+// spike that rings the small speaker cone (~1.6–2.4 kHz, ~4 ms) with a faint
+// low body thump. Several variants, random level and pitch, scheduled on the
+// audio clock (not per video frame) with the tube's dead time, so high rates
+// turn into the familiar irregular crackle instead of a robotic buzz.
+let clickVariants=null,nextClickTime=0,geigerBus=null;
+function buildClicks(ctx){
+  const rate=ctx.sampleRate,variants=[];
+  for(let v=0;v<5;v++){const n=Math.round(rate*.012),buf=ctx.createBuffer(1,n,rate),d=buf.getChannelData(0),ring=1600+v*190+Math.random()*120,decay=900+v*120;
+    for(let i=0;i<n;i++){const t=i/rate;const spike=t<.00025?1-t/.00025:0;d[i]=spike*.9+Math.sin(2*Math.PI*ring*t)*Math.exp(-t*decay)*.55+Math.sin(2*Math.PI*(380+v*25)*t)*Math.exp(-t*420)*.18+(Math.random()*2-1)*Math.exp(-t*3000)*.25;}
+    variants.push(buf);}
+  return variants;
+}
+function scheduleClicks(cps){
+  if(!settings.soundEnabled||settings.fxVolume<=0||cps<=.2)return;const ctx=getSharedCombatAudioContext();if(!ctx||ctx.state!=="running")return;
+  if(clickCtx!==ctx){clickCtx=ctx;clickVariants=buildClicks(ctx);geigerBus=ctx.createBiquadFilter();geigerBus.type="highpass";geigerBus.frequency.value=220;geigerBus.connect(ctx.destination);nextClickTime=ctx.currentTime;}
+  const horizon=ctx.currentTime+.12,level=(.06+.05*Math.min(1,cps/30))*settings.fxVolume/100;if(nextClickTime<ctx.currentTime)nextClickTime=ctx.currentTime+Math.random()*.02;
+  while(nextClickTime<horizon){
+    const src=ctx.createBufferSource(),amp=ctx.createGain();src.buffer=clickVariants[(Math.random()*clickVariants.length)|0];src.playbackRate.value=.94+Math.random()*.12;amp.gain.value=level*(.6+Math.random()*.4);
+    src.connect(amp).connect(geigerBus);src.onended=()=>{try{src.disconnect();amp.disconnect();}catch{}};src.start(nextClickTime);
+    nextClickTime+=Math.max(.0025,-Math.log(1-Math.random())/cps);
+  }
 }
 
 function frame(now){
@@ -73,11 +91,10 @@ function frame(now){
     const{heat,dose}=fields(now),foot=onFoot();
     if(ensureOverlay()){const flicker=.86+.14*Math.sin(now*.017)*Math.sin(now*.0053);overlay.style.opacity=String((heat*.8*flicker).toFixed(3));drawEmbers(heat,dt);}
     if(heat>.45&&Math.random()<dt*2.2*heat)shake(.12+.35*heat,260);
-    // Geiger: Poisson clicks, quiet. Rate saturates like a real tube.
-    const cps=Math.min(55,dose*.06);if(cps>.2&&now>=nextClickAt){click(.05+.05*Math.min(1,cps/30));nextClickAt=now+(-Math.log(1-Math.random())/cps)*1000;}
+        const cps=Math.min(80,dose*.06);scheduleClicks(cps);
     const c=ensureChip();if(c){c.style.opacity=cps>.4?"1":"0";const bar=c.querySelector("[data-bar]"),label=c.querySelector("[data-cps]");if(bar){bar.style.width=`${Math.min(100,cps/55*100).toFixed(0)}%`;bar.style.background=cps>25?"#ff2a4d":cps>8?"#ffb020":"#b6ff3d";}if(label)label.textContent=`${cps.toFixed(cps<10?1:0)}`;}
     // Damage: pilot on foot burns and gets irradiated; the drone is largely immune.
-    const vitals=globalThis.__arondightPlayerVitals;if(foot&&dt>0){const dps=heat>.2?28*heat*heat:0,rad=Math.min(6,dose*.004);if(dps+rad>.05)vitals?.player?.damage?.((dps+rad)*dt,"nuke:hazard");}
+    const vitals=globalThis.__arondightPlayerVitals;if(foot&&dt>0&&!globalThis.__arondightPlayerShield?.nukeImmune?.()){const dps=heat>.2?28*heat*heat:0,rad=Math.min(6,dose*.004);if(dps+rad>.05)vitals?.player?.damage?.((dps+rad)*dt,"nuke:hazard");}
     const v=viewport();if(v){const h=heat.toFixed(2),r=cps.toFixed(1);if(v.dataset.nukeHellfire!==h)v.dataset.nukeHellfire=h;if(v.dataset.geigerCps!==r)v.dataset.geigerCps=r;}
   }
   requestAnimationFrame(frame);
@@ -86,6 +103,7 @@ export function installNukeHazardFx(){
   if(installed)return;installed=true;
   window.addEventListener("arondight:nuke-impact",e=>{const p=e?.detail?.position;if(Array.isArray(p))zones.push({x:+p[0]||0,y:+p[1]||0,born:performance.now()});while(zones.length>4)zones.shift();});
   window.addEventListener("arondight:nuke-shockwave-arrival",onArrival);
+  window.addEventListener("arondight:world-reset",()=>{zones.length=0;emberList.length=0;if(overlay)overlay.style.opacity="0";ectx?.clearRect(0,0,embers.width,embers.height);if(chip)chip.style.opacity="0";});
   window.addEventListener(AUDIO_SETTINGS_EVENT,e=>{settings=normalizeAudioSettings(e?.detail||loadAudioSettings());});
   const v=viewport();if(v)v.dataset.nukeHazard=NUKE_HAZARD_VERSION;requestAnimationFrame(frame);
 }

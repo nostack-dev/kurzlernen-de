@@ -10,7 +10,7 @@
 <meta name="x5-orientation" content="landscape">
 <link rel="manifest" href="./drone_simulator.webmanifest">
 <link rel="icon" href="data:,">
-<title>Arondight45 Drone Digital Twin</title>
+<title>OPPENHEIMER</title>
 <style>
 :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:#070a0f;color:#e9eef8}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070a0f}.viewport{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}.panel{position:fixed;z-index:5;top:12px;left:12px;width:360px;max-height:calc(100vh - 24px);overflow:auto;background:#09101bea;border:1px solid #273044;border-radius:14px;padding:14px;backdrop-filter:blur(12px);box-shadow:0 12px 36px #0009}.telemetry{position:fixed;z-index:5;right:12px;top:12px;width:292px;background:#09101bdf;border:1px solid #273044;border-radius:12px;padding:12px;backdrop-filter:blur(10px)}h1{font-size:18px;margin:0 0 4px}.sub{font-size:12px;color:#96a6bd;line-height:1.45;margin:0 0 12px}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}.tabs button.active{background:#175f49;border-color:#38a985}.row{display:flex;gap:8px;margin:8px 0}.row>*{flex:1}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.card{border:1px solid #263148;border-radius:9px;padding:10px;margin:10px 0}.card h2{font-size:12px;margin:0 0 8px;color:#cbd7e8}.help{font-size:11px;color:#8f9fb6;line-height:1.5}.kv{display:grid;grid-template-columns:1fr auto;gap:5px 10px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}.good{color:#5bd9aa!important;border-color:#2d8266!important}.warn{color:#ffd06d!important;border-color:#836b34!important}.bad{color:#ff7185!important;border-color:#8b3443!important}button,input,select,textarea{font:inherit}button,.linkbutton{border:1px solid #3a4964;border-radius:7px;background:#182235;color:#eef4ff;padding:8px;cursor:pointer;text-align:center;text-decoration:none}button:hover,.linkbutton:hover{background:#22304a}button:disabled{opacity:.42;cursor:not-allowed}.primary{background:#175f49;border-color:#2e9b77}label{font-size:11px;color:#aab6c8;display:block}input[type=number],input[type=text],input[type=range],select,textarea{width:100%;background:#0d1420;color:#fff;border:1px solid #303a4e;border-radius:6px;padding:6px}.modebox{padding:8px;border-radius:8px;background:#0c1522;border:1px solid #243149;font-size:12px;line-height:1.45}.mobile-controls{display:none!important}.statusline{font-size:11px;color:#9db0c9;margin-top:6px}.progress{height:7px;background:#111b29;border-radius:999px;overflow:hidden}.progress>div{height:100%;width:0;background:#4fbf92}.remote-card{border-color:#315d73}.remote-card .row{align-items:end}dialog{width:min(94vw,760px);max-height:94vh;overflow:auto;border:1px solid #35435d;border-radius:14px;background:#09101b;color:#eef4ff;padding:16px;box-shadow:0 24px 80px #000c}dialog::backdrop{background:#000c;backdrop-filter:blur(5px)}dialog h2{font-size:18px;margin:0 0 6px}dialog p{font-size:12px;color:#9bacbf;line-height:1.45}.signal{width:100%;min-height:70px;resize:vertical;font:9px ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}.pair-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.pair-step{border:1px solid #263148;border-radius:10px;padding:10px;background:#0d1522;min-width:0}.pair-step b{display:block;margin-bottom:6px}.scanner{position:relative;width:min(100%,340px);aspect-ratio:1;margin:8px auto;border-radius:10px;overflow:hidden;background:#030609;border:1px solid #30405a}.scanner video{width:100%;height:100%;object-fit:cover}.scanner:after{content:"SCAN CONTROLLER OFFER";position:absolute;left:9%;right:9%;top:44%;padding:7px;text-align:center;border:1px solid #fff8;border-radius:8px;background:#0008;font-size:11px;letter-spacing:.08em}.qr{display:block;width:min(100%,340px);aspect-ratio:1;margin:8px auto;background:#fff;border-radius:10px;padding:8px;image-rendering:pixelated}.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}details{margin-top:12px;border-top:1px solid #263148;padding-top:10px}summary{cursor:pointer;color:#8294ad;font-size:11px}@media(max-width:900px){html,body{height:auto;min-height:100%;overflow-x:hidden;overflow-y:auto}.viewport{position:relative;height:48vh;min-height:320px;max-height:520px;inset:auto}.panel,.telemetry{position:relative;inset:auto;width:auto;max-height:none;margin:10px 12px}.telemetry{margin-bottom:max(18px,env(safe-area-inset-bottom))}.desktop-help{display:none}.grid{grid-template-columns:1fr 1fr}.panel{order:1}.telemetry{order:2}body{display:flex;flex-direction:column}.viewport{order:0}.tabs button{padding:10px 4px}.row{flex-wrap:wrap}.kv{font-size:11px}.pair-grid{grid-template-columns:1fr 1fr}}@media(max-height:500px){dialog{padding:10px}.qr,.scanner{width:min(28vh,250px)}}
 
@@ -28,6 +28,14 @@
 #gameMenuStart[disabled]{opacity:.55;cursor:default;animation:none}
 #gameMenuStatus{min-height:1.2em;font-size:11px;letter-spacing:.2em;color:rgba(0,255,156,.6)}
 @keyframes gmPulse{0%,100%{box-shadow:0 0 12px rgba(0,255,156,.3)}50%{box-shadow:0 0 30px rgba(0,255,156,.7)}}
+/* Opening quote: fades in over the running game, then away. Never blocks input. */
+#gameIntroQuote{position:fixed;inset:0;z-index:99000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;pointer-events:none;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;color:#00ff9c;background:radial-gradient(ellipse at 50% 50%,rgba(2,8,5,.55) 0%,rgba(2,8,5,0) 70%);opacity:0}
+#gameIntroQuote[hidden]{display:none!important}
+#gameIntroQuote.play{animation:gqFade 7.2s ease-in-out forwards}
+#gameIntroQuote .gq-name{font-weight:800;font-size:clamp(14px,2.4vw,22px);letter-spacing:.5em;text-shadow:0 0 14px rgba(0,255,156,.6)}
+#gameIntroQuote .gq-quote{max-width:min(86vw,900px);font-size:clamp(17px,3.3vw,34px);line-height:1.35;letter-spacing:.04em;color:#eafff4;text-shadow:0 0 18px rgba(0,255,156,.45)}
+#gameIntroQuote .gq-by{font-size:clamp(10px,1.5vw,14px);letter-spacing:.3em;color:rgba(0,255,156,.75)}
+@keyframes gqFade{0%{opacity:0}16%{opacity:1}70%{opacity:1}100%{opacity:0}}
 /* The engineering station panels are only shown with ?dev=1 */
 body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
 @media(max-width:900px){body:not(.dev-ui) .viewport{position:fixed;inset:0;height:auto;min-height:0;max-height:none}}
@@ -37,11 +45,16 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
 <div id="gameMenu" role="dialog" aria-label="Start game">
   <canvas id="gameMenuBg" aria-hidden="true"></canvas>
   <div class="gm-center">
-    <div class="gm-title">ARONDIGHT<span>45</span></div>
+    <div class="gm-title">OPPENHEIMER</div>
     <div class="gm-sub">DRONE · CITY · NUKE</div>
     <button id="gameMenuStart" type="button" disabled>LOADING</button>
     <div id="gameMenuStatus">PREPARING WORLD</div>
   </div>
+</div>
+<div id="gameIntroQuote" aria-live="polite" hidden>
+  <div class="gq-name">OPPENHEIMER</div>
+  <div class="gq-quote">&ldquo;Now I am become Death, the destroyer of worlds.&rdquo;</div>
+  <div class="gq-by">&mdash; J. Robert Oppenheimer</div>
 </div>
 <script>
 (function(){

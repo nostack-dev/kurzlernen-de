@@ -6,6 +6,8 @@ import "./nuke_volumetric_cloud_v2.mjs";
 import "./nuke_audio.mjs";
 import "./nuke_destruction.mjs";
 import "./nuke_hazard_fx.mjs";
+import "./player_shield.mjs";
+import "./game_reset.mjs";
 import "./music_player.mjs";
 import "./spawn_visibility_guard.mjs";
 
