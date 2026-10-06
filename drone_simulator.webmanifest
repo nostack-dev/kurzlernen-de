@@ -1,10 +1,15 @@
 {
-  "name": "Arondight45 Drone Digital Twin",
-  "short_name": "Arondight45",
+  "name": "OPPENHEIMER",
+  "short_name": "OPPENHEIMER",
+  "id": "./drone_simulator.html",
   "start_url": "./drone_simulator.html",
   "scope": "./",
   "display": "fullscreen",
   "orientation": "landscape",
-  "background_color": "#070a0f",
-  "theme_color": "#070a0f"
+  "background_color": "#020805",
+  "theme_color": "#020805",
+  "icons": [
+    {"src": "./sim/icons/oppenheimer-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "./sim/icons/oppenheimer-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
 }

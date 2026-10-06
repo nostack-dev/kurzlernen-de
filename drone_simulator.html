@@ -9,7 +9,11 @@
 <meta name="screen-orientation" content="landscape">
 <meta name="x5-orientation" content="landscape">
 <link rel="manifest" href="./drone_simulator.webmanifest">
-<link rel="icon" href="data:,">
+<link rel="icon" href="./sim/icons/oppenheimer-192.png">
+<link rel="apple-touch-icon" href="./sim/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="OPPENHEIMER">
+<meta name="application-name" content="OPPENHEIMER">
+<meta name="theme-color" content="#020805">
 <title>OPPENHEIMER</title>
 <style>
 :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:#070a0f;color:#e9eef8}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070a0f}.viewport{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}.panel{position:fixed;z-index:5;top:12px;left:12px;width:360px;max-height:calc(100vh - 24px);overflow:auto;background:#09101bea;border:1px solid #273044;border-radius:14px;padding:14px;backdrop-filter:blur(12px);box-shadow:0 12px 36px #0009}.telemetry{position:fixed;z-index:5;right:12px;top:12px;width:292px;background:#09101bdf;border:1px solid #273044;border-radius:12px;padding:12px;backdrop-filter:blur(10px)}h1{font-size:18px;margin:0 0 4px}.sub{font-size:12px;color:#96a6bd;line-height:1.45;margin:0 0 12px}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}.tabs button.active{background:#175f49;border-color:#38a985}.row{display:flex;gap:8px;margin:8px 0}.row>*{flex:1}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.card{border:1px solid #263148;border-radius:9px;padding:10px;margin:10px 0}.card h2{font-size:12px;margin:0 0 8px;color:#cbd7e8}.help{font-size:11px;color:#8f9fb6;line-height:1.5}.kv{display:grid;grid-template-columns:1fr auto;gap:5px 10px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}.good{color:#5bd9aa!important;border-color:#2d8266!important}.warn{color:#ffd06d!important;border-color:#836b34!important}.bad{color:#ff7185!important;border-color:#8b3443!important}button,input,select,textarea{font:inherit}button,.linkbutton{border:1px solid #3a4964;border-radius:7px;background:#182235;color:#eef4ff;padding:8px;cursor:pointer;text-align:center;text-decoration:none}button:hover,.linkbutton:hover{background:#22304a}button:disabled{opacity:.42;cursor:not-allowed}.primary{background:#175f49;border-color:#2e9b77}label{font-size:11px;color:#aab6c8;display:block}input[type=number],input[type=text],input[type=range],select,textarea{width:100%;background:#0d1420;color:#fff;border:1px solid #303a4e;border-radius:6px;padding:6px}.modebox{padding:8px;border-radius:8px;background:#0c1522;border:1px solid #243149;font-size:12px;line-height:1.45}.mobile-controls{display:none!important}.statusline{font-size:11px;color:#9db0c9;margin-top:6px}.progress{height:7px;background:#111b29;border-radius:999px;overflow:hidden}.progress>div{height:100%;width:0;background:#4fbf92}.remote-card{border-color:#315d73}.remote-card .row{align-items:end}dialog{width:min(94vw,760px);max-height:94vh;overflow:auto;border:1px solid #35435d;border-radius:14px;background:#09101b;color:#eef4ff;padding:16px;box-shadow:0 24px 80px #000c}dialog::backdrop{background:#000c;backdrop-filter:blur(5px)}dialog h2{font-size:18px;margin:0 0 6px}dialog p{font-size:12px;color:#9bacbf;line-height:1.45}.signal{width:100%;min-height:70px;resize:vertical;font:9px ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}.pair-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.pair-step{border:1px solid #263148;border-radius:10px;padding:10px;background:#0d1522;min-width:0}.pair-step b{display:block;margin-bottom:6px}.scanner{position:relative;width:min(100%,340px);aspect-ratio:1;margin:8px auto;border-radius:10px;overflow:hidden;background:#030609;border:1px solid #30405a}.scanner video{width:100%;height:100%;object-fit:cover}.scanner:after{content:"SCAN CONTROLLER OFFER";position:absolute;left:9%;right:9%;top:44%;padding:7px;text-align:center;border:1px solid #fff8;border-radius:8px;background:#0008;font-size:11px;letter-spacing:.08em}.qr{display:block;width:min(100%,340px);aspect-ratio:1;margin:8px auto;background:#fff;border-radius:10px;padding:8px;image-rendering:pixelated}.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}details{margin-top:12px;border-top:1px solid #263148;padding-top:10px}summary{cursor:pointer;color:#8294ad;font-size:11px}@media(max-width:900px){html,body{height:auto;min-height:100%;overflow-x:hidden;overflow-y:auto}.viewport{position:relative;height:48vh;min-height:320px;max-height:520px;inset:auto}.panel,.telemetry{position:relative;inset:auto;width:auto;max-height:none;margin:10px 12px}.telemetry{margin-bottom:max(18px,env(safe-area-inset-bottom))}.desktop-help{display:none}.grid{grid-template-columns:1fr 1fr}.panel{order:1}.telemetry{order:2}body{display:flex;flex-direction:column}.viewport{order:0}.tabs button{padding:10px 4px}.row{flex-wrap:wrap}.kv{font-size:11px}.pair-grid{grid-template-columns:1fr 1fr}}@media(max-height:500px){dialog{padding:10px}.qr,.scanner{width:min(28vh,250px)}}
@@ -41,6 +45,11 @@
 #soundSwitch svg{width:20px;height:20px;display:block}
 #soundSwitch[data-on="0"] .ss-wave{display:none}#soundSwitch[data-on="1"] .ss-x{display:none}
 #soundSwitch[hidden]{display:none!important}
+#installApp{position:fixed;z-index:100001;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));height:32px;display:flex;align-items:center;gap:7px;padding:0 11px;background:rgba(2,10,6,.42);border:1px solid rgba(0,255,156,.42);border-radius:9px;color:rgba(0,255,156,.9);font:600 10px ui-monospace,"SF Mono",Menlo,Consolas,monospace;letter-spacing:.12em;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+#installApp svg{width:14px;height:14px}
+#installApp[hidden],#installHint[hidden]{display:none!important}
+#installHint{position:fixed;z-index:100002;top:calc(max(10px,env(safe-area-inset-top)) + 40px);left:max(10px,env(safe-area-inset-left));max-width:min(80vw,320px);padding:12px 14px;background:rgba(2,10,6,.92);border:1px solid rgba(0,255,156,.42);border-radius:10px;color:rgba(214,255,232,.9);font:500 12px/1.5 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+#installHint b{color:#00ff9c;font-weight:700}
 /* The engineering station panels are only shown with ?dev=1 */
 body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
 @media(max-width:900px){body:not(.dev-ui) .viewport{position:fixed;inset:0;height:auto;min-height:0;max-height:none}}
@@ -56,6 +65,29 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
     <div id="gameMenuStatus">PREPARING WORLD</div>
   </div>
 </div>
+<button id="installApp" type="button" hidden aria-label="Install on home screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>HOME SCREEN</button>
+<div id="installHint" hidden role="note"></div>
+<script>
+// Install as a home-screen app (top left of the menu).
+//  Android/Chrome: native install prompt (beforeinstallprompt).
+//  iOS Safari: no API exists — show the two taps (Share → Add to Home Screen).
+// Hidden when already running as an installed app.
+(function(){
+  var btn=document.getElementById("installApp"),hint=document.getElementById("installHint"),menu=document.getElementById("gameMenu"),deferred=null;
+  var standalone=window.matchMedia("(display-mode: standalone)").matches||window.matchMedia("(display-mode: fullscreen)").matches||navigator.standalone===true;
+  var ios=/iphone|ipad|ipod/i.test(navigator.userAgent)||(/macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
+  if("serviceWorker" in navigator)navigator.serviceWorker.register("./oppenheimer-sw.js",{scope:"./drone_simulator.html"}).catch(function(){});
+  function sync(){btn.hidden=standalone||!menu||menu.hidden||!(deferred||ios);if(btn.hidden)hint.hidden=true;setTimeout(sync,500);}
+  window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferred=e;});
+  window.addEventListener("appinstalled",function(){standalone=true;deferred=null;});
+  btn.addEventListener("pointerdown",function(e){e.stopPropagation();},true);
+  btn.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();
+    if(deferred){deferred.prompt();deferred.userChoice.finally(function(){deferred=null;});return;}
+    if(ios){hint.innerHTML='Tippe unten in Safari auf <b>Teilen</b> &#x2191; und dann auf <b>Zum Home-Bildschirm</b>. OPPENHEIMER startet danach im Vollbild wie eine App.';hint.hidden=!hint.hidden;}});
+  document.addEventListener("click",function(e){if(!hint.hidden&&e.target!==btn&&!btn.contains(e.target))hint.hidden=true;},true);
+  sync();
+})();
+</script>
 <button id="soundSwitch" type="button" aria-label="Sound on/off" data-on="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="ss-wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="ss-x" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>
 <script>
 // Sound on/off (music + effects) — top right in the menu, and in game it
@@ -152,7 +184,7 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
 </script>
 <div class="viewport" id="viewport"></div>
 <section class="panel">
-<h1>Arondight45 Drone Digital Twin</h1><p class="sub">Phone 1 is the simulation/view station. Phone 2 is the dedicated remote controller. In SIM mode the exact shared C++ <code>fc::Runtime</code> executes as WebAssembly. The two phones talk directly over WebRTC; GitHub Pages remains purely static.</p>
+<h1>OPPENHEIMER · engineering</h1><p class="sub">Phone 1 is the simulation/view station. Phone 2 is the dedicated remote controller. In SIM mode the exact shared C++ <code>fc::Runtime</code> executes as WebAssembly. The two phones talk directly over WebRTC; GitHub Pages remains purely static.</p>
 <div class="tabs"><button id="modeSim" class="active">SIM</button><button id="modeHil">HIL</button><button id="modeReplay">REAL LOG</button></div><div id="modeInfo" class="modebox"></div>
 <div class="row"><button id="connect">Controller ready</button><button id="run" class="primary" disabled>Start</button><button id="reset">Reset</button><button id="exportLog">Export run</button></div><div class="statusline" id="status">Loading flight core…</div>
 <div class="card remote-card"><h2>Two-phone control · serverless P2P</h2><label>Input source<select id="inputSource"><option value="remote" selected>REMOTE PHONE · WEBRTC P2P</option><option value="local">LOCAL FALLBACK</option></select></label><div class="row"><button id="remoteConnect">PAIR CONTROLLER</button><a id="controllerLink" class="linkbutton" href="./drone_controller.html" target="_blank" rel="noopener">Open controller page</a></div><div id="remoteStatus" class="statusline">P2P disconnected. Missing/stale control always forces throttle 0 and ARM OFF.</div></div>
