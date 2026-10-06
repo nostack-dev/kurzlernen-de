@@ -1,13 +1,22 @@
 import * as THREE from "three";
 
-const AIRFRAME_COLOR=0xff5a6f;
-const BUILDING_COLOR=0x58e7ff;
-const GROUND_COLOR=0xffd166;
+// Neon arcade palette. The collider debug draw is the reference look for the
+// whole game: neon_line_style.mjs reuses these line materials and edge
+// builders so every object is drawn in the same Box3D debug-draw style.
+export const NEON_DEBUG_PALETTE=Object.freeze({airframe:0x2ef6ff,building:0x18e0ff,ground:0x1f6bff,collider:0xffe14a});
+const AIRFRAME_COLOR=NEON_DEBUG_PALETTE.collider;
+const BUILDING_COLOR=NEON_DEBUG_PALETTE.building;
+const GROUND_COLOR=NEON_DEBUG_PALETTE.ground;
 const DEBUG_RENDER_ORDER=1900;
 const PROPELLER_SWEEP_HALF_THICKNESS_M=.002;
 
 function lineMaterial(color,opacity=.95){
   return new THREE.LineBasicMaterial({color,transparent:true,opacity,depthTest:false,depthWrite:false,toneMapped:false});
+}
+// Depth-tested variant for world rendering: same neon line look, but lines
+// behind solid objects are hidden so the scene stays readable.
+export function neonLineMaterial(color,{opacity=1,depthTest=true}={}){
+  return new THREE.LineBasicMaterial({color,transparent:opacity<1,opacity,depthTest,depthWrite:false,toneMapped:false,fog:false});
 }
 function lineSegments(positions,color,opacity=.95){
   const geometry=new THREE.BufferGeometry();
@@ -44,7 +53,7 @@ function addPropellerSweep(group,point,diameter,color=AIRFRAME_COLOR){
   const sweep=wireObject(new THREE.CylinderGeometry(radius,radius,PROPELLER_SWEEP_HALF_THICKNESS_M*2,24,1,true),color,.72);
   sweep.rotation.x=Math.PI/2;sweep.position.set(...point);sweep.name="BOX3D_PROPELLER_SWEEP";group.add(sweep);
 }
-function prismEdgePositions(prisms){
+export function prismEdgePositions(prisms){
   const positions=[];
   for(const prism of Array.isArray(prisms)?prisms:[]){
     const ring=Array.isArray(prism?.points)?prism.points:[],base=Number(prism?.base),top=Number(prism?.top);

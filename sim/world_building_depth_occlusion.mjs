@@ -1,7 +1,8 @@
 import * as THREE from "three";
+import {neonLineMaterial,prismEdgePositions,NEON_DEBUG_PALETTE} from "./box3d_collider_debug.mjs";
 
 const MAX_PRISMS=512;
-let mesh=null,lastHash="",sceneRef=null;
+let mesh=null,edges=null,lastHash="",sceneRef=null;
 
 function viewport(){return globalThis.document?.getElementById?.("viewport")||null;}
 function finitePoint(point){return Array.isArray(point)&&point.length>=2&&Number.isFinite(Number(point[0]))&&Number.isFinite(Number(point[1]));}
@@ -33,15 +34,22 @@ export function buildBuildingDepthGeometry(prisms,{maxPrisms=MAX_PRISMS}={}){
 function ensureMesh(scene){
   if(mesh&&sceneRef===scene)return mesh;
   if(mesh?.parent)mesh.parent.remove(mesh);mesh?.geometry?.dispose?.();
-  const material=new THREE.MeshBasicMaterial({color:0x000000,side:THREE.DoubleSide,depthTest:true,depthWrite:true,transparent:false});material.colorWrite=false;
-  mesh=new THREE.Mesh(new THREE.BufferGeometry(),material);mesh.name="WORLD_BUILDING_DEPTH_OCCLUDER";mesh.renderOrder=-10000;mesh.frustumCulled=true;mesh.userData.worldBuildingDepthOccluder=true;mesh.userData.flightFireIgnore=true;scene.add(mesh);sceneRef=scene;lastHash="";return mesh;
+  // polygonOffset pushes the occluder's depth slightly back so the neon
+  // building edges drawn exactly on its faces are never swallowed by it.
+  const material=new THREE.MeshBasicMaterial({color:0x000000,side:THREE.DoubleSide,depthTest:true,depthWrite:true,transparent:false,polygonOffset:true,polygonOffsetFactor:2,polygonOffsetUnits:4});material.colorWrite=false;
+  mesh=new THREE.Mesh(new THREE.BufferGeometry(),material);mesh.name="WORLD_BUILDING_DEPTH_OCCLUDER";mesh.renderOrder=-10000;mesh.frustumCulled=true;mesh.userData.worldBuildingDepthOccluder=true;mesh.userData.flightFireIgnore=true;scene.add(mesh);
+  // Neon outlines of the same Box3D collision prisms, drawn with the Box3D
+  // debug-draw line material: what you see is exactly what you collide with.
+  if(edges?.parent)edges.parent.remove(edges);edges?.geometry?.dispose?.();
+  edges=new THREE.LineSegments(new THREE.BufferGeometry(),neonLineMaterial(NEON_DEBUG_PALETTE.building));edges.name="WORLD_BUILDING_NEON_EDGES";edges.userData.neonSkip=true;edges.userData.flightFireIgnore=true;edges.raycast=()=>{};edges.frustumCulled=true;scene.add(edges);
+  sceneRef=scene;lastHash="";return mesh;
 }
 
 export function syncWorldBuildingDepthOcclusion(bridge=globalThis.__arondightRealWorld){
   const scene=bridge?.threeScene;if(!scene)return 0;const target=ensureMesh(scene),snapshot=bridge?.buildingCollisionSnapshot,prisms=Array.isArray(snapshot?.prisms)?snapshot.prisms:[],hash=String(snapshot?.hash||"");
-  if(!bridge?.active||!prisms.length){target.visible=false;const view=viewport();if(view){view.dataset.worldBuildingDepthOccluders="0";view.dataset.worldBuildingOcclusion="inactive";}return 0;}
-  if(hash!==lastHash){const geometry=buildBuildingDepthGeometry(prisms);target.geometry.dispose?.();target.geometry=geometry;lastHash=hash;target.userData.worldBuildingDepthHash=hash;target.userData.worldBuildingDepthPrisms=geometry.userData.worldBuildingOccluderPrisms||0;}
-  const count=Number(target.userData.worldBuildingDepthPrisms)||0;target.visible=count>0;const view=viewport();if(view){view.dataset.worldBuildingDepthOccluders=String(count);view.dataset.worldBuildingOcclusion=count?"depth-active":"inactive";}return count;
+  if(!bridge?.active||!prisms.length){target.visible=false;if(edges)edges.visible=false;const view=viewport();if(view){view.dataset.worldBuildingDepthOccluders="0";view.dataset.worldBuildingOcclusion="inactive";}return 0;}
+  if(hash!==lastHash){const geometry=buildBuildingDepthGeometry(prisms);target.geometry.dispose?.();target.geometry=geometry;lastHash=hash;target.userData.worldBuildingDepthHash=hash;target.userData.worldBuildingDepthPrisms=geometry.userData.worldBuildingOccluderPrisms||0;const lines=new THREE.BufferGeometry(),positions=prismEdgePositions(prisms.slice(0,MAX_PRISMS));lines.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));if(positions.length)lines.computeBoundingSphere();edges.geometry.dispose?.();edges.geometry=lines;}
+  const count=Number(target.userData.worldBuildingDepthPrisms)||0;target.visible=count>0;if(edges)edges.visible=count>0;const view=viewport();if(view){view.dataset.worldBuildingDepthOccluders=String(count);view.dataset.worldBuildingOcclusion=count?"depth-active":"inactive";}return count;
 }
 
-export function buildingDepthOcclusionState(){return{mesh,hash:lastHash,scene:sceneRef};}
+export function buildingDepthOcclusionState(){return{mesh,edges,hash:lastHash,scene:sceneRef};}

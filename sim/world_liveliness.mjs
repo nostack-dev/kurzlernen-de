@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import {applyNeonMapStyle} from "./neon_line_style.mjs";
 import {VS_FX_EVENT} from "./lan_vs.mjs";
 import {buildTrafficRoute,collectRenderedDrivableRoads} from "./world_traffic_routes.mjs";
 import {spawnWorldPersonRagdoll} from "./world_person_ragdoll.mjs";
@@ -154,7 +155,7 @@ function updateRecord(record,epochSec,now,dt){
   const route=routeFor(record);if(!route){record.group.visible=false;return;}const speed=record.speed,offset=record.kind==="person"?record.side:carLane(route,record),p=sampleRoute(route,record.phase*route.length*2+epochSec*speed,offset);if(!p){record.group.visible=false;return;}record.group.position.set(p.x,p.y,record.kind==="person"?.01*Math.sin(epochSec*6+record.index):0);record.group.rotation.set(0,0,p.yaw);record.group.visible=true;
 }
 
-function styleMap(){const b=bridge(),map=b?.map;if(!b?.active||!map?.getStyle||!map?.setPaintProperty)return;if(mapStyledFor===map&&map.__worldLivelinessPaletteApplied)return;let changed=0;for(const layer of map.getStyle()?.layers||[]){if(!layer?.id||!map.getLayer?.(layer.id))continue;const id=String(layer.id).toLowerCase(),source=String(layer["source-layer"]||"").toLowerCase();try{if(layer.type==="fill-extrusion"&&(source==="building"||id.includes("building"))){map.setPaintProperty(layer.id,"fill-extrusion-color",["interpolate",["linear"],["coalesce",["get","render_height"],["get","height"],8],0,"#d8d2c8",18,"#cbc4ba",55,"#b9b7b2",140,"#a7adb1"]);map.setPaintProperty(layer.id,"fill-extrusion-opacity",.98);map.setPaintProperty(layer.id,"fill-extrusion-vertical-gradient",true);changed++;}else if(layer.type==="fill"&&(id.includes("water")||source.includes("water"))){map.setPaintProperty(layer.id,"fill-color","#78a9c3");changed++;}else if(layer.type==="fill"&&/(park|grass|wood|forest)/.test(`${id} ${source}`)){map.setPaintProperty(layer.id,"fill-color",id.includes("park")?"#8fb78c":"#95ad86");changed++;}}catch{}}map.__worldLivelinessPaletteApplied=true;mapStyledFor=map;const v=viewport();if(v){v.dataset.worldVisualPalette="natural-v2";v.dataset.worldVisualPaletteLayers=String(changed);}}
+function styleMap(){const b=bridge(),map=b?.map;if(!b?.active||!map?.getStyle||!map?.setPaintProperty)return;if(mapStyledFor===map&&map.__worldLivelinessPaletteApplied)return;const changed=applyNeonMapStyle(map);map.__worldLivelinessPaletteApplied=true;mapStyledFor=map;const v=viewport();if(v){v.dataset.worldVisualPalette="neon-tactical-v1";v.dataset.worldVisualPaletteLayers=String(changed);}}
 
 function nodeRecord(hit){for(let n=hit?.object;n;n=n.parent){const id=String(n.userData?.worldLifeId||"");if(id&&lifeById.has(id))return lifeById.get(id);}return null;}
 function sendDeath(record){const s=bridge()?.vsSession;try{s?.sendFx?.({type:LIFE_FX_TYPE,id:`${record.id}-${Date.now().toString(36)}`,objectId:record.id,kind:record.kind,p:[record.group.position.x,record.group.position.y,record.group.position.z],yaw:record.group.rotation.z});}catch{}}

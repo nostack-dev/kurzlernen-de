@@ -5,11 +5,15 @@ import {FPS_WORLD_MAP_MAX_PITCH_DEG} from "./camera_pitch_contract.mjs";
 import {fpvTargetDistanceMeters,forwardTarget} from "./world_camera_math.mjs";
 import {LanVsFinder,discoveryRoomKeys} from "./lan_vs.mjs";
 import {VsPoseTimeline,normalizeVsOrigin,chooseCanonicalVsOrigin,poseMatchesVsFrame,vsFrameId,vsOriginKey} from "./vs_pose_sync.mjs";
+import {applyNeonMapStyle,NEON_BUILDING_EXTRUSION_COLOR} from "./neon_line_style.mjs";
 import {buildingFootprintsFromFeatures,buildingFootprintHash,buildingCollisionPrismsFromFootprints} from "./world_building_collisions.mjs";
 
 const OPENFREEMAP_STYLE="https://tiles.openfreemap.org/styles/liberty";
 const WORLD_IMAGERY_SOURCE_ID="arondight45-world-imagery";
 const WORLD_IMAGERY_LAYER_ID="arondight45-world-imagery-raster";
+// Chase/free-look cameras never dip under the map ground plane (it would show
+// the underside of the map and slice every object at z=0).
+const WORLD_CHASE_CAMERA_FLOOR_M=.15;
 const WORLD_IMAGERY_TILE_URL="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 const WORLD_IMAGERY_ATTRIBUTION="Imagery © Esri, Vantor, Earthstar Geographics, and the GIS User Community";
 const WORLD_IMAGERY_MAX_ZOOM=19;
@@ -29,7 +33,7 @@ const WORLD_FLIGHT_PIXEL_RATIO=1.25;
 const WORLD_GRID_STORAGE="arondight45WorldGridV1";
 const WORLD_KEEP_LOOK_STORAGE="arondight45WorldKeepLookV1";
 const WORLD_MINIMAP_AXIS_LOCK_STORAGE="arondight45WorldMinimapAxisLockV1";
-const WORLD_IMAGERY_STORAGE="arondight45WorldImageryV1";
+const WORLD_IMAGERY_STORAGE="arondight45WorldImageryV2";
 const WORLD_MINIMAP_QUERY_MS=1000;
 const WORLD_MINIMAP_DRAW_MS=125;
 const WORLD_MINIMAP_MAX_FEATURES=80;
@@ -72,7 +76,7 @@ function imageryTileUrl(zoom,x,y){return WORLD_IMAGERY_TILE_URL.replace("{z}",St
 
 class RealWorldBridge{
   constructor(){
-    this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.flightPixelRatio=null;this.flightShadowEnabled=null;this.mapPixelRatio=WORLD_MAP_PIXEL_RATIO;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";this.lastMapSyncMs=-Infinity;this.lastMapView=null;this.realFrames=0;this.presentationFrameSerial=0;this.lastMapSyncFrameSerial=-1;this.mapUpdates=0;this.gridEnabled=loadBool(WORLD_GRID_STORAGE,true);this.keepLookOrientation=loadBool(WORLD_KEEP_LOOK_STORAGE,false);this.minimapAxisLocked=loadBool(WORLD_MINIMAP_AXIS_LOCK_STORAGE,true);this.imageryEnabled=loadBool(WORLD_IMAGERY_STORAGE,true);this.lookYawDeg=0;this.lookPitchDeg=0;this.lookDragging=false;this.gamepadLookActive=false;this.lookSnapping=false;this.lookPointer=null;this.lookFrameMs=performance.now();this.lookHud=null;this.lookReadout=null;this.minimapTitle=null;this.mapLegend=null;this.minimapCanvas=null;this.minimapCtx=null;this.minimapFeatures=[];this.minimapLayerIds=[];this.minimapImageryTiles=new Map();this.minimapLastQueryMs=-Infinity;this.minimapLastDrawMs=-Infinity;this.minimapQueries=0;this.minimapExpanded=false;this.minimapZoom=1;this.minimapPointers=new Map();this.minimapPinch=null;this.lastMinimapTapMs=0;this.viewFovDeg=loadCameraSettings().fpvFovDeg;this.lookSurfaceInstalled=false;this.worldShotPoint=new THREE.Vector3();this.worldShotNormal=new THREE.Vector3(0,0,1);this.worldShotHit={point:this.worldShotPoint,worldNormal:this.worldShotNormal};this.worldShotQueries=0;this.airframe=null;this.perfMode="nominal";this.perfWindowStart=performance.now();this.perfFrames=0;this.perfGoodWindows=0;this.flightFps=60;
+    this.active=false;this.loading=false;this.map=null;this.originLon=null;this.originLat=null;this.threeRenderer=null;this.threeScene=null;this.threeCamera=null;this.flightPixelRatio=null;this.flightShadowEnabled=null;this.mapPixelRatio=WORLD_MAP_PIXEL_RATIO;this.geoContainer=null;this.worldCard=null;this.savedBackground=null;this.savedFog=null;this.trainingObjects=new Set();this.frameVisibility=new Map();this.lastLocation=null;this.lastViewportSize="";this.lastMapSyncMs=-Infinity;this.lastMapView=null;this.realFrames=0;this.presentationFrameSerial=0;this.lastMapSyncFrameSerial=-1;this.mapUpdates=0;this.gridEnabled=loadBool(WORLD_GRID_STORAGE,true);this.keepLookOrientation=loadBool(WORLD_KEEP_LOOK_STORAGE,false);this.minimapAxisLocked=loadBool(WORLD_MINIMAP_AXIS_LOCK_STORAGE,true);this.imageryEnabled=loadBool(WORLD_IMAGERY_STORAGE,false);this.lookYawDeg=0;this.lookPitchDeg=0;this.lookDragging=false;this.gamepadLookActive=false;this.lookSnapping=false;this.lookPointer=null;this.lookFrameMs=performance.now();this.lookHud=null;this.lookReadout=null;this.minimapTitle=null;this.mapLegend=null;this.minimapCanvas=null;this.minimapCtx=null;this.minimapFeatures=[];this.minimapLayerIds=[];this.minimapImageryTiles=new Map();this.minimapLastQueryMs=-Infinity;this.minimapLastDrawMs=-Infinity;this.minimapQueries=0;this.minimapExpanded=false;this.minimapZoom=1;this.minimapPointers=new Map();this.minimapPinch=null;this.lastMinimapTapMs=0;this.viewFovDeg=loadCameraSettings().fpvFovDeg;this.lookSurfaceInstalled=false;this.worldShotPoint=new THREE.Vector3();this.worldShotNormal=new THREE.Vector3(0,0,1);this.worldShotHit={point:this.worldShotPoint,worldNormal:this.worldShotNormal};this.worldShotQueries=0;this.airframe=null;this.perfMode="nominal";this.perfWindowStart=performance.now();this.perfFrames=0;this.perfGoodWindows=0;this.flightFps=60;
     this.vsSession=null;this.vsPeerMesh=null;this.vsConnected=false;this.vsStarting=false;this.vsSharedOrigin=null;this.vsLocalOriginCandidate=null;this.vsSharedWorldAttempted=false;this.vsWorldFromMate=false;this.vsPeerTimeline=new VsPoseTimeline();this.vsPeerLastPoseMs=-Infinity;this.vsLocalPoseSample=null;this.vsCombatHud=null;this.vsLocalHealth=100;this.vsPeerHealth=100;this.vsKills=0;this.vsDeaths=0;this.vsCombatSeq=0;this.vsSeenHits=new Set();this.vsPendingHits=new Set();this.vsRespawnTimer=0;this.vsLocalDead=false;this.vsPeerDead=false;this.vsExplosion=null;this.vsExplosionStartedMs=-Infinity;this.installUi();this.installLookHud();this.installFreeLookSurface();this.installVsUi();window.addEventListener(CAMERA_SETTINGS_EVENT,event=>{const value=Number(event.detail?.fpvFovDeg);if(Number.isFinite(value)){this.viewFovDeg=clamp(value,50,120);this.minimapLastDrawMs=-Infinity;}});document.addEventListener("fullscreenchange",()=>{this.minimapLastDrawMs=-Infinity;this.renderLookHud();this.drawMinimap(performance.now());});
     this.buildingSourceId=null;this.buildingCollisionSink=null;this.buildingCollisionSnapshot=Object.freeze({hash:"",footprintCount:0,prismCount:0,prisms:[]});this.buildingCollisionDirty=true;this.buildingCollisionLastSyncMs=-Infinity;this.buildingCollisionLastCenter=[Infinity,Infinity];this.buildingCollisionRevisions=0;this.cameraCollisionResolver=null;this.presentationCameraProvider=null;
   }
@@ -88,7 +92,7 @@ class RealWorldBridge{
       <div id="realWorldStatus" class="statusline">TRAINING RANGE · local metric world</div>`;
     const remote=document.querySelector(".remote-card");panel.insertBefore(card,remote||panel.children[3]||null);this.worldCard=card;
     const style=document.createElement("style");style.textContent=`
-      #geoViewport{position:absolute;inset:0;z-index:0;overflow:hidden;background:linear-gradient(180deg,#081a2d 0%,#103453 48%,#173d5c 68%,#142638 100%)}
+      #geoViewport{position:absolute;inset:0;z-index:0;overflow:hidden;background:linear-gradient(180deg,#05030f 0%,#120728 46%,#04060d 70%,#04060d 100%)}
       #geoViewport .maplibregl-map,#geoViewport .maplibregl-canvas-container{position:absolute;inset:0;width:100%!important;height:100%!important;overflow:hidden}
       #geoViewport .maplibregl-canvas{position:absolute;left:0;top:0;width:100%!important;height:100%!important}
       #geoViewport .geo-attribution{position:absolute;right:4px;bottom:3px;z-index:4;padding:2px 5px;border-radius:4px;background:#07101acc;color:#d8e0ea;font:8px/1.25 system-ui,-apple-system,sans-serif;pointer-events:none}
@@ -227,9 +231,9 @@ class RealWorldBridge{
     if(typeof this.cameraCollisionResolver!=="function"||!anchor||!camera?.position)return false;let result=null;try{result=this.cameraCollisionResolver([anchor.x,anchor.y,anchor.z],[camera.position.x,camera.position.y,camera.position.z]);}catch{return false;}const position=result?.position;if(Array.isArray(position)&&position.length===3&&position.every(Number.isFinite))camera.position.set(...position);const viewport=$("viewport");if(viewport){viewport.dataset.cameraCollision=result?.collided?"blocked":"clear";viewport.dataset.cameraCollisionHitDistanceM=Number(result?.hitDistanceM||0).toFixed(3);}return Boolean(result?.collided);
   }
   applyLookCamera(scene,camera){
-    this.stepLook(performance.now());const mode=$("viewport")?.dataset.cameraMode||"follow",airframe=this.airframeFor(scene);if(!airframe)return;const target=airframe.position.clone();if(mode!=="fpv")target.z+=.10;const hasLook=Math.abs(this.lookYawDeg)>=.001||Math.abs(this.lookPitchDeg)>=.001;if(!hasLook){this.constrainCameraToPhysics(target,camera);return;}const yaw=THREE.MathUtils.degToRad(this.lookYawDeg),pitch=THREE.MathUtils.degToRad(this.lookPitchDeg),worldUp=new THREE.Vector3(0,0,1);
+    this.stepLook(performance.now());const mode=$("viewport")?.dataset.cameraMode||"follow",airframe=this.airframeFor(scene);if(!airframe)return;const target=airframe.position.clone();if(mode!=="fpv")target.z+=.10;const hasLook=Math.abs(this.lookYawDeg)>=.001||Math.abs(this.lookPitchDeg)>=.001;if(!hasLook){this.constrainCameraToPhysics(target,camera);if(mode!=="fpv"&&camera.position.z<WORLD_CHASE_CAMERA_FLOOR_M)camera.position.z=WORLD_CHASE_CAMERA_FLOOR_M;return;}const yaw=THREE.MathUtils.degToRad(this.lookYawDeg),pitch=THREE.MathUtils.degToRad(this.lookPitchDeg),worldUp=new THREE.Vector3(0,0,1);
     if(mode==="fpv"){const dir=new THREE.Vector3();camera.getWorldDirection(dir).normalize();const up=camera.up.clone().normalize(),yawQ=new THREE.Quaternion().setFromAxisAngle(worldUp,-yaw);dir.applyQuaternion(yawQ);up.applyQuaternion(yawQ);const right=new THREE.Vector3().crossVectors(dir,up).normalize(),pitchQ=new THREE.Quaternion().setFromAxisAngle(right,pitch);dir.applyQuaternion(pitchQ);up.applyQuaternion(pitchQ);camera.up.copy(up.normalize());this.constrainCameraToPhysics(target,camera);camera.lookAt(camera.position.clone().addScaledVector(dir,4));return;}
-    const relative=camera.position.clone().sub(target);relative.applyAxisAngle(worldUp,-yaw);const radial=relative.clone().normalize(),right=new THREE.Vector3().crossVectors(radial,worldUp);if(right.lengthSq()>.0001)relative.applyAxisAngle(right.normalize(),pitch);camera.position.copy(target).add(relative);this.constrainCameraToPhysics(target,camera);camera.up.copy(worldUp);camera.lookAt(target);
+    const relative=camera.position.clone().sub(target);relative.applyAxisAngle(worldUp,-yaw);const radial=relative.clone().normalize(),right=new THREE.Vector3().crossVectors(radial,worldUp);if(right.lengthSq()>.0001)relative.applyAxisAngle(right.normalize(),pitch);camera.position.copy(target).add(relative);this.constrainCameraToPhysics(target,camera);if(camera.position.z<WORLD_CHASE_CAMERA_FLOOR_M)camera.position.z=WORLD_CHASE_CAMERA_FLOOR_M;camera.up.copy(worldUp);camera.lookAt(target);
   }
   configureMinimapLayers(){
     if(!this.map)return;const layers=this.map.getStyle()?.layers||[],allowed=new Set(["water","waterway","landcover","landuse","transportation"]);this.minimapLayerIds=layers.filter(layer=>layer.id==="arondight45-buildings-3d"||(layer.type!=="symbol"&&allowed.has(String(layer["source-layer"]||"").toLowerCase()))).map(layer=>layer.id);
@@ -289,17 +293,8 @@ class RealWorldBridge{
   hideTrainingWorld(scene){this.identifyTrainingObjects(scene);this.frameVisibility.clear();for(const child of this.trainingObjects){this.frameVisibility.set(child,child.visible);if(child.isGridHelper){child.visible=this.gridEnabled;continue;}child.visible=false;}for(const child of scene.children){if(child.userData?.flightFireDecal&&!child.userData.flightFireWorld){this.frameVisibility.set(child,child.visible);child.visible=false;}}}
   restoreTrainingWorld(){for(const[child,visible]of this.frameVisibility)child.visible=visible;this.frameVisibility.clear();}
   applyFlightPalette(){
-    if(!this.map)return 0;let changed=0;const layers=this.map.getStyle()?.layers||[];
-    const set=(id,property,value)=>{try{this.map.setPaintProperty(id,property,value);changed++;}catch{}};
-    for(const layer of layers){const source=String(layer["source-layer"]||"").toLowerCase(),id=String(layer.id||"").toLowerCase();
-      if(layer.type==="background"){set(layer.id,"background-color","#243440");continue;}
-      if(layer.type==="fill"&&source==="water"){set(layer.id,"fill-color","#086a9d");set(layer.id,"fill-opacity",1);continue;}
-      if(layer.type==="line"&&(source==="waterway"||source==="water")){set(layer.id,"line-color","#5bc4ed");set(layer.id,"line-opacity",1);continue;}
-      if(layer.type==="fill"&&(source==="landcover"||source==="landuse")){const green=/park|wood|forest|grass|garden|pitch|meadow|farmland|scrub/.test(id),industry=/industrial|commercial|retail|parking/.test(id);set(layer.id,"fill-color",green?"#2f7044":industry?"#645751":"#46565f");set(layer.id,"fill-opacity",.96);continue;}
-      if(layer.type==="fill"&&source==="building"){set(layer.id,"fill-color","#c7d5dc");set(layer.id,"fill-opacity",.88);continue;}
-      if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);set(layer.id,"line-color",major?"#ffd34f":mid?"#eee4a8":"#c9d2d7");set(layer.id,"line-opacity",1);set(layer.id,"line-width",major?3.6:mid?2.6:1.5);continue;}
-      if(layer.type==="line"&&source==="boundary"){set(layer.id,"line-color","#92a8b7");set(layer.id,"line-opacity",.8);}
-    }
+    // Neon tactical map (see neon_line_style.mjs): dark ground, neon roads.
+    if(!this.map)return 0;const changed=applyNeonMapStyle(this.map);
     const viewport=$("viewport");if(viewport)viewport.dataset.worldPaletteLayers=String(changed);return changed;
   }
   stripFlightClutter(){
@@ -336,7 +331,7 @@ class RealWorldBridge{
     if(!sourceId){console.warn("OpenFreeMap style has no vector source for 3D buildings");return;}
     this.buildingSourceId=sourceId;this.buildingCollisionDirty=true;
     const before=(style.layers||[]).find(layer=>layer.type==="symbol")?.id;
-    const height=["coalesce",["to-number",["get","render_height"]],8],layer={id:"arondight45-buildings-3d",type:"fill-extrusion",source:sourceId,"source-layer":"building",minzoom:14,paint:{"fill-extrusion-color":["interpolate",["linear"],height,0,"#6f7d7b",12,"#9aa7a4",35,"#c5cfcc",80,"#edf0ec"],"fill-extrusion-height":height,"fill-extrusion-base":["coalesce",["to-number",["get","render_min_height"]],0],"fill-extrusion-opacity":.78,"fill-extrusion-vertical-gradient":true}};
+    const height=["coalesce",["to-number",["get","render_height"]],8],layer={id:"arondight45-buildings-3d",type:"fill-extrusion",source:sourceId,"source-layer":"building",minzoom:14,paint:{"fill-extrusion-color":NEON_BUILDING_EXTRUSION_COLOR,"fill-extrusion-height":height,"fill-extrusion-base":["coalesce",["to-number",["get","render_min_height"]],0],"fill-extrusion-opacity":1,"fill-extrusion-vertical-gradient":false}};
     try{if(before)this.map.addLayer(layer,before);else this.map.addLayer(layer);}catch(error){console.warn("OpenFreeMap 3D building layer unavailable:",error);}
   }
   addVisualShotImpact(x,y,rect,ray){

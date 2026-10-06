@@ -624,7 +624,16 @@ function applyPlayerCameraMode({persistPreference=false}={}){
 }
 function setCameraMode(next,{persist=true}={}){playerCameraModePolicy.setDronePreference(next);return applyPlayerCameraMode({persistPreference:persist});}
 function setPlayerCameraMode(mode){playerCameraModePolicy.setPlayerMode(mode);return applyPlayerCameraMode();}
+// Depth range per camera mode. near=.01 against far=1500 left ~150000:1 depth
+// ratio: distant geometry z-fought and flickered, and edge lines shimmered
+// against their fills. Chase cameras sit behind a swept Box3D sphere (radius
+// .09 m + .08 m margin) that is wider than a .06 m near plane's corners, so
+// walls can no longer slice into view. FPV keeps a short near plane because the
+// lens sits a few millimetres in front of the airframe.
+const CAMERA_NEAR_BY_MODE={fpv:.02,follow:.06,third:.06};
+function applyCameraNear(mode){const near=CAMERA_NEAR_BY_MODE[mode]??.06;if(Math.abs(camera.near-near)>1e-6){camera.near=near;camera.updateProjectionMatrix();}const viewport=$("viewport");if(viewport&&viewport.dataset.cameraNearM!==String(near))viewport.dataset.cameraNearM=String(near);}
 function updateCamera(pose,now=performance.now()){
+  applyCameraNear(cameraMode);
   const position=pose.position,q=pose.quaternion,velocity=pose.velocity,dt=clamp((now-cameraFrameMs)/1000,0,.1);cameraFrameMs=now;
   const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize(),showFpvSelfCamera=cameraMode!=="fpv";
   if(physics.fpvCameraBody)physics.fpvCameraBody.visible=showFpvSelfCamera;if(physics.fpvCameraLens)physics.fpvCameraLens.visible=showFpvSelfCamera;const fpvViewport=$("viewport");if(fpvViewport)fpvViewport.dataset.fpvSelfCameraVisible=showFpvSelfCamera?"1":"0";
