@@ -17,7 +17,7 @@ ${R} #viewport :is(button,[role="button"],a.linkbutton),${R} :is(#mobileGameplay
 ${R} :is(#playerModeButton,#driveModeButton,#gtaVehicleButton,#lanVsButton,#wantedEmpButton,#droneWeaponToggle,#footWeaponToggle,#footFire,#soloArm,#soloReset,#soloExit,#soloWorld,#soloLogbook,#soloCamera,#mobileGameplayReset,#mobileGameplayMultiplayer,#gameExitButton,#gameplayContractButton,#soundToggle){
   background:var(--ng-fill)!important;background-image:none!important;color:var(--ng)!important;border:1px solid var(--ng-dim)!important;border-radius:9px!important;
   box-shadow:none!important;text-shadow:none!important;filter:none!important;
-  font-family:var(--ng-font)!important;font-weight:600!important;letter-spacing:.12em!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+  font-family:var(--ng-font)!important;font-weight:600!important;letter-spacing:.07em!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 ${R} #viewport :is(button,[role="button"]):active{background:rgba(0,255,156,.16)!important}
 ${R} #viewport button[disabled]{opacity:.4!important;box-shadow:none!important}
 /* Panels and HUD read-outs */
@@ -37,11 +37,25 @@ ${R} :is(.phone-settings-dialog,dialog) :is(button,select,input[type=number],inp
 ${R} :is(.phone-settings-dialog,dialog) input[type=range],${R} :is(.phone-settings-dialog,dialog) input[type=checkbox]{accent-color:var(--ng)!important}
 `;
 
+// Labels must always fit their button (monospace is wide, and some labels
+// change at runtime — e.g. ARM → CALIBRATING…): shrink the font of any
+// overflowing control step by step, and restore it when there is room again.
+const MIN_FONT_PX=7;
+function fitLabels(){
+  for(const el of document.querySelectorAll("#viewport button,#mobileGameplayDock button,#soloTopbar button,#gameExitButton")){
+    if(!el.offsetParent||!el.clientWidth)continue;const text=el.textContent;
+    if(el.dataset.ngFitText!==text){el.style.removeProperty("font-size");el.dataset.ngFitText=text;}
+    let size=parseFloat(getComputedStyle(el).fontSize)||12,guard=0;
+    while(el.scrollWidth>el.clientWidth+1&&size>MIN_FONT_PX&&guard++<12){size-=.75;el.style.setProperty("font-size",`${size}px`,"important");}
+  }
+  setTimeout(fitLabels,500);
+}
 let installed=false;
 export function installNeonUiTheme(){
   if(installed||typeof document==="undefined")return;installed=true;
   document.documentElement.classList.add("neon-line-style");
   const style=document.createElement("style");style.dataset.neonUiTheme=NEON_UI_THEME_VERSION;style.textContent=CSS;
   (document.head||document.documentElement).appendChild(style);
+  setTimeout(fitLabels,300);
 }
 installNeonUiTheme();

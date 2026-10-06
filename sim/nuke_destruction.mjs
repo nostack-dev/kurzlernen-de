@@ -218,7 +218,12 @@ function onWorldExplosion(event){
   if(touched)setData("worldDestructibleHits",(Number(viewport()?.dataset.worldDestructibleHits)||0)+touched);
 }
 
-function onImpact(event){
+// The drone is shaken hard but protected from destruction from the moment a
+// nuke goes off until the blast, debris and fires have calmed down.
+let droneProtectedUntil=-Infinity;
+globalThis.__arondightNukeShake={droneProtected:()=>performance.now()<droneProtectedUntil};
+window.addEventListener?.("arondight:nuke-launch",()=>{droneProtectedUntil=Math.max(droneProtectedUntil,performance.now()+40000);});
+function onImpact(event){droneProtectedUntil=performance.now()+40000;
   const p=event?.detail?.position,scene=bridge()?.threeScene;if(!Array.isArray(p)||!scene)return;const center=new THREE.Vector3(+p[0]||0,+p[1]||0,0);
   secondaryLeft=MAX_SECONDARY;spawnCrater(scene,center);ensureDebris(scene);
   const buildings=planBuildings(center),actors=planActors(scene,center);planInstancedProps(scene,center);events.sort((a,b)=>a.at-b.at);
@@ -229,8 +234,13 @@ function runEvent(scene,e){
   if(e.type==="building")collapseBuilding(scene,e.b,e.center);
   else if(e.type==="prop")flattenProp(scene,e);
   else if(e.type==="actor")hitActor(scene,e);
-  else if(e.type==="local"){const t=e.target;if(t.kind==="player"&&globalThis.__arondightPlayerShield?.nukeImmune?.())return;if(t.kind==="drone"){const amount=Math.min(35,8*I);if(amount>1)t.model?.damage?.(amount,"explosion:nuke");}else{const amount=I>=1?1000:260*I;if(amount>2)t.model?.damage?.(amount,"explosion:nuke");}}
-  else if(e.type==="rigid"){const rigid=globalThis.__arondightWorldRigidBodies,q=rigid?.pose?.(e.record.id)?.position;if(!q)return;tmp.set(q[0]-e.center.x,q[1]-e.center.y,0);if(tmp.lengthSq()<.01)tmp.set(1,0,0);tmp.normalize();const mass=Math.max(.1,Number(e.record.massKg)||1),dv=e.record.drone?Math.min(7,4*I):Math.min(70,28*I);rigid.applyImpulse?.(e.record.id,[tmp.x*mass*dv,tmp.y*mass*dv,mass*dv*.55],{point:q});}
+  else if(e.type==="local"){const t=e.target;if(t.kind==="player"&&globalThis.__arondightPlayerShield?.nukeImmune?.())return;if(t.kind==="drone"){/* protected: shaken, never destroyed */}else{const amount=I>=1?1000:260*I;if(amount>2)t.model?.damage?.(amount,"explosion:nuke");}}
+  else if(e.type==="rigid"){const rigid=globalThis.__arondightWorldRigidBodies,q=rigid?.pose?.(e.record.id)?.position;if(!q)return;tmp.set(q[0]-e.center.x,q[1]-e.center.y,0);if(tmp.lengthSq()<.01)tmp.set(1,0,0);tmp.normalize();const mass=Math.max(.1,Number(e.record.massKg)||1);
+    if(e.record.drone){// Heavy buffeting: a hard first punch, then a burst of turbulent kicks.
+      const punch=Math.min(9,2.5+4*I);rigid.applyImpulse?.(e.record.id,[tmp.x*mass*punch,tmp.y*mass*punch,mass*punch*.6],{point:q});
+      const now=performance.now();for(let k=1;k<=9;k++)events.push({at:now+k*rand(160,320),type:"buffet",record:e.record,strength:Math.min(1.6,.4+I)*(1-k/11)});events.sort((a,b)=>a.at-b.at);}
+    else{const dv=Math.min(70,28*I);rigid.applyImpulse?.(e.record.id,[tmp.x*mass*dv,tmp.y*mass*dv,mass*dv*.55],{point:q});}}
+  else if(e.type==="buffet"){const rigid=globalThis.__arondightWorldRigidBodies,q=rigid?.pose?.(e.record.id)?.position;if(!q)return;const mass=Math.max(.1,Number(e.record.massKg)||1),k=3.2*e.strength;rigid.applyImpulse?.(e.record.id,[rand(-1,1)*mass*k,rand(-1,1)*mass*k,rand(-.4,1)*mass*k],{point:[q[0]+rand(-.08,.08),q[1]+rand(-.08,.08),q[2]]});}
   else if(e.type==="police"){if(I<.15)return;const hits=Math.min(6,Math.ceil(I*4));for(let i=0;i<hits;i++)bridge()?.registerPoliceHit?.({object:e.drone.hitbox||e.drone.root,point:e.drone.root.position.clone()});}
   else if(e.type==="peer"){if(I<.15)return;const hits=Math.min(6,Math.ceil(I*4));for(let i=0;i<hits;i++)bridge()?.registerVsHit?.({object:e.peer,point:e.peer.position.clone()});}
 }
