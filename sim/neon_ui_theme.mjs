@@ -6,7 +6,9 @@
 
 export const NEON_UI_THEME_VERSION="clean-neon-green-ui-v2";
 
-const R="html.neon-line-style";
+// The :not(#…) chain lifts specificity above the per-module id rules (some
+// use two ids + !important, which kept e.g. RESET red).
+const R="html.neon-line-style:not(#ng-a):not(#ng-b):not(#ng-c)";
 const CSS=`
 ${R}{--ng:#00ff9c;--ng-dim:rgba(0,255,156,.55);--ng-glow:rgba(0,255,156,.28);--ng-fill:rgba(2,10,6,.62);--ng-text:#d6ffe8;--ng-font:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
 /* One clean style for every control: near-black fill, single neon-green

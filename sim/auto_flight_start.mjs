@@ -10,9 +10,14 @@ function requestStartupLocation(){
   ));
 }
 
-// Surface the browser GPS permission immediately. Flight startup never waits for
-// this promise, so denied GPS or an offline network cannot block local SIM.
-const startupLocation=requestStartupLocation();
+// Game start menu (markup lives in drone_simulator.html so it shows before
+// the bundle loads). The GPS permission is requested on START — a user
+// gesture — and flight startup never waits for it, so denied GPS or an
+// offline network cannot block the game. Automated browsers (webdriver) and
+// ?autostart=1 skip the menu exactly like before.
+const AUTOSTART=Boolean(navigator.webdriver)||/[?&]autostart=1/.test(location.search);
+const menu=$("gameMenu"),startButton=$("gameMenuStart"),menuStatus=$("gameMenuStatus");
+function setMenuStatus(text){if(menuStatus)menuStatus.textContent=text;}
 
 async function waitForBridge(timeoutMs=30000){
   const started=performance.now();
@@ -24,7 +29,7 @@ async function waitForBridge(timeoutMs=30000){
   throw Error("Simulator/WORLD bridge did not become ready");
 }
 
-const bridge=await waitForBridge();
+const bridge=await waitForBridge().catch(error=>{const b=document.getElementById("gameMenuStart"),st=document.getElementById("gameMenuStatus");if(b){b.disabled=false;b.textContent="RETRY";b.onclick=()=>location.reload();}if(st)st.textContent="LOAD FAILED";throw error;});
 
 function markWorldStartup(source){const viewport=$("viewport");if(viewport)viewport.dataset.autoWorldLocationSource=source;}
 
@@ -82,5 +87,13 @@ async function autoWorld(locationResultPromise){
   }catch(error){trainingFallback(`TRAINING RANGE · WORLD unavailable · ${error?.message||error}`);}
 }
 
-launchDefaultFlight();
-void autoWorld(startupLocation);
+let worldRequested=false;
+function startGame(){
+  if(menu)menu.hidden=true;launchDefaultFlight();window.dispatchEvent(new CustomEvent("arondight:game-start"));
+  if(!worldRequested){worldRequested=true;void autoWorld(requestStartupLocation());}
+}
+function showMenu(){if(!menu)return;menu.hidden=false;if(startButton){startButton.disabled=false;startButton.textContent="START";}setMenuStatus("READY");}
+// Leaving the flight returns to the menu instead of the engineering panel.
+$("soloExit")?.addEventListener("click",()=>setTimeout(showMenu,0));
+if(AUTOSTART||!menu||!startButton){if(menu)menu.hidden=true;startGame();}
+else{startButton.disabled=false;startButton.textContent="START";setMenuStatus("READY");startButton.addEventListener("click",startGame);}

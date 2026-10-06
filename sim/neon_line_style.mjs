@@ -75,13 +75,22 @@ function chainProgram(material,key,inject){
 const TEXTURE_SLOTS=["map","emissiveMap","aoMap","lightMap","bumpMap","normalMap","displacementMap","roughnessMap","metalnessMap","specularMap","envMap","gradientMap","matcap","clearcoatMap","sheenColorMap"];
 // No textures anywhere: the look is flat color + neon edges only.
 function stripTextures(material){let changed=false;for(const slot of TEXTURE_SLOTS)if(material[slot]){material[slot]=null;changed=true;}if(material.vertexColors&&material.userData?.neonKeepVertexColors!==true){}if(changed)material.needsUpdate=true;return changed;}
-function darkFill(material,color){
+// The drone is drawn flat (no lighting at all): a clean dark silhouette with
+// neon edges, exactly like the reference look. Other objects keep a darkened
+// version of their own shading so the city stays readable.
+const FLAT_FILL=new THREE.Color(0x03160d);
+function darkFill(material,color,{flat=false}={}){
   if(processedMaterials.has(material)||material.isShaderMaterial||material.colorWrite===false)return;processedMaterials.add(material);
-  const tint=new THREE.Color(color).multiplyScalar(.06);material.userData.neonTint=tint;
-  chainProgram(material,"neonFill",shader=>{shader.uniforms.neonTint={value:tint};shader.fragmentShader="uniform vec3 neonTint;\n"+shader.fragmentShader.replace("#include <dithering_fragment>","#include <dithering_fragment>\n\tgl_FragColor.rgb = gl_FragColor.rgb * 0.6 + neonTint;");});
+  const tint=flat?FLAT_FILL.clone():new THREE.Color(color).multiplyScalar(.06);material.userData.neonTint=tint;
+  chainProgram(material,flat?"neonFlat":"neonFill",shader=>{shader.uniforms.neonTint={value:tint};shader.fragmentShader="uniform vec3 neonTint;\n"+shader.fragmentShader.replace("#include <dithering_fragment>",flat?"#include <dithering_fragment>\n\tgl_FragColor.rgb = neonTint;":"#include <dithering_fragment>\n\tgl_FragColor.rgb = gl_FragColor.rgb * 0.6 + neonTint;");});
   // Push fills back in depth so the edge lines drawn on their faces always win.
   material.polygonOffset=true;material.polygonOffsetFactor=1;material.polygonOffsetUnits=2;
   stripTextures(material);
+}
+// Translucent drone parts (prop discs, markers) become faint neon green.
+function neonTranslucent(material,color){
+  if(processedMaterials.has(material)||material.isShaderMaterial)return;processedMaterials.add(material);
+  stripTextures(material);if(material.color)material.color.set(color);if(material.emissive)material.emissive.set(0);material.opacity=Math.min(material.opacity??1,.35);material.transparent=true;material.toneMapped=false;material.needsUpdate=true;
 }
 function edgesFor(geometry){
   let edges=edgeCache.get(geometry);if(edges!==undefined)return edges;
@@ -111,7 +120,8 @@ function convert(mesh){
   // Instanced crowds/traffic can't carry per-instance edge children: they get
   // the same stylized fill. Transparent FX (fire, smoke) keep their own look.
   if(mesh.isInstancedMesh||mesh.isSkinnedMesh){for(const material of materials)if(!isTransparentFx(material))darkFill(material,color);else stripTextures(material);}
-  else if(allFx){for(const material of materials)stripTextures(material);}
+  else if(allFx&&category!=="airframe"){for(const material of materials)stripTextures(material);}
+  else if(category==="airframe"){for(const material of materials)if(isTransparentFx(material))neonTranslucent(material,color);else darkFill(material,color,{flat:true});attachEdges(mesh,color);}
   else{for(const material of materials)if(!isTransparentFx(material))darkFill(material,color);attachEdges(mesh,color);}
   mesh.userData.neonStyled=NEON_STYLE_VERSION;mesh.userData.neonMaterial=mesh.material;mesh.userData.neonCategory=category;converted++;return true;
 }
