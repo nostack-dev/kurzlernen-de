@@ -15,6 +15,7 @@ const WORLD_IMAGERY_LAYER_ID="arondight45-world-imagery-raster";
 // Chase/free-look cameras never dip under the map ground plane (it would show
 // the underside of the map and slice every object at z=0).
 const WORLD_CHASE_CAMERA_FLOOR_M=.15;
+const WORLD_MAP_DATA_SYNC_MS=400,WORLD_MAP_DATA_ZOOM=15.6;
 const WORLD_IMAGERY_TILE_URL="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 const WORLD_IMAGERY_ATTRIBUTION="Imagery © Esri, Vantor, Earthstar Geographics, and the GIS User Community";
 const WORLD_IMAGERY_MAX_ZOOM=19;
@@ -96,6 +97,7 @@ class RealWorldBridge{
       #geoViewport{position:absolute;inset:0;z-index:0;overflow:hidden;background:linear-gradient(180deg,#020805 0%,#06200f 46%,#030a06 70%,#030a06 100%)}
       #geoViewport .maplibregl-map,#geoViewport .maplibregl-canvas-container{position:absolute;inset:0;width:100%!important;height:100%!important;overflow:hidden}
       #geoViewport .maplibregl-canvas{position:absolute;left:0;top:0;width:100%!important;height:100%!important}
+      #viewport[data-world-map-sync-mode="data-only-topdown-v1"] #geoViewport .maplibregl-canvas{opacity:0!important}
       #geoViewport .geo-attribution{position:absolute;right:4px;bottom:3px;z-index:4;padding:2px 5px;border-radius:4px;background:#07101acc;color:#d8e0ea;font:8px/1.25 system-ui,-apple-system,sans-serif;pointer-events:none}
       #worldLookHud{display:none;position:absolute;z-index:4;right:max(10px,var(--solo-safe-right,env(safe-area-inset-right)));top:max(48px,calc(var(--solo-safe-top,env(safe-area-inset-top)) + 42px));width:116px;height:116px;border:1px solid #8cdcff88;border-radius:16px;background:#071522ee;box-shadow:0 8px 26px #0008,inset 0 0 22px #2f9bd322;touch-action:none;user-select:none;overflow:hidden;color:#dff7ff}
       body.solo-flight #viewport[data-world-mode="real"] #worldLookHud{display:block}
@@ -395,6 +397,21 @@ class RealWorldBridge{
     if(this.flightFps<WORLD_FPS_CRITICAL){this.perfGoodWindows=0;this.setPerfMode("critical");return;}if(this.flightFps<WORLD_FPS_CONSTRAINED){this.perfGoodWindows=0;this.setPerfMode("constrained");return;}if(this.flightFps>WORLD_FPS_RECOVER){this.perfGoodWindows++;if(this.perfGoodWindows>=3)this.setPerfMode("nominal");}else this.perfGoodWindows=0;
   }
   syncMapCamera(camera,frameSerial=null,cameraModeOverride=null){
+    // Performance: the city is drawn by three.js (neon solids + edges) and
+    // the MapLibre canvas is invisible in the neon look, so MapLibre only
+    // works as a data source (building footprints, roads, minimap). Instead
+    // of re-rendering a second WebGL view in full 3D every frame, it gets a
+    // cheap top-down camera over the player a few times per second — enough
+    // to keep the surrounding vector tiles loaded and queryable.
+    if(this.mapDataOnly!==false){
+      if(!this.active||!this.map||!Number.isFinite(this.originLon)||!Number.isFinite(this.originLat))return;
+      const now=performance.now();if(now-this.lastMapSyncMs<WORLD_MAP_DATA_SYNC_MS)return;this.lastMapSyncMs=now;
+      const center=metersToLngLat(this.originLon,this.originLat,camera.position.x,camera.position.y),last=this.lastMapView?.center;
+      if(last&&Math.abs(last[0]-center[0])<1e-6&&Math.abs(last[1]-center[1])<1e-6)return;
+      const view={center,zoom:WORLD_MAP_DATA_ZOOM,pitch:0,bearing:0};this.lastMapView=view;this.map.jumpTo(view);this.mapUpdates++;
+      const viewport=$("viewport");if(viewport){viewport.dataset.worldMapSyncMode="data-only-topdown-v1";viewport.dataset.worldMapUpdates=String(this.mapUpdates);}
+      return;
+    }
     if(!this.active||!this.map||!Number.isFinite(this.originLon)||!Number.isFinite(this.originLat))return;
     const now=performance.now(),viewport=$("viewport"),cameraMode=cameraModeOverride||viewport.dataset.cameraMode||"follow",forceMode=cameraMode!==(viewport.dataset.worldCameraMode||""),fpv=cameraMode==="fpv";
     if(forceMode&&viewport.dataset.worldCameraMode)this.resetLook(true);

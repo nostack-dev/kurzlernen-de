@@ -77,11 +77,17 @@ function stripTextures(material){let changed=false;for(const slot of TEXTURE_SLO
 // The drone is drawn flat (no lighting at all): a clean dark silhouette with
 // neon edges, exactly like the reference look. Other objects keep a darkened
 // version of their own shading so the city stays readable.
-const FLAT_FILL=new THREE.Color(0x03160d);
+// Raw output value (the flat path returns before colorspace conversion, so
+// store #03160d as-is rather than converting it to linear).
+const FLAT_FILL=new THREE.Color().setRGB(0x03/255,0x16/255,0x0d/255);
 function darkFill(material,color,{flat=false}={}){
   if(processedMaterials.has(material)||material.isShaderMaterial||material.colorWrite===false)return;processedMaterials.add(material);
   const tint=flat?FLAT_FILL.clone():new THREE.Color(color).multiplyScalar(.06);material.userData.neonTint=tint;
-  chainProgram(material,flat?"neonFlat":"neonFill",shader=>{shader.uniforms.neonTint={value:tint};shader.fragmentShader="uniform vec3 neonTint;\n"+shader.fragmentShader.replace("#include <dithering_fragment>",flat?"#include <dithering_fragment>\n\tgl_FragColor.rgb = neonTint;":"#include <dithering_fragment>\n\tgl_FragColor.rgb = gl_FragColor.rgb * 0.6 + neonTint;");});
+  chainProgram(material,flat?"neonFlat2":"neonFill",shader=>{shader.uniforms.neonTint={value:tint};
+    // Flat fills return before any lighting/PBR work: the shader compiler
+    // drops the rest, so a flat-filled MeshStandard costs as little as Basic.
+    if(flat)shader.fragmentShader="uniform vec3 neonTint;\n"+shader.fragmentShader.replace(/void\s+main\s*\(\s*\)\s*\{/,"void main() {\n\tgl_FragColor = vec4( neonTint, 1.0 );\n\treturn;");
+    else shader.fragmentShader="uniform vec3 neonTint;\n"+shader.fragmentShader.replace("#include <dithering_fragment>","#include <dithering_fragment>\n\tgl_FragColor.rgb = gl_FragColor.rgb * 0.6 + neonTint;");});
   // Push fills back in depth so the edge lines drawn on their faces always win.
   material.polygonOffset=true;material.polygonOffsetFactor=1;material.polygonOffsetUnits=2;
   stripTextures(material);

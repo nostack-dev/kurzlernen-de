@@ -65,35 +65,42 @@ function renderStep(sampleRate,variant){
   return finish(data,.72);
 }
 
-// Chiptune (NES/SNES-style) jingles: pulse waves with 12.5/25/50% duty,
-// a triangle bass, hard 1/60 s envelope steps and 4-bit amplitude
-// quantization — so rewards sit in the same world as the 8-bit soundtrack.
+// Reward / fail cues composed to sit inside the soundtrack ("8 Bits Only":
+// E♭ minor, ~176 BPM): notes from E♭ minor, timed on 16ths of that tempo,
+// a soft rounded pulse (filtered, no clicks) over a quiet sine sub, and a
+// dotted-8th echo — dark tactical HUD confirmations, not cartoon jingles.
 const NOTE=n=>440*Math.pow(2,(n-69)/12);
-function pulse(phase,duty){return(phase%1)<duty?1:-1;}
-function triangle(phase){const p=phase%1;return p<.5?4*p-1:3-4*p;}
-function quantize(v){return Math.round(Math.max(-1,Math.min(1,v))*7.5)/7.5;}
-function renderChip(sampleRate,{notes,step,duty,bass=null,tail=1}){
-  const steps=notes.length,duration=steps*step+.18*tail,data=new Float32Array(Math.ceil(duration*sampleRate));let lead=0,low=0;
-  for(let i=0;i<data.length;i++){
-    const t=i/sampleRate,index=Math.min(steps-1,Math.floor(t/step)),local=t-index*step,note=notes[index];
-    const frame=Math.floor(local*60),env=note===null?0:Math.max(0,1-frame*.09-(index===steps-1?Math.max(0,local-step)*3:0));
-    if(note!==null)lead+=NOTE(note)/sampleRate;const leadV=note===null?0:pulse(lead,duty)*env*.55;
-    let bassV=0;if(bass){const b=bass[Math.min(bass.length-1,Math.floor(t/(step*2)))];if(b!==null){low+=NOTE(b)/sampleRate;bassV=triangle(low)*.42*Math.max(0,1-Math.max(0,t-steps*step)*5);}}
-    data[i]=quantize(leadV+bassV)*Math.min(1,(duration-t)/.03);
+const SIXTEENTH=60/176/4;
+function renderCue(sampleRate,{notes,lengths=null,cutoff=2600,echo=.3,level=.75}){
+  const total=notes.reduce((sum,_,i)=>sum+(lengths?.[i]??1),0)*SIXTEENTH,tail=SIXTEENTH*6,dry=new Float32Array(Math.ceil((total+tail)*sampleRate));
+  let t0=0;
+  for(let n=0;n<notes.length;n++){
+    const len=(lengths?.[n]??1)*SIXTEENTH,note=notes[n];if(note===null){t0+=len;continue;}
+    const f=NOTE(note),start=Math.floor(t0*sampleRate),dur=len*1.6,count=Math.floor(dur*sampleRate);let phase=0,sub=0,lp=0;
+    for(let i=0;i<count&&start+i<dry.length;i++){
+      const t=i/sampleRate,env=Math.min(1,t/.006)*Math.exp(-t/(len*.75));
+      phase+=f/sampleRate;sub+=f*.5/sampleRate;
+      const pulse=(phase%1)<.5?1:-1,alpha=Math.min(1,2*Math.PI*cutoff*(1-.5*t/dur)/sampleRate);lp+=alpha*(pulse-lp);
+      dry[start+i]+=(lp*.55+Math.sin(2*Math.PI*sub)*.28)*env;
+    }
+    t0+=len;
   }
-  return finish(data,.78);
+  const data=new Float32Array(dry.length),delay=Math.floor(SIXTEENTH*3*sampleRate);
+  for(let i=0;i<data.length;i++){const e1=i>=delay?dry[i-delay]*echo:0,e2=i>=2*delay?dry[i-2*delay]*echo*echo:0;data[i]=dry[i]+e1+e2;}
+  const fade=Math.floor(.04*sampleRate);for(let i=0;i<fade;i++)data[data.length-1-i]*=i/fade;
+  return finish(data,level);
 }
-// Original jingles (not taken from any existing game).
+// E♭ minor: E♭ F G♭ A♭ B♭ C♭ D♭ (63 65 66 68 70 71 73 / 75 …)
 function renderReward(sampleRate,variant){
   const v=variant%3;
-  if(v===0)return renderChip(sampleRate,{notes:[76,83],step:.06,duty:.25});                       // pickup blip: E5→B5
-  if(v===1)return renderChip(sampleRate,{notes:[67,71,74,79,83,86],step:.045,duty:.125,bass:[43,47,50]}); // hit-confirm arpeggio up
-  return renderChip(sampleRate,{notes:[72,76,79,84,null,84,88],step:.055,duty:.25,bass:[48,52,55,60],tail:1.6}); // streak fanfare
+  if(v===0)return renderCue(sampleRate,{notes:[70,75],lengths:[1,2],cutoff:2400});                 // B♭→E♭: clean confirm
+  if(v===1)return renderCue(sampleRate,{notes:[63,66,70,75],lengths:[1,1,1,2],cutoff:2800});        // E♭m arpeggio: hit/kill
+  return renderCue(sampleRate,{notes:[66,70,73,78,null,82],lengths:[1,1,1,1,1,3],cutoff:3200,echo:.36}); // streak: G♭ B♭ D♭ G♭ … B♭
 }
 function renderFail(sampleRate,variant){
   const v=variant%2;
-  if(v===0)return renderChip(sampleRate,{notes:[71,67,64,59],step:.07,duty:.5,bass:[47,40]});
-  return renderChip(sampleRate,{notes:[64,63,62,61,60,59],step:.05,duty:.125,bass:[40,35,28]});
+  if(v===0)return renderCue(sampleRate,{notes:[70,69,66],lengths:[1,1,3],cutoff:1400,echo:.22,level:.7});   // B♭→A→G♭: denied
+  return renderCue(sampleRate,{notes:[63,58,51],lengths:[1,1,4],cutoff:1100,echo:.2,level:.72});           // falling E♭ octaves: lost
 }
 
 const renderers={shot:renderShot,hit:renderHit,damage:renderDamage,scream:renderScream,explosion:renderExplosion,step:renderStep,reward:renderReward,fail:renderFail};

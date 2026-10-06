@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import {NEON_DEBUG_PALETTE,fatLineMaterial,fatLineGeometry,fatLineSegments} from "./box3d_collider_debug.mjs";
 
-const MAX_PRISMS=512;
+const MAX_PRISMS=900;
 let mesh=null,edges=null,halo=null,lastHash="",sceneRef=null;
 
 function viewport(){return globalThis.document?.getElementById?.("viewport")||null;}

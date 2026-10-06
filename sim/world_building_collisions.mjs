@@ -1,11 +1,11 @@
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const finitePoint=point=>Array.isArray(point)&&point.length>=2&&Number.isFinite(Number(point[0]))&&Number.isFinite(Number(point[1]));
 
-export const WORLD_BUILDING_COLLISION_RADIUS_M=220;
-export const WORLD_BUILDING_COLLISION_MAX_FOOTPRINTS=192;
+export const WORLD_BUILDING_COLLISION_RADIUS_M=340;
+export const WORLD_BUILDING_COLLISION_MAX_FOOTPRINTS=320;
 export const WORLD_BUILDING_COLLISION_MAX_VERTICES=64;
 export const WORLD_BUILDING_COLLISION_MAX_CONVEX_VERTICES=24;
-export const WORLD_BUILDING_COLLISION_MAX_PRISMS=512;
+export const WORLD_BUILDING_COLLISION_MAX_PRISMS=900;
 
 function signedArea(ring){let area=0;for(let i=0,j=ring.length-1;i<ring.length;j=i++)area+=ring[j][0]*ring[i][1]-ring[i][0]*ring[j][1];return area*.5;}
 function centroid(ring){

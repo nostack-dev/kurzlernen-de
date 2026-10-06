@@ -202,7 +202,7 @@ for(const marker of ["navigator.geolocation.getCurrentPosition","enableHighAccur
   requireText("sim/real_world_bootstrap.mjs",marker);
 for(const dirty of ["Box3DFactory","PhysicsModel","applyForces(","motorOmega","motorTorque","propTorque","fc::Runtime","StateController","b3Body_ApplyForce","b3World_Step","new MapLibreMap({container:this.minimap"])
   forbidText("sim/real_world_bootstrap.mjs",dirty,`real-world render adapter duplicated flight physics/control: ${dirty}`);
-for(const marker of ["WORLD_BUILDING_COLLISION_RADIUS_M=220","WORLD_BUILDING_COLLISION_MAX_FOOTPRINTS=192","WORLD_BUILDING_COLLISION_MAX_VERTICES=64","WORLD_BUILDING_COLLISION_MAX_CONVEX_VERTICES=24","WORLD_BUILDING_COLLISION_MAX_PRISMS=512","geometry?.type===\"Polygon\"","geometry?.type===\"MultiPolygon\"","canonicalRingKey","holes","render_min_height","render_height"])
+for(const marker of ["WORLD_BUILDING_COLLISION_RADIUS_M=340","WORLD_BUILDING_COLLISION_MAX_FOOTPRINTS=320","WORLD_BUILDING_COLLISION_MAX_VERTICES=64","WORLD_BUILDING_COLLISION_MAX_CONVEX_VERTICES=24","WORLD_BUILDING_COLLISION_MAX_PRISMS=900","geometry?.type===\"Polygon\"","geometry?.type===\"MultiPolygon\"","canonicalRingKey","holes","render_min_height","render_height"])
   requireText("sim/world_building_collisions.mjs",marker);
 for(const marker of ["createWorldBuildingCollisionBodies","b3CreateHull","b3CreateHullShape","b3DestroyHull","b3DestroyBody","categoryBits=1n","maskBits=6n"])
   requireText("sim/world_building_collision_physics.mjs",marker);
