@@ -63,11 +63,11 @@ export function buildBuildingOutlineGeometry(prisms,{maxPrisms=MAX_PRISMS}={}){
 // what you see is exactly what you collide with. Shading is baked into vertex
 // colors (sun-facing walls brighter, darker plinth, light roofs), so the
 // material is unlit MeshBasic: one draw call, no lights, cheap on phones.
-// Neon-night palette: deep blue/violet solids that read as real volumes,
-// outlined by cyan edges (same Box3D debug-draw line material as everything).
+// Neon-night palette: deep green solids that read as real volumes,
+// outlined by neon-green edges (same Box3D debug-draw line material as everything).
 export const STYLIZED_BUILDING_PALETTE=Object.freeze({
-  walls:["#1b2445","#1f2140","#18283f","#22203f","#1a2238","#24284a"],
-  roofs:["#2a3560","#2f2c5c","#26395a","#332f60"],
+  walls:["#0d2418","#10291b","#0b2016","#122d1f","#0e2619","#13301f"],
+  roofs:["#17402a","#1a4630","#153a26","#1c4a32"],
 });
 const SUN_DIR_2D=(()=>{const x=-.55,y=-.83,l=Math.hypot(x,y);return[x/l,y/l];})();
 const tmpColor=new THREE.Color(),wallColor=new THREE.Color(),roofColor=new THREE.Color();

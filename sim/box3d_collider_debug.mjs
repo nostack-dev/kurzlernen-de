@@ -3,7 +3,7 @@ import * as THREE from "three";
 // Neon arcade palette. The collider debug draw is the reference look for the
 // whole game: neon_line_style.mjs reuses these line materials and edge
 // builders so every object is drawn in the same Box3D debug-draw style.
-export const NEON_DEBUG_PALETTE=Object.freeze({airframe:0x2ef6ff,building:0x18e0ff,ground:0x1f6bff,collider:0xffe14a});
+export const NEON_DEBUG_PALETTE=Object.freeze({airframe:0x7dffbe,building:0x19ff8c,ground:0x0f9e58,collider:0xffe14a});
 const AIRFRAME_COLOR=NEON_DEBUG_PALETTE.collider;
 const BUILDING_COLOR=NEON_DEBUG_PALETTE.building;
 const GROUND_COLOR=NEON_DEBUG_PALETTE.ground;

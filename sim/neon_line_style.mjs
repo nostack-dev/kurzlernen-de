@@ -16,16 +16,16 @@ import {neonLineMaterial,NEON_DEBUG_PALETTE} from "./box3d_collider_debug.mjs";
 export const NEON_STYLE_VERSION="box3d-debug-neon-lines-v1";
 export const NEON_PALETTE=Object.freeze({
   airframe:NEON_DEBUG_PALETTE.airframe,
-  self:0x39ff7a,
+  self:0xb6ff3d,
   vehicle:0xffb020,
   person:0xff3df2,
   hostile:0xff2a4d,
   projectile:0xfff36b,
   wildlife:0xd8f7ff,
-  track:0x00ff9c,
-  world:0x2ef6ff,
+  track:0x19ff8c,
+  world:0x19ff8c,
   ground:NEON_DEBUG_PALETTE.ground,
-  background:0x03040a,
+  background:0x020805,
 });
 const EDGE_THRESHOLD_DEG=28;
 const MAX_EDGE_SOURCE_TRIANGLES=40000;
@@ -152,8 +152,8 @@ installNeonLineStyle();
 // Other modules (liveliness palette, traffic "opaque buildings") repaint the
 // map once or periodically; the enforcer below re-applies the neon paint only
 // where a value actually differs, so the result is stable and cheap.
-const MAP_NEON={background:"#04060d",land:"#070a14",green:"#061410",industry:"#0b0a16",water:"#061a3a",waterLine:"#1f6bff",roadMajor:"#ff3df2",roadMid:"#2ef6ff",roadMinor:"#1a7fa6",boundary:"#5a3cff",buildingFlat:"#0a1022"};
-export const NEON_BUILDING_EXTRUSION_COLOR=["interpolate",["linear"],["coalesce",["to-number",["get","render_height"]],8],0,"#090f20",30,"#0d1430",90,"#15123a"];
+const MAP_NEON={background:"#030a06",land:"#06100b",green:"#08180f",industry:"#0a120d",water:"#04131a",waterLine:"#0f7a6a",roadMajor:"#19ff8c",roadMid:"#11c46c",roadMinor:"#0b7a44",boundary:"#0f5e3a",buildingFlat:"#081a10"};
+export const NEON_BUILDING_EXTRUSION_COLOR=["interpolate",["linear"],["coalesce",["to-number",["get","render_height"]],8],0,"#07140d",30,"#0a1c12",90,"#0e2418"];
 export function neonMapPaint(layer){
   const source=String(layer?.["source-layer"]||"").toLowerCase(),id=String(layer?.id||"").toLowerCase(),out=[];
   if(layer.type==="background")out.push(["background-color",MAP_NEON.background]);
@@ -170,7 +170,7 @@ export function applyNeonMapStyle(map){
   if(!map?.getStyle||!map?.setPaintProperty)return 0;let changed=0;
   let layers=[];try{layers=map.getStyle()?.layers||[];}catch{return 0;}
   for(const layer of layers){if(!layer?.id||!map.getLayer?.(layer.id))continue;for(const [property,value] of neonMapPaint(layer)){try{const current=map.getPaintProperty?.(layer.id,property);if(JSON.stringify(current)===JSON.stringify(value))continue;map.setPaintProperty(layer.id,property,value);changed++;}catch{}}}
-  if(!map.__neonSkyApplied&&typeof map.setSky==="function"){try{map.setSky({"sky-color":"#05030f","horizon-color":"#2a0c4a","fog-color":"#04060d","sky-horizon-blend":.6,"horizon-fog-blend":.6,"fog-ground-blend":.8,"atmosphere-blend":0});map.__neonSkyApplied=true;}catch{}}
+  if(!map.__neonSkyApplied&&typeof map.setSky==="function"){try{map.setSky({"sky-color":"#020805","horizon-color":"#0a2a18","fog-color":"#030a06","sky-horizon-blend":.6,"horizon-fog-blend":.6,"fog-ground-blend":.8,"atmosphere-blend":0});map.__neonSkyApplied=true;}catch{}}
   const view=viewport();if(view&&changed)view.dataset.worldVisualPalette="neon-tactical-v1";
   return changed;
 }
