@@ -14,7 +14,7 @@ ${R}{--ng:rgba(0,255,156,.88);--ng-dim:rgba(0,255,156,.42);--ng-glow:rgba(0,255,
 /* One clean style for every control: near-black fill, single neon-green
    hairline, green text, faint glow. No gradients, textures or blur. */
 ${R} #viewport :is(button,[role="button"],a.linkbutton),${R} :is(#mobileGameplayDock,#soloTopbar,#cameraModes,#desktopDroneWeaponSwitch) button,${R} .phone-settings-button,
-${R} :is(#playerModeButton,#driveModeButton,#gtaVehicleButton,#lanVsButton,#wantedEmpButton,#droneWeaponToggle,#footWeaponToggle,#footFire,#soloArm,#soloReset,#soloExit,#soloWorld,#soloLogbook,#soloCamera,#mobileGameplayReset,#mobileGameplayMultiplayer,#gameplayContractButton,#soundToggle){
+${R} :is(#playerModeButton,#driveModeButton,#gtaVehicleButton,#lanVsButton,#wantedEmpButton,#droneWeaponToggle,#footWeaponToggle,#footFire,#soloArm,#soloReset,#soloExit,#soloWorld,#soloLogbook,#soloCamera,#mobileGameplayReset,#mobileGameplayMultiplayer,#gameExitButton,#gameplayContractButton,#soundToggle){
   background:var(--ng-fill)!important;background-image:none!important;color:var(--ng)!important;border:1px solid var(--ng-dim)!important;border-radius:9px!important;
   box-shadow:none!important;text-shadow:none!important;filter:none!important;
   font-family:var(--ng-font)!important;font-weight:600!important;letter-spacing:.12em!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}

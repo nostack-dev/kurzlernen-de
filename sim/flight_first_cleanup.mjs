@@ -8,6 +8,7 @@ import "./nuke_destruction.mjs";
 import "./nuke_hazard_fx.mjs";
 import "./player_shield.mjs";
 import "./game_reset.mjs";
+import "./game_exit_button.mjs";
 import "./music_player.mjs";
 import "./spawn_visibility_guard.mjs";
 
