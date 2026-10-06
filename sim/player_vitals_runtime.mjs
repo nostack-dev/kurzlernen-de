@@ -35,8 +35,9 @@ function damagePlayer(amount=25,source="world"){
 function resetPlayer(){playerHp=PLAYER_MAX_HP;setBridgePlayerHp(playerHp,false);revivePlayer();const view=viewport();if(view){view.dataset.selfHp=String(playerHp);view.dataset.playerHp=String(playerHp);view.dataset.playerDead="0";}return playerHp;}
 
 function finishDroneDestruction(){forcedFootTimer=0;const w=walk();if(w?.mode==="drone")w.setMode?.("foot",{persist:false,reason:"drone-destroyed"});}
+let droneForcedFoot=false;
 function destroyDrone(source="world"){
-  if(droneDestroyed)return;droneDestroyed=true;droneHp=0;droneReadyAt=performance.now()+DRONE_REPLACEMENT_COOLDOWN_MS;droneDeathSerial++;document.body?.classList.add("drone-destroyed");try{document.getElementById("soloKill")?.click?.();}catch{}announce("arondight:drone-destroyed",{source,cooldownMs:DRONE_REPLACEMENT_COOLDOWN_MS,readyAt:droneReadyAt,serial:droneDeathSerial});clearTimeout(forcedFootTimer);forcedFootTimer=setTimeout(finishDroneDestruction,850);
+  if(droneDestroyed)return;droneDestroyed=true;droneForcedFoot=true;droneHp=0;droneReadyAt=performance.now()+DRONE_REPLACEMENT_COOLDOWN_MS;droneDeathSerial++;document.body?.classList.add("drone-destroyed");try{document.getElementById("soloKill")?.click?.();}catch{}announce("arondight:drone-destroyed",{source,cooldownMs:DRONE_REPLACEMENT_COOLDOWN_MS,readyAt:droneReadyAt,serial:droneDeathSerial});clearTimeout(forcedFootTimer);forcedFootTimer=setTimeout(finishDroneDestruction,850);
 }
 function damageDrone(amount=25,source="world"){
   if(droneDestroyed)return 0;
@@ -45,7 +46,10 @@ function damageDrone(amount=25,source="world"){
   if(globalThis.__arondightNukeShake?.droneProtected?.()){const view=viewport();if(view){view.dataset.droneDamageAbsorbed=String((Number(view.dataset.droneDamageAbsorbed)||0)+1);view.dataset.droneLastDamage=`${source}:absorbed-nuke-window`;}return droneHp;}droneHp=healthAfterDamage(droneHp,amount,DRONE_MAX_HP);const view=viewport();if(view){view.dataset.droneHp=String(droneHp);view.dataset.droneLastDamage=String(source);}if(droneHp<=0)destroyDrone(source);return droneHp;
 }
 function resetDrone(){clearTimeout(forcedFootTimer);forcedFootTimer=0;droneHp=DRONE_MAX_HP;droneDestroyed=false;droneReadyAt=-Infinity;document.body?.classList.remove("drone-destroyed");const view=viewport();if(view){view.dataset.droneHp=String(droneHp);view.dataset.droneDestroyed="0";view.dataset.droneReplacementRemainingMs="0";}return droneHp;}
-function makeReplacementReady(){if(!droneDestroyed)return false;droneHp=DRONE_MAX_HP;droneDestroyed=false;droneReadyAt=-Infinity;document.body?.classList.remove("drone-destroyed");announce("arondight:drone-replacement-ready",{hp:droneHp,serial:droneDeathSerial});return true;}
+function makeReplacementReady(){if(!droneDestroyed)return false;droneHp=DRONE_MAX_HP;droneDestroyed=false;droneReadyAt=-Infinity;document.body?.classList.remove("drone-destroyed");announce("arondight:drone-replacement-ready",{hp:droneHp,serial:droneDeathSerial});
+  // Regenerate: if the destruction forced the pilot on foot, fly the new drone automatically.
+  if(droneForcedFoot){droneForcedFoot=false;setTimeout(()=>{if(!droneDestroyed&&!playerDead)globalThis.__arondightWalkMode?.setMode?.("drone",{persist:true,reason:"drone-regenerated"});},250);}
+  return true;}
 function canDeployDrone(now=performance.now()){if(droneDestroyed&&now>=droneReadyAt)makeReplacementReady();return !droneDestroyed;}
 function replacementRemainingMs(now=performance.now()){return droneReplacementRemainingMs({destroyed:droneDestroyed,readyAt:droneReadyAt,now});}
 
