@@ -99,11 +99,25 @@ function frame(now){
   }
   requestAnimationFrame(frame);
 }
+// Panic: people inside the fallout zone run away from ground zero. Applied in
+// the pre-render hook (after every population update) as an accumulated
+// offset, so it works whether or not their own module rewrites positions.
+const PANIC_RADIUS_M=900,PANIC_S=45,RUN_MPS=6.5;let panicRoots=[],panicScan=-Infinity,panicFrame=performance.now();
+function panic(scene){
+  const now=performance.now(),dt=Math.min(.1,(now-panicFrame)/1000);panicFrame=now;const zone=zones.at(-1);if(!zone||(now-zone.born)/1000>PANIC_S||!scene)return;
+  if(now-panicScan>1000){panicScan=now;panicRoots=[];scene.traverse(n=>{const u=n.userData||{},kind=String(u.worldPopulationKind||u.worldLifeKind||"");if(kind!=="person"&&kind!=="life-person")return;const id=String(u.worldPopulationId||u.worldLifeId||"");if(id&&String(n.parent?.userData?.worldPopulationId||n.parent?.userData?.worldLifeId||"")===id)return;panicRoots.push(n);});}
+  for(const r of panicRoots){if(!r.parent||r.visible===false)continue;const u=r.userData,p=r.position;
+    const fresh=!u.panicLast||Math.abs(p.x-u.panicLast.x)>1e-6||Math.abs(p.y-u.panicLast.y)>1e-6;const ox=u.panicOffset?.x||0,oy=u.panicOffset?.y||0;
+    const bx=fresh?p.x:p.x-ox,by=fresh?p.y:p.y-oy,dx=bx+ox-zone.x,dy=by+oy-zone.y,d=Math.hypot(dx,dy);if(d>PANIC_RADIUS_M&&!u.panicOffset)continue;
+    const step=RUN_MPS*dt*(d<PANIC_RADIUS_M?1:0),nx=d>1e-3?dx/d:1,ny=d>1e-3?dy/d:0;u.panicOffset={x:ox+nx*step,y:oy+ny*step};
+    p.x=bx+u.panicOffset.x;p.y=by+u.panicOffset.y;r.rotation.z=Math.atan2(-nx,ny);u.panicLast={x:p.x,y:p.y};}
+}
 export function installNukeHazardFx(){
   if(installed)return;installed=true;
   window.addEventListener("arondight:nuke-impact",e=>{const p=e?.detail?.position;if(Array.isArray(p))zones.push({x:+p[0]||0,y:+p[1]||0,born:performance.now()});while(zones.length>4)zones.shift();});
   window.addEventListener("arondight:nuke-shockwave-arrival",onArrival);
-  window.addEventListener("arondight:world-reset",()=>{zones.length=0;emberList.length=0;if(overlay)overlay.style.opacity="0";ectx?.clearRect(0,0,embers.width,embers.height);if(chip)chip.style.opacity="0";});
+  const attach=()=>{const b=bridge();if(typeof b?.addPreRenderHook!=="function")return requestAnimationFrame(attach);b.addPreRenderHook(scene=>panic(scene));};attach();
+  window.addEventListener("arondight:world-reset",()=>{zones.length=0;for(const r of panicRoots){if(r.userData.panicOffset){r.position.x-=r.userData.panicOffset.x;r.position.y-=r.userData.panicOffset.y;delete r.userData.panicOffset;delete r.userData.panicLast;}}panicRoots=[];emberList.length=0;if(overlay)overlay.style.opacity="0";ectx?.clearRect(0,0,embers.width,embers.height);if(chip)chip.style.opacity="0";});
   window.addEventListener(AUDIO_SETTINGS_EVENT,e=>{settings=normalizeAudioSettings(e?.detail||loadAudioSettings());});
   const v=viewport();if(v)v.dataset.nukeHazard=NUKE_HAZARD_VERSION;requestAnimationFrame(frame);
 }
