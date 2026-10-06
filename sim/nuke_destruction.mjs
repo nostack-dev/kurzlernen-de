@@ -196,6 +196,28 @@ function stepCraters(now){
 }
 
 // ----------------------------------------------------------------- driver
+// ------------------------------------------- everyday destructibles
+// Every non-nuke explosion (missiles, exploding cars, police drones,
+// secondary blasts) chips buildings too. Each building has structural HP
+// proportional to its volume; damage accumulates, upper floors break off
+// as the HP drops, and at zero it collapses — same fracture debris, same
+// persistent state (collision, rendering, map) as the nuke.
+const buildingHp=new Map();
+function structuralHp(b){return Math.max(220,(b.maxX-b.minX)*(b.maxY-b.minY)*b.height*.22);}
+function onWorldExplosion(event){
+  const d=event?.detail||{};if(d.kind==="nuke")return;const p=d.position,scene=bridge()?.threeScene;if(!scene)return;
+  const x=Array.isArray(p)?+p[0]:+p?.x,y=Array.isArray(p)?+p[1]:+p?.y,z=Array.isArray(p)?+p[2]:+p?.z;if(!Number.isFinite(x)||!Number.isFinite(y))return;
+  const radius=clamp(d.radiusM??6,2,40),power=clamp(d.maxDamage??60,10,400)*(d.kind==="missile"||String(d.source||"").includes("missile")?2.2:1);let touched=0;
+  for(const b of buildingsFromSnapshot()){
+    const dx=Math.max(b.minX-x,0,x-b.maxX),dy=Math.max(b.minY-y,0,y-b.maxY),dist=Math.hypot(dx,dy,Math.max(0,(Number.isFinite(z)?z:0)-b.top));if(dist>radius)continue;
+    const full=structuralHp(b),prev=buildingHp.has(b.key)?buildingHp.get(b.key):full,damage=power*(1-dist/radius)**1.5*2.6,hp=Math.max(0,prev-damage);buildingHp.set(b.key,hp);
+    const keep=hp/full,targetTop=hp<=0?b.base+Math.min(RUBBLE_M,b.height):b.base+Math.max(RUBBLE_M,Math.ceil(b.height*keep/FLOOR_M)*FLOOR_M);
+    if(targetTop>=b.top-.4)continue;touched++;
+    collapseBuilding(scene,{...b,newTop:targetTop,leveled:hp<=0,intensity:.35+.6*(1-dist/radius)},new THREE.Vector3(x,y,0));
+  }
+  if(touched)setData("worldDestructibleHits",(Number(viewport()?.dataset.worldDestructibleHits)||0)+touched);
+}
+
 function onImpact(event){
   const p=event?.detail?.position,scene=bridge()?.threeScene;if(!Array.isArray(p)||!scene)return;const center=new THREE.Vector3(+p[0]||0,+p[1]||0,0);
   secondaryLeft=MAX_SECONDARY;spawnCrater(scene,center);ensureDebris(scene);
@@ -221,10 +243,10 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 function resetWorld(){
-  events.length=0;for(const f of flattenedProps.splice(0)){f.mesh.setMatrixAt(f.index,f.matrix);f.mesh.instanceMatrix.needsUpdate=true;}for(const f of flung){f.clone.parent?.remove(f.clone);f.root.visible=true;}flung.length=0;
+  events.length=0;buildingHp.clear();for(const f of flattenedProps.splice(0)){f.mesh.setMatrixAt(f.index,f.matrix);f.mesh.instanceMatrix.needsUpdate=true;}for(const f of flung){f.clone.parent?.remove(f.clone);f.root.visible=true;}flung.length=0;
   if(debris){const zero=new THREE.Matrix4().makeScale(0,0,0);debris.items.forEach((it,i)=>{if(it.alive){it.alive=false;debris.mesh.setMatrixAt(i,zero);}});debrisFree=debris.items.map((_,i)=>DEBRIS_POOL-1-i);debris.mesh.instanceMatrix.needsUpdate=true;}
   for(const c of craters){c.mesh.parent?.remove(c.mesh);c.mesh.geometry.dispose();c.mesh.material.dispose();c.rim.geometry.dispose();c.rim.material.dispose();}craters.length=0;
   setData("nukeDebrisAlive",0);setData("nukeFlungActors",0);
 }
-export function installNukeDestruction(){if(installed)return;installed=true;window.addEventListener("arondight:nuke-impact",onImpact);window.addEventListener("arondight:world-reset",resetWorld);requestAnimationFrame(frame);}
+export function installNukeDestruction(){if(installed)return;installed=true;window.addEventListener("arondight:nuke-impact",onImpact);window.addEventListener("arondight:world-reset",resetWorld);window.addEventListener("arondight:world-explosion",onWorldExplosion);requestAnimationFrame(frame);}
 installNukeDestruction();
