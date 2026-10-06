@@ -170,13 +170,14 @@ function frame(now){
   if(scene){
     styleScene(scene);ensureGrid(scene);followGrid();enforceMap(now);cullActors(scene,now);syncFatLineResolution(bridge()?.threeRenderer);
     if(!queue.length&&now-lastScan>SCAN_INTERVAL_MS){lastScan=now;scene.traverse(node=>{if(needsWork(node))queue.push(node);});}
-    const deadline=performance.now()+FRAME_BUDGET_MS;
+    const menuEl=document.getElementById("gameMenu"),covered=Boolean(menuEl&&!menuEl.hidden),deadline=performance.now()+(covered?14:FRAME_BUDGET_MS);
     while(queue.length&&performance.now()<deadline){const mesh=queue.pop();if(mesh.parent||mesh===scene)convert(mesh);}
     const view=viewport();if(view){const value=String(converted);if(view.dataset.neonStyledMeshes!==value)view.dataset.neonStyledMeshes=value;}
   }
   requestAnimationFrame(frame);
 }
 
+globalThis.__arondightNeonStyle={pending:()=>queue.length,lastScan:()=>lastScan};
 export function installNeonLineStyle(){
   if(installed)return;installed=true;
   document.documentElement.classList.add("neon-line-style");

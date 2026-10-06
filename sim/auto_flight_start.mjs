@@ -88,14 +88,33 @@ async function autoWorld(locationResultPromise){
 }
 
 let worldRequested=false;
-function startGame(){
-  if(menu)menu.hidden=true;launchDefaultFlight();window.dispatchEvent(new CustomEvent("arondight:game-start"));
+// Seamless start: everything heavy happens while the menu (and its flyover)
+// still covers the screen — GPS fix, city map + tiles, neon conversion of
+// every object and shader compilation (compileAsync, off the main thread
+// where supported). Only then does the menu cross-fade into the running
+// game, so the reveal has no hitches and nothing un-styled ever shows.
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const nextFrame=()=>new Promise(resolve=>requestAnimationFrame(()=>resolve()));
+function withTimeout(promise,ms){return Promise.race([Promise.resolve(promise).catch(()=>{}),wait(ms)]);}
+async function mapSettled(){const map=bridge?.map;if(!bridge?.active||!map)return;if(!map.loaded?.())await withTimeout(new Promise(resolve=>map.once?.("idle",resolve)),6000);}
+async function neonSettled(){const neon=globalThis.__arondightNeonStyle;if(!neon)return;const until=performance.now()+5000;let calm=0;while(performance.now()<until){await nextFrame();calm=neon.pending()===0?calm+1:0;if(calm>=30)return;}}
+async function compileScene(){const renderer=bridge?.threeRenderer,scene=bridge?.threeScene,camera=bridge?.threeCamera;if(!renderer||!scene||!camera)return;try{if(renderer.compileAsync)await withTimeout(renderer.compileAsync(scene,camera),4000);else renderer.compile(scene,camera);}catch{}}
+let starting=false;
+async function startGame(){
+  if(starting)return;starting=true;
+  if(startButton){startButton.disabled=true;startButton.textContent="LOADING";}
+  if(!worldRequested){worldRequested=true;setMenuStatus("LOCATING");await withTimeout(autoWorld(requestStartupLocation()),15000);}
+  setMenuStatus("BUILDING CITY");launchDefaultFlight();
+  await mapSettled();setMenuStatus("PREPARING");await neonSettled();await compileScene();await nextFrame();await nextFrame();
+  window.dispatchEvent(new CustomEvent("arondight:game-start"));
+  if(menu&&!AUTOSTART){menu.classList.add("gm-leaving");await wait(650);}
+  if(menu){menu.hidden=true;menu.classList.remove("gm-leaving");}
   // Opening quote over the live game (fades in and out, never blocks input).
   const quote=$("gameIntroQuote");if(quote&&!AUTOSTART){quote.hidden=false;quote.classList.remove("play");void quote.offsetWidth;quote.classList.add("play");setTimeout(()=>{quote.hidden=true;quote.classList.remove("play");},7400);}
-  if(!worldRequested){worldRequested=true;void autoWorld(requestStartupLocation());}
+  starting=false;
 }
-function showMenu(){if(!menu)return;menu.hidden=false;if(startButton){startButton.disabled=false;startButton.textContent="START";}setMenuStatus("READY");}
+function showMenu(){if(!menu)return;menu.hidden=false;starting=false;if(startButton){startButton.disabled=false;startButton.textContent="START";}setMenuStatus("READY");}
 // Leaving the flight returns to the menu instead of the engineering panel.
 $("soloExit")?.addEventListener("click",()=>setTimeout(showMenu,0));
-if(AUTOSTART||!menu||!startButton){if(menu)menu.hidden=true;startGame();}
+if(AUTOSTART||!menu||!startButton){if(menu)menu.hidden=true;launchDefaultFlight();worldRequested=true;void autoWorld(requestStartupLocation());}
 else{startButton.disabled=false;startButton.textContent="START";setMenuStatus("READY");startButton.addEventListener("click",startGame);}

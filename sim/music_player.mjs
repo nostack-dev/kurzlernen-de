@@ -42,7 +42,9 @@ function ensureGraph(){
   return true;
 }
 function connectGain(){
-  if(gain||!context||context.state!=="running"||!element)return;
+  // Rerouting a playing element through Web Audio causes an audible drop-out,
+  // so the menu element keeps its direct output (element.volume) for good.
+  if(gain||!context||context.state!=="running"||!element||element===globalThis.__oppMusicElement)return;
   try{const source=context.createMediaElementSource(element);gain=context.createGain();gain.gain.value=element.paused?0:element.volume;element.volume=1;source.connect(gain).connect(context.destination);}catch{gain=null;}
 }
 function ramp(level,seconds){
