@@ -46,7 +46,7 @@ assert.ok(style.includes("SCAN_INTERVAL_MS=MOBILE?900:650"),"style discovery sca
 const styleFrame=style.slice(style.indexOf("function frame(now)"),style.indexOf("globalThis.__arondightNeonStyle"));
 assert.ok(!styleFrame.includes("scene.traverse")&&!styleFrame.includes("killLights(scene"),"neon render hot path must never synchronously traverse the scene or rediscover lights");
 assert.ok(style.includes("renderer.shadowMap.enabled=false"),"neon renderer must not pay for invisible shadow maps");
-assert.ok(style.includes("grid.visible=!bridge()?.active"),"real WORLD must not draw a second flat neon grid over deformed terrain");
+assert.ok(style.includes("grid.visible=true")&&style.includes("groundHeightAt(x,y)")&&style.includes("GRID_LIFT_M=.2"),"real WORLD shows the neon line grid on the 16 m lattice at ground height");
 assert.ok(style.includes("FogExp2(STYLE_PALETTE.haze,.00038)"),"green neon world must not reintroduce the heavy dark fog veil");
 
 const neonUi=files["sim/neon_ui_theme.mjs"];
