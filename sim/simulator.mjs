@@ -611,8 +611,9 @@ let cameraMode=playerCameraModePolicy.effectiveMode,cameraFrameMs=performance.no
 const externalCameraRig=new StabilizedExternalCameraRig();
 const externalAirframeVisualRig=new StabilizedExternalAirframeVisual(EXTERNAL_AIRFRAME_VISUAL_PROFILES),externalVisualPosition=new THREE.Vector3(),externalVisualQuaternion=new THREE.Quaternion(),externalVisualVelocity=new THREE.Vector3(),externalVisualPose={position:externalVisualPosition,quaternion:externalVisualQuaternion,velocity:externalVisualVelocity};
 const cameraLookTarget=new THREE.Vector3();
-let fireCameraKick=0,fireCameraPhase=0;
-function addFireCameraKick(intensity=.16){fireCameraKick=Math.min(.65,fireCameraKick+clamp(Number(intensity)||0,0,.25));const viewport=$("viewport");if(viewport){viewport.dataset.fireRecoilImpulses=String((Number(viewport.dataset.fireRecoilImpulses)||0)+1);viewport.dataset.fireCameraKick=fireCameraKick.toFixed(3);}}
+let fireCameraKick=0,fireCameraPhase=0,lastCameraMissiles=0,lastCameraNukes=0;
+function addFireCameraKick(intensity=.16){fireCameraKick=Math.min(.65,fireCameraKick+clamp(Number(intensity)||0,0,.25));const viewport=$("viewport");if(viewport){viewport.dataset.fireRecoilImpulses=String((Number(viewport.dataset.fireRecoilImpulses)||0)+1);viewport.dataset.fireCameraKick=fireCameraKick.toFixed(3);viewport.dataset.fireCameraShakeProfile="damped-weapon-impulse-v2";}}
+function syncHeavyWeaponCameraKick(){const viewport=$("viewport");if(!viewport||globalThis.__arondightOnFootMode===true||globalThis.__arondightVehicleDrive?.active)return;const missiles=Number(viewport.dataset.droneMissiles)||0,nukes=Number(viewport.dataset.nukeLaunches)||0;if(missiles>lastCameraMissiles)addFireCameraKick(.25);if(nukes>lastCameraNukes)addFireCameraKick(.25);lastCameraMissiles=Math.max(lastCameraMissiles,missiles);lastCameraNukes=Math.max(lastCameraNukes,nukes);}
 function applyFireCameraShake(dt){if(!(fireCameraKick>.0001))return;const step=clamp(dt,0,.1);fireCameraPhase+=step*55;camera.rotateX((-.00135+Math.sin(fireCameraPhase)*.00045)*fireCameraKick);camera.rotateY(Math.sin(fireCameraPhase*1.37)*.00055*fireCameraKick);fireCameraKick*=Math.exp(-19*step);const viewport=$("viewport");if(viewport)viewport.dataset.fireCameraKick=fireCameraKick.toFixed(3);}
 let cameraSettings=loadCameraSettings();
 function applyCameraSettings(next){cameraSettings=next;externalCameraRig.invalidate();externalAirframeVisualRig.invalidate();$("viewport").dataset.fpvTiltDeg=String(cameraSettings.fpvTiltDeg);$("viewport").dataset.fpvFovDeg=String(cameraSettings.fpvFovDeg);$("viewport").dataset.thirdCameraDistanceM=String(cameraSettings.thirdDistanceM);}
@@ -638,7 +639,7 @@ function setPlayerCameraMode(mode){playerCameraModePolicy.setPlayerMode(mode);re
 const CAMERA_NEAR_BY_MODE={fpv:.02,follow:.06,third:.06};
 function applyCameraNear(mode){const near=CAMERA_NEAR_BY_MODE[mode]??.06;if(Math.abs(camera.near-near)>1e-6){camera.near=near;camera.updateProjectionMatrix();}const viewport=$("viewport");if(viewport&&viewport.dataset.cameraNearM!==String(near))viewport.dataset.cameraNearM=String(near);}
 function updateCamera(pose,now=performance.now()){
-  applyCameraNear(cameraMode);
+  syncHeavyWeaponCameraKick();applyCameraNear(cameraMode);
   const position=pose.position,q=pose.quaternion,velocity=pose.velocity,dt=clamp((now-cameraFrameMs)/1000,0,.1);cameraFrameMs=now;
   const bodyForward=new THREE.Vector3(-1,0,0).applyQuaternion(q).normalize(),showFpvSelfCamera=cameraMode!=="fpv";
   if(physics.fpvCameraBody)physics.fpvCameraBody.visible=showFpvSelfCamera;if(physics.fpvCameraLens)physics.fpvCameraLens.visible=showFpvSelfCamera;const fpvViewport=$("viewport");if(fpvViewport)fpvViewport.dataset.fpvSelfCameraVisible=showFpvSelfCamera?"1":"0";
