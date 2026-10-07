@@ -73,13 +73,13 @@ export function buildVoltSmg(){
 
 export function buildGoldenHandCannon(){
   const g=new THREE.Group(),K="walkGlockPart";
-  const gold=std(0xf2c14e,.22,.92),goldDark=std(0xb8862b,.3,.9),frame=std(0x1c1d22,.7,.08),steel=std(0x3a3f47,.35,.7),red=glow(0xff3b30),hot=glow(0xff8a2a);
-  // slide (gold) with serrations
+  const gold=std(0x25282b,.40,.46),goldDark=std(0x111315,.58,.28),frame=std(0x101214,.78,.04),steel=std(0x34383d,.42,.58),red=std(0xe7e9e6,.64,.04),hot=std(0x181b1e,.72,.08);
+  // matte black service-pistol slide with serrations
   g.add(solid(profile([[-.02,.07],[.30,.07],[.31,.06],[.31,.005],[-.02,.005]],.068),gold,0,0,0,K));
   for(let i=0;i<6;i++)g.add(box(.07,.05,.006,goldDark,0,.04,.0-.01-i*.016,K));
   // ejection port + engraving line
   g.add(box(.07,.012,.07,frame,0,.064,-.13,K));g.add(box(.0705,.004,.24,goldDark,0,.03,-.16,K));
-  // compensator with glowing vents
+  // dark front slide extension and vent cuts
   g.add(solid(profile([[.30,.07],[.38,.07],[.39,.06],[.39,.005],[.30,.005]],.07),steel,0,0,0,K));
   for(let i=0;i<3;i++)g.add(box(.072,.012,.012,hot,0,.07,-.32-i*.022,K));
   // polymer frame: dust cover, trigger guard, grip with texture bands
