@@ -133,11 +133,15 @@ async function startGame(){
   let startupWarning="";
   try{
     if(!worldRequested){worldRequested=true;setMenuStatus("LOCATING");await withTimeout(autoWorld(requestStartupLocation()),15000);}
-    setMenuStatus("BUILDING CITY");launchDefaultFlight();
+    // Keep the 1 kHz flight/Box3D loop stopped while the opaque menu is doing
+    // network + scene preparation. Starting physics before the user can see the
+    // game only steals main-thread slices from the soundtrack and loader.
+    setMenuStatus("BUILDING CITY");
     await withTimeout(mapSettled(),6500);
     setMenuStatus("PREPARING");
     await withTimeout(neonSettled(),5500);
     await withTimeout(compileScene(),4500);
+    launchDefaultFlight();
     await withTimeout(nextFrame(),300);
     await withTimeout(nextFrame(),300);
   }catch(error){
