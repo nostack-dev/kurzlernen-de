@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import {groundHeightAt,waterAt,WATER_LEVEL_M} from "./terrain_craters.mjs";
+import {groundHeightAt,staticGroundHeightAt,terrainNormalAt,onTerrainChange,waterAt,WATER_LEVEL_M} from "./terrain_craters.mjs";
+import {patchShockMaterial} from "./nuke_shock_field.mjs";
 
 // Every action of the player leaves a mark — nothing is silently ignored.
 //  * Bullet impacts: a hole decal on walls, ground, cars and trees, plus a
@@ -12,7 +13,7 @@ import {groundHeightAt,waterAt,WATER_LEVEL_M} from "./terrain_craters.mjs";
 // Cheap: decals are one instanced mesh (ring buffer), chips another; no
 // allocation per shot.
 
-export const WORLD_IMPACTS_VERSION="decals+chips+tree-damage-v1";
+export const WORLD_IMPACTS_VERSION="terrain-draped-decals+embers+chips+tree-damage-v2";
 const DECALS=420,CHIPS=220,TREE_HP=12;
 let installed=false,sceneRef=null,decals=null,decalCursor=0,chips=null,chipItems=[],chipCursor=0,lastFrame=performance.now();
 const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),p=new THREE.Vector3(),s=new THREE.Vector3(),n=new THREE.Vector3(),Z=new THREE.Vector3(0,0,1),col=new THREE.Color(),ZERO=new THREE.Matrix4().makeScale(0,0,0);
@@ -29,10 +30,45 @@ function ensure(){
   chipItems=Array.from({length:CHIPS},()=>({life:0,p:new THREE.Vector3(),v:new THREE.Vector3(),size:.1,spin:0,axis:new THREE.Vector3(1,0,0),angle:0}));
   return true;
 }
-export function addDecal(point,normal,{size=.1,color=0x2a2622}={}){
+// Ground marks live *on* the terrain: bullet holes take the surface normal of
+// the shared ground, and scorches are draped grids (every vertex at the
+// ground height) — both are re-laid when the ground deforms (craters, pads)
+// and ride the nuke pressure wave like the ground itself.
+const groundDecals=new Map(); // instance index -> {x,y,size,color}
+const SCORCHES=40,SG=10,SV=(SG+1)*(SG+1);let scorch=null,scorchCursor=0;const scorchItems=new Array(SCORCHES).fill(null);
+const SCORCH_VS=`attribute vec3 aInfo;varying vec3 vInfo;
+void main() {vInfo=aInfo;
+#include <begin_vertex>
+gl_Position=projectionMatrix*modelViewMatrix*vec4(transformed,1.);}`;
+const SCORCH_FS=`varying vec3 vInfo;
+float h(vec2 p){return fract(sin(dot(p,vec2(41.3,289.1)))*43758.5);}
+void main() {vec2 p=vInfo.xy;float r=length(p),a=atan(p.y,p.x),seed=vInfo.z;
+float edge=.78+.12*sin(a*5.+seed*7.)+.07*sin(a*11.+seed*3.)+.05*sin(a*23.+seed);if(r>edge)discard;
+float k=r/edge;
+float char=smoothstep(1.,.35,k);float soot=.55+.45*h(floor(p*9.+seed));
+vec3 col=mix(vec3(.05,.045,.04),vec3(.012,.01,.01),char)*soot;
+gl_FragColor=vec4(col,.92*smoothstep(1.,.82,k));}`;
+function ensureScorch(scene){
+  if(scorch?.parent===scene)return scorch;const n=SCORCHES*SV,pos=new Float32Array(n*3),info=new Float32Array(n*3),idx=[];
+  for(let s0=0;s0<SCORCHES;s0++){const o=s0*SV;for(let j=0;j<SG;j++)for(let i=0;i<SG;i++){const a=o+j*(SG+1)+i,b=a+1,c=a+SG+1,d=c+1;idx.push(a,b,d,a,d,c);}}
+  const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.BufferAttribute(pos,3).setUsage(THREE.DynamicDrawUsage));g.setAttribute("aInfo",new THREE.BufferAttribute(info,3).setUsage(THREE.DynamicDrawUsage));g.setIndex(idx);g.boundingSphere=new THREE.Sphere(new THREE.Vector3(),1e7);
+  const m=new THREE.ShaderMaterial({uniforms:{},vertexShader:SCORCH_VS,fragmentShader:SCORCH_FS,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6});
+  scorch=new THREE.Mesh(g,patchShockMaterial(m));scorch.name="WORLD_SCORCH_MARKS";scorch.frustumCulled=false;scorch.renderOrder=3;scorch.userData.neonSkip=true;scorch.userData.flightFireIgnore=true;scorch.raycast=()=>{};scene.add(scorch);return scorch;
+}
+function layScorch(k){const it=scorchItems[k];if(!scorch||!it)return;const pos=scorch.geometry.attributes.position.array,info=scorch.geometry.attributes.aInfo.array,o=k*SV;
+  for(let j=0;j<=SG;j++)for(let i=0;i<=SG;i++){const u=i/SG*2-1,v=j/SG*2-1,x=it.x+u*it.r,y=it.y+v*it.r,q=(o+j*(SG+1)+i)*3;pos[q]=x;pos[q+1]=y;pos[q+2]=staticGroundHeightAt(x,y)+.035;info[q]=u;info[q+1]=v;info[q+2]=it.seed;}
+  scorch.geometry.attributes.position.needsUpdate=true;scorch.geometry.attributes.aInfo.needsUpdate=true;}
+export function addScorch(x,y,radius){
+  const scene=bridge()?.threeScene;if(!scene||!Number.isFinite(x)||!Number.isFinite(y))return;ensureScorch(scene);
+  const k=scorchCursor++%SCORCHES;scorchItems[k]={x,y,r:Math.max(.6,Math.min(6,radius)),seed:Math.random()*10};layScorch(k);
+}
+function layGroundDecal(i,d){q.setFromUnitVectors(Z,n.fromArray(terrainNormalAt(d.x,d.y)));q.multiply(new THREE.Quaternion().setFromAxisAngle(Z,d.spin));p.set(d.x,d.y,staticGroundHeightAt(d.x,d.y)+.03);s.set(d.size,d.size,d.size);m4.compose(p,q,s);decals.setMatrixAt(i,m4);}
+function relayGround(){if(decals){for(const[i,d]of groundDecals)layGroundDecal(i,d);decals.instanceMatrix.needsUpdate=true;}for(let k=0;k<SCORCHES;k++)if(scorchItems[k])layScorch(k);}
+export function addDecal(point,normal,{size=.1,color=0x2a2622,ground=false}={}){
+  if(ground&&ensure()&&point){const i=decalCursor++%DECALS,d={x:point.x,y:point.y,size,spin:Math.random()*6.28};groundDecals.set(i,d);layGroundDecal(i,d);decals.setColorAt(i,col.set(color));decals.instanceMatrix.needsUpdate=true;decals.instanceColor.needsUpdate=true;return;}
   if(!ensure()||!point)return;n.copy(normal||Z);if(n.lengthSq()<1e-6)n.copy(Z);n.normalize();
   q.setFromUnitVectors(Z,n);const spin=new THREE.Quaternion().setFromAxisAngle(Z,Math.random()*6.28);q.multiply(spin);
-  p.copy(point).addScaledVector(n,.012);s.set(size,size,size);m4.compose(p,q,s);const i=decalCursor++%DECALS;decals.setMatrixAt(i,m4);decals.setColorAt(i,col.set(color));decals.instanceMatrix.needsUpdate=true;decals.instanceColor.needsUpdate=true;
+  p.copy(point).addScaledVector(n,.012);s.set(size,size,size);m4.compose(p,q,s);const i=decalCursor++%DECALS;groundDecals.delete(i);decals.setMatrixAt(i,m4);decals.setColorAt(i,col.set(color));decals.instanceMatrix.needsUpdate=true;decals.instanceColor.needsUpdate=true;
 }
 export function chipBurst(point,normal,surface="building",count=6,speed=4){
   if(!ensure()||!point)return;const palette=COLORS[surface]||COLORS.building;n.copy(normal||Z).normalize();
@@ -117,7 +153,7 @@ export function bulletImpact(ray,hit,{routed=false,maxDistance=180}={}){
   if(surface==="tree"&&hit?.instanceId!=null){hitTree(hit.instanceId,point,from.x,from.y);addDecal(point,normal,{size:.07,color:0x3a2a1c});return true;}
   if(surface==="animal"){if(hit?.instanceId!=null)globalThis.__ambientAnimals?.kill?.(hit.instanceId);chipBurst(point,normal,"actor",5,2.5);return true;}
   if(surface==="actor"){chipBurst(point,normal,"actor",3,2);return true;}
-  addDecal(point,normal,{size:surface==="vehicle"?.06:.085,color:surface==="ground"?0x2e2a22:surface==="vehicle"?0x1c1c1c:0x34302a});
+  addDecal(point,normal,{size:surface==="vehicle"?.06:.085,color:surface==="ground"?0x2e2a22:surface==="vehicle"?0x1c1c1c:0x34302a,ground:surface==="ground"});
   chipBurst(point,normal,surface,surface==="vehicle"?5:6,surface==="vehicle"?5:3.5);
   return true;
 }
@@ -126,11 +162,11 @@ function onExplosion(event){
   const r=Math.max(1.5,Math.min(400,Number(d.radiusM)||6)),g=groundHeightAt(x,y),nuke=d.kind==="nuke";
   if(!nuke&&waterAt(x,y)){chipBurst(new THREE.Vector3(x,y,.05),Z,"water",Math.min(40,14+r*3),7+r*.8);return;}
   if(!nuke){ // scorch on the ground (if the blast is low enough) and chips
-    if((Number.isFinite(z)?z:g)-g<r*.6)addDecal(new THREE.Vector3(x,y,g+.02),Z,{size:Math.min(4.5,r*.42),color:0x1b1612});
+    if((Number.isFinite(z)?z:g)-g<r*.6)addScorch(x,y,Math.min(5.5,r*.5));
     chipBurst(new THREE.Vector3(x,y,(Number.isFinite(z)?z:g)+.2),Z,"ground",Math.min(26,8+r*2),6+r*.6);
     // walls within reach get scorched too
     const prisms=bridge()?.buildingCollisionSnapshot?.prisms||[];let walls=0;
-    for(const pr of prisms){if(walls>=2)break;const pts=pr.points||[];for(let i=0;i<pts.length&&walls<2;i++){const a=pts[i],b=pts[(i+1)%pts.length],ex=b[0]-a[0],ey=b[1]-a[1],len=Math.hypot(ex,ey);if(len<.5)continue;const t=Math.max(0,Math.min(1,((x-a[0])*ex+(y-a[1])*ey)/(len*len))),px=a[0]+ex*t,py=a[1]+ey*t,dist=Math.hypot(x-px,y-py);if(dist<r*.5){const nx=-ey/len,ny=ex/len,sgn=Math.sign((x-px)*nx+(y-py)*ny)||1;addDecal(new THREE.Vector3(px,py,Math.max(g+.8,Math.min((Number.isFinite(z)?z:g)+.5,(+pr.top||8)-.3))),new THREE.Vector3(nx*sgn,ny*sgn,0),{size:Math.min(3,r*.35),color:0x1d1814});walls++;}}}
+    for(const pr of prisms){if(walls>=2)break;const pts=pr.points||[];for(let i=0;i<pts.length&&walls<2;i++){const a=pts[i],b=pts[(i+1)%pts.length],ex=b[0]-a[0],ey=b[1]-a[1],len=Math.hypot(ex,ey);if(len<.5)continue;const t=Math.max(0,Math.min(1,((x-a[0])*ex+(y-a[1])*ey)/(len*len))),px=a[0]+ex*t,py=a[1]+ey*t,dist=Math.hypot(x-px,y-py);if(dist<r*.5){const nx=-ey/len,ny=ex/len,sgn=Math.sign((x-px)*nx+(y-py)*ny)||1;addDecal(new THREE.Vector3(px,py,Math.max(staticGroundHeightAt(px,py)+.8,Math.min((Number.isFinite(z)?z:g)+.5,(+pr.top||8)-.3))),new THREE.Vector3(nx*sgn,ny*sgn,0),{size:Math.min(3,r*.35),color:0x1d1814});walls++;}}}
   }
   // animals in reach die
   for(const bd of globalThis.__ambientBirds?.poses?.()||[]){if(Math.hypot(bd.x-x,bd.y-y,(bd.z-(Number(event?.detail?.position?.[2])||0))*.6)<(nuke?r*2.2:r*1.1)){globalThis.__ambientBirds.kill(bd.id);chipBurst(new THREE.Vector3(bd.x,bd.y,bd.z),Z,"actor",6,3);}}
@@ -142,8 +178,9 @@ function frame(now){requestAnimationFrame(frame);const dt=Math.min(.1,(now-lastF
 export function installWorldImpacts(){
   if(installed||typeof window==="undefined")return;installed=true;
   window.addEventListener("arondight:world-explosion",onExplosion);
-  window.addEventListener("arondight:world-reset",()=>{trees.clear();if(decals){for(let i=0;i<DECALS;i++)decals.setMatrixAt(i,ZERO);decals.instanceMatrix.needsUpdate=true;}});
-  globalThis.__worldImpacts={bullet:bulletImpact,decal:addDecal,chips:chipBurst,knockTree,version:WORLD_IMPACTS_VERSION};
+  window.addEventListener("arondight:world-reset",()=>{trees.clear();groundDecals.clear();scorchItems.fill(null);if(scorch){scorch.geometry.attributes.position.array.fill(0);scorch.geometry.attributes.position.needsUpdate=true;}if(decals){for(let i=0;i<DECALS;i++)decals.setMatrixAt(i,ZERO);decals.instanceMatrix.needsUpdate=true;}});
+  onTerrainChange(()=>relayGround());
+  globalThis.__worldImpacts={bullet:bulletImpact,decal:addDecal,scorch:addScorch,chips:chipBurst,knockTree,version:WORLD_IMPACTS_VERSION};
   const v=document.getElementById("viewport");if(v)v.dataset.worldImpacts=WORLD_IMPACTS_VERSION;
   requestAnimationFrame(frame);
 }
