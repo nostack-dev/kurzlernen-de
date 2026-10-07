@@ -13,6 +13,7 @@ import "./world_procedural_population.mjs";
 import "./gameplay_fun_runtime.mjs";
 import "./player_car_mode.mjs";
 import "./camera_collision_guard.mjs";
+import "./camera_shake.mjs";
 import "./wanted_dispatch_guard.mjs";
 import "./training_showcase.mjs";
 import "./immersive_soundscape.mjs";

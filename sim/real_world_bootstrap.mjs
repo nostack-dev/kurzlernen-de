@@ -439,7 +439,7 @@ class RealWorldBridge{
   renderReal(scene,camera,{cameraMode=null,skipFreeLook=false}={}){
     this.presentationFrameSerial++;this.trackFlightPerformance(performance.now());const basePosition=camera.position.clone(),baseQuaternion=camera.quaternion.clone(),baseUp=camera.up.clone();
     if(!skipFreeLook)this.applyLookCamera(scene,camera);this.syncMapCamera(camera,this.presentationFrameSerial,cameraMode);this.drawMinimap(performance.now());const renderer=this.threeRenderer;if(!renderer){camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);return;}
-    this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);scene.background=null;scene.fog=null;
+    this.savedBackground=scene.background;this.savedFog=scene.fog;this.hideTrainingWorld(scene);/* map is never drawn: keep the stylized sky background and fog */
     const clearAlpha=renderer.getClearAlpha();renderer.setClearAlpha(0);
     try{this.runPreRenderHooks(scene,camera);renderer.render(scene,camera);this.realFrames++;$("viewport").dataset.worldThreeFrames=String(this.realFrames);}finally{renderer.setClearAlpha(clearAlpha);scene.background=this.savedBackground;scene.fog=this.savedFog;this.restoreTrainingWorld();camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);camera.updateMatrixWorld();}
   }
