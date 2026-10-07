@@ -17,6 +17,6 @@ function patchApi(){
   const view=viewport();if(view)view.dataset.walkFireApi="single-shot-per-call-v2";
   return true;
 }
-function frame(){patchApi();requestAnimationFrame(frame);}
-export function installFirstPersonFireContractV1(){if(installed)return;installed=true;patchApi();requestAnimationFrame(frame);}
+function maintenance(){patchApi();setTimeout(maintenance,250);}
+export function installFirstPersonFireContractV1(){if(installed)return;installed=true;patchApi();setTimeout(maintenance,250);}
 installFirstPersonFireContractV1();
