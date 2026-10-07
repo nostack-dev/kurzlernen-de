@@ -37,7 +37,6 @@ let installed=false;
 let sceneRef=null;
 let policeRoot=null;
 let hud=null,empButton=null,hudStars=[],hudTitle=null,hudDetail=null,lastHudRender=-Infinity,policeHitBridge=null;
-let empButton=null;
 let empPulse=null;
 let heat=0;
 let stars=0;
