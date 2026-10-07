@@ -12,7 +12,7 @@ const modulePath=process.argv[2];
 if(!modulePath)throw new Error("usage: node tests/world_vehicle_dynamics_box3d_test.mjs <box3d.inline.mjs>");
 const b3=await (await import(pathToFileURL(resolve(modulePath)).href)).default();
 assert.ok(VEHICLE_SPECS.car.comZ<0&&VEHICLE_SPECS.bus.comZ<0,"vehicle stability must come from a physical low centre of mass");
-const drivetrainSource=driveWheeled.toString();assert.ok(!drivetrainSource.includes("b3Body_SetTransform")&&!drivetrainSource.includes("flippedFor"),"drivetrain must never teleport/self-right a vehicle");
+const drivetrainSource=driveWheeled.toString();for(const forbidden of["b3Body_SetTransform","b3Body_SetLinearVelocity","b3Body_SetAngularVelocity","b3Body_ApplyTorque","flippedFor"])assert.ok(!drivetrainSource.includes(forbidden),`physical drivetrain must not use pose/velocity/upright cheats: ${forbidden}`);
 const physics=new WorldRigidBodyPhysics(b3,{buildingSnapshot:{hash:"none",footprintCount:0,prisms:[]}});
 const step=(n,t0=0)=>{for(let i=0;i<n;i++)physics.step(1/60,4,t0+i*1000/60);};
 const speedOf=id=>{const p=physics.pose(id);return Math.hypot(p.velocity[0],p.velocity[1]);};
