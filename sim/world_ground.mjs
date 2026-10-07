@@ -61,6 +61,10 @@ async function rebuild(b,cx,cy){
 function frame(now){
   requestAnimationFrame(frame);const b=bridge();if(!b?.active||!b.threeScene||typeof b.unprojectMeters!=="function"){if(mesh)mesh.visible=false;return;}
   if(mesh&&mesh.parent!==b.threeScene)mesh=null;ensureMesh(b.threeScene);
+  // Depth precision: a 1 cm near plane leaves ~25 cm depth steps at 200 m, so
+  // ground, roads and facades z-fight. Near is 6 cm on foot (weapon in view)
+  // and 25 cm otherwise — 6–25× finer depth everywhere.
+  {const c=b.threeCamera,want=globalThis.__arondightWalkMode?.mode==="foot"?.06:.25;if(c&&Math.abs(c.near-want)>1e-4){c.near=want;c.updateProjectionMatrix();}}
   const cam=b.threeCamera;if(!cam||busy||now-lastTry<1500)return;if(Math.hypot(cam.position.x-center[0],cam.position.y-center[1])<REBUILD_MOVE_M&&mesh.visible)return;lastTry=now;center=[cam.position.x,cam.position.y];rebuild(b,center[0],center[1]);
 }
 export function installWorldGround(){if(installed||typeof window==="undefined")return;installed=true;onTerrainChange(()=>applyHeights());requestAnimationFrame(frame);}

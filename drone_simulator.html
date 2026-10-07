@@ -138,7 +138,7 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
     window.dispatchEvent(new CustomEvent("arondight45-audio-settings-change",{detail:cfg}));render();});
   window.addEventListener("arondight45-audio-settings-change",function(){render();});
   // In game: sit just left of RESET (falls back to the menu's top-right spot).
-  function dock(){var reset=document.getElementById("mobileGameplayReset")||document.getElementById("soloReset"),menu=document.getElementById("gameMenu"),inGame=menu&&menu.hidden&&reset&&reset.offsetParent;
+  function dock(){var reset=null,menu=document.getElementById("gameMenu");["mobileGameplayReset","soloReset"].forEach(function(id){var el=document.getElementById(id);if(!el||!el.offsetParent)return;var q=el.getBoundingClientRect();if(q.width<4||q.height<4)return;if(!reset||q.top<reset.getBoundingClientRect().top-2)reset=el;});var inGame=menu&&menu.hidden&&reset;
     if(inGame){var r=reset.getBoundingClientRect();btn.style.top=r.top+"px";btn.style.right=(window.innerWidth-r.left+6)+"px";btn.style.height=r.height+"px";}else{btn.style.top="";btn.style.right="";btn.style.height="";}
     setTimeout(dock,400);}
   render();dock();

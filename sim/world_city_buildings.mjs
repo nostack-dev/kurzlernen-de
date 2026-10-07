@@ -221,6 +221,17 @@ function pumpBuild(){
   currentHash=building.key;setData("worldCityBuildings",building.count);setData("worldCityBuildingsVersion",CITY_BUILDINGS_VERSION);setData("worldCityLook","hero-stylized-facades-v1");building=null;
 }
 
+// The map can hold the same building from several tile zoom levels (slightly
+// differently simplified) — two nearly coplanar facades flicker (z-fighting
+// windows). Per OSM id keep the largest copy and drop copies whose centre lies
+// inside an already kept one; tile-clipped fragments (side by side) survive.
+// Outlines that have separate building:parts are flagged hide_3d and skipped.
+function pipRing(x,y,ring){let inside=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],c=ring[j];if(((a[1]>y)!==(c[1]>y))&&x<(c[0]-a[0])*(y-a[1])/((c[1]-a[1])||1e-9)+a[0])inside=!inside;}return inside;}
+function dedupeOverlaps(footprints){
+  const byId=new Map(),out=[];for(const f of footprints){const id=String(f.key).startsWith("geometry:")?null:String(f.key).split(":")[0];if(!id){out.push(f);continue;}let g=byId.get(id);if(!g){g=[];byId.set(id,g);}g.push(f);}
+  for(const g of byId.values()){g.sort((a,b)=>b.area-a.area);const kept=[];for(const f of g){if(kept.some(k=>pipRing(f.center[0],f.center[1],k.outer)))continue;kept.push(f);}out.push(...kept);}
+  return out.sort((a,b)=>a.distance-b.distance);
+}
 function features(b){
   if(!b?.map||!b.buildingSourceId)return[];
   try{const list=b.map.querySourceFeatures?.(b.buildingSourceId,{sourceLayer:"building"});if(Array.isArray(list))return list;}catch{}return[];
@@ -235,7 +246,7 @@ function sync(now){
   if(moved<RESYNC_MOVE_M&&list.length===lastFeatureCount&&currentHash.endsWith(`#d${destructionRevision()}`))return;
   lastSyncAt=now;lastFeatureCount=list.length;lastCenter=[p.x,p.y];
   const project=(lon,lat)=>b.projectLngLat(lon,lat);
-  const footprints=buildingFootprintsFromFeatures(list,{project,center:[p.x,p.y],radiusM:VISUAL_RADIUS_M,maxFootprints:MAX_FOOTPRINTS,maxVertices:MAX_VERTICES});
+  const footprints=dedupeOverlaps(buildingFootprintsFromFeatures(list.filter(f=>!f.properties?.hide_3d),{project,center:[p.x,p.y],radiusM:VISUAL_RADIUS_M,maxFootprints:MAX_FOOTPRINTS,maxVertices:MAX_VERTICES}));
   const key=`${buildingFootprintHash(footprints)}#d${destructionRevision()}`;if(key===currentHash)return;
   startBuild(footprints,key);
 }

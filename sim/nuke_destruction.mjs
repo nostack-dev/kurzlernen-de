@@ -247,7 +247,7 @@ function spawnCrater(scene,center){
   for(let r=0;r<=rows;r++)for(let s=0;s<cols;s++){const rad=CRATER_R*(r/rows)**1.15,a=s/cols*Math.PI*2+(r%2)*.04;positions.push(Math.cos(a)*rad,Math.sin(a)*rad,0);}
   for(let r=0;r<rows;r++)for(let s=0;s<cols;s++){const a=r*cols+s,b=r*cols+(s+1)%cols,c=(r+1)*cols+s,d=(r+1)*cols+(s+1)%cols;index.push(a,c,b,b,c,d);}
   const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));geometry.setIndex(index);
-  const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color:0x3a2e24,roughness:1,metalness:0,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
+  const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color:0x7a6650,roughness:1,metalness:0,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
   mesh.name="NUKE_CRATER_GROUND";mesh.receiveShadow=true;mesh.position.set(center.x,center.y,.02);mesh.userData.flightFireIgnore=true;mesh.userData.neonSkip=true;mesh.userData.nukeCrater=true;mesh.frustumCulled=false;mesh.renderOrder=-9000;
   contourXY??=contourBase();const linePos=new Float32Array(contourXY.length/2*3);for(let i=0,j=0;i<contourXY.length;i+=2,j+=3){linePos[j]=contourXY[i];linePos[j+1]=contourXY[i+1];linePos[j+2]=.15;}
   const lineGeo=new THREE.BufferGeometry();lineGeo.setAttribute("position",new THREE.BufferAttribute(linePos,3));
