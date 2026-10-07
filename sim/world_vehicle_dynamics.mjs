@@ -11,16 +11,16 @@
 // traffic (an AI driver steers towards its route target and controls speed
 // with the same pedal). Frame: world z up; chassis local x forward, y left.
 
-export const VEHICLE_DYNAMICS_VERSION="box3d-wheel-joint-vehicles-v1";
+export const VEHICLE_DYNAMICS_VERSION="box3d-wheel-joint-vehicles-v2-physical";
 
 // Joint frame: local x -> up (suspension + steering axis), local z -> left
 // (wheel spin axis), local y -> forward. Same frame on chassis and wheel.
 const FRAME_Q=[-.5,-.5,-.5,.5];
 export const VEHICLE_SPECS=Object.freeze({
-  car:{half:[1.78,.82,.36],mass:1350,radius:.34,wheelMass:22,attachZ:-.26,wheels:[[1.2,.78,true],[1.2,-.78,true],[-1.15,.78,false],[-1.15,-.78,false]],
-    suspension:{hertz:4.4,damping:.6,lower:-.14,upper:.1},torque:{front:320,rear:720},brake:3200,handbrake:3600,coast:40,steerLock:.6,steerTorque:900,friction:1.75},
-  bus:{half:[4,1.17,1.2],mass:9200,radius:.46,wheelMass:85,attachZ:-1.1,wheels:[[2.6,1.08,true],[2.6,-1.08,true],[-2.55,1.08,false],[-2.55,-1.08,false]],
-    suspension:{hertz:4.2,damping:.7,lower:-.16,upper:.12},torque:{front:0,rear:4200},brake:9500,handbrake:12000,coast:260,steerLock:.5,steerTorque:6000,friction:1.6},
+  car:{half:[1.78,.82,.36],mass:1350,comZ:-.18,radius:.34,wheelMass:22,attachZ:-.26,wheels:[[1.2,.78,true],[1.2,-.78,true],[-1.15,.78,false],[-1.15,-.78,false]],
+    suspension:{hertz:3.8,damping:.8,lower:-.15,upper:.11},torque:{front:320,rear:720},brake:3200,handbrake:3600,coast:40,steerLock:.58,steerTorque:900,friction:1.35},
+  bus:{half:[4,1.17,1.2],mass:9200,comZ:-.52,radius:.46,wheelMass:85,attachZ:-1.1,wheels:[[2.6,1.08,true],[2.6,-1.08,true],[-2.55,1.08,false],[-2.55,-1.08,false]],
+    suspension:{hertz:2.8,damping:.86,lower:-.18,upper:.14},torque:{front:0,rear:4200},brake:9500,handbrake:12000,coast:260,steerLock:.44,steerTorque:6000,friction:1.15},
 });
 export function vehicleSpec(kind){return kind==="bus"?VEHICLE_SPECS.bus:kind==="car"||kind==="vehicle"?VEHICLE_SPECS.car:null;}
 export function vehicleGroundOffset(spec){return spec.radius-spec.attachZ;}
@@ -33,6 +33,10 @@ export function attachWheels(physics,record,spec,{category,mask}){
   const b3=physics.b3;if(typeof b3.b3CreateWheelJoint!=="function"||typeof b3.b3DefaultWheelJointDef!=="function")return false;
   const chassisPos=b3.b3Body_GetPosition([0,0,0],record.body),chassisRot=b3.b3Body_GetRotation([0,0,0,1],record.body);
   record.wheels=[];record.spec=spec;record.groundOffset=vehicleGroundOffset(spec);record.steerAngle=0;
+  // Stability comes from the actual mass distribution, not an upright constraint.
+  // Lowering the chassis COM approximates engine/floor/passenger mass while leaving
+  // roll, pitch, jumps and flips entirely to Box3D contacts + suspension.
+  if(Number.isFinite(spec.comZ)&&typeof b3.b3Body_GetMassData==="function"&&typeof b3.b3Body_SetMassData==="function"){const md=b3.b3Body_GetMassData(record.body);md.mass=spec.mass;md.center=[0,0,spec.comZ];b3.b3Body_SetMassData(record.body,md);}
   const r=spec.radius,volume=4/3*Math.PI*r*r*r;
   for(const[x,y,front]of spec.wheels){
     const local=[x,y,spec.attachZ],off=rotate(chassisRot,local),bd=b3.b3DefaultBodyDef();bd.type=b3.b3BodyType.b3_dynamicBody;bd.position=[chassisPos[0]+off[0],chassisPos[1]+off[1],chassisPos[2]+off[2]];bd.rotation=[...chassisRot];bd.angularDamping=.05;bd.linearDamping=.02;if("allowFastRotation"in bd)bd.allowFastRotation=true;bd.enableSleep=false;
@@ -65,12 +69,13 @@ function aiInput(record,position,forward,vf){
 
 // One physics step of the drivetrain (called before b3World_Step).
 export function driveWheeled(physics,record,dt){
-  const b3=physics.b3,spec=record.spec,body=record.body,q=b3.b3Body_GetRotation([0,0,0,1],body),v=b3.b3Body_GetLinearVelocity([0,0,0],body),w=b3.b3Body_GetAngularVelocity([0,0,0],body),p=b3.b3Body_GetPosition([0,0,0],body);
-  const forward=rotate(q,[1,0,0]),up=rotate(q,[0,0,1]),vf=v[0]*forward[0]+v[1]*forward[1]+v[2]*forward[2],speed=Math.hypot(v[0],v[1],v[2]);
+  const b3=physics.b3,spec=record.spec,body=record.body,q=b3.b3Body_GetRotation([0,0,0,1],body),v=b3.b3Body_GetLinearVelocity([0,0,0],body),p=b3.b3Body_GetPosition([0,0,0],body);
+  const forward=rotate(q,[1,0,0]),vf=v[0]*forward[0]+v[1]*forward[1]+v[2]*forward[2],speed=Math.hypot(v[0],v[1],v[2]);
   const input=record.drive||(record.target?aiInput(record,p,forward,vf):{pedal:0,steer:0,handbrake:false,maxSpeed:30,maxReverse:6});
   const r=spec.radius,pedal=clamp(input.pedal,-1,1),handbrake=Boolean(input.handbrake),maxSpeed=clamp(input.maxSpeed??36,3,80),maxReverse=clamp(input.maxReverse??9,1,30);
-  // steering: speed-sensitive lock, rate-limited
-  const lock=spec.steerLock/(1+Math.abs(vf)/16),target=clamp(input.steer,-1,1)*lock,rate=2.8*dt;record.steerAngle+=clamp(target-record.steerAngle,-rate,rate);
+  // Physical steering rack: the stick requests a wheel angle; the steering
+  // joint motor reaches it at a finite actuator rate. No speed-based axis clamp.
+  const target=clamp(input.steer,-1,1)*spec.steerLock,rate=(record.kind==="bus"?1.45:2.8)*dt;record.steerAngle+=clamp(target-record.steerAngle,-rate,rate);
   // brake until (almost) stopped — also while sliding sideways — then reverse
   let mode="coast";if(pedal>0.02)mode=vf<-.8?"brake":"drive";else if(pedal<-0.02)mode=vf>.8||(speed>2&&vf>-.5)?"brake":"reverse";
   const torqueCurve=s=>Math.max(.15,1-Math.max(0,s/maxSpeed-.55)/.45);
@@ -83,13 +88,9 @@ export function driveWheeled(physics,record,dt){
     if(handbrake&&!wheel.front){spinSpeed=0;torque=spec.handbrake;}
     b3.b3WheelJoint_SetSpinMotorSpeed(j,spinSpeed);b3.b3WheelJoint_SetMaxSpinTorque(j,Math.max(0,torque));
   }
-  if(pedal||input.steer||handbrake)b3.b3Body_SetAwake?.(body,true);
-  // anti-roll helper (like a soft parallel joint, only against big tilt) and
-  // self-righting when the car lies on its side / roof and is almost stopped
-  const tilt=Math.max(0,1-up[2]),ax=up[1],ay=-up[0];
-  if(tilt>.06){const k=record.massKg*(up[2]<.3&&speed<2?26:6)*tilt;b3.b3Body_ApplyTorque(body,[ax*k-w[0]*record.massKg*.4,ay*k-w[1]*record.massKg*.4,0],true);}
-  record.flippedFor=up[2]<.15&&speed<1.2?(record.flippedFor||0)+dt:0;
-  if(record.flippedFor>2.5){record.flippedFor=0;const yaw=Math.atan2(forward[1],forward[0]);b3.b3Body_SetTransform(body,[p[0],p[1],p[2]+1.2],[0,0,Math.sin(yaw/2),Math.cos(yaw/2)]);b3.b3Body_SetLinearVelocity(body,[0,0,0]);b3.b3Body_SetAngularVelocity(body,[0,0,0]);placeWheels(physics,record);}
+  if(pedal||input.steer||handbrake){b3.b3Body_SetAwake?.(body,true);for(const wheel of record.wheels)b3.b3Body_SetAwake?.(wheel.body,true);}
+  // Deliberately no anti-roll torque, upright constraint or self-right teleport.
+  // If the vehicle rolls, jumps or flips, Box3D suspension/contact dynamics own it.
   record.vf=vf;
 }
 export function wheelPoses(physics,record){const b3=physics.b3;return(record.wheels||[]).map(w=>({position:[...b3.b3Body_GetPosition([0,0,0],w.body)],rotation:[...b3.b3Body_GetRotation([0,0,0,1],w.body)],front:w.front}));}

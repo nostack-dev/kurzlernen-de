@@ -62,8 +62,9 @@ export function normalizePhoneSettings(settings={}){
   return{
     leftFineness:clampLevel(settings.leftFineness??DEFAULT_PHONE_SETTINGS.leftFineness),
     rightFineness:clampLevel(settings.rightFineness??DEFAULT_PHONE_SETTINGS.rightFineness),
-    lockLeftHorizontal:Boolean(settings.lockLeftHorizontal),
-    lockRightHorizontal:Boolean(settings.lockRightHorizontal),
+    // Legacy fields remain in the stored schema, but analog stick axes are never disabled.
+    lockLeftHorizontal:false,
+    lockRightHorizontal:false,
     invertLeftHorizontal:Boolean(settings.invertLeftHorizontal),
     invertRightHorizontal:Boolean(settings.invertRightHorizontal),
     invertRightVertical:Boolean(settings.invertRightVertical),
@@ -165,14 +166,14 @@ export function endPointerDrag(element,pointerId){
 export function applyGameStick(controls,kind,point,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings),p=constrainUnit(Number(point?.x)||0,Number(point?.y)||0);
   if(kind==="left"){
-    const x=cfg.lockLeftHorizontal?0:(cfg.invertLeftHorizontal?-p.x:p.x),forward=-p.y,magnitude=Math.hypot(x,forward);
+    const x=cfg.invertLeftHorizontal?-p.x:p.x,forward=-p.y,magnitude=Math.hypot(x,forward);
     const phoneMagnitude=phoneAxis(magnitude,cfg.leftFineness),desiredVelocityFraction=phoneMagnitude*gameHorizontalSpeedScale(cfg.maxHorizontalSpeedKmh),encodedMagnitude=inverseGameStateStickMagnitude(desiredVelocityFraction),factor=magnitude>1e-9?encodedMagnitude/magnitude:0;
     controls.roll=x*factor;controls.pitch=forward*factor;controls.throttle=0;
   }else{
     const x=cfg.invertRightHorizontal?-p.x:p.x;
     const y=cfg.invertRightVertical?-p.y:p.y;
     controls.yaw=phoneAxis(-x,cfg.rightFineness);
-    controls.bodyPitch=cfg.lockRightHorizontal?0:phoneAxis(-y,cfg.rightFineness);
+    controls.bodyPitch=phoneAxis(-y,cfg.rightFineness);
   }
   return controls;
 }
@@ -183,7 +184,7 @@ export function gameKnobAxes(controls,kind,settings=DEFAULT_PHONE_SETTINGS){
     return{x:cfg.invertLeftHorizontal?-rawX:rawX,y:-rawForward};
   }
   const rawX=-inversePhoneAxis(controls.yaw,cfg.rightFineness);
-  const rawY=cfg.lockRightHorizontal?0:-inversePhoneAxis(controls.bodyPitch||0,cfg.rightFineness);
+  const rawY=-inversePhoneAxis(controls.bodyPitch||0,cfg.rightFineness);
   return{x:cfg.invertRightHorizontal?-rawX:rawX,y:cfg.invertRightVertical?-rawY:rawY};
 }
 
@@ -191,13 +192,13 @@ export function applyStick(controls,kind,point,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings);
   if(kind==="left"){
     const x=cfg.invertLeftHorizontal?-point.x:point.x;
-    controls.yaw=cfg.lockLeftHorizontal?0:phoneAxis(x,cfg.leftFineness);
+    controls.yaw=phoneAxis(x,cfg.leftFineness);
     controls.throttle=clampControl((1-point.y)/2,0,1);
   }else{
     const x=cfg.invertRightHorizontal?-point.x:point.x;
     const y=cfg.invertRightVertical?-point.y:point.y;
     controls.roll=phoneAxis(-x,cfg.rightFineness);
-    controls.pitch=cfg.lockRightHorizontal?0:phoneAxis(-y,cfg.rightFineness);
+    controls.pitch=phoneAxis(-y,cfg.rightFineness);
   }
   return controls;
 }
@@ -209,10 +210,10 @@ export function releaseStick(controls,kind){
 export function knobAxes(controls,kind,settings=DEFAULT_PHONE_SETTINGS){
   const cfg=normalizePhoneSettings(settings);
   if(kind==="left"){
-    const rawX=cfg.lockLeftHorizontal?0:inversePhoneAxis(controls.yaw,cfg.leftFineness);
+    const rawX=inversePhoneAxis(controls.yaw,cfg.leftFineness);
     return{x:cfg.invertLeftHorizontal?-rawX:rawX,y:1-2*controls.throttle};
   }
-  const rawX=-inversePhoneAxis(controls.roll,cfg.rightFineness),rawY=cfg.lockRightHorizontal?0:-inversePhoneAxis(controls.pitch,cfg.rightFineness);
+  const rawX=-inversePhoneAxis(controls.roll,cfg.rightFineness),rawY=-inversePhoneAxis(controls.pitch,cfg.rightFineness);
   return{x:cfg.invertRightHorizontal?-rawX:rawX,y:cfg.invertRightVertical?-rawY:rawY};
 }
 export function knobPercent(value){return 50+clampControl(value)*42;}

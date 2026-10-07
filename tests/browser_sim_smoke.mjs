@@ -166,13 +166,11 @@ try{
     right:document.querySelector('.phone-settings-dialog [data-slider="right"]')?.value,
     debugGrid:document.querySelector('.phone-settings-dialog [data-debug-grid]')?.checked,
     debugGridRuntime:document.querySelector("#viewport")?.dataset.debugGridEnabled,
-    lock:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.checked,
-    lockLeft:document.querySelector('.phone-settings-dialog [data-lock-left-horizontal]')?.checked,
+    lockControls:document.querySelectorAll('.phone-settings-dialog [data-lock-horizontal],.phone-settings-dialog [data-lock-left-horizontal]').length,
     invertLeft:document.querySelector('.phone-settings-dialog [data-invert-left-horizontal]')?.checked,
     invertX:document.querySelector('.phone-settings-dialog [data-invert-right-horizontal]')?.checked,
     invertY:document.querySelector('.phone-settings-dialog [data-invert-right-vertical]')?.checked,
     xbox:document.querySelector('.phone-settings-dialog [data-xbox-controller]')?.checked,
-    rightLockLabel:document.querySelector('.phone-settings-dialog [data-lock-horizontal]')?.parentElement?.textContent||"",
     hover:document.querySelector('.phone-settings-dialog [data-slider="hover"]')?.value,
     hoverMax:document.querySelector('.phone-settings-dialog [data-slider="hover"]')?.max,
     cameraTilt:document.querySelector('.phone-settings-dialog [data-camera-slider="tilt"]')?.value,
@@ -183,7 +181,7 @@ try{
     v3:localStorage.getItem("arondight45PhoneControlSettingsV3"),
     v4:localStorage.getItem("arondight45PhoneControlSettingsV4"),
   }));
-  if(defaults.profile!=="drone"||defaults.left!=="10"||defaults.right!=="10"||defaults.debugGrid!==false||defaults.debugGridRuntime!=="0"||defaults.hover!=="1.2"||defaults.hoverMax!=="50"||defaults.lock!==false||defaults.lockLeft!==false||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.xbox!==false||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5"||!defaults.rightLockLabel.includes("VERTICAL AXIS"))
+  if(defaults.profile!=="drone"||defaults.left!=="10"||defaults.right!=="10"||defaults.debugGrid!==false||defaults.debugGridRuntime!=="0"||defaults.hover!=="1.2"||defaults.hoverMax!=="50"||defaults.lockControls!==0||defaults.invertLeft!==false||defaults.invertX!==false||defaults.invertY!==true||defaults.xbox!==false||defaults.cameraTilt!=="-15"||defaults.cameraFov!=="105"||defaults.cameraThird!=="1.5")
     throw new Error(`clean V5 requested defaults/settings labels wrong: ${JSON.stringify(defaults)}`);
   if(defaults.v1!==null||defaults.v2!==null||defaults.v3!==null||defaults.v4!==null)
     throw new Error(`obsolete phone settings V1-V4 not wiped: ${JSON.stringify(defaults)}`);
@@ -205,18 +203,7 @@ try{
   await page.click('.phone-settings-dialog [data-invert-right-vertical]');
   stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(stored.invertRightHorizontal!==false||stored.invertRightVertical!==true)throw new Error(`right-axis invert default restore failed: ${JSON.stringify(stored)}`);
-  await page.click('.phone-settings-dialog [data-lock-left-horizontal]');
-  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
-  if(stored.lockLeftHorizontal!==true)throw new Error(`left horizontal lock did not persist: ${JSON.stringify(stored)}`);
-  await page.click('.phone-settings-dialog [data-lock-left-horizontal]');
-  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
-  if(stored.lockLeftHorizontal!==false)throw new Error(`left horizontal unlock did not persist: ${JSON.stringify(stored)}`);
-  await page.click('.phone-settings-dialog [data-lock-horizontal]');
-  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
-  if(stored.lockRightHorizontal!==true)throw new Error(`right vertical lock did not persist: ${JSON.stringify(stored)}`);
-  await page.click('.phone-settings-dialog [data-lock-horizontal]');
-  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
-  if(stored.lockRightHorizontal!==false)throw new Error(`right vertical unlock did not persist: ${JSON.stringify(stored)}`);
+  const lockControlCount=await page.$eval('.phone-settings-dialog [data-lock-horizontal],.phone-settings-dialog [data-lock-left-horizontal]',els=>els.length);if(lockControlCount)throw new Error(`axis-lock controls must not exist: ${lockControlCount}`);
   await page.$eval('.phone-settings-dialog [data-slider="hover"]',e=>{e.value="2.2";e.dispatchEvent(new Event("input",{bubbles:true}));});
   stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(Math.abs(stored.defaultHoverAgl-2.2)>.001)throw new Error(`default hover AGL did not persist: ${JSON.stringify(stored)}`);
@@ -381,5 +368,5 @@ try{
     throw new Error(`mobile layout failed: ${JSON.stringify(mobile)}`);
 
   if(errors.length)throw new Error(errors.join("\n"));
-  console.log("Browser SIL E2E passed: direct FPV/Solo fallback startup, shared WASM GAME/STATE FC, spring-centred AGL target, wall-clock 1 kHz pacing, one-phone forward/strafe/braking, real nose-up body-pitch + heading control, persisted FPV tilt/FOV + third-person distance, live rotor-physics audio, FC-driven ESC arm/disarm tones, axis settings, FC-authoritative arming, race/reset, local fallback and responsive layout.");
+  console.log("Browser SIL E2E passed: direct FPV/Solo fallback startup, shared WASM GAME/STATE FC, spring-centred AGL target, wall-clock 1 kHz pacing, one-phone forward/strafe/braking, real nose-up body-pitch + heading control, persisted FPV tilt/FOV + third-person distance, live rotor-physics audio, FC-driven ESC arm/disarm tones, always-on dual-axis controls, FC-authoritative arming, race/reset, local fallback and responsive layout.");
 }finally{await browser.close();}

@@ -31,7 +31,7 @@ near(gameHorizontalSpeedScale(36),.4,1e-12,"36 km/h must map to 40% of the 90 km
 near(gameHorizontalSpeedScale(90),1,1e-12,"90 km/h must retain full FC translation authority");
 for(const value of [0,.02,.1,.25,.5,.75,1])near(gameStateStickMagnitude(inverseGameStateStickMagnitude(value)),value,2e-8,"GAME FC transfer inverse");
 assert.equal(normalizePhoneSettings({maxHorizontalSpeedKmh:999}).maxHorizontalSpeedKmh,90);assert.equal(normalizePhoneSettings({maxHorizontalSpeedKmh:-5}).maxHorizontalSpeedKmh,5);
-assert.equal(normalizePhoneSettings({}).xboxControllerEnabled,false);assert.equal(normalizePhoneSettings({xboxControllerEnabled:true}).xboxControllerEnabled,true);
+assert.equal(normalizePhoneSettings({}).xboxControllerEnabled,false);assert.equal(normalizePhoneSettings({xboxControllerEnabled:true}).xboxControllerEnabled,true);const legacyLocked=normalizePhoneSettings({lockLeftHorizontal:true,lockRightHorizontal:true});assert.equal(legacyLocked.lockLeftHorizontal,false);assert.equal(legacyLocked.lockRightHorizontal,false);
 assert.equal(MIN_GAME_CLEARANCE_M,.5);assert.equal(MAX_GAME_CLEARANCE_M,50);
 assert.equal(MAX_GAME_TILT_DEG,40);assert.equal(GAME_AGL_SENSOR_RANGE_MARGIN_M,10);
 const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.pow(Math.cos(MAX_GAME_TILT_DEG*Math.PI/180),2);
@@ -65,11 +65,11 @@ let leftKnob=knobAxes(c,"left",DEFAULT_PHONE_SETTINGS);near(leftKnob.x,.4,3e-6);
 releaseStick(c,"left");assert.equal(c.yaw,0);near(c.throttle,.25,1e-6,"left release retains throttle");
 
 c=neutralControls();
-const lockedLeft={...DEFAULT_PHONE_SETTINGS,lockLeftHorizontal:true};
-applyStick(c,"left",{x:.9,y:-.5},lockedLeft);
-assert.equal(c.yaw,0);near(c.throttle,.75,1e-6,"left lock must preserve vertical throttle authority");
-leftKnob=knobAxes(c,"left",lockedLeft);assert.equal(leftKnob.x,0);near(leftKnob.y,-.5,3e-6);
-releaseStick(c,"left");assert.equal(c.yaw,0);near(c.throttle,.75,1e-6,"left lock release retains throttle");
+const legacyLockedLeft={...DEFAULT_PHONE_SETTINGS,lockLeftHorizontal:true};
+applyStick(c,"left",{x:.9,y:-.5},legacyLockedLeft);
+assert.notEqual(c.yaw,0,"legacy axis-lock storage must not disable horizontal stick input");near(c.throttle,.75,1e-6,"vertical throttle authority");
+leftKnob=knobAxes(c,"left",legacyLockedLeft);near(leftKnob.x,.9,3e-6);near(leftKnob.y,-.5,3e-6);
+releaseStick(c,"left");assert.equal(c.yaw,0);near(c.throttle,.75,1e-6,"left release retains throttle");
 
 c.throttle=0;
 applyStick(c,"right",{x:-.3,y:.2},DEFAULT_PHONE_SETTINGS);
@@ -95,10 +95,10 @@ near(c.roll,phoneAxis(.45,invertBoth.rightFineness));near(c.pitch,phoneAxis(-.35
 rightKnob=knobAxes(c,"right",invertBoth);near(rightKnob.x,.45,3e-6);near(rightKnob.y,-.35,3e-6);
 releaseStick(c,"right");
 
-const lockedRight={...DEFAULT_PHONE_SETTINGS,lockRightHorizontal:true};
-applyStick(c,"right",{x:-.6,y:.8},lockedRight);
-near(c.roll,phoneAxis(.6,lockedRight.rightFineness));assert.equal(c.pitch,0);
-rightKnob=knobAxes(c,"right",lockedRight);near(rightKnob.x,-.6,3e-6);near(rightKnob.y,0,1e-12);
+const legacyLockedRight={...DEFAULT_PHONE_SETTINGS,lockRightHorizontal:true};
+applyStick(c,"right",{x:-.6,y:.8},legacyLockedRight);
+near(c.roll,phoneAxis(.6,legacyLockedRight.rightFineness));near(c.pitch,phoneAxis(.8,legacyLockedRight.rightFineness));
+rightKnob=knobAxes(c,"right",legacyLockedRight);near(rightKnob.x,-.6,3e-6);near(rightKnob.y,.8,3e-6);
 releaseStick(c,"right");
 
 let game=neutralControls();
@@ -164,7 +164,7 @@ const stateSource=readFileSync("esp32/Arondight45_StateControl.hpp","utf8");
 for(const marker of ["shaped_magnitude = shape(magnitude, 0.035f, 0.25f)","kStateMaxHorizontalSpeedMps = 25.0f"])
   assert.ok(stateSource.includes(marker),`shared S31 radial velocity contract missing: ${marker}`);
 
-console.log("Phone controls passed: radial 5-90 km/h GAME velocity envelope, semantic inversion, axis locks, relative drag, pooled fire FX, and FC-authoritative arming.");
+console.log("Phone controls passed: radial 5-90 km/h GAME velocity envelope, semantic inversion, always-on dual-axis sticks, relative drag, pooled fire FX, and FC-authoritative arming.");
 
 import {clearanceRateMps,stepGroundClearanceTarget,MAX_GAME_CLEARANCE_RATE_MPS} from "../sim/control_semantics.mjs";
 if(clearanceRateMps(0)!==0||clearanceRateMps(.05)!==0)throw new Error("height HOLD/deadband failed");

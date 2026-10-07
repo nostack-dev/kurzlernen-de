@@ -29,17 +29,17 @@ assert.deepEqual(loadPhoneControlSettings(),drone,"saving FIRST PERSON must not 
 savePhoneControlSettings({...drone,rightFineness:3});
 assert.equal(loadFirstPersonControlSettings().moveFineness,2,"saving DRONE must not mutate FIRST PERSON");
 
-const clamped=normalizeFirstPersonControlSettings({moveFineness:99,lookFineness:-4,horizontalLookSensitivityPercent:999,verticalLookSensitivityPercent:1,lookDeadzonePercent:90,aimAssistStrengthPercent:-5});
+const clamped=normalizeFirstPersonControlSettings({moveFineness:99,lookFineness:-4,horizontalLookSensitivityPercent:999,verticalLookSensitivityPercent:1,lookDeadzonePercent:90,aimAssistStrengthPercent:-5});const legacyLocks=normalizeFirstPersonControlSettings({lockMoveHorizontal:true,lockLookVertical:true});assert.equal(legacyLocks.lockMoveHorizontal,false);assert.equal(legacyLocks.lockLookVertical,false);
 assert.deepEqual({move:clamped.moveFineness,look:clamped.lookFineness,horizontal:clamped.horizontalLookSensitivityPercent,vertical:clamped.verticalLookSensitivityPercent,deadzone:clamped.lookDeadzonePercent,assist:clamped.aimAssistStrengthPercent},{move:10,look:1,horizontal:150,vertical:50,deadzone:20,assist:0});
 
-const direct=shapeFirstPersonMove(.5,-.25,DEFAULT_FIRST_PERSON_CONTROL_SETTINGS),fine=shapeFirstPersonMove(.5,-.25,{...DEFAULT_FIRST_PERSON_CONTROL_SETTINGS,moveFineness:10}),inverted=shapeFirstPersonMove(.5,-.25,{...DEFAULT_FIRST_PERSON_CONTROL_SETTINGS,invertMoveHorizontal:true}),locked=shapeFirstPersonMove(.5,-.25,{...DEFAULT_FIRST_PERSON_CONTROL_SETTINGS,lockMoveHorizontal:true});
+const direct=shapeFirstPersonMove(.5,-.25,DEFAULT_FIRST_PERSON_CONTROL_SETTINGS),fine=shapeFirstPersonMove(.5,-.25,{...DEFAULT_FIRST_PERSON_CONTROL_SETTINGS,moveFineness:10}),inverted=shapeFirstPersonMove(.5,-.25,{...DEFAULT_FIRST_PERSON_CONTROL_SETTINGS,invertMoveHorizontal:true}),legacyLocked=shapeFirstPersonMove(.5,-.25,{...DEFAULT_FIRST_PERSON_CONTROL_SETTINGS,lockMoveHorizontal:true});
 assert.ok(Math.abs(direct.x-.5)<1e-12&&Math.abs(direct.y+.25)<1e-12);
 assert.ok(Math.hypot(fine.x,fine.y)<Math.hypot(direct.x,direct.y),"movement fineness must soften centre travel");
 assert.ok(inverted.x<0&&inverted.y<0);
-assert.equal(locked.x,0);
+assert.deepEqual(legacyLocked,direct,"legacy move-axis lock must be ignored");
 
-const lookAxes=firstPersonLookAxes(.4,-.6,{...DEFAULT_FIRST_PERSON_CONTROL_SETTINGS,invertLookHorizontal:true,invertLookVertical:true}),lookLocked=firstPersonLookAxes(.4,-.6,{...DEFAULT_FIRST_PERSON_CONTROL_SETTINGS,lockLookVertical:true}),lookDelta=firstPersonLookDelta(18,-27,{...DEFAULT_FIRST_PERSON_CONTROL_SETTINGS,invertLookHorizontal:true,invertLookVertical:true});
-assert.deepEqual(lookAxes,{x:-.4,y:.6});assert.deepEqual(lookLocked,{x:.4,y:0});assert.deepEqual(lookDelta,{x:-18,y:27});
+const lookAxes=firstPersonLookAxes(.4,-.6,{...DEFAULT_FIRST_PERSON_CONTROL_SETTINGS,invertLookHorizontal:true,invertLookVertical:true}),legacyLookLocked=firstPersonLookAxes(.4,-.6,{...DEFAULT_FIRST_PERSON_CONTROL_SETTINGS,lockLookVertical:true}),lookDelta=firstPersonLookDelta(18,-27,{...DEFAULT_FIRST_PERSON_CONTROL_SETTINGS,invertLookHorizontal:true,invertLookVertical:true});
+assert.deepEqual(lookAxes,{x:-.4,y:.6});assert.deepEqual(legacyLookLocked,{x:.4,y:-.6},"legacy look-axis lock must be ignored");assert.deepEqual(lookDelta,{x:-18,y:27});
 assert.deepEqual(firstPersonLookSensitivity(fps),{yaw:.73,pitch:1.21});
 assert.equal(firstPersonLookDeadzone(fps),.06);assert.equal(firstPersonAimAssistScale(fps),.42);assert.ok(firstPersonLookCurveStrength(fps)>firstPersonLookCurveStrength(DEFAULT_FIRST_PERSON_CONTROL_SETTINGS));
 const lookProfile=buildFirstPersonLookProfile({innerDeadzone:.08,dynamicCurveStrength:.04,assistSlowdownStrength:.34,assistCorrectionGain:4,assistMaxCorrectionRadS:.38},fps);assert.equal(lookProfile.innerDeadzone,.06);assert.ok(Math.abs(lookProfile.assistSlowdownStrength-.1428)<1e-12);assert.ok(Math.abs(lookProfile.assistCorrectionGain-1.68)<1e-12);assert.ok(Math.abs(lookProfile.assistMaxCorrectionRadS-.1596)<1e-12);assert.equal(Object.isFrozen(lookProfile),true);

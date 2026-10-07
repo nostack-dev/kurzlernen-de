@@ -24,8 +24,9 @@ const mobile=files["sim/mobile_gameplay_ui.mjs"];
 assert.ok(mobile.includes("const UI_SYNC_MS=100")&&mobile.includes("setTimeout(sync,UI_SYNC_MS)"),"mobile HUD must use low-frequency state sync");
 assert.ok(!mobile.includes("requestAnimationFrame(sync)"),"mobile HUD must not own a frame-rate DOM loop");
 
-const cleanup=files["sim/flight_first_cleanup.mjs"];
-assert.ok(!cleanup.includes("requestAnimationFrame(frame)")&&!cleanup.includes("function frame(){publish()"),"static cleanup diagnostics must not own an RAF loop");
+const cleanup=files["sim/flight_first_cleanup.mjs"],publishStart=cleanup.indexOf("function publish()"),publishEnd=cleanup.indexOf("export ",publishStart);
+const cleanupDiagnostics=cleanup.slice(publishStart,publishEnd>publishStart?publishEnd:cleanup.length);
+assert.ok(publishStart>=0&&!cleanupDiagnostics.includes("requestAnimationFrame(")&&!cleanupDiagnostics.includes("function frame(){publish()"),"static cleanup diagnostics must not own an RAF loop; the pointer-owned look/fire input loop may remain frame-driven");
 
 const gameplay=files["sim/gameplay_final_runtime_v2.mjs"];
 assert.ok(gameplay.includes("lastHousekeeping=-Infinity")&&gameplay.includes("now-lastHousekeeping>=250"),"weapon hierarchy housekeeping must be throttled");
@@ -36,7 +37,11 @@ assert.ok(wanted.includes("now-lastHudRender<100")&&wanted.includes("hudStars=[.
 assert.equal((wanted.match(/let empButton=/g)||[]).length,0,"EMP binding must live in the consolidated HUD declaration only");
 
 assert.ok(files["sim/player_walk_mode_v4.mjs"].includes("now-lastWalkHousekeeping>=200"),"walk DOM mounting must be off the render hot path");
-assert.ok(files["sim/player_car_mode.mjs"].includes("now-lastCarUi>=100"),"car UI updates must be decoupled from physics frames");
+const car=files["sim/player_car_mode.mjs"];
+assert.ok(car.includes("now-lastCarUi>=100"),"car UI updates must be decoupled from physics frames");
+assert.ok(car.includes('id="vehicleMove" class="vehicle-stick"')&&car.includes('id="vehicleLook" class="vehicle-stick"'),"vehicle mode must expose the same MOVE/LOOK dual-stick layout");
+assert.ok(car.includes("touchSteer=p.x;touchPedal=-p.y")&&car.includes("touchLookX=p.x;touchLookY=-p.y"),"both axes of both vehicle sticks must remain live");
+assert.ok(!car.includes("vehicle-pad")&&!car.includes('class="foot-stick vehicle-stick"'),"vehicle sticks must not reintroduce one-axis pads or pollute the on-foot stick set");
 assert.ok(files["sim/player_vehicle_runtime_v2.mjs"].includes("now-lastIntegrationPatch>=250"),"multiplayer integration patch checks must be throttled");
 assert.ok(files["sim/training_test_level_v2.mjs"].includes("setTimeout(sync,250)")&&!files["sim/training_test_level_v2.mjs"].includes("requestAnimationFrame(frame)"),"static training-level visibility must not run at frame rate");
 
