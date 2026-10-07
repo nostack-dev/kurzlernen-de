@@ -68,7 +68,11 @@ const wanted=files["sim/wanted_police_drones.mjs"];
 assert.ok(wanted.includes("now-lastHudRender<100")&&wanted.includes("hudStars=[...hud.querySelectorAll"),"wanted HUD DOM updates must be throttled and cached");
 assert.equal((wanted.match(/let empButton=/g)||[]).length,0,"EMP binding must live in the consolidated HUD declaration only");
 
-assert.ok(files["sim/player_walk_mode_v4.mjs"].includes("now-lastWalkHousekeeping>=200"),"walk DOM mounting must be off the render hot path");
+const walkRuntime=files["sim/player_walk_mode_v4.mjs"];
+assert.ok(walkRuntime.includes("now-lastWalkHousekeeping>=200"),"walk DOM mounting must be off the render hot path");
+assert.ok(walkRuntime.includes("aimDiscoverStack=[]")&&walkRuntime.includes("stepAimDiscovery(performance.now()+.65)"),"aim-assist candidate discovery must be incremental");
+const aimScan=walkRuntime.slice(walkRuntime.indexOf("function scanAimTarget"),walkRuntime.indexOf("function neutralAimAssist"));
+assert.ok(!aimScan.includes("scene.traverse"),"aim-assist scoring must not traverse the full scene every 115 ms");
 const car=files["sim/player_car_mode.mjs"];
 assert.ok(car.includes("now-lastCarUi>=100"),"car UI updates must be decoupled from physics frames");
 assert.ok(car.includes('id="vehicleMove" class="vehicle-stick"')&&car.includes('id="vehicleLook" class="vehicle-stick"'),"vehicle mode must expose the same MOVE/LOOK dual-stick layout");
