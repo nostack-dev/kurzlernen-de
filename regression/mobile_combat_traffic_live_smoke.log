@@ -1,8 +1,8 @@
-file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:31
-  if(delta<4)throw new Error(`SMG hold must fire continuously beyond a three-round burst: ${JSON.stringify({beforeShots,held,released,delta})}`);
-                   ^
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:33
+  if(!(held.alignment==="grip-anchor-to-resolved-shot-v6"&&Number.isFinite(held.error)&&held.error<.5&&Number.isFinite(held.drift)&&held.drift<.003&&held.grip==="grip-world-fixed-v2"&&held.vector==="grip-to-muzzle-to-shot-point-v1"&&held.target))throw new Error(`weapon geometry is not grip-anchored to resolved shot point: ${JSON.stringify(held)}`);
+                                                                                                                                                                                                                                                            ^
 
-Error: SMG hold must fire continuously beyond a three-round burst: {"beforeShots":0,"held":{"shots":3,"active":"1","hold":"screen-pointer-owned-smg-v1","api":"single-shot-per-call-v2","alignment":"grip-anchor-to-resolved-shot-v6","error":0,"drift":0,"grip":"grip-world-fixed-v2","vector":"grip-to-muzzle-to-shot-point-v1","target":"-25.098,175.124,10.484"},"released":{"shots":4,"active":"0","release":"pointerup","tail":0},"delta":3}
-    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:31:20
+Error: weapon geometry is not grip-anchored to resolved shot point: {"shots":5,"active":"1","hold":"screen-pointer-owned-smg-v1","api":"single-shot-per-call-v2","error":null,"drift":null,"target":"-25.088,175.200,8.817"}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:33:253
 
 Node.js v22.23.3

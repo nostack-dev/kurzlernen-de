@@ -1,1 +1,26 @@
-Flight-first mobile regression passed. {"upMove":[0,-1],"rightMove":[1,0],"look":{"move":"0.000,0.000","yaw":0.8293,"pitch":-0.0008,"contract":"drone-normalized-pointer-origin-v2","semantics":"drone-normalizedPointer-v1","aimCoordinates":"drone-normalizedPointer-v2"},"movingBeforeFire":{"move":"0.000,-1.000","isolation":"pointer-id-owned-v1"},"movingWhileFiring":{"move":"0.000,-1.000","shots":2,"isolation":"pointer-id-owned-v1"},"movingAfterFireLift":{"move":"0.000,-1.000","shots":3},"before":{"yaw":1.2184,"pitch":-0.0012,"shots":3},"after":{"yaw":1.2184,"pitch":-0.0012,"shots":6,"screen":"fire-only-v1","fireVector":"touch-screen-ray-v5","aimSource":"screen-touch","touchVector":"screen-ray+hand-anchor-v1","alignment":"exact-screen-ray-from-hand-anchor-v5","aimWeight":1,"aimErrorDeg":0,"handAnchor":"position-fixed-rotation-only-v1"},"fpvUi":{"fire":"none","fireContract":"screen-touch-only-hidden-v1","lookZone":"none","contractVisibility":"hidden","contractOpacity":"0","score":"none","dock":["ON FOOT","WEAPON · SMG","SETTINGS"],"buttonLayout":[{"text":"ON FOOT","display":"flex","align":"center","justify":"center","padTop":"0px","padBottom":"0px","lineHeight":"9px"},{"text":"WEAPON · SMG","display":"flex","align":"center","justify":"center","padTop":"0px","padBottom":"0px","lineHeight":"9px"},{"text":"SETTINGS","display":"flex","align":"center","justify":"center","padTop":"0px","padBottom":"0px","lineHeight":"9px"}],"spawnGuard":"joint-player-cones-v1","collision":"box3d-capsule-mover-v1","collisionShape":"capsule","collisionMask":"terrain-walls-only","collisionShots":"pass-through","collisionRadius":"0.28","collisionHeight":"1.72"},"settings":{"clientHeight":791,"scrollHeight":4555,"scrollTop":3764,"overflowY":"auto","touchAction":"pan-y","start":0},"droneReset":{"before":{"destroyed":false,"canDeploy":true},"after":{"destroyed":false,"canDeploy":true},"mode":"drone"},"droneUi":{"topbar":"none","arm":"flex","armText":"ARM","contractVisibility":"hidden","contractOpacity":"0","buttons":["DRONE","WEAPON · GUN","SETTINGS"],"cameraExtra":"0.045","missileContract":"tap-ray-fixed-after-launch-v1","spawnGuard":"joint-player-cones-v1"},"armResult":{"armed":true,"clicked":true,"disabled":false,"fc":"ARMED","mode":"drone","ui":"DRONE"},"missile":{"fired":true,"guidance":"fixed-screen-ray-no-homing-v1","direction":"-0.5822,-0.8071,-0.0983","active":1}}
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45
+            this.#timeoutError = new TimeoutError(`Waiting failed: ${options.timeout}ms exceeded`);
+                                 ^
+
+TimeoutError: Waiting failed: 1800ms exceeded
+    at new WaitTask (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45:34)
+    at IsolatedWorld.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Realm.js:22:26)
+    at CdpFrame.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Frame.js:584:43)
+    at CdpFrame.<anonymous> (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/decorators.js:101:27)
+    at CdpPage.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Page.js:1439:37)
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:48:14
+
+Node.js v22.23.3
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45
+            this.#timeoutError = new TimeoutError(`Waiting failed: ${options.timeout}ms exceeded`);
+                                 ^
+
+TimeoutError: Waiting failed: 1800ms exceeded
+    at new WaitTask (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45:34)
+    at IsolatedWorld.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Realm.js:22:26)
+    at CdpFrame.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Frame.js:584:43)
+    at CdpFrame.<anonymous> (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/decorators.js:101:27)
+    at CdpPage.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Page.js:1439:37)
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:48:14
+
+Node.js v22.23.3
