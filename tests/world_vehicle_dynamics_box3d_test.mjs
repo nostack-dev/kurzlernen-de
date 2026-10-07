@@ -42,7 +42,8 @@ physics.addBody({id:"ai",kind:"car",position:[0,30,.5],yaw:0});step(30);
 for(let i=0;i<300;i++){physics.setTarget("ai",{position:[60,60,0],speedMps:10});physics.step(1/60,4,i*16);}
 p=physics.pose("ai");const d=Math.hypot(60-p.position[0],60-p.position[1]);console.log("ai distance to target",d.toFixed(1));
 assert.ok(d<40,`AI drives towards its target: ${d}`);
-physics.addBody({id:"bus",kind:"bus",position:[0,-30,1],yaw:0});step(60);physics.setDrive("bus",{pedal:1,steer:0,maxSpeed:20});step(240);
-console.log("bus speed",speedOf("bus").toFixed(1));assert.ok(speedOf("bus")>6,"bus accelerates");
+physics.addBody({id:"bus",kind:"bus",position:[0,-30,1],yaw:0});step(60);assert.ok(upOf("bus")>.96,`bus settles upright from physical suspension: ${upOf("bus")}`);physics.setDrive("bus",{pedal:1,steer:0,maxSpeed:20});step(240);
+console.log("bus speed",speedOf("bus").toFixed(1),"up",upOf("bus").toFixed(3));assert.ok(speedOf("bus")>6,"bus accelerates");assert.ok(upOf("bus")>.90,"bus remains upright under straight acceleration without an upright constraint");
+physics.setDrive("bus",{pedal:.65,steer:.7,maxSpeed:18});step(150);console.log("bus turn up",upOf("bus").toFixed(3),"yaw",physics.pose("bus").yaw.toFixed(2));assert.ok(upOf("bus")>.68,"bus cornering must remain physically stable without self-righting");
 physics.removeBody("car");physics.removeBody("ai");physics.removeBody("bus");physics.destroy();
 console.log("vehicle dynamics test passed");
