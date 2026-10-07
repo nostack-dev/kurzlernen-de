@@ -78,8 +78,13 @@ function* build(b,cx,cy){
     const allWater=n===4;v=pos.length/3;pos.push(x0+ci*CELL,y0+cj*CELL,.03);shore.push(allWater?d/n*CELL:0);flow.push(n?fx/n*sp/n:0,n?fy/n*sp/n:0);corner.set(key,v);return v;};
   let cells=0;for(let i=0;i<N;i++){for(let j=0;j<N;j++){if(!water[i*N+j])continue;const a=vtx(i,j),bb=vtx(i+1,j),c=vtx(i+1,j+1),d=vtx(i,j+1);idx.push(a,bb,c,a,c,d);cells++;}if(i%24===0)yield;}
   // physics basins: greedy-merge cells into rectangles (rows, then stacked)
-  const rects=[],used=new Uint8Array(N*N);
-  for(let j=0;j<N;j++)for(let i=0;i<N;i++){const k=i*N+j;if(!water[k]||used[k])continue;let w=1;while(i+w<N&&water[(i+w)*N+j]&&!used[(i+w)*N+j])w++;let h=1;outer:while(j+h<N){for(let t=0;t<w;t++){const kk=(i+t)*N+j+h;if(!water[kk]||used[kk])break outer;}h++;}for(let a=0;a<w;a++)for(let c=0;c<h;c++)used[(i+a)*N+j+c]=1;rects.push({x0:x0+i*CELL,y0:y0+j*CELL,x1:x0+(i+w)*CELL,y1:y0+(j+h)*CELL});}
+  // (on an 8 m grid — a block counts as water when ≥3 of its 4 cells are —
+  //  so the physics stays a few dozen boxes even for a big river)
+  const M=Math.ceil(N/2),coarse=new Uint8Array(M*M);
+  for(let i=0;i<N;i++)for(let j=0;j<N;j++)if(water[i*N+j])coarse[(i>>1)*M+(j>>1)]++;
+  for(let k=0;k<M*M;k++)coarse[k]=coarse[k]>=3?1:0;
+  const rects=[],used=new Uint8Array(M*M),PC=CELL*2;
+  for(let j=0;j<M;j++)for(let i=0;i<M;i++){const k=i*M+j;if(!coarse[k]||used[k])continue;let w=1;while(i+w<M&&coarse[(i+w)*M+j]&&!used[(i+w)*M+j])w++;let h=1;outer:while(j+h<M){for(let t=0;t<w;t++){const kk=(i+t)*M+j+h;if(!coarse[kk]||used[kk])break outer;}h++;}for(let a=0;a<w;a++)for(let c=0;c<h;c++)used[(i+a)*M+j+c]=1;rects.push({x0:x0+i*PC,y0:y0+j*PC,x1:x0+(i+w)*PC,y1:y0+(j+h)*PC});}
   // bridges: road segments flagged as bridges that cross water
   const decks=[];
   for(const f of cached("transportation")){const cls=String(f.properties?.class||"minor"),w={motorway:14,trunk:12,primary:11,secondary:9,tertiary:8}[cls]??6.5,geom=f.geometry,lines=geom?.type==="LineString"?[geom.coordinates]:geom?.type==="MultiLineString"?geom.coordinates:[];

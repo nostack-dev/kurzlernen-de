@@ -50,10 +50,14 @@ function notify(){for(const fn of listeners){try{fn(terrainCraters());}catch(err
 // Ground box minus the crater squares, as non-overlapping rectangles.
 function groundRectangles(half,holes){
   if(!holes.length)return[[-half,-half,half,half]];
-  const xs=[...new Set([-half,half,...holes.flatMap(h=>[h[0],h[2]])])].sort((a,b)=>a-b),out=[];
+  // x-slab sweep; identical y-pieces of neighbouring slabs are merged so the
+  // rectangle count stays ~linear in the number of hole edges
+  const xs=[...new Set([-half,half,...holes.flatMap(h=>[h[0],h[2]])])].sort((a,b)=>a-b),out=[];let open=new Map();
   for(let i=0;i<xs.length-1;i++){const x0=xs[i],x1=xs[i+1];if(x1-x0<1e-6)continue;const mid=(x0+x1)/2;
-    const blocked=holes.filter(h=>h[0]<mid&&h[2]>mid).map(h=>[h[1],h[3]]).sort((a,b)=>a[0]-b[0]);let y=-half;
-    for(const[y0,y1]of blocked){if(y0>y)out.push([x0,y,x1,y0]);y=Math.max(y,y1);}if(y<half)out.push([x0,y,x1,half]);}
+    const blocked=holes.filter(h=>h[0]<mid&&h[2]>mid).map(h=>[h[1],h[3]]).sort((a,b)=>a[0]-b[0]);let y=-half;const pieces=[];
+    for(const[y0,y1]of blocked){if(y0>y)pieces.push([y,y0]);y=Math.max(y,y1);}if(y<half)pieces.push([y,half]);
+    const next=new Map();for(const[y0,y1]of pieces){const key=`${y0},${y1}`,r=open.get(key);if(r&&Math.abs(r[2]-x0)<1e-6){r[2]=x1;next.set(key,r);open.delete(key);}else{const nr=[x0,y0,x1,y1];out.push(nr);next.set(key,nr);}}
+    open=next;}
   return out;
 }
 
