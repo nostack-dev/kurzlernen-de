@@ -2,7 +2,7 @@ file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic
   if(!(held.alignment==="grip-anchor-to-resolved-shot-v6"&&Number.isFinite(held.error)&&held.error<.5&&Number.isFinite(held.drift)&&held.drift<.003&&held.grip==="grip-world-fixed-v2"&&held.vector==="grip-to-muzzle-to-shot-point-v1"&&held.target))throw new Error(`weapon geometry is not grip-anchored to resolved shot point: ${JSON.stringify(held)}`);
                                                                                                                                                                                                                                                             ^
 
-Error: weapon geometry is not grip-anchored to resolved shot point: {"shots":5,"active":"1","hold":"screen-pointer-owned-smg-v1","api":"single-shot-per-call-v2","error":null,"drift":null,"target":"-25.088,175.200,8.817"}
+Error: weapon geometry is not grip-anchored to resolved shot point: {"shots":5,"active":"1","hold":"screen-pointer-owned-smg-v1","api":"single-shot-per-call-v2","error":null,"drift":null,"target":"-24.979,175.138,10.538"}
     at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:33:253
 
 Node.js v22.23.3
