@@ -11,14 +11,14 @@
 // traffic (an AI driver steers towards its route target and controls speed
 // with the same pedal). Frame: world z up; chassis local x forward, y left.
 
-export const VEHICLE_DYNAMICS_VERSION="box3d-wheel-joint-vehicles-v2.1-physical";
+export const VEHICLE_DYNAMICS_VERSION="box3d-wheel-joint-vehicles-v2.2-physical";
 
 // Joint frame: local x -> up (suspension + steering axis), local z -> left
 // (wheel spin axis), local y -> forward. Same frame on chassis and wheel.
 const FRAME_Q=[-.5,-.5,-.5,.5];
 export const VEHICLE_SPECS=Object.freeze({
   car:{half:[1.78,.82,.36],mass:1350,comZ:-.18,radius:.34,wheelMass:22,attachZ:-.26,wheels:[[1.2,.78,true],[1.2,-.78,true],[-1.15,.78,false],[-1.15,-.78,false]],
-    suspension:{hertz:3.8,damping:.8,lower:-.15,upper:.11},/* wheel torque after gearing, not crank torque */torque:{front:600,rear:1300},brake:3200,handbrake:3600,coast:40,steerLock:.58,steerTorque:900,friction:1.35},
+    suspension:{hertz:3.8,damping:.8,lower:-.15,upper:.11},/* wheel torque after gearing, not crank torque */torque:{front:450,rear:1000},brake:3200,handbrake:3600,coast:40,steerLock:.58,steerTorque:900,friction:1.35},
   bus:{half:[4,1.17,1.2],mass:9200,comZ:-.52,radius:.46,wheelMass:85,attachZ:-1.1,wheels:[[2.6,1.08,true],[2.6,-1.08,true],[-2.55,1.08,false],[-2.55,-1.08,false]],
     suspension:{hertz:2.8,damping:.86,lower:-.18,upper:.14},torque:{front:0,rear:4200},brake:9500,handbrake:12000,coast:260,steerLock:.44,steerTorque:6000,friction:1.15},
 });
