@@ -93,6 +93,8 @@ const rigidRuntime=files["sim/world_rigid_body_runtime.mjs"],rigidPhysics=files[
 assert.ok(rigidRuntime.includes("function pose(id,out=null)")&&rigidPhysics.includes("pose(id,out=null)"),"traffic pose reads must support reusable buffers");
 assert.ok(vehicleDynamics.includes("wheelPoses(physics,record,out=null)")&&population.includes("pose?.(record.id,record.physicsPose)"),"wheel/chassis pose snapshots must not allocate every population tick");
 assert.ok(rigidRuntime.includes("let stored=pendingTargets.get(key)")&&rigidPhysics.includes("const target=record.target||(record.target="),"vehicle AI target state must be reused instead of cloned every tick");
+assert.ok(rigidPhysics.includes("stepPosition:[0,0,0]")&&rigidPhysics.includes("b3Body_GetLinearVelocity(record.postVelocity"),"Box3D traffic steps must reuse readback vectors");
+assert.ok(vehicleDynamics.includes("driveWheeled(physics,record,dt,state=null)")&&rigidPhysics.includes("driveWheeled(this,record,dt,{position,velocity,rotation})"),"wheel drivetrain must reuse the physics step state instead of reading/allocating it twice");
 assert.ok(population.includes("spawnVisibilityRoots=[]")&&population.includes("__arondightProceduralPopulation"),"population must expose its existing roots instead of forcing scene rescans");
 assert.ok(population.includes("cachedRoutePoolTick")&&population.includes("cachedFocusTick"),"population must cache route ranking and player focus once per population tick");
 assert.ok(population.includes("animalMotion=[]")&&population.includes("Math.max(groundHeightAt(a.x,a.y)+.18,airborne)"),"animals must reuse motion parameters and cats must never pass below the shared terrain surface");
