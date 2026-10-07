@@ -29,13 +29,13 @@ function pip(x,y,ring){let inside=false;for(let i=0,j=ring.length-1;i<ring.lengt
 
 function* build(b,cx,cy){
   const project=(lon,lat)=>b.projectLngLat(lon,lat),N=Math.ceil(RADIUS_M*2/CELL),x0=cx-RADIUS_M,y0=cy-RADIUS_M;
-  const water=new Uint8Array(N*N),flowX=new Float32Array(N*N),flowY=new Float32Array(N*N),speed=new Float32Array(N*N);let steps=0;
+  const water=new Uint8Array(N*N),flowX=new Float32Array(N*N),flowY=new Float32Array(N*N),speed=new Float32Array(N*N);let steps=0;const stats={cx:Math.round(cx),cy:Math.round(cy),N,polys:0,rings:0,bbox:null};const countWater=()=>{let n=0;for(let k=0;k<water.length;k++)n+=water[k];return n;};
   const cellOf=(x,y)=>[Math.floor((x-x0)/CELL),Math.floor((y-y0)/CELL)];
   // polygons
   for(const f of features(b,"water")){
     const geom=f.geometry,polys=geom?.type==="Polygon"?[geom.coordinates]:geom?.type==="MultiPolygon"?geom.coordinates:[];
     // scanline fill (even-odd over all rings → holes handled): O(rows × edges)
-    for(const poly of polys){const rings=poly.map(r=>r.map(p=>project(p[0],p[1])));const outer=rings[0];if(!outer||outer.length<3)continue;
+    for(const poly of polys){const rings=poly.map(r=>r.map(p=>project(p[0],p[1])));const outer=rings[0];stats.polys++;if(!outer||outer.length<3)continue;stats.rings+=rings.length;if(!stats.bbox)stats.bbox=[outer[0][0],outer[0][1],typeof outer[0][0],Array.isArray(outer[0])];
       let minY=Infinity,maxY=-Infinity;for(const p of outer){minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);}
       const ja=Math.max(0,cellOf(0,minY)[1]),jb=Math.min(N-1,cellOf(0,maxY)[1]),xs=[];
       for(let j=ja;j<=jb;j++){const y=y0+(j+.5)*CELL;xs.length=0;
@@ -44,12 +44,14 @@ function* build(b,cx,cy){
         if(++steps%60===0)yield;}}
   }
   // waterways (lines with width): mark cells and record the flow direction
+  stats.polyCells=countWater();
   const ways=[];
   for(const f of features(b,"waterway")){const cls=String(f.properties?.class||"stream").toLowerCase(),w=WIDTH[cls]??4;if(f.properties?.brunnel==="tunnel")continue;const geom=f.geometry,lines=geom?.type==="LineString"?[geom.coordinates]:geom?.type==="MultiLineString"?geom.coordinates:[];
     for(const line of lines){const pts=line.map(p=>project(p[0],p[1]));for(let k=0;k<pts.length-1;k++){const a=pts[k],c=pts[k+1],dx=c[0]-a[0],dy=c[1]-a[1],l=Math.hypot(dx,dy);if(l<.2)continue;ways.push({a,c,ux:dx/l,uy:dy/l,l,w,v:cls==="river"?1.6:cls==="canal"?.5:1.1});}}}
   for(const s of ways){const r=s.w/2+CELL,minX=Math.min(s.a[0],s.c[0])-r,maxX=Math.max(s.a[0],s.c[0])+r,minY=Math.min(s.a[1],s.c[1])-r,maxY=Math.max(s.a[1],s.c[1])+r,[i0,j0]=cellOf(minX,minY),[i1,j1]=cellOf(maxX,maxY);
     for(let i=Math.max(0,i0);i<=Math.min(N-1,i1);i++)for(let j=Math.max(0,j0);j<=Math.min(N-1,j1);j++){const x=x0+(i+.5)*CELL,y=y0+(j+.5)*CELL,t=Math.max(0,Math.min(s.l,(x-s.a[0])*s.ux+(y-s.a[1])*s.uy)),px=s.a[0]+s.ux*t,py=s.a[1]+s.uy*t,d=Math.hypot(x-px,y-py);if(d<=s.w/2)water[i*N+j]=1;if(d<s.w/2+30&&speed[i*N+j]<s.v*(1-d/(s.w/2+30))){flowX[i*N+j]=s.ux;flowY[i*N+j]=s.uy;speed[i*N+j]=s.v*(1-d/(s.w/2+30));}}
     if(++steps%60===0)yield;}
+  stats.ways=ways.length;stats.wayCells=countWater();
   // shore distance (two-pass chamfer distance transform, in cells)
   const dist=new Float32Array(N*N);for(let k=0;k<N*N;k++)dist[k]=water[k]?1e6:0;
   for(let i=0;i<N;i++)for(let j=0;j<N;j++){const k=i*N+j;if(!water[k])continue;let d=dist[k];if(i>0)d=Math.min(d,dist[k-N]+1);if(j>0)d=Math.min(d,dist[k-1]+1);if(i>0&&j>0)d=Math.min(d,dist[k-N-1]+1.414);if(i>0&&j<N-1)d=Math.min(d,dist[k-N+1]+1.414);dist[k]=i===0||j===0?Math.min(d,1):d;}
@@ -70,7 +72,7 @@ function* build(b,cx,cy){
     for(const line of lines){const pts=line.map(p=>project(p[0],p[1]));for(let k=0;k<pts.length-1;k++){const a=pts[k],c=pts[k+1],l=Math.hypot(c[0]-a[0],c[1]-a[1]);if(l<.5)continue;decks.push({cx:(a[0]+c[0])/2,cy:(a[1]+c[1])/2,hl:l/2+1,hw:w/2+1.5,yaw:Math.atan2(c[1]-a[1],c[0]-a[0])});}}}
   // flow field query for the physics (nearest cell)
   const flowAt=(x,y)=>{const i=Math.floor((x-x0)/CELL),j=Math.floor((y-y0)/CELL);if(i<0||j<0||i>=N||j>=N)return[0,0];const k=i*N+j;return[flowX[k]*speed[k],flowY[k]*speed[k]];};
-  return{pos,shore,flow,idx,rects,decks,flowAt,cells};
+  return{pos,shore,flow,idx,rects,decks,flowAt,cells,stats};
 }
 function makeMaterial(){
   const m=new THREE.MeshStandardMaterial({color:0x1d4d63,roughness:.06,metalness:0,transparent:true,opacity:.92,depthWrite:false,envMapIntensity:1.25});
@@ -103,7 +105,7 @@ function frame(now){
   ensureMesh(b.threeScene);mesh.visible=true;
   if(job){const until=performance.now()+SLICE_MS;let r;try{while(performance.now()<until){r=job.next();if(r.done)break;}}catch(error){job=null;center=[Infinity,Infinity];const view=document.getElementById("viewport");if(view)view.dataset.worldWaterState=`error:${String(error?.message||error).slice(0,80)}`;console.warn("world water build failed",error);return;}
     if(r?.done){const v=r.value,g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(v.pos,3));g.setAttribute("normal",new THREE.Float32BufferAttribute(new Float32Array(v.pos.length).map((_,i)=>i%3===2?1:0),3));g.setAttribute("aShore",new THREE.Float32BufferAttribute(v.shore,1));g.setAttribute("aFlow",new THREE.Float32BufferAttribute(v.flow,2));g.setIndex(v.idx);mesh.geometry.dispose();mesh.geometry=g;
-      setBridgeDecks(v.decks);setWaterRegions(v.rects,v.flowAt);job=null;const view=document.getElementById("viewport");if(view){view.dataset.worldWaterCells=String(v.cells);view.dataset.worldWaterBasins=String(v.rects.length);view.dataset.worldWaterBridges=String(v.decks.length);view.dataset.worldWater=WORLD_WATER_VERSION;view.dataset.worldWaterState=`done:${builtCount}`;}}
+      setBridgeDecks(v.decks);setWaterRegions(v.rects,v.flowAt);job=null;const view=document.getElementById("viewport");if(view){view.dataset.worldWaterCells=String(v.cells);view.dataset.worldWaterBasins=String(v.rects.length);view.dataset.worldWaterBridges=String(v.decks.length);view.dataset.worldWater=WORLD_WATER_VERSION;view.dataset.worldWaterState=`done:${builtCount}`;try{view.dataset.worldWaterStats=JSON.stringify(v.stats);}catch{}}}
     return;}
   const cam=b.threeCamera;if(!cam||now-lastTry<3000)return;lastTry=now;const count=features(b,"water").length+features(b,"waterway").length,roads=features(b,"transportation").length;
   if(!roads&&!count)return;const moved=Math.hypot(cam.position.x-center[0],cam.position.y-center[1]);if(moved<REBUILD_MOVE_M&&count<=builtCount*1.15+2&&roads<=builtRoads*1.3+20)return;builtCount=count;builtRoads=roads;center=[cam.position.x,cam.position.y];job=build(b,center[0],center[1]);const view=document.getElementById("viewport");if(view)view.dataset.worldWaterState=`building:${count}`;
