@@ -74,6 +74,8 @@ assert.ok(!world.includes("this.frameVisibility=new Map()"),"real-world render p
 
 const population=files["sim/world_procedural_population.mjs"],spawnGuard=files["sim/spawn_visibility_guard.mjs"];
 assert.ok(population.includes("spawnVisibilityRoots=[]")&&population.includes("__arondightProceduralPopulation"),"population must expose its existing roots instead of forcing scene rescans");
+assert.ok(population.includes("cachedRoutePoolTick")&&population.includes("cachedFocusTick"),"population must cache route ranking and player focus once per population tick");
+assert.ok(population.includes("animalMotion=[]")&&population.includes("Math.max(groundHeightAt(a.x,a.y)+.18,airborne)"),"animals must reuse motion parameters and cats must never pass below the shared terrain surface");
 assert.ok(spawnGuard.includes("__arondightProceduralPopulation?.spawnVisibilityRoots"),"spawn guard must consume the population root registry");
 assert.ok(spawnGuard.includes("lastPublish")&&spawnGuard.includes("lastPublish<250"),"spawn guard diagnostics must be throttled");
 
@@ -112,6 +114,7 @@ assert.ok(cameraGuard.includes("setTimeout(maintenance,500)")&&!cameraGuard.incl
 const startup=files["sim/auto_flight_start.mjs"];
 assert.ok(startup.includes("await withTimeout(neonSettled(),5500)")&&startup.includes("await withTimeout(compileScene(),4500)"),"optional visual preparation must be bounded so START can never hang forever");
 assert.ok(startup.includes("startup preparation continued after non-fatal failure"),"startup must fail open after optional preparation errors");
+assert.ok(startup.indexOf("launchDefaultFlight();")>startup.indexOf("await withTimeout(compileScene(),4500)"),"manual START must not run the 1 kHz flight simulation while the opaque menu is still preparing");
 
 const simulator=files["sim/simulator.mjs"];
 assert.ok(simulator.includes('if(gameMenu&&!gameMenu.hidden){lastPresentationDrawMs=performance.now();return;}'),"opaque start menu must suppress hidden WebGL world rendering");
