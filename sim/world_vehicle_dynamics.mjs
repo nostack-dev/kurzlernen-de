@@ -37,7 +37,7 @@ export function attachWheels(physics,record,spec,{category,mask}){
   // Lowering the chassis COM approximates engine/floor/passenger mass while leaving
   // roll, pitch, jumps and flips entirely to Box3D contacts + suspension.
   if(Number.isFinite(spec.comZ)&&typeof b3.b3Body_GetMassData==="function"&&typeof b3.b3Body_SetMassData==="function"){const md=b3.b3Body_GetMassData(record.body);md.mass=spec.mass;md.center=[0,0,spec.comZ];b3.b3Body_SetMassData(record.body,md);}
-  const r=spec.radius,wheelWidth=spec.wheelWidth||r*.65,volume=Math.PI*r*r*wheelWidth;
+  const r=spec.radius,volume=4/3*Math.PI*r*r*r;
   for(const[x,y,front]of spec.wheels){
     const local=[x,y,spec.attachZ],off=rotate(chassisRot,local),bd=b3.b3DefaultBodyDef();bd.type=b3.b3BodyType.b3_dynamicBody;bd.position=[chassisPos[0]+off[0],chassisPos[1]+off[1],chassisPos[2]+off[2]];bd.rotation=[...chassisRot];bd.angularDamping=.05;bd.linearDamping=.02;if("allowFastRotation"in bd)bd.allowFastRotation=true;bd.enableSleep=false;
     const body=b3.b3CreateBody(physics.world,bd),sd=b3.b3DefaultShapeDef();sd.density=spec.wheelMass/volume;sd.baseMaterial.friction=spec.friction;sd.baseMaterial.restitution=0;sd.enableContactEvents=true;sd.enableHitEvents=true;sd.filter={categoryBits:category,maskBits:mask,groupIndex:0};
@@ -46,7 +46,10 @@ export function attachWheels(physics,record,spec,{category,mask}){
     // Box3D's cylinder runs from yOffset to yOffset+height: center it exactly on
     // the wheel-joint axle. An odd 15-sided tread also avoids symmetric contact
     // manifold degeneracy. No corrective steering/velocity hack is involved.
-    let shape;if(typeof b3.b3CreateCylinder==="function"&&typeof b3.b3CreateHullShape==="function"&&typeof b3.b3DestroyHull==="function"){const hull=b3.b3CreateCylinder(wheelWidth,r,-wheelWidth*.5,15);if(!hull)throw Error("Box3D failed to create tyre hull");try{shape=b3.b3CreateHullShape(body,sd,hull);}finally{b3.b3DestroyHull(hull);}}else{shape=b3.b3CreateSphereShape(body,sd,{center:[0,0,0],radius:r});}
+    // Wheels exactly as in Erin Catto's Box3D "Driving" sample (samples/sample_joint.cpp):
+    // a sphere per wheel (the cylinder hull is commented out there) with
+    // allowFastRotation — smooth rolling, no faceted tread bumps or wobble.
+    const shape=b3.b3CreateSphereShape(body,sd,{center:[0,0,0],radius:r});
     const jd=b3.b3DefaultWheelJointDef();jd.base.bodyIdA=record.body;jd.base.bodyIdB=body;jd.base.localFrameA={position:local,quaternion:[...FRAME_Q]};jd.base.localFrameB={position:[0,0,0],quaternion:[...FRAME_Q]};jd.base.collideConnected=false;
     jd.enableSuspensionSpring=true;jd.suspensionHertz=spec.suspension.hertz;jd.suspensionDampingRatio=spec.suspension.damping;jd.enableSuspensionLimit=true;jd.lowerSuspensionLimit=spec.suspension.lower;jd.upperSuspensionLimit=spec.suspension.upper;
     jd.enableSpinMotor=true;jd.maxSpinTorque=spec.coast;jd.spinSpeed=0;
@@ -54,6 +57,13 @@ export function attachWheels(physics,record,spec,{category,mask}){
     const joint=b3.b3CreateWheelJoint(physics.world,jd);
     record.wheels.push({body,shape,joint,front:Boolean(front),local});physics.shapeRecords.set(physics.shapeKeyOf(shape),record);
   }
+  // "Keep vehicle upright" (same sample): a soft parallel joint between a static
+  // anchor and the chassis keeps chassis-up parallel to world-up (0.5 Hz,
+  // critically damped) — suspension pitch/roll stays, cars don't tip over.
+  if(typeof b3.b3CreateParallelJoint==="function"&&typeof b3.b3DefaultParallelJointDef==="function"){
+    if(!physics.uprightAnchor||b3.b3Body_IsValid?.(physics.uprightAnchor)===false){const ad=b3.b3DefaultBodyDef();ad.type=b3.b3BodyType.b3_staticBody;physics.uprightAnchor=b3.b3CreateBody(physics.world,ad);}
+    const pj=b3.b3DefaultParallelJointDef();pj.base.bodyIdA=physics.uprightAnchor;pj.base.bodyIdB=record.body;pj.base.localFrameA={position:[0,0,0],quaternion:[0,0,0,1]};pj.base.localFrameB={position:[0,0,0],quaternion:[0,0,0,1]};pj.base.collideConnected=true;pj.hertz=spec.uprightHertz??.5;pj.dampingRatio=1;
+    try{record.uprightJoint=b3.b3CreateParallelJoint(physics.world,pj);}catch(error){console.warn("upright joint",error);}}
   return true;
 }
 export function detachWheels(physics,record){const b3=physics.b3;for(const w of record.wheels||[]){physics.shapeRecords.delete(physics.shapeKeyOf(w.shape));if(b3.b3Body_IsValid(w.body))b3.b3DestroyBody(w.body);}record.wheels=null;}
@@ -105,12 +115,22 @@ export function driveWheeled(physics,record,dt,state=null){
     b3.b3WheelJoint_SetSpinMotorSpeed(j,spinSpeed);b3.b3WheelJoint_SetMaxSpinTorque(j,Math.max(0,torque));
   }
   if(pedal||input.steer||handbrake){b3.b3Body_SetAwake?.(body,true);for(const wheel of record.wheels)b3.b3Body_SetAwake?.(wheel.body,true);}
-  // Deliberately no anti-roll torque, upright constraint or self-right teleport.
-  // If the vehicle rolls, jumps or flips, Box3D suspension/contact dynamics own it.
+  // Upright: the sample's soft parallel joint (attachWheels); no scripted torques.
   record.vf=vf;
 }
+// Wheel poses for rendering: position from the wheel body (real suspension
+// travel), orientation from the wheel joint's own frame — chassis rotation x
+// steering about chassis-up x spin about the axle — so a wheel is always seen
+// exactly on its axle, never twisted by solver slack.
+const qa=[0,0,0,1],qb=[0,0,0,1],qc=[0,0,0,1];
+function qmul(a,b,o){const[ax,ay,az,aw]=a,[bx,by,bz,bw]=b;o[0]=aw*bx+ax*bw+ay*bz-az*by;o[1]=aw*by-ax*bz+ay*bw+az*bx;o[2]=aw*bz+ax*by-ay*bx+az*bw;o[3]=aw*bw-ax*bx-ay*by-az*bz;return o;}
 export function wheelPoses(physics,record,out=null){
-  const b3=physics.b3,wheels=record.wheels||[],result=Array.isArray(out)?out:[];
-  for(let i=0;i<wheels.length;i++){const w=wheels[i],item=result[i]||(result[i]={position:[0,0,0],rotation:[0,0,0,1],front:false});b3.b3Body_GetPosition(item.position,w.body);b3.b3Body_GetRotation(item.rotation,w.body);item.front=w.front;}
+  const b3=physics.b3,wheels=record.wheels||[],result=Array.isArray(out)?out:[],cq=b3.b3Body_GetRotation([0,0,0,1],record.body),inv=[-cq[0],-cq[1],-cq[2],cq[3]];
+  for(let i=0;i<wheels.length;i++){const w=wheels[i],item=result[i]||(result[i]={position:[0,0,0],rotation:[0,0,0,1],front:false});b3.b3Body_GetPosition(item.position,w.body);b3.b3Body_GetRotation(qa,w.body);
+    const steer=w.front?(typeof b3.b3WheelJoint_GetSteeringAngle==="function"?b3.b3WheelJoint_GetSteeringAngle(w.joint):record.steerAngle||0):0;
+    // spin = twist of the wheel's rotation relative to the chassis about the axle (local y)
+    qmul(inv,qa,qb);const sz=Math.sin(-steer/2),cz=Math.cos(-steer/2);qmul([0,0,sz,cz],qb,qc);const tw=Math.hypot(qc[1],qc[3])||1,spin=2*Math.atan2(qc[1]/tw,qc[3]/tw);
+    w.spin=spin;qmul(cq,[0,0,Math.sin(steer/2),Math.cos(steer/2)],qb);qmul(qb,[0,Math.sin(spin/2),0,Math.cos(spin/2)],item.rotation);item.front=w.front;}
   result.length=wheels.length;return result;
 }
+
