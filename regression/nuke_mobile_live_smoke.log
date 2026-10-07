@@ -1,1 +1,13 @@
-world-anchored-volumetric-ground-burst-nuke-v21-depth-tested passed. {"shot":{"fired":true,"mode":"nuke","selected":"1","contract":"drone-targeted-fixed-impact-v2","targetResolver":"ground-burst-xy-v1","target":"-137.83,0.21,0.00","targetXYZ":[-137.83,0.21,0],"targetDistance":137.74001916315476,"inputRoute":"window-capture-fireNuke-v1","routeFired":"1","legacyBypass":"blocked-v1","legacyMissilesBefore":0,"legacyMissilesAfter":0},"impact":{"worldAnchorError":0,"volumetricAnchorError":0,"visible3dSmoke":23,"visibleCrown":12,"maxPixelRadius":269.2090996885406,"totalOverkillParts":63,"visibleVolumetric":28,"visibleVolumetricCrown":12,"visibleReadableCrown":1,"visibleHotCrown":1,"visibleHotPlume":2,"maxVolumetricPixelRadius":349.27346371247677,"totalVolumetric":58,"depthPriorityVolumetric":0,"depthPriorityOverkill":4,"screenCloudRemoved":true,"destroyed":false,"overkill":"world-anchored-nuclear-v5","composition":"world-space-impact-locked-v4","renderer":"world-space-3d-v5","visibilityPolicy":"cinematic-depth-priority-v1","mushroomM":0,"fireballM":450,"cloud":0,"shock":1566,"phase":"shockwave+mushroom","volumetric":"sculpted-mushroom-v3","volumetricParts":26,"hotParts":3,"volumetricProgress":0.74,"volumetricHeat":0.8,"volumetricScreenSpace":"none","volumetricVisibility":"depth-tested-v4","mode":"nuke"},"armPrep":{"armed":true,"clicked":true,"disabled":false,"fc":"ARMED","canDeploy":true}}
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45
+            this.#timeoutError = new TimeoutError(`Waiting failed: ${options.timeout}ms exceeded`);
+                                 ^
+
+TimeoutError: Waiting failed: 6000ms exceeded
+    at new WaitTask (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45:34)
+    at IsolatedWorld.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Realm.js:22:26)
+    at CdpFrame.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Frame.js:584:43)
+    at CdpFrame.<anonymous> (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/decorators.js:101:27)
+    at CdpPage.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Page.js:1439:37)
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/nuke_mobile_live_smoke.mjs:42:14
+
+Node.js v22.23.3
