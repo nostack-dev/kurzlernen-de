@@ -32,8 +32,9 @@ export function normalizeFirstPersonControlSettings(settings={}){
     invertMoveHorizontal:Boolean(settings.invertMoveHorizontal),
     invertLookHorizontal:Boolean(settings.invertLookHorizontal),
     invertLookVertical:Boolean(settings.invertLookVertical),
-    lockMoveHorizontal:Boolean(settings.lockMoveHorizontal),
-    lockLookVertical:Boolean(settings.lockLookVertical),
+    // Kept only for storage compatibility. Gamepad-style sticks always keep both axes live.
+    lockMoveHorizontal:false,
+    lockLookVertical:false,
   };
 }
 
@@ -62,7 +63,7 @@ function shapeMagnitude(magnitude,fineness){
 }
 
 export function shapeFirstPersonMove(x,y,settings=DEFAULT_FIRST_PERSON_CONTROL_SETTINGS){
-  const cfg=normalizeFirstPersonControlSettings(settings),rawX=clamp(x,-1,1),rawY=clamp(y,-1,1),effectiveX=cfg.lockMoveHorizontal?0:(cfg.invertMoveHorizontal?-rawX:rawX),magnitude=Math.min(1,Math.hypot(effectiveX,rawY));
+  const cfg=normalizeFirstPersonControlSettings(settings),rawX=clamp(x,-1,1),rawY=clamp(y,-1,1),effectiveX=cfg.invertMoveHorizontal?-rawX:rawX,magnitude=Math.min(1,Math.hypot(effectiveX,rawY));
   if(magnitude<=1e-9)return{x:0,y:0,magnitude:0};
   const shaped=shapeMagnitude(magnitude,cfg.moveFineness),scale=shaped/magnitude;
   return{x:effectiveX*scale,y:rawY*scale,magnitude:shaped};
@@ -72,7 +73,7 @@ export function firstPersonLookAxes(x,y,settings=DEFAULT_FIRST_PERSON_CONTROL_SE
   const cfg=normalizeFirstPersonControlSettings(settings),rawX=clamp(x,-1,1),rawY=clamp(y,-1,1);
   return{
     x:cfg.invertLookHorizontal?-rawX:rawX,
-    y:cfg.lockLookVertical?0:(cfg.invertLookVertical?-rawY:rawY),
+    y:cfg.invertLookVertical?-rawY:rawY,
   };
 }
 
@@ -80,7 +81,7 @@ export function firstPersonLookDelta(x,y,settings=DEFAULT_FIRST_PERSON_CONTROL_S
   const cfg=normalizeFirstPersonControlSettings(settings),rawX=Number(x)||0,rawY=Number(y)||0;
   return{
     x:cfg.invertLookHorizontal?-rawX:rawX,
-    y:cfg.lockLookVertical?0:(cfg.invertLookVertical?-rawY:rawY),
+    y:cfg.invertLookVertical?-rawY:rawY,
   };
 }
 
