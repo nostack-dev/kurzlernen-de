@@ -1,14 +1,8 @@
-file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/Deferred.js:57
-            this.#timeoutError = new TimeoutError(opts.message);
-                                 ^
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:32
+  if(!(held.active==="1"&&held.hold==="screen-pointer-owned-smg-v1"&&held.api==="single-shot-per-call-v1"&&released.active==="0"))throw new Error(`SMG pointer ownership/single-shot API failed: ${JSON.stringify({held,released})}`);
+                                                                                                                                        ^
 
-TimeoutError: Navigation timeout of 45000 ms exceeded
-    at new Deferred (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/Deferred.js:57:34)
-    at Deferred.create (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/Deferred.js:18:16)
-    at new LifecycleWatcher (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/cdp/LifecycleWatcher.js:66:46)
-    at CdpFrame.goto (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/cdp/Frame.js:145:29)
-    at CdpFrame.<anonymous> (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/decorators.js:101:27)
-    at CdpPage.goto (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Page.js:570:43)
-    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:12:14
+Error: SMG pointer ownership/single-shot API failed: {"held":{"shots":6,"hold":"screen-pointer-owned-smg-v1","api":"single-shot-per-call-v1","alignment":"grip-anchor-to-resolved-shot-v6","error":0,"drift":0,"grip":"grip-world-fixed-v2","vector":"grip-to-muzzle-to-shot-point-v1","target":"-3.205,19.992,2.315"},"released":{"shots":6,"tail":14}}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:32:137
 
 Node.js v22.23.3
