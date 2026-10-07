@@ -179,7 +179,7 @@ function renderHud(remainingMs=0,force=false){
 function ensureAudio(){
   const Ctx=globalThis.AudioContext||globalThis.webkitAudioContext;
   if(!audioUnlocked||!Ctx)return null;
-  try{audioContext??=new Ctx({latencyHint:"interactive"});if(audioContext.state==="suspended")audioContext.resume().catch(()=>{});}catch{return null;}
+  try{audioContext??=(globalThis.__sharedAudioContext??=new Ctx({latencyHint:"interactive"}));if(audioContext.state==="suspended")audioContext.resume().catch(()=>{});}catch{return null;}
   return audioContext;
 }
 

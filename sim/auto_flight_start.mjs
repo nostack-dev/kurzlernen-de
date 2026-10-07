@@ -25,9 +25,11 @@ let introContext=null,introSource=null,introGeneration=0;
 // No spoken intro any more (the game is a bright sandbox, not a doom piece).
 const introBytes=Promise.resolve(null);
 function introSoundEnabled(){try{return JSON.parse(localStorage.getItem("arondight45AudioSettingsV1")||"{}").soundEnabled!==false;}catch{return true;}}
+// No second AudioContext (it made iOS re-route the audio session mid-start,
+// audible as a stutter / the music starting again): reuse the shared one.
 function unlockIntroAudio(){
   if(AUTOSTART||!introSoundEnabled())return;
-  try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;introContext??=new AC();introContext.resume().catch(()=>{});}catch{}
+  try{introContext=globalThis.__sharedAudioContext||null;introContext?.resume?.().catch(()=>{});}catch{}
 }
 function stopIntroAudio(){introGeneration++;if(introSource){try{introSource.stop();}catch{}introSource.disconnect();introSource=null;}}
 async function playIntroAudio(){

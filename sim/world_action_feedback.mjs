@@ -48,7 +48,7 @@ html,body,#viewport{overscroll-behavior:none}body.solo-flight #viewport,body.on-
 function ensureAudio(unlock=false){
   const Ctx=globalThis.AudioContext||globalThis.webkitAudioContext;if(!Ctx)return null;
   if(!audioCtx){
-    try{audioCtx=new Ctx({latencyHint:"interactive"});}catch{audioCtx=new Ctx();}
+    try{audioCtx=(globalThis.__sharedAudioContext??=new Ctx({latencyHint:"interactive"}));}catch{audioCtx=(globalThis.__sharedAudioContext??=new Ctx());}
     audioMaster=audioCtx.createDynamicsCompressor();audioMaster.threshold.value=-10;audioMaster.knee.value=18;audioMaster.ratio.value=3.2;audioMaster.attack.value=.002;audioMaster.release.value=.14;audioMaster.connect(audioCtx.destination);
     noiseBuffer=audioCtx.createBuffer(1,Math.max(1,Math.floor(audioCtx.sampleRate*.24)),audioCtx.sampleRate);const data=noiseBuffer.getChannelData(0);let seed=0x45a39f1;
     for(let i=0;i<data.length;i++){seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;data[i]=(((seed>>>0)/2147483648)-1)*Math.pow(1-i/data.length,.55);}

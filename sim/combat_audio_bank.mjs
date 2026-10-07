@@ -178,7 +178,7 @@ export function prepareCombatAudio(context){
 
 export function getSharedCombatAudioContext({resume=false}={}){
   const Ctx=globalThis.AudioContext||globalThis.webkitAudioContext;if(!Ctx)return null;
-  try{sharedContext??=new Ctx({latencyHint:"interactive"});prepareCombatAudio(sharedContext);if(resume&&sharedContext.state==="suspended")sharedContext.resume().catch(()=>{});return sharedContext;}catch{return null;}
+  try{sharedContext??=globalThis.__sharedAudioContext||new Ctx({latencyHint:"interactive"});globalThis.__sharedAudioContext=sharedContext;prepareCombatAudio(sharedContext);if(resume&&sharedContext.state==="suspended")sharedContext.resume().catch(()=>{});return sharedContext;}catch{return null;}
 }
 
 export function playCombatAudio(context,kind,{destination=null,gain=1,playbackRate=1,minIntervalMs=0}={}){

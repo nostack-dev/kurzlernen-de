@@ -34,7 +34,7 @@ export const GAMEPLAY_POLISH_DENSITY=Object.freeze({extraCars:EXTRA_CARS,extraPe
 
 function ensureAudio(){
   const Ctx=globalThis.AudioContext||globalThis.webkitAudioContext;if(!Ctx)return null;
-  try{audioCtx??=new Ctx({latencyHint:"interactive"});}catch{return null;}
+  try{audioCtx??=(globalThis.__sharedAudioContext??=new Ctx({latencyHint:"interactive"}));}catch{return null;}
   if(audioCtx.state==="suspended")audioCtx.resume().catch(()=>{});
   if(!noiseBuffer){const duration=.9,samples=Math.max(1,Math.floor(audioCtx.sampleRate*duration));noiseBuffer=audioCtx.createBuffer(1,samples,audioCtx.sampleRate);const data=noiseBuffer.getChannelData(0);for(let i=0;i<samples;i++){const t=i/samples;data[i]=(Math.random()*2-1)*Math.pow(1-t,1.8);}}
   return audioCtx;

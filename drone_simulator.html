@@ -165,7 +165,11 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   var vol=Math.max(0,Math.min(1,(cfg.musicVolume==null?32:cfg.musicVolume)/100))*0.45;
   var a=new Audio("./sim/audio/8_bits_only.m4a");a.loop=true;a.preload="auto";a.volume=vol;a.setAttribute("playsinline","");
   window.__oppMusicElement=a;
-  function go(){a.play().then(function(){document.documentElement.dataset.menuMusic="playing";off();}).catch(function(){document.documentElement.dataset.menuMusic="waiting-for-tap";});}
+  // One audio session for the whole game: the Web Audio context for all
+  // effects is created on the same first tap that starts the music, so iOS
+  // never switches/interrupts the session later when the game is running.
+  function ctx(){try{if(!window.__sharedAudioContext){var AC=window.AudioContext||window.webkitAudioContext;if(AC)window.__sharedAudioContext=new AC({latencyHint:"interactive"});}var x=window.__sharedAudioContext;if(x&&x.state==="suspended")x.resume().catch(function(){});}catch(e){}}
+  function go(e){if(e&&e.isTrusted===false)return;if(e)ctx();if(!a.paused){off();return;}a.play().then(function(){document.documentElement.dataset.menuMusic="playing";off();}).catch(function(){document.documentElement.dataset.menuMusic="waiting-for-tap";});}
   function off(){["pointerdown","touchend","keydown","click"].forEach(function(t){window.removeEventListener(t,go,true);});}
   ["pointerdown","touchend","keydown","click"].forEach(function(t){window.addEventListener(t,go,true);});
   go();
@@ -176,8 +180,13 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   if(/[?&]dev=1/.test(location.search))document.body.classList.add("dev-ui");
   // Menu flyover: neon wireframe city. Black plate, green ground grid and
   // green wireframe blocks; the world stays fixed, only the camera moves.
-  var c=document.getElementById("gameMenuBg"),g=c.getContext("2d"),menu=document.getElementById("gameMenu"),blocks=[],last=performance.now(),W=0,H=0,DPR=Math.min(1.5,window.devicePixelRatio||1);
-  function size(){W=c.clientWidth;H=c.clientHeight;c.width=Math.round(W*DPR);c.height=Math.round(H*DPR);g.setTransform(DPR,0,0,DPR,0,0);}
+  // It is drawn in a Web Worker on an OffscreenCanvas, so it keeps flying
+  // perfectly smoothly while the main thread is busy loading the game
+  // (script start-up, WebGL context, Box3D, shader compilation). Without
+  // OffscreenCanvas it falls back to the same code on the main thread.
+  var c=document.getElementById("gameMenuBg"),menu=document.getElementById("gameMenu"),DPR=Math.min(1.5,window.devicePixelRatio||1);
+  function FLY(g,canvasRef,DPR,RAF){var W=0,H=0,HIDDEN=false,NEED_SIZE=true,GLOW=false,blocks=[],last=performance.now();
+  function size(){W=canvasRef.w;H=canvasRef.h;canvasRef.c.width=Math.max(1,Math.round(W*DPR));canvasRef.c.height=Math.max(1,Math.round(H*DPR));g.setTransform(DPR,0,0,DPR,0,0);NEED_SIZE=false;}
   var STREET=10,FAR=520,GRID=16,BG="#010806",LINE="#3dff8a";
   var cam={x:0,y:12,z:0,yaw:0,roll:0,pitch:0};
   function rnd(a,b){return a+Math.random()*(b-a);}
@@ -188,11 +197,11 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   // world (x right, y up, z forward) -> screen
   function P(x,y,z,f){var dx=x-cam.x,dz=z-cam.z,rx=dx*cy-dz*sy,rz=dx*sy+dz*cy;if(rz<1.2)return null;return[W/2+rx/rz*f,H*(.55+cam.pitch)-(y-cam.y)/rz*f];}
   function path(p){for(var i=0;i<p.length;i++)if(!p[i])return false;g.beginPath();g.moveTo(p[0][0],p[0][1]);for(var k=1;k<p.length;k++)g.lineTo(p[k][0],p[k][1]);g.closePath();return true;}
-  function face(p){if(!path(p))return false;g.fillStyle=BG;g.fill();g.stroke();return true;}
+  function face(p){if(!path(p))return false;g.fillStyle=BG;g.fill();if(GLOW){var lw=g.lineWidth,ss=g.strokeStyle;g.lineWidth=lw*4;g.strokeStyle="rgba(61,255,138,.16)";g.stroke();g.lineWidth=lw;g.strokeStyle=ss;}g.stroke();return true;}
   function seg(a,b){if(!a||!b)return;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();}
   function frame(now){
-    if(menu.hidden){requestAnimationFrame(frame);last=now;return;}
-    var dt=Math.min(.05,(now-last)/1000);last=now;if(c.clientWidth!==W||c.clientHeight!==H)size();
+    if(HIDDEN){RAF(frame);last=now;return;}
+    var dt=Math.min(.05,(now-last)/1000);last=now;if(NEED_SIZE)size();
     var t=now/1000,speed=26+6*Math.sin(t*.11),prevX=cam.x;cam.z+=speed*dt;cam.x=Math.sin(t*.23)*2.6;cam.y=12+Math.sin(t*.37)*2.2;
     var lateral=(cam.x-prevX)/Math.max(dt,1e-3);cam.yaw+=((lateral/speed)*.6-cam.yaw)*Math.min(1,dt*2);cy=Math.cos(cam.yaw);sy=Math.sin(cam.yaw);cam.roll+=(-(lateral/speed)*.35-cam.roll)*Math.min(1,dt*2.5);cam.pitch=-.02+Math.sin(t*.29)*.012;
     // recycle what is behind the camera to the far end (world stays put)
@@ -201,28 +210,45 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
     g.fillStyle=BG;g.fillRect(0,0,W,H);
     var glow=g.createLinearGradient(0,hz-H*.12,0,hz+2);glow.addColorStop(0,"rgba(61,255,138,0)");glow.addColorStop(1,"rgba(61,255,138,.16)");g.fillStyle=glow;g.fillRect(0,hz-H*.12,W,H*.12+2);
     g.translate(W/2,hz);g.rotate(cam.roll);g.translate(-W/2,-hz);
-    g.lineJoin="round";g.shadowColor="rgba(61,255,138,.75)";
+    g.lineJoin="round";
     // ground grid
     var zn=cam.z+1.5,zf=cam.z+FAR,gx0=Math.floor((cam.x-260)/GRID)*GRID;
-    g.strokeStyle="rgba(61,255,138,.32)";g.lineWidth=1;g.shadowBlur=0;
+    g.strokeStyle="rgba(61,255,138,.32)";g.lineWidth=1;
     for(var gx=gx0;gx<=cam.x+260;gx+=GRID)seg(P(gx,0,zn,f),P(gx,0,zf,f));
     for(var gz=Math.ceil(zn/GRID)*GRID;gz<zf;gz+=GRID){g.globalAlpha=Math.max(.15,1-(gz-cam.z)/FAR);seg(P(-260+cam.x,0,gz,f),P(260+cam.x,0,gz,f));}
     g.globalAlpha=1;g.strokeStyle="rgba(61,255,138,.7)";seg(P(-STREET,0,zn,f),P(-STREET,0,zf,f));seg(P(STREET,0,zn,f),P(STREET,0,zf,f));
     // buildings: far to near, black faces with green edges
     var list=blocks.filter(function(b){return b.z1>cam.z+1.5&&b.z0<cam.z+FAR;}).sort(function(a,b){return b.z0-a.z0;});
-    g.strokeStyle=LINE;g.lineWidth=1.3;g.shadowBlur=8;
+    g.strokeStyle=LINE;g.lineWidth=1.3;GLOW=true;
     for(var i=0;i<list.length;i++){var b=list[i],x=b.side*STREET,xb=b.side*(STREET+b.depth),z0=Math.max(b.z0,cam.z+1.6),z1=b.z1;
       g.globalAlpha=Math.max(.25,Math.min(1,1-(b.z0-cam.z-120)/520));
       face([P(x,0,z0,f),P(xb,0,z0,f),P(xb,b.h,z0,f),P(x,b.h,z0,f)]);
       var fac=[P(x,0,z0,f),P(x,0,z1,f),P(x,b.h,z1,f),P(x,b.h,z0,f)];
       if(face(fac)){
         var near=fac[0]&&fac[1]?Math.abs(fac[0][0]-fac[1][0]):0;
-        if(b.floors&&near>30){g.save();g.shadowBlur=0;g.globalAlpha*=.45;for(var yy=6;yy<b.h-1;yy+=6)seg(P(x,yy,z0,f),P(x,yy,z1,f));g.restore();}
+        if(b.floors&&near>30){g.save();g.globalAlpha*=.45;for(var yy=6;yy<b.h-1;yy+=6)seg(P(x,yy,z0,f),P(x,yy,z1,f));g.restore();}
         if(cam.y>b.h)face([P(x,b.h,z0,f),P(x,b.h,z1,f),P(xb,b.h,z1,f),P(xb,b.h,z0,f)]);}}
-    g.globalAlpha=1;g.shadowBlur=0;
-    g.setTransform(DPR,0,0,DPR,0,0);var vg=g.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,H*.95);vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(1,"rgba(0,0,0,.6)");g.fillStyle=vg;g.fillRect(0,0,W,H);requestAnimationFrame(frame);
+    GLOW=false;g.globalAlpha=1;
+    g.setTransform(DPR,0,0,DPR,0,0);var vg=g.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,H*.95);vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(1,"rgba(0,0,0,.6)");g.fillStyle=vg;g.fillRect(0,0,W,H);RAF(frame);
   }
-  size();requestAnimationFrame(frame);
+  RAF(frame);
+  return{resize:function(w,h){canvasRef.w=w;canvasRef.h=h;NEED_SIZE=true;},hidden:function(v){HIDDEN=v;}};}
+  var api=null;
+  function report(){var w=c.clientWidth,h=c.clientHeight;if(api)api.resize(w,h);else if(worker)worker.postMessage({type:"size",w:w,h:h});}
+  function hiddenState(){var v=menu.hidden;if(api)api.hidden(v);else if(worker)worker.postMessage({type:"hidden",v:v});}
+  var worker=null;
+  try{
+    if(c.transferControlToOffscreen&&window.Worker&&!/[?&]menuMain=1/.test(location.search)){
+      var off=c.transferControlToOffscreen();
+      var src="var FLY="+FLY.toString()+";var f=null,ref=null;onmessage=function(e){var d=e.data;if(d.type==='init'){ref={c:d.canvas,w:d.w,h:d.h};var RAF=self.requestAnimationFrame?self.requestAnimationFrame.bind(self):function(cb){return setTimeout(function(){cb(performance.now());},16);};f=FLY(d.canvas.getContext('2d'),ref,d.dpr,RAF);}else if(f&&d.type==='size')f.resize(d.w,d.h);else if(f&&d.type==='hidden')f.hidden(d.v);};";
+      worker=new Worker(URL.createObjectURL(new Blob([src],{type:"text/javascript"})));
+      worker.postMessage({type:"init",canvas:off,w:c.clientWidth,h:c.clientHeight,dpr:DPR},[off]);
+      document.documentElement.dataset.menuFlyover="offscreen-worker";
+    }
+  }catch(e){worker=null;}
+  if(!worker){api=FLY(c.getContext("2d"),{c:c,w:c.clientWidth,h:c.clientHeight},DPR,function(cb){return requestAnimationFrame(cb);});document.documentElement.dataset.menuFlyover="main-thread";}
+  window.addEventListener("resize",report,{passive:true});
+  new MutationObserver(hiddenState).observe(menu,{attributes:true,attributeFilter:["hidden"]});
 })();
 </script>
 <div class="viewport" id="viewport"></div>

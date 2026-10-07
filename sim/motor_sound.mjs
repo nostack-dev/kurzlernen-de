@@ -48,7 +48,7 @@ export class HybridMotorSound {
   ensure(){
     if(this.ctx){this.syncState();return true;}
     const AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return false;
-    try{this.ctx=new AudioCtx({latencyHint:"interactive"});}catch{this.ctx=new AudioCtx();}
+    try{this.ctx=(globalThis.__sharedAudioContext??=new AudioCtx({latencyHint:"interactive"}));}catch{this.ctx=(globalThis.__sharedAudioContext??=new AudioCtx());}
     this.master=this.ctx.createGain();this.master.gain.value=0;
     this.compressor=this.ctx.createDynamicsCompressor();this.compressor.threshold.value=-14;this.compressor.knee.value=18;this.compressor.ratio.value=3.2;this.compressor.attack.value=.0025;this.compressor.release.value=.12;
     this.master.connect(this.compressor);this.compressor.connect(this.ctx.destination);
