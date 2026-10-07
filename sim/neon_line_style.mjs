@@ -16,7 +16,7 @@ import {neonLineMaterial,NEON_DEBUG_PALETTE,fatLineMaterial,fatLineGeometry,fatL
 // tactical-overlay style: you = green, drones = cyan, cars = amber,
 // people = magenta, hostiles = red, projectiles = white-yellow.
 
-export const NEON_STYLE_VERSION="box3d-debug-neon-lines-v1";
+export const NEON_STYLE_VERSION="box3d-debug-neon-lines-v2";
 // One green (sampled from the reference screenshot: #00ff9c). Only hostiles
 // get red so threats stay identifiable; everything else is uniform.
 export const NEON_PALETTE=Object.freeze({
@@ -102,14 +102,14 @@ function neonTranslucent(material,color){
 }
 // Edges are screen-space fat lines (EDGE_WIDTH_PX) so they read as bright
 // neon strokes instead of dim 1 px hairlines. Geometry is shared per source.
-const EDGE_WIDTH_PX=1.8;
+const EDGE_WIDTH_PX=2.25;
 function edgesFor(geometry){
   let edges=edgeCache.get(geometry);if(edges!==undefined)return edges;
   const triangles=(geometry.index?geometry.index.count:geometry.attributes?.position?.count||0)/3;
   if(triangles>0&&triangles<=MAX_EDGE_SOURCE_TRIANGLES){const plain=new THREE.EdgesGeometry(geometry,EDGE_THRESHOLD_DEG);edges=fatLineGeometry(plain);plain.dispose();edges.userData.neonSharedEdges=true;}else edges=null;
   edgeCache.set(geometry,edges);return edges;
 }
-function fatMaterial(color){let material=lineMaterials.get(color);if(!material){material=fatLineMaterial(color,{width:EDGE_WIDTH_PX});lineMaterials.set(color,material);}return material;}
+function fatMaterial(color){let material=lineMaterials.get(color);if(!material){material=fatLineMaterial(color,{width:EDGE_WIDTH_PX,opacity:.98,additive:true,depthTest:true});lineMaterials.set(color,material);}return material;}
 function attachEdges(mesh,color){
   let lines=mesh.children.find(child=>child.userData?.neonEdge);
   const edges=edgesFor(mesh.geometry);
@@ -159,7 +159,7 @@ function rebuildGrid(cx,cy){
 }
 function ensureGrid(scene){
   if(gridGroup?.parent===scene)return gridGroup;
-  const material=patchShockMaterial(neonLineMaterial(0x00ff9c,{opacity:.55}));material.vertexColors=true;material.transparent=true;
+  const material=patchShockMaterial(neonLineMaterial(0x00ff9c,{opacity:.74}));material.vertexColors=true;material.transparent=true;material.blending=THREE.AdditiveBlending;material.depthWrite=false;
   const grid=new THREE.LineSegments(new THREE.BufferGeometry(),material);grid.raycast=()=>{};grid.frustumCulled=false;
   gridGroup=new THREE.Group();gridGroup.name="NEON_GROUND_GRID";gridGroup.userData.neonSkip=true;gridGroup.userData.flightFireIgnore=true;gridGroup.add(grid);gridGroup.renderOrder=-5;scene.add(gridGroup);gridAnchor=[Infinity,Infinity];return gridGroup;
 }
