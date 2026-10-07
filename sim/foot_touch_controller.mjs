@@ -17,11 +17,11 @@
 
 import {normalizedPointer,endPointerDrag} from "./control_semantics.mjs";
 
-export const FOOT_TOUCH_VERSION="single-owner-foot-touch-v3-dual-fire";
+export const FOOT_TOUCH_VERSION="single-owner-foot-touch-v4-akimbo-independent";
 const PASS_SELECTOR="button,input,select,textarea,a,label,dialog,.phone-settings-dialog,#worldLookHud,#soloTopbar,#mobileGameplayDock,#gameExitButton,#soundSwitch,#installApp,#gameMenu,#wantedEmpButton,#vsRespawnHud";
 const STICK_RADIUS=.42,SPRINT_AT=.9,LOOK_EDGE=.72,FIRE_INTERVAL_MS=72;
 
-const pointers=new Map();let installed=false,loop=0,lastLoop=performance.now();
+const pointers=new Map();let installed=false,loop=0,lastLoop=performance.now(),nextPistolHand=0;
 const walk=()=>globalThis.__arondightWalkMode||null;
 const weapons=()=>globalThis.__arondightFootWeapons||null;
 const viewport=()=>document.getElementById("viewport");
@@ -34,6 +34,19 @@ function setData(key,value){const v=viewport();if(v){const s=String(value);if(v.
 function stickAxes(entry,event){const a=normalizedPointer(entry.el,event),m=Math.min(1,Math.hypot(a.x,a.y));return{x:a.x,y:a.y,m};}
 function paintKnob(entry,axes){const knob=entry.knob;if(!knob)return;knob.style.left=`${50+axes.x*31}%`;knob.style.top=`${50+axes.y*31}%`;}
 function fire(x,y,source,hand=0){window.dispatchEvent(new CustomEvent("arondight:foot-screen-fire-anchor",{detail:{clientX:x,clientY:y,source,hand}}));return Boolean(weapons()?.fireAt?.({clientX:x,clientY:y,source,hand}));}
+function fireHands(){return[...pointers.values()].filter(e=>e.kind==="fire").map(e=>e.hand);}
+function chooseFireHand(){
+  if(String(weapons()?.mode||"")!=="glock")return 0;
+  const used=new Set(fireHands());let hand;
+  // Sequential taps alternate guns. If two fingers are down together, the
+  // second finger always owns the other pistol, so neither touch ever fires
+  // both guns as one action.
+  if(!used.size){hand=nextPistolHand;nextPistolHand=1-nextPistolHand;}
+  else if(!used.has(0))hand=0;
+  else if(!used.has(1))hand=1;
+  else return -1;
+  return hand;
+}
 
 function claim(event){event.preventDefault();event.stopImmediatePropagation();}
 // EMP works in every mode and wins over any overlay or later handler: if the
@@ -53,7 +66,7 @@ function onDown(event){
   const now=performance.now(),move=target.closest("#footMove"),look=target.closest("#footLook");
   if(move){for(const e of pointers.values())if(e.kind==="move")return claim(event);const entry={kind:"move",el:move,rect:move.getBoundingClientRect(),knob:move.querySelector(".knob")};pointers.set(event.pointerId,entry);updateMove(entry,event);}
   else if(look){for(const e of pointers.values())if(e.kind==="look")return claim(event);const entry={kind:"look",el:look,rect:look.getBoundingClientRect(),knob:look.querySelector(".knob"),axes:{x:0,y:0,m:0}};pointers.set(event.pointerId,entry);walk()?.beginTouchLook?.("touch-stick");entry.axes=stickAxes(entry,event);paintKnob(entry,entry.axes);}
-  else{const used=new Set([...pointers.values()].filter(e=>e.kind==="fire").map(e=>e.hand)),hand=!used.has(0)?0:!used.has(1)?1:(event.pointerId&1);const entry={kind:"fire",x:event.clientX,y:event.clientY,lastShot:now,hand};pointers.set(event.pointerId,entry);fire(entry.x,entry.y,"screen-touch-hold-start",entry.hand);setData("walkFirePointerActive","1");setData("walkFirePointerId",event.pointerId);setData("walkFireHand",entry.hand);setData("walkHoldFire","screen-pointer-owned-smg-v1");setData("walkScreenTouch","dual-fire-pointer-v2");}
+  else{const hand=chooseFireHand();if(hand<0){setData("walkGlockExtraTouch","ignored-third-fire-pointer");return claim(event);}const entry={kind:"fire",x:event.clientX,y:event.clientY,lastShot:now,hand};pointers.set(event.pointerId,entry);fire(entry.x,entry.y,"screen-touch-hold-start",entry.hand);setData("walkFirePointerActive","1");setData("walkFirePointerId",event.pointerId);setData("walkFireHand",entry.hand);setData("walkFireHands",fireHands().join(","));setData("walkGlockTriggerModel","one-pointer-one-pistol-alternate-or-simultaneous-v3");setData("walkHoldFire","screen-pointer-owned-smg-v1");setData("walkScreenTouch","akimbo-independent-fire-v3");}
   // Keep the established input contracts that the live regression checks.
   setData("walkTouchContract","drone-normalized-pointer-origin-v2");setData("walkStickSemantics","drone-normalizedPointer-v1");setData("walkMultiTouchMoveIsolation","pointer-id-owned-v1");setData("walkAimStickCoordinates","drone-normalizedPointer-v2");setData("walkWeaponTouchVector","screen-ray+hand-anchor-v1");
   setData("footTouch",FOOT_TOUCH_VERSION);setData("footTouchPointers",pointers.size);ensureLoop();claim(event);
@@ -75,11 +88,11 @@ function release(id,reason){
   if(entry.kind==="move"||entry.kind==="look")endPointerDrag(entry.el,id);
   if(entry.kind==="move"){walk()?.setTouchMove?.(0,0,{sprint:false});paintKnob(entry,{x:0,y:0});entry.el.classList.remove("sprinting");setData("walkTouchSprint","0");}
   else if(entry.kind==="look"){walk()?.endTouchLook?.("touch-stick");paintKnob(entry,{x:0,y:0});}
-  else{window.dispatchEvent(new CustomEvent("arondight:foot-aim",{detail:{clientX:entry.x,clientY:entry.y,phase:"end"}}));setData("walkFirePointerActive","0");setData("walkFirePointerRelease",reason);}
+  else{window.dispatchEvent(new CustomEvent("arondight:foot-aim",{detail:{clientX:entry.x,clientY:entry.y,phase:"end"}}));const hands=fireHands();setData("walkFirePointerActive",hands.length?"1":"0");setData("walkFireHands",hands.join(","));setData("walkFirePointerRelease",reason);}
   setData("footTouchPointers",pointers.size);setData("footTouchLastRelease",reason);
 }
 function onUp(event){if(!pointers.has(event.pointerId))return;release(event.pointerId,event.type);claim(event);}
-function releaseAll(reason){for(const id of[...pointers.keys()])release(id,reason);}
+function releaseAll(reason){for(const id of[...pointers.keys()])release(id,reason);nextPistolHand=0;}
 
 // Continuous work: edge-turn on the look stick and MP auto-fire.
 function ensureLoop(){if(loop)return;lastLoop=performance.now();const tick=now=>{const dt=clamp((now-lastLoop)/1000,0,.05);lastLoop=now;
