@@ -20,8 +20,9 @@ function basic(color,opacity=1,additive=false,side=THREE.BackSide){return fxMate
 function sphere(group,r,color,opacity,additive,role,segments=22){const mesh=tag(new THREE.Mesh(sphereGeometry(r,segments,Math.max(10,Math.floor(segments*.62))),basic(color,opacity,additive)),role);group.add(mesh);return mesh;}
 function makeShock(group,role,color,opacity=.9){const ring=tag(new THREE.Mesh(ringGeometry(.985,1.015,128),basic(color,opacity,true,THREE.DoubleSide)),role);ring.position.z=.24;group.add(ring);return ring;}
 function makeOverlay(id,z,background){const view=viewport();if(!view)return null;let el=document.getElementById(id);if(el)return el;el=document.createElement("i");el.id=id;el.setAttribute("aria-hidden","true");el.style.cssText=`position:absolute;inset:-8%;z-index:${z};pointer-events:none;opacity:0;will-change:opacity;${background}`;view.appendChild(el);return el;}
-function ensureFlash(){return makeOverlay("nukeOverkillOverlay",88,"background:radial-gradient(circle at 50% 50%,#fff 0 20%,#fffbd7 35%,rgba(255,191,76,.92) 55%,rgba(255,103,18,.52) 74%,transparent 100%);");}
-function ensureVignette(){return makeOverlay("nukeOverkillVignette",87,"background:radial-gradient(circle at 50% 50%,transparent 38%,rgba(255,93,12,.12) 59%,rgba(56,12,3,.38) 82%,rgba(2,0,0,.72) 100%);");}
+function ensureFlash(){return makeOverlay("nukeOverkillOverlay",88,"background:#f2fff8;");}
+// Flat neon frame instead of a soft orange vignette.
+function ensureVignette(){return makeOverlay("nukeOverkillVignette",87,"inset:0;border:2px solid #00ff9c;");}
 function cameraBlast(){const flash=ensureFlash(),vignette=ensureVignette();flash?.getAnimations?.().forEach(a=>a.cancel());flash?.animate([{opacity:0},{opacity:1,offset:.015},{opacity:1,offset:.12},{opacity:.7,offset:.29},{opacity:.24,offset:.52},{opacity:0}],{duration:2300,easing:"cubic-bezier(.06,.72,.12,1)"});vignette?.getAnimations?.().forEach(a=>a.cancel());vignette?.animate([{opacity:0},{opacity:.76,offset:.16},{opacity:.56,offset:.48},{opacity:.22,offset:.8},{opacity:0}],{duration:6000,easing:"ease-out"});}
 
 // Fireball, shock rings and sparks. The mushroom cloud is owned by the
@@ -30,21 +31,20 @@ function cameraBlast(){const flash=ensureFlash(),vignette=ensureVignette();flash
 function spawn(position){
   const scene=bridge()?.threeScene;if(!scene)return;
   const group=tag(new THREE.Group(),"world-root");group.position.copy(position);scene.add(group);
-  const white=sphere(group,7.5,FX.white,1,true,"white-core"),yellow=sphere(group,12,FX.yellow,.98,true,"yellow-core"),orange=sphere(group,18,FX.orange,.82,true,"orange-fireball"),red=sphere(group,25,FX.red,.48,true,"red-fireball");for(const m of[white,yellow,orange,red])m.position.z=9*NUKE_SCALE;
-  const shock1=makeShock(group,"shock-ring-1",FX.white,.98),shock2=makeShock(group,"shock-ring-2",FX.shock,.82),shock3=makeShock(group,"shock-ring-3",FX.orange,.62);
-  const dust=tag(new THREE.Mesh(ringGeometry(.72,1.28,96),basic(FX.dust,.46,false,THREE.DoubleSide)),"dust-ring");dust.position.z=.08;group.add(dust);
-  const sparks=[];for(let i=0;i<14;i++){const a=i/14*Math.PI*2,p=sphere(group,1+(i%3)*.3,i%2?FX.yellow:FX.ember,.34,true,`spark-${i}`,8);p.position.set(Math.cos(a)*(8+(i%7)*2.3),Math.sin(a)*(8+(i%6)*2.1),5+(i%5)*2.5);sparks.push(p);}
-  effects.push({scene,group,born:performance.now(),white,yellow,orange,red,shock1,shock2,shock3,dust,sparks,sparkBase:sparks.map(p=>p.scale.x),position:position.clone()});
-  const view=viewport();if(view){view.dataset.nukeOverkill="world-anchored-nuclear-v5";view.dataset.nukeOverkillParts=String(4+4+sparks.length);view.dataset.nukeOverkillFireballM="450";view.dataset.nukeOverkillAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;view.dataset.nukeOverkillComposition="world-space-impact-locked-v4";view.dataset.nukeScreenCloud="removed-v2";view.dataset.nukeVisibleRenderer="world-space-3d-v5";view.dataset.nukeVisibilityPolicy="cinematic-depth-priority-v1";}
+  // One flat white-hot core (no stacked yellow/orange/red glow spheres).
+  const white=sphere(group,7.5,0xf4fff9,1,true,"white-core");white.position.z=9*NUKE_SCALE;
+  const shock1=makeShock(group,"shock-ring-1",0xf4fff9,.98),shock2=makeShock(group,"shock-ring-2",0x00ff9c,.82),shock3=makeShock(group,"shock-ring-3",0x0c8a55,.62);
+  const dust=tag(new THREE.Mesh(ringGeometry(.97,.985,96),basic(0x00ff9c,.46,true,THREE.DoubleSide)),"dust-ring");dust.position.z=.08;group.add(dust);
+  const sparks=[];for(let i=0;i<14;i++){const a=i/14*Math.PI*2,p=sphere(group,1+(i%3)*.3,i%2?0xf4fff9:0x00ff9c,.34,true,`spark-${i}`,8);p.position.set(Math.cos(a)*(8+(i%7)*2.3),Math.sin(a)*(8+(i%6)*2.1),5+(i%5)*2.5);sparks.push(p);}
+  effects.push({scene,group,born:performance.now(),white,shock1,shock2,shock3,dust,sparks,sparkBase:sparks.map(p=>p.scale.x),position:position.clone()});
+  const view=viewport();if(view){view.dataset.nukeOverkill="world-anchored-nuclear-v5";view.dataset.nukeOverkillParts=String(1+4+sparks.length);view.dataset.nukeOverkillFireballM="450";view.dataset.nukeOverkillAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;view.dataset.nukeOverkillComposition="world-space-impact-locked-v4";view.dataset.nukeScreenCloud="removed-v2";view.dataset.nukeVisibleRenderer="world-space-3d-v5";view.dataset.nukeVisibilityPolicy="cinematic-depth-priority-v1";}
   document.getElementById("nukeCinematicScreenCloud")?.remove();
   document.getElementById("nukeOverkillShockScreen")?.remove();
   cameraBlast();
 }
 function update(item,now){
   const age=now-item.born,fireT=easeOut(age/1500),shockT=clamp(age/4700,0,1),fade=1-clamp((age-18500)/7500,0,1);
-  item.white.scale.setScalar(NUKE_SCALE*(.45+fireT*6.0));item.yellow.scale.setScalar(NUKE_SCALE*(.5+fireT*5.2));item.orange.scale.setScalar(NUKE_SCALE*(.55+fireT*4.45));item.red.scale.setScalar(NUKE_SCALE*(.6+fireT*3.65));
-  item.white.material.opacity=Math.max(0,1-age/1450);item.yellow.material.opacity=Math.max(0,.98-age/3000);item.orange.material.opacity=Math.max(0,.82-age/5200);item.red.material.opacity=Math.max(0,.48-age/7600);
-  for(const m of[item.white,item.yellow,item.orange,item.red])m.visible=m.material.opacity>.003;
+  item.white.scale.setScalar(NUKE_SCALE*(.45+fireT*6.0));item.white.material.opacity=Math.max(0,1-age/1450);item.white.visible=item.white.material.opacity>.003;
   const r1=NUKE_SCALE*(22+shockT*500),r2=NUKE_SCALE*(16+clamp((age-160)/4700,0,1)*455),r3=NUKE_SCALE*(9+clamp((age-360)/4900,0,1)*395);item.shock1.scale.setScalar(r1);item.shock2.scale.setScalar(r2);item.shock3.scale.setScalar(r3);item.dust.scale.setScalar(NUKE_SCALE*(14+shockT*330));item.shock1.material.opacity=.96*fade;item.shock2.material.opacity=.76*fade;item.shock3.material.opacity=.54*fade;item.dust.material.opacity=.42*fade;
   for(let i=0;i<item.sparks.length;i++){const spark=item.sparks[i];spark.material.opacity=Math.max(0,.34-age/7800);spark.visible=spark.material.opacity>.002;spark.scale.setScalar(item.sparkBase[i]*Math.exp(age*.00009));}
   const view=viewport();setData(view,"nukeOverkillPhase",age<700?"whiteout":age<2100?"fireball":age<5800?"shockwave+mushroom":"mushroom");setData(view,"nukeOverkillShockM",r1.toFixed(0));

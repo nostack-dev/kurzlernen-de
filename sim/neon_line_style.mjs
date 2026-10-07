@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import "./neon_ui_theme.mjs";
+import "./emp_button_layout.mjs";
 import {groundHeightAt,onTerrainChange} from "./terrain_craters.mjs";
+import {patchShockMaterial} from "./nuke_shock_field.mjs";
 import {neonLineMaterial,NEON_DEBUG_PALETTE,fatLineMaterial,fatLineGeometry,fatLineSegments,syncFatLineResolution} from "./box3d_collider_debug.mjs";
 
 // Arcade neon line look for the whole world, built on the Box3D debug-draw
@@ -157,7 +159,7 @@ function rebuildGrid(cx,cy){
 }
 function ensureGrid(scene){
   if(gridGroup?.parent===scene)return gridGroup;
-  const material=neonLineMaterial(0x00ff9c,{opacity:.55});material.vertexColors=true;material.transparent=true;
+  const material=patchShockMaterial(neonLineMaterial(0x00ff9c,{opacity:.55}));material.vertexColors=true;material.transparent=true;
   const grid=new THREE.LineSegments(new THREE.BufferGeometry(),material);grid.raycast=()=>{};grid.frustumCulled=false;
   gridGroup=new THREE.Group();gridGroup.name="NEON_GROUND_GRID";gridGroup.userData.neonSkip=true;gridGroup.userData.flightFireIgnore=true;gridGroup.add(grid);gridGroup.renderOrder=-5;scene.add(gridGroup);gridAnchor=[Infinity,Infinity];return gridGroup;
 }

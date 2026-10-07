@@ -16,13 +16,18 @@ for(const marker of [
 ]) assert.ok(nuke.includes(marker),`missing nuke contract marker: ${marker}`);
 
 for(const marker of [
-  'world-anchored-nuclear-v5','world-space-impact-locked-v4','world-space-3d-v5','nukeOverkillFireballM="450"','group.position.copy(position)','depthTest:false','CINEMATIC_RENDER_ORDER=820','nukeVisibilityPolicy="cinematic-depth-priority-v1"','shock-ring-1','shock-ring-2','shock-ring-3','white-core','red-fireball','window.addEventListener("pointerdown",routeNukePointer,{capture:true,passive:false})','nukeLegacyMissileBypass="blocked-v1"','nukeScreenCloud="removed-v2"'
+  'world-anchored-nuclear-v5','world-space-impact-locked-v4','world-space-3d-v5','nukeOverkillFireballM="450"','group.position.copy(position)','depthTest:false','CINEMATIC_RENDER_ORDER=820','nukeVisibilityPolicy="cinematic-depth-priority-v1"','shock-ring-1','shock-ring-2','shock-ring-3','white-core','window.addEventListener("pointerdown",routeNukePointer,{capture:true,passive:false})','nukeLegacyMissileBypass="blocked-v1"','nukeScreenCloud="removed-v2"'
 ]) assert.ok(overkill.includes(marker),`missing world-space fireball marker: ${marker}`);
 assert.ok(!/mushroom-plume|crown-core|makeSmokePuff/.test(overkill),"overkill layer draws a second mushroom on top of the volumetric one (double overdraw)");
 
 for(const marker of ['CINEMATIC_RENDER_ORDER=840','nukeVolumetricVisibility="depth-tested-v4"','sculpted-mushroom-v3','LatheGeometry(STEM_PROFILE','TorusGeometry(CAP.R,CAP.r','crown-collar','base-surge','hot-crown-visible-core','hot-plume-visible-','crown-visible-core','crown-volumetric-core','nukeVolumetricScreenSpace="none"','stemRings','capFlows']) assert.ok(volumetric.includes(marker),`missing classic mushroom marker: ${marker}`);
 assert.ok(!/SphereGeometry\(r,|puff\(group/.test(volumetric),"mushroom must be sculpted (stem/vortex ring/dome), not a pile of puff spheres");
 assert.ok(!volumetric.includes("wireframe"),"mushroom cloud must be solid, not line art");
+// Neon look: flat fills + lines only. No soft gradients that read as textures.
+for(const [name,source] of [["nuke_weapon",nuke],["nuke_overkill_fx",overkill],["nuke_volumetric_cloud_v2",volumetric]]){
+  assert.ok(!source.includes("radial-gradient"),`${name} still paints a gradient overlay`);
+  assert.ok(!source.includes("heatColors("),`${name} still bakes gradient heat colours`);
+}
 
 for(const forbidden of ['function ensureScreenCloud','nukeCinematicScreenCloud\");if(root)return root','presentationAnchor(position)']) assert.ok(!overkill.includes(forbidden),`forbidden nuclear renderer remains: ${forbidden}`);
 

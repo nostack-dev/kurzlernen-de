@@ -41,7 +41,7 @@ function fields(now){
 function ensureOverlay(){
   const view=viewport();if(!view)return false;if(overlay?.isConnected)return true;
   overlay=document.createElement("i");overlay.id="nukeHellfireOverlay";overlay.setAttribute("aria-hidden","true");
-  overlay.style.cssText="position:absolute;inset:0;z-index:78;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 50% 55%,rgba(255,120,20,0) 30%,rgba(255,80,10,.35) 62%,rgba(140,12,0,.85) 100%);will-change:opacity";
+  overlay.style.cssText="position:absolute;inset:0;z-index:78;pointer-events:none;opacity:0;border:3px solid #ff2d55;box-sizing:border-box;will-change:opacity";
   embers=document.createElement("canvas");embers.id="nukeEmberOverlay";embers.setAttribute("aria-hidden","true");embers.style.cssText="position:absolute;inset:0;width:100%;height:100%;z-index:79;pointer-events:none";
   view.append(overlay,embers);ectx=embers.getContext("2d");return true;
 }

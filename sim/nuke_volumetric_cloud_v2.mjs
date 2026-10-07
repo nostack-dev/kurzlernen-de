@@ -8,9 +8,10 @@ import {fatLineMaterial,fatLineGeometry,fatLineSegments} from "./box3d_collider_
 //   * cap    – a rolling toroidal vortex ring under a domed top,
 //   * collar – the condensation (Wilson) ring that forms around the stem,
 //   * base surge – a wide ring rolling outward along the ground.
-// Each part is a dark silhouette (the game's flat look) with an additive heat
-// shell whose glow sits where real fireballs glow — inside the stem and on
-// the cap's underside — fading as it cools. Neon flow rings scroll up the
+// Each part is a flat dark silhouette (the game's look, same fill as the
+// buildings) outlined by neon lines. Heat is never a soft gradient: the hot
+// core lines inside the stem, under the cap and along the base surge glow
+// white-hot and cool down to the game's neon green. Flow rings scroll up the
 // stem and roll around the vortex ring so the cloud visibly churns.
 // ~25 draw calls in total, no lights, no per-frame geometry rebuilds.
 
@@ -34,10 +35,12 @@ function stemRadiusAt(h){if(h<=0)return STEM_PROFILE[0][0];for(let i=1;i<STEM_PR
 const CAP={z:.80,R:.24,r:.105};       // vortex ring centre height, major and tube radius
 const DOME={z:.84,r:.27,squash:.62};
 
-// Heat pattern baked into vertex colours (black = no glow).
-function heatColors(geometry,fn){const pos=geometry.attributes.position,colors=new Float32Array(pos.count*3),c=new THREE.Color();for(let i=0;i<pos.count;i++){const h=clamp(fn(pos.getX(i),pos.getY(i),pos.getZ(i)),0,1);c.setRGB(1,.42+.4*h*h,.12+.2*h*h).multiplyScalar(h);colors[i*3]=c.r;colors[i*3+1]=c.g;colors[i*3+2]=c.b;}geometry.setAttribute("color",new THREE.BufferAttribute(colors,3));return geometry;}
-function darkMaterial(){return new THREE.MeshBasicMaterial({color:0x140a07,toneMapped:false,fog:false,side:THREE.FrontSide,transparent:true,opacity:1,depthWrite:true});}
-function heatMaterial(){return new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,fog:false,side:THREE.FrontSide});}
+const NEON=new THREE.Color(0x00ff9c),WHITE_HOT=new THREE.Color(0xf4fff9);
+function darkMaterial(){return new THREE.MeshBasicMaterial({color:0x03160d,toneMapped:false,fog:false,side:THREE.FrontSide,transparent:true,opacity:1,depthWrite:true});}
+// Hot core lines: inside the stem, under the cap, along the base surge.
+function circlePositions(radius,z,seg=56){const out=[];for(let i=0;i<seg;i++){const a=i/seg*Math.PI*2,b=(i+1)/seg*Math.PI*2;out.push(Math.cos(a)*radius,Math.sin(a)*radius,z,Math.cos(b)*radius,Math.sin(b)*radius,z);}return out;}
+function stemCorePositions(){const out=[],n=8;for(let k=0;k<n;k++){const a=(k+.5)/n*Math.PI*2,c=Math.cos(a),si=Math.sin(a);for(let i=0;i<STEM_PROFILE.length-1;i++){const[r0,h0]=STEM_PROFILE[i],[r1,h1]=STEM_PROFILE[i+1];out.push(c*r0*.5,si*r0*.5,h0,c*r1*.5,si*r1*.5,h1);}}return out;}
+function capUnderPositions(){const out=[];for(const phi of[-Math.PI/2,-Math.PI/3,-Math.PI*2/3])out.push(...circlePositions(CAP.R+CAP.r*1.07*Math.cos(phi),CAP.r*1.07*Math.sin(phi),56));return out;}
 // Lathe/Torus in three are built around +Y / in the XY plane; stand the lathe on +Z.
 function zUp(geometry){geometry.rotateX(Math.PI/2);return geometry;}
 
@@ -55,13 +58,13 @@ function sharedGeometries(){
   const domeGeo=new THREE.SphereGeometry(DOME.r,40,14,0,Math.PI*2,0,Math.PI/2);domeGeo.rotateX(Math.PI/2);domeGeo.scale(1,1,DOME.squash);
   shared={
     stem:mark(zUp(new THREE.LatheGeometry(STEM_PROFILE.map(([r,h])=>new THREE.Vector2(r,h)),40))),
-    stemHeat:mark(heatColors(zUp(new THREE.LatheGeometry(STEM_PROFILE.map(([r,h])=>new THREE.Vector2(r*1.03,h)),40)),(x,y,z)=>.35+.65*(1-z/.78))),
+    stemHot:mark(fatLineGeometry(stemCorePositions())),
     cap:mark(new THREE.TorusGeometry(CAP.R,CAP.r,22,56)),
-    capHeat:mark(heatColors(new THREE.TorusGeometry(CAP.R,CAP.r*1.04,22,56),(x,y,z)=>clamp(.55-z/CAP.r*.9,0,1))),
+    capHot:mark(fatLineGeometry(capUnderPositions())),
     dome:mark(domeGeo),
-    collar:mark(new THREE.TorusGeometry(.16,.016,10,48)),
+    collar:mark(fatLineGeometry([...circlePositions(.16,0,48),...circlePositions(.17,.012,48)])),
     surge:mark(new THREE.TorusGeometry(.42,.045,10,64)),
-    surgeHeat:mark(heatColors(new THREE.TorusGeometry(.42,.047,10,64),()=>.6)),
+    surgeHot:mark(fatLineGeometry([...circlePositions(.465,.03,64),...circlePositions(.42,.09,64)])),
     stemWire:mark(fatLineGeometry(stemWirePositions())),
     capWire:mark(fatLineGeometry(torusWirePositions())),
     domeWire:mark(fatLineGeometry(domeWirePositions())),
@@ -70,14 +73,15 @@ function sharedGeometries(){
 function buildParts(group){
   const parts={},G=sharedGeometries();
   parts.stem=tag(new THREE.Mesh(G.stem,darkMaterial()),"stem-silhouette");
-  parts.stemHeat=tag(new THREE.Mesh(G.stemHeat,heatMaterial()),"hot-plume-visible-stem");
+  const hotMat=fatLineMaterial(0xf4fff9,{width:2.4,opacity:1,additive:true});parts.hotMat=hotMat;
+  parts.stemHeat=tag(fatLineSegments(G.stemHot,hotMat),"hot-plume-visible-stem");delete parts.stemHeat.userData.neonEdge;
   parts.cap=tag(new THREE.Mesh(G.cap,darkMaterial()),"crown-visible-core");parts.cap.position.z=CAP.z;
-  parts.capHeat=tag(new THREE.Mesh(G.capHeat,heatMaterial()),"hot-crown-visible-core");parts.capHeat.position.z=CAP.z;
+  parts.capHeat=tag(fatLineSegments(G.capHot,hotMat),"hot-crown-visible-core");delete parts.capHeat.userData.neonEdge;parts.capHeat.position.z=CAP.z;
   parts.dome=tag(new THREE.Mesh(G.dome,darkMaterial()),"crown-volumetric-core");parts.dome.position.z=DOME.z;
-  parts.collar=tag(new THREE.Mesh(G.collar,new THREE.MeshBasicMaterial({color:0xd8ffe9,transparent:true,opacity:0,depthWrite:false,toneMapped:false,fog:false})),"crown-collar");parts.collar.position.z=.5;
+  parts.collarMat=fatLineMaterial(0x00ff9c,{width:1.6,opacity:0,additive:true});parts.collar=tag(fatLineSegments(G.collar,parts.collarMat),"crown-collar");delete parts.collar.userData.neonEdge;parts.collar.position.z=.5;
   parts.surge=tag(new THREE.Mesh(G.surge,darkMaterial()),"base-surge");parts.surge.position.z=.03;
-  parts.surgeHeat=tag(new THREE.Mesh(G.surgeHeat,heatMaterial()),"hot-plume-visible-surge");parts.surgeHeat.position.z=.03;
-  for(const key of Object.keys(parts))group.add(parts[key]);
+  parts.surgeHeat=tag(fatLineSegments(G.surgeHot,hotMat),"hot-plume-visible-surge");delete parts.surgeHeat.userData.neonEdge;parts.surgeHeat.position.z=0;
+  for(const key of Object.keys(parts))if(parts[key]?.isObject3D)group.add(parts[key]);
   unitCircle??=(()=>{const pts=[],n=64;for(let i=0;i<n;i++){const a=i/n*Math.PI*2,b=(i+1)/n*Math.PI*2;pts.push(Math.cos(a),Math.sin(a),0,Math.cos(b),Math.sin(b),0);}const g=fatLineGeometry(pts);g.userData.nukeSharedGeometry=true;return g;})();
   const lineMat=fatLineMaterial(0x00ff9c,{width:2,opacity:.95,additive:true}),wireMat=fatLineMaterial(0x00ff9c,{width:1.6,opacity:.9,additive:true});
   const stemWire=tag(fatLineSegments(G.stemWire,wireMat),"plume-volumetric-wire");delete stemWire.userData.neonEdge;group.add(stemWire);
@@ -95,7 +99,7 @@ function spawn(position){
   const group=tag(new THREE.Group(),"volumetric-world-root");group.position.copy(position);world.add(group);
   const parts=buildParts(group);group.scale.setScalar(.001);
   clouds.push({group,world,parts,born:performance.now(),position:position.clone()});
-  const v=viewport();if(v){v.dataset.nukeVolumetricCloud="sculpted-mushroom-v3";v.dataset.nukeVolumetricStyle="silhouette+heat-shell+flow-rings-v1";v.dataset.nukeVolumetricAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;v.dataset.nukeVolumetricParts=String(group.children.length);v.dataset.nukeVolumetricHotParts="3";v.dataset.nukeVolumetricScreenSpace="none";v.dataset.nukeVolumetricVisibility="depth-tested-v4";}
+  const v=viewport();if(v){v.dataset.nukeVolumetricCloud="sculpted-mushroom-v3";v.dataset.nukeVolumetricStyle="flat-silhouette+neon-hot-lines-v2";v.dataset.nukeVolumetricAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;v.dataset.nukeVolumetricParts=String(group.children.length);v.dataset.nukeVolumetricHotParts="3";v.dataset.nukeVolumetricScreenSpace="none";v.dataset.nukeVolumetricVisibility="depth-tested-v4";}
 }
 
 function update(item,now){
@@ -105,8 +109,10 @@ function update(item,now){
   const open=smooth((age-.6)/5);p.cap.scale.set(.6+.4*open,.6+.4*open,1+.25*(1-open));p.capHeat.scale.copy(p.cap.scale);p.dome.scale.set(.75+.25*open,.75+.25*open,1);
   const fade=1-smooth((age-(LIFE_S-9))/9),heat=Math.max(0,1-age/24)*fade;
   for(const m of[p.stem,p.cap,p.dome,p.surge]){m.material.opacity=fade;m.material.depthWrite=fade>.98;}
-  p.stemHeat.material.opacity=.95*heat;p.capHeat.material.opacity=heat;p.surgeHeat.material.opacity=.8*Math.max(0,1-age/6)*fade;
-  p.collar.material.opacity=.55*smooth((age-3)/2)*(1-smooth((age-10)/5));p.collar.position.z=.46+.06*smooth(age/8);p.collar.scale.setScalar(1+.25*smooth((age-3)/8));
+  // Hot lines: white-hot at detonation, cooling to the neon green.
+  p.hotMat.color.copy(NEON).lerp(WHITE_HOT,clamp(heat*1.25,0,1));p.hotMat.opacity=fade*(.55+.45*heat);
+  p.surgeHeat.visible=age<14;
+  p.collarMat.opacity=.85*smooth((age-3)/2)*(1-smooth((age-10)/5));p.collar.position.z=.46+.06*smooth(age/8);p.collar.scale.setScalar(1+.25*smooth((age-3)/8));
   const surge=1+2.2*(1-Math.exp(-age/4));p.surge.scale.set(surge,surge,1);p.surgeHeat.scale.set(surge,surge,1);
   const flow=age*.06;
   for(let i=0;i<p.stemRings.length;i++){const h=((i/p.stemRings.length+flow)%1)*.76,r=stemRadiusAt(h),ring=p.stemRings[i];ring.position.z=h;ring.scale.set(r*1.06,r*1.06,1);ring.visible=fade>.02;}
