@@ -46,10 +46,13 @@ assert.ok(style.includes("SCAN_INTERVAL_MS=MOBILE?900:650"),"style discovery sca
 const styleFrame=style.slice(style.indexOf("function frame(now)"),style.indexOf("globalThis.__arondightNeonStyle"));
 assert.ok(!styleFrame.includes("scene.traverse")&&!styleFrame.includes("killLights(scene"),"neon render hot path must never synchronously traverse the scene or rediscover lights");
 assert.ok(style.includes("renderer.shadowMap.enabled=false"),"neon renderer must not pay for invisible shadow maps");
+assert.ok(style.includes("grid.visible=!bridge()?.active"),"real WORLD must not draw a second flat neon grid over deformed terrain");
+assert.ok(style.includes("FogExp2(STYLE_PALETTE.haze,.00038)"),"green neon world must not reintroduce the heavy dark fog veil");
 
 const neonUi=files["sim/neon_ui_theme.mjs"];
 assert.ok(neonUi.includes("MutationObserver")&&neonUi.includes("scheduleLabelFit"),"UI label sizing must be event-driven");
 assert.ok(!neonUi.includes("setTimeout(fitLabels,500)"),"UI label sizing must not force layout polling every 500 ms");
+assert.ok(neonUi.includes(":is(#soloHud,#footHud,#vehicleHud,#gtaVehicleHud,#sandboxHud)")&&neonUi.includes("background:transparent!important"),"full-screen HUD containers must stay transparent; styling them as panels creates a dark veil");
 
 const mobile=files["sim/mobile_gameplay_ui.mjs"];
 assert.ok(mobile.includes("const UI_SYNC_MS=100")&&mobile.includes("setTimeout(sync,UI_SYNC_MS)"),"mobile HUD must use low-frequency state sync");
@@ -128,6 +131,8 @@ assert.ok(police.includes("BUILDING_GRID_CELL_M=32")&&police.includes("linePrism
 
 const city=files["sim/world_city_buildings.mjs"];
 assert.ok(city.includes("now-lastSyncCheck<200"),"city rebuild discovery must not poll map/player state every render frame");
+assert.ok(city.includes("green-neon-flat-no-texture-v3")&&city.includes("new THREE.MeshBasicMaterial({color:0x032417"),"city must keep flat textureless green-neon fills");
+assert.ok(city.includes("edgeGlow.visible=edges.visible=thinEdges.visible=true")&&city.includes("fatLineMaterial(0x39ff14"),"green neon city outlines must remain enabled");
 
 const cameraGuard=files["sim/camera_collision_guard.mjs"];
 assert.ok(cameraGuard.includes("lastTelemetry=-Infinity"),"camera collision telemetry throttle must declare its state");
@@ -144,6 +149,9 @@ assert.ok(simulator.includes('if(gameMenu&&!gameMenu.hidden){lastPresentationDra
 const terrain=files["sim/terrain_craters.mjs"],ground=files["sim/world_ground.mjs"];
 assert.ok(terrain.includes("terrainCellCache")&&terrain.includes("terrainNodeHeightAt"),"terrain hot queries must share cached physical grid nodes");
 assert.ok(ground.includes("function applyHeights()")&&ground.includes("terrainNodeHeightAt("),"visible ground vertices must use the exact Box3D terrain nodes");
+assert.ok(ground.includes('WORLD_GROUND_VERSION="shared-neon-terrain-v3-no-texture"')&&ground.includes('worldGroundTexture="none"'),"WORLD ground must be textureless neon");
+assert.ok(!ground.includes("MapServer/tile")&&!ground.includes("sampleColors("),"WORLD ground must not fetch/process satellite imagery");
+assert.ok(ground.includes("vGroundWorld")&&ground.includes("diffuseColor.rgb=mix(base,neon,line)"),"neon grid must be generated on the deformed terrain mesh itself");
 
 const action=files["sim/world_action_feedback.mjs"];
 const actionScan=action.slice(action.indexOf("function releaseShootableWorldDecor"),action.indexOf("function acknowledgeSceneHit"));
