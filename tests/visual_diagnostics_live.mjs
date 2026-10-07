@@ -40,6 +40,21 @@ try{
   await step("menu",()=>page.waitForFunction(()=>document.getElementById("gameMenuStart")?.textContent?.trim()==="START",{timeout:45000}));
   await step("started",async()=>{await page.click("#gameMenuStart");await page.waitForFunction(()=>document.getElementById("gameMenu")?.hidden===true,{timeout:60000});await pause(4000);});
   await step("city-drone",async()=>{await page.waitForFunction(()=>Number(document.querySelector("#viewport")?.dataset.worldCityBuildings)>20,{timeout:30000}).catch(()=>{});await pause(1500);});
+  // Cost attribution: frame rate with individual layers switched off.
+  report.attribution=await page.evaluate(async()=>{
+    const fps=()=>new Promise(res=>{let n=0;const t0=performance.now();const f=()=>{n++;if(performance.now()-t0<2500)requestAnimationFrame(f);else res(+(n/((performance.now()-t0)/1000)).toFixed(1));};requestAnimationFrame(f);});
+    const scene=globalThis.__arondightRealWorld?.threeScene,out={};if(!scene)return out;
+    const byName=n=>scene.getObjectByName(n),edges=[];scene.traverse(o=>{if(o.userData?.neonEdge)edges.push(o);});
+    const geo=document.getElementById("geoViewport");
+    const trial=async(name,off,on)=>{off();await new Promise(r=>setTimeout(r,400));out[name]=await fps();on();};
+    out.baseline=await fps();
+    await trial("noCitySolids",()=>{const m=byName("WORLD_CITY_SOLIDS");if(m)m.visible=false;},()=>{const m=byName("WORLD_CITY_SOLIDS");if(m)m.visible=true;});
+    await trial("noCityEdges",()=>{const m=byName("WORLD_CITY_EDGES");if(m)m.visible=false;},()=>{const m=byName("WORLD_CITY_EDGES");if(m)m.visible=true;});
+    await trial("noObjectEdges",()=>edges.forEach(e=>e.visible=false),()=>edges.forEach(e=>e.visible=true));
+    await trial("noGrid",()=>{const m=byName("NEON_GROUND_GRID");if(m)m.visible=false;},()=>{const m=byName("NEON_GROUND_GRID");if(m)m.visible=true;});
+    await trial("noMapCanvas",()=>{if(geo)geo.style.display="none";},()=>{if(geo)geo.style.display="";});
+    out.objectEdges=edges.length;return out;
+  }).catch(e=>({error:String(e)}));
   await step("minimap-expanded",async()=>{await page.evaluate(()=>globalThis.__arondightRealWorld?.toggleMinimapExpanded?.());await pause(800);});
   await page.evaluate(()=>globalThis.__arondightRealWorld?.toggleMinimapExpanded?.());
   await step("on-foot",async()=>{await page.evaluate(()=>globalThis.__arondightWalkMode?.setMode?.("foot",{persist:false,reason:"diag"}));await pause(2500);});
