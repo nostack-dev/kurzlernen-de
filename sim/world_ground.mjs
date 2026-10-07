@@ -16,6 +16,7 @@ const SIZE_M=1600,CELLS=320,ZOOM=15,REBUILD_MOVE_M=350; // 5 m cells on the 5 m 
 const TILE_URL=(z,x,y)=>`https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
 let installed=false,mesh=null,center=[Infinity,Infinity],busy=false,lastTry=-Infinity,tileCache=new Map();
 const bridge=()=>globalThis.__arondightRealWorld||null;
+const yieldMain=()=>globalThis.scheduler?.yield?globalThis.scheduler.yield():new Promise(resolve=>setTimeout(resolve,0));
 
 function lonLatToTile(lon,lat,z){const n=2**z,x=(lon+180)/360*n,r=lat*Math.PI/180,y=(1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n;return[x,y];}
 function loadTile(z,x,y){const key=`${z}/${x}/${y}`;if(tileCache.has(key))return tileCache.get(key);
@@ -38,9 +39,9 @@ async function sampleColors(b,cx,cy){
   const P=64,canvas=document.createElement("canvas");canvas.width=nx*P;canvas.height=ny*P;const ctx=canvas.getContext("2d",{willReadFrequently:true});ctx.imageSmoothingQuality="high";
   tiles.forEach((img,i)=>{if(img)ctx.drawImage(img,(i%nx)*P,Math.floor(i/nx)*P,P,P);});let data;try{data=ctx.getImageData(0,0,canvas.width,canvas.height).data;}catch{return null;}
   const colors=new Float32Array((CELLS+1)*(CELLS+1)*3),c=[0,0,0],lin=v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;};
-  for(let j=0;j<=CELLS;j++)for(let i=0;i<=CELLS;i++){const x=cx-half+i/CELLS*SIZE_M,y=cy+half-j/CELLS*SIZE_M,[lon,lat]=b.unprojectMeters(x,y),[tx,ty]=lonLatToTile(lon,lat,ZOOM),px=Math.max(0,Math.min(canvas.width-1,Math.floor((tx-ix0)*P))),py=Math.max(0,Math.min(canvas.height-1,Math.floor((ty-iy0)*P)));
+  for(let j=0;j<=CELLS;j++){for(let i=0;i<=CELLS;i++){const x=cx-half+i/CELLS*SIZE_M,y=cy+half-j/CELLS*SIZE_M,[lon,lat]=b.unprojectMeters(x,y),[tx,ty]=lonLatToTile(lon,lat,ZOOM),px=Math.max(0,Math.min(canvas.width-1,Math.floor((tx-ix0)*P))),py=Math.max(0,Math.min(canvas.height-1,Math.floor((ty-iy0)*P)));
     let r=0,g=0,bb=0,n=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const qx=Math.max(0,Math.min(canvas.width-1,px+dx)),qy=Math.max(0,Math.min(canvas.height-1,py+dy)),o=(qy*canvas.width+qx)*4;if(data[o+3]<10)continue;r+=lin(data[o]);g+=lin(data[o+1]);bb+=lin(data[o+2]);n++;}
-    if(!n){r=.12;g=.16;bb=.08;n=1;}albedo(r/n,g/n,bb/n,c);const k=(j*(CELLS+1)+i)*3;colors[k]=c[0];colors[k+1]=c[1];colors[k+2]=c[2];}
+    if(!n){r=.12;g=.16;bb=.08;n=1;}albedo(r/n,g/n,bb/n,c);const k=(j*(CELLS+1)+i)*3;colors[k]=c[0];colors[k+1]=c[1];colors[k+2]=c[2];}if((j&7)===7)await yieldMain();}
   return colors;
 }
 function fallbackColors(cx,cy){const colors=new Float32Array((CELLS+1)*(CELLS+1)*3);for(let k=0;k<colors.length;k+=3){colors[k]=.16;colors[k+1]=.2;colors[k+2]=.1;}return colors;}
@@ -53,7 +54,7 @@ function ensureMesh(scene){
   m.customProgramCacheKey=()=>"world-ground-v1";patchShockMaterial(m);
   mesh=new THREE.Mesh(g,m);mesh.name="WORLD_GROUND";mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.renderOrder=1;mesh.userData.flightFireIgnore=true;mesh.userData.styleSkip=true;mesh.raycast=()=>{};mesh.visible=false;scene.add(mesh);center=[Infinity,Infinity];return mesh;
 }
-function applyHeights(){if(!mesh)return;const p=mesh.geometry.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i)+mesh.position.x,y=p.getY(i)+mesh.position.y;p.setZ(i,terrainNodeHeightAt(x,y));}p.needsUpdate=true;mesh.geometry.computeVertexNormals();}
+function applyHeights(){if(!mesh)return;const p=mesh.geometry.attributes.position,a=p.array;for(let i=0;i<a.length;i+=3)a[i+2]=terrainNodeHeightAt(a[i]+mesh.position.x,a[i+1]+mesh.position.y);p.needsUpdate=true;mesh.geometry.computeVertexNormals();}
 async function rebuild(b,cx,cy){
   busy=true;try{const colors=(await sampleColors(b,cx,cy).catch(()=>null))||fallbackColors(cx,cy);ensureMesh(b.threeScene);mesh.position.set(cx,cy,0);mesh.geometry.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));applyHeights();mesh.visible=true;
     const v=document.getElementById("viewport");if(v){v.dataset.worldGround=WORLD_GROUND_VERSION;v.dataset.worldGroundSource=colors.length&&colors[0]!==.16?"satellite-albedo":"fallback";}}
