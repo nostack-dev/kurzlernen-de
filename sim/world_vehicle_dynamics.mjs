@@ -11,7 +11,7 @@
 // traffic (an AI driver steers towards its route target and controls speed
 // with the same pedal). Frame: world z up; chassis local x forward, y left.
 
-export const VEHICLE_DYNAMICS_VERSION="box3d-wheel-joint-vehicles-v2.5-nondegenerate-tyres";
+export const VEHICLE_DYNAMICS_VERSION="box3d-wheel-joint-vehicles-v2.6-centered-tyres";
 
 // Joint frame: local x -> up (suspension + steering axis), local z -> left
 // (wheel spin axis), local y -> forward. Same frame on chassis and wheel.
@@ -43,9 +43,10 @@ export function attachWheels(physics,record,spec,{category,mask}){
     const body=b3.b3CreateBody(physics.world,bd),sd=b3.b3DefaultShapeDef();sd.density=spec.wheelMass/volume;sd.baseMaterial.friction=spec.friction;sd.baseMaterial.restitution=0;sd.enableContactEvents=true;sd.enableHitEvents=true;sd.filter={categoryBits:category,maskBits:mask,groupIndex:0};
     // A tyre is a finite-width cylinder, not a sphere. The cylinder axis is body-local Y,
     // exactly the wheel joint spin axis (joint-frame Z maps to body Y via FRAME_Q).
-    // Box3D's cylinder height is the full tyre width. An odd 15-sided tread avoids
-    // the symmetric edge/face manifold degeneracy that can make a straight wheel pull sideways.
-    let shape;if(typeof b3.b3CreateCylinder==="function"&&typeof b3.b3CreateHullShape==="function"&&typeof b3.b3DestroyHull==="function"){const hull=b3.b3CreateCylinder(wheelWidth,r,0,15);if(!hull)throw Error("Box3D failed to create tyre hull");try{shape=b3.b3CreateHullShape(body,sd,hull);}finally{b3.b3DestroyHull(hull);}}else{shape=b3.b3CreateSphereShape(body,sd,{center:[0,0,0],radius:r});}
+    // Box3D's cylinder runs from yOffset to yOffset+height: center it exactly on
+    // the wheel-joint axle. An odd 15-sided tread also avoids symmetric contact
+    // manifold degeneracy. No corrective steering/velocity hack is involved.
+    let shape;if(typeof b3.b3CreateCylinder==="function"&&typeof b3.b3CreateHullShape==="function"&&typeof b3.b3DestroyHull==="function"){const hull=b3.b3CreateCylinder(wheelWidth,r,-wheelWidth*.5,15);if(!hull)throw Error("Box3D failed to create tyre hull");try{shape=b3.b3CreateHullShape(body,sd,hull);}finally{b3.b3DestroyHull(hull);}}else{shape=b3.b3CreateSphereShape(body,sd,{center:[0,0,0],radius:r});}
     const jd=b3.b3DefaultWheelJointDef();jd.base.bodyIdA=record.body;jd.base.bodyIdB=body;jd.base.localFrameA={position:local,quaternion:[...FRAME_Q]};jd.base.localFrameB={position:[0,0,0],quaternion:[...FRAME_Q]};jd.base.collideConnected=false;
     jd.enableSuspensionSpring=true;jd.suspensionHertz=spec.suspension.hertz;jd.suspensionDampingRatio=spec.suspension.damping;jd.enableSuspensionLimit=true;jd.lowerSuspensionLimit=spec.suspension.lower;jd.upperSuspensionLimit=spec.suspension.upper;
     jd.enableSpinMotor=true;jd.maxSpinTorque=spec.coast;jd.spinSpeed=0;
