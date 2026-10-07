@@ -60,6 +60,9 @@ const gameplay=files["sim/gameplay_final_runtime_v2.mjs"];
 assert.ok(gameplay.includes("lastHousekeeping=-Infinity")&&gameplay.includes("now-lastHousekeeping>=250"),"weapon hierarchy housekeeping must be throttled");
 assert.ok(gameplay.includes("cachedWeaponGun")&&gameplay.includes("cachedMuzzleFlash"),"weapon scene lookups must be cached");
 assert.ok(gameplay.includes("lastPedTelemetry=-Infinity"),"pedestrian telemetry throttle must declare its state instead of crashing the render loop");
+assert.ok(gameplay.includes("pedScanStack=[]")&&gameplay.includes("stepPedestrianScan(performance.now()+.75)"),"pedestrian discovery must be time-sliced instead of traversing the scene in one frame");
+const pedScanSource=gameplay.slice(gameplay.indexOf("function scanPedestrians"),gameplay.indexOf("function animatePedestrians"));
+assert.ok(!pedScanSource.includes("scene.traverse"),"pedestrian discovery must not synchronously traverse the scene");
 
 const wanted=files["sim/wanted_police_drones.mjs"];
 assert.ok(wanted.includes("now-lastHudRender<100")&&wanted.includes("hudStars=[...hud.querySelectorAll"),"wanted HUD DOM updates must be throttled and cached");
