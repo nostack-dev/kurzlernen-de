@@ -40,7 +40,10 @@ export class WorldRigidBodyPhysics{
     return record;
   }
   removeBody(id){const key=String(id||""),record=this.records.get(key);if(!record)return false;if(record.wheels)detachWheels(this,record);this.records.delete(key);this.shapeRecords.delete(shapeKey(record.shape));if(record.body&&this.b3.b3Body_IsValid(record.body))this.b3.b3DestroyBody(record.body);return true;}
-  setTarget(id,{position,speedMps=0,response=3.2,maxAccelerationMps2,yaw=null}={}){const record=this.records.get(String(id||""));if(!record||!finiteVector(position))return false;record.target={position:[...position],speedMps:Math.max(0,Number(speedMps)||0),response:clamp(response,.2,10),maxAccelerationMps2:clamp(maxAccelerationMps2??(record.drone?13:6),.5,30),yaw:Number.isFinite(yaw)?Number(yaw):null};return true;}
+  setTarget(id,{position,speedMps=0,response=3.2,maxAccelerationMps2,yaw=null}={}){
+    const record=this.records.get(String(id||""));if(!record||!finiteVector(position))return false;
+    const target=record.target||(record.target={position:[0,0,0],speedMps:0,response:3.2,maxAccelerationMps2:6,yaw:null});target.position[0]=position[0];target.position[1]=position[1];target.position[2]=position[2];target.speedMps=Math.max(0,Number(speedMps)||0);target.response=clamp(response,.2,10);target.maxAccelerationMps2=clamp(maxAccelerationMps2??(record.drone?13:6),.5,30);target.yaw=Number.isFinite(yaw)?Number(yaw):null;return true;
+  }
   clearTarget(id){const record=this.records.get(String(id||""));if(!record)return false;record.target=null;return true;}
   // Player driving is accepted only for the real chassis + wheel-joint model.
   // No velocity/yaw/pose fallback is allowed for a drivable vehicle.
