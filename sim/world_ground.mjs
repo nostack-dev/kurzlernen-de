@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {patchShockMaterial} from "./nuke_shock_field.mjs";
-import {craterHeightAt,onTerrainChange} from "./terrain_craters.mjs";
+import {craterHeightAt,groundHeightAt,onTerrainChange} from "./terrain_craters.mjs";
 
 // Real-world ground coloured from satellite imagery — used only indirectly:
 // the aerial tiles around the player are averaged down to one colour per
@@ -68,5 +68,9 @@ function frame(now){
   {const c=b.threeCamera,want=globalThis.__arondightWalkMode?.mode==="foot"?.06:.25;if(c&&Math.abs(c.near-want)>1e-4){c.near=want;c.updateProjectionMatrix();}}
   const cam=b.threeCamera;if(!cam||busy||now-lastTry<1500)return;if(Math.hypot(cam.position.x-center[0],cam.position.y-center[1])<REBUILD_MOVE_M&&mesh.visible)return;lastTry=now;center=[cam.position.x,cam.position.y];rebuild(b,center[0],center[1]);
 }
-export function installWorldGround(){if(installed||typeof window==="undefined")return;installed=true;onTerrainChange(()=>applyHeights());requestAnimationFrame(frame);}
+// The view never goes underground: chase / orbit / menu cameras on hills,
+// in craters or under a heaving shock wave are kept above the visible surface.
+function keepCameraAboveGround(scene,camera){if(!camera||globalThis.__arondightWalkMode?.mode==="foot")return;if(camera.parent&&camera.parent!==scene)return;const min=groundHeightAt(camera.position.x,camera.position.y)+.35;if(camera.position.z<min){camera.position.z=min;camera.updateMatrixWorld();}}
+export function installWorldGround(){if(installed||typeof window==="undefined")return;installed=true;onTerrainChange(()=>applyHeights());requestAnimationFrame(frame);
+  const attach=()=>{const b=bridge();if(typeof b?.addPreRenderHook!=="function")return requestAnimationFrame(attach);b.addPreRenderHook(keepCameraAboveGround);};attach();}
 installWorldGround();

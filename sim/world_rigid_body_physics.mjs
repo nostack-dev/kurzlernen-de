@@ -1,4 +1,4 @@
-import {createTerrainBody,waterAt,waterFlowAt,waterLevelAt,groundHeightAt} from "./terrain_craters.mjs";
+import {createTerrainBody,waterAt,waterFlowAt,waterLevelAt,groundHeightAt,terrainRescueZ} from "./terrain_craters.mjs";
 import {vehicleSpec,vehicleGroundOffset,attachWheels,detachWheels,placeWheels,driveWheeled,wheelPoses} from "./world_vehicle_dynamics.mjs";
 import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,normalizeBuildingCollisionSnapshot} from "./world_building_collision_physics.mjs";
 
@@ -27,6 +27,7 @@ export class WorldRigidBodyPhysics{
   rebuildTerrain(){const b3=this.b3;for(const body of this.terrainBodies||[])if(b3.b3Body_IsValid?.(body)!==false)b3.b3DestroyBody(body);const shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.82;shapeDef.baseMaterial.restitution=.025;shapeDef.filter={categoryBits:WORLD_PHYSICS_CATEGORIES.terrain,maskBits:ALL_DYNAMIC|WORLD_PHYSICS_CATEGORIES.projectileQuery,groupIndex:0};const{bodies}=createTerrainBody(b3,this.world,shapeDef,10000);this.terrainBodies=bodies;this.ground=bodies[0]||null;
     // building colliders stand on the terrain too: re-create them with the new ground
     if(this.buildingSnapshot?.prismCount){const snap=this.buildingSnapshot;this.buildingSnapshot={...snap,hash:"__terrain-changed"};this.syncBuildings(snap);}
+    if(this.records)this.rescueFromTerrain();
     return bodies.length;}
   syncBuildings(value){const snapshot=normalizeBuildingCollisionSnapshot(value);if(snapshot.hash===this.buildingSnapshot.hash&&snapshot.prismCount===this.buildingSnapshot.prismCount)return false;destroyWorldBuildingCollisionBodies(this.b3,this.buildingState);this.buildingSnapshot=snapshot;this.buildingState=createWorldBuildingCollisionBodies(this.b3,this.world,snapshot,{categoryBits:WORLD_PHYSICS_CATEGORIES.terrain,maskBits:ALL_DYNAMIC|WORLD_PHYSICS_CATEGORIES.projectileQuery,rangefinderCategoryBits:0n,launchExclusionPoint:[Infinity,Infinity]});return true;}
   shapeKeyOf(shape){return shapeKey(shape);}
@@ -114,8 +115,11 @@ export class WorldRigidBodyPhysics{
       const p=b3.b3Body_GetPosition([0,0,0],body);b3.b3Body_SetTransform(body,[p[0],p[1],p[2]+.9],yawQuaternion(yaw));b3.b3Body_SetLinearVelocity(body,[0,0,0]);b3.b3Body_SetAngularVelocity(body,[0,0,0]);
     }
   }
+  // Nothing stays trapped below the terrain surface (terrain rose under it,
+  // DEM arrived late, tunnelling): lift it back on top, keep its horizontal motion.
+  rescueFromTerrain(){const b3=this.b3;let n=0;for(const record of this.records.values()){if(!record.body||!b3.b3Body_IsValid(record.body))continue;const p=b3.b3Body_GetPosition([0,0,0],record.body),z=terrainRescueZ(p[0],p[1],p[2],(record.groundOffset??record.halfExtents[2])+.12);if(z===null)continue;const v=b3.b3Body_GetLinearVelocity([0,0,0],record.body);b3.b3Body_SetTransform(record.body,[p[0],p[1],z],b3.b3Body_GetRotation([0,0,0,1],record.body));b3.b3Body_SetLinearVelocity(record.body,[v[0],v[1],Math.max(0,v[2])]);if(record.wheels)placeWheels(this,record);n++;}this.terrainRescues=(this.terrainRescues||0)+n;return n;}
   step(dt=1/60,subSteps=4,now=performance.now?.()??Date.now()){
-    const delta=clamp(dt,.001,.04);for(const record of this.records.values())this.controlBody(record,delta);this.b3.b3World_Step(this.world,delta,Math.max(1,Math.min(8,Math.floor(Number(subSteps)||4))));this.stepCount++;
+    const delta=clamp(dt,.001,.04);for(const record of this.records.values())this.controlBody(record,delta);this.b3.b3World_Step(this.world,delta,Math.max(1,Math.min(8,Math.floor(Number(subSteps)||4))));this.stepCount++;if((this.stepCount&7)===0)this.rescueFromTerrain();
     let nativeHitCount=0;if(this.eventsBuffer&&this.hitEvent&&typeof this.b3.getEvents==="function"){this.b3.getEvents(this.eventsBuffer,this.world);nativeHitCount=this.b3.getNumContactHitEvents(this.eventsBuffer);for(let index=0;index<nativeHitCount;index++){this.b3.getContactHitEventAt(this.hitEvent,this.eventsBuffer,index);const speed=Math.abs(Number(this.hitEvent.approachSpeed)||0),hitRecords=new Set([this.shapeRecords.get(shapeKey(this.hitEvent.shapeIdA)),this.shapeRecords.get(shapeKey(this.hitEvent.shapeIdB))]);for(const record of hitRecords){if(!record||now-record.lastImpactAt<=120)continue;record.lastImpactAt=now;record.impactCount++;this.impactCount++;const pose=this.pose(record.id),detail={id:record.id,kind:record.kind,deltaVelocityMps:speed,approachSpeedMps:speed,energyJ:.5*record.massKg*speed*speed,position:[...this.hitEvent.point],normal:[...this.hitEvent.normal],velocity:pose?.velocity||[0,0,0],nativeContactEvent:true};this.onImpact?.(detail);}}}
     for(const record of this.records.values()){const velocity=this.b3.b3Body_GetLinearVelocity([0,0,0],record.body),change=Math.hypot(velocity[0]-record.preVelocity[0],velocity[1]-record.preVelocity[1],velocity[2]-record.preVelocity[2]),threshold=record.drone?1.05:1.45;if(!this.eventsBuffer&&change>=threshold&&now-record.lastImpactAt>180){record.lastImpactAt=now;record.impactCount++;this.impactCount++;const pose=this.pose(record.id),detail={id:record.id,kind:record.kind,deltaVelocityMps:change,energyJ:.5*record.massKg*change*change,position:pose?.position||[0,0,0],velocity:pose?.velocity||velocity,nativeContactEvent:false};this.onImpact?.(detail);}record.lastVelocity=[...velocity];}return this.stepCount;
   }

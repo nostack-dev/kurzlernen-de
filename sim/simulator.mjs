@@ -17,7 +17,7 @@ import {StabilizedExternalAirframeVisual,EXTERNAL_AIRFRAME_VISUAL_PROFILES} from
 import {renderPlatformProfile,quantizedViewportSize,viewportSizeChanged} from "./render_stability.mjs";
 import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,findClearBuildingLaunchPoint,resolveBox3dCameraPath} from "./world_building_collision_physics.mjs";
 import {Box3dColliderDebugDraw} from "./box3d_collider_debug.mjs";
-import {createTerrainBody,onTerrainChange,TERRAIN_CRATERS_VERSION} from "./terrain_craters.mjs";
+import {createTerrainBody,onTerrainChange,TERRAIN_CRATERS_VERSION,staticGroundHeightAt,terrainRescueZ} from "./terrain_craters.mjs";
 import {addPropellerSweepColliders} from "./airframe_collision_envelope.mjs";
 import {deriveQuadMassProperties} from "./component_mass_model.mjs";
 import {batteryOcvVoltage,batteryVoltageUnderLoad,scaleCurrentsToPackLimit,solveStaticPropulsionAuthority,MOTOR_BEARING_DRAG_NM_PER_RAD_S} from "./propulsion_authority.mjs";
@@ -392,7 +392,7 @@ class PhysicsModel {
     if(this.world){this.worldBuildingCollisionState=null;b3.b3DestroyWorld(this.world);}
     const worldDef=b3.b3DefaultWorldDef();worldDef.gravity=[0,0,-G];worldDef.enableSleep=false;worldDef.enableContinuous=true;this.world=b3.b3CreateWorld(worldDef);
     this.terrainBodies=[];this.rebuildTerrain();
-    const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;const initialZ=Number.isFinite(initial?.z)?initial.z:AIRFRAME_SPAWN_Z_M;bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(AIRFRAME_SPAWN_Z_M,initialZ)];bodyDef.rotation=initial?[...eulerToQuat(initial.roll_deg||0,initial.pitch_deg||0,initial.yaw_deg||0)]:[0,0,0,1];bodyDef.linearDamping=.002;bodyDef.angularDamping=.002;bodyDef.enableSleep=false;this.body=b3.b3CreateBody(this.world,bodyDef);
+    const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;const initialZ=Number.isFinite(initial?.z)?initial.z:AIRFRAME_SPAWN_Z_M;const spawnGroundZ=staticGroundHeightAt(initial?.x||0,initial?.y||0);bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(spawnGroundZ+AIRFRAME_SPAWN_Z_M,initialZ)];bodyDef.rotation=initial?[...eulerToQuat(initial.roll_deg||0,initial.pitch_deg||0,initial.yaw_deg||0)]:[0,0,0,1];bodyDef.linearDamping=.002;bodyDef.angularDamping=.002;bodyDef.enableSleep=false;this.body=b3.b3CreateBody(this.world,bodyDef);
     const shapeDef=b3.b3DefaultShapeDef();shapeDef.density=100;shapeDef.baseMaterial.friction=.65;shapeDef.baseMaterial.restitution=.08;shapeDef.filter={categoryBits:COLLISION_AIRFRAME,maskBits:COLLISION_TERRAIN,groupIndex:0};b3.b3CreateBoxShape(this.body,shapeDef,.055,.045,AIRFRAME_COLLISION_HALF_Z_M);
     const arm=p.span/(2*Math.sqrt(2));this.motorPos=[[-arm,-arm,0],[-arm,arm,0],[arm,arm,0],[arm,-arm,0]];
     for(const position of this.motorPos){b3.b3CreateCapsuleShape(this.body,shapeDef,{center1:[0,0,0],center2:position,radius:.008});b3.b3CreateSphereShape(this.body,shapeDef,{center:position,radius:.018});}
@@ -412,16 +412,20 @@ class PhysicsModel {
   // Ground = flat box with crater holes filled by surface-following slabs
   // (terrain_craters.mjs). Rebuilt when a nuke crater appears or resets.
   rebuildTerrain(){if(!this.world)return 0;for(const body of this.terrainBodies||[])if(b3.b3Body_IsValid?.(body)!==false)b3.b3DestroyBody(body);this.terrainBodies=[];const groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,groupIndex:0};const result=createTerrainBody(b3,this.world,groundShape,TERRAIN_HALF);this.terrainBodies=result.bodies;const viewport=$("viewport");if(viewport){viewport.dataset.terrainVersion=TERRAIN_CRATERS_VERSION;viewport.dataset.terrainShapes=String(result.shapeCount);}return result.shapeCount;}
+  // Never trapped under the terrain: if the airframe is below the physical
+  // surface (terrain rose under it, spawned before the DEM loaded, tunnelled
+  // through), put it back on top with its horizontal motion and no downward speed.
+  rescueFromTerrain(){if(!this.body||!this.world)return false;const p=this.position(),z=terrainRescueZ(p[0],p[1],p[2],AIRFRAME_SPAWN_Z_M+.05);if(z===null)return false;const v=this.linear();b3.b3Body_SetTransform(this.body,[p[0],p[1],z],this.rotation());b3.b3Body_SetLinearVelocity(this.body,[v[0],v[1],Math.max(0,v[2])]);this.terrainRescues=(this.terrainRescues||0)+1;if(this.graphics){this.syncPresentationSnapshots();const viewport=$("viewport");if(viewport)viewport.dataset.terrainRescues=String(this.terrainRescues);}return true;}
   setWorldBuildingCollisions(value){const snapshot=normalizeBuildingCollisionSnapshot(value);if(snapshot.hash===this.worldBuildingCollisionSnapshot.hash&&snapshot.prismCount===this.worldBuildingCollisionSnapshot.prismCount)return false;this.worldBuildingCollisionSnapshot=snapshot;this.rebuildWorldBuildingCollisions();return true;}
   resolveWorldBuildingLaunch(){
     if(!this.body||!this.worldBuildingCollisionSnapshot.prismCount)return false;
-    const position=this.position(),velocity=this.linear(),angular=this.angular(),reference=Array.isArray(this.worldBuildingLaunchPoint)&&this.worldBuildingLaunchPoint.length===2&&this.worldBuildingLaunchPoint.every(Number.isFinite)?this.worldBuildingLaunchPoint:[position[0],position[1]],untouched=Math.hypot(position[0]-reference[0],position[1]-reference[1])<.14&&position[2]<=AIRFRAME_SPAWN_Z_M+.08&&norm(velocity)<.20&&norm(angular)<.80;
+    const position=this.position(),velocity=this.linear(),angular=this.angular(),reference=Array.isArray(this.worldBuildingLaunchPoint)&&this.worldBuildingLaunchPoint.length===2&&this.worldBuildingLaunchPoint.every(Number.isFinite)?this.worldBuildingLaunchPoint:[position[0],position[1]],untouched=Math.hypot(position[0]-reference[0],position[1]-reference[1])<.14&&position[2]<=staticGroundHeightAt(position[0],position[1])+AIRFRAME_SPAWN_Z_M+.08&&norm(velocity)<.20&&norm(angular)<.80;
     if(!untouched){this.worldBuildingLaunchResolved=true;this.worldBuildingLaunchPoint=[Infinity,Infinity];return false;}
     const safe=findClearBuildingLaunchPoint(this.worldBuildingCollisionSnapshot,{point:[position[0],position[1]],clearanceM:.55,maxSearchM:80}),offset=Math.hypot(safe[0]-position[0],safe[1]-position[1]);
     this.worldBuildingLaunchResolved=false;this.worldBuildingLaunchPoint=[safe[0],safe[1]];
     const viewport=$("viewport");if(viewport){viewport.dataset.worldLaunchRelocated=offset>.01?"1":"0";viewport.dataset.worldLaunchOffsetM=offset.toFixed(3);viewport.dataset.worldLaunchX=Number(safe[0]).toFixed(3);viewport.dataset.worldLaunchY=Number(safe[1]).toFixed(3);}
     if(offset<=.01)return false;
-    b3.b3Body_SetTransform(this.body,[safe[0],safe[1],AIRFRAME_SPAWN_Z_M],this.rotation());b3.b3Body_SetLinearVelocity(this.body,[0,0,0]);b3.b3Body_SetAngularVelocity(this.body,[0,0,0]);this.syncPresentationSnapshots();return true;
+    b3.b3Body_SetTransform(this.body,[safe[0],safe[1],staticGroundHeightAt(safe[0],safe[1])+AIRFRAME_SPAWN_Z_M],this.rotation());b3.b3Body_SetLinearVelocity(this.body,[0,0,0]);b3.b3Body_SetAngularVelocity(this.body,[0,0,0]);this.syncPresentationSnapshots();return true;
   }
   rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.resolveWorldBuildingLaunch();this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,launchExclusionPoint:this.worldBuildingLaunchPoint||[Infinity,Infinity]});this.worldBuildingCollisionRevision++;}
   buildGraphics(){
@@ -530,6 +534,7 @@ class PhysicsModel {
     this.applyForces(pulses,dt);
     const before=this.linear();
     b3.b3World_Step(this.world,dt,4);
+    if(((this.terrainGuardTick=(this.terrainGuardTick||0)+1)&3)===0)this.rescueFromTerrain();
     this.worldAcceleration=scale(sub(this.linear(),before),1/dt);
     this.capturePresentationCurrent();
   }
@@ -595,7 +600,7 @@ function setBox3dColliderDebugEnabled(enabled){
 }
 setBox3dColliderDebugEnabled(box3dColliderDebugEnabled);
 globalThis.__arondightRealWorld?.attachBuildingCollisionSink?.(snapshot=>physics.setWorldBuildingCollisions(snapshot));
-onTerrainChange(()=>physics.rebuildTerrain());
+onTerrainChange(()=>{physics.rebuildTerrain();physics.rescueFromTerrain();});
 const motorSound=new HybridMotorSound($("viewport"));
 function updateSoundButton(){const button=$("soundToggle");if(button)button.textContent=motorSound.enabled?(motorSound.isRunning()?"SOUND ON":"SOUND TAP"):"SOUND OFF";}
 $("soundToggle").onclick=async()=>{if(!motorSound.enabled||!motorSound.isRunning()){motorSound.setEnabled(true);await motorSound.unlock();}else motorSound.setEnabled(false);updateSoundButton();};

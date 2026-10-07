@@ -45,6 +45,20 @@ export function waterRegions(){return waterRects;}
 // Static ground (real elevation + craters + river/lake beds), without the transient pressure wave.
 export function staticGroundHeightAt(x,y){const e=elevationAt(x,y);let h=e;for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return Math.min(h,e-WATER_BED_M);return h;}
 export function groundHeightAt(x,y){return staticGroundHeightAt(x,y)+shockHeightAt(x,y);}
+// Underground guard. The collision terrain is a thin triangulated height
+// field: a body that ends up beneath it (spawned before the DEM arrived, the
+// terrain rose under it on reload / origin change, tunnelled through at high
+// speed) would otherwise be trapped below the surface for good. Returns the
+// z to lift a body centre to when (x,y,z) is certainly below the physical
+// surface, else null. "Certainly": below the lowest corner of its 5 m field
+// cell (the triangles never dip below it) or clearly below the interpolated
+// surface. The lift goes above the highest corner so the body lands on top.
+export function terrainRescueZ(x,y,z,clearance=.5){
+  if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z))return null;
+  const st=5,ix=Math.floor(x/st)*st,iy=Math.floor(y/st)*st,a=staticGroundHeightAt(ix,iy),b=staticGroundHeightAt(ix+st,iy),c=staticGroundHeightAt(ix,iy+st),d=staticGroundHeightAt(ix+st,iy+st),here=staticGroundHeightAt(x,y);
+  const lo=Math.min(a,b,c,d,here),hi=Math.max(a,b,c,d,here);
+  return z<Math.max(lo-.05,here-.35)?hi+clearance:null;
+}
 // Water surface follows the terrain (rivers sit at the local ground level).
 export function waterLevelAt(x,y){return elevationAt(x,y)+WATER_LEVEL_M;}
 export function terrainCraters(){return craters.map(c=>({...c}));}
