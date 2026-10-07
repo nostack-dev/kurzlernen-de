@@ -46,8 +46,10 @@ assert.ok(style.includes("SCAN_INTERVAL_MS=MOBILE?900:650"),"style discovery sca
 const styleFrame=style.slice(style.indexOf("function frame(now)"),style.indexOf("globalThis.__arondightNeonStyle"));
 assert.ok(!styleFrame.includes("scene.traverse")&&!styleFrame.includes("killLights(scene"),"neon render hot path must never synchronously traverse the scene or rediscover lights");
 assert.ok(style.includes("renderer.shadowMap.enabled=false"),"neon renderer must not pay for invisible shadow maps");
-assert.ok(style.includes("grid.visible=true")&&style.includes("groundHeightAt(x,y)")&&style.includes("GRID_LIFT_M=.2"),"real WORLD shows the neon line grid on the 16 m lattice at ground height");
-assert.ok(style.includes("FogExp2(STYLE_PALETTE.haze,.00038)"),"green neon world must not reintroduce the heavy dark fog veil");
+assert.ok(!style.includes("b.addPreRenderHook((scene,camera)=>{if(!scene)return;wireBackdrop")&&!style.includes("wireScene(scene);});"),"neon look must never force every mesh into global wireframe during pre-render");
+assert.ok(style.includes("if(node.userData.wireOriginalMaterial){node.material=node.userData.wireOriginalMaterial"),"hot reload must restore materials from the old wireframe override");
+assert.ok(style.includes("if(bridge()?.active){grid.visible=false;return;}")&&style.includes("groundHeightAt(x,y)")&&style.includes("GRID_LIFT_M=.2"),"real WORLD must use the deformed terrain grid, never a second flat helper grid");
+assert.ok(style.includes("FogExp2(STYLE_PALETTE.haze,.00016)"),"green neon world must keep depth fog subtle instead of becoming a dark veil");
 
 const neonUi=files["sim/neon_ui_theme.mjs"];
 assert.ok(neonUi.includes("MutationObserver")&&neonUi.includes("scheduleLabelFit"),"UI label sizing must be event-driven");
@@ -131,8 +133,8 @@ assert.ok(police.includes("BUILDING_GRID_CELL_M=32")&&police.includes("linePrism
 
 const city=files["sim/world_city_buildings.mjs"];
 assert.ok(city.includes("now-lastSyncCheck<200"),"city rebuild discovery must not poll map/player state every render frame");
-assert.ok(city.includes("green-neon-flat-no-texture-v3")&&city.includes("new THREE.MeshBasicMaterial({color:0x032417"),"city must keep flat textureless green-neon fills");
-assert.ok(city.includes("edgeGlow.visible=edges.visible=thinEdges.visible=true")&&city.includes("fatLineMaterial(0x39ff14"),"green neon city outlines must remain enabled");
+assert.ok(city.includes("dark-depth+selective-green-neon-v4")&&city.includes("new THREE.MeshBasicMaterial({color:0x061d14"),"city must keep dark readable textureless solids under the neon edges");
+assert.ok(city.includes("edgeGlow.visible=edges.visible=thinEdges.visible=true")&&city.includes("fatLineMaterial(0x39ff14")&&city.includes("width:5.2,opacity:.11"),"green neon city outlines must remain enabled without overexposing the scene");
 
 const cameraGuard=files["sim/camera_collision_guard.mjs"];
 assert.ok(cameraGuard.includes("lastTelemetry=-Infinity"),"camera collision telemetry throttle must declare its state");
