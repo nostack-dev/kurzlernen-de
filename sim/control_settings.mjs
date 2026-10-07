@@ -62,14 +62,14 @@ function mountSoloWorldSettings({parent,dialog,settingsButton}){
   const bridge=globalThis.__arondightRealWorld;if(!bridge)return null;
   const section=document.createElement("section");section.className="world-settings-section";section.dataset.worldSettings="openfreemap-osm-3d";section.innerHTML=`
     <h4>REAL WORLD</h4>
-    <p class="phone-settings-note">Esri World Imagery aerial/satellite pixels + OpenFreeMap/OpenStreetMap roads and 3D building footprints. No account, API key, billing setup, backend or proxy is required.</p>
+    <p class="phone-settings-note">OpenFreeMap/OpenStreetMap roads and building footprints, drawn as neon lines — no map textures. No account, API key, billing setup, backend or proxy is required.</p>
     <div class="world-settings-status" data-world-status>TRAINING RANGE · local metric world</div>
     <div class="world-settings-actions"><button type="button" data-world-use>USE MY GPS LOCATION</button><button type="button" data-world-training>TRAINING RANGE</button></div>
-    <label class="phone-settings-toggle"><span>REAL AERIAL / SATELLITE MAP</span><input data-world-imagery type="checkbox"></label>
+    <label class="phone-settings-toggle" hidden style="display:none!important"><span>REAL AERIAL / SATELLITE MAP</span><input data-world-imagery type="checkbox" disabled></label>
     <label class="phone-settings-toggle"><span>WORLD GRID</span><input data-world-grid type="checkbox"></label>
     <label class="phone-settings-toggle"><span>KEEP 360° LOOK ORIENTATION</span><input data-world-keep-look type="checkbox"></label>
     <label class="phone-settings-toggle"><span>LOCK MINIMAP AXIS TO VERTICAL</span><input data-world-minimap-axis-lock type="checkbox"></label>
-    <p class="phone-settings-note">REAL AERIAL / SATELLITE MAP is OFF by default in both the flight view and minimap. WORLD GRID is a render-only local metre reference. 360° LOOK is camera-only: OFF snaps smoothly back on release; ON keeps the released orientation. LOCK MINIMAP AXIS is ON by default and keeps the orthographic top-down map north-up during persistent look/orientation changes outside fullscreen. Fullscreen always uses its native landscape/north-up policy.</p>
+    <p class="phone-settings-note">The map is a data source only: no tile, aerial or satellite textures are ever drawn. WORLD GRID is a render-only local metre reference. 360° LOOK is camera-only: OFF snaps smoothly back on release; ON keeps the released orientation. LOCK MINIMAP AXIS is ON by default and keeps the orthographic top-down map north-up during persistent look/orientation changes outside fullscreen. Fullscreen always uses its native landscape/north-up policy.</p>
     <p class="phone-settings-note">Nearby loaded OSM building footprints, holes and available min/max heights are installed as bounded static Box3D collision prisms. Imagery, roads and flat ground remain geospatial context; OSM geometry is approximate, not surveyed 1:1 world truth. Motor, sensor and FC authority stay on the same hardware-fit path.</p>`;
   const actions=dialog.querySelector(".phone-settings-actions");dialog.insertBefore(section,actions);
   const status=section.querySelector("[data-world-status]"),use=section.querySelector("[data-world-use]"),training=section.querySelector("[data-world-training]"),imagery=section.querySelector("[data-world-imagery]"),grid=section.querySelector("[data-world-grid]"),keepLook=section.querySelector("[data-world-keep-look]"),axisLock=section.querySelector("[data-world-minimap-axis-lock]");

@@ -90,7 +90,7 @@ class RealWorldBridge{
       <label>World<select id="worldMode"><option value="training">TRAINING RANGE</option><option value="real">REAL WORLD · MY LOCATION</option></select></label>
       <div id="realWorldConfig" hidden>
         <div class="row"><button id="useMyLocation" class="primary">USE MY GPS LOCATION</button></div>
-        <div class="help">Esri World Imagery renders real aerial/satellite pixels; OpenFreeMap + OpenStreetMap add roads and 3D building footprints. No account, API key or billing setup is required. Loaded OSM building footprints and heights become bounded static Box3D collision prisms; motors, sensors and flight-control authority remain unchanged.</div>
+        <div class="help">OpenFreeMap + OpenStreetMap provide roads and building footprints, drawn as neon lines — no map textures. No account, API key or billing setup is required. Loaded OSM building footprints and heights become bounded static Box3D collision prisms; motors, sensors and flight-control authority remain unchanged.</div>
       </div>
       <div id="realWorldStatus" class="statusline">TRAINING RANGE · local metric world</div>`;
     const remote=document.querySelector(".remote-card");panel.insertBefore(card,remote||panel.children[3]||null);this.worldCard=card;
@@ -98,7 +98,9 @@ class RealWorldBridge{
       #geoViewport{position:absolute;inset:0;z-index:0;overflow:hidden;background:linear-gradient(180deg,#020805 0%,#06200f 46%,#030a06 70%,#030a06 100%)}
       #geoViewport .maplibregl-map,#geoViewport .maplibregl-canvas-container{position:absolute;inset:0;width:100%!important;height:100%!important;overflow:hidden}
       #geoViewport .maplibregl-canvas{position:absolute;left:0;top:0;width:100%!important;height:100%!important}
-      #viewport[data-world-map-sync-mode="data-only-topdown-v1"] #geoViewport .maplibregl-canvas{opacity:0!important}
+      /* The map is a data source only (buildings, roads, minimap): its picture —
+         tiles, landscape, extrusions, imagery — is never shown, at any time. */
+      #geoViewport .maplibregl-canvas-container,#geoViewport .maplibregl-canvas,#geoViewport .maplibregl-control-container{visibility:hidden!important;opacity:0!important}
       #geoViewport .geo-attribution{position:absolute;right:4px;bottom:3px;z-index:4;padding:2px 5px;border-radius:4px;background:rgba(2,8,5,.6);color:rgba(0,255,156,.55);font:7px/1.25 ui-monospace,Menlo,monospace;pointer-events:none}
       #worldLookHud{display:none;position:absolute;z-index:4;right:max(10px,var(--solo-safe-right,env(safe-area-inset-right)));top:max(48px,calc(var(--solo-safe-top,env(safe-area-inset-top)) + 42px));width:116px;height:116px;border:1px solid rgba(0,255,156,.42);border-radius:14px;background:rgba(2,8,5,.86);box-shadow:none;touch-action:none;user-select:none;overflow:hidden;color:#00ff9c}
       body.solo-flight #viewport[data-world-mode="real"] #worldLookHud{display:block}
@@ -215,9 +217,11 @@ class RealWorldBridge{
   setKeepLookOrientation(value){this.keepLookOrientation=Boolean(value);try{localStorage.setItem(WORLD_KEEP_LOOK_STORAGE,this.keepLookOrientation?"1":"0");}catch{}if(!this.keepLookOrientation&&!this.lookDragging&&!this.gamepadLookActive&&(Math.abs(this.lookYawDeg)>.05||Math.abs(this.lookPitchDeg)>.05))this.lookSnapping=true;this.renderLookHud();return this.keepLookOrientation;}
   setMinimapAxisLocked(value){this.minimapAxisLocked=Boolean(value);try{localStorage.setItem(WORLD_MINIMAP_AXIS_LOCK_STORAGE,this.minimapAxisLocked?"1":"0");}catch{}this.minimapLastDrawMs=-Infinity;this.renderLookHud();this.drawMinimap(performance.now());return this.minimapAxisLocked;}
   setImageryEnabled(value){
-    this.imageryEnabled=Boolean(value);try{localStorage.setItem(WORLD_IMAGERY_STORAGE,this.imageryEnabled?"1":"0");}catch{}
+    // No map tile / aerial textures anywhere: the setting is kept for API
+    // compatibility but imagery is always off.
+    void value;this.imageryEnabled=false;try{localStorage.setItem(WORLD_IMAGERY_STORAGE,this.imageryEnabled?"1":"0");}catch{}
     if(this.map?.getLayer(WORLD_IMAGERY_LAYER_ID)){try{this.map.setLayoutProperty(WORLD_IMAGERY_LAYER_ID,"visibility",this.imageryEnabled?"visible":"none");}catch(error){console.warn("WORLD imagery visibility warning:",error);}}
-    if(this.active&&Number.isFinite(this.originLat)&&Number.isFinite(this.originLon))this.status(`REAL WORLD LIVE · ${this.imageryEnabled?"AERIAL + OSM":"OSM MAP"} · ${this.vsWorldFromMate?"MATE GPS ORIGIN":"GPS"} ${this.originLat.toFixed(6)}, ${this.originLon.toFixed(6)}`,"good");
+    if(this.active&&Number.isFinite(this.originLat)&&Number.isFinite(this.originLon))this.status(`REAL WORLD LIVE · OSM DATA · ${this.vsWorldFromMate?"MATE GPS ORIGIN":"GPS"} ${this.originLat.toFixed(6)}, ${this.originLon.toFixed(6)}`,"good");
     this.minimapLastDrawMs=-Infinity;this.renderLookHud();this.drawMinimap(performance.now());return this.imageryEnabled;
   }
   setGamepadLook(active,x=0,y=0,dt=1/60){
@@ -315,6 +319,8 @@ class RealWorldBridge{
     return removed;
   }
   addWorldImagery(){
+    // Neon look: no aerial imagery texture is ever loaded or drawn.
+    this.imageryEnabled=false;if(this.map?.getLayer?.(WORLD_IMAGERY_LAYER_ID)){try{this.map.removeLayer(WORLD_IMAGERY_LAYER_ID);}catch{}}this.renderLookHud?.();return;
     if(!this.map)return;
     try{if(!this.map.getSource(WORLD_IMAGERY_SOURCE_ID))this.map.addSource(WORLD_IMAGERY_SOURCE_ID,{type:"raster",tiles:[WORLD_IMAGERY_TILE_URL],tileSize:256,maxzoom:WORLD_IMAGERY_MAX_ZOOM,attribution:WORLD_IMAGERY_ATTRIBUTION});
       if(!this.map.getLayer(WORLD_IMAGERY_LAYER_ID)){const before=(this.map.getStyle()?.layers||[]).find(layer=>layer.type==="line"&&["transportation","boundary"].includes(String(layer["source-layer"]||"").toLowerCase()))?.id,layer={id:WORLD_IMAGERY_LAYER_ID,type:"raster",source:WORLD_IMAGERY_SOURCE_ID,paint:{"raster-opacity":1,"raster-fade-duration":0,"raster-resampling":"linear","raster-contrast":.08,"raster-saturation":.06,"raster-brightness-min":.04,"raster-brightness-max":.98}};if(before)this.map.addLayer(layer,before);else this.map.addLayer(layer);}
@@ -359,7 +365,7 @@ class RealWorldBridge{
     this.mapPixelRatio=Math.min(devicePixelRatio||1,softwareRaster?WORLD_MAP_SOFTWARE_PIXEL_RATIO:stableBackbuffer?1:WORLD_MAP_PIXEL_RATIO);
     this.map=new MapLibreMap({container,style:OPENFREEMAP_STYLE,center:[longitude,latitude],zoom:19,pitch:55,bearing:0,roll:0,maxPitch:WORLD_MAP_MAX_PITCH,maxZoom:WORLD_MAP_MAX_ZOOM,interactive:false,attributionControl:false,maplibreLogo:false,fadeDuration:0,renderWorldCopies:false,centerClampedToGround:false,pixelRatio:this.mapPixelRatio,maxTileCacheZoomLevels:2,maxCanvasSize:[2048,2048],cancelPendingTileRequestsWhileZooming:true,refreshExpiredTiles:false,validateStyle:false,crossSourceCollisions:false,trackResize:false,reduceMotion:true,canvasContextAttributes:{antialias:false,powerPreference:stableBackbuffer?"default":"high-performance",desynchronized:false,preserveDrawingBuffer:false}});
     viewport.dataset.worldStableBackbuffer=stableBackbuffer?"1":"0";viewport.dataset.worldMapCanvasDesynchronized="0";
-    const attribution=document.createElement("div");attribution.className="geo-attribution";attribution.textContent="Imagery © Esri, Vantor, Earthstar Geographics, GIS User Community · Map © OpenFreeMap, OpenMapTiles, OpenStreetMap contributors";container.appendChild(attribution);
+    const attribution=document.createElement("div");attribution.className="geo-attribution";attribution.textContent="Map data © OpenFreeMap · OpenMapTiles · OpenStreetMap contributors";container.appendChild(attribution);
     this.map.on("error",event=>console.warn("OpenFreeMap render warning:",event?.error||event));
     this.map.on("sourcedata",event=>{if(!this.buildingSourceId||event?.sourceId===this.buildingSourceId)this.buildingCollisionDirty=true;});
     await Promise.race([new Promise(resolve=>this.map.once("load",resolve)),new Promise((_,reject)=>setTimeout(()=>reject(Error("OpenFreeMap style load timeout")),20000))]);
@@ -383,7 +389,7 @@ class RealWorldBridge{
       this.threeRenderer.domElement.style.visibility="visible";this.threeRenderer.domElement.style.display="block";this.geoContainer.hidden=false;
       const viewport=$("viewport");viewport.dataset.worldMode="real";viewport.dataset.worldProvider="openfreemap-esri-imagery";viewport.dataset.worldRenderPath="shared-three-renderer";viewport.dataset.worldLatitude=String(latitude);viewport.dataset.worldLongitude=String(longitude);viewport.dataset.worldMapFpsCap="presentation";viewport.dataset.worldMapPixelRatio=String(this.mapPixelRatio);viewport.dataset.worldFlightPixelRatio=String(Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO));viewport.dataset.worldMapUpdates="0";viewport.dataset.worldGridEnabled=this.gridEnabled?"1":"0";viewport.dataset.worldImageryEnabled=this.imageryEnabled?"1":"0";viewport.dataset.worldImageryLayer=this.map.getLayer(WORLD_IMAGERY_LAYER_ID)?"ready":"pending";viewport.dataset.worldLookKeepEnabled=this.keepLookOrientation?"1":"0";viewport.dataset.worldPerfMode=this.perfMode;viewport.dataset.worldFlightFps="0";viewport.dataset.worldMinimapQueries="0";viewport.dataset.worldMinimapImageryTiles="0";viewport.dataset.worldShotQueries="0";viewport.dataset.worldBuildingCollisionStatus="waiting-for-vector-tiles";viewport.dataset.worldBuildingCollisionFootprints="0";viewport.dataset.worldBuildingCollisionPrisms="0";this.minimapLastQueryMs=-Infinity;this.minimapLastDrawMs=-Infinity;this.minimapQueries=0;this.buildingCollisionDirty=true;this.renderLookHud();this.syncBuildingCollisions(true);
       const mode=$("worldMode"),config=$("realWorldConfig");if(mode)mode.value="real";if(config)config.hidden=false;
-      this.status(`REAL WORLD LIVE · ${this.imageryEnabled?"AERIAL + OSM":"OSM MAP"} · ${fromMate?"MATE GPS ORIGIN":"GPS"} ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m`,"good");try{localStorage.setItem(MODE_STORAGE,"real");}catch{}
+      this.status(`REAL WORLD LIVE · OSM DATA · ${fromMate?"MATE GPS ORIGIN":"GPS"} ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · ±${Math.round(accuracy||0)} m`,"good");try{localStorage.setItem(MODE_STORAGE,"real");}catch{}
     }catch(error){this.loading=false;if(fromMate){this.originLon=null;this.originLat=null;this.vsWorldFromMate=false;}throw error;}
   }
   deactivate(){
