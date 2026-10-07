@@ -1,9 +1,9 @@
 {
- "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa",
+ "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b",
  "steps": [
   {
    "name": "boot-5s",
-   "ms": 9681,
+   "ms": 7820,
    "draws": [
     [
      "TRAINING_SHOWCASE_PLAZA",
@@ -42,11 +42,11 @@
      1
     ]
    ],
-   "fps": 1.9,
+   "fps": 8.9,
    "drawCalls": 0,
    "triangles": 0,
    "lines": 0,
-   "programs": 18,
+   "programs": 23,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -63,6 +63,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false"
@@ -80,7 +85,7 @@
   },
   {
    "name": "menu",
-   "ms": 4977,
+   "ms": 2938,
    "draws": [
     [
      "TRAINING_SHOWCASE_PLAZA",
@@ -119,11 +124,11 @@
      1
     ]
    ],
-   "fps": 2.7,
+   "fps": 8.1,
    "drawCalls": 0,
    "triangles": 0,
    "lines": 0,
-   "programs": 18,
+   "programs": 23,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -140,6 +145,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false"
@@ -157,15 +167,15 @@
   },
   {
    "name": "started",
-   "ms": 22247,
+   "ms": 23972,
    "draws": [
     [
-     "WORLD_CROWD_EXTRAS",
-     336
+     "WORLD_PROCEDURAL_POPULATION",
+     382
     ],
     [
-     "WORLD_PROCEDURAL_POPULATION",
-     288
+     "WORLD_CROWD_EXTRAS",
+     324
     ],
     [
      "Group",
@@ -176,12 +186,12 @@
      21
     ],
     [
-     "WORLD_CITY_ROADS",
-     21
-    ],
-    [
      "LOCAL_HUMAN_VR",
      20
+    ],
+    [
+     "WORLD_CITY_ROADS",
+     15
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
@@ -212,11 +222,11 @@
      1
     ]
    ],
-   "fps": 7.9,
-   "drawCalls": 59,
-   "triangles": 731968,
-   "lines": 6869,
-   "programs": 69,
+   "fps": 5,
+   "drawCalls": 99,
+   "triangles": 733122,
+   "lines": 4264,
+   "programs": 72,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -233,6 +243,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false",
@@ -255,7 +270,6 @@
     "?#2,3,highp,srgb,false,,fa",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#2,3,highp,srgb,false,,fa",
@@ -285,7 +299,6 @@
     "?#6,8,highp,srgb-linear,fa",
     "?#6,9,highp,srgb-linear,fa",
     "?#6,10,highp,srgb,false,,f",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp"
    ],
    "status": "SIM ready: shared production runtime active.",
@@ -306,15 +319,15 @@
   },
   {
    "name": "city-drone",
-   "ms": 4192,
+   "ms": 5099,
    "draws": [
     [
-     "WORLD_CROWD_EXTRAS",
-     336
+     "WORLD_PROCEDURAL_POPULATION",
+     384
     ],
     [
-     "WORLD_PROCEDURAL_POPULATION",
-     302
+     "WORLD_CROWD_EXTRAS",
+     324
     ],
     [
      "Group",
@@ -361,11 +374,11 @@
      1
     ]
    ],
-   "fps": 9,
-   "drawCalls": 57,
-   "triangles": 731965,
-   "lines": 6860,
-   "programs": 69,
+   "fps": 4.6,
+   "drawCalls": 87,
+   "triangles": 732960,
+   "lines": 7691,
+   "programs": 72,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -382,6 +395,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false",
@@ -404,7 +422,6 @@
     "?#2,3,highp,srgb,false,,fa",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#2,3,highp,srgb,false,,fa",
@@ -434,7 +451,6 @@
     "?#6,8,highp,srgb-linear,fa",
     "?#6,9,highp,srgb-linear,fa",
     "?#6,10,highp,srgb,false,,f",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp"
    ],
    "status": "SIM ready: shared production runtime active.",
@@ -455,15 +471,15 @@
   },
   {
    "name": "minimap-expanded",
-   "ms": 3601,
+   "ms": 4263,
    "draws": [
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     410
+    ],
     [
      "WORLD_CROWD_EXTRAS",
      336
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     316
     ],
     [
      "Group",
@@ -510,11 +526,11 @@
      1
     ]
    ],
-   "fps": 8.7,
-   "drawCalls": 63,
-   "triangles": 731974,
-   "lines": 6887,
-   "programs": 69,
+   "fps": 4.4,
+   "drawCalls": 111,
+   "triangles": 732999,
+   "lines": 7732,
+   "programs": 72,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -531,6 +547,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false",
@@ -553,7 +574,6 @@
     "?#2,3,highp,srgb,false,,fa",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#2,3,highp,srgb,false,,fa",
@@ -583,7 +603,6 @@
     "?#6,8,highp,srgb-linear,fa",
     "?#6,9,highp,srgb-linear,fa",
     "?#6,10,highp,srgb,false,,f",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp"
    ],
    "status": "SIM ready: shared production runtime active.",
@@ -604,15 +623,15 @@
   },
   {
    "name": "on-foot",
-   "ms": 5210,
+   "ms": 6006,
    "draws": [
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     410
+    ],
     [
      "WORLD_CROWD_EXTRAS",
      336
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     316
     ],
     [
      "Group",
@@ -663,11 +682,11 @@
      1
     ]
    ],
-   "fps": 9.5,
-   "drawCalls": 319,
-   "triangles": 681170,
-   "lines": 8599,
-   "programs": 71,
+   "fps": 4.4,
+   "drawCalls": 387,
+   "triangles": 683166,
+   "lines": 10254,
+   "programs": 74,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -684,6 +703,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false",
@@ -706,7 +730,6 @@
     "?#2,3,highp,srgb,false,,fa",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#2,3,highp,srgb,false,,fa",
@@ -736,7 +759,6 @@
     "?#6,8,highp,srgb-linear,fa",
     "?#6,9,highp,srgb-linear,fa",
     "?#6,10,highp,srgb,false,,f",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp"
@@ -759,15 +781,15 @@
   },
   {
    "name": "foot-touch-move",
-   "ms": 7396,
+   "ms": 10929,
    "draws": [
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     412
+    ],
     [
      "WORLD_CROWD_EXTRAS",
      336
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     318
     ],
     [
      "Group",
@@ -818,11 +840,11 @@
      1
     ]
    ],
-   "fps": 9,
-   "drawCalls": 248,
-   "triangles": 679451,
-   "lines": 7712,
-   "programs": 71,
+   "fps": 4.5,
+   "drawCalls": 364,
+   "triangles": 682199,
+   "lines": 9971,
+   "programs": 74,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -839,6 +861,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false",
@@ -861,7 +888,6 @@
     "?#2,3,highp,srgb,false,,fa",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#2,3,highp,srgb,false,,fa",
@@ -893,7 +919,6 @@
     "?#6,10,highp,srgb,false,,f",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp"
    ],
    "status": "SIM ready: shared production runtime active.",
@@ -914,15 +939,169 @@
   },
   {
    "name": "interior-door",
-   "ms": 3903,
+   "ms": 4855,
    "draws": [
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     406
+    ],
     [
      "WORLD_CROWD_EXTRAS",
      336
     ],
     [
+     "Group",
+     88
+    ],
+    [
+     "WALK_PISTOL_3D",
+     29
+    ],
+    [
+     "WORLD_CITY_BUILDINGS",
+     21
+    ],
+    [
+     "BUILDING_INTERIORS[inst]",
+     13
+    ],
+    [
+     "WORLD_PROCEDURAL_DECOR[inst]",
+     6
+    ],
+    [
+     "Mesh",
+     2
+    ],
+    [
+     "BUILDING_INTERIORS",
+     2
+    ],
+    [
+     "RUSH_NEON_SKY",
+     1
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION[inst]",
+     1
+    ],
+    [
+     "WORLD_WATER",
+     1
+    ],
+    [
+     "WORLD_GROUND",
+     1
+    ]
+   ],
+   "fps": 4.8,
+   "drawCalls": 97,
+   "triangles": 337330,
+   "lines": 4044,
+   "programs": 74,
+   "programNames": [
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#0,1,highp,srgb,false,,fa",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,false",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#0,1,highp,srgb,false,,fa",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#0,1,highp,srgb-linear,fa",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#2,3,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#2,3,highp,srgb-linear,fa",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,8,highp,srgb-linear,fa",
+    "?#6,9,highp,srgb-linear,fa",
+    "?#6,10,highp,srgb,false,,f",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp"
+   ],
+   "status": "SIM ready: shared production runtime active.",
+   "worldMode": "real",
+   "mapSync": "data-only-topdown-v1",
+   "cityBuildings": "621",
+   "water": "8045/182/222",
+   "ground": "shared-physical-terrain",
+   "roads": "990",
+   "bloom": "off-slow-device",
+   "style": "rush-neon-readable-v3",
+   "collisionPrisms": "900",
+   "terrainShapes": "479",
+   "droneHp": "100",
+   "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
+   "walkMode": "foot",
+   "menuHidden": true
+  },
+  {
+   "name": "interior-inside",
+   "ms": 4363,
+   "draws": [
+    [
      "WORLD_PROCEDURAL_POPULATION",
-     316
+     410
+    ],
+    [
+     "WORLD_CROWD_EXTRAS",
+     336
     ],
     [
      "Group",
@@ -969,11 +1148,11 @@
      1
     ]
    ],
-   "fps": 9.3,
-   "drawCalls": 73,
-   "triangles": 340924,
-   "lines": 6358,
-   "programs": 71,
+   "fps": 6.5,
+   "drawCalls": 99,
+   "triangles": 342018,
+   "lines": 7442,
+   "programs": 74,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -990,6 +1169,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false",
@@ -1012,7 +1196,6 @@
     "?#2,3,highp,srgb,false,,fa",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#2,3,highp,srgb,false,,fa",
@@ -1044,7 +1227,6 @@
     "?#6,10,highp,srgb,false,,f",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp"
    ],
    "status": "SIM ready: shared production runtime active.",
@@ -1064,16 +1246,16 @@
    "menuHidden": true
   },
   {
-   "name": "interior-inside",
-   "ms": 4380,
+   "name": "interior-stairs",
+   "ms": 4965,
    "draws": [
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     410
+    ],
     [
      "WORLD_CROWD_EXTRAS",
      336
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     316
     ],
     [
      "Group",
@@ -1124,11 +1306,11 @@
      1
     ]
    ],
-   "fps": 9.7,
-   "drawCalls": 79,
-   "triangles": 1039980,
-   "lines": 6871,
-   "programs": 71,
+   "fps": 4.4,
+   "drawCalls": 97,
+   "triangles": 896382,
+   "lines": 6430,
+   "programs": 74,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -1145,6 +1327,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false",
@@ -1167,7 +1354,6 @@
     "?#2,3,highp,srgb,false,,fa",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#2,3,highp,srgb,false,,fa",
@@ -1197,162 +1383,6 @@
     "?#6,8,highp,srgb-linear,fa",
     "?#6,9,highp,srgb-linear,fa",
     "?#6,10,highp,srgb,false,,f",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp"
-   ],
-   "status": "SIM ready: shared production runtime active.",
-   "worldMode": "real",
-   "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1207",
-   "water": "8045/182/222",
-   "ground": "shared-physical-terrain",
-   "roads": "1433",
-   "bloom": "off-slow-device",
-   "style": "rush-neon-readable-v3",
-   "collisionPrisms": "900",
-   "terrainShapes": "479",
-   "droneHp": "100",
-   "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
-   "walkMode": "foot",
-   "menuHidden": true
-  },
-  {
-   "name": "interior-stairs",
-   "ms": 4151,
-   "draws": [
-    [
-     "WORLD_CROWD_EXTRAS",
-     336
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     314
-    ],
-    [
-     "Group",
-     88
-    ],
-    [
-     "WORLD_CITY_ROADS",
-     32
-    ],
-    [
-     "WALK_PISTOL_3D",
-     29
-    ],
-    [
-     "WORLD_CITY_BUILDINGS",
-     27
-    ],
-    [
-     "BUILDING_INTERIORS[inst]",
-     13
-    ],
-    [
-     "WORLD_PROCEDURAL_DECOR[inst]",
-     6
-    ],
-    [
-     "Mesh",
-     2
-    ],
-    [
-     "BUILDING_INTERIORS",
-     2
-    ],
-    [
-     "RUSH_NEON_SKY",
-     1
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION[inst]",
-     1
-    ],
-    [
-     "WORLD_WATER",
-     1
-    ],
-    [
-     "WORLD_GROUND",
-     1
-    ]
-   ],
-   "fps": 6.5,
-   "drawCalls": 108,
-   "triangles": 895546,
-   "lines": 9111,
-   "programs": 71,
-   "programNames": [
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#0,1,highp,srgb,false,,fa",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,false",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#0,1,highp,srgb,false,,fa",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,false",
-    "?#2,3,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#2,3,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#2,3,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#0,1,highp,srgb-linear,fa",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#2,3,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#2,3,highp,srgb-linear,fa",
-    "?#lambert,highp,srgb-linea",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,8,highp,srgb-linear,fa",
-    "?#6,9,highp,srgb-linear,fa",
-    "?#6,10,highp,srgb,false,,f",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp"
@@ -1375,15 +1405,15 @@
   },
   {
    "name": "interior-upper",
-   "ms": 4180,
+   "ms": 4913,
    "draws": [
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     410
+    ],
     [
      "WORLD_CROWD_EXTRAS",
      336
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     316
     ],
     [
      "Group",
@@ -1434,11 +1464,11 @@
      1
     ]
    ],
-   "fps": 6.8,
-   "drawCalls": 327,
-   "triangles": 809842,
-   "lines": 12349,
-   "programs": 71,
+   "fps": 3.8,
+   "drawCalls": 217,
+   "triangles": 807986,
+   "lines": 10860,
+   "programs": 74,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -1455,6 +1485,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false",
@@ -1477,7 +1512,6 @@
     "?#2,3,highp,srgb,false,,fa",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#2,3,highp,srgb,false,,fa",
@@ -1509,7 +1543,6 @@
     "?#6,10,highp,srgb,false,,f",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp"
    ],
    "status": "SIM ready: shared production runtime active.",
@@ -1530,15 +1563,15 @@
   },
   {
    "name": "interior-roof",
-   "ms": 4165,
+   "ms": 4988,
    "draws": [
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     410
+    ],
     [
      "WORLD_CROWD_EXTRAS",
      336
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     316
     ],
     [
      "Group",
@@ -1589,11 +1622,11 @@
      1
     ]
    ],
-   "fps": 7.2,
-   "drawCalls": 369,
-   "triangles": 785428,
-   "lines": 12772,
-   "programs": 71,
+   "fps": 3.5,
+   "drawCalls": 225,
+   "triangles": 783444,
+   "lines": 11130,
+   "programs": 74,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -1610,6 +1643,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false",
@@ -1632,7 +1670,6 @@
     "?#2,3,highp,srgb,false,,fa",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#2,3,highp,srgb,false,,fa",
@@ -1662,7 +1699,6 @@
     "?#6,8,highp,srgb-linear,fa",
     "?#6,9,highp,srgb-linear,fa",
     "?#6,10,highp,srgb,false,,f",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp"
@@ -1685,23 +1721,19 @@
   },
   {
    "name": "nuke-fired",
-   "ms": 4831,
+   "ms": 5675,
    "draws": [
     [
      "Group",
-     388
+     383
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
-     80
-    ],
-    [
-     "Mesh",
-     74
+     306
     ],
     [
      "WORLD_CROWD_EXTRAS",
-     72
+     252
     ],
     [
      "NUKE_TORN_CHUNK",
@@ -1716,199 +1748,19 @@
      27
     ],
     [
-     "Sprite",
-     18
+     "Mesh",
+     11
     ],
     [
-     "SANDBOX_COP",
-     12
+     "Sprite",
+     9
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
      6
     ],
     [
-     "PILOT_SHIELD",
-     2
-    ],
-    [
-     "RUSH_NEON_SKY",
-     1
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION[inst]",
-     1
-    ],
-    [
-     "WORLD_WATER",
-     1
-    ],
-    [
-     "WORLD_GROUND",
-     1
-    ],
-    [
-     "NUKE_CRATER_CONTOURS",
-     1
-    ],
-    [
-     "NUKE_DEBRIS[inst]",
-     1
-    ],
-    [
-     "WORLD_SCORCH_MARKS",
-     1
-    ]
-   ],
-   "fps": 3,
-   "drawCalls": 197,
-   "triangles": 372393,
-   "lines": 9382,
-   "programs": 80,
-   "programNames": [
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#0,1,highp,srgb,false,,fa",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,false",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#0,1,highp,srgb,false,,fa",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,false",
-    "?#2,3,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#2,3,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#2,3,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#0,1,highp,srgb-linear,fa",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#2,3,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#2,3,highp,srgb-linear,fa",
-    "?#lambert,highp,srgb-linea",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,8,highp,srgb-linear,fa",
-    "?#6,9,highp,srgb-linear,fa",
-    "?#6,10,highp,srgb,false,,f",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#lambert,highp,srgb,false",
-    "?#lambert,highp,srgb,false",
-    "?#basic,highp,srgb,false,,",
-    "?#11,12,highp,srgb,false,,"
-   ],
-   "status": "SIM ready: shared production runtime active.",
-   "worldMode": "real",
-   "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1207",
-   "water": "8045/182/222",
-   "ground": "shared-physical-terrain",
-   "roads": "1433",
-   "bloom": "off-slow-device",
-   "style": "rush-neon-readable-v3",
-   "collisionPrisms": "900",
-   "terrainShapes": "479",
-   "nukeDebris": "330",
-   "nukeFlung": "31",
-   "nukeBuildings": "788",
-   "nukeActors": "82",
-   "droneHp": "100",
-   "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
-   "walkMode": "drone",
-   "menuHidden": true
-  },
-  {
-   "name": "nuke-3s",
-   "ms": 4330,
-   "draws": [
-    [
-     "Group",
-     365
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     78
-    ],
-    [
-     "Mesh",
-     74
-    ],
-    [
-     "WORLD_CROWD_EXTRAS",
-     72
-    ],
-    [
-     "NUKE_TORN_CHUNK",
-     56
-    ],
-    [
-     "LOCAL_HUMAN_VR",
-     40
-    ],
-    [
-     "WORLD_CITY_BUILDINGS",
-     28
-    ],
-    [
-     "SANDBOX_COP",
-     24
-    ],
-    [
-     "SANDBOX_HEAVY",
-     7
-    ],
-    [
-     "WORLD_PROCEDURAL_DECOR[inst]",
+     "SANDBOX_SWAT",
      6
     ],
     [
@@ -1944,11 +1796,11 @@
      1
     ]
    ],
-   "fps": 6.9,
-   "drawCalls": 214,
-   "triangles": 370659,
-   "lines": 9368,
-   "programs": 80,
+   "fps": 1.7,
+   "drawCalls": 293,
+   "triangles": 387207,
+   "lines": 10657,
+   "programs": 83,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -1965,6 +1817,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false",
@@ -1987,7 +1844,6 @@
     "?#2,3,highp,srgb,false,,fa",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#2,3,highp,srgb,false,,fa",
@@ -2018,6 +1874,192 @@
     "?#6,9,highp,srgb-linear,fa",
     "?#6,10,highp,srgb,false,,f",
     "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#lambert,highp,srgb,false",
+    "?#lambert,highp,srgb,false",
+    "?#basic,highp,srgb,false,,",
+    "?#11,12,highp,srgb,false,,"
+   ],
+   "status": "SIM ready: shared production runtime active.",
+   "worldMode": "real",
+   "mapSync": "data-only-topdown-v1",
+   "cityBuildings": "1207",
+   "water": "8045/182/222",
+   "ground": "shared-physical-terrain",
+   "roads": "1433",
+   "bloom": "off-slow-device",
+   "style": "rush-neon-readable-v3",
+   "collisionPrisms": "900",
+   "terrainShapes": "479",
+   "nukeDebris": "361",
+   "nukeFlung": "38",
+   "nukeBuildings": "789",
+   "nukeActors": "89",
+   "droneHp": "100",
+   "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
+   "walkMode": "drone",
+   "menuHidden": true
+  },
+  {
+   "name": "nuke-3s",
+   "ms": 4861,
+   "draws": [
+    [
+     "Group",
+     380
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     90
+    ],
+    [
+     "Mesh",
+     74
+    ],
+    [
+     "WORLD_CROWD_EXTRAS",
+     60
+    ],
+    [
+     "LOCAL_HUMAN_VR",
+     40
+    ],
+    [
+     "WORLD_CITY_BUILDINGS",
+     28
+    ],
+    [
+     "SANDBOX_SWAT",
+     12
+    ],
+    [
+     "SANDBOX_COP",
+     12
+    ],
+    [
+     "SANDBOX_HEAVY",
+     12
+    ],
+    [
+     "WORLD_PROCEDURAL_DECOR[inst]",
+     6
+    ],
+    [
+     "Sprite",
+     6
+    ],
+    [
+     "PILOT_SHIELD",
+     2
+    ],
+    [
+     "RUSH_NEON_SKY",
+     1
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION[inst]",
+     1
+    ],
+    [
+     "WORLD_WATER",
+     1
+    ],
+    [
+     "WORLD_GROUND",
+     1
+    ],
+    [
+     "NUKE_CRATER_CONTOURS",
+     1
+    ],
+    [
+     "NUKE_DEBRIS[inst]",
+     1
+    ]
+   ],
+   "fps": 4.3,
+   "drawCalls": 248,
+   "triangles": 369957,
+   "lines": 10322,
+   "programs": 83,
+   "programNames": [
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#0,1,highp,srgb,false,,fa",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,false",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#0,1,highp,srgb,false,,fa",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#0,1,highp,srgb-linear,fa",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#2,3,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#2,3,highp,srgb-linear,fa",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,8,highp,srgb-linear,fa",
+    "?#6,9,highp,srgb-linear,fa",
+    "?#6,10,highp,srgb,false,,f",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -2042,10 +2084,10 @@
    "style": "rush-neon-readable-v3",
    "collisionPrisms": "900",
    "terrainShapes": "479",
-   "nukeDebris": "1267",
-   "nukeFlung": "31",
-   "nukeBuildings": "788",
-   "nukeActors": "82",
+   "nukeDebris": "1104",
+   "nukeFlung": "38",
+   "nukeBuildings": "789",
+   "nukeActors": "89",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
    "walkMode": "drone",
@@ -2053,42 +2095,42 @@
   },
   {
    "name": "nuke-8s",
-   "ms": 8206,
+   "ms": 8809,
    "draws": [
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     294
+    ],
     [
      "WORLD_CROWD_EXTRAS",
      288
     ],
     [
-     "WORLD_PROCEDURAL_POPULATION",
-     268
-    ],
-    [
      "Group",
-     196
+     206
     ],
     [
      "LOCAL_HUMAN_VR",
      40
     ],
     [
-     "WORLD_CITY_ROADS",
-     39
+     "SANDBOX_SWAT",
+     36
     ],
     [
-     "SANDBOX_COP",
-     36
+     "WORLD_CITY_ROADS",
+     29
     ],
     [
      "WORLD_CITY_BUILDINGS",
      28
     ],
     [
-     "SANDBOX_SWAT",
+     "SANDBOX_HEAVY",
      24
     ],
     [
-     "SANDBOX_HEAVY",
+     "SANDBOX_COP",
      12
     ],
     [
@@ -2128,11 +2170,11 @@
      1
     ]
    ],
-   "fps": 6.2,
-   "drawCalls": 211,
-   "triangles": 902323,
-   "lines": 13749,
-   "programs": 80,
+   "fps": 4.1,
+   "drawCalls": 217,
+   "triangles": 901583,
+   "lines": 9988,
+   "programs": 83,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -2149,6 +2191,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false",
@@ -2171,7 +2218,6 @@
     "?#2,3,highp,srgb,false,,fa",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#2,3,highp,srgb,false,,fa",
@@ -2204,7 +2250,6 @@
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
@@ -2226,10 +2271,10 @@
    "style": "rush-neon-readable-v3",
    "collisionPrisms": "900",
    "terrainShapes": "479",
-   "nukeDebris": "1864",
-   "nukeFlung": "31",
-   "nukeBuildings": "788",
-   "nukeActors": "82",
+   "nukeDebris": "1811",
+   "nukeFlung": "38",
+   "nukeBuildings": "789",
+   "nukeActors": "89",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
    "walkMode": "drone",
@@ -2237,11 +2282,11 @@
   },
   {
    "name": "nuke-16s",
-   "ms": 11167,
+   "ms": 12075,
    "draws": [
     [
      "WORLD_PROCEDURAL_POPULATION",
-     308
+     316
     ],
     [
      "WORLD_CROWD_EXTRAS",
@@ -2249,11 +2294,7 @@
     ],
     [
      "Group",
-     192
-    ],
-    [
-     "SANDBOX_COP",
-     48
+     202
     ],
     [
      "LOCAL_HUMAN_VR",
@@ -2264,16 +2305,20 @@
      39
     ],
     [
+     "SANDBOX_SWAT",
+     36
+    ],
+    [
      "WORLD_CITY_BUILDINGS",
      28
     ],
     [
-     "SANDBOX_SWAT",
+     "SANDBOX_COP",
      24
     ],
     [
      "SANDBOX_HEAVY",
-     12
+     24
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
@@ -2312,11 +2357,11 @@
      1
     ]
    ],
-   "fps": 6.1,
-   "drawCalls": 215,
-   "triangles": 914391,
-   "lines": 13957,
-   "programs": 80,
+   "fps": 3.3,
+   "drawCalls": 225,
+   "triangles": 915347,
+   "lines": 14663,
+   "programs": 83,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -2333,6 +2378,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false",
@@ -2355,7 +2405,6 @@
     "?#2,3,highp,srgb,false,,fa",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#2,3,highp,srgb,false,,fa",
@@ -2385,7 +2434,6 @@
     "?#6,8,highp,srgb-linear,fa",
     "?#6,9,highp,srgb-linear,fa",
     "?#6,10,highp,srgb,false,,f",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -2410,10 +2458,10 @@
    "style": "rush-neon-readable-v3",
    "collisionPrisms": "900",
    "terrainShapes": "479",
-   "nukeDebris": "1864",
-   "nukeFlung": "31",
-   "nukeBuildings": "788",
-   "nukeActors": "82",
+   "nukeDebris": "1811",
+   "nukeFlung": "38",
+   "nukeBuildings": "789",
+   "nukeActors": "89",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
    "walkMode": "drone",
@@ -2421,43 +2469,43 @@
   },
   {
    "name": "nuke-30s",
-   "ms": 16938,
+   "ms": 18018,
    "draws": [
     [
      "WORLD_PROCEDURAL_POPULATION",
-     348
+     316
     ],
     [
      "WORLD_CROWD_EXTRAS",
-     336
+     288
     ],
     [
      "Group",
-     124
+     170
     ],
     [
-     "SANDBOX_COP",
-     48
+     "LOCAL_HUMAN_VR",
+     40
     ],
     [
      "WORLD_CITY_ROADS",
      39
     ],
     [
+     "SANDBOX_SWAT",
+     36
+    ],
+    [
      "WORLD_CITY_BUILDINGS",
      28
     ],
     [
-     "SANDBOX_SWAT",
+     "SANDBOX_COP",
      24
     ],
     [
-     "LOCAL_HUMAN_VR",
-     20
-    ],
-    [
      "SANDBOX_HEAVY",
-     12
+     24
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
@@ -2496,11 +2544,11 @@
      1
     ]
    ],
-   "fps": 6.4,
-   "drawCalls": 217,
-   "triangles": 889025,
-   "lines": 14308,
-   "programs": 77,
+   "fps": 3.5,
+   "drawCalls": 193,
+   "triangles": 889467,
+   "lines": 14599,
+   "programs": 80,
    "programNames": [
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
@@ -2517,6 +2565,11 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,false",
+    "?#2,3,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,false",
@@ -2539,7 +2592,6 @@
     "?#2,3,highp,srgb,false,,fa",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#4,5,onBeforeCompile(){}",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#2,3,highp,srgb,false,,fa",
@@ -2569,7 +2621,6 @@
     "?#6,8,highp,srgb-linear,fa",
     "?#6,9,highp,srgb-linear,fa",
     "?#6,10,highp,srgb,false,,f",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -2591,1176 +2642,19 @@
    "style": "rush-neon-readable-v3",
    "collisionPrisms": "900",
    "terrainShapes": "479",
-   "nukeDebris": "1864",
-   "nukeFlung": "0",
-   "nukeBuildings": "788",
-   "nukeActors": "82",
+   "nukeDebris": "1811",
+   "nukeFlung": "38",
+   "nukeBuildings": "789",
+   "nukeActors": "89",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
    "walkMode": "drone",
    "menuHidden": true
   }
  ],
- "errors": [
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined",
-  "lastTelemetryTick is not defined"
- ],
- "domContentLoadedMs": 2339,
- "loadEventMs": 4220,
+ "errors": [],
+ "domContentLoadedMs": 1880,
+ "loadEventMs": 5218,
  "boot": {
   "readyState": "complete",
   "status": "SIM ready: shared production runtime active.",
@@ -3768,32 +2662,32 @@
   "resources": [
    {
     "n": "l,opsz,wght@0,14..32,400..900;1,14..32,700..900&display=swap",
-    "ms": 87,
+    "ms": 88,
     "kb": 1
-   },
-   {
-    "n": "ps://kurzlernen.de/drone_simulator.html?vcheck=1791413601497",
-    "ms": 134,
-    "kb": 1398
    },
    {
     "n": "https://kurzlernen.de/drone_simulator.webmanifest",
-    "ms": 116,
+    "ms": 54,
     "kb": 1
    },
    {
+    "n": "ps://kurzlernen.de/drone_simulator.html?vcheck=1791413963208",
+    "ms": 87,
+    "kb": 1399
+   },
+   {
     "n": "https://kurzlernen.de/sim/icons/rush-192.png",
-    "ms": 74,
+    "ms": 83,
     "kb": 19
    },
    {
     "n": "https://kurzlernen.de/sim/icons/rush-192.png",
-    "ms": 74,
+    "ms": 84,
     "kb": 0
    },
    {
     "n": "https://kurzlernen.de/sim/icons/rush-192.png",
-    "ms": 30,
+    "ms": 84,
     "kb": 0
    }
   ]
@@ -3913,90 +2807,122 @@
   "font": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif"
  },
  "attribution": {
-  "baseline": 8.7,
-  "noCitySolids": 9.4,
-  "noCityEdges": 9.8,
-  "noObjectEdges": 9.2,
-  "noGrid": 9,
-  "no_WORLD_CITY_ROADS": 15.4,
-  "no_WORLD_GROUND": 8.7,
-  "no_WORLD_WATER": 8.6,
-  "no_REAL_SKY": 8.9,
-  "no_WORLD_PROCEDURAL_POPULATION": 9,
-  "no_WORLD_PROCEDURAL_DECOR": 9.2,
-  "noShadows": 9.4,
-  "halfRes": 9.1,
-  "noMapCanvas": 9.2,
+  "baseline": 4.4,
+  "noCitySolids": 4.8,
+  "noCityEdges": 4.9,
+  "noObjectEdges": 4.7,
+  "noGrid": 4.7,
+  "no_WORLD_CITY_ROADS": 7.9,
+  "no_WORLD_GROUND": 4.4,
+  "no_WORLD_WATER": 4.3,
+  "no_REAL_SKY": 4.6,
+  "no_WORLD_PROCEDURAL_POPULATION": 4.8,
+  "no_WORLD_PROCEDURAL_DECOR": 4.8,
+  "noShadows": 4.7,
+  "halfRes": 4.6,
+  "noMapCanvas": 4.7,
   "objectEdges": 0
  },
  "cpuProfiles": {
   "drone": [
    [
     "(idle) :0",
-    69.6
+    64.7
    ],
    [
     "(program) :0",
-    11.9
+    15.7
    ],
    [
-    "getBoundingClientRect :0",
-    1.1
+    "_o drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:9739",
+    1.4
    ],
    [
-    "updateMatrixWorld drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:254",
-    0.9
-   ],
-   [
-    "getObjectByProperty drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:254",
-    0.7
-   ],
-   [
-    "_o drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:9713",
-    0.6
-   ],
-   [
-    "toWireType drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:9701",
-    0.6
+    "toWireType drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:9727",
+    1
    ],
    [
     "wasm-function[240] 003320de:1",
+    0.8
+   ],
+   [
+    "applyForces drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10613",
+    0.6
+   ],
+   [
+    "getBoundingClientRect :0",
+    0.6
+   ],
+   [
+    "(anon) :3",
+    0.5
+   ],
+   [
+    "getObjectByProperty drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:280",
+    0.5
+   ],
+   [
+    "Qp drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:9739",
     0.5
    ],
    [
     "now :0",
+    0.5
+   ],
+   [
+    "wasm-function[342] 003320de:1",
     0.4
    ],
    [
-    "applyForces drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10587",
-    0.3
+    "updateMatrixWorld drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:280",
+    0.4
    ],
    [
-    "Kn drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:4361",
-    0.3
+    "Gv drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:9739",
+    0.4
    ],
    [
-    "(anon) :3",
-    0.3
-   ],
-   [
-    "multiplyMatrices drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:254",
-    0.3
-   ],
-   [
-    "traverse drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:254",
+    "pwe drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10613",
     0.3
    ],
    [
     "(garbage collector) :0",
+    0.3
+   ],
+   [
+    "M7e drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:9755",
+    0.3
+   ],
+   [
+    "wasm-to-js :1",
+    0.3
+   ],
+   [
+    "get geometry drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:4388",
     0.2
    ],
    [
-    "Awe drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10587",
+    "(anon) drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10716",
     0.2
    ],
    [
-    "Vze drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10184",
+    "unt drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10613",
+    0.2
+   ],
+   [
+    "setTimeout :0",
+    0.2
+   ],
+   [
+    "drawMinimap drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10716",
+    0.2
+   ],
+   [
+    "imuRaw drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10613",
+    0.2
+   ],
+   [
+    "wasm-function[315] 003320de:1",
     0.2
    ],
    [
@@ -4004,23 +2930,23 @@
     0.2
    ],
    [
-    "Gv drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:9713",
+    "oj drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10613",
     0.2
    ],
    [
-    "setTimeout :0",
+    "uU drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:9818",
     0.2
    ],
    [
-    "intersectsObject drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:254",
+    "b1 drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:4388",
     0.2
    ],
    [
-    "xwe drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10587",
+    "step drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10613",
     0.2
    ],
    [
-    "querySelectorAll :0",
+    "eWe drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10245",
     0.2
    ],
    [
@@ -4028,225 +2954,201 @@
     0.2
    ],
    [
-    "drawMinimap drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10690",
-    0.2
-   ],
-   [
-    "wasm-function[342] 003320de:1",
-    0.2
-   ],
-   [
-    "$ae drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:9731",
-    0.2
-   ],
-   [
-    "querySelector :0",
-    0.2
-   ],
-   [
-    "RRe drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10660",
-    0.2
-   ],
-   [
-    "oj drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10587",
-    0.2
-   ],
-   [
-    "get geometry drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:4362",
+    "traverse drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:280",
     0.1
    ],
    [
-    "Uze drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10184",
+    "wasm-function[343] 003320de:1",
     0.1
    ],
    [
-    "ipe drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10184",
+    "of drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:4388",
     0.1
    ],
    [
-    "b1 drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:4362",
+    "JE drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10403",
     0.1
    ],
    [
-    "imuRaw drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10587",
+    "exchangeSync drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10613",
     0.1
    ],
    [
-    "wasm-to-js :1",
+    "wasm-function[198] 003320de:1",
     0.1
    ],
    [
-    "Au drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10184",
+    "multiplyMatrices drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:280",
     0.1
    ],
    [
-    "wasm-function[15] 00017c56:1",
+    "js-to-wasm:iii: 003320de:1",
     0.1
-   ],
-   [
-    "Qp drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:9713",
-    0.1
-   ],
-   [
-    "(anon) drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10690",
-    0.1
-   ],
-   [
-    "exchangeSync drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10587",
-    0.1
-   ],
-   [
-    "YVe drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10219",
-    0.1
-   ],
-   [
-    "of drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:4362",
-    0.1
-   ],
-   [
-    "yw drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10587",
-    0.1
-   ],
-   [
-    "step drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10587",
-    0.1
-   ]
-  ],
-  "foot": [
-   [
-    "(idle) :0",
-    70.6
-   ],
-   [
-    "(program) :0",
-    7.8
-   ],
-   [
-    "getBoundingClientRect :0",
-    1
-   ],
-   [
-    "updateMatrix drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:254",
-    0.6
-   ],
-   [
-    "_o drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:9713",
-    0.6
-   ],
-   [
-    "HNe drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:9781",
-    0.6
-   ],
-   [
-    "getObjectByProperty drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:254",
-    0.6
-   ],
-   [
-    "(anon) :3",
-    0.5
-   ],
-   [
-    "toWireType drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:9701",
-    0.5
-   ],
-   [
-    "Kn drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:4361",
-    0.5
-   ],
-   [
-    "wasm-function[240] 003320de:1",
-    0.5
-   ],
-   [
-    "traverse drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:254",
-    0.5
-   ],
-   [
-    "now :0",
-    0.4
-   ],
-   [
-    "updateMatrixWorld drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:254",
-    0.3
-   ],
-   [
-    "drawMinimap drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10690",
-    0.3
-   ],
-   [
-    "multiplyMatrices drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:254",
-    0.3
-   ],
-   [
-    "(garbage collector) :0",
-    0.3
-   ],
-   [
-    "RT.renderBufferDirect drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:4361",
-    0.3
-   ],
-   [
-    "querySelector :0",
-    0.2
-   ],
-   [
-    "b1 drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:4362",
-    0.2
-   ],
-   [
-    "querySelectorAll :0",
-    0.2
-   ],
-   [
-    "xd drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:4361",
-    0.2
-   ],
-   [
-    "SG drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:9761",
-    0.2
-   ],
-   [
-    "oj drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10587",
-    0.2
-   ],
-   [
-    "get geometry drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:4362",
-    0.2
-   ],
-   [
-    "wasm-function[81] 003320de:1",
-    0.2
-   ],
-   [
-    "Qp drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:9713",
-    0.2
-   ],
-   [
-    "wasm-function[342] 003320de:1",
-    0.2
-   ],
-   [
-    "setTimeout :0",
-    0.2
-   ],
-   [
-    "bindVertexArray :0",
-    0.2
-   ],
-   [
-    "Gv drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:9713",
-    0.2
-   ],
-   [
-    "Fr drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:5195",
-    0.2
    ],
    [
     "requestAnimationFrame :0",
     0.1
    ],
    [
-    "exchangeSync drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10587",
+    "getElementById :0",
+    0.1
+   ],
+   [
+    "postMessage :0",
+    0.1
+   ],
+   [
+    "zze drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10210",
+    0.1
+   ],
+   [
+    "Kn drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:4387",
+    0.1
+   ]
+  ],
+  "foot": [
+   [
+    "(idle) :0",
+    68.8
+   ],
+   [
+    "(program) :0",
+    10.7
+   ],
+   [
+    "_o drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:9739",
+    1.7
+   ],
+   [
+    "toWireType drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:9727",
+    1.2
+   ],
+   [
+    "wasm-function[240] 003320de:1",
+    0.8
+   ],
+   [
+    "(anon) :3",
+    0.7
+   ],
+   [
+    "getBoundingClientRect :0",
+    0.6
+   ],
+   [
+    "now :0",
+    0.5
+   ],
+   [
+    "Gv drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:9739",
+    0.4
+   ],
+   [
+    "Qp drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:9739",
+    0.3
+   ],
+   [
+    "traverse drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:280",
+    0.3
+   ],
+   [
+    "unt drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10613",
+    0.3
+   ],
+   [
+    "pwe drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10613",
+    0.3
+   ],
+   [
+    "wasm-function[342] 003320de:1",
+    0.3
+   ],
+   [
+    "setTimeout :0",
+    0.3
+   ],
+   [
+    "b1 drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:4388",
+    0.3
+   ],
+   [
+    "updateMatrix drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:280",
+    0.3
+   ],
+   [
+    "getObjectByProperty drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:280",
+    0.2
+   ],
+   [
+    "eWe drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10245",
+    0.2
+   ],
+   [
+    "(garbage collector) :0",
+    0.2
+   ],
+   [
+    "RT.renderBufferDirect drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:4387",
+    0.2
+   ],
+   [
+    "wasm-function[795] 003320de:1",
+    0.2
+   ],
+   [
+    "get geometry drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:4388",
+    0.2
+   ],
+   [
+    "GNe drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:9807",
+    0.2
+   ],
+   [
+    "(anon) drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10716",
+    0.2
+   ],
+   [
+    "wasm-function[438] 003320de:1",
+    0.2
+   ],
+   [
+    "updateMatrixWorld drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:280",
+    0.2
+   ],
+   [
+    "Kn drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:4387",
+    0.2
+   ],
+   [
+    "wasm-to-js :1",
+    0.2
+   ],
+   [
+    "oj drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10613",
+    0.2
+   ],
+   [
+    "wasm-function[315] 003320de:1",
+    0.2
+   ],
+   [
+    "drawMinimap drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10716",
+    0.2
+   ],
+   [
+    "JE drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10403",
+    0.2
+   ],
+   [
+    "wasm-function[113] 003320de:1",
+    0.1
+   ],
+   [
+    "zFe drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10689",
+    0.1
+   ],
+   [
+    "xd drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:4387",
     0.1
    ],
    [
@@ -4254,48 +3156,40 @@
     0.1
    ],
    [
-    "wasm-function[438] 003320de:1",
+    "wasm-function[343] 003320de:1",
     0.1
    ],
    [
-    "Awe drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10587",
+    "M7e drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:9755",
     0.1
    ],
    [
-    "wasm-function[315] 003320de:1",
+    "multiplyMatrices drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:280",
     0.1
    ],
    [
-    "of drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:4362",
+    "step drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10613",
     0.1
    ],
    [
-    "wasm-to-js :1",
+    "fill :0",
     0.1
    ],
    [
-    "Na drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10425",
+    "querySelectorAll :0",
     0.1
    ],
    [
-    "YVe drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10219",
+    "js-to-wasm:iii: 003320de:1",
     0.1
    ],
    [
-    "Vze drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10184",
-    0.1
-   ],
-   [
-    "kq drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10587",
-    0.1
-   ],
-   [
-    "(anon) drone_simulator.html?diag-ci=91418415013721286733f0f439e0257ae63c1caa&menu=1&hq=1:10184",
+    "exchangeSync drone_simulator.html?diag-ci=2df51ff12441090fc5f7bf1e06bbca40f9e4991b&menu=1&hq=1:10613",
     0.1
    ]
   ]
  },
- "walkMoved": 0.5187560347358584,
+ "walkMoved": 0.5187555767917722,
  "walkSprint": "0",
  "interior": {
   "key": "26295923:-380,1411;187,1033;957,1971;434,2545|-10,1535;-39,1549;-90,1477;-24,1426;19,1484;136,1397;361,1695;579,1949;426,2116;354,2014;361,1993;354,1956;303,1949;237,2007;34,1738;107,1680;114,1637;92,1629;56,1637",
@@ -4359,8 +3253,8 @@
   "canDeploy": true
  },
  "nukeRemote": [
-  -347.6094765047343,
-  -176.50998518828044,
+  -347.7726740803601,
+  -176.28233484911385,
   0
  ]
 }
