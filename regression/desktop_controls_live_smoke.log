@@ -1,0 +1,9 @@
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/node/BrowserLauncher.js:128
+                throw new TimeoutError(error.message);
+                      ^
+
+TimeoutError: Timed out after 30000 ms while waiting for the WS endpoint URL to appear in stdout!
+    at ChromeLauncher.launch (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/node/BrowserLauncher.js:128:23)
+    at async file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/desktop_controls_live_smoke.mjs:5:15
+
+Node.js v22.23.3
