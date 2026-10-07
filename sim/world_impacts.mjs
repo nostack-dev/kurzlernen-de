@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import {groundHeightAt} from "./terrain_craters.mjs";
+import {groundHeightAt,waterAt,WATER_LEVEL_M} from "./terrain_craters.mjs";
 
 // Every action of the player leaves a mark — nothing is silently ignored.
 //  * Bullet impacts: a hole decal on walls, ground, cars and trees, plus a
@@ -107,6 +107,8 @@ export function bulletImpact(ray,hit,{routed=false,maxDistance=180}={}){
   if(ray&&!(surfaceOf(hit)==="actor")){const maxT=hit?.distance??(hit?.point?ray.origin.distanceTo(hit.point):maxDistance),an=animalOnRay(ray,maxT);if(an){globalThis.__ambientAnimals.kill(an.a.i);chipBurst(new THREE.Vector3(an.a.x,an.a.y,.35),ray.direction.clone().negate(),"actor",5,2.5);return true;}}
   let point=hit?.point?.clone?.()||null,normal=null,surface=surfaceOf(hit);
   if(!point&&ray){const o=ray.origin,d=ray.direction;if(d.z<-1e-4){let t=(groundHeightAt(o.x,o.y)-o.z)/d.z;if(t>0&&t<maxDistance){point=o.clone().addScaledVector(d,t);point.z=groundHeightAt(point.x,point.y);normal=Z.clone();surface="ground";}}}
+  // shots into a river / lake: splash on the water surface, no decal
+  if(ray&&(!hit||surface==="ground")){const o=ray.origin,d=ray.direction;if(d.z<-1e-4){const t=(.03-o.z)/d.z;if(t>0&&t<maxDistance){const wp=o.clone().addScaledVector(d,t);if(waterAt(wp.x,wp.y)&&(!point||o.distanceTo(point)>=t-.1)){chipBurst(wp,Z,"water",7,3.2);return true;}}}}
   if(!point)return false;normal??=normalOf(hit,ray);if(ray&&normal.dot(ray.direction)>0)normal.negate();
   const from=ray?ray.origin:point;
   if(surface==="tree"&&hit?.instanceId!=null){hitTree(hit.instanceId,point,from.x,from.y);addDecal(point,normal,{size:.07,color:0x3a2a1c});return true;}
@@ -119,6 +121,7 @@ export function bulletImpact(ray,hit,{routed=false,maxDistance=180}={}){
 function onExplosion(event){
   const d=event?.detail||{},pos=d.position;const x=Array.isArray(pos)?+pos[0]:+pos?.x,y=Array.isArray(pos)?+pos[1]:+pos?.y,z=Array.isArray(pos)?+pos[2]:+pos?.z;if(!Number.isFinite(x)||!Number.isFinite(y))return;
   const r=Math.max(1.5,Math.min(400,Number(d.radiusM)||6)),g=groundHeightAt(x,y),nuke=d.kind==="nuke";
+  if(!nuke&&waterAt(x,y)){chipBurst(new THREE.Vector3(x,y,.05),Z,"water",Math.min(40,14+r*3),7+r*.8);return;}
   if(!nuke){ // scorch on the ground (if the blast is low enough) and chips
     if((Number.isFinite(z)?z:g)-g<r*.6)addDecal(new THREE.Vector3(x,y,g+.02),Z,{size:Math.min(4.5,r*.42),color:0x1b1612});
     chipBurst(new THREE.Vector3(x,y,(Number.isFinite(z)?z:g)+.2),Z,"ground",Math.min(26,8+r*2),6+r*.6);

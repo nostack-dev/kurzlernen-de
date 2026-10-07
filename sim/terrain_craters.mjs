@@ -19,7 +19,28 @@ export function craterProfile(r){
   const bowl=CRATER_R*.5;if(r<bowl)return -CRATER_DEPTH*(1-(r/bowl)**2);
   if(r>=CRATER_R)return 0;const x=(r-bowl)/(CRATER_R-bowl),k=(x-.12)/.14;return CRATER_RIM*Math.exp(-(k*k))*(1-x);
 }
-export function groundHeightAt(x,y){let h=0;for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}return h;}
+// ---- water: rivers, canals and lakes from the map are real basins.
+// The water module registers axis-aligned rectangles (greedy-merged grid
+// cells); the terrain gets a hole there with a bed WATER_BED_M deep, and
+// the water surface sits at WATER_LEVEL_M. A coarse bucket hash keeps the
+// point query O(1).
+export const WATER_LEVEL_M=-.18,WATER_BED_M=2.6;
+let waterRects=[],waterBuckets=new Map(),waterFlow=null;const WB=24;
+export function setWaterRegions(rects,flowFn=null){
+  waterRects=(rects||[]).filter(r=>r.x1>r.x0&&r.y1>r.y0);waterFlow=flowFn;waterBuckets=new Map();
+  for(const r of waterRects)for(let bx=Math.floor(r.x0/WB);bx<=Math.floor(r.x1/WB);bx++)for(let by=Math.floor(r.y0/WB);by<=Math.floor(r.y1/WB);by++){const k=bx*73856093^by*19349663;let l=waterBuckets.get(k);if(!l){l=[];waterBuckets.set(k,l);}l.push(r);}
+  notify();
+}
+// Bridge decks over water: oriented boxes (centre, half length/width, yaw)
+// that keep a solid road surface at ground level across the basin.
+let bridges=[];
+export function setBridgeDecks(list){bridges=(list||[]).filter(b=>b.hl>.1&&b.hw>.1);}
+function onBridge(x,y){for(const b of bridges){const dx=x-b.cx,dy=y-b.cy,c=Math.cos(b.yaw),s=Math.sin(b.yaw),u=dx*c+dy*s,v=-dx*s+dy*c;if(Math.abs(u)<=b.hl&&Math.abs(v)<=b.hw)return true;}return false;}
+export function craterHeightAt(x,y){let h=0;for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}return h;}
+export function waterAt(x,y){const l=waterBuckets.get(Math.floor(x/WB)*73856093^Math.floor(y/WB)*19349663);if(!l)return false;for(const r of l)if(x>=r.x0&&x<r.x1&&y>=r.y0&&y<r.y1)return true;return false;}
+export function waterFlowAt(x,y){return waterFlow&&waterAt(x,y)?waterFlow(x,y):null;}
+export function waterRegions(){return waterRects;}
+export function groundHeightAt(x,y){let h=0;for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return Math.min(h,-WATER_BED_M);return h;}
 export function terrainCraters(){return craters.map(c=>({...c}));}
 export function addCrater(x,y){craters.push({x:Number(x)||0,y:Number(y)||0});while(craters.length>MAX_CRATERS)craters.shift();notify();}
 export function clearCraters(){if(!craters.length)return;craters.length=0;notify();}
@@ -42,9 +63,13 @@ function groundRectangles(half,holes){
 // Returns {bodies,shapeCount}.
 export function createTerrainBody(b3,world,shapeDef,half){
   const bodies=[];let shapeCount=0;
-  const staticBody=position=>{const def=b3.b3DefaultBodyDef();def.type=b3.b3BodyType.b3_staticBody;def.position=position;const body=b3.b3CreateBody(world,def);bodies.push(body);return body;};
-  const holes=craters.map(c=>[c.x-CRATER_R,c.y-CRATER_R,c.x+CRATER_R,c.y+CRATER_R]);
+  const staticBody=(position,rotation=null)=>{const def=b3.b3DefaultBodyDef();def.type=b3.b3BodyType.b3_staticBody;def.position=position;if(rotation)def.rotation=rotation;const body=b3.b3CreateBody(world,def);bodies.push(body);return body;};
+  const holes=[...craters.map(c=>[c.x-CRATER_R,c.y-CRATER_R,c.x+CRATER_R,c.y+CRATER_R]),...waterRects.map(r=>[r.x0,r.y0,r.x1,r.y1])];
   for(const[x0,y0,x1,y1]of groundRectangles(half,holes)){const hx=(x1-x0)/2,hy=(y1-y0)/2;if(hx<.01||hy<.01)continue;const body=staticBody([x0+hx,y0+hy,-GROUND_THICKNESS/2]);b3.b3CreateBoxShape(body,shapeDef,hx,hy,GROUND_THICKNESS/2);shapeCount++;}
+  // bridge decks (solid road across the basin)
+  for(const br of bridges){const body=staticBody([br.cx,br.cy,-.25],[0,0,Math.sin(br.yaw/2),Math.cos(br.yaw/2)]);b3.b3CreateBoxShape(body,shapeDef,br.hl,br.hw,.25);shapeCount++;}
+  // river / lake beds
+  for(const r of waterRects){const hx=(r.x1-r.x0)/2,hy=(r.y1-r.y0)/2;if(hx<.01||hy<.01)continue;const body=staticBody([r.x0+hx,r.y0+hy,-WATER_BED_M-.1]);b3.b3CreateBoxShape(body,shapeDef,hx,hy,.1);shapeCount++;}
   if(craters.length){
     const step=CRATER_R*2/SLAB_CELLS,done=new Set();
     for(const c of craters)for(let i=0;i<SLAB_CELLS;i++)for(let j=0;j<SLAB_CELLS;j++){

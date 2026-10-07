@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import {groundHeightAt} from "./terrain_craters.mjs";
+import {craterHeightAt as groundHeightAt} from "./terrain_craters.mjs";
 
 // The real streets, parks and water of the map as stylized 3D ground:
 //   * roads: asphalt ribbons sized by class, a lighter sidewalk band on both
@@ -29,7 +29,7 @@ function* build(b,cx,cy){
   const near=(x,y)=>Math.hypot(x-cx,y-cy)<RADIUS_M;
   const h=(x,y)=>groundHeightAt(x,y);
   // areas first (lowest): parks, woods, pitches, water
-  for(const layer of["park","landcover","landuse","water"]){
+  for(const layer of["park","landcover","landuse"]){
     for(const f of features(b,layer)){
       const cls=String(f.properties?.class||f.properties?.subclass||layer).toLowerCase();let color=null,z=.012;
       if(layer==="water"){color=C.water;z=.016;}else if(/park|garden|grass|meadow|recreation|cemetery|village_green/.test(cls))color=C.park;else if(/wood|forest|scrub/.test(cls))color=C.wood;else if(/pitch|playground|stadium/.test(cls))color=C.pitch;else if(/sand|beach/.test(cls))color=C.sand;
