@@ -8,7 +8,7 @@ assert.ok(!vehicleFootprintsOverlap(car,{...car,x:5}));
 import Box3D from '../node_modules/box3d.js/dist/box3d.inline.mjs';
 import {PlaneGeometry} from 'three';
 import {setElevationGrid} from '../sim/terrain_elevation.mjs';
-import {staticGroundHeightAt} from '../sim/terrain_craters.mjs';
+import {staticGroundHeightAt,addCrater,clearCraters} from '../sim/terrain_craters.mjs';
 import {drapeTerrainTriangle} from '../sim/terrain_surface.mjs';
 import {WorldRigidBodyPhysics} from '../sim/world_rigid_body_physics.mjs';
 import {resolvePlayerCapsuleMove} from '../sim/player_capsule_collision.mjs';
@@ -38,6 +38,19 @@ assert.ok(count>20);assert.ok(Math.abs(area-Math.abs(60.7*24.7-18.3*11.1)/2)<1e-
 for(const start of [{x:70,y:25},{x:-70,y:-25}]){
   let p={...start};for(let i=0;i<80;i++){const to={x:p.x+.08,y:p.y+.03},r=resolvePlayerCapsuleMove(physics,p,to);assert.ok(r&&Math.hypot(r.x-to.x,r.y-to.y)<.015,`walk stuck on slope: ${JSON.stringify({p,to,r})}`);p=r;}
 }
+// A nuke crater must be one surface for visual height, Box3D and walking.
+// In particular, descending into the bowl must never hit an invisible z=0 floor.
+addCrater(0,0);physics.rebuildTerrain();
+for(const [x,y] of [[0,0],[35,0],[82,17],[125,-13],[180,0]]){
+  const z=staticGroundHeightAt(x,y),hit=b3.b3World_CastRayClosest(physics.world,[x,y,z+35],[0,0,-70],filter);
+  assert.ok(hit.hit,`missing crater terrain ray at ${x},${y}`);
+  assert.ok(Math.abs(hit.point[2]-z)<.002,`crater Box3D mismatch at ${x},${y}: visual=${z} physics=${hit.point[2]}`);
+}
+{
+  let p={x:150,y:0};for(let i=0;i<110;i++){const to={x:p.x-1.1,y:0},r=resolvePlayerCapsuleMove(physics,p,to);assert.ok(r,`missing crater walk result at ${JSON.stringify(p)}`);assert.ok(r.x<p.x-.35,`invisible floor/wall blocks crater descent: ${JSON.stringify({p,to,r,z:staticGroundHeightAt(to.x,to.y)})}`);p=r;}
+  assert.ok(staticGroundHeightAt(p.x,p.y)<-10,`test path never reached crater valley: ${JSON.stringify(p)}`);
+}
+clearCraters();physics.rebuildTerrain();
 // Wall at nonzero elevation, including starting with capsule penetration.
 physics.syncBuildings({hash:'hill-wall',prisms:[{buildingKey:'wall',base:0,top:4,points:[[72,23],[73,23],[73,28],[72,28]]}]});
 const blocked=resolvePlayerCapsuleMove(physics,{x:71,y:25},{x:74,y:25});assert.ok(blocked.blocked&&blocked.x<71.8,JSON.stringify(blocked));
