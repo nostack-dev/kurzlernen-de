@@ -2,6 +2,7 @@ import * as THREE from "three";
 import {loadFirstPersonControlSettings,saveFirstPersonControlSettings,DEFAULT_FIRST_PERSON_CONTROL_SETTINGS} from "./first_person_control_settings.mjs";
 import {loadAudioSettings} from "./audio_settings.mjs";
 import {findXboxGamepad} from "./xbox_gamepad.mjs";
+import {groundHeightAt} from "./terrain_craters.mjs";
 
 const CAR_SETTINGS_KEY="arondight45VehicleControlsV1";
 const CAMERA_CLEARANCE=.22;
@@ -90,7 +91,7 @@ function resolveSafe(from,to){
 function patchWalkCollision(){
   const runtime=playerRuntime();if(!runtime||runtime===patchedRuntime)return;if(runtime.__gtaCameraClearancePatched)return;patchedRuntime=runtime;baseCan=runtime.canOccupyWalkPoint?.bind(runtime);baseResolve=runtime.resolveWalkMove?.bind(runtime);runtime.canOccupyWalkPoint=safeWalkPoint;runtime.resolveWalkMove=resolveSafe;runtime.__gtaCameraClearancePatched=true;const v=viewport();if(v){v.dataset.walkCameraWallClearanceM=(.28+CAMERA_CLEARANCE).toFixed(2);v.dataset.walkCameraCollision="inflated-capsule-slide-v1";}}
 function enforceCameraGround(){
-  const camera=bridge()?.threeCamera;if(!camera?.getWorldPosition)return;camera.getWorldPosition(tmp);const floor=vehicleMode?.42:.16;if(tmp.z>=floor)return;tmp.z=floor;if(camera.parent){camera.parent.worldToLocal(tmp2.copy(tmp));camera.position.copy(tmp2);}else camera.position.copy(tmp);camera.updateMatrixWorld?.();const v=viewport();if(v){v.dataset.cameraGroundGuard="world-z-floor-v1";v.dataset.cameraGroundGuardTrips=String((Number(v.dataset.cameraGroundGuardTrips)||0)+1);}}
+  const camera=bridge()?.threeCamera;if(!camera?.getWorldPosition)return;camera.getWorldPosition(tmp);const floor=groundHeightAt(tmp.x,tmp.y)+(vehicleMode?.42:.16);if(tmp.z>=floor)return;tmp.z=floor;if(camera.parent){camera.parent.worldToLocal(tmp2.copy(tmp));camera.position.copy(tmp2);}else camera.position.copy(tmp);camera.updateMatrixWorld?.();const v=viewport();if(v){v.dataset.cameraGroundGuard="deformed-terrain-relative-v2";v.dataset.cameraGroundGuardFloorM=floor.toFixed(3);v.dataset.cameraGroundGuardTrips=String((Number(v.dataset.cameraGroundGuardTrips)||0)+1);}}
 
 function vehicleFree(x,y,yaw){if(pointHitsShowcase(x,y))return false;if(!baseCan)return true;const c=Math.cos(yaw),s=Math.sin(yaw);for(const [lx,ly] of[[1.55,.68],[1.55,-.68],[-1.55,.68],[-1.55,-.68]]){const px=x+lx*c-ly*s,py=y+lx*s+ly*c;if(!baseCan(px,py))return false;}return true;}
 function nearestCarDistance(){const p=walk()?.position;if(!p||!drivable?.visible)return Infinity;return Math.hypot(p.x-vehicleState.x,p.y-vehicleState.y);}
@@ -144,7 +145,7 @@ function patchSettings(){for(const d of document.querySelectorAll("dialog.phone-
 function installInput(){addEventListener("keydown",e=>{if(!vehicleMode)return;if(["KeyW","KeyA","KeyS","KeyD"].includes(e.code)){keyState.add(e.code);e.preventDefault();e.stopPropagation();}if(e.code==="KeyF"||e.code==="KeyV"){setVehicleMode(false);e.preventDefault();e.stopPropagation();}},{capture:true});addEventListener("keyup",e=>keyState.delete(e.code),{capture:true});addEventListener("pointerdown",()=>ensureAudio(true),{capture:true,passive:true});}
 function expose(){globalThis.__arondightGtaRuntime={get mode(){return vehicleMode?"vehicle":walk()?.mode||"drone";},get vehicleState(){return{...vehicleState};},get car(){return drivable;},enterVehicle:()=>setVehicleMode(true),exitVehicle:()=>setVehicleMode(false),setMode(mode){if(mode==="vehicle")return setVehicleMode(true);if(vehicleMode)setVehicleMode(false);walk()?.setMode?.(mode==="foot"?"foot":"drone");return true;}};}
 function frame(now=performance.now()){
-  const dt=clamp((now-lastFrame)/1000,0,MAX_DT);lastFrame=now;ensureShowcase();patchWalkCollision();patchSettings();mountVehicleHud();mountVehicleButton();updateVehicleButton();if(vehicleMode&&!trainingActive())setVehicleMode(false);updateVehicle(dt);if(!vehicleMode)updateEngine(0,0);enforceCameraGround();renderModeCards();syncAudioDataset();const v=viewport();if(v){v.dataset.controlModeArchitecture="drone+first-person+vehicle-v1";v.dataset.cameraClipGuard="wall-clearance+ground-world-z-v1";}requestAnimationFrame(frame);
+  const dt=clamp((now-lastFrame)/1000,0,MAX_DT);lastFrame=now;ensureShowcase();patchWalkCollision();patchSettings();mountVehicleHud();mountVehicleButton();updateVehicleButton();if(vehicleMode&&!trainingActive())setVehicleMode(false);updateVehicle(dt);if(!vehicleMode)updateEngine(0,0);enforceCameraGround();renderModeCards();syncAudioDataset();const v=viewport();if(v){v.dataset.controlModeArchitecture="drone+first-person+vehicle-v1";v.dataset.cameraClipGuard="wall-clearance+deformed-terrain-v2";}requestAnimationFrame(frame);
 }
 export function installGtaRuntime(){if(installed)return;installed=true;installStyle();installInput();expose();requestAnimationFrame(frame);}
 installGtaRuntime();
