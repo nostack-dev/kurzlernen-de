@@ -2,7 +2,7 @@ file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic
   if(delta<4)throw new Error(`SMG hold must fire continuously beyond a three-round burst: ${JSON.stringify({beforeShots,held,released,delta})}`);
                    ^
 
-Error: SMG hold must fire continuously beyond a three-round burst: {"beforeShots":0,"held":{"shots":3,"active":"1","hold":"screen-pointer-owned-smg-v1","api":"single-shot-per-call-v2","alignment":"grip-anchor-to-resolved-shot-v6","error":0,"drift":0,"grip":"grip-world-fixed-v2","vector":"grip-to-muzzle-to-shot-point-v1","target":"-25.167,175.146,9.810"},"released":{"shots":4,"active":"0","release":"pointerup","tail":0},"delta":3}
+Error: SMG hold must fire continuously beyond a three-round burst: {"beforeShots":0,"held":{"shots":2,"active":"1","hold":"screen-pointer-owned-smg-v1","api":"single-shot-per-call-v2","alignment":"grip-anchor-to-resolved-shot-v6","error":0.004,"drift":0,"grip":"grip-world-fixed-v2","vector":"grip-to-muzzle-to-shot-point-v1","target":"-0.418,0.065,1.816"},"released":{"shots":4,"active":"0","release":"pointerup","tail":0},"delta":2}
     at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:31:20
 
 Node.js v22.23.3
