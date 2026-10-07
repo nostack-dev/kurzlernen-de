@@ -11,7 +11,7 @@ import {elevationAt,onElevationChange,elevationCenter} from "./terrain_elevation
 // whose tops follow the crater surface — a concave bowl built from convex
 // pieces. Rebuilt only when a crater appears or the world resets.
 
-export const TERRAIN_CRATERS_VERSION="box3d-tiled-crater-terrain-v1";
+export const TERRAIN_CRATERS_VERSION="single-surface-cached-grid-v2";
 export const CRATER_R=210,CRATER_DEPTH=22,CRATER_RIM=7;
 const SLAB_CELLS=16,SLAB_BOTTOM_Z=-90,GROUND_THICKNESS=.1,MAX_CRATERS=3;
 
@@ -44,8 +44,19 @@ export function waterAt(x,y){const l=waterBuckets.get(Math.floor(x/WB)*73856093^
 export function waterFlowAt(x,y){return waterFlow&&waterAt(x,y)?waterFlow(x,y):null;}
 export function waterRegions(){return waterRects;}
 // Static ground (real elevation + craters + river/lake beds), without the transient pressure wave.
-function terrainNodeHeightAt(x,y){const e=elevationAt(x,y);let h=e;for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return Math.min(h,e-WATER_BED_M);return h;}
-export function staticGroundHeightAt(x,y){return triangleHeightAt(x,y,terrainNodeHeightAt);}
+export function terrainNodeHeightAt(x,y){const e=elevationAt(x,y);let h=e;for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return Math.min(h,e-WATER_BED_M);return h;}
+const terrainCellCache=new Map();
+function terrainCell(ix,iy){
+  let col=terrainCellCache.get(ix);if(!col){col=new Map();terrainCellCache.set(ix,col);}
+  let cell=col.get(iy);if(cell)return cell;
+  const st=TERRAIN_FIELD_STEP_M,x0=ix*st,y0=iy*st;
+  cell=[terrainNodeHeightAt(x0,y0),terrainNodeHeightAt(x0+st,y0),terrainNodeHeightAt(x0,y0+st),terrainNodeHeightAt(x0+st,y0+st)];
+  col.set(iy,cell);return cell;
+}
+export function staticGroundHeightAt(x,y){
+  const st=TERRAIN_FIELD_STEP_M,ix=Math.floor(x/st),iy=Math.floor(y/st),x0=ix*st,y0=iy*st,u=(x-x0)/st,v=(y-y0)/st,[a,b,c,d]=terrainCell(ix,iy);
+  return u>=v?a+(b-a)*(u-v)+(d-a)*v:a+(c-a)*(v-u)+(d-a)*u;
+}
 export function groundHeightAt(x,y){return staticGroundHeightAt(x,y)+shockHeightAt(x,y);}
 // Underground guard. The collision terrain is a thin triangulated height
 // field: a body that ends up beneath it (spawned before the DEM arrived, the
@@ -68,7 +79,7 @@ export function addCrater(x,y){craters.push({x:Number(x)||0,y:Number(y)||0});whi
 export function clearCraters(){if(!craters.length)return;craters.length=0;notify();}
 export function onTerrainChange(fn){listeners.add(fn);return()=>listeners.delete(fn);}
 onElevationChange(()=>notify());
-function notify(){for(const fn of listeners){try{fn(terrainCraters());}catch(error){console.warn("terrain listener",error);}}}
+function notify(){terrainCellCache.clear();for(const fn of listeners){try{fn(terrainCraters());}catch(error){console.warn("terrain listener",error);}}}
 
 // Ground box minus the crater squares, as non-overlapping rectangles.
 function groundRectangles(half,holes){
@@ -97,8 +108,8 @@ export function createTerrainBody(b3,world,shapeDef,half){
   // surface the renderer, walkers and crowds use. Box3D height fields are
   // y-up, so the body is rotated +90° about x (local y -> world z).
   if(typeof b3.b3CreateHeightField==="function"&&typeof b3.b3CreateHeightFieldShape==="function"){
-    const[cx,cy]=elevationCenter(),H=TERRAIN_FIELD_HALF_M,st=TERRAIN_FIELD_STEP_M,n=Math.round(2*H/st)+1,x0=Math.round((cx-H)/st)*st,yTop=Math.round((cy+H)/st)*st,heights=new Array(n*n);let mn=Infinity;
-    for(let j=0;j<n;j++){const y=yTop-j*st;for(let i=0;i<n;i++){const v=staticGroundHeightAt(x0+i*st,y);heights[j*n+i]=v;if(v<mn)mn=v;}}
+    const[cx,cy]=elevationCenter(),H=TERRAIN_FIELD_HALF_M,st=TERRAIN_FIELD_STEP_M,n=Math.round(2*H/st)+1,x0=Math.round((cx-H)/st)*st,yTop=Math.round((cy+H)/st)*st,heights=new Float32Array(n*n);let mn=Infinity;
+    for(let j=0;j<n;j++){const y=yTop-j*st;for(let i=0;i<n;i++){const v=terrainNodeHeightAt(x0+i*st,y);heights[j*n+i]=v;if(v<mn)mn=v;}}
     const field=b3.b3CreateHeightField(heights,n,n,[st,1,st]);
     if(field){const body=staticBody([x0,yTop,0],[Math.SQRT1_2,0,0,Math.SQRT1_2]);try{b3.b3CreateHeightFieldShape(body,shapeDef,field);shapeCount++;}finally{b3.b3DestroyHeightField(field);}
       // beyond the field: a flat floor at the field's lowest level
