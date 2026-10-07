@@ -25,15 +25,20 @@ const files=Object.fromEntries(await Promise.all([
   "sim/wanted_police_drones.mjs",
   "sim/world_city_buildings.mjs",
   "sim/camera_collision_guard.mjs",
-  "sim/auto_flight_start.mjs"
+  "sim/auto_flight_start.mjs",
+  "sim/simulator.mjs",
+  "sim/terrain_craters.mjs",
+  "sim/world_ground.mjs"
 ].map(async path=>[path,await readFile(path,"utf8")])));
 
 const style=files["sim/stylized_world_style.mjs"];
-assert.ok(style.includes("function scanScene(scene)")&&style.includes("actorRoots=nextActors"),"style scan must cache actor roots");
+assert.ok(style.includes("function beginScan(scene)")&&style.includes("function stepScan(deadline)")&&style.includes("scanStack"),"style scan must be incremental and cache actor roots");
+assert.ok(!style.includes("function scanScene(scene)"),"full synchronous scene scan must not return");
 const cull=style.slice(style.indexOf("function cullActors"),style.indexOf("let blastAt"));
 assert.ok(!cull.includes("scene.traverse"),"actor culling must not traverse the full scene");
 assert.ok(style.includes("sunForward=new THREE.Vector3()")&&!style.includes("const fwd=new THREE.Vector3();"),"sun follow must not allocate a vector every frame");
-assert.ok(style.includes("SCAN_INTERVAL_MS=MOBILE?900:650"),"full style scans must be throttled");
+assert.ok(style.includes("SCAN_INTERVAL_MS=MOBILE?900:650"),"style discovery scans must be throttled");
+assert.ok(style.includes("if(!covered)try{bakeSky"),"hidden start menu must not pay procedural sky render cost");
 
 const mobile=files["sim/mobile_gameplay_ui.mjs"];
 assert.ok(mobile.includes("const UI_SYNC_MS=100")&&mobile.includes("setTimeout(sync,UI_SYNC_MS)"),"mobile HUD must use low-frequency state sync");
@@ -105,5 +110,12 @@ assert.ok(cameraGuard.includes("setTimeout(maintenance,500)")&&!cameraGuard.incl
 const startup=files["sim/auto_flight_start.mjs"];
 assert.ok(startup.includes("await withTimeout(neonSettled(),5500)")&&startup.includes("await withTimeout(compileScene(),4500)"),"optional visual preparation must be bounded so START can never hang forever");
 assert.ok(startup.includes("startup preparation continued after non-fatal failure"),"startup must fail open after optional preparation errors");
+
+const simulator=files["sim/simulator.mjs"];
+assert.ok(simulator.includes('if(gameMenu&&!gameMenu.hidden){lastPresentationDrawMs=performance.now();return;}'),"opaque start menu must suppress hidden WebGL world rendering");
+
+const terrain=files["sim/terrain_craters.mjs"],ground=files["sim/world_ground.mjs"];
+assert.ok(terrain.includes("terrainCellCache")&&terrain.includes("terrainNodeHeightAt"),"terrain hot queries must share cached physical grid nodes");
+assert.ok(ground.includes("terrainNodeHeightAt(x,y)"),"visible ground vertices must use the exact Box3D terrain nodes");
 
 console.log("Drone runtime performance contract passed: graphics stay frame-driven while scans, DOM and integration housekeeping are throttled.");
