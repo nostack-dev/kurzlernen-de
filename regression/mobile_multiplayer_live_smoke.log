@@ -1,0 +1,18 @@
+Dual-mobile multiplayer diagnostic: {"phoneA":null,"phoneB":null}
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/Deferred.js:57
+            this.#timeoutError = new TimeoutError(opts.message);
+                                 ^
+
+TimeoutError: Navigation timeout of 45000 ms exceeded
+    at new Deferred (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/Deferred.js:57:34)
+    at Deferred.create (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/Deferred.js:18:16)
+    at new LifecycleWatcher (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/cdp/LifecycleWatcher.js:66:46)
+    at CdpFrame.goto (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/cdp/Frame.js:145:29)
+    at CdpFrame.<anonymous> (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/decorators.js:101:27)
+    at CdpPage.goto (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Page.js:570:43)
+    at makePhone (file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_multiplayer_live_smoke.mjs:14:22)
+    at async Promise.all (index 0)
+    at async bounded (file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_multiplayer_live_smoke.mjs:8:65)
+    at async file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_multiplayer_live_smoke.mjs:32:9
+
+Node.js v22.23.3
