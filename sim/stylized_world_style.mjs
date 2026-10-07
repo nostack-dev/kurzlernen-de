@@ -4,16 +4,15 @@ import "./emp_button_layout.mjs";
 import {groundHeightAt} from "./terrain_craters.mjs";
 import {patchShockMaterial} from "./nuke_shock_field.mjs";
 
-// Neon wireframe city, matching the RUSH start screen: black plate, bright
-// green edges, ground grid. No maps, no imagery, no shadow maps.
-// WebGL line primitives only: before every render each Mesh/Line material is
-// forced to wireframe (gl.LINES), untextured, #3dff8a. No filled fragments.
-// Fat screen-space edge lines (LineMaterial) keep their own line shader.
+// Readable RUSH neon city: dark solid silhouettes + selective phosphor edges.
+// No textures, no satellite imagery, no shadow maps. The look stays green-neon,
+// but solid faces carry depth so streets, buildings, vehicles and people remain
+// legible instead of collapsing into one overexposed wireframe field.
 
-export const STYLIZED_STYLE_VERSION="rush-wire-primitives-v2";
+export const STYLIZED_STYLE_VERSION="rush-neon-readable-v3";
 export const STYLE_PALETTE=Object.freeze({skyZenith:0x020c07,skyHorizon:0x052515,haze:0x07331d,ground:0x02140c,phosphor:0x3dff8a,edge:0x39ff14,fill:0x032417});
 export const NEON_BUILDING_EXTRUSION_COLOR="#032417";
-const PHOSPHOR=0x3dff8a,FILL=0x032417,SURFACE=0x087043,HOT=0xb6ffcf;
+const PHOSPHOR=0x3dff8a,FILL=0x03140d,SURFACE=0x0a2b1e,HOT=0x8dffb4;
 const MOBILE=typeof navigator!=="undefined"&&/android|iphone|ipad|mobile/i.test(navigator.userAgent||"");
 const SCAN_INTERVAL_MS=MOBILE?900:650,FRAME_BUDGET_MS=2.8,EDGE_THRESHOLD=26;
 const CLEAR_COLOR=0x010806,GRID_STEP_M=16,GRID_LIFT_M=.2;
@@ -50,7 +49,7 @@ function killLights(scene,renderer){
   scene.traverse(o=>{if((o.isDirectionalLight||o.isHemisphereLight||o.isAmbientLight||o.isPointLight||o.isSpotLight)&&!o.userData.phosphorKeep){o.intensity=0;o.castShadow=false;}});
   scene.environment=null;if(renderer){renderer.shadowMap.enabled=false;renderer.toneMapping=THREE.NoToneMapping;renderer.outputColorSpace=THREE.SRGBColorSpace;}
 }
-const edgeMat=new THREE.LineBasicMaterial({color:PHOSPHOR,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false});
+const edgeMat=new THREE.LineBasicMaterial({color:PHOSPHOR,transparent:true,opacity:.72,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false});
 function edgesFor(geometry){const key=geometry.uuid;let g=edgeCache.get(key);if(!g){g=new THREE.EdgesGeometry(geometry,EDGE_THRESHOLD);edgeCache.set(key,g);}return g;}
 function materialsOf(mesh){return(Array.isArray(mesh.material)?mesh.material:[mesh.material]).filter(Boolean);}
 function needsSwap(node,m){
@@ -94,7 +93,11 @@ function wireBackdrop(scene,renderer){
   if(sky&&sky.visible)sky.visible=false;
 }
 function followGrid(camera){
-  if(!grid)return;grid.visible=true;if(!camera)return;
+  if(!grid)return;
+  // WORLD_GROUND already draws the same 16 m neon lattice directly on the
+  // deformed terrain. Never draw this legacy flat helper over the real world.
+  if(bridge()?.active){grid.visible=false;return;}
+  grid.visible=true;if(!camera)return;
   const x=camera.position.x,y=camera.position.y,h=groundHeightAt(x,y);
   grid.position.x=Math.round(x/GRID_STEP_M)*GRID_STEP_M;grid.position.y=Math.round(y/GRID_STEP_M)*GRID_STEP_M;grid.position.z=(Number.isFinite(h)?h:0)+GRID_LIFT_M;
 }
@@ -103,9 +106,10 @@ function phosphorize(material,hot){
   if(!material||processed.has(material))return;processed.add(material);stripTextures(material);
   const glow=material.transparent||material.blending===THREE.AdditiveBlending||hot;
   if(material.color)material.color.set(glow?HOT:(material.emissive?FILL:SURFACE));
-  if(material.emissive){material.emissive.set(PHOSPHOR);material.emissiveIntensity=glow?1.55:.42;}
+  if(material.emissive){material.emissive.set(PHOSPHOR);material.emissiveIntensity=glow?1.15:.26;}
   if("roughness"in material)material.roughness=1;if("metalness"in material)material.metalness=0;if("envMapIntensity"in material)material.envMapIntensity=0;
-  material.needsUpdate=true;
+  if("wireframe"in material&&material.wireframe){material.wireframe=false;material.needsUpdate=true;}
+  material.toneMapped=false;material.needsUpdate=true;
 }
 function addEdges(node){
   if(node.userData.phosphorEdges||node.isInstancedMesh)return;
@@ -114,7 +118,15 @@ function addEdges(node){
   lines.userData.styleSkip=true;lines.frustumCulled=node.frustumCulled;lines.renderOrder=(node.renderOrder||0)+1;node.add(lines);node.userData.phosphorEdges=true;
 }
 function convert(node){
-  node.userData.stylized=STYLIZED_STYLE_VERSION;node.userData.stylizedMaterial=node.material;node.castShadow=false;node.receiveShadow=false;converted++;
+  // Undo the previous global wireframe override if a live session hot-reloads
+  // this module; reloads then converge to the same readable material state.
+  if(node.userData.wireOriginalMaterial){node.material=node.userData.wireOriginalMaterial;delete node.userData.wireOriginalMaterial;}
+  node.castShadow=false;node.receiveShadow=false;
+  if(!skip(node)){
+    if(node.isMesh){for(const m of materialsOf(node))phosphorize(m,false);if(!node.isInstancedMesh)addEdges(node);}
+    else if(node.isLine||node.isLineSegments){for(const m of materialsOf(node))phosphorize(m,true);}
+  }
+  node.userData.stylized=STYLIZED_STYLE_VERSION;node.userData.stylizedMaterial=node.material;converted++;
 }
 function needsWork(node){return(node.isMesh||node.isSprite)&&(node.userData.stylized!==STYLIZED_STYLE_VERSION||node.userData.stylizedMaterial!==node.material);}
 function styleScene(scene){
@@ -122,7 +134,7 @@ function styleScene(scene){
   // Full-scene light discovery is a scene-change operation, never a frame task.
   // New lights are disabled by the incremental scanner below.
   killLights(scene,bridge()?.threeRenderer);
-  scene.background=new THREE.Color(STYLE_PALETTE.skyZenith);scene.fog=new THREE.FogExp2(STYLE_PALETTE.haze,.00038);
+  scene.background=new THREE.Color(STYLE_PALETTE.skyZenith);scene.fog=new THREE.FogExp2(STYLE_PALETTE.haze,.00016);
   
 }
 const ACTOR_CULL_M=260,CULL_INTERVAL_MS=600,cullPos=new THREE.Vector3();
@@ -143,7 +155,7 @@ function cullActors(now){if(now-lastCull<CULL_INTERVAL_MS)return;lastCull=now;co
 function frame(now){
   const scene=bridge()?.threeScene;if(!scene)return requestAnimationFrame(frame);
   styleScene(scene);skyUniforms.uTime.value=now/1000;
-  followGrid(bridge()?.threeCamera);wireBackdrop(scene,bridge()?.threeRenderer);
+  if(sky)sky.visible=true;followGrid(bridge()?.threeCamera);
   if(!scanStack.length&&!scanSceneRef&&now-lastScan>SCAN_INTERVAL_MS){lastScan=now;beginScan(scene);}
   const deadline=performance.now()+FRAME_BUDGET_MS;stepScan(deadline);cullActors(now);
   while(queue.length&&performance.now()<deadline){const node=queue.pop();if(node.parent)convert(node);}
@@ -157,8 +169,7 @@ function injectMapCanvasHide(){
   const tag=document.createElement("style");tag.dataset.neonMapCanvas=STYLIZED_STYLE_VERSION;tag.textContent="html.neon-line-style .maplibregl-canvas{opacity:0!important}html.neon-line-style .maplibregl-map{visibility:hidden!important;opacity:0!important}";
   (document.head||document.documentElement).appendChild(tag);
 }
-export function installStylizedWorldStyle(){if(installed||typeof window==="undefined")return;installed=true;document.documentElement.classList.add("stylized-world","neon-line-style");injectMapCanvasHide();const view=viewport();if(view)view.dataset.visualStyle=STYLIZED_STYLE_VERSION;requestAnimationFrame(frame);
-  const attach=()=>{const b=bridge();if(typeof b?.addPreRenderHook!=="function")return requestAnimationFrame(attach);b.addPreRenderHook((scene,camera)=>{if(!scene)return;wireBackdrop(scene,b.threeRenderer);followGrid(camera||b.threeCamera);wireScene(scene);});};attach();}
+export function installStylizedWorldStyle(){if(installed||typeof window==="undefined")return;installed=true;document.documentElement.classList.add("stylized-world","neon-line-style");injectMapCanvasHide();const view=viewport();if(view)view.dataset.visualStyle=STYLIZED_STYLE_VERSION;requestAnimationFrame(frame);}
 installStylizedWorldStyle();
 export function applyNeonMapStyle(map){
   injectMapCanvasHide();
