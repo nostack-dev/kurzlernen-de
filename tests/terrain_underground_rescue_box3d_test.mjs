@@ -32,10 +32,12 @@ for(const id of["car","box","north","south"]){const p=physics.pose(id),g=staticG
 physics.setDrive("car",{pedal:1,steer:0,maxSpeed:20});step(240);
 let p=physics.pose("car"),g=staticGroundHeightAt(p.position[0],p.position[1]);console.log("after climbing x",p.position[0].toFixed(1),"z",p.position[2].toFixed(2),"ground",g.toFixed(2));
 assert.ok(p.position[0]>15,"car climbs the hill");assert.ok(p.position[2]>g&&p.position[2]<g+2,"car stays on the slope");
-// a body forced below the surface is recovered by the guard within a few steps
+// The helper remains available for the one-shot DEM/terrain rebuild path, but normal
+// physics steps must never teleport a vehicle back to the surface.
 const z0=terrainRescueZ(p.position[0],p.position[1],g-3,.6);assert.ok(z0!==null&&z0>g,"rescue height is above the surface");
 assert.equal(terrainRescueZ(p.position[0],p.position[1],g+.5,.6),null,"bodies above the surface are left alone");
 physics.setDrive("car",{pedal:0,steer:0});const q=physics.pose("car");physics.setPose?.("car",{position:[q.position[0],q.position[1],g-4],yaw:0});
-step(30);p=physics.pose("car");g=staticGroundHeightAt(p.position[0],p.position[1]);console.log("after forced burial z",p.position[2].toFixed(2),"ground",g.toFixed(2));
-assert.ok(p.position[2]>g,"buried car is lifted back on top");
-console.log("terrain underground rescue test passed");
+const beforeSteps=physics.terrainRescues||0;step(30);assert.equal(physics.terrainRescues||0,beforeSteps,"normal physics steps must not run the terrain teleport guard");
+physics.rescueFromTerrain();p=physics.pose("car");g=staticGroundHeightAt(p.position[0],p.position[1]);console.log("explicit terrain-rebuild recovery z",p.position[2].toFixed(2),"ground",g.toFixed(2));
+assert.ok(p.position[2]>g,"explicit terrain rebuild recovery lifts a buried body once");
+console.log("terrain rebuild recovery test passed; normal vehicle physics has no periodic grounding teleport");
