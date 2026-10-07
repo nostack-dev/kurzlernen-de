@@ -41,10 +41,10 @@ function ensureMeshes(scene){
   group=new THREE.Group();group.name="WORLD_CITY_BUILDINGS";
   solid=new THREE.Mesh(new THREE.BufferGeometry(),patchShockMaterial(new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false,fog:false,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:2})));solid.name="WORLD_CITY_SOLIDS";solid.frustumCulled=false;
   const empty=fatLineGeometry([0,0,0,0,0,0]);
-  edges=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(NEON_DEBUG_PALETTE.building,{width:2}),{lines:true}));edges.name="WORLD_CITY_EDGES";edges.frustumCulled=false;
-  // Far outlines: native 1 px lines (nearly free on every GPU); only the
-  // close buildings get the wide fat-line quads, which cost fill rate.
-  thinEdges=new THREE.LineSegments(new THREE.BufferGeometry(),patchShockMaterial(new THREE.LineBasicMaterial({color:NEON_DEBUG_PALETTE.building,toneMapped:false,fog:false,transparent:true,opacity:.85})));thinEdges.name="WORLD_CITY_EDGES_FAR";thinEdges.frustumCulled=false;
+  edges=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(NEON_DEBUG_PALETTE.building,{width:2.55,opacity:.98,additive:true,depthTest:true}),{lines:true}));edges.name="WORLD_CITY_EDGES";edges.frustumCulled=false;
+  // Far outlines stay native 1 px for performance, but use a brighter
+  // single-pass additive stroke so the wireframe remains readable at range.
+  thinEdges=new THREE.LineSegments(new THREE.BufferGeometry(),patchShockMaterial(new THREE.LineBasicMaterial({color:NEON_DEBUG_PALETTE.building,toneMapped:false,fog:false,transparent:true,opacity:.98,blending:THREE.AdditiveBlending,depthTest:true,depthWrite:false})));thinEdges.name="WORLD_CITY_EDGES_FAR";thinEdges.frustumCulled=false;
   for(const node of[group,solid,edges,thinEdges]){node.userData.neonSkip=true;node.userData.flightFireIgnore=true;node.userData.worldCityBuildings=true;}
   delete edges.userData.neonEdge;
   group.add(solid,edges,thinEdges);scene.add(group);sceneRef=scene;currentHash="";
