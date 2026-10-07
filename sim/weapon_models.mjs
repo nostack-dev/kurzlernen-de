@@ -22,6 +22,9 @@ function profile(points,w,bevel=.008){
 function box(w,h,d,mat,x,y,z,partKey){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);return tag(m,partKey);}
 function cyl(r,len,mat,x,y,z,partKey,seg=14,r2=r){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r2,len,seg),mat);m.rotation.x=Math.PI/2;m.position.set(x,y,z);return tag(m,partKey);}
 function solid(geo,mat,x=0,y=0,z=0,partKey){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);return tag(m,partKey);}
+// Named anchor points the first-person controller aligns with (grip pivot
+// and the sight line).
+function marker(name,x,y,z){const n=new THREE.Object3D();n.name=name;n.position.set(x,y,z);n.userData.flightFireIgnore=true;n.userData.walkWeaponPart=true;return n;}
 function muzzle(name,z,y=0){const n=new THREE.Object3D();n.name=name;n.position.set(0,y,z);n.userData.flightFireIgnore=true;n.userData.walkWeaponPart=true;return n;}
 
 export function buildVoltSmg(){
@@ -50,6 +53,7 @@ export function buildVoltSmg(){
   // sights (glowing dot)
   g.add(box(.06,.03,.03,rubber,0,.13,-.1,K));g.add(box(.03,.035,.025,rubber,0,.13,-.40,K));
   g.add(tag(new THREE.Mesh(new THREE.SphereGeometry(.007,8,6),glow(0x4fe3ff)),K)).children.at(-1).position.set(0,.152,-.405);
+  g.add(marker("WALK_SMG_PISTOL_GRIP",0,-.15,-.15),marker("WALK_SMG_REAR_SIGHT",0,.152,-.1),marker("WALK_SMG_FRONT_SIGHT",0,.152,-.405));
   g.add(muzzle("WALK_SMG_MUZZLE_NODE",-.9,.02));
   return g;
 }
@@ -75,6 +79,7 @@ export function buildGoldenHandCannon(){
   // sights: glowing red night sights
   g.add(box(.05,.02,.02,frame,0,.082,.0,K));g.add(box(.012,.024,.014,red,-.017,.088,.0,K));g.add(box(.012,.024,.014,red,.017,.088,.0,K));
   g.add(box(.016,.026,.016,red,0,.084,-.29,K));
+  g.add(marker("WALK_GLOCK_GRIP",0,-.12,.01),marker("WALK_GLOCK_REAR_SIGHT",0,.098,.0),marker("WALK_GLOCK_FRONT_SIGHT",0,.098,-.29));
   g.add(muzzle("WALK_GLOCK_MUZZLE_NODE",-.40,.04));
   g.scale.setScalar(1.35);g.position.set(.0,-.02,-.05);
   return g;
@@ -97,6 +102,7 @@ export function buildBoomstick(){
   const ring=new THREE.Mesh(new THREE.TorusGeometry(.06,.01,6,20),glowO);ring.position.set(0,.03,-.842);g.add(tag(ring,K));
   g.add(box(.05,.03,.26,black,0,.13,-.2,K));g.add(box(.04,.06,.03,black,0,.1,-.08,K));g.add(box(.04,.06,.03,black,0,.1,-.32,K));
   g.add(box(.02,.04,.02,glowO,0,.16,-.3,K));
+  g.add(marker("WALK_GL_GRIP",0,-.15,-.095),marker("WALK_GL_REAR_SIGHT",0,.175,-.08),marker("WALK_GL_FRONT_SIGHT",0,.175,-.32));
   g.add(muzzle("WALK_GRENADE_MUZZLE_NODE",-.87,.03));
   return g;
 }
