@@ -3,7 +3,6 @@ import {buildingFootprintsFromFeatures,buildingFootprintHash} from "./world_buil
 import {buildingDamage,destructionRevision,onDestruction} from "./world_destruction_state.mjs";
 import {NEON_DEBUG_PALETTE,fatLineMaterial,fatLineGeometry,fatLineSegments} from "./box3d_collider_debug.mjs";
 import {patchShockMaterial} from "./nuke_shock_field.mjs";
-import {STYLE_GLSL,toonUniforms} from "./stylized_world_style.mjs";
 
 // The real city from the world map, drawn in the neon look.
 // Every building footprint of the loaded map tiles within VISUAL_RADIUS_M is
@@ -28,9 +27,9 @@ import {STYLE_GLSL,toonUniforms} from "./stylized_world_style.mjs";
 export const CITY_BUILDINGS_VERSION="world-map-neon-city-v2-instant-damage";
 const VISUAL_RADIUS_M=900,LINE_RADIUS_M=420,FAT_RADIUS_M=220,MAX_FOOTPRINTS=2600,MAX_VERTICES=96;
 const RESYNC_MOVE_M=140,RESYNC_MS=2500,SLICE_MS=4;
-// Hero-stylized palette: sandstone, brick, plaster, blue-grey, mustard,
-// sage and concrete facades; slate / terracotta roofs.
-const WALLS=["#cdb99a","#b4634a","#e6e0d2","#7f9bb3","#d6a54c","#6f9e8c","#a9a49a","#c98d6b"],ROOFS=["#5b5f66","#7a4a3a","#4d5a63","#6b6e72"],SUN=(()=>{const x=-.55,y=-.83,l=Math.hypot(x,y);return[x/l,y/l];})();
+// Realistic urban palette: plaster, sandstone, brick, concrete, painted
+// render; dark slate / bitumen / terracotta roofs.
+const WALLS=["#c9bfae","#b9a88c","#8e5443","#9c9a94","#d8d2c4","#a87c5f","#7d8590","#cbb79a"],ROOFS=["#4a4c50","#3b3d40","#6e4334","#55585c"],SUN=(()=>{const x=-.55,y=-.83,l=Math.hypot(x,y);return[x/l,y/l];})();
 
 let installed=false,group=null,solid=null,edgeGlow=null,edges=null,thinEdges=null,sceneRef=null,lastCenter=[Infinity,Infinity],lastSyncAt=-Infinity,currentHash="",building=null,lastFeatureCount=-1;
 const viewport=()=>document.getElementById("viewport");
@@ -44,77 +43,70 @@ function hash(value){let h=2166136261;for(const ch of String(value||""))h=Math.i
 // filmic curve) and cuts windows, floor trims and a ground-floor shop band
 // out of the walls from their world position. Far away the window grid
 // fades to an average tone so it never shimmers.
-function heroFacades(material){
+// Realistic facades on a PBR material (MeshStandard: sun, soft shadows and
+// sky reflections from the environment map). The shader composes each wall
+// in metres along the wall: corner pilasters, a ground-floor shop band with
+// storefront glass and awnings, framed windows with sills (style varies per
+// building), glass curtain walls on towers. Glass is dark, smooth and
+// partly metallic so it reflects the sky; frames, trims and plaster differ
+// in roughness. Roofs get a subtle tar/gravel variation.
+function realFacades(material){
   const previous=material.onBeforeCompile;
   material.onBeforeCompile=(shader,renderer)=>{previous?.call(material,shader,renderer);
-    Object.assign(shader.uniforms,toonUniforms);
     shader.vertexShader=shader.vertexShader.replace("void main() {","attribute vec4 aWall;attribute float aSeed;varying vec3 vWinPos;varying vec4 vWall;varying float vSeed;\nvoid main() {vWall=aWall;vSeed=aSeed;").replace("#include <begin_vertex>","#include <begin_vertex>\nvWinPos=(modelMatrix*vec4(transformed,1.0)).xyz;");
-    shader.fragmentShader="uniform vec3 uToonSun;uniform vec3 uToonSky;uniform vec3 uToonGround;uniform vec3 uToonSunColor;\n"+STYLE_GLSL+shader.fragmentShader.replace("void main() {","varying vec3 vWinPos;varying vec4 vWall;varying float vSeed;\nfloat fh(float n){return fract(sin(n*127.1)*43758.5453);}\nvoid main() {").replace("#include <opaque_fragment>",FACADE_GLSL+"\n#include <opaque_fragment>");
+    shader.fragmentShader=shader.fragmentShader.replace("void main() {","varying vec3 vWinPos;varying vec4 vWall;varying float vSeed;\nfloat fh(float n){return fract(sin(n*127.1)*43758.5453);}\nvoid main() {float facGlass=0.0,facRough=0.88;")
+      .replace("#include <color_fragment>","#include <color_fragment>\n"+FACADE_GLSL)
+      .replace("#include <roughnessmap_fragment>","#include <roughnessmap_fragment>\nroughnessFactor=mix(facRough,0.07,facGlass);")
+      .replace("#include <metalnessmap_fragment>","#include <metalnessmap_fragment>\nmetalnessFactor=mix(0.0,0.62,facGlass);");
   };
-  const key=material.customProgramCacheKey?.bind(material);material.customProgramCacheKey=()=>`${key?key():""}|hero-facades-v2`;return material;
+  const key=material.customProgramCacheKey?.bind(material);material.customProgramCacheKey=()=>`${key?key():""}|real-facades-v3`;return material;
 }
-// Facade composition per wall (in metres along the wall, so windows are
-// centred and never cut at corners): corner pilasters, a ground-floor shop
-// band with storefront glass and a coloured awning, upper floors with
-// framed windows and sills (style varies per building), glass curtain
-// walls on towers; roofs with a subtle tar texture-free tint. Glass mixes
-// a dark interior with sky reflection by view angle (fresnel).
 const FACADE_GLSL=`{
   vec3 wn=normalize(cross(dFdx(vWinPos),dFdy(vWinPos)));
-  vec3 viewDir=normalize(cameraPosition-vWinPos);if(dot(wn,viewDir)<0.0)wn=-wn;
-  vec3 base=outgoingLight;float sheen=0.06;
-  float ao=mix(0.58,1.0,smoothstep(0.0,3.2,vWall.z));
+  vec3 base=diffuseColor.rgb;
   float u=vWall.x,len=vWall.y,z=vWall.z,H=vWall.w;
   if(u>=0.0&&abs(wn.z)<0.5){
-    float fres=pow(1.0-max(dot(wn,viewDir),0.0),2.0);
-    vec3 skyR=mix(vec3(0.55,0.72,0.9),vec3(0.86,0.93,1.0),clamp(viewDir.z*-1.0+0.5,0.0,1.0));
-    vec3 glass=mix(vec3(0.10,0.16,0.24),skyR,0.35+0.55*fres);
+    vec3 glassC=vec3(0.16,0.21,0.27);
     float aa=clamp(1.6-fwidth(u)*1.2,0.0,1.0);
     float pil=1.0-step(0.38,u)*step(u,len-0.38);
     float tower=step(26.0,H);
     float pitch=mix(2.7,3.7,fh(vSeed*7.0)),floorH=mix(3.1,3.6,fh(vSeed*3.0));
     float nWin=max(1.0,floor((len-0.8)/pitch)),margin=(len-nWin*pitch)*0.5;
-    float lu=(u-margin)/pitch,col=floor(lu),fu=fract(lu),inRow=step(0.0,lu)*step(lu,nWin);
+    float lu=(u-margin)/pitch,fu=fract(lu),inRow=step(0.0,lu)*step(lu,nWin);
+    float gl=0.0,trimM=0.0;
     if(z<4.0&&len>3.0){
-      // shop band
       float sp=4.4,ns=max(1.0,floor(len/sp)),sm=(len-ns*sp)*0.5,su=fract((u-sm)/sp),inS=step(0.0,u-sm)*step(u-sm,ns*sp);
       float win=inS*step(.08,su)*step(su,.92)*step(.35,z)*step(z,3.0);
       float frame=inS*step(.05,su)*step(su,.95)*step(.25,z)*step(z,3.1)-win;
-      base=mix(base*0.86,base*0.55,frame*aa);
-      base=mix(base,glass*mix(vec3(1.0),vec3(1.15,1.05,0.9),step(z,1.6)),win*aa);sheen=mix(sheen,0.9,win*aa);
-      vec3 awn=fh(vSeed*11.0)<.25?vec3(0.75,0.18,0.15):fh(vSeed*11.0)<.5?vec3(0.15,0.45,0.3):fh(vSeed*11.0)<.75?vec3(0.15,0.3,0.6):vec3(0.85,0.62,0.15);
-      float stripes=step(0.5,fract(u*1.4));
-      base=mix(base,awn*mix(1.0,1.25,stripes),step(3.15,z)*step(z,3.75)*aa);
-      base=mix(base,base*0.75,step(3.75,z)*step(z,4.0));
+      base=mix(base*0.9,vec3(0.12,0.12,0.13),frame*aa);trimM=frame;gl=win*aa;
+      float k=fh(vSeed*11.0);vec3 awn=k<.25?vec3(0.45,0.09,0.07):k<.5?vec3(0.08,0.24,0.15):k<.75?vec3(0.08,0.15,0.32):vec3(0.5,0.36,0.08);
+      float aw=step(3.15,z)*step(z,3.75)*aa;base=mix(base,awn*mix(1.0,1.15,step(0.5,fract(u*1.4))),aw);
+      base=mix(base,base*0.78,step(3.75,z)*step(z,4.0));
     }else if(tower>0.5){
-      // curtain wall: glass ribbons with spandrels and mullions
-      float fz=fract((z-4.0)/floorH),mull=step(.94,fract(u/1.6));
-      float spandrel=step(.78,fz);
-      vec3 cw=mix(glass*1.05,base*0.9,spandrel);cw=mix(cw,base*0.7,mull*(1.0-spandrel));
-      base=mix(base,cw,aa*(1.0-pil));sheen=mix(sheen,0.8,(1.0-spandrel)*aa*(1.0-pil));
+      float fz=fract((z-4.0)/floorH),mull=step(.95,fract(u/1.6)),spandrel=step(.8,fz);
+      gl=(1.0-spandrel)*(1.0-mull)*aa*(1.0-pil);base=mix(base,base*0.85,spandrel*aa);trimM=mull;
     }else{
-      float fz=fract((z-4.0)/floorH),row=floor((z-4.0)/floorH);
-      float ww=mix(.38,.62,fh(vSeed*5.0)),wh=mix(.42,.62,fh(vSeed*9.0));
-      float inTop=step(z,H-1.2);
+      float fz=fract((z-4.0)/floorH);
+      float ww=mix(.38,.6,fh(vSeed*5.0)),wh=mix(.42,.6,fh(vSeed*9.0)),inTop=step(z,H-1.2);
       float win=inRow*inTop*step(.5-ww*.5,fu)*step(fu,.5+ww*.5)*step(.3,fz)*step(fz,.3+wh);
-      float frame=inRow*inTop*step(.5-ww*.5-.06,fu)*step(fu,.5+ww*.5+.06)*step(.24,fz)*step(fz,.36+wh)-win;
-      float sill=inRow*inTop*step(.5-ww*.5-.1,fu)*step(fu,.5+ww*.5+.1)*step(.2,fz)*step(fz,.25);
-      float lit=step(.86,fh(dot(vec2(col,row),vec2(17.0,31.0))+vSeed*13.0));
-      vec3 frameC=mix(vec3(0.95,0.94,0.9),base*0.6,step(.5,fh(vSeed*17.0)));
-      base=mix(base,frameC,(frame+sill)*aa);
-      base=mix(base,glass+vec3(0.35,0.28,0.12)*lit,win*aa)+vec3(0.04)*(1.0-aa);sheen=mix(sheen,0.9,win*aa);
-      base*=1.0-0.1*step(.96,fz)*aa;
+      float frame=inRow*inTop*step(.5-ww*.5-.05,fu)*step(fu,.5+ww*.5+.05)*step(.25,fz)*step(fz,.35+wh)-win;
+      float sill=inRow*inTop*step(.5-ww*.5-.09,fu)*step(fu,.5+ww*.5+.09)*step(.2,fz)*step(fz,.25);
+      vec3 frameC=fh(vSeed*17.0)<.5?vec3(0.85,0.84,0.8):vec3(0.14,0.14,0.15);
+      base=mix(base,frameC,frame*aa);base=mix(base,base*1.12+0.04,sill*aa);trimM=frame+sill;gl=win*aa;
+      base*=1.0-0.08*step(.965,fz)*aa;
     }
-    base=mix(base,base*0.82,pil*aa);
-  }else if(u<-1.5){base*=1.0;sheen=0.05;}
-  else if(abs(wn.z)>=0.5){float t=fract(sin(dot(floor(vWinPos.xy*0.5),vec2(12.99,78.23)))*43758.5);base*=0.92+0.08*t;sheen=0.03;ao=1.0;}
-  outgoingLight=heroFilmic(heroLight(base,wn,viewDir,normalize(uToonSun),vec3(0.0,0.0,1.0),ao,sheen));
+    base=mix(base,base*0.86,pil*aa);
+    base=mix(base,glassC,gl);facGlass=gl;facRough=mix(0.9,0.45,clamp(trimM,0.0,1.0));
+    base*=mix(0.72,1.0,smoothstep(0.0,2.5,z)); // grime / contact darkening near the ground
+  }else if(u<-1.5){facRough=0.7;}
+  else if(abs(wn.z)>=0.5){float t=fract(sin(dot(floor(vWinPos.xy*0.7),vec2(12.99,78.23)))*43758.5);base*=0.88+0.12*t;facRough=0.95;}
+  diffuseColor.rgb=base;
 }`;
 function ensureMeshes(scene){
   if(group?.parent===scene)return;
   if(group?.parent)group.parent.remove(group);
   group=new THREE.Group();group.name="WORLD_CITY_BUILDINGS";
-  solid=new THREE.Mesh(new THREE.BufferGeometry(),patchShockMaterial(heroFacades(new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false,fog:true,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:2}))));solid.name="WORLD_CITY_SOLIDS";solid.frustumCulled=false;
+  solid=new THREE.Mesh(new THREE.BufferGeometry(),patchShockMaterial(realFacades(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.88,metalness:0,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:2}))));solid.castShadow=true;solid.receiveShadow=true;solid.name="WORLD_CITY_SOLIDS";solid.frustumCulled=false;
   const empty=fatLineGeometry([0,0,0,0,0,0]);
   edgeGlow=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x29e6ff,{width:7,opacity:.2,additive:true,depthTest:true}),{lines:true}));edgeGlow.name="WORLD_CITY_EDGES_GLOW";edgeGlow.frustumCulled=false;
   edges=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x7ff3ff,{width:2.4,opacity:1,additive:true,depthTest:true}),{lines:true}));edges.name="WORLD_CITY_EDGES";edges.frustumCulled=false;
@@ -219,7 +211,7 @@ function pumpBuild(){
   while(performance.now()<until){r=building.steps.next();if(r.done)break;}
   if(!r?.done)return;
   const{pos,col,wa,ws,lines,thin,ranges}=r.value,geometry=new THREE.BufferGeometry();
-  geometry.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));geometry.setAttribute("color",new THREE.Float32BufferAttribute(col,3));geometry.setAttribute("aWall",new THREE.Float32BufferAttribute(wa,4));geometry.setAttribute("aSeed",new THREE.Float32BufferAttribute(ws,1));if(pos.length)geometry.computeBoundingSphere();
+  geometry.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));geometry.setAttribute("color",new THREE.Float32BufferAttribute(col,3));geometry.setAttribute("aWall",new THREE.Float32BufferAttribute(wa,4));geometry.setAttribute("aSeed",new THREE.Float32BufferAttribute(ws,1));if(pos.length)geometry.computeVertexNormals();if(pos.length)geometry.computeBoundingSphere();
   solid.geometry.dispose();solid.geometry=geometry;
   const outline=fatLineGeometry(lines.length?lines:[0,0,0,0,0,0]);edges.geometry.dispose?.();edges.geometry=outline;if(edgeGlow)edgeGlow.geometry=outline;
   const far=new THREE.BufferGeometry();far.setAttribute("position",new THREE.Float32BufferAttribute(thin,3));thinEdges.geometry.dispose();thinEdges.geometry=far;

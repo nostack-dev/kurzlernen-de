@@ -68,7 +68,7 @@ function makeBird(index){ensureShared();const s=hashText(`bird:${index}`),group=
 function createDecor(scene){
   const trunk=zCylinder(.1,.15,2.3,7),crown=new THREE.DodecahedronGeometry(.92,0),pole=zCylinder(.035,.055,3.7,6),head=new THREE.SphereGeometry(.11,7,5),animalBody=new THREE.BoxGeometry(.82,.30,.32),animalHead=new THREE.DodecahedronGeometry(.19,0);
   // Stylized (cel-shaded via stylized_world_style.mjs): brown trunks, leafy crowns.
-  const trunkMat=new THREE.MeshLambertMaterial({color:0x6b4a32}),crownMat=new THREE.MeshLambertMaterial({color:0x4f9a3a}),glowMat=new THREE.MeshBasicMaterial({color:0x5fb04a,transparent:true,opacity:0,depthWrite:false,toneMapped:false}),animalMat=new THREE.MeshLambertMaterial({color:0xb08a62});
+  const trunkMat=new THREE.MeshStandardMaterial({color:0x5a4030,roughness:.95}),crownMat=new THREE.MeshStandardMaterial({color:0x3f6b2a,roughness:.9}),glowMat=new THREE.MeshBasicMaterial({color:0x5fb04a,transparent:true,opacity:0,depthWrite:false,toneMapped:false}),animalMat=new THREE.MeshStandardMaterial({color:0x8a6a4a,roughness:.9});
   treeTrunks=new THREE.InstancedMesh(trunk,trunkMat,TREE_COUNT);treeCrowns=new THREE.InstancedMesh(crown,crownMat,TREE_COUNT);treeGlow=new THREE.InstancedMesh(crown,glowMat,TREE_COUNT);
   animalBodies=new THREE.InstancedMesh(animalBody,animalMat,AMBIENT_ANIMAL_COUNT);animalHeads=new THREE.InstancedMesh(animalHead,animalMat,AMBIENT_ANIMAL_COUNT);
   lampPoles=new THREE.InstancedMesh(pole,mat(0x4b5358,.55,.35),LAMP_COUNT);lampHeads=new THREE.InstancedMesh(head,new THREE.MeshStandardMaterial({color:0xe4d3a3,roughness:.38,emissive:0x8f6f35,emissiveIntensity:.15}),LAMP_COUNT);

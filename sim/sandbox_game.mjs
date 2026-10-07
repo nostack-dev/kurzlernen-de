@@ -50,19 +50,19 @@ function ensureHud(){
   hud.innerHTML='<div class="sb-flow"><span>FLOW</span><i><b></b></i><em>x1</em></div><div class="sb-score">0</div><div class="sb-pops"></div>';
   view.appendChild(hud);scoreEl=hud.querySelector(".sb-score");comboEl=hud.querySelector(".sb-flow em");flowEl=hud.querySelector(".sb-flow b");popLayer=hud.querySelector(".sb-pops");
   const style=document.createElement("style");style.dataset.sandboxHud=SANDBOX_GAME_VERSION;style.textContent=`
-#sandboxHud{position:absolute;inset:0;z-index:9;pointer-events:none;font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;font-style:italic}
-#sandboxHud .sb-score{position:absolute;right:max(16px,var(--solo-safe-right,env(safe-area-inset-right)));bottom:calc(max(14px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 168px);font-weight:900;font-size:clamp(26px,5vw,46px);letter-spacing:.04em;color:#ffffff;text-shadow:0 3px 0 #1a2440,0 0 12px rgba(0,0,0,.25);transform:skewX(-8deg)}
-#sandboxHud .sb-flow{position:absolute;right:max(16px,var(--solo-safe-right,env(safe-area-inset-right)));bottom:calc(max(14px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 214px);display:flex;align-items:center;gap:7px;color:#ffffff;font-weight:900;font-size:12px;letter-spacing:.12em;text-shadow:0 2px 0 rgba(0,0,0,.4)}
-#sandboxHud .sb-flow i{display:block;width:92px;height:7px;border-radius:4px;background:rgba(14,26,52,.5);overflow:hidden;box-shadow:0 2px 0 rgba(0,0,0,.3)}
-#sandboxHud .sb-flow b{display:block;height:100%;width:0;background:#ffd23f;transition:width .15s linear}
-#sandboxHud .sb-flow em{font-style:italic;color:#ffd23f;text-shadow:0 2px 0 rgba(0,0,0,.4);min-width:2.2em}
+#sandboxHud{position:absolute;inset:0;z-index:9;pointer-events:none;font-family:"Barlow Condensed","Barlow","Segoe UI",system-ui,sans-serif}
+#sandboxHud .sb-score{position:absolute;right:max(16px,var(--solo-safe-right,env(safe-area-inset-right)));bottom:calc(max(14px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 168px);font-weight:700;font-size:clamp(24px,4.4vw,40px);letter-spacing:.06em;color:#f2f4f7;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+#sandboxHud .sb-flow{position:absolute;right:max(16px,var(--solo-safe-right,env(safe-area-inset-right)));bottom:calc(max(14px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 214px);display:flex;align-items:center;gap:7px;color:#f2f4f7;font-weight:600;font-size:12px;letter-spacing:.16em;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+#sandboxHud .sb-flow i{display:block;width:92px;height:7px;border-radius:4px;background:rgba(10,13,18,.5);overflow:hidden;box-shadow:none}
+#sandboxHud .sb-flow b{display:block;height:100%;width:0;background:#f5b301;transition:width .15s linear}
+#sandboxHud .sb-flow em{font-style:italic;color:#f5b301;font-style:normal;text-shadow:0 1px 2px rgba(0,0,0,.6);min-width:2.2em}
 #sandboxHud .sb-pops{position:absolute;left:0;right:0;top:34%;display:flex;flex-direction:column;align-items:center;gap:4px}
-#sandboxHud .sb-pop{font-weight:900;font-size:clamp(20px,4.4vw,40px);letter-spacing:.06em;transform:skewX(-10deg);animation:sbPop 1.5s ease-out forwards;white-space:nowrap}
-#sandboxHud .sb-pop.pink{color:#ffffff;text-shadow:0 4px 0 #1a2440,0 0 16px rgba(0,0,0,.25)}
-#sandboxHud .sb-pop.cyan{color:#8fe0ff;text-shadow:0 4px 0 #0b2a4a,0 0 16px rgba(0,0,0,.25)}
-#sandboxHud .sb-pop.red{color:#ff5a4a;text-shadow:0 4px 0 #4a0d0a,0 0 16px rgba(0,0,0,.25)}
-#sandboxHud .sb-pop.gold{color:#ffd23f;text-shadow:0 4px 0 #6b4300,0 0 16px rgba(0,0,0,.25)}
-@keyframes sbPop{0%{opacity:0;transform:skewX(-10deg) scale(1.6)}12%{opacity:1;transform:skewX(-10deg) scale(1)}75%{opacity:1}100%{opacity:0;transform:skewX(-10deg) translateY(-18px)}}`;
+#sandboxHud .sb-pop{font-weight:700;font-size:clamp(18px,3.6vw,32px);letter-spacing:.14em;animation:sbPop 1.5s ease-out forwards;white-space:nowrap}
+#sandboxHud .sb-pop.pink{color:#f2f4f7;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+#sandboxHud .sb-pop.cyan{color:#9fd3ff;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+#sandboxHud .sb-pop.red{color:#ff6a5a;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+#sandboxHud .sb-pop.gold{color:#f5b301;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+@keyframes sbPop{0%{opacity:0;transform:scale(1.25)}10%{opacity:1;transform:scale(1)}75%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}`;
   document.head.appendChild(style);return true;
 }
 function pop(text,color="pink"){if(!ensureHud())return;const el=document.createElement("div");el.className=`sb-pop ${color}`;el.textContent=text;popLayer.appendChild(el);while(popLayer.children.length>3)popLayer.firstChild.remove();setTimeout(()=>el.remove(),1550);}

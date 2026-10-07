@@ -9,22 +9,25 @@ import * as THREE from "three";
 // off for the session (performance first).
 
 export const NEON_BLOOM_VERSION="quarter-res-two-level-bloom-v1";
-const DISABLE_FRAME_MS=27,DISABLE_AFTER_MS=3500,STRENGTH_NEAR=.32,STRENGTH_WIDE=.28,THRESHOLD=.78;
+const DISABLE_FRAME_MS=27,DISABLE_AFTER_MS=3500,STRENGTH_NEAR=.22,STRENGTH_WIDE=.2,THRESHOLD=.95;
 
 let installed=false,enabled=true,state=null,slowSince=0,frameAvg=16,lastFrameAt=0;
 const bridge=()=>globalThis.__arondightRealWorld||null;
 
 const VERT="varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}";
-function pass(fragmentShader,uniforms){return new THREE.ShaderMaterial({vertexShader:VERT,fragmentShader,uniforms,depthTest:false,depthWrite:false,toneMapped:false});}
+function pass(fragmentShader,uniforms,toneMapped=false){return new THREE.ShaderMaterial({vertexShader:VERT,fragmentShader,uniforms,depthTest:false,depthWrite:false,toneMapped});}
 function makeState(renderer){
   const target=opts=>new THREE.WebGLRenderTarget(1,1,{depthBuffer:false,stencilBuffer:false,...opts});
   const quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2)),scene=new THREE.Scene(),camera=new THREE.OrthographicCamera(-1,1,1,-1,0,1);quad.frustumCulled=false;scene.add(quad);
   const s={renderer,quad,scene,camera,size:new THREE.Vector2(),
-    main:new THREE.WebGLRenderTarget(1,1,{depthBuffer:true,stencilBuffer:false}),a1:target(),b1:target(),a2:target(),b2:target(),
+    main:new THREE.WebGLRenderTarget(1,1,{depthBuffer:true,stencilBuffer:false,type:THREE.HalfFloatType}),a1:target(),b1:target(),a2:target(),b2:target(),
     bright:pass(`uniform sampler2D tSrc;uniform float uThreshold;varying vec2 vUv;void main(){vec3 c=texture2D(tSrc,vUv).rgb;float m=max(c.r,max(c.g,c.b));gl_FragColor=vec4(c*smoothstep(uThreshold,uThreshold+.35,m),1.0);}`,{tSrc:{value:null},uThreshold:{value:THRESHOLD}}),
     blur:pass(`uniform sampler2D tSrc;uniform vec2 uDir;varying vec2 vUv;void main(){vec3 c=texture2D(tSrc,vUv).rgb*.2270;c+=texture2D(tSrc,vUv+uDir*1.3846).rgb*.3162;c+=texture2D(tSrc,vUv-uDir*1.3846).rgb*.3162;c+=texture2D(tSrc,vUv+uDir*3.2308).rgb*.0703;c+=texture2D(tSrc,vUv-uDir*3.2308).rgb*.0703;gl_FragColor=vec4(c,1.0);}`,{tSrc:{value:null},uDir:{value:new THREE.Vector2()}}),
     copy:pass(`uniform sampler2D tSrc;varying vec2 vUv;void main(){gl_FragColor=vec4(texture2D(tSrc,vUv).rgb,1.0);}`,{tSrc:{value:null}}),
-    combine:pass(`uniform sampler2D tScene;uniform sampler2D tB1;uniform sampler2D tB2;uniform float uS1;uniform float uS2;varying vec2 vUv;void main(){vec3 c=texture2D(tScene,vUv).rgb+texture2D(tB1,vUv).rgb*uS1+texture2D(tB2,vUv).rgb*uS2;gl_FragColor=linearToOutputTexel(vec4(c,1.0));}`,{tScene:{value:null},tB1:{value:null},tB2:{value:null},uS1:{value:STRENGTH_NEAR},uS2:{value:STRENGTH_WIDE}}),
+    combine:pass(`uniform sampler2D tScene;uniform sampler2D tB1;uniform sampler2D tB2;uniform float uS1;uniform float uS2;varying vec2 vUv;void main(){vec3 c=texture2D(tScene,vUv).rgb+texture2D(tB1,vUv).rgb*uS1+texture2D(tB2,vUv).rgb*uS2;gl_FragColor=vec4(c,1.0);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`,{tScene:{value:null},tB1:{value:null},tB2:{value:null},uS1:{value:STRENGTH_NEAR},uS2:{value:STRENGTH_WIDE}},true),
   };
   return s;
 }

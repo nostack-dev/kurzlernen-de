@@ -5,43 +5,43 @@
 // so all layout and visibility logic keeps working. The html class
 // "neon-line-style" is kept as the specificity hook other modules use.
 
-export const NEON_UI_THEME_VERSION="hero-game-ui-v3";
+export const NEON_UI_THEME_VERSION="realistic-hud-ui-v4";
 
 // The :not(#…) chain lifts specificity above the per-module id rules.
 const R="html.neon-line-style:not(#ng-a):not(#ng-b):not(#ng-c)";
 const CSS=`
-${R}{--ui-fill:rgba(14,26,52,.58);--ui-fill-strong:rgba(14,26,52,.85);--ui-line:rgba(255,255,255,.34);--ui-text:#ffffff;--ui-soft:rgba(255,255,255,.8);--ui-accent:#ffd23f;--ui-accent-ink:#2a1a00;--ui-cyan:#4fc3ff;--ui-shadow:0 3px 0 rgba(0,0,0,.28);--ui-font:"Trebuchet MS","Segoe UI",system-ui,-apple-system,sans-serif;
+${R}{--ui-fill:rgba(10,13,18,.56);--ui-fill-strong:rgba(10,13,18,.82);--ui-line:rgba(255,255,255,.16);--ui-text:#f2f4f7;--ui-soft:rgba(242,244,247,.72);--ui-accent:#f5b301;--ui-accent-ink:#1a1200;--ui-cyan:#7cc4ff;--ui-shadow:0 1px 2px rgba(0,0,0,.45);--ui-font:"Barlow","Segoe UI",Roboto,system-ui,-apple-system,sans-serif;
   /* legacy variable names other modules still read */
   --ng:var(--ui-text);--ng-core:#fff;--ng-dim:var(--ui-line);--ng-glow:transparent;--ng-glow-soft:transparent;--ng-fill:var(--ui-fill);--ng-text:var(--ui-text);--ng-font:var(--ui-font)}
 ${R} #viewport :is(button,[role="button"],a.linkbutton),${R} :is(#mobileGameplayDock,#soloTopbar,#cameraModes,#desktopDroneWeaponSwitch) button,${R} .phone-settings-button,
 ${R} :is(#playerModeButton,#driveModeButton,#gtaVehicleButton,#lanVsButton,#wantedEmpButton,#droneWeaponToggle,#footWeaponToggle,#footFire,#soloArm,#soloReset,#soloExit,#soloWorld,#soloLogbook,#soloCamera,#mobileGameplayReset,#mobileGameplayMultiplayer,#gameExitButton,#gameplayContractButton,#soundToggle){
-  background:var(--ui-fill)!important;background-image:none!important;color:var(--ui-text)!important;border:1.5px solid var(--ui-line)!important;border-radius:12px!important;
-  box-shadow:var(--ui-shadow)!important;text-shadow:0 2px 0 rgba(0,0,0,.35)!important;filter:none!important;text-transform:uppercase!important;
-  font-family:var(--ui-font)!important;font-weight:800!important;font-style:italic!important;letter-spacing:.06em!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-${R} :is(#soloArm,#gameMenu .menu-start,#gameMenuStart){background:var(--ui-accent)!important;color:var(--ui-accent-ink)!important;border-color:#fff3b8!important;text-shadow:none!important;box-shadow:0 3px 0 #b8861a!important}
-${R} #soloArm.armed{background:#3ad16a!important;color:#062814!important;box-shadow:0 3px 0 #1f8a41!important}
-${R} #wantedEmpButton{background:#4fc3ff!important;color:#06223a!important;border-color:#d8f2ff!important;text-shadow:none!important}
-${R} #viewport :is(button,[role="button"]):active{background:var(--ui-fill-strong)!important;box-shadow:0 1px 0 rgba(0,0,0,.28)!important}
+  background:var(--ui-fill)!important;background-image:none!important;color:var(--ui-text)!important;border:1px solid var(--ui-line)!important;border-radius:6px!important;
+  box-shadow:var(--ui-shadow)!important;text-shadow:0 1px 1px rgba(0,0,0,.5)!important;filter:none!important;text-transform:uppercase!important;
+  font-family:var(--ui-font)!important;font-weight:600!important;font-style:normal!important;letter-spacing:.09em!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+${R} :is(#soloArm,#gameMenu .menu-start,#gameMenuStart){background:var(--ui-accent)!important;color:var(--ui-accent-ink)!important;border-color:rgba(255,255,255,.35)!important;text-shadow:none!important;box-shadow:0 1px 2px rgba(0,0,0,.45)!important}
+${R} #soloArm.armed{background:#2f9e5a!important;color:#ffffff!important;box-shadow:0 1px 2px rgba(0,0,0,.45)!important}
+${R} #wantedEmpButton{background:rgba(40,110,170,.85)!important;color:#fff!important;border-color:rgba(255,255,255,.35)!important}
+${R} #viewport :is(button,[role="button"]):active{background:var(--ui-fill-strong)!important}
 ${R} #viewport button[disabled]{opacity:.45!important}
 /* Panels and HUD read-outs */
 /* (#soloHud, #footHud, #vehicleHud, #gtaVehicleHud are full-screen
    containers — giving them a panel fill put a dark veil over the scene.) */
 ${R} :is(#soloClearance,#soloRaceHud,#soloHeightPad,.solo-height-pad,#playerVitalsHud,#wantedHud,#vsCombatHud,#vsRespawnHud,#worldLookHud,#worldMapLegend,#gameplayContractHud,#gameplayContractBar,#gameplayScorePill,#gameplayToast,#mobileGameplayDock,#mobileGameplayMultiplayerStatus,#soloArmToolbar,#cameraModes){
-  background:var(--ui-fill)!important;background-image:none!important;border:1.5px solid var(--ui-line)!important;box-shadow:var(--ui-shadow)!important;color:var(--ui-text)!important;border-radius:14px!important;
-  font-family:var(--ui-font)!important;text-shadow:0 2px 0 rgba(0,0,0,.3)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+  background:var(--ui-fill)!important;background-image:none!important;border:1px solid var(--ui-line)!important;box-shadow:var(--ui-shadow)!important;color:var(--ui-text)!important;border-radius:6px!important;
+  font-family:var(--ui-font)!important;text-shadow:0 1px 1px rgba(0,0,0,.5)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 ${R} :is(#soloHud,#playerVitalsHud,#footHud,#vehicleHud,#wantedHud,#soloClearance,.solo-height-pad,#soloHeightPad) *{color:inherit;text-shadow:0 1px 0 rgba(0,0,0,.3)!important;background-image:none!important}
 ${R} :is(#playerVitalsHud,#soloClearance,.solo-height-pad,#soloHeightPad) :is(b,strong,output,[data-value]){color:var(--ui-accent)!important}
 /* Joysticks: soft white rings */
-${R} :is(.foot-stick .ring,.solo-ring){border:2px solid rgba(255,255,255,.6)!important;background:rgba(14,26,52,.2)!important;background-image:none!important;box-shadow:none!important}
-${R} :is(.foot-stick .knob,.solo-knob,.solo-height-knob){background:rgba(255,255,255,.85)!important;background-image:none!important;border:2px solid #fff!important;box-shadow:0 2px 0 rgba(0,0,0,.25)!important}
-${R} :is(.foot-stick,.solo-stick),${R} :is(.foot-stick,.solo-stick) *{color:#fff!important;font-family:var(--ui-font)!important;text-shadow:0 1px 0 rgba(0,0,0,.4)!important}
+${R} :is(.foot-stick .ring,.solo-ring){border:1.5px solid rgba(255,255,255,.35)!important;background:rgba(10,13,18,.18)!important;background-image:none!important;box-shadow:none!important}
+${R} :is(.foot-stick .knob,.solo-knob,.solo-height-knob){background:rgba(242,244,247,.7)!important;background-image:none!important;border:1px solid rgba(255,255,255,.9)!important;box-shadow:0 1px 3px rgba(0,0,0,.4)!important}
+${R} :is(.foot-stick,.solo-stick),${R} :is(.foot-stick,.solo-stick) *{color:#f2f4f7!important;font-family:var(--ui-font)!important;font-weight:600!important;letter-spacing:.1em!important;text-shadow:0 1px 1px rgba(0,0,0,.5)!important}
 ${R} #footMove.sprinting .ring{border-color:var(--ui-accent)!important;box-shadow:none!important}
 /* Settings dialog */
-${R} :is(.phone-settings-dialog,#flightLogbookDialog,dialog){background:#13203af5!important;background-image:none!important;border:1.5px solid var(--ui-line)!important;box-shadow:0 10px 30px rgba(0,0,0,.35)!important;color:var(--ui-text)!important;font-family:var(--ui-font)!important;border-radius:16px!important}
+${R} :is(.phone-settings-dialog,#flightLogbookDialog,dialog){background:#12161cf5!important;background-image:none!important;border:1px solid var(--ui-line)!important;box-shadow:0 10px 30px rgba(0,0,0,.45)!important;color:var(--ui-text)!important;font-family:var(--ui-font)!important;border-radius:8px!important}
 ${R} :is(.phone-settings-dialog,dialog) :is(h2,h3,h4){color:var(--ui-accent)!important;text-shadow:none!important;letter-spacing:.06em!important}
 ${R} :is(.phone-settings-dialog,dialog) :is(button,select,input[type=number],input[type=text]){background:rgba(255,255,255,.1)!important;background-image:none!important;color:#fff!important;border:1.5px solid var(--ui-line)!important}
 ${R} :is(.phone-settings-dialog,dialog) input[type=range],${R} :is(.phone-settings-dialog,dialog) input[type=checkbox]{accent-color:var(--ui-accent)!important}
-${R} #viewport{background:#cfe8ff!important}
+${R} #viewport{background:#b7c9dc!important}
 ${R} :is(#soloHud,#footHud,#vehicleHud,#gtaVehicleHud){background:transparent!important;border:0!important;box-shadow:none!important}
 `;
 
