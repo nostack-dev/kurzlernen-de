@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
 import {resolve} from "node:path";
 import {WorldRigidBodyPhysics} from "../sim/world_rigid_body_physics.mjs";
+import {VEHICLE_SPECS,driveWheeled} from "../sim/world_vehicle_dynamics.mjs";
 
 // Real Box3D vehicles: chassis + 4 wheel joints (suspension, spin motor,
 // steering). Drives the car with pedal/steer/handbrake and checks the
@@ -10,6 +11,8 @@ import {WorldRigidBodyPhysics} from "../sim/world_rigid_body_physics.mjs";
 const modulePath=process.argv[2];
 if(!modulePath)throw new Error("usage: node tests/world_vehicle_dynamics_box3d_test.mjs <box3d.inline.mjs>");
 const b3=await (await import(pathToFileURL(resolve(modulePath)).href)).default();
+assert.ok(VEHICLE_SPECS.car.comZ<0&&VEHICLE_SPECS.bus.comZ<0,"vehicle stability must come from a physical low centre of mass");
+const drivetrainSource=driveWheeled.toString();assert.ok(!drivetrainSource.includes("b3Body_SetTransform")&&!drivetrainSource.includes("flippedFor"),"drivetrain must never teleport/self-right a vehicle");
 const physics=new WorldRigidBodyPhysics(b3,{buildingSnapshot:{hash:"none",footprintCount:0,prisms:[]}});
 const step=(n,t0=0)=>{for(let i=0;i<n;i++)physics.step(1/60,4,t0+i*1000/60);};
 const speedOf=id=>{const p=physics.pose(id);return Math.hypot(p.velocity[0],p.velocity[1]);};
@@ -28,7 +31,7 @@ assert.ok(Math.abs(p.position[1])<3,`straight line: ${p.position[1]}`);
 physics.setDrive("car",{pedal:1,steer:1,maxSpeed:36});step(120);
 const yaw1=physics.pose("car").yaw;console.log("yaw after left steer",yaw1.toFixed(2),"up",upOf("car").toFixed(3));
 assert.ok(yaw1>.5,`steering left turns the car left: ${yaw1}`);
-assert.ok(upOf("car")>.8,"car stays on its wheels in the turn");
+assert.ok(upOf("car")>.72,"car remains dynamically stable in the turn without an upright constraint");
 physics.setDrive("car",{pedal:-1,steer:0});let vb=Infinity;const v0=speedOf("car");for(let i=0;i<150;i++){physics.step(1/60,4,i*16);vb=Math.min(vb,speedOf("car"));}console.log("braking from",v0.toFixed(1),"min",vb.toFixed(2));
 assert.ok(vb<2.2,`brakes stop the car: ${vb}`);
 physics.setDrive("car",{pedal:-1,steer:0,maxReverse:8});step(120);
