@@ -19,9 +19,9 @@ export const STYLE_PALETTE=Object.freeze({skyZenith:0x2c6fc4,skyHorizon:0xc9dcef
 const SUN_DIR=new THREE.Vector3(-.45,-.52,.72).normalize();
 const MOBILE=typeof navigator!=="undefined"&&/android|iphone|ipad|mobile/i.test(navigator.userAgent||"");
 const SHADOW_SIZE=MOBILE?1024:2048,SHADOW_RANGE_M=MOBILE?70:110,FOG_DENSITY=.00085;
-const SCAN_INTERVAL_MS=300,FRAME_BUDGET_MS=2.5;
+const SCAN_INTERVAL_MS=MOBILE?900:650,FRAME_BUDGET_MS=2.5;
 
-let installed=false,queue=[],lastScan=-Infinity,styledScene=null,sky=null,sun=null,hemi=null,converted=0,lastCull=-Infinity,envReady=false;
+let installed=false,queue=[],lastScan=-Infinity,styledScene=null,sky=null,sun=null,hemi=null,converted=0,lastCull=-Infinity,envReady=false,actorRoots=[];
 const processed=new WeakSet();
 const bridge=()=>globalThis.__arondightRealWorld||null;
 const viewport=()=>document.getElementById("viewport");
@@ -79,12 +79,12 @@ function ensureLights(scene,renderer){
   scene.add(sun,sun.target);
   if(renderer){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=true;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;renderer.outputColorSpace=THREE.SRGBColorSpace;}
 }
-const texel=new THREE.Vector3();
+const texel=new THREE.Vector3(),sunForward=new THREE.Vector3();
 function followSun(){
   const c=bridge()?.threeCamera;if(!sun||!c)return;
   // centre the shadow frustum ahead of the camera and snap it to shadow
   // texels so shadows don't shimmer while moving
-  const fwd=new THREE.Vector3();c.getWorldDirection(fwd);fwd.z=0;if(fwd.lengthSq()>1e-6)fwd.normalize();
+  const fwd=sunForward;c.getWorldDirection(fwd);fwd.z=0;if(fwd.lengthSq()>1e-6)fwd.normalize();
   const centre=texel.copy(c.position).addScaledVector(fwd,SHADOW_RANGE_M*.45);centre.z=0;const step=SHADOW_RANGE_M*2/SHADOW_SIZE;centre.x=Math.round(centre.x/step)*step;centre.y=Math.round(centre.y/step)*step;
   sun.target.position.copy(centre);sun.position.copy(centre).addScaledVector(SUN_DIR,400);sun.target.updateMatrixWorld();
 }
@@ -122,12 +122,19 @@ function styleScene(scene){
   scene.traverse(n=>{if(n.isMesh&&n.parent===scene&&n.geometry?.type==="BoxGeometry"&&(n.geometry.parameters?.width||0)>1000&&n.material?.color)realGround(n);});
 }
 // ---------------------------------------------------------------- perf: far actors leave the render layer
-const ACTOR_CULL_M=260,CULL_INTERVAL_MS=400,cullPos=new THREE.Vector3();
+const ACTOR_CULL_M=260,CULL_INTERVAL_MS=600,cullPos=new THREE.Vector3();
+const actorId=n=>String(n?.userData?.worldPopulationId||n?.userData?.worldLifeId||"");
 function setLayer(root,on){root.traverse(n=>{if(on)n.layers.enable(0);else n.layers.disable(0);});}
-function cullActors(scene,now){
+function scanScene(scene){
+  const nextActors=[];scene.traverse(node=>{
+    if((node.isDirectionalLight||node.isHemisphereLight||node.isAmbientLight)&&!node.userData.realLight&&(node.intensity>0||node.castShadow)){node.intensity=0;node.castShadow=false;}
+    const id=actorId(node);if(id&&actorId(node.parent)!==id)nextActors.push(node);
+    if(needsWork(node))queue.push(node);
+  });actorRoots=nextActors;
+}
+function cullActors(now){
   if(now-lastCull<CULL_INTERVAL_MS)return;lastCull=now;const camera=bridge()?.threeCamera;if(!camera)return;let roots=0,culled=0;
-  const actorId=n=>String(n?.userData?.worldPopulationId||n?.userData?.worldLifeId||"");
-  scene.traverse(n=>{if((n.isDirectionalLight||n.isHemisphereLight||n.isAmbientLight)&&!n.userData.realLight&&(n.intensity>0||n.castShadow)){n.intensity=0;n.castShadow=false;}const id=actorId(n);if(!id||actorId(n.parent)===id)return;const u=n.userData;roots++;n.getWorldPosition(cullPos);const far=cullPos.distanceTo(camera.position)>ACTOR_CULL_M;if(Boolean(u.styleCulled)!==far){u.styleCulled=far;setLayer(n,!far);}if(far)culled++;});
+  for(const n of actorRoots){if(!n?.parent)continue;const u=n.userData;roots++;n.getWorldPosition(cullPos);const far=cullPos.distanceTo(camera.position)>ACTOR_CULL_M;if(Boolean(u.styleCulled)!==far){u.styleCulled=far;setLayer(n,!far);}if(far)culled++;}
   const view=viewport();if(view){const s=`${roots}/${culled}`;if(view.dataset.stylePerfCull!==s)view.dataset.stylePerfCull=s;}
 }
 let blastAt=-1;
@@ -135,8 +142,8 @@ if(typeof window!=="undefined")window.addEventListener("arondight:nuke-impact",e
 function frame(now){
   const scene=bridge()?.threeScene;
   if(scene){
-    styleScene(scene);cullActors(scene,now);skyUniforms.uTime.value=now/1000;skyUniforms.uBlastAge.value=blastAt<0?-1:Math.min(60,(now-blastAt)/1000);
-    if(!queue.length&&now-lastScan>SCAN_INTERVAL_MS){lastScan=now;scene.traverse(node=>{if(needsWork(node))queue.push(node);});}
+    styleScene(scene);skyUniforms.uTime.value=now/1000;skyUniforms.uBlastAge.value=blastAt<0?-1:Math.min(60,(now-blastAt)/1000);
+    if(!queue.length&&now-lastScan>SCAN_INTERVAL_MS){lastScan=now;scanScene(scene);}cullActors(now);
     const menuEl=document.getElementById("gameMenu"),covered=Boolean(menuEl&&!menuEl.hidden),deadline=performance.now()+(covered?14:FRAME_BUDGET_MS);
     while(queue.length&&performance.now()<deadline){const node=queue.pop();if(node.parent)convert(node);}
     const view=viewport();if(view){const value=String(converted);if(view.dataset.stylizedMeshes!==value)view.dataset.stylizedMeshes=value;}
