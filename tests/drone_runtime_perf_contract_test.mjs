@@ -71,7 +71,8 @@ assert.ok(spawnGuard.includes("__arondightProceduralPopulation?.spawnVisibilityR
 assert.ok(spawnGuard.includes("lastPublish")&&spawnGuard.includes("lastPublish<250"),"spawn guard diagnostics must be throttled");
 
 const missiles=files["sim/direct_fire_missiles.mjs"];
-assert.ok(missiles.includes("nearestPhysicalHit")&&missiles.includes("__arondightWorldRigidBodies?.raycast"),"in-flight missiles must use Box3D instead of full Three.js mesh scans");
+assert.ok(missiles.includes("nearestPhysicalHit")&&missiles.includes("rb?.raycast?.("),"in-flight missiles must use Box3D instead of full Three.js mesh scans");
+assert.ok(missiles.includes("setTimeout(maintainApi,250)")&&!missiles.includes("lastFrame=now;patchApi();"),"missile API integration polling must stay off RAF");
 assert.ok(missiles.includes("missileBodyGeometry=new THREE.CylinderGeometry")&&missiles.includes("missileBodyMaterial=new THREE.MeshStandardMaterial"),"missile geometry/material must be shared instead of recreated per shot");
 
 const capsule=files["sim/player_box3d_capsule_runtime.mjs"];
