@@ -28,7 +28,8 @@ const files=Object.fromEntries(await Promise.all([
   "sim/auto_flight_start.mjs",
   "sim/simulator.mjs",
   "sim/terrain_craters.mjs",
-  "sim/world_ground.mjs"
+  "sim/world_ground.mjs",
+  "sim/nuke_destruction.mjs"
 ].map(async path=>[path,await readFile(path,"utf8")])));
 
 const style=files["sim/stylized_world_style.mjs"];
@@ -39,6 +40,7 @@ assert.ok(!cull.includes("scene.traverse"),"actor culling must not traverse the 
 assert.ok(style.includes("sunForward=new THREE.Vector3()")&&!style.includes("const fwd=new THREE.Vector3();"),"sun follow must not allocate a vector every frame");
 assert.ok(style.includes("SCAN_INTERVAL_MS=MOBILE?900:650"),"style discovery scans must be throttled");
 assert.ok(style.includes("if(!covered)try{bakeSky"),"hidden start menu must not pay procedural sky render cost");
+assert.ok(style.includes("renderer.shadowMap.autoUpdate=false"),"visual style must not silently re-enable a full shadow pass every rendered frame");
 
 const mobile=files["sim/mobile_gameplay_ui.mjs"];
 assert.ok(mobile.includes("const UI_SYNC_MS=100")&&mobile.includes("setTimeout(sync,UI_SYNC_MS)"),"mobile HUD must use low-frequency state sync");
@@ -117,5 +119,9 @@ assert.ok(simulator.includes('if(gameMenu&&!gameMenu.hidden){lastPresentationDra
 const terrain=files["sim/terrain_craters.mjs"],ground=files["sim/world_ground.mjs"];
 assert.ok(terrain.includes("terrainCellCache")&&terrain.includes("terrainNodeHeightAt"),"terrain hot queries must share cached physical grid nodes");
 assert.ok(ground.includes("terrainNodeHeightAt(x,y)"),"visible ground vertices must use the exact Box3D terrain nodes");
+
+const nuke=files["sim/nuke_destruction.mjs"];
+assert.ok(nuke.includes("debrisActive=[]")&&nuke.includes("if(!debris||!debrisActive.length)return 0"),"dormant nuke debris must cost zero per frame");
+assert.ok(!nuke.includes("if(prewarm!==null)return;ensureDebris(scene);"),"nuke shader prewarm must not allocate the 2000-piece gameplay pool during startup");
 
 console.log("Drone runtime performance contract passed: graphics stay frame-driven while scans, DOM and integration housekeeping are throttled.");
