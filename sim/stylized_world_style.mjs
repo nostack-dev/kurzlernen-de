@@ -141,17 +141,36 @@ function ensureSky(scene){
   sky.onBeforeRender=(r,s,camera)=>{sky.position.copy(camera.position);sky.scale.setScalar(Math.min(camera.far*.9,1800));};
   scene.add(sky);return sky;
 }
-// Puffy clouds: a few instanced low-poly blobs on a ring far away, drifting.
+// Puffy clouds: instanced low-poly blobs (6 per cloud) living in world
+// space around the player. They drift with the wind, wrap around when they
+// get too far, and the bomb's shock front blows them away (impulse when the
+// front reaches them, then drag).
+const CLOUDS=16,BLOBS=6,WIND=new THREE.Vector2(3.2,1.1);
+let cloudMesh=null,cloudState=[],lastCloudFrame=0;const cm4=new THREE.Matrix4(),cq=new THREE.Quaternion(),cp=new THREE.Vector3(),cs=new THREE.Vector3();
 function ensureClouds(scene){
   if(clouds?.parent===scene)return clouds;
-  const blob=new THREE.IcosahedronGeometry(1,1),count=14*6,mesh=new THREE.InstancedMesh(blob,new THREE.MeshLambertMaterial({color:0xffffff,emissive:0x8899aa,fog:false}),count),m=new THREE.Matrix4(),q=new THREE.Quaternion(),p=new THREE.Vector3(),s=new THREE.Vector3();let k=0;
-  for(let c=0;c<14;c++){const a=c/14*Math.PI*2+Math.random()*.3,r=900+Math.random()*250,cx=Math.cos(a)*r,cy=Math.sin(a)*r,cz=170+Math.random()*120,size=40+Math.random()*35;
-    for(let b=0;b<6;b++){p.set(cx+(b-2.5)*size*.55+Math.random()*10,cy+(Math.random()-.5)*size*.6,cz+(b%2)*size*.2);const sc=size*(.55+Math.random()*.45)*(b===2||b===3?1.25:1);s.set(sc,sc*.8,sc*.62);m.compose(p,q,s);mesh.setMatrixAt(k++,m);}}
-  mesh.instanceMatrix.needsUpdate=true;mesh.frustumCulled=false;mesh.renderOrder=-9990;mesh.userData.flightFireIgnore=true;mesh.raycast=()=>{};mesh.name="HERO_CLOUDS";
-  clouds=new THREE.Group();clouds.add(mesh);clouds.userData.flightFireIgnore=true;
-  clouds.onBeforeRender=()=>{};scene.add(clouds);return clouds;
+  const blob=new THREE.IcosahedronGeometry(1,1);cloudMesh=new THREE.InstancedMesh(blob,new THREE.MeshLambertMaterial({color:0xffffff,emissive:0x8899aa,fog:false}),CLOUDS*BLOBS);
+  cloudMesh.frustumCulled=false;cloudMesh.renderOrder=-9990;cloudMesh.userData.flightFireIgnore=true;cloudMesh.raycast=()=>{};cloudMesh.name="HERO_CLOUDS";cloudMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const cam=bridge()?.threeCamera?.position||{x:0,y:0};cloudState=[];
+  for(let c=0;c<CLOUDS;c++){const a=c/CLOUDS*Math.PI*2+Math.random()*.3,r=500+Math.random()*700,size=38+Math.random()*34,blobs=[];
+    for(let k=0;k<BLOBS;k++)blobs.push({ox:(k-2.5)*size*.55+Math.random()*10,oy:(Math.random()-.5)*size*.6,oz:(k%2)*size*.2,sc:size*(.55+Math.random()*.45)*(k===2||k===3?1.25:1)});
+    cloudState.push({x:cam.x+Math.cos(a)*r,y:cam.y+Math.sin(a)*r,z:170+Math.random()*130,vx:0,vy:0,stretch:1,blobs});}
+  clouds=new THREE.Group();clouds.add(cloudMesh);clouds.userData.flightFireIgnore=true;scene.add(clouds);return clouds;
 }
-function followSky(now){const c=bridge()?.threeCamera;if(clouds&&c){clouds.position.set(c.position.x,c.position.y,0);clouds.rotation.z=now*.0000035;}}
+let blast=null;
+function onNukeForClouds(e){const p=e?.detail?.position;if(Array.isArray(p))blast={x:+p[0]||0,y:+p[1]||0,at:performance.now(),hit:new Set()};}
+function followSky(now){
+  const c=bridge()?.threeCamera;if(!cloudMesh||!c)return;const dt=Math.min(.1,lastCloudFrame?(now-lastCloudFrame)/1000:0);lastCloudFrame=now;let k=0;
+  for(let i=0;i<cloudState.length;i++){const cl=cloudState[i];
+    if(blast){const dx=cl.x-blast.x,dy=cl.y-blast.y,d=Math.hypot(dx,dy,cl.z)||1;if(!blast.hit.has(i)&&(now-blast.at)/1000*343>=d){blast.hit.add(i);const push=95*Math.exp(-d/1600);cl.vx+=dx/d*push;cl.vy+=dy/d*push;cl.stretch=1+Math.min(1.2,push/60);}}
+    const drag=Math.exp(-dt*.12);cl.vx*=drag;cl.vy*=drag;cl.stretch=1+(cl.stretch-1)*Math.exp(-dt*.08);
+    cl.x+=(WIND.x+cl.vx)*dt;cl.y+=(WIND.y+cl.vy)*dt;
+    const rx=cl.x-c.position.x,ry=cl.y-c.position.y,rd=Math.hypot(rx,ry);if(rd>1350){cl.x=c.position.x-rx/rd*1100;cl.y=c.position.y-ry/rd*1100;cl.vx*=.2;cl.vy*=.2;}
+    const ang=Math.atan2(cl.vy+WIND.y,cl.vx+WIND.x);cq.setFromAxisAngle(new THREE.Vector3(0,0,1),ang);
+    for(const b of cl.blobs){cp.set(b.ox*cl.stretch,b.oy,b.oz).applyQuaternion(cq);cp.x+=cl.x;cp.y+=cl.y;cp.z+=cl.z;cs.set(b.sc*cl.stretch,b.sc*.8,b.sc*.62/Math.sqrt(cl.stretch));cm4.compose(cp,cq,cs);cloudMesh.setMatrixAt(k++,cm4);}}
+  cloudMesh.instanceMatrix.needsUpdate=true;
+}
+if(typeof window!=="undefined")window.addEventListener("arondight:nuke-impact",onNukeForClouds);
 function styleScene(scene){
   ensureSky(scene);ensureClouds(scene);if(styledScene===scene)return;styledScene=scene;
   const haze=new THREE.Color(STYLE_PALETTE.haze);scene.background=new THREE.Color(STYLE_PALETTE.skyHorizon);

@@ -91,7 +91,7 @@ function stepTrees(dt){
 // ---------------------------------------------------------------- API
 function surfaceOf(hit){
   if(!hit)return"ground";if(hit.box3d&&!hit.object)return hit.physicsKind&&hit.physicsKind!=="terrain"?"vehicle":"building";
-  for(let o=hit.object;o;o=o.parent){const u=o.userData||{};if(u.worldDecorKind==="tree-green-mesh"||String(u.worldDecorKind||"").startsWith("tree"))return"tree";const k=String(u.worldPopulationKind||u.worldLifeKind||"");if(k==="car"||k==="bus"||k==="police-drone"||u.gtaDrivableVehicle)return"vehicle";if(k==="person"||k==="enemy"||u.vsHumanAvatar)return"actor";if(u.worldCityBuildings)return"building";}
+  for(let o=hit.object;o;o=o.parent){const u=o.userData||{};if(u.worldDecorKind==="ambient-animal")return"animal";if(u.worldDecorKind==="tree-green-mesh"||String(u.worldDecorKind||"").startsWith("tree"))return"tree";const k=String(u.worldPopulationKind||u.worldLifeKind||"");if(k==="car"||k==="bus"||k==="police-drone"||u.gtaDrivableVehicle)return"vehicle";if(k==="person"||k==="enemy"||u.vsHumanAvatar)return"actor";if(u.worldCityBuildings)return"building";}
   return hit.object?.geometry?.type==="BoxGeometry"&&(hit.object.geometry.parameters?.width||0)>1000?"ground":"building";
 }
 function normalOf(hit,ray){
@@ -100,12 +100,17 @@ function normalOf(hit,ray){
   return ray?ray.direction.clone().negate():Z.clone();
 }
 // A bullet: hit (raycast result, may be null) along ray {origin,direction}.
+// Animals are small instanced decor: test them against the ray directly so
+// every weapon (also the drone gun, whose raycast skips decor) can hit them.
+function animalOnRay(ray,maxT){const o=ray.origin,d=ray.direction;let best=null;for(const a of globalThis.__ambientAnimals?.poses?.()||[]){const ax=a.x-o.x,ay=a.y-o.y,az=.3-o.z,t=ax*d.x+ay*d.y+az*d.z;if(t<=0||t>maxT)continue;const px=o.x+d.x*t-a.x,py=o.y+d.y*t-a.y,pz=o.z+d.z*t-.3;if(px*px+py*py+pz*pz<.5*.5*(a.sc||1)*(a.sc||1)*1.6&&(!best||t<best.t))best={a,t};}return best;}
 export function bulletImpact(ray,hit,{routed=false,maxDistance=180}={}){
+  if(ray&&!(surfaceOf(hit)==="actor")){const maxT=hit?.distance??(hit?.point?ray.origin.distanceTo(hit.point):maxDistance),an=animalOnRay(ray,maxT);if(an){globalThis.__ambientAnimals.kill(an.a.i);chipBurst(new THREE.Vector3(an.a.x,an.a.y,.35),ray.direction.clone().negate(),"actor",5,2.5);return true;}}
   let point=hit?.point?.clone?.()||null,normal=null,surface=surfaceOf(hit);
   if(!point&&ray){const o=ray.origin,d=ray.direction;if(d.z<-1e-4){let t=(groundHeightAt(o.x,o.y)-o.z)/d.z;if(t>0&&t<maxDistance){point=o.clone().addScaledVector(d,t);point.z=groundHeightAt(point.x,point.y);normal=Z.clone();surface="ground";}}}
   if(!point)return false;normal??=normalOf(hit,ray);if(ray&&normal.dot(ray.direction)>0)normal.negate();
   const from=ray?ray.origin:point;
   if(surface==="tree"&&hit?.instanceId!=null){hitTree(hit.instanceId,point,from.x,from.y);addDecal(point,normal,{size:.07,color:0x3a2a1c});return true;}
+  if(surface==="animal"){if(hit?.instanceId!=null)globalThis.__ambientAnimals?.kill?.(hit.instanceId);chipBurst(point,normal,"actor",5,2.5);return true;}
   if(surface==="actor"){chipBurst(point,normal,"actor",3,2);return true;}
   addDecal(point,normal,{size:surface==="vehicle"?.06:.085,color:surface==="ground"?0x2e2a22:surface==="vehicle"?0x1c1c1c:0x34302a});
   chipBurst(point,normal,surface,surface==="vehicle"?5:6,surface==="vehicle"?5:3.5);
@@ -121,6 +126,8 @@ function onExplosion(event){
     const prisms=bridge()?.buildingCollisionSnapshot?.prisms||[];let walls=0;
     for(const pr of prisms){if(walls>=2)break;const pts=pr.points||[];for(let i=0;i<pts.length&&walls<2;i++){const a=pts[i],b=pts[(i+1)%pts.length],ex=b[0]-a[0],ey=b[1]-a[1],len=Math.hypot(ex,ey);if(len<.5)continue;const t=Math.max(0,Math.min(1,((x-a[0])*ex+(y-a[1])*ey)/(len*len))),px=a[0]+ex*t,py=a[1]+ey*t,dist=Math.hypot(x-px,y-py);if(dist<r*.5){const nx=-ey/len,ny=ex/len,sgn=Math.sign((x-px)*nx+(y-py)*ny)||1;addDecal(new THREE.Vector3(px,py,Math.max(g+.8,Math.min((Number.isFinite(z)?z:g)+.5,(+pr.top||8)-.3))),new THREE.Vector3(nx*sgn,ny*sgn,0),{size:Math.min(3,r*.35),color:0x1d1814});walls++;}}}
   }
+  // animals in reach die
+  for(const a of globalThis.__ambientAnimals?.poses?.()||[]){if(Math.hypot(a.x-x,a.y-y)<(nuke?r*1.5:r*.9)){globalThis.__ambientAnimals.kill(a.i);chipBurst(new THREE.Vector3(a.x,a.y,.3),Z,"actor",4,3);}}
   // trees: knock over everything in reach, falling away from the blast
   const t=findTrees();if(t){const reach=nuke?Math.min(600,r*1.4):r*.85;for(let i=0;i<t.trunk.count;i++){t.trunk.getMatrixAt(i,m4);p.setFromMatrixPosition(m4);const dist=Math.hypot(p.x-x,p.y-y);if(dist<reach){if(nuke)setTimeout(()=>knockTree(i,x,y,1.4),dist/343*1000);else knockTree(i,x,y,1-dist/reach);}}}
 }
