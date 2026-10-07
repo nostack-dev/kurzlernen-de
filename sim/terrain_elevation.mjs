@@ -8,7 +8,7 @@
 // water, buildings, physics height field, walking, crowds) follows through
 // terrain_craters.mjs.
 
-export const TERRAIN_ELEVATION_VERSION="terrarium-dem-grid-v1";
+export const TERRAIN_ELEVATION_VERSION="terrarium-bare-earth-grid-v2";
 const ZOOM=14,SIZE_M=2600,ELEV_STEP_M=5,RELOAD_MOVE_M=750;
 const TILE_URL=(z,x,y)=>`https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`;
 let grid=null,refHeight=null,loading=false,listeners=new Set(),tileCache=new Map();
@@ -35,6 +35,34 @@ function terrarium(d,o){return d[o]*256+d[o+1]+d[o+2]/256-32768;}
 
 const originKey=b=>`${Number(b?.originLon).toFixed(7)},${Number(b?.originLat).toFixed(7)}`;
 let refOrigin="";
+function bilinear(h,n,fx,fy){fx=Math.max(0,Math.min(n-1.001,fx));fy=Math.max(0,Math.min(n-1.001,fy));const i=fx|0,j=fy|0,tx=fx-i,ty=fy-j,k=j*n+i;return(h[k]*(1-tx)+h[k+1]*tx)*(1-ty)+(h[k+n]*(1-tx)+h[k+n+1]*tx)*ty;}
+
+// The public DEM is a *surface* model in cities (SRTM / EU-DEM radar sees
+// roofs and tree canopies): building blocks show up as 5–20 m bumps, which
+// would put streets on fake hills and bury houses. A morphological opening
+// (min filter, then max filter over OPEN_M) removes every raised feature
+// smaller than a city block while keeping real hills, valleys and river
+// banks; a light separable blur (two box passes ≈ Gaussian) then removes the
+// 30 m DEM stair-steps. Result: bare-earth metres, smooth and physical.
+const OPEN_M=160,BLUR_M=30;
+function slide(src,dst,n,stride,lineStride,r,op){
+  // sliding-window min/max along lines (monotonic deque), window 2r+1, clipped at the edges
+  const q=new Int32Array(n);
+  for(let l=0;l<n;l++){const base=l*lineStride;let qh=0,qt=0;
+    for(let i=0,j=0;i<n;i++){const hi=Math.min(n-1,i+r);for(;j<=hi;j++){const v=src[base+j*stride];while(qt>qh&&(op>0?src[base+q[qt-1]*stride]<=v:src[base+q[qt-1]*stride]>=v))qt--;q[qt++]=j;}
+      while(q[qh]<i-r)qh++;dst[base+i*stride]=src[base+q[qh]*stride];}}
+}
+function boxBlur(src,dst,n,stride,lineStride,r){
+  for(let l=0;l<n;l++){const base=l*lineStride;let sum=0,cnt=0;for(let j=0;j<=Math.min(n-1,r);j++){sum+=src[base+j*stride];cnt++;}
+    for(let i=0;i<n;i++){dst[base+i*stride]=sum/cnt;const add=i+r+1,rem=i-r;if(add<n){sum+=src[base+add*stride];cnt++;}if(rem>=0){sum-=src[base+rem*stride];cnt--;}}}
+}
+export function bareEarth(h,n,step=ELEV_STEP_M){
+  const t=new Float32Array(h.length),ro=Math.max(1,Math.round(OPEN_M/step/2)),rb=Math.max(1,Math.round(BLUR_M/step/2));
+  slide(h,t,n,1,n,ro,-1);slide(t,h,n,n,1,ro,-1);   // erode (min) rows, columns
+  slide(h,t,n,1,n,ro,1);slide(t,h,n,n,1,ro,1);     // dilate (max)
+  for(let p=0;p<2;p++){boxBlur(h,t,n,1,n,rb);boxBlur(t,h,n,n,1,rb);}
+  return h;
+}
 async function load(cx,cy){
   const b=bridge();if(!b||typeof b.unprojectMeters!=="function")return false;loading=true;const origin=originKey(b);
   try{
@@ -47,9 +75,13 @@ async function load(cx,cy){
     const sample=(lon,lat)=>{const[fx,fy]=lonLatToTile(lon,lat,ZOOM),tx=Math.floor(fx),ty=Math.floor(fy),t=tiles.get(`${tx}/${ty}`);if(!t)return null;const px=Math.min(t.w-1.001,(fx-tx)*t.w),py=Math.min(t.h-1.001,(fy-ty)*t.h),i=px|0,j=py|0,ax=px-i,ay=py-j,o=(j*t.w+i)*4,w=t.w*4;
       return(terrarium(t.data,o)*(1-ax)+terrarium(t.data,o+4)*ax)*(1-ay)+(terrarium(t.data,o+w)*(1-ax)+terrarium(t.data,o+w+4)*ax)*ay;};
     if(refOrigin!==origin){refHeight=null;refOrigin=origin;}
-    if(refHeight===null){const[lon0,lat0]=b.unprojectMeters(0,0);refHeight=sample(lon0,lat0);if(refHeight===null){const[lc,la]=b.unprojectMeters(cx,cy);refHeight=sample(lc,la)??0;}}
-    const h=new Float32Array(n*n);let last=0;
-    for(let j=0;j<n;j++){for(let i=0;i<n;i++){const[lon,lat]=b.unprojectMeters(x0+i*ELEV_STEP_M,y0+j*ELEV_STEP_M),v=sample(lon,lat);last=v===null?last:v-refHeight;h[j*n+i]=last;}if(j%60===59)await new Promise(r=>setTimeout(r,0));}
+    // absolute DEM heights on the grid, then surface model -> bare ground
+    const h=new Float32Array(n*n);let last=null;
+    for(let j=0;j<n;j++){for(let i=0;i<n;i++){const[lon,lat]=b.unprojectMeters(x0+i*ELEV_STEP_M,y0+j*ELEV_STEP_M),v=sample(lon,lat);if(v!==null)last=v;h[j*n+i]=last??NaN;}if(j%60===59)await new Promise(r=>setTimeout(r,0));}
+    {let first=NaN;for(const v of h)if(Number.isFinite(v)){first=v;break;}if(!Number.isFinite(first))return false;for(let k=0;k<h.length;k++)if(!Number.isFinite(h[k]))h[k]=first;}
+    bareEarth(h,n);await new Promise(r=>setTimeout(r,0));
+    if(refHeight===null){const fx=(0-x0)/ELEV_STEP_M,fy=(0-y0)/ELEV_STEP_M;refHeight=fx>=0&&fy>=0&&fx<=n-1&&fy<=n-1?bilinear(h,n,fx,fy):bilinear(h,n,(n-1)/2,(n-1)/2);}
+    for(let k=0;k<h.length;k++)h[k]-=refHeight;
     if(originKey(bridge())!==origin)return false; // world origin moved while loading: stale
     grid={x0,y0,step:ELEV_STEP_M,n,h,cx,cy,origin};
     const v=document.getElementById("viewport");if(v){let mn=Infinity,mx=-Infinity;for(const z of h){mn=Math.min(mn,z);mx=Math.max(mx,z);}v.dataset.terrainElevation=`${TERRAIN_ELEVATION_VERSION} ref=${refHeight.toFixed(1)}m range=${mn.toFixed(1)}..${mx.toFixed(1)}`;}

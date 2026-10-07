@@ -10,9 +10,9 @@ import {onElevationChange} from "./terrain_elevation.mjs";
 // One merged mesh (vertex colours, lit by the hero style like everything
 // else), rebuilt time-sliced when the player has moved far. No textures.
 
-export const CITY_ROADS_VERSION="map-roads-sidewalks-parks-v2-depth-layers";
+export const CITY_ROADS_VERSION="map-roads-sidewalks-parks-v3-terrain-draped";
 const RADIUS_M=720,REBUILD_MOVE_M=260,MAX_FEATURES=2200,SLICE_MS=4;
-const Z_AREA=.026,Z_SIDEWALK=.060,Z_ROAD=.082,Z_MARKING=.108;
+const Z_AREA=.05,Z_SIDEWALK=.09,Z_ROAD=.112,Z_MARKING=.135,AREA_EDGE_M=8,ROAD_SEG_M=6;
 const WIDTH={motorway:14,trunk:12,primary:11,secondary:9,tertiary:8,minor:6.5,service:4.2,track:3,path:2.2,pedestrian:3.6,raceway:8,busway:7};
 const C={asphalt:0x3c3f44,asphaltMajor:0x34373c,sidewalk:0x86837c,line:0xe6e4dc,lineYellow:0xd6b54a,park:0x4f6e35,wood:0x3a5729,water:0x2f5f86,pitch:0x4f7a35,sand:0xc9b88f};
 const CHUNK_M=420;let material=null;
@@ -40,7 +40,16 @@ function* build(b,cx,cy){
   const bucket=(x,y)=>{const k=`${Math.floor(x/CHUNK_M)},${Math.floor(y/CHUNK_M)}`;let bk=buckets.get(k);if(!bk){bk={pos:[],col:[]};buckets.set(k,bk);}return bk;};let cur=null;
   const project=(lon,lat)=>b.projectLngLat(lon,lat);
   const push=(x,y,z,color)=>{cur.pos.push(x,y,z);c.set(color);cur.col.push(c.r,c.g,c.b);};
-  const tri=(ax,ay,bx,by,qx,qy,z,color)=>{cur=bucket(ax,ay);push(ax,ay,z,color);push(bx,by,z,color);push(qx,qy,z,color);};
+  // Everything is draped on the terrain: every vertex gets its own ground
+  // height (+ a small layer offset), long edges are subdivided first.
+  const tri=(ax,ay,bx,by,qx,qy,z,color)=>{cur=bucket(ax,ay);push(ax,ay,z+h(ax,ay),color);push(bx,by,z+h(bx,by),color);push(qx,qy,z+h(qx,qy),color);};
+  const drape=(ax,ay,bx,by,qx,qy,z,color,depth=0)=>{
+    const gx=(ax+bx+qx)/3,gy=(ay+by+qy)/3,rr=Math.max(Math.hypot(ax-gx,ay-gy),Math.hypot(bx-gx,by-gy),Math.hypot(qx-gx,qy-gy));if(Math.hypot(gx-cx,gy-cy)-rr>RADIUS_M+40)return;
+    const ab=Math.hypot(bx-ax,by-ay),bq=Math.hypot(qx-bx,qy-by),qa=Math.hypot(ax-qx,ay-qy),m=Math.max(ab,bq,qa);
+    if(m<=AREA_EDGE_M||depth>18){tri(ax,ay,bx,by,qx,qy,z,color);return;}
+    if(m===ab){const mx=(ax+bx)/2,my=(ay+by)/2;drape(ax,ay,mx,my,qx,qy,z,color,depth+1);drape(mx,my,bx,by,qx,qy,z,color,depth+1);}
+    else if(m===bq){const mx=(bx+qx)/2,my=(by+qy)/2;drape(ax,ay,bx,by,mx,my,z,color,depth+1);drape(ax,ay,mx,my,qx,qy,z,color,depth+1);}
+    else{const mx=(qx+ax)/2,my=(qy+ay)/2;drape(ax,ay,bx,by,mx,my,z,color,depth+1);drape(mx,my,bx,by,qx,qy,z,color,depth+1);}};
   const quad=(a,b2,c2,d,z,color)=>{tri(a[0],a[1],b2[0],b2[1],c2[0],c2[1],z,color);tri(a[0],a[1],c2[0],c2[1],d[0],d[1],z,color);};
   const disk=(x,y,r,z,color,seg=8)=>{for(let i=0;i<seg;i++){const a0=i/seg*Math.PI*2,a1=(i+1)/seg*Math.PI*2;tri(x,y,x+Math.cos(a0)*r,y+Math.sin(a0)*r,x+Math.cos(a1)*r,y+Math.sin(a1)*r,z,color);}};
   const near=(x,y)=>Math.hypot(x-cx,y-cy)<RADIUS_M;
@@ -53,7 +62,7 @@ function* build(b,cx,cy){
       if(!color)continue;
       for(const poly of polys(f.geometry)){const outer=(poly[0]||[]).map(p=>project(p[0],p[1]));if(outer.length<3||!outer.some(p=>near(p[0],p[1])))continue;const key=`${layer}:${Math.round(outer[0][0])},${Math.round(outer[0][1])}:${outer.length}`;if(seen.has(key))continue;seen.add(key);
         const v=outer.map(p=>new THREE.Vector2(p[0],p[1])),holes=poly.slice(1).map(r=>r.map(p=>{const m=project(p[0],p[1]);return new THREE.Vector2(m[0],m[1]);}));
-        try{const all=[...v,...holes.flat()];for(const t of THREE.ShapeUtils.triangulateShape(v,holes)){const a=all[t[0]],bb=all[t[1]],cc=all[t[2]];let A=a,B=bb,Cc=cc;if((B.x-A.x)*(Cc.y-A.y)-(B.y-A.y)*(Cc.x-A.x)<0)[B,Cc]=[Cc,B];tri(A.x,A.y,B.x,B.y,Cc.x,Cc.y,z+h(A.x,A.y),color);}}catch{}
+        try{const all=[...v,...holes.flat()];for(const t of THREE.ShapeUtils.triangulateShape(v,holes)){const a=all[t[0]],bb=all[t[1]],cc=all[t[2]];let A=a,B=bb,Cc=cc;if((B.x-A.x)*(Cc.y-A.y)-(B.y-A.y)*(Cc.x-A.x)<0)[B,Cc]=[Cc,B];drape(A.x,A.y,B.x,B.y,Cc.x,Cc.y,z,color);}}catch{}
         if(++n%30===0)yield;}
     }
   }
@@ -63,11 +72,11 @@ function* build(b,cx,cy){
     const cls=String(f.properties?.class||"minor").toLowerCase();if(cls==="rail"||cls==="transit"||cls==="ferry"||cls==="aerialway")continue;if(f.properties?.brunnel==="tunnel")continue;
     const w=WIDTH[cls]??5;for(const line of lines(f.geometry)){const pts=line.map(p=>project(p[0],p[1]));if(pts.length<2||!pts.some(p=>near(p[0],p[1])))continue;const key=`${cls}:${Math.round(pts[0][0])},${Math.round(pts[0][1])}:${Math.round(pts.at(-1)[0])},${Math.round(pts.at(-1)[1])}`;if(seen.has(key))continue;seen.add(key);roads.push({cls,w,pts});if(roads.length>=MAX_FEATURES)break;}
   }
-  const ribbon=(pts,w,z,color,caps=true)=>{for(let i=0;i<pts.length-1;i++){const a=pts[i],b2=pts[i+1],dx=b2[0]-a[0],dy=b2[1]-a[1],l=Math.hypot(dx,dy);if(l<.05)continue;const nx=-dy/l*w/2,ny=dx/l*w/2;quad([a[0]+nx,a[1]+ny],[a[0]-nx,a[1]-ny],[b2[0]-nx,b2[1]-ny],[b2[0]+nx,b2[1]+ny],z+h(a[0],a[1]),color);}if(caps)for(let i=0;i<pts.length;i++){const p=pts[i];if(i>0&&i<pts.length-1){const a=pts[i-1],q=pts[i+1],ax=p[0]-a[0],ay=p[1]-a[1],bx=q[0]-p[0],by=q[1]-p[1],cosT=(ax*bx+ay*by)/((Math.hypot(ax,ay)*Math.hypot(bx,by))||1);if(cosT>.966)continue;}disk(p[0],p[1],w/2,z+h(p[0],p[1]),color,i===0||i===pts.length-1?8:6);}};
+  const ribbon=(pts,w,z,color,caps=true)=>{for(let i=0;i<pts.length-1;i++){const a=pts[i],b2=pts[i+1],dx=b2[0]-a[0],dy=b2[1]-a[1],l=Math.hypot(dx,dy);if(l<.05)continue;const nx=-dy/l*w/2,ny=dx/l*w/2,k=Math.max(1,Math.ceil(l/ROAD_SEG_M));for(let s=0;s<k;s++){const t0=s/k,t1=(s+1)/k,p0x=a[0]+dx*t0,p0y=a[1]+dy*t0,p1x=a[0]+dx*t1,p1y=a[1]+dy*t1;quad([p0x+nx,p0y+ny],[p0x-nx,p0y-ny],[p1x-nx,p1y-ny],[p1x+nx,p1y+ny],z,color);}}if(caps)for(let i=0;i<pts.length;i++){const p=pts[i];if(i>0&&i<pts.length-1){const a=pts[i-1],q=pts[i+1],ax=p[0]-a[0],ay=p[1]-a[1],bx=q[0]-p[0],by=q[1]-p[1],cosT=(ax*bx+ay*by)/((Math.hypot(ax,ay)*Math.hypot(bx,by))||1);if(cosT>.966)continue;}disk(p[0],p[1],w/2,z,color,i===0||i===pts.length-1?8:6);}};
   for(const r of roads){if(r.cls==="path"||r.cls==="track"||r.cls==="service")continue;ribbon(r.pts,r.w+3.4,Z_SIDEWALK,C.sidewalk);if(++n%40===0)yield;}
   for(const r of roads){const major=/motorway|trunk|primary|secondary/.test(r.cls);ribbon(r.pts,r.w,Z_ROAD,r.cls==="path"?0xc9b892:major?C.asphaltMajor:C.asphalt);if(++n%40===0)yield;}
   for(const r of roads){if(!/motorway|trunk|primary|secondary|tertiary/.test(r.cls))continue;const color=/motorway|trunk/.test(r.cls)?C.lineYellow:C.line;
-    for(let i=0;i<r.pts.length-1;i++){const a=r.pts[i],b2=r.pts[i+1],dx=b2[0]-a[0],dy=b2[1]-a[1],l=Math.hypot(dx,dy);if(l<1)continue;const ux=dx/l,uy=dy/l,nx=-uy*.09,ny=ux*.09;for(let s=1;s+3<l;s+=7){const x0=a[0]+ux*s,y0=a[1]+uy*s,x1=x0+ux*3,y1=y0+uy*3;quad([x0+nx,y0+ny],[x0-nx,y0-ny],[x1-nx,y1-ny],[x1+nx,y1+ny ],Z_MARKING+h(x0,y0),color);}}
+    for(let i=0;i<r.pts.length-1;i++){const a=r.pts[i],b2=r.pts[i+1],dx=b2[0]-a[0],dy=b2[1]-a[1],l=Math.hypot(dx,dy);if(l<1)continue;const ux=dx/l,uy=dy/l,nx=-uy*.09,ny=ux*.09;for(let s=1;s+3<l;s+=7){const x0=a[0]+ux*s,y0=a[1]+uy*s,x1=x0+ux*3,y1=y0+uy*3;quad([x0+nx,y0+ny],[x0-nx,y0-ny],[x1-nx,y1-ny],[x1+nx,y1+ny ],Z_MARKING,color);}}
     if(++n%40===0)yield;}
   return{buckets:[...buckets.values()],roads:roads.length};
 }

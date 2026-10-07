@@ -16,16 +16,18 @@ onTerrainChange(()=>physics.rebuildTerrain());
 const step=(n)=>{for(let i=0;i<n;i++)physics.step(1/60,4,i*1000/60);};
 physics.addBody({id:"car",kind:"car",position:[0,0,.6],yaw:0});
 physics.addBody({id:"box",kind:"crate",position:[6,3,.6],halfExtents:[.5,.5,.5],massKg:80,wheeled:false});
+physics.addBody({id:"north",kind:"crate",position:[-20,62,.6],halfExtents:[.5,.5,.5],massKg:80,wheeled:false});
+physics.addBody({id:"south",kind:"crate",position:[-20,-62,.6],halfExtents:[.5,.5,.5],massKg:80,wheeled:false});
 step(60);
 assert.ok(physics.pose("car").position[2]<1,"car rests on the flat start ground");
 
 // a hill: 9 m at the car, sloping 6 % — the old ground is now 9 m underground
-const n=241,stepM=5,h=new Float32Array(n*n);for(let j=0;j<n;j++)for(let i=0;i<n;i++){const x=-600+i*stepM,y=-600+j*stepM;h[j*n+i]=9+.06*x+2*Math.sin(y/40);}
+const n=241,stepM=5,h=new Float32Array(n*n);for(let j=0;j<n;j++)for(let i=0;i<n;i++){const x=-600+i*stepM,y=-600+j*stepM;h[j*n+i]=9+.06*x+4*Math.sin(y/40);}
 setElevationGrid({x0:-600,y0:-600,step:stepM,n,h,cx:0,cy:0});
 assert.ok(staticGroundHeightAt(0,0)>8.5,"the DEM raised the ground");
 step(120);
-for(const id of["car","box"]){const p=physics.pose(id),g=staticGroundHeightAt(p.position[0],p.position[1]);console.log(id,"z",p.position[2].toFixed(2),"ground",g.toFixed(2));
-  assert.ok(p.position[2]>g&&p.position[2]<g+2,`${id} must stand on the risen terrain, not under it: z=${p.position[2]} ground=${g}`);}
+for(const id of["car","box","north","south"]){const p=physics.pose(id),g=staticGroundHeightAt(p.position[0],p.position[1]);console.log(id,"z",p.position[2].toFixed(2),"ground",g.toFixed(2));
+  assert.ok(p.position[2]>g&&p.position[2]<g+1.4,`${id} must stand on the risen terrain exactly where it is drawn (no mirrored/offset collision): z=${p.position[2]} ground=${g}`);}
 // drives up the slope on the height field
 physics.setDrive("car",{pedal:1,steer:0,maxSpeed:20});step(240);
 let p=physics.pose("car"),g=staticGroundHeightAt(p.position[0],p.position[1]);console.log("after climbing x",p.position[0].toFixed(1),"z",p.position[2].toFixed(2),"ground",g.toFixed(2));
