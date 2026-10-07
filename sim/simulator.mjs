@@ -1013,6 +1013,11 @@ function updatePresentationQuality(now){
 }
 function render(){
   requestAnimationFrame(render);
+  // The start menu is an opaque full-screen renderer of its own. Rendering the
+  // complete WebGL game underneath it wastes the same GPU/main-thread budget
+  // that must keep menu animation and streamed music smooth. Simulation/bootstrap
+  // continue independently; the first game frame is compiled explicitly before reveal.
+  const gameMenu=$("gameMenu");if(gameMenu&&!gameMenu.hidden){lastPresentationDrawMs=performance.now();return;}
   const renderNow=performance.now(),fcState=latest.state;updatePresentationQuality(renderNow);
   motorSound.syncFcState(fcState,arm);
   if(renderNow-lastPresentationAudioMs>=PRESENTATION_AUDIO_INTERVAL_MS){
