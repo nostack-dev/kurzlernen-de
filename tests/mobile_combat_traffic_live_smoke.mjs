@@ -29,7 +29,7 @@ try{
   const released=await page.$eval("#viewport",v=>({shots:Number(v.dataset.walkEnhancedShots)||0,active:v.dataset.walkFirePointerActive,release:v.dataset.walkFirePointerRelease,tail:Number(v.dataset.walkBurstTailSuppressed)||0}));
   const delta=held.shots-beforeShots;
   if(delta<4)throw new Error(`SMG hold must fire continuously beyond a three-round burst: ${JSON.stringify({beforeShots,held,released,delta})}`);
-  if(!(held.active==="1"&&held.hold==="screen-pointer-owned-smg-v1"&&held.api==="single-shot-per-call-v1"&&released.active==="0"))throw new Error(`SMG pointer ownership/single-shot API failed: ${JSON.stringify({held,released})}`);
+  if(!(held.active==="1"&&held.hold==="screen-pointer-owned-smg-v1"&&held.api==="single-shot-per-call-v2"&&released.active==="0"))throw new Error(`SMG pointer ownership/timer-isolated single-shot API failed: ${JSON.stringify({held,released})}`);
   if(!(held.alignment==="grip-anchor-to-resolved-shot-v6"&&Number.isFinite(held.error)&&held.error<.5&&Number.isFinite(held.drift)&&held.drift<.003&&held.grip==="grip-world-fixed-v2"&&held.vector==="grip-to-muzzle-to-shot-point-v1"&&held.target))throw new Error(`weapon geometry is not grip-anchored to resolved shot point: ${JSON.stringify(held)}`);
 
   const crowd=await page.evaluate(()=>{const v=document.querySelector("#viewport"),root=globalThis.__arondightRealWorld?.threeScene?.getObjectByName?.("WORLD_CROWD_EXTRAS");return{contract:v?.dataset.worldCrowdDensity,extra:Number(v?.dataset.worldCrowdExtraCount)||0,native:Number(v?.dataset.worldCrowdNativePeople)||0,visible:Number(v?.dataset.worldCrowdVisibleExtras)||0,spawn:v?.dataset.worldCrowdSpawnRule,children:root?.children?.length||0};});
