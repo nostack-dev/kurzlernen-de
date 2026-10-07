@@ -27,7 +27,7 @@ export function buildingTerrainBase(outer){let m=Infinity;for(const p of outer||
 // vertices). The full rebuild later produces the same shapes from the
 // shared damage state.
 
-export const CITY_BUILDINGS_VERSION="world-map-green-neon-v3-flat";
+export const CITY_BUILDINGS_VERSION="world-map-green-neon-v4-readable-depth";
 const VISUAL_RADIUS_M=900,LINE_RADIUS_M=420,FAT_RADIUS_M=220,MAX_FOOTPRINTS=2600,MAX_VERTICES=96;
 const RESYNC_MOVE_M=140,RESYNC_MS=2500,SLICE_MS=4;
 // Realistic urban palette: plaster, sandstone, brick, concrete, painted
@@ -131,12 +131,12 @@ function ensureMeshes(scene){
   if(group?.parent===scene)return;
   if(group?.parent)group.parent.remove(group);
   group=new THREE.Group();group.name="WORLD_CITY_BUILDINGS";
-  solidMaterial=patchShockMaterial(new THREE.MeshBasicMaterial({color:0x032417,toneMapped:false,fog:true,polygonOffset:true,polygonOffsetFactor:3,polygonOffsetUnits:6}));solid=new THREE.Group();chunks=[];solid.castShadow=false;solid.receiveShadow=false;solid.name="WORLD_CITY_SOLIDS";solid.frustumCulled=false;
+  solidMaterial=patchShockMaterial(new THREE.MeshBasicMaterial({color:0x061d14,toneMapped:false,fog:true,polygonOffset:true,polygonOffsetFactor:3,polygonOffsetUnits:6}));solid=new THREE.Group();chunks=[];solid.castShadow=false;solid.receiveShadow=false;solid.name="WORLD_CITY_SOLIDS";solid.frustumCulled=false;
   const empty=fatLineGeometry([0,0,0,0,0,0]);
-  edgeGlow=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x39ff14,{width:7,opacity:.24,additive:true,depthTest:true}),{lines:true}));edgeGlow.name="WORLD_CITY_EDGES_GLOW";edgeGlow.frustumCulled=false;
-  edges=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x3dff8a,{width:2.4,opacity:1,additive:true,depthTest:true}),{lines:true}));edges.name="WORLD_CITY_EDGES";edges.frustumCulled=false;
+  edgeGlow=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x39ff14,{width:5.2,opacity:.11,additive:true,depthTest:true}),{lines:true}));edgeGlow.name="WORLD_CITY_EDGES_GLOW";edgeGlow.frustumCulled=false;
+  edges=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x3dff8a,{width:1.65,opacity:.82,additive:true,depthTest:true}),{lines:true}));edges.name="WORLD_CITY_EDGES";edges.frustumCulled=false;
   // Far outlines stay native 1 px for performance, but use a bright phosphor core.
-  thinEdges=new THREE.LineSegments(new THREE.BufferGeometry(),patchShockMaterial(new THREE.LineBasicMaterial({color:0x3dff8a,toneMapped:false,fog:true,transparent:true,opacity:.68,blending:THREE.AdditiveBlending,depthTest:true,depthWrite:false})));thinEdges.name="WORLD_CITY_EDGES_FAR";thinEdges.frustumCulled=false;
+  thinEdges=new THREE.LineSegments(new THREE.BufferGeometry(),patchShockMaterial(new THREE.LineBasicMaterial({color:0x3dff8a,toneMapped:false,fog:true,transparent:true,opacity:.34,blending:THREE.AdditiveBlending,depthTest:true,depthWrite:false})));thinEdges.name="WORLD_CITY_EDGES_FAR";thinEdges.frustumCulled=false;
   for(const node of[group,solid,edgeGlow,edges,thinEdges]){node.userData.neonSkip=true;node.userData.flightFireIgnore=true;node.userData.worldCityBuildings=true;}
   delete edgeGlow.userData.neonEdge;delete edges.userData.neonEdge;
   // The green neon outline is the world look: three shared draw calls for the whole city.
@@ -246,7 +246,7 @@ function pumpBuild(){
   const outline=fatLineGeometry(lines.length?lines:[0,0,0,0,0,0]);edges.geometry.dispose?.();edges.geometry=outline;if(edgeGlow)edgeGlow.geometry=outline;
   const far=new THREE.BufferGeometry();far.setAttribute("position",new THREE.Float32BufferAttribute(thin,3));thinEdges.geometry.dispose();thinEdges.geometry=far;
   installRanges(ranges);
-  currentHash=building.key;setData("worldCityBuildings",building.count);setData("worldCityBuildingsVersion",CITY_BUILDINGS_VERSION);setData("worldCityLook","green-neon-flat-no-texture-v3");building=null;
+  currentHash=building.key;setData("worldCityBuildings",building.count);setData("worldCityBuildingsVersion",CITY_BUILDINGS_VERSION);setData("worldCityLook","dark-depth+selective-green-neon-v4");building=null;
 }
 
 // The map can hold the same building from several tile zoom levels (slightly
