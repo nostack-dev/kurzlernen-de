@@ -17,8 +17,9 @@ import {setWaterRegions,setBridgeDecks,WATER_LEVEL_M} from "./terrain_craters.mj
 //    tint from the shore distance and foam at banks and in fast water.
 // Rebuilt time-sliced after 300 m of travel. One draw call.
 
-export const WORLD_WATER_VERSION="map-water-basins-buoyancy-v1";
+export const WORLD_WATER_VERSION="map-water-basins-buoyancy-v2-depth-stable";
 const RADIUS_M=1000,CELL=4,REBUILD_MOVE_M=420,SLICE_MS=5;
+const WATER_RENDER_Z=WATER_LEVEL_M+.052;
 const WIDTH={river:18,canal:12,stream:4.5,drain:2.4,ditch:2.2,brook:3};
 let lastHarvest=-Infinity,installed=false,mesh=null,material=null,center=[Infinity,Infinity],job=null,lastTry=-Infinity,builtCount=0,builtRoads=0;
 const bridge=()=>globalThis.__arondightRealWorld||null;
@@ -75,7 +76,7 @@ function* build(b,cx,cy){
   // mesh: one quad per water cell, vertex attributes shared per corner
   const pos=[],shore=[],flow=[],idx=[],corner=new Map();
   const vtx=(ci,cj)=>{const key=ci*(N+1)+cj;let v=corner.get(key);if(v!==undefined)return v;let d=0,fx=0,fy=0,sp=0,n=0;for(const[di,dj]of[[0,0],[-1,0],[0,-1],[-1,-1]]){const i=ci+di,j=cj+dj;if(i<0||j<0||i>=N||j>=N)continue;const k=i*N+j;if(!water[k])continue;d+=dist[k];fx+=flowX[k];fy+=flowY[k];sp+=speed[k];n++;}
-    const allWater=n===4;v=pos.length/3;pos.push(x0+ci*CELL,y0+cj*CELL,.03);shore.push(allWater?d/n*CELL:0);flow.push(n?fx/n*sp/n:0,n?fy/n*sp/n:0);corner.set(key,v);return v;};
+    const allWater=n===4;v=pos.length/3;pos.push(x0+ci*CELL,y0+cj*CELL,WATER_RENDER_Z);shore.push(allWater?d/n*CELL:0);flow.push(n?fx/n*sp/n:0,n?fy/n*sp/n:0);corner.set(key,v);return v;};
   let cells=0;for(let i=0;i<N;i++){for(let j=0;j<N;j++){if(!water[i*N+j])continue;const a=vtx(i,j),bb=vtx(i+1,j),c=vtx(i+1,j+1),d=vtx(i,j+1);idx.push(a,bb,c,a,c,d);cells++;}if(i%24===0)yield;}
   // physics basins: greedy-merge cells into rectangles (rows, then stacked)
   // (on an 8 m grid — a block counts as water when ≥3 of its 4 cells are —
@@ -94,7 +95,7 @@ function* build(b,cx,cy){
   return{pos,shore,flow,idx,rects,decks,flowAt,cells,stats};
 }
 function makeMaterial(){
-  const m=new THREE.MeshStandardMaterial({color:0x1d4d63,roughness:.06,metalness:0,transparent:true,opacity:.92,depthWrite:false,envMapIntensity:1.25});
+  const m=new THREE.MeshStandardMaterial({color:0x176b98,roughness:.08,metalness:0,transparent:true,opacity:.94,depthWrite:true,envMapIntensity:1.15,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4});
   m.onBeforeCompile=shader=>{Object.assign(shader.uniforms,waterUniforms);
     shader.vertexShader=shader.vertexShader.replace("void main() {","attribute float aShore;attribute vec2 aFlow;varying float vShore;varying vec2 vFlow;varying vec3 vWP;\nvoid main() {vShore=aShore;vFlow=aFlow;").replace("#include <begin_vertex>","#include <begin_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;");
     shader.fragmentShader=shader.fragmentShader.replace("void main() {",`uniform float uTime;varying float vShore;varying vec2 vFlow;varying vec3 vWP;
@@ -105,7 +106,7 @@ void main() {`).replace("#include <color_fragment>",`#include <color_fragment>
   float fl=length(vFlow);vec2 fd=fl>0.01?vFlow/fl:normalize(vec2(0.8,0.6));vec2 side=vec2(-fd.y,fd.x);
   vec2 adv=vWP.xy-vFlow*uTime*2.2;
   float wDepth=clamp(vShore/9.0,0.0,1.0);
-  diffuseColor.rgb=mix(vec3(0.16,0.36,0.38),vec3(0.05,0.17,0.24),wDepth);
+  diffuseColor.rgb=mix(vec3(0.08,0.43,0.62),vec3(0.025,0.20,0.36),wDepth);
   float foam=smoothstep(0.55,0.95,wn(adv*0.6+uTime*0.15))*(1.0-smoothstep(0.0,2.4,vShore))+smoothstep(0.75,1.0,wn(adv*1.3))*smoothstep(0.6,1.6,fl)*0.6;
   diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.9,0.94,0.95),clamp(foam,0.0,0.85));
   diffuseColor.a=mix(0.55,0.94,smoothstep(0.0,3.0,vShore));`).replace("#include <normal_fragment_maps>",`#include <normal_fragment_maps>
@@ -116,7 +117,7 @@ void main() {`).replace("#include <color_fragment>",`#include <color_fragment>
   m.customProgramCacheKey=()=>"world-water-v1";return m;
 }
 function ensureMesh(scene){
-  if(mesh?.parent===scene)return mesh;material??=makeMaterial();mesh=new THREE.Mesh(new THREE.BufferGeometry(),material);mesh.name="WORLD_WATER";mesh.frustumCulled=false;mesh.renderOrder=-1;mesh.receiveShadow=true;mesh.userData.flightFireIgnore=true;mesh.userData.styleSkip=true;mesh.raycast=()=>{};scene.add(mesh);center=[Infinity,Infinity];return mesh;
+  if(mesh?.parent===scene)return mesh;material??=makeMaterial();mesh=new THREE.Mesh(new THREE.BufferGeometry(),material);mesh.name="WORLD_WATER";mesh.frustumCulled=false;mesh.renderOrder=-2;mesh.receiveShadow=true;mesh.userData.flightFireIgnore=true;mesh.userData.styleSkip=true;mesh.raycast=()=>{};scene.add(mesh);center=[Infinity,Infinity];return mesh;
 }
 function frame(now){
   requestAnimationFrame(frame);waterUniforms.uTime.value=now/1000;const b=bridge();
