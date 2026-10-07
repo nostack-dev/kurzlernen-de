@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {COMBAT_AUDIO_BANK_VERSION,combatPcmSummary,createCombatPcmBank} from "../sim/combat_audio_bank.mjs";
 
-assert.equal(COMBAT_AUDIO_BANK_VERSION,"prebaked-pcm-buffer-bank-v1");
-const bank=createCombatPcmBank(12000),expected={shot:3,hit:4,damage:2,scream:4,explosion:2,step:3,reward:3,fail:2};
+assert.equal(COMBAT_AUDIO_BANK_VERSION,"prebaked-pcm-buffer-bank-v2");
+const bank=createCombatPcmBank(12000),expected={shot:3,hit:4,damage:2,scream:4,explosion:2,step:3,bounce:4,reward:3,fail:2};
 for(const [kind,count] of Object.entries(expected)){
   assert.equal(bank.samples[kind].length,count,`${kind} variant count`);
   for(const samples of bank.samples[kind]){
