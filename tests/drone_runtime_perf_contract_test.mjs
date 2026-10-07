@@ -37,7 +37,11 @@ assert.ok(wanted.includes("now-lastHudRender<100")&&wanted.includes("hudStars=[.
 assert.equal((wanted.match(/let empButton=/g)||[]).length,0,"EMP binding must live in the consolidated HUD declaration only");
 
 assert.ok(files["sim/player_walk_mode_v4.mjs"].includes("now-lastWalkHousekeeping>=200"),"walk DOM mounting must be off the render hot path");
-assert.ok(files["sim/player_car_mode.mjs"].includes("now-lastCarUi>=100"),"car UI updates must be decoupled from physics frames");
+const car=files["sim/player_car_mode.mjs"];
+assert.ok(car.includes("now-lastCarUi>=100"),"car UI updates must be decoupled from physics frames");
+assert.ok(car.includes('id="vehicleMove" class="vehicle-stick"')&&car.includes('id="vehicleLook" class="vehicle-stick"'),"vehicle mode must expose the same MOVE/LOOK dual-stick layout");
+assert.ok(car.includes("touchSteer=p.x;touchPedal=-p.y")&&car.includes("touchLookX=p.x;touchLookY=-p.y"),"both axes of both vehicle sticks must remain live");
+assert.ok(!car.includes("vehicle-pad")&&!car.includes('class="foot-stick vehicle-stick"'),"vehicle sticks must not reintroduce one-axis pads or pollute the on-foot stick set");
 assert.ok(files["sim/player_vehicle_runtime_v2.mjs"].includes("now-lastIntegrationPatch>=250"),"multiplayer integration patch checks must be throttled");
 assert.ok(files["sim/training_test_level_v2.mjs"].includes("setTimeout(sync,250)")&&!files["sim/training_test_level_v2.mjs"].includes("requestAnimationFrame(frame)"),"static training-level visibility must not run at frame rate");
 
