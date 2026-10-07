@@ -24,8 +24,9 @@ const mobile=files["sim/mobile_gameplay_ui.mjs"];
 assert.ok(mobile.includes("const UI_SYNC_MS=100")&&mobile.includes("setTimeout(sync,UI_SYNC_MS)"),"mobile HUD must use low-frequency state sync");
 assert.ok(!mobile.includes("requestAnimationFrame(sync)"),"mobile HUD must not own a frame-rate DOM loop");
 
-const cleanup=files["sim/flight_first_cleanup.mjs"];
-assert.ok(!cleanup.includes("requestAnimationFrame(frame)")&&!cleanup.includes("function frame(){publish()"),"static cleanup diagnostics must not own an RAF loop");
+const cleanup=files["sim/flight_first_cleanup.mjs"],publishStart=cleanup.indexOf("function publish()"),publishEnd=cleanup.indexOf("export ",publishStart);
+const cleanupDiagnostics=cleanup.slice(publishStart,publishEnd>publishStart?publishEnd:cleanup.length);
+assert.ok(publishStart>=0&&!cleanupDiagnostics.includes("requestAnimationFrame(")&&!cleanupDiagnostics.includes("function frame(){publish()"),"static cleanup diagnostics must not own an RAF loop; the pointer-owned look/fire input loop may remain frame-driven");
 
 const gameplay=files["sim/gameplay_final_runtime_v2.mjs"];
 assert.ok(gameplay.includes("lastHousekeeping=-Infinity")&&gameplay.includes("now-lastHousekeeping>=250"),"weapon hierarchy housekeeping must be throttled");
