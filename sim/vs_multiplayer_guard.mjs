@@ -16,6 +16,6 @@ function patchFinder(){
   };
 }
 
-function frame(){patchFinder();requestAnimationFrame(frame);}
+function maintenance(){patchFinder();setTimeout(maintenance,250);}
 
-export function installVsMultiplayerGuard(){if(installed)return;installed=true;requestAnimationFrame(frame);}
+export function installVsMultiplayerGuard(){if(installed)return;installed=true;patchFinder();setTimeout(maintenance,250);}
