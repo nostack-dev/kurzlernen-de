@@ -71,7 +71,7 @@ function fitLabels(){
 function guardMinimap(){
   setTimeout(guardMinimap,1000);const b=globalThis.__arondightRealWorld,hud=document.getElementById("worldLookHud");if(!b?.active||!hud)return;
   const cs=getComputedStyle(hud),r=hud.getBoundingClientRect(),why=hud.hidden?"hidden-attr":cs.display==="none"?"display-none":cs.visibility==="hidden"?"visibility":parseFloat(cs.opacity)<.2?"opacity":r.width<20||r.height<20?"zero-size":r.right<10||r.bottom<10||r.left>innerWidth-10||r.top>innerHeight-10?"offscreen":"";
-  if(!why){const top=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);if(top&&!hud.contains(top)&&!top.closest?.("dialog")){const v=document.getElementById("viewport");if(v)v.dataset.minimapGuard=`covered:${top.id||top.className||top.tagName}`;}return;}
+  if(!why){const top=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2),v=document.getElementById("viewport");if(v)v.dataset.minimapGuard=top&&!hud.contains(top)&&!top.closest?.("dialog,#gameMenu")?`covered:${top.id||top.className||top.tagName}`:"ok";return;}
   const v=document.getElementById("viewport");if(v)v.dataset.minimapGuard=why;
   hud.hidden=false;hud.style.setProperty("display","block","important");hud.style.setProperty("visibility","visible","important");hud.style.setProperty("opacity","1","important");
   if(why==="zero-size"||why==="offscreen"){hud.style.setProperty("width","132px","important");hud.style.setProperty("height","132px","important");hud.style.setProperty("right","max(8px,env(safe-area-inset-right))","important");hud.style.setProperty("left","auto","important");hud.style.setProperty("top","calc(max(8px,env(safe-area-inset-top)) + 46px)","important");}

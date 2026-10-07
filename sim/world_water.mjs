@@ -18,7 +18,7 @@ import {setWaterRegions,setBridgeDecks,WATER_LEVEL_M} from "./terrain_craters.mj
 // Rebuilt time-sliced after 300 m of travel. One draw call.
 
 export const WORLD_WATER_VERSION="map-water-basins-buoyancy-v1";
-const RADIUS_M=520,CELL=3,REBUILD_MOVE_M=300,SLICE_MS=5;
+const RADIUS_M=1000,CELL=4,REBUILD_MOVE_M=420,SLICE_MS=5;
 const WIDTH={river:18,canal:12,stream:4.5,drain:2.4,ditch:2.2,brook:3};
 let installed=false,mesh=null,material=null,center=[Infinity,Infinity],job=null,lastTry=-Infinity,builtCount=0,builtRoads=0;
 const bridge=()=>globalThis.__arondightRealWorld||null;

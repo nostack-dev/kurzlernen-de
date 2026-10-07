@@ -61,20 +61,23 @@ function ensureSky(scene){
   sky.onBeforeRender=(r,s,camera)=>{sky.position.copy(camera.position);sky.scale.setScalar(Math.min(camera.far*.9,1800));};scene.add(sky);return sky;
 }
 // Image-based lighting: render the (cloudless) sky once into a PMREM env map.
+let envTexture=null;
 function buildEnvironment(scene,renderer){
+  // every scene (training world, real world, rebuilt worlds) gets the env map
+  if(envTexture&&scene.environment!==envTexture){scene.environment=envTexture;scene.environmentIntensity=.9;}
   if(envReady||!renderer)return;try{const pm=new THREE.PMREMGenerator(renderer),envScene=new THREE.Scene(),g=new THREE.SphereGeometry(10,32,16);g.rotateX(Math.PI/2);const m=new THREE.Mesh(g,skyMaterial(false));envScene.add(m);
     const ground=new THREE.Mesh(new THREE.CircleGeometry(9.5,32),new THREE.MeshBasicMaterial({color:0x5b6450}));ground.position.z=-1.2;envScene.add(ground);
-    const rt=pm.fromScene(envScene,0,.1,100);scene.environment=rt.texture;scene.environmentIntensity=.9;pm.dispose();envReady=true;}catch(error){console.warn("environment",error);envReady=true;}
+    const rt=pm.fromScene(envScene,0,.1,100);envTexture=rt.texture;scene.environment=rt.texture;scene.environmentIntensity=.9;pm.dispose();envReady=true;}catch(error){console.warn("environment",error);envReady=true;}
 }
 // ---------------------------------------------------------------- light
 function ensureLights(scene,renderer){
   if(sun?.parent===scene)return;
   scene.traverse(o=>{if((o.isDirectionalLight||o.isHemisphereLight||o.isAmbientLight)&&!o.userData.realLight){o.userData.prevIntensity=o.intensity;o.intensity=0;o.castShadow=false;}});
   hemi=new THREE.HemisphereLight(0xc4dcff,0x6b5e48,.85);hemi.userData.realLight=true;scene.add(hemi);
-  sun=new THREE.DirectionalLight(0xfff0dc,3.1);sun.userData.realLight=true;sun.castShadow=true;
+  sun=new THREE.DirectionalLight(0xfff0dc,2.8);sun.userData.realLight=true;sun.castShadow=true;
   const sc=sun.shadow.camera;sc.left=-SHADOW_RANGE_M;sc.right=SHADOW_RANGE_M;sc.top=SHADOW_RANGE_M;sc.bottom=-SHADOW_RANGE_M;sc.near=1;sc.far=900;sun.shadow.mapSize.set(SHADOW_SIZE,SHADOW_SIZE);sun.shadow.bias=-.0004;sun.shadow.normalBias=.04;sun.shadow.radius=2;
   scene.add(sun,sun.target);
-  if(renderer){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=true;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;renderer.outputColorSpace=THREE.SRGBColorSpace;}
+  if(renderer){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=true;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;renderer.outputColorSpace=THREE.SRGBColorSpace;}
 }
 const texel=new THREE.Vector3();
 function followSun(){

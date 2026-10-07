@@ -57,16 +57,18 @@ function realFacades(material){
     shader.fragmentShader=shader.fragmentShader.replace("void main() {","varying vec3 vWinPos;varying vec4 vWall;varying float vSeed;\nfloat fh(float n){return fract(sin(n*127.1)*43758.5453);}\nvoid main() {float facGlass=0.0,facRough=0.88;")
       .replace("#include <color_fragment>","#include <color_fragment>\n"+FACADE_GLSL)
       .replace("#include <roughnessmap_fragment>","#include <roughnessmap_fragment>\nroughnessFactor=mix(facRough,0.07,facGlass);")
-      .replace("#include <metalnessmap_fragment>","#include <metalnessmap_fragment>\nmetalnessFactor=mix(0.0,0.62,facGlass);");
+      .replace("#include <metalnessmap_fragment>","#include <metalnessmap_fragment>\nmetalnessFactor=mix(0.0,0.35,facGlass);")
+      // glass always mirrors some sky (Fresnel), even where the env map is dim
+      .replace("#include <emissivemap_fragment>","#include <emissivemap_fragment>\n{float fr=pow(1.0-abs(dot(normalize(vViewPosition),normal)),3.0);totalEmissiveRadiance+=facGlass*mix(vec3(0.05,0.07,0.09),vec3(0.32,0.4,0.5),fr);}");
   };
-  const key=material.customProgramCacheKey?.bind(material);material.customProgramCacheKey=()=>`${key?key():""}|real-facades-v3`;return material;
+  const key=material.customProgramCacheKey?.bind(material);material.customProgramCacheKey=()=>`${key?key():""}|real-facades-v4`;return material;
 }
 const FACADE_GLSL=`{
   vec3 wn=normalize(cross(dFdx(vWinPos),dFdy(vWinPos)));
   vec3 base=diffuseColor.rgb;
   float u=vWall.x,len=vWall.y,z=vWall.z,H=vWall.w;
   if(u>=0.0&&abs(wn.z)<0.5){
-    vec3 glassC=vec3(0.16,0.21,0.27);
+    vec3 glassC=vec3(0.2,0.26,0.32);
     float aa=clamp(1.6-fwidth(u)*1.2,0.0,1.0);
     float pil=1.0-step(0.38,u)*step(u,len-0.38);
     float tower=step(26.0,H);
