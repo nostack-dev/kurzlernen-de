@@ -11,7 +11,7 @@
 // traffic (an AI driver steers towards its route target and controls speed
 // with the same pedal). Frame: world z up; chassis local x forward, y left.
 
-export const VEHICLE_DYNAMICS_VERSION="box3d-wheel-joint-vehicles-v2.7-physical-direction-change";
+export const VEHICLE_DYNAMICS_VERSION="box3d-wheel-joint-vehicles-v2.8-gear-state";
 
 // Joint frame: local x -> up (suspension + steering axis), local z -> left
 // (wheel spin axis), local y -> forward. Same frame on chassis and wheel.
@@ -81,17 +81,18 @@ export function driveWheeled(physics,record,dt){
   // Physical steering rack: the stick requests a wheel angle; the steering
   // joint motor reaches it at a finite actuator rate. No speed-based axis clamp.
   const target=clamp(input.steer,-1,1)*spec.steerLock,rate=(record.kind==="bus"?1.45:2.8)*dt;record.steerAngle+=clamp(target-record.steerAngle,-rate,rate);
-  // brake until (almost) stopped — also while sliding sideways — then reverse
+  // Automatic direction selector with real braking: changing between Drive
+  // and Reverse is a drivetrain state change, so it cannot happen while the
+  // chassis is still moving. This prevents a spinning car from "becoming"
+  // reverse merely because its body heading crossed 90 degrees.
+  record.driveGear=record.driveGear===-1?-1:1;
   let mode="coast";
-  if(pedal>0.02){
-    // A real transmission cannot cancel sideways momentum by selecting Drive.
-    // Brake until the chassis is nearly stopped if it is moving backwards OR
-    // still sliding substantially with almost no longitudinal speed.
-    mode=vf<-.4||(Math.abs(vf)<=.4&&speed>.8)?"brake":"drive";
-  }else if(pedal<-0.02){
-    // Likewise, Reverse is engaged only after forward/sideways motion has
-    // actually been arrested by the wheel brakes.
-    mode=vf>.4||(Math.abs(vf)<=.4&&speed>.8)?"brake":"reverse";
+  if(Math.abs(pedal)>0.02){
+    const desiredGear=pedal>0?1:-1;
+    if(record.driveGear!==desiredGear){
+      if(speed>.65)mode="brake";
+      else{record.driveGear=desiredGear;mode=desiredGear>0?"drive":"reverse";}
+    }else mode=desiredGear>0?"drive":"reverse";
   }
   const torqueCurve=s=>Math.max(.15,1-Math.max(0,s/maxSpeed-.55)/.45);
   for(const wheel of record.wheels){
