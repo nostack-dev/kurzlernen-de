@@ -31,7 +31,7 @@ const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tmp3=new THREE.Vector3(),
 const shotCamera=new THREE.PerspectiveCamera(78,16/9,.01,500),shotRaycaster=new THREE.Raycaster(),boxHits=new Box3dHitscanWorld();
 const tracerAxis=new THREE.Vector3(0,1,0),tracerVector=new THREE.Vector3(),grenadeAxis=new THREE.Vector3(0,0,-1),bounceFxAxis=new THREE.Vector3(0,0,1);
 let installed=false,audioSettings=loadAudioSettings(),footWeapon=loadMode(FOOT_WEAPON_KEY,"smg",FOOT_WEAPON_ORDER),droneWeapon=loadMode(DRONE_WEAPON_KEY,"gun",["gun","missile"]),lastSmg=-Infinity,lastGlock=[-Infinity,-Infinity],lastGrenade=-Infinity,lastMissile=-Infinity;
-let tracerScene=null,tracerPool=[],tracerCursor=0,blastScene=null,blastPool=[],blastCursor=0,bounceFxScene=null,bounceFxPool=[],bounceFxCursor=0,activeMovePointer=null,activeMoveElement=null,tap=null,lastPedScan=-Infinity,lastPedTelemetry=-Infinity,pedestrians=[],actorCacheScene=null,actorCacheAt=-Infinity,actorCachePhysicsReady=false,actorCache=[],grenadeOrganicCache=[],actorByPhysicsId=new Map();
+let tracerScene=null,tracerPool=[],tracerCursor=0,blastScene=null,blastPool=[],blastCursor=0,bounceFxScene=null,bounceFxPool=[],bounceFxCursor=0,activeMovePointer=null,activeMoveElement=null,tap=null,lastPedScan=-Infinity,lastPedTelemetry=-Infinity,pedestrians=[],pedScanScene=null,pedScanStack=[],pedScanNext=[],pedScanSeen=new Set(),actorCacheScene=null,actorCacheAt=-Infinity,actorCachePhysicsReady=false,actorCache=[],grenadeOrganicCache=[],actorByPhysicsId=new Map();
 const pedState=new WeakMap(),missiles=[],grenades=[];
 
 function viewport(){return document.getElementById("viewport");}
@@ -221,7 +221,18 @@ function inputCapture(event){
   if(event.type==="pointerdown"&&isDrone()&&droneWeapon==="missile"&&event.button===0&&!target?.closest("#worldLookHud,#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#wantedEmpButton,#droneWeaponToggle,dialog,button,input,select,textarea,a,label")){event.preventDefault();event.stopImmediatePropagation();launchMissile(event.clientX,event.clientY,performance.now(),event.pointerType||"pointer");}
 }
 
-function scanPedestrians(now){if(now-lastPedScan<850)return;lastPedScan=now;pedestrians=[];const scene=bridge()?.threeScene;scene?.traverse?.(node=>{if(!node.children?.length)return;const kind=String(node.userData?.worldPopulationKind||node.userData?.worldLifeKind||"");if(kind!=="person"&&kind!=="life-person")return;const id=String(node.userData?.worldPopulationId||node.userData?.worldLifeId||"");if(!id||pedestrians.some(x=>x.id===id))return;const limbs=[];for(const child of node.children){if(!child?.isMesh)continue;const type=String(child.geometry?.type||""),z=Number(child.position.z)||0;if(!type.includes("Box"))continue;if(z<.8||z>.82&&z<1.38)limbs.push({mesh:child,base:child.rotation.y,leg:z<.8,side:Math.sign(Number(child.position.y)||1)});}if(limbs.length)pedestrians.push({id,root:node,limbs});});}
+function beginPedestrianScan(scene){pedScanScene=scene;pedScanStack.length=0;pedScanNext.length=0;pedScanSeen.clear();pedScanStack.push(scene);}
+function stepPedestrianScan(deadline){
+  while(pedScanStack.length&&performance.now()<deadline){
+    const node=pedScanStack.pop();if(!node)continue;const children=node.children||[];for(let i=children.length-1;i>=0;i--)pedScanStack.push(children[i]);
+    if(!children.length)continue;const kind=String(node.userData?.worldPopulationKind||node.userData?.worldLifeKind||"");if(kind!=="person"&&kind!=="life-person")continue;
+    const id=String(node.userData?.worldPopulationId||node.userData?.worldLifeId||"");if(!id||pedScanSeen.has(id))continue;pedScanSeen.add(id);const limbs=[];
+    for(const child of children){if(!child?.isMesh)continue;const type=String(child.geometry?.type||""),z=Number(child.position.z)||0;if(!type.includes("Box"))continue;if(z<.8||z>.82&&z<1.38)limbs.push({mesh:child,base:child.rotation.y,leg:z<.8,side:Math.sign(Number(child.position.y)||1)});}
+    if(limbs.length)pedScanNext.push({id,root:node,limbs});
+  }
+  if(pedScanStack.length)return false;pedestrians=pedScanNext.slice();pedScanScene=null;return true;
+}
+function scanPedestrians(now){const scene=bridge()?.threeScene;if(!scene)return;if(pedScanScene&&pedScanScene!==scene){pedScanScene=null;pedScanStack.length=0;}if(!pedScanScene&&now-lastPedScan>=850){lastPedScan=now;beginPedestrianScan(scene);}if(pedScanScene)stepPedestrianScan(performance.now()+.75);}
 function animatePedestrians(now,dt){scanPedestrians(now);let moving=0;for(const p of pedestrians){if(!p.root?.parent||p.root.visible===false)continue;let s=pedState.get(p.root);if(!s){s={x:p.root.position.x,y:p.root.position.y,phase:(p.id.length%7)*.7};pedState.set(p.root,s);}const speed=Math.hypot(p.root.position.x-s.x,p.root.position.y-s.y)/Math.max(.001,dt);s.x=p.root.position.x;s.y=p.root.position.y;const weight=clamp((speed-.08)/1.2,0,1);if(weight>.05){s.phase+=dt*(5.5+speed*2.4);moving++;}const swing=Math.sin(s.phase)*.48*weight;for(const limb of p.limbs)limb.mesh.rotation.y=limb.base+(limb.leg?1:-.82)*limb.side*swing;}if(now-lastPedTelemetry>=250){lastPedTelemetry=now;const view=viewport();if(view){view.dataset.pedestrianAnimation="procedural-arm-leg-walkcycle-v2";view.dataset.pedestriansWalking=String(moving);view.dataset.pedestrianTelemetry="250ms";}}}
 
 function installStyle(){if(document.querySelector("style[data-gameplay-final-runtime]"))return;const style=document.createElement("style");style.dataset.gameplayFinalRuntime="v2";style.textContent=`
