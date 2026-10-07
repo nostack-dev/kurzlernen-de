@@ -426,7 +426,7 @@ function applyTargetDamage(drone,target,now){
 }
 
 function updateDroneAttack(drone,now){
-  const target=currentDamageTargets().find(item=>item.kind===drone.targetKind);if(drone.empDisabled||drone.retreating||phase!=="pursuit"||!drone.seesPlayer||drone.distance<4.5||drone.distance>34+stars*2||now<drone.engageAt||now<drone.nextShotAt||!target||target.hp<=0)return;
+  if(drone.empDisabled||drone.retreating||phase!=="pursuit"||!drone.seesPlayer||drone.distance<4.5||drone.distance>34+stars*2||now<drone.engageAt||now<drone.nextShotAt)return;const target=currentDamageTargets().find(item=>item.kind===drone.targetKind);if(!target||target.hp<=0)return;
   // Fresh occlusion is safety-critical at the instant of firing, not every render frame.
   if(!lineOfSight(drone.root.position,target.position)){drone.seesPlayer=false;drone.nextSensorAt=Math.min(Number(drone.nextSensorAt)||now,now+20);drone.nextShotAt=now+190;return;}
   drone.nextShotAt=now+wantedPoliceShotIntervalMs(stars)+drone.index*73;const shot=++drone.shotSerial,chance=wantedPoliceHitChance({stars,distanceM:drone.distance,playerSpeedMps:drone.targetSpeedMps}),roll=((drone.index+1)*.371+shot*.618+drone.spawnSerial*.137)%1,accurate=roll<chance;tmpPosition.set(target.position.x,target.position.y,target.position.z);
