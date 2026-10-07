@@ -11,15 +11,15 @@
 // traffic (an AI driver steers towards its route target and controls speed
 // with the same pedal). Frame: world z up; chassis local x forward, y left.
 
-export const VEHICLE_DYNAMICS_VERSION="box3d-wheel-joint-vehicles-v2.2-physical";
+export const VEHICLE_DYNAMICS_VERSION="box3d-wheel-joint-vehicles-v2.3-cylinder-tyres";
 
 // Joint frame: local x -> up (suspension + steering axis), local z -> left
 // (wheel spin axis), local y -> forward. Same frame on chassis and wheel.
 const FRAME_Q=[-.5,-.5,-.5,.5];
 export const VEHICLE_SPECS=Object.freeze({
-  car:{half:[1.78,.82,.36],mass:1350,comZ:-.18,radius:.34,wheelMass:22,attachZ:-.26,wheels:[[1.2,.78,true],[1.2,-.78,true],[-1.15,.78,false],[-1.15,-.78,false]],
+  car:{half:[1.78,.82,.36],mass:1350,comZ:-.18,radius:.34,wheelWidth:.22,wheelMass:22,attachZ:-.26,wheels:[[1.2,.78,true],[1.2,-.78,true],[-1.15,.78,false],[-1.15,-.78,false]],
     suspension:{hertz:3.8,damping:.8,lower:-.15,upper:.11},/* wheel torque after gearing, not crank torque */torque:{front:450,rear:1000},brake:3200,handbrake:3600,coast:40,steerLock:.58,steerTorque:900,friction:1.35},
-  bus:{half:[4,1.17,1.2],mass:9200,comZ:-.52,radius:.46,wheelMass:85,attachZ:-1.1,wheels:[[2.6,1.08,true],[2.6,-1.08,true],[-2.55,1.08,false],[-2.55,-1.08,false]],
+  bus:{half:[4,1.17,1.2],mass:9200,comZ:-.52,radius:.46,wheelWidth:.3,wheelMass:85,attachZ:-1.1,wheels:[[2.6,1.08,true],[2.6,-1.08,true],[-2.55,1.08,false],[-2.55,-1.08,false]],
     suspension:{hertz:2.8,damping:.86,lower:-.18,upper:.14},torque:{front:0,rear:4200},brake:9500,handbrake:12000,coast:260,steerLock:.44,steerTorque:6000,friction:1.15},
 });
 export function vehicleSpec(kind){return kind==="bus"?VEHICLE_SPECS.bus:kind==="car"||kind==="vehicle"?VEHICLE_SPECS.car:null;}
@@ -37,11 +37,14 @@ export function attachWheels(physics,record,spec,{category,mask}){
   // Lowering the chassis COM approximates engine/floor/passenger mass while leaving
   // roll, pitch, jumps and flips entirely to Box3D contacts + suspension.
   if(Number.isFinite(spec.comZ)&&typeof b3.b3Body_GetMassData==="function"&&typeof b3.b3Body_SetMassData==="function"){const md=b3.b3Body_GetMassData(record.body);md.mass=spec.mass;md.center=[0,0,spec.comZ];b3.b3Body_SetMassData(record.body,md);}
-  const r=spec.radius,volume=4/3*Math.PI*r*r*r;
+  const r=spec.radius,wheelWidth=spec.wheelWidth||r*.65,volume=Math.PI*r*r*wheelWidth;
   for(const[x,y,front]of spec.wheels){
     const local=[x,y,spec.attachZ],off=rotate(chassisRot,local),bd=b3.b3DefaultBodyDef();bd.type=b3.b3BodyType.b3_dynamicBody;bd.position=[chassisPos[0]+off[0],chassisPos[1]+off[1],chassisPos[2]+off[2]];bd.rotation=[...chassisRot];bd.angularDamping=.05;bd.linearDamping=.02;if("allowFastRotation"in bd)bd.allowFastRotation=true;bd.enableSleep=false;
     const body=b3.b3CreateBody(physics.world,bd),sd=b3.b3DefaultShapeDef();sd.density=spec.wheelMass/volume;sd.baseMaterial.friction=spec.friction;sd.baseMaterial.restitution=0;sd.enableContactEvents=true;sd.enableHitEvents=true;sd.filter={categoryBits:category,maskBits:mask,groupIndex:0};
-    const shape=b3.b3CreateSphereShape(body,sd,{center:[0,0,0],radius:r});
+    // A tyre is a finite-width cylinder, not a sphere. The cylinder axis is body-local Y,
+    // exactly the wheel joint spin axis (joint-frame Z maps to body Y via FRAME_Q).
+    // This gives real rolling geometry and removes the spherical-wheel side wobble.
+    let shape;if(typeof b3.b3CreateCylinder==="function"&&typeof b3.b3CreateHullShape==="function"&&typeof b3.b3DestroyHull==="function"){const hull=b3.b3CreateCylinder(wheelWidth*.5,r,0,16);if(!hull)throw Error("Box3D failed to create tyre hull");try{shape=b3.b3CreateHullShape(body,sd,hull);}finally{b3.b3DestroyHull(hull);}}else{shape=b3.b3CreateSphereShape(body,sd,{center:[0,0,0],radius:r});}
     const jd=b3.b3DefaultWheelJointDef();jd.base.bodyIdA=record.body;jd.base.bodyIdB=body;jd.base.localFrameA={position:local,quaternion:[...FRAME_Q]};jd.base.localFrameB={position:[0,0,0],quaternion:[...FRAME_Q]};jd.base.collideConnected=false;
     jd.enableSuspensionSpring=true;jd.suspensionHertz=spec.suspension.hertz;jd.suspensionDampingRatio=spec.suspension.damping;jd.enableSuspensionLimit=true;jd.lowerSuspensionLimit=spec.suspension.lower;jd.upperSuspensionLimit=spec.suspension.upper;
     jd.enableSpinMotor=true;jd.maxSpinTorque=spec.coast;jd.spinSpeed=0;
