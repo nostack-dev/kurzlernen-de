@@ -45,7 +45,6 @@ jobs:
           node tests/fps_control_test.mjs
           node tests/first_person_control_settings_test.mjs
           node tests/xbox_gamepad_test.mjs
-          node tests/terrain_building_pads_test.mjs
           node tests/player_vitals_logic_test.mjs
           node tests/wanted_system_test.mjs
           node tests/gameplay_fun_logic_test.mjs
@@ -116,6 +115,7 @@ jobs:
           node tests/world_vehicle_dynamics_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           node tests/terrain_underground_rescue_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           node tests/terrain_tiles_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
+          node tests/terrain_building_pads_test.mjs
           node tests/terrain_surface_alignment_test.mjs
           ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
           ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
