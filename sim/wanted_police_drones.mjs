@@ -32,6 +32,7 @@ const formationPosition=new THREE.Vector3();
 const empDirection=new THREE.Vector3();
 const unitScale=new THREE.Vector3(1,1,1);
 const lastTargetDamageAt={player:-Infinity,drone:-Infinity};
+const BUILDING_GRID_CELL_M=32,buildingGrid=new Map(),losCandidates=[],losSeen=new Set();let buildingGridSnapshot=null;
 
 let installed=false;
 let sceneRef=null;
@@ -288,14 +289,19 @@ function currentDamageTargets(){
   const player=currentPlayerPosition(new THREE.Vector3()),droneMode=globalThis.__arondightWalkMode?.mode!=="foot",model=droneMode?globalThis.__arondightDroneDamageModel:globalThis.__arondightPlayerDamageModel,hp=Number(model?.hp);return player&&Number.isFinite(hp)&&hp>0?[{kind:droneMode?"drone":"player",model,hp,position:{x:player.x,y:player.y,z:player.z},speedMps:playerSpeedMps}]:[];
 }
 
-function lineOfSight(from,to){
-  return !wantedLineBlockedByPrisms(from,to,bridge()?.buildingCollisionSnapshot?.prisms);
+function buildingCellKey(ix,iy){return `${ix}:${iy}`;}
+function refreshBuildingGrid(){
+  const snapshot=bridge()?.buildingCollisionSnapshot;if(snapshot===buildingGridSnapshot)return;buildingGridSnapshot=snapshot;buildingGrid.clear();
+  for(const prism of Array.isArray(snapshot?.prisms)?snapshot.prisms:[]){let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;for(const p of prism.points||[]){const x=Number(p?.[0]),y=Number(p?.[1]);if(!Number.isFinite(x)||!Number.isFinite(y))continue;minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);}if(!Number.isFinite(minX))continue;for(let ix=Math.floor(minX/BUILDING_GRID_CELL_M);ix<=Math.floor(maxX/BUILDING_GRID_CELL_M);ix++)for(let iy=Math.floor(minY/BUILDING_GRID_CELL_M);iy<=Math.floor(maxY/BUILDING_GRID_CELL_M);iy++){const key=buildingCellKey(ix,iy),list=buildingGrid.get(key);if(list)list.push(prism);else buildingGrid.set(key,[prism]);}}
 }
+function linePrisms(from,to){
+  refreshBuildingGrid();losCandidates.length=0;losSeen.clear();const minX=Math.min(Number(from?.x)||0,Number(to?.x)||0),maxX=Math.max(Number(from?.x)||0,Number(to?.x)||0),minY=Math.min(Number(from?.y)||0,Number(to?.y)||0),maxY=Math.max(Number(from?.y)||0,Number(to?.y)||0);
+  for(let ix=Math.floor(minX/BUILDING_GRID_CELL_M);ix<=Math.floor(maxX/BUILDING_GRID_CELL_M);ix++)for(let iy=Math.floor(minY/BUILDING_GRID_CELL_M);iy<=Math.floor(maxY/BUILDING_GRID_CELL_M);iy++)for(const prism of buildingGrid.get(buildingCellKey(ix,iy))||[]){if(losSeen.has(prism))continue;losSeen.add(prism);losCandidates.push(prism);}return losCandidates;
+}
+function lineOfSight(from,to){return !wantedLineBlockedByPrisms(from,to,linePrisms(from,to));}
 
 function buildingTopAt(x,y){
-  let top=0;const snapshot=bridge()?.buildingCollisionSnapshot;
-  for(const prism of Array.isArray(snapshot?.prisms)?snapshot.prisms:[])if(wantedPointInRing(x,y,prism.points))top=Math.max(top,Number(prism.top)||0);
-  return top;
+  refreshBuildingGrid();let top=0;const candidates=buildingGrid.get(buildingCellKey(Math.floor(x/BUILDING_GRID_CELL_M),Math.floor(y/BUILDING_GRID_CELL_M)))||[];for(const prism of candidates)if(wantedPointInRing(x,y,prism.points))top=Math.max(top,Number(prism.top)||0);return top;
 }
 
 function safeAltitude(x,y,z){const top=buildingTopAt(x,y);return Math.max(.85,Number(z)||0,top?top+1.6:0);}
