@@ -1,13 +1,9 @@
-file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45
-            this.#timeoutError = new TimeoutError(`Waiting failed: ${options.timeout}ms exceeded`);
-                                 ^
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/nuke_mobile_live_smoke.mjs:23
+  throw new Error(`could not atomically arm healthy drone for NUKE: ${JSON.stringify(await page.evaluate(()=>({destroyed:Boolean(globalThis.__arondightDroneDamageModel?.destroyed),canDeploy:Boolean(globalThis.__arondightDroneDamageModel?.canDeploy),disabled:Boolean(document.querySelector("#soloArm")?.disabled),button:document.querySelector("#soloArm")?.textContent?.trim(),fc:document.querySelector("#soloState")?.textContent?.trim(),mode:globalThis.__arondightWalkMode?.mode})))}`);
+        ^
 
-TimeoutError: Waiting failed: 6000ms exceeded
-    at new WaitTask (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45:34)
-    at IsolatedWorld.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Realm.js:22:26)
-    at CdpFrame.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Frame.js:584:43)
-    at CdpFrame.<anonymous> (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/decorators.js:101:27)
-    at CdpPage.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Page.js:1439:37)
-    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/nuke_mobile_live_smoke.mjs:42:14
+Error: could not atomically arm healthy drone for NUKE: {"destroyed":false,"canDeploy":true,"disabled":false,"button":"ARM","fc":"FAULT 2","mode":"drone"}
+    at armDroneAtomically (file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/nuke_mobile_live_smoke.mjs:23:9)
+    at async file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/nuke_mobile_live_smoke.mjs:32:17
 
 Node.js v22.23.3
