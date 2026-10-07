@@ -42,7 +42,7 @@ function ensureSmg(gun){
 function ensureGrenadeLauncher(gun){
   let group=gun.getObjectByName?.("WALK_GRENADE_LAUNCHER_3D");if(group)return group;
   group=new THREE.Group();group.name="WALK_GRENADE_LAUNCHER_3D";group.position.set(.010,-.015,.018);group.userData.flightFireIgnore=true;group.userData.walkWeaponPart=true;group.userData.walkGrenadePart=true;group.userData.walkGrenadeViewmodel="dedicated-40mm-break-action-v1";
-  const steel=material({color:0x202923,roughness:.32,metalness:.68}),tube=material({color:0x111713,roughness:.42,metalness:.54}),polymer=material({color:0x0a100d,roughness:.82,metalness:.05}),accent=new THREE.MeshBasicMaterial({color:0x00ff9c,depthTest:true,depthWrite:false,toneMapped:false});
+  const steel=material({color:0x202923,roughness:.32,metalness:.68}),tube=material({color:0x111713,roughness:.42,metalness:.54}),polymer=material({color:0x0a100d,roughness:.82,metalness:.05}),accent=new THREE.MeshBasicMaterial({color:0xffb347,depthTest:true,depthWrite:false,toneMapped:false});
   group.add(
     launcherMesh("WALK_GL_RECEIVER",new THREE.BoxGeometry(.190,.145,.285),steel,0,-.010,-.245),
     launcherMesh("WALK_GL_TUBE",new THREE.CylinderGeometry(.052,.052,.545,14),tube,0,.020,-.565,Math.PI/2,0,0),

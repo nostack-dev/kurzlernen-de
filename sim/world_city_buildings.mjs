@@ -25,9 +25,10 @@ import {patchShockMaterial} from "./nuke_shock_field.mjs";
 // shared damage state.
 
 export const CITY_BUILDINGS_VERSION="world-map-neon-city-v2-instant-damage";
-const VISUAL_RADIUS_M=900,LINE_RADIUS_M=600,FAT_RADIUS_M=180,MAX_FOOTPRINTS=2600,MAX_VERTICES=96;
+const VISUAL_RADIUS_M=900,LINE_RADIUS_M=420,FAT_RADIUS_M=220,MAX_FOOTPRINTS=2600,MAX_VERTICES=96;
 const RESYNC_MOVE_M=140,RESYNC_MS=2500,SLICE_MS=4;
-const WALLS=["#03160d","#04180e","#03140c"],ROOFS=["#05200f","#062212"],SUN=(()=>{const x=-.55,y=-.83,l=Math.hypot(x,y);return[x/l,y/l];})();
+// Stylized palette: warm pastel facades, terracotta / slate roofs.
+const WALLS=["#f2e3c9","#e8c9a8","#dfe3e8","#f4d6c6","#cfe0e8","#ece4d2","#e6d3b8"],ROOFS=["#b8614c","#7e8b9b","#c99a62","#8f9d7f","#a76f5a"],SUN=(()=>{const x=-.55,y=-.83,l=Math.hypot(x,y);return[x/l,y/l];})();
 
 let installed=false,group=null,solid=null,edgeGlow=null,edges=null,thinEdges=null,sceneRef=null,lastCenter=[Infinity,Infinity],lastSyncAt=-Infinity,currentHash="",building=null,lastFeatureCount=-1;
 const viewport=()=>document.getElementById("viewport");
@@ -39,12 +40,12 @@ function ensureMeshes(scene){
   if(group?.parent===scene)return;
   if(group?.parent)group.parent.remove(group);
   group=new THREE.Group();group.name="WORLD_CITY_BUILDINGS";
-  solid=new THREE.Mesh(new THREE.BufferGeometry(),patchShockMaterial(new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false,fog:false,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:2})));solid.name="WORLD_CITY_SOLIDS";solid.frustumCulled=false;
+  solid=new THREE.Mesh(new THREE.BufferGeometry(),patchShockMaterial(new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false,fog:true,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:2})));solid.name="WORLD_CITY_SOLIDS";solid.frustumCulled=false;
   const empty=fatLineGeometry([0,0,0,0,0,0]);
   edgeGlow=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x00ff66,{width:7.2,opacity:.22,additive:true,depthTest:true}),{lines:true}));edgeGlow.name="WORLD_CITY_EDGES_GLOW";edgeGlow.frustumCulled=false;
   edges=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x66ff99,{width:2.65,opacity:1,additive:true,depthTest:true}),{lines:true}));edges.name="WORLD_CITY_EDGES";edges.frustumCulled=false;
   // Far outlines stay native 1 px for performance, but use a bright phosphor core.
-  thinEdges=new THREE.LineSegments(new THREE.BufferGeometry(),patchShockMaterial(new THREE.LineBasicMaterial({color:0x66ff99,toneMapped:false,fog:false,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthTest:true,depthWrite:false})));thinEdges.name="WORLD_CITY_EDGES_FAR";thinEdges.frustumCulled=false;
+  thinEdges=new THREE.LineSegments(new THREE.BufferGeometry(),patchShockMaterial(new THREE.LineBasicMaterial({color:0x2f3b4a,toneMapped:false,fog:true,transparent:true,opacity:.42,depthTest:true,depthWrite:false})));thinEdges.name="WORLD_CITY_EDGES_FAR";thinEdges.frustumCulled=false;
   for(const node of[group,solid,edgeGlow,edges,thinEdges]){node.userData.neonSkip=true;node.userData.flightFireIgnore=true;node.userData.worldCityBuildings=true;}
   delete edgeGlow.userData.neonEdge;delete edges.userData.neonEdge;
   group.add(solid,edgeGlow,edges,thinEdges);scene.add(group);sceneRef=scene;currentHash="";
@@ -57,7 +58,7 @@ function* buildSteps(footprints,center){
   let i=0;
   for(const fp of footprints){
     const d=buildingDamage(fp.key),base=Number(fp.base)||0,fullTop=Math.max(base+.5,Number(fp.top)||8),top=d?Math.max(base+.3,Math.min(fullTop,d.top)):fullTop,h=hash(fp.key);
-    wall.set(d?.leveled?"#1c1a12":WALLS[h%WALLS.length]);roof.set(d?.leveled?"#2a2414":d?"#3a2a12":ROOFS[(h>>>8)%ROOFS.length]);
+    wall.set(d?.leveled?"#a3978a":WALLS[h%WALLS.length]);roof.set(d?.leveled?"#8c8073":d?"#9a8a78":ROOFS[(h>>>8)%ROOFS.length]);
     const outer=(fp.outer||[]).map(p=>new THREE.Vector2(+p[0],+p[1])),holes=(fp.holes||[]).map(r=>r.map(p=>new THREE.Vector2(+p[0],+p[1])));
     if(outer.length<3)continue;const dist=Math.hypot(outer[0].x-center[0],outer[0].y-center[1]),near=dist<FAT_RADIUS_M,mid=!near&&dist<LINE_RADIUS_M;if(outer[0].distanceToSquared(outer.at(-1))<1e-10)outer.pop();for(const r of holes)if(r.length&&r[0].distanceToSquared(r.at(-1))<1e-10)r.pop();
     if(THREE.ShapeUtils.isClockWise(outer))outer.reverse();for(const r of holes)if(!THREE.ShapeUtils.isClockWise(r))r.reverse();
@@ -69,8 +70,8 @@ function* buildSteps(footprints,center){
         push(a.x,a.y,base,plinth);push(b.x,b.y,base,plinth);push(b.x,b.y,top,c);push(a.x,a.y,base,plinth);push(b.x,b.y,top,c);push(a.x,a.y,top,c);
         // Roof outline + corner verticals (ground edges are hidden by the
         // ground anyway); far buildings are silhouettes only.
-        if(near){lines.push(a.x,a.y,top,b.x,b.y,top);const p=ring[(k+ring.length-1)%ring.length],ex=a.x-p.x,ey=a.y-p.y,el=Math.hypot(ex,ey)||1;if(Math.abs((ex*dx+ey*dy)/(el*len))<.94)lines.push(a.x,a.y,base,a.x,a.y,top);}
-        else if(mid)thin.push(a.x,a.y,top,b.x,b.y,top);}
+        // Cartoon outline: roof edge + real corners (thin native lines, cheap).
+        if(near||mid){thin.push(a.x,a.y,top,b.x,b.y,top);if(near){const p=ring[(k+ring.length-1)%ring.length],ex=a.x-p.x,ey=a.y-p.y,el=Math.hypot(ex,ey)||1;if(Math.abs((ex*dx+ey*dy)/(el*len))<.94)thin.push(a.x,a.y,base,a.x,a.y,top);}}}
     }
     range.p1=pos.length/3;range.l1=lines.length/6;range.t1=thin.length/3;ranges.push(range);
     if(++i%40===0)yield;
@@ -133,7 +134,7 @@ function pumpBuild(){
   const outline=fatLineGeometry(lines.length?lines:[0,0,0,0,0,0]);edges.geometry.dispose?.();edges.geometry=outline;if(edgeGlow)edgeGlow.geometry=outline;
   const far=new THREE.BufferGeometry();far.setAttribute("position",new THREE.Float32BufferAttribute(thin,3));thinEdges.geometry.dispose();thinEdges.geometry=far;
   installRanges(ranges);
-  currentHash=building.key;setData("worldCityBuildings",building.count);setData("worldCityBuildingsVersion",CITY_BUILDINGS_VERSION);setData("worldCityGlow","crt-phosphor-core+halo-v1");building=null;
+  currentHash=building.key;setData("worldCityBuildings",building.count);setData("worldCityBuildingsVersion",CITY_BUILDINGS_VERSION);setData("worldCityLook","stylized-pastel-v1");building=null;
 }
 
 function features(b){

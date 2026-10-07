@@ -1204,7 +1204,7 @@ remoteLink.onState=updateRemoteUI;
 ui.remoteConnect.onclick=toggleRemote;
 ui.acceptOffer.onclick=()=>acceptControllerOffer();
 ui.copyAnswer.onclick=async()=>{try{await copySignal(ui.remoteAnswer.value);ui.pairStatus.textContent="Answer copied.";ui.pairStatus.className="statusline good";}catch(error){ui.pairStatus.textContent=error.message;ui.pairStatus.className="statusline bad";}};
-ui.shareAnswer.onclick=async()=>{try{await shareSignal("OPPENHEIMER VIEW answer",ui.remoteAnswer.value);ui.pairStatus.textContent="Answer shared.";ui.pairStatus.className="statusline good";}catch(error){if(error?.name!=="AbortError"){ui.pairStatus.textContent=error.message;ui.pairStatus.className="statusline bad";}}};
+ui.shareAnswer.onclick=async()=>{try{await shareSignal("SKY RUSH VIEW answer",ui.remoteAnswer.value);ui.pairStatus.textContent="Answer shared.";ui.pairStatus.className="statusline good";}catch(error){if(error?.name!=="AbortError"){ui.pairStatus.textContent=error.message;ui.pairStatus.className="statusline bad";}}};
 ui.closePair.onclick=async()=>{await offerScanner.stop();ui.pairDialog.close();};
 ui.inputSource.onchange=()=>{inputSource=ui.inputSource.value;localArm=false;localThrottle=0;arm=false;throttle=0;updateRemoteUI();};
 inputSource=ui.inputSource.value;updateRemoteUI();setInterval(updateRemoteUI,250);

@@ -62,7 +62,7 @@ function mountSoloWorldSettings({parent,dialog,settingsButton}){
   const bridge=globalThis.__arondightRealWorld;if(!bridge)return null;
   const section=document.createElement("section");section.className="world-settings-section";section.dataset.worldSettings="openfreemap-osm-3d";section.innerHTML=`
     <h4>REAL WORLD</h4>
-    <p class="phone-settings-note">OpenFreeMap/OpenStreetMap roads and building footprints, drawn as neon lines — no map textures. No account, API key, billing setup, backend or proxy is required.</p>
+    <p class="phone-settings-note">OpenFreeMap/OpenStreetMap roads and building footprints, drawn as stylized geometry — no map textures. No account, API key, billing setup, backend or proxy is required.</p>
     <div class="world-settings-status" data-world-status>TRAINING RANGE · local metric world</div>
     <div class="world-settings-actions"><button type="button" data-world-use>USE MY GPS LOCATION</button><button type="button" data-world-training>TRAINING RANGE</button></div>
     <label class="phone-settings-toggle" hidden style="display:none!important"><span>REAL AERIAL / SATELLITE MAP</span><input data-world-imagery type="checkbox" disabled></label>

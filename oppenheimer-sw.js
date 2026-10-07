@@ -1,4 +1,4 @@
-// Service worker for OPPENHEIMER as a home-screen app. Nothing is cached:
+// Service worker for SKY RUSH as a home-screen app. Nothing is cached:
 // page navigations are always fetched fresh from the network (no HTTP cache),
 // so an installed app can never start on an old build. All other requests
 // (scripts are inlined into the page anyway, media, map tiles) are untouched.

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import {applyNeonMapStyle} from "./neon_line_style.mjs";
+import {applyNeonMapStyle} from "./stylized_world_style.mjs";
 import {VS_FX_EVENT} from "./lan_vs.mjs";
 import {buildTrafficRoute,collectRenderedDrivableRoads} from "./world_traffic_routes.mjs";
 import {spawnWorldPersonRagdoll} from "./world_person_ragdoll.mjs";

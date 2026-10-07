@@ -16,17 +16,17 @@ function clamp(value,min,max){return Math.max(min,Math.min(max,Number(value)||0)
 // gradient "texture" puffs.
 function makeTexture(){
   if(texture)return texture;const canvas=document.createElement("canvas");canvas.width=canvas.height=64;const context=canvas.getContext("2d");
-  context.beginPath();context.arc(32,32,27,0,Math.PI*2);context.fillStyle="rgb(6,40,26)";context.fill();context.lineWidth=3;context.strokeStyle="rgb(255,255,255)";context.stroke();
+  context.beginPath();context.arc(32,32,27,0,Math.PI*2);context.fillStyle="rgb(255,255,255)";context.fill();context.lineWidth=3;context.strokeStyle="rgb(180,180,180)";context.stroke();
   texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;return texture;
 }
 
 function clearPool(){for(const puff of puffs)puff.sprite.parent?.remove(puff.sprite);puffs.splice(0);effects.clear();}
 function ensurePool(){
   const scene=bridge()?.threeScene;if(!scene)return false;if(scene!==sceneRef){clearPool();sceneRef=scene;}
-  const map=makeTexture();while(puffs.length<MAX_PUFFS){const material=new THREE.SpriteMaterial({map,color:0x00ff9c,transparent:true,opacity:0,depthWrite:false,depthTest:true}),sprite=new THREE.Sprite(material);sprite.visible=false;sprite.renderOrder=16;sprite.userData.flightFireIgnore=true;sprite.userData.worldCriticalSmoke=true;scene.add(sprite);puffs.push({sprite,velocity:new THREE.Vector3(),born:0,expires:0,startScale:1,endScale:2,ember:false,serial:0});}
+  const map=makeTexture();while(puffs.length<MAX_PUFFS){const material=new THREE.SpriteMaterial({map,color:0x8f949c,transparent:true,opacity:0,depthWrite:false,depthTest:true}),sprite=new THREE.Sprite(material);sprite.visible=false;sprite.renderOrder=16;sprite.userData.flightFireIgnore=true;sprite.userData.worldCriticalSmoke=true;scene.add(sprite);puffs.push({sprite,velocity:new THREE.Vector3(),born:0,expires:0,startScale:1,endScale:2,ember:false,serial:0});}
   // Compile the sprite program now (one invisible, zero-opacity frame), not
   // on the frame the first building starts smoking (that was a nuke hitch).
-  if(!puffs.warmed){puffs.warmed=true;const warm=new THREE.Sprite(new THREE.SpriteMaterial({map,color:0x00ff9c,transparent:true,opacity:0,depthWrite:false,depthTest:true}));warm.frustumCulled=false;warm.position.set(0,0,-4000);warm.userData.flightFireIgnore=true;scene.add(warm);setTimeout(()=>{warm.parent?.remove(warm);},3000);}
+  if(!puffs.warmed){puffs.warmed=true;const warm=new THREE.Sprite(new THREE.SpriteMaterial({map,color:0x8f949c,transparent:true,opacity:0,depthWrite:false,depthTest:true}));warm.frustumCulled=false;warm.position.set(0,0,-4000);warm.userData.flightFireIgnore=true;scene.add(warm);setTimeout(()=>{warm.parent?.remove(warm);},3000);}
   const view=viewport();if(view){view.dataset.worldCriticalDamageFx="dark-smoke+ember-countdown-v1";view.dataset.worldCriticalSmokePool=String(MAX_PUFFS);}return true;
 }
 
@@ -37,7 +37,7 @@ function sourcePosition(effect){
 function choosePuff(){return puffs.find(item=>!item.sprite.visible)||puffs.reduce((oldest,item)=>item.born<oldest.born?item:oldest,puffs[0]);}
 function emit(effect,now){
   const origin=sourcePosition(effect);if(!origin)return false;const puff=choosePuff();if(!puff)return false;const progress=clamp((now-effect.startedAt)/Math.max(1,effect.expiresAt-effect.startedAt),0,1),serial=effect.serial++,seed=hashText(`${effect.seed}:${serial}`),a=unit(seed)*Math.PI*2,side=(unit(seed+17)-.5)*(.22+effect.scale*.18),ember=progress>.67&&serial%5===0;
-  puff.sprite.position.copy(origin);puff.sprite.position.x+=Math.cos(a)*side;puff.sprite.position.y+=Math.sin(a)*side;puff.velocity.set(Math.cos(a)*(.07+unit(seed+31)*.19),Math.sin(a)*(.07+unit(seed+47)*.19),.46+unit(seed+61)*.40+progress*.30);puff.born=now;puff.expires=now+(ember?420:1250+unit(seed+79)*520);puff.startScale=effect.scale*(ember? .10:.38+unit(seed+97)*.19);puff.endScale=effect.scale*(ember? .035:1.32+unit(seed+113)*.42);puff.ember=ember;puff.serial=serial;puff.sprite.material.color.setHex(ember?0xff3b30:(progress>.55?0x0c8a55:0x00ff9c));puff.sprite.material.blending=ember?THREE.AdditiveBlending:THREE.NormalBlending;puff.sprite.material.opacity=ember? .94:.54+progress*.18;puff.sprite.scale.setScalar(puff.startScale);puff.sprite.visible=true;return true;
+  puff.sprite.position.copy(origin);puff.sprite.position.x+=Math.cos(a)*side;puff.sprite.position.y+=Math.sin(a)*side;puff.velocity.set(Math.cos(a)*(.07+unit(seed+31)*.19),Math.sin(a)*(.07+unit(seed+47)*.19),.46+unit(seed+61)*.40+progress*.30);puff.born=now;puff.expires=now+(ember?420:1250+unit(seed+79)*520);puff.startScale=effect.scale*(ember? .10:.38+unit(seed+97)*.19);puff.endScale=effect.scale*(ember? .035:1.32+unit(seed+113)*.42);puff.ember=ember;puff.serial=serial;puff.sprite.material.color.setHex(ember?0xff8a3d:(progress>.55?0xb9bec6:0x8f949c));puff.sprite.material.blending=ember?THREE.AdditiveBlending:THREE.NormalBlending;puff.sprite.material.opacity=ember? .94:.54+progress*.18;puff.sprite.scale.setScalar(puff.startScale);puff.sprite.visible=true;return true;
 }
 
 function updatePuffs(now,dt){

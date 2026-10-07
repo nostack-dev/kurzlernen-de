@@ -42,7 +42,7 @@ export function patchShockMaterial(material,{lines=false}={}){
     shader.vertexShader=vs;
     let fs=shader.fragmentShader;
     fs=fs.replace("void main() {","uniform float uShockGlow;varying float vShockFront;\nvoid main() {");
-    if(fs.includes("#include <tonemapping_fragment>"))fs=fs.replace("#include <tonemapping_fragment>","gl_FragColor.rgb+=vec3(.55,1.0,.8)*vShockFront*uShockGlow;\n#include <tonemapping_fragment>");
+    if(fs.includes("#include <tonemapping_fragment>"))fs=fs.replace("#include <tonemapping_fragment>","gl_FragColor.rgb+=vec3(1.0,.92,.75)*vShockFront*uShockGlow*.6;\n#include <tonemapping_fragment>");
     shader.fragmentShader=fs;
   };
   const key=material.customProgramCacheKey?.bind(material);

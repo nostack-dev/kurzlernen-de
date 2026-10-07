@@ -4,13 +4,10 @@ import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./a
 
 // What it feels like to be near ground zero after the bang:
 //  * aftershock camera shakes ride on the rolling rumble/crackle,
-//  * "hellfire" proximity: the closer to ground zero, the stronger a burning
-//    vignette, rising embers and a constant tremor — the drone can still fly
-//    through, a pilot on foot gets burned,
-//  * Geiger counter: quiet clicks whose rate follows the local dose rate, and
-//    a minimal ☢ chip in the vitals HUD. The drone is largely immune.
+//  * people near ground zero panic and run away.
+// (Radiation / Geiger counter / hellfire were removed with the doom theme.)
 
-export const NUKE_HAZARD_VERSION="aftershock+hellfire+geiger-v1";
+export const NUKE_HAZARD_VERSION="aftershock+panic-v2";
 const HELL_RADIUS_M=290,RAD_CORE_M=160,RAD_TAU_S=420,HEAT_HOLD_S=35,HEAT_TAU_S=150;
 const zones=[];let installed=false,settings=normalizeAudioSettings(loadAudioSettings()),overlay=null,embers=null,ectx=null,chip=null,clickCtx=null,lastFrame=performance.now(),emberList=[];
 
@@ -86,20 +83,9 @@ function scheduleClicks(cps){
   }
 }
 
-function frame(now){
-  const dt=clamp((now-lastFrame)/1000,0,.1);lastFrame=now;
-  if(zones.length){
-    const{heat,dose}=fields(now),foot=onFoot();
-    if(ensureOverlay()){const flicker=.86+.14*Math.sin(now*.017)*Math.sin(now*.0053);overlay.style.opacity=String((heat*.8*flicker).toFixed(3));drawEmbers(heat,dt);}
-    if(heat>.45&&Math.random()<dt*2.2*heat)shake(.12+.35*heat,260);
-        const cps=Math.min(80,dose*.06);scheduleClicks(cps);
-    const c=ensureChip();if(c){c.style.opacity=cps>.4?"1":"0";const bar=c.querySelector("[data-bar]"),label=c.querySelector("[data-cps]");if(bar){bar.style.width=`${Math.min(100,cps/55*100).toFixed(0)}%`;bar.style.background=cps>25?"#ff2a4d":cps>8?"#ffb020":"#b6ff3d";}if(label)label.textContent=`${cps.toFixed(cps<10?1:0)}`;}
-    // Damage: pilot on foot burns and gets irradiated; the drone is largely immune.
-    const vitals=globalThis.__arondightPlayerVitals;if(foot&&dt>0&&!globalThis.__arondightPlayerShield?.nukeImmune?.()){const dps=heat>.2?28*heat*heat:0,rad=Math.min(6,dose*.004);if(dps+rad>.05)vitals?.player?.damage?.((dps+rad)*dt,"nuke:hazard");}
-    const v=viewport();if(v){const h=heat.toFixed(2),r=cps.toFixed(1);if(v.dataset.nukeHellfire!==h)v.dataset.nukeHellfire=h;if(v.dataset.geigerCps!==r)v.dataset.geigerCps=r;}
-  }
-  requestAnimationFrame(frame);
-}
+// Fun sandbox, not a doom piece: no radiation, Geiger counter or hellfire
+// any more — just the aftershock rumble and people fleeing the blast.
+function frame(now){lastFrame=now;requestAnimationFrame(frame);}
 // Panic: people inside the fallout zone run away from ground zero. Applied in
 // the pre-render hook (after every population update) as an accumulated
 // offset, so it works whether or not their own module rewrites positions.

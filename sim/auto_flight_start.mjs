@@ -22,8 +22,8 @@ function setMenuStatus(text){if(menuStatus)menuStatus.textContent=text;}
 // Unlock on START (before any awaits), then play at the actual game reveal.
 // Web Audio preserves the gesture unlock across GPS / world loading on iOS.
 let introContext=null,introSource=null,introGeneration=0;
-const introBytes=AUTOSTART?Promise.resolve(null):fetch("./sim/audio/oppenheimer-intro.m4a?v=2")
-  .then(response=>response.ok?response.arrayBuffer():null).catch(()=>null);
+// No spoken intro any more (the game is a bright sandbox, not a doom piece).
+const introBytes=Promise.resolve(null);
 function introSoundEnabled(){try{return JSON.parse(localStorage.getItem("arondight45AudioSettingsV1")||"{}").soundEnabled!==false;}catch{return true;}}
 function unlockIntroAudio(){
   if(AUTOSTART||!introSoundEnabled())return;
@@ -136,9 +136,6 @@ async function startGame(){
   window.dispatchEvent(new CustomEvent("arondight:game-start"));
   if(menu&&!AUTOSTART){menu.classList.add("gm-leaving");await wait(650);}
   if(menu){menu.hidden=true;menu.classList.remove("gm-leaving");}
-  // Opening quote over the live game (fades in and out, never blocks input).
-  const quote=$("gameIntroQuote");if(quote&&!AUTOSTART){quote.hidden=false;quote.classList.remove("play");void quote.offsetWidth;quote.classList.add("play");setTimeout(()=>{quote.hidden=true;quote.classList.remove("play");},7400);}
-  if(!AUTOSTART)void playIntroAudio();
   starting=false;
 }
 function showMenu(){stopIntroAudio();if(!menu)return;menu.hidden=false;starting=false;if(startButton){startButton.disabled=false;startButton.textContent="START";}setMenuStatus("READY");}

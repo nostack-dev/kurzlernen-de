@@ -1,43 +1,45 @@
-// Clean neon-green skin for every on-screen control, matching the world style
-// (neon_line_style.mjs). Only paint properties are touched — colors, borders,
-// glow, fonts — never display/position/size, so all existing layout and
-// visibility logic keeps working. Prefixed with html.neon-line-style for
-// specificity so it wins over the per-module !important rules.
+// Game UI skin for every on-screen control, matching the stylized world
+// (stylized_world_style.mjs): chunky rounded buttons, translucent navy
+// panels, white bold text and one warm accent. Only paint properties are
+// touched — colors, borders, shadows, fonts — never display/position/size,
+// so all layout and visibility logic keeps working. The html class
+// "neon-line-style" is kept as the specificity hook other modules use.
 
-export const NEON_UI_THEME_VERSION="crt-phosphor-green-ui-v3";
+export const NEON_UI_THEME_VERSION="stylized-game-ui-v1";
 
-// The :not(#…) chain lifts specificity above the per-module id rules (some
-// use two ids + !important, which kept e.g. RESET red).
+// The :not(#…) chain lifts specificity above the per-module id rules.
 const R="html.neon-line-style:not(#ng-a):not(#ng-b):not(#ng-c)";
 const CSS=`
-${R}{--ng:rgba(102,255,153,.98);--ng-core:rgba(224,255,234,.98);--ng-dim:rgba(0,255,102,.66);--ng-glow:rgba(0,255,102,.42);--ng-glow-soft:rgba(0,255,102,.20);--ng-fill:rgba(0,7,3,.64);--ng-text:rgba(224,255,233,.94);--ng-font:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
-/* CRT phosphor style: bright green core plus a soft green halo.
-   Layout stays untouched; only paint/shadow/filter properties change. */
+${R}{--ui-fill:rgba(18,28,52,.62);--ui-fill-strong:rgba(18,28,52,.86);--ui-line:rgba(255,255,255,.30);--ui-text:#ffffff;--ui-soft:rgba(255,255,255,.78);--ui-accent:#ffc93c;--ui-accent-ink:#3a2600;--ui-shadow:0 3px 0 rgba(8,14,30,.35);--ui-font:"Nunito","Trebuchet MS",system-ui,-apple-system,"Segoe UI",sans-serif;
+  /* legacy variable names other modules still read */
+  --ng:var(--ui-text);--ng-core:#fff;--ng-dim:var(--ui-line);--ng-glow:transparent;--ng-glow-soft:transparent;--ng-fill:var(--ui-fill);--ng-text:var(--ui-text);--ng-font:var(--ui-font)}
 ${R} #viewport :is(button,[role="button"],a.linkbutton),${R} :is(#mobileGameplayDock,#soloTopbar,#cameraModes,#desktopDroneWeaponSwitch) button,${R} .phone-settings-button,
 ${R} :is(#playerModeButton,#driveModeButton,#gtaVehicleButton,#lanVsButton,#wantedEmpButton,#droneWeaponToggle,#footWeaponToggle,#footFire,#soloArm,#soloReset,#soloExit,#soloWorld,#soloLogbook,#soloCamera,#mobileGameplayReset,#mobileGameplayMultiplayer,#gameExitButton,#gameplayContractButton,#soundToggle){
-  background:var(--ng-fill)!important;background-image:none!important;color:var(--ng)!important;border:1px solid var(--ng-dim)!important;border-radius:9px!important;
-  box-shadow:0 0 0 1px rgba(0,255,102,.10) inset,0 0 7px var(--ng-glow),0 0 16px var(--ng-glow-soft)!important;text-shadow:0 0 2px var(--ng-core),0 0 5px var(--ng-glow),0 0 11px var(--ng-glow-soft)!important;filter:none!important;
-  font-family:var(--ng-font)!important;font-weight:600!important;letter-spacing:.07em!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-${R} #viewport :is(button,[role="button"]):active{background:rgba(0,255,156,.16)!important}
-${R} #viewport button[disabled]{opacity:.4!important;box-shadow:0 0 4px var(--ng-glow-soft)!important}
+  background:var(--ui-fill)!important;background-image:none!important;color:var(--ui-text)!important;border:1.5px solid var(--ui-line)!important;border-radius:12px!important;
+  box-shadow:var(--ui-shadow)!important;text-shadow:0 1px 0 rgba(0,0,0,.35)!important;filter:none!important;
+  font-family:var(--ui-font)!important;font-weight:800!important;letter-spacing:.04em!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+${R} :is(#soloArm,#gameMenu .menu-start,#gameMenuStart){background:var(--ui-accent)!important;color:var(--ui-accent-ink)!important;border-color:rgba(255,255,255,.65)!important;text-shadow:none!important}
+${R} #soloArm.armed{background:#38d27a!important;color:#062814!important}
+${R} #wantedEmpButton{background:#3aa0ff!important;border-color:rgba(255,255,255,.7)!important}
+${R} #viewport :is(button,[role="button"]):active{background:var(--ui-fill-strong)!important;box-shadow:0 1px 0 rgba(8,14,30,.35)!important}
+${R} #viewport button[disabled]{opacity:.45!important}
 /* Panels and HUD read-outs */
 ${R} :is(#soloHud,#soloClearance,#soloRaceHud,#soloHeightPad,.solo-height-pad,#playerVitalsHud,#wantedHud,#footHud,#vehicleHud,#gtaVehicleHud,#vsCombatHud,#vsRespawnHud,#worldLookHud,#worldMapLegend,#gameplayContractHud,#gameplayContractBar,#gameplayScorePill,#gameplayToast,#mobileGameplayDock,#mobileGameplayMultiplayerStatus,#soloArmToolbar,#cameraModes){
-  background:var(--ng-fill)!important;background-image:none!important;border:1px solid var(--ng-dim)!important;box-shadow:0 0 9px var(--ng-glow-soft),inset 0 0 13px rgba(0,255,102,.05)!important;color:var(--ng-text)!important;
-  font-family:var(--ng-font)!important;text-shadow:0 0 2px rgba(224,255,234,.75),0 0 7px var(--ng-glow-soft)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-${R} :is(#soloHud,#playerVitalsHud,#footHud,#vehicleHud,#wantedHud,#soloClearance,.solo-height-pad,#soloHeightPad) *{color:inherit;text-shadow:0 0 2px rgba(224,255,234,.60),0 0 7px var(--ng-glow-soft)!important;background-image:none!important}
-${R} :is(#playerVitalsHud,#soloClearance,.solo-height-pad,#soloHeightPad) :is(b,strong,output,[data-value]){color:var(--ng)!important}
-/* Joysticks: plain rings, no fill textures */
-${R} :is(.foot-stick .ring,.solo-ring){border:1px solid var(--ng)!important;background:rgba(0,8,3,.20)!important;background-image:none!important;box-shadow:0 0 6px var(--ng-glow),0 0 16px var(--ng-glow-soft),inset 0 0 12px rgba(0,255,102,.08)!important}
-${R} :is(.foot-stick .knob,.solo-knob,.solo-height-knob){background:rgba(0,10,4,.34)!important;background-image:none!important;border:1px solid var(--ng-core)!important;box-shadow:0 0 5px var(--ng),0 0 13px var(--ng-glow)!important}
-${R} :is(.foot-stick,.solo-stick),${R} :is(.foot-stick,.solo-stick) *{color:var(--ng)!important;font-family:var(--ng-font)!important;text-shadow:0 0 2px var(--ng-core),0 0 8px var(--ng-glow)!important}
+  background:var(--ui-fill)!important;background-image:none!important;border:1.5px solid var(--ui-line)!important;box-shadow:var(--ui-shadow)!important;color:var(--ui-text)!important;border-radius:14px!important;
+  font-family:var(--ui-font)!important;text-shadow:0 1px 0 rgba(0,0,0,.3)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+${R} :is(#soloHud,#playerVitalsHud,#footHud,#vehicleHud,#wantedHud,#soloClearance,.solo-height-pad,#soloHeightPad) *{color:inherit;text-shadow:0 1px 0 rgba(0,0,0,.3)!important;background-image:none!important}
+${R} :is(#playerVitalsHud,#soloClearance,.solo-height-pad,#soloHeightPad) :is(b,strong,output,[data-value]){color:var(--ui-accent)!important}
+/* Joysticks: soft white rings */
+${R} :is(.foot-stick .ring,.solo-ring){border:2px solid rgba(255,255,255,.55)!important;background:rgba(18,28,52,.22)!important;background-image:none!important;box-shadow:none!important}
+${R} :is(.foot-stick .knob,.solo-knob,.solo-height-knob){background:rgba(255,255,255,.78)!important;background-image:none!important;border:2px solid #fff!important;box-shadow:0 2px 0 rgba(8,14,30,.3)!important}
+${R} :is(.foot-stick,.solo-stick),${R} :is(.foot-stick,.solo-stick) *{color:#fff!important;font-family:var(--ui-font)!important;text-shadow:0 1px 0 rgba(0,0,0,.4)!important}
+${R} #footMove.sprinting .ring{border-color:var(--ui-accent)!important;box-shadow:none!important}
 /* Settings dialog */
-${R} :is(.phone-settings-dialog,#flightLogbookDialog,dialog){background:#000603f4!important;background-image:none!important;border:1px solid var(--ng-dim)!important;box-shadow:0 0 14px var(--ng-glow-soft),inset 0 0 22px rgba(0,255,102,.04)!important;color:var(--ng-text)!important;font-family:var(--ng-font)!important}
-${R} :is(.phone-settings-dialog,dialog) :is(h2,h3,h4){color:var(--ng)!important;text-shadow:0 0 2px var(--ng-core),0 0 9px var(--ng-glow)!important;letter-spacing:.14em!important}
-${R} :is(.phone-settings-dialog,dialog) :is(button,select,input[type=number],input[type=text]){background:var(--ng-fill)!important;background-image:none!important;color:var(--ng)!important;border:1px solid var(--ng-dim)!important}
-${R} :is(.phone-settings-dialog,dialog) input[type=range],${R} :is(.phone-settings-dialog,dialog) input[type=checkbox]{accent-color:var(--ng)!important}
-${R} #viewport{background:#000201!important;isolation:isolate}
-${R} #viewport canvas{filter:brightness(1.18) saturate(1.32) contrast(1.10)}
-${R} #crtPhosphorOverlay{position:absolute;inset:0;z-index:9990;pointer-events:none;mix-blend-mode:screen;opacity:.30;background:repeating-linear-gradient(to bottom,rgba(0,255,102,.025) 0,rgba(0,255,102,.025) 1px,rgba(0,0,0,0) 1px,rgba(0,0,0,0) 3px);box-shadow:inset 0 0 55px rgba(0,255,102,.05)}
+${R} :is(.phone-settings-dialog,#flightLogbookDialog,dialog){background:#18223af5!important;background-image:none!important;border:1.5px solid var(--ui-line)!important;box-shadow:0 10px 30px rgba(0,0,0,.35)!important;color:var(--ui-text)!important;font-family:var(--ui-font)!important;border-radius:16px!important}
+${R} :is(.phone-settings-dialog,dialog) :is(h2,h3,h4){color:var(--ui-accent)!important;text-shadow:none!important;letter-spacing:.06em!important}
+${R} :is(.phone-settings-dialog,dialog) :is(button,select,input[type=number],input[type=text]){background:rgba(255,255,255,.1)!important;background-image:none!important;color:#fff!important;border:1.5px solid var(--ui-line)!important}
+${R} :is(.phone-settings-dialog,dialog) input[type=range],${R} :is(.phone-settings-dialog,dialog) input[type=checkbox]{accent-color:var(--ui-accent)!important}
+${R} #viewport{background:#d7efff!important}
 `;
 
 // Labels must always fit their button (monospace is wide, and some labels
@@ -59,7 +61,7 @@ export function installNeonUiTheme(){
   document.documentElement.classList.add("neon-line-style");
   const style=document.createElement("style");style.dataset.neonUiTheme=NEON_UI_THEME_VERSION;style.textContent=CSS;
   (document.head||document.documentElement).appendChild(style);
-  const mountOverlay=()=>{const view=document.getElementById("viewport");if(!view)return requestAnimationFrame(mountOverlay);if(!document.getElementById("crtPhosphorOverlay")){const overlay=document.createElement("i");overlay.id="crtPhosphorOverlay";overlay.setAttribute("aria-hidden","true");view.appendChild(overlay);}view.dataset.crtPhosphor="green-halo+scanlines-v1";};mountOverlay();
+  document.getElementById("crtPhosphorOverlay")?.remove();
   setTimeout(fitLabels,300);
 }
 installNeonUiTheme();

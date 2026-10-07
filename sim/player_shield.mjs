@@ -20,8 +20,8 @@ globalThis.__arondightPlayerShield=playerShield;
 function ensure(scene){
   if(group?.parent===scene)return group;
   const geometry=new THREE.IcosahedronGeometry(RADIUS_M,2);
-  lines=new THREE.LineSegments(new THREE.EdgesGeometry(geometry,1),new THREE.LineBasicMaterial({color:0x00ff9c,transparent:true,opacity:.55,depthWrite:false,toneMapped:false}));
-  fill=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:0x00ff9c,transparent:true,opacity:.06,depthWrite:false,side:THREE.DoubleSide,toneMapped:false}));
+  lines=new THREE.LineSegments(new THREE.EdgesGeometry(geometry,1),new THREE.LineBasicMaterial({color:0x7fd4ff,transparent:true,opacity:.55,depthWrite:false,toneMapped:false}));
+  fill=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:0x7fd4ff,transparent:true,opacity:.06,depthWrite:false,side:THREE.DoubleSide,toneMapped:false}));
   group=new THREE.Group();group.name="PILOT_SHIELD";group.add(fill,lines);lines.raycast=()=>{};fill.raycast=()=>{};
   group.traverse(n=>{n.userData.neonSkip=true;n.userData.flightFireIgnore=true;n.userData.nukeWeaponPart=true;});
   scene.add(group);return group;
