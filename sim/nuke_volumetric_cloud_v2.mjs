@@ -37,8 +37,8 @@ const DOME={z:.84,r:.27,squash:.62};
 
 // Cartoon palette: creamy cloud, warm outlines, white-hot core lines
 // cooling to orange.
-const NEON=new THREE.Color(0xff8a3d),WHITE_HOT=new THREE.Color(0xfff6d8);
-function darkMaterial(){return new THREE.MeshBasicMaterial({color:0xf6e7cf,toneMapped:false,fog:false,side:THREE.FrontSide,transparent:true,opacity:1,depthWrite:true});}
+const NEON=new THREE.Color(0xff2e97),WHITE_HOT=new THREE.Color(0xfff6d8);
+function darkMaterial(){return new THREE.MeshBasicMaterial({color:0x2a1240,toneMapped:false,fog:false,side:THREE.FrontSide,transparent:true,opacity:1,depthWrite:true});}
 // Hot core lines: inside the stem, under the cap, along the base surge.
 function circlePositions(radius,z,seg=56){const out=[];for(let i=0;i<seg;i++){const a=i/seg*Math.PI*2,b=(i+1)/seg*Math.PI*2;out.push(Math.cos(a)*radius,Math.sin(a)*radius,z,Math.cos(b)*radius,Math.sin(b)*radius,z);}return out;}
 function stemCorePositions(){const out=[],n=8;for(let k=0;k<n;k++){const a=(k+.5)/n*Math.PI*2,c=Math.cos(a),si=Math.sin(a);for(let i=0;i<STEM_PROFILE.length-1;i++){const[r0,h0]=STEM_PROFILE[i],[r1,h1]=STEM_PROFILE[i+1];out.push(c*r0*.5,si*r0*.5,h0,c*r1*.5,si*r1*.5,h1);}}return out;}
@@ -80,12 +80,12 @@ function buildParts(group){
   parts.cap=tag(new THREE.Mesh(G.cap,darkMaterial()),"crown-visible-core");parts.cap.position.z=CAP.z;
   parts.capHeat=tag(fatLineSegments(G.capHot,hotMat),"hot-crown-visible-core");delete parts.capHeat.userData.neonEdge;parts.capHeat.position.z=CAP.z;
   parts.dome=tag(new THREE.Mesh(G.dome,darkMaterial()),"crown-volumetric-core");parts.dome.position.z=DOME.z;
-  parts.collarMat=fatLineMaterial(0xffffff,{width:2,opacity:0});parts.collar=tag(fatLineSegments(G.collar,parts.collarMat),"crown-collar");delete parts.collar.userData.neonEdge;parts.collar.position.z=.5;
+  parts.collarMat=fatLineMaterial(0x29e6ff,{width:2.2,opacity:0,additive:true});parts.collar=tag(fatLineSegments(G.collar,parts.collarMat),"crown-collar");delete parts.collar.userData.neonEdge;parts.collar.position.z=.5;
   parts.surge=tag(new THREE.Mesh(G.surge,darkMaterial()),"base-surge");parts.surge.position.z=.03;
   parts.surgeHeat=tag(fatLineSegments(G.surgeHot,hotMat),"hot-plume-visible-surge");delete parts.surgeHeat.userData.neonEdge;parts.surgeHeat.position.z=0;
   for(const key of Object.keys(parts))if(parts[key]?.isObject3D)group.add(parts[key]);
   unitCircle??=(()=>{const pts=[],n=64;for(let i=0;i<n;i++){const a=i/n*Math.PI*2,b=(i+1)/n*Math.PI*2;pts.push(Math.cos(a),Math.sin(a),0,Math.cos(b),Math.sin(b),0);}const g=fatLineGeometry(pts);g.userData.nukeSharedGeometry=true;return g;})();
-  const lineMat=fatLineMaterial(0xffffff,{width:2,opacity:.95}),wireMat=fatLineMaterial(0xc9a27a,{width:1.6,opacity:.9});
+  const lineMat=fatLineMaterial(0x29e6ff,{width:2.2,opacity:.95,additive:true}),wireMat=fatLineMaterial(0xff4fd8,{width:1.8,opacity:.9,additive:true});
   const stemWire=tag(fatLineSegments(G.stemWire,wireMat),"plume-volumetric-wire");delete stemWire.userData.neonEdge;group.add(stemWire);
   const capWire=tag(fatLineSegments(G.capWire,wireMat),"crown-volumetric-wire");delete capWire.userData.neonEdge;parts.cap.add(capWire);
   const domeWire=tag(fatLineSegments(G.domeWire,wireMat),"crown-volumetric-dome-wire");delete domeWire.userData.neonEdge;parts.dome.add(domeWire);
