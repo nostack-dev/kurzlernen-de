@@ -38,7 +38,9 @@ try{
   if(finding.some(x=>!x.hasSession&&x.mobileState!=="finding"))throw new Error(`MULTI button did not enter real VS discovery: ${JSON.stringify(finding)}`);
   const{sa,sb}=await bounded(waitPair(a,b),70000,"dual-phone connection");
   if(sa.policy!=="trusted1+gesture2-v1"||sb.policy!=="trusted1+gesture2-v1"||sa.stageRoomIds.length>3||sb.stageRoomIds.length>3)throw new Error(`bounded mobile discovery policy is not active: ${JSON.stringify({sa,sb})}`);
-  const ra=await renderSnapshot(a.page,a.label),rb=await renderSnapshot(b.page,b.label);
+  // Poses arrive asynchronously after the data channel opens; give both
+  // phones a bounded window to receive and draw the first remote pose.
+  let ra,rb;for(const until=Date.now()+12000;;){ra=await renderSnapshot(a.page,a.label);rb=await renderSnapshot(b.page,b.label);if((ra.remoteVisuals>=1&&rb.remoteVisuals>=1)||Date.now()>until)break;await pause(400);}
   if(!(ra.remoteVisuals>=1&&rb.remoteVisuals>=1))throw new Error(`paired phones did not both render remote participant: ${JSON.stringify({phoneA:{state:sa,render:ra},phoneB:{state:sb,render:rb}})}`);
   if(!((Number.isFinite(ra.poseAge)&&ra.poseAge>=0)||(Number.isFinite(rb.poseAge)&&rb.poseAge>=0)))throw new Error(`no replicated remote pose was observed: ${JSON.stringify({ra,rb})}`);
   await mkdir("artifacts",{recursive:true});
