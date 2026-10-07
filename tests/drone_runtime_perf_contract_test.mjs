@@ -29,7 +29,8 @@ const files=Object.fromEntries(await Promise.all([
   "sim/simulator.mjs",
   "sim/terrain_craters.mjs",
   "sim/world_ground.mjs",
-  "sim/nuke_destruction.mjs"
+  "sim/nuke_destruction.mjs",
+  "sim/world_action_feedback.mjs"
 ].map(async path=>[path,await readFile(path,"utf8")])));
 
 const style=files["sim/stylized_world_style.mjs"];
@@ -37,10 +38,10 @@ assert.ok(style.includes("function beginScan(scene)")&&style.includes("function 
 assert.ok(!style.includes("function scanScene(scene)"),"full synchronous scene scan must not return");
 const cull=style.slice(style.indexOf("function cullActors"),style.indexOf("let blastAt"));
 assert.ok(!cull.includes("scene.traverse"),"actor culling must not traverse the full scene");
-assert.ok(style.includes("sunForward=new THREE.Vector3()")&&!style.includes("const fwd=new THREE.Vector3();"),"sun follow must not allocate a vector every frame");
 assert.ok(style.includes("SCAN_INTERVAL_MS=MOBILE?900:650"),"style discovery scans must be throttled");
-assert.ok(style.includes("if(!covered)try{bakeSky"),"hidden start menu must not pay procedural sky render cost");
-assert.ok(style.includes("renderer.shadowMap.autoUpdate=false"),"visual style must not silently re-enable a full shadow pass every rendered frame");
+const styleFrame=style.slice(style.indexOf("function frame(now)"),style.indexOf("globalThis.__arondightNeonStyle"));
+assert.ok(!styleFrame.includes("scene.traverse")&&!styleFrame.includes("killLights(scene"),"neon render hot path must never synchronously traverse the scene or rediscover lights");
+assert.ok(style.includes("renderer.shadowMap.enabled=false"),"neon renderer must not pay for invisible shadow maps");
 
 const mobile=files["sim/mobile_gameplay_ui.mjs"];
 assert.ok(mobile.includes("const UI_SYNC_MS=100")&&mobile.includes("setTimeout(sync,UI_SYNC_MS)"),"mobile HUD must use low-frequency state sync");
@@ -122,6 +123,11 @@ assert.ok(simulator.includes('if(gameMenu&&!gameMenu.hidden){lastPresentationDra
 const terrain=files["sim/terrain_craters.mjs"],ground=files["sim/world_ground.mjs"];
 assert.ok(terrain.includes("terrainCellCache")&&terrain.includes("terrainNodeHeightAt"),"terrain hot queries must share cached physical grid nodes");
 assert.ok(ground.includes("terrainNodeHeightAt(x,y)"),"visible ground vertices must use the exact Box3D terrain nodes");
+
+const action=files["sim/world_action_feedback.mjs"];
+const actionScan=action.slice(action.indexOf("function releaseShootableWorldDecor"),action.indexOf("function acknowledgeSceneHit"));
+assert.ok(action.includes("decorScanStack")&&action.includes("stepDecorScan(performance.now()+1.0)"),"shootable world discovery must be time-sliced");
+assert.ok(!actionScan.includes("scene.traverse"),"world action feedback must not perform periodic full-scene traversal");
 
 const nuke=files["sim/nuke_destruction.mjs"];
 assert.ok(nuke.includes("debrisActive=[]")&&nuke.includes("if(!debris||!debrisActive.length)return 0"),"dormant nuke debris must cost zero per frame");
