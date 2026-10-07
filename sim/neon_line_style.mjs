@@ -221,11 +221,11 @@ export function neonMapPaint(layer){
   const source=String(layer?.["source-layer"]||"").toLowerCase(),id=String(layer?.id||"").toLowerCase(),out=[];
   if(layer.type==="background")out.push(["background-color",MAP_NEON.background]);
   else if(layer.type==="fill"&&source==="water")out.push(["fill-color",MAP_NEON.water],["fill-opacity",1]);
-  else if(layer.type==="line"&&(source==="waterway"||source==="water"))out.push(["line-color",MAP_NEON.waterLine],["line-opacity",.9]);
+  else if(layer.type==="line"&&(source==="waterway"||source==="water"))out.push(["line-color",MAP_NEON.waterLine],["line-opacity",1],["line-blur",.45]);
   else if(layer.type==="fill"&&(source==="landcover"||source==="landuse")){const green=/park|wood|forest|grass|garden|pitch|meadow|farmland|scrub/.test(id),industry=/industrial|commercial|retail|parking/.test(id);out.push(["fill-color",green?MAP_NEON.green:industry?MAP_NEON.industry:MAP_NEON.land],["fill-opacity",1]);}
   else if(layer.type==="fill"&&source==="building")out.push(["fill-color",MAP_NEON.buildingFlat],["fill-opacity",1]);
-  else if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);out.push(["line-color",major?MAP_NEON.roadMajor:mid?MAP_NEON.roadMid:MAP_NEON.roadMinor],["line-opacity",major?1:.9]);}
-  else if(layer.type==="line"&&source==="boundary")out.push(["line-color",MAP_NEON.boundary],["line-opacity",.7]);
+  else if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);out.push(["line-color",major?MAP_NEON.roadMajor:mid?MAP_NEON.roadMid:MAP_NEON.roadMinor],["line-opacity",1],["line-blur",major?.65:mid?.42:.24]);}
+  else if(layer.type==="line"&&source==="boundary")out.push(["line-color",MAP_NEON.boundary],["line-opacity",.9],["line-blur",.35]);
   else if(layer.type==="fill-extrusion"&&(source==="building"||id.includes("building")))out.push(["fill-extrusion-color",NEON_BUILDING_EXTRUSION_COLOR],["fill-extrusion-opacity",1],["fill-extrusion-vertical-gradient",false]);
   return out;
 }
