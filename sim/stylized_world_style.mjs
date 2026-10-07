@@ -12,7 +12,7 @@ const PHOSPHOR=0x3dff8a,FILL=0x02140c,HOT=0xb6ffcf;
 const MOBILE=typeof navigator!=="undefined"&&/android|iphone|ipad|mobile/i.test(navigator.userAgent||"");
 const SCAN_INTERVAL_MS=MOBILE?900:650,FRAME_BUDGET_MS=2.8,EDGE_THRESHOLD=26;
 
-let installed=false,queue=[],lastScan=-Infinity,styledScene=null,sky=null,grid=null,converted=0,lastCull=-Infinity,actorRoots=[];
+let installed=false,queue=[],lastScan=-Infinity,styledScene=null,sky=null,grid=null,converted=0,lastCull=-Infinity,actorRoots=[],scanStack=[],scanActors=[],scanSceneRef=null;
 const processed=new WeakSet(),edgeCache=new Map();
 const bridge=()=>globalThis.__arondightRealWorld||null;
 const viewport=()=>document.getElementById("viewport");
@@ -65,30 +65,36 @@ function convert(node){
 }
 function needsWork(node){return(node.isMesh||node.isSprite)&&(node.userData.stylized!==STYLIZED_STYLE_VERSION||node.userData.stylizedMaterial!==node.material);}
 function styleScene(scene){
-  ensureSky(scene);ensureGrid(scene);killLights(scene,bridge()?.threeRenderer);
-  if(styledScene===scene)return;styledScene=scene;
+  ensureSky(scene);ensureGrid(scene);if(styledScene===scene)return;styledScene=scene;
+  // Full-scene light discovery is a scene-change operation, never a frame task.
+  // New lights are disabled by the incremental scanner below.
+  killLights(scene,bridge()?.threeRenderer);
   scene.background=new THREE.Color(STYLE_PALETTE.skyZenith);scene.fog=new THREE.FogExp2(STYLE_PALETTE.haze,.0012);
   scene.traverse(n=>{if(n.isMesh&&n.parent===scene&&n.geometry?.type==="BoxGeometry"&&(n.geometry.parameters?.width||0)>1000&&n.material?.color){stripTextures(n.material);n.material.color.set(STYLE_PALETTE.ground);n.userData.stylized=STYLIZED_STYLE_VERSION;}});
 }
 const ACTOR_CULL_M=260,CULL_INTERVAL_MS=600,cullPos=new THREE.Vector3();
 const actorId=n=>String(n?.userData?.worldPopulationId||n?.userData?.worldLifeId||"");
 function setLayer(root,on){root.traverse(n=>{if(on)n.layers.enable(0);else n.layers.disable(0);});}
-function scanScene(scene){
-  const nextActors=[];scene.traverse(node=>{
-    if((node.isDirectionalLight||node.isHemisphereLight||node.isAmbientLight||node.isPointLight)&&!node.userData.phosphorKeep&&node.intensity>0){node.intensity=0;node.castShadow=false;}
-    const id=actorId(node);if(id&&actorId(node.parent)!==id)nextActors.push(node);
+function beginScan(scene){scanSceneRef=scene;scanStack.length=0;scanActors.length=0;scanStack.push(scene);}
+function stepScan(deadline){
+  while(scanStack.length&&performance.now()<deadline){
+    const node=scanStack.pop();if(!node)continue;
+    if((node.isDirectionalLight||node.isHemisphereLight||node.isAmbientLight||node.isPointLight||node.isSpotLight)&&!node.userData.phosphorKeep&&node.intensity>0){node.intensity=0;node.castShadow=false;}
+    const id=actorId(node);if(id&&actorId(node.parent)!==id)scanActors.push(node);
     if(needsWork(node))queue.push(node);
-  });actorRoots=nextActors;
+    const children=node.children;for(let i=children.length-1;i>=0;i--)scanStack.push(children[i]);
+  }
+  if(!scanStack.length&&scanSceneRef){actorRoots=scanActors.slice();scanActors.length=0;scanSceneRef=null;return true;}return false;
 }
 function cullActors(now){if(now-lastCull<CULL_INTERVAL_MS)return;lastCull=now;const camera=bridge()?.threeCamera;if(!camera)return;for(const n of actorRoots){if(!n?.parent)continue;n.getWorldPosition(cullPos);const far=cullPos.distanceTo(camera.position)>ACTOR_CULL_M;if(Boolean(n.userData.styleCulled)!==far){n.userData.styleCulled=far;setLayer(n,!far);}}}
 function frame(now){
   const scene=bridge()?.threeScene;if(!scene)return requestAnimationFrame(frame);
   styleScene(scene);skyUniforms.uTime.value=now/1000;
-  if(grid){const c=bridge()?.threeCamera;if(c){grid.position.x=Math.round(c.position.x/16)*16;grid.position.y=Math.round(c.position.y/16)*16;}}
-  if(!queue.length&&now-lastScan>SCAN_INTERVAL_MS){lastScan=now;scanScene(scene);}cullActors(now);
-  const menuEl=document.getElementById("gameMenu"),covered=Boolean(menuEl&&!menuEl.hidden),deadline=performance.now()+(covered?14:FRAME_BUDGET_MS);
+  if(grid){const camera=bridge()?.threeCamera;if(camera){grid.position.x=Math.round(camera.position.x/16)*16;grid.position.y=Math.round(camera.position.y/16)*16;}}
+  if(!scanStack.length&&!scanSceneRef&&now-lastScan>SCAN_INTERVAL_MS){lastScan=now;beginScan(scene);}
+  const deadline=performance.now()+FRAME_BUDGET_MS;stepScan(deadline);cullActors(now);
   while(queue.length&&performance.now()<deadline){const node=queue.pop();if(node.parent)convert(node);}
-  const view=viewport();if(view&&view.dataset.visualStyle!==STYLIZED_STYLE_VERSION)view.dataset.visualStyle=STYLIZED_STYLE_VERSION;
+  const view=viewport();if(view){if(view.dataset.visualStyle!==STYLIZED_STYLE_VERSION)view.dataset.visualStyle=STYLIZED_STYLE_VERSION;view.dataset.styleSceneScan="incremental-budgeted-neon-v2";}
   requestAnimationFrame(frame);
 }
 globalThis.__arondightNeonStyle={pending:()=>queue.length,lastScan:()=>lastScan};
