@@ -21,7 +21,7 @@ const HEIGHT_M=112*NUKE_SCALE;       // final top of the dome (~336 m)
 const RISE_TAU_S=3.6,LIFE_S=34;
 const STEM_RINGS=10,TORUS_FLOWS=7;
 
-const clouds=[];let installed=false,unitCircle=null;
+const clouds=[];let installed=false,unitCircle=null;const smokeColor=new THREE.Color();
 
 function viewport(){return document.getElementById("viewport");}
 function scene(){return globalThis.__arondightRealWorld?.threeScene||null;}
@@ -109,8 +109,8 @@ function update(item,now){
   const rise=1-Math.exp(-age/RISE_TAU_S),spread=.55+.45*smooth(age/9)+.12*smooth((age-9)/25);
   item.group.scale.set(HEIGHT_M*spread,HEIGHT_M*spread,HEIGHT_M*Math.max(.02,rise));
   const open=smooth((age-.6)/5);p.cap.scale.set(.6+.4*open,.6+.4*open,1+.25*(1-open));p.capHeat.scale.copy(p.cap.scale);p.dome.scale.set(.75+.25*open,.75+.25*open,1);
-  const fade=1-smooth((age-(LIFE_S-9))/9),heat=Math.max(0,1-age/10)*fade,smokeMix=smooth(age/14),smokeColor=SMOKE_WARM.clone().lerp(SMOKE_COOL,smokeMix);
-  for(const m of[p.stem,p.cap,p.dome,p.surge]){m.material.opacity=fade*(m===p.surge?.72:.96);m.material.depthWrite=fade>.9;m.material.color?.copy(smokeColor);}
+  const fade=1-smooth((age-(LIFE_S-9))/9),heat=Math.max(0,1-age/10)*fade,smokeMix=smooth(age/14);smokeColor.copy(SMOKE_WARM).lerp(SMOKE_COOL,smokeMix);
+  for(const m of[p.stem,p.cap,p.dome,p.surge]){m.material.opacity=fade*(m===p.surge ? .72 : .96);m.material.depthWrite=fade>.9;m.material.color?.copy(smokeColor);}
   // Real blast appearance: a very brief white/orange interior, then smoke owns the silhouette.
   p.hotMat.color.copy(EMBER).lerp(WHITE_HOT,clamp(heat*1.35,0,1));p.hotMat.opacity=fade*(.08+.72*heat);
   p.surgeHeat.visible=age<14;
