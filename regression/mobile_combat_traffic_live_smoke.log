@@ -1,8 +1,8 @@
-file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:32
-  if(!(held.active==="1"&&held.hold==="screen-pointer-owned-smg-v1"&&held.api==="single-shot-per-call-v1"&&released.active==="0"))throw new Error(`SMG pointer ownership/single-shot API failed: ${JSON.stringify({held,released})}`);
-                                                                                                                                        ^
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:56
+  if(emp.route!=="wanted-api-direct-v1"||!emp.result)throw new Error(`mobile EMP direct route failed: ${JSON.stringify(emp)}`);
+                                                           ^
 
-Error: SMG pointer ownership/single-shot API failed: {"held":{"shots":6,"hold":"screen-pointer-owned-smg-v1","api":"single-shot-per-call-v1","alignment":"grip-anchor-to-resolved-shot-v6","error":0,"drift":0,"grip":"grip-world-fixed-v2","vector":"grip-to-muzzle-to-shot-point-v1","target":"-3.205,19.992,2.315"},"released":{"shots":6,"tail":14}}
-    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:32:137
+Error: mobile EMP direct route failed: {"affected":0,"wanted":"radial-box3d-gravity-blast-v1","stars":2}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:56:60
 
 Node.js v22.23.3
