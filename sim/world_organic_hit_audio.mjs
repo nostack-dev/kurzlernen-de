@@ -9,7 +9,7 @@ function play(kind){
   const now=performance.now();if(now-lastAt<24)return false;lastAt=now;
   const settings=loadAudioSettings();if(settings.soundEnabled===false||Number(settings.fxVolume)<=0)return false;
   const ctx=getSharedCombatAudioContext({resume:true});if(!ctx)return false;
-  const rate=kind==="bird"?1.16:kind==="animal"?.94:1;
+  const rate=kind==="bird"?1.16:kind==="animal" ? .94 : 1;
   const played=playCombatAudio(ctx,"crack",{gain:.34*Math.max(0,Math.min(1,Number(settings.fxVolume||100)/100)),playbackRate:rate,minIntervalMs:20});
   const v=viewport();if(played&&v){v.dataset.organicHitSound=ORGANIC_HIT_AUDIO_VERSION;v.dataset.organicHitSoundEvents=String((Number(v.dataset.organicHitSoundEvents)||0)+1);v.dataset.organicHitSoundLast=String(kind||"organic");}
   return played;
