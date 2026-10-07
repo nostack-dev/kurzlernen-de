@@ -50,20 +50,35 @@ function hash(value){let h=2166136261;for(const ch of String(value||""))h=Math.i
 // building), glass curtain walls on towers. Glass is dark, smooth and
 // partly metallic so it reflects the sky; frames, trims and plaster differ
 // in roughness. Roofs get a subtle tar/gravel variation.
+// Openings cut into facades at runtime (building_interiors.mjs): doorways
+// (a vertical band along a wall segment) and the roof hatch over a stair
+// core (a rotated rectangle). Shared by the exterior and interior shaders.
+export const MAX_FACADE_CUTOUTS=6;
+export const facadeCutouts={uCutN:{value:0},uCutA:{value:Array.from({length:MAX_FACADE_CUTOUTS},()=>new THREE.Vector4())},uCutB:{value:Array.from({length:MAX_FACADE_CUTOUTS},()=>new THREE.Vector4())}};
+export const CUTOUT_GLSL=`uniform int uCutN;uniform vec4 uCutA[${MAX_FACADE_CUTOUTS}];uniform vec4 uCutB[${MAX_FACADE_CUTOUTS}];
+bool facadeCutout(vec3 P,bool roofHoles){
+  for(int i=0;i<${MAX_FACADE_CUTOUTS};i++){if(i>=uCutN)break;vec4 a=uCutA[i],b=uCutB[i];
+    if(b.w<0.5){vec2 d=a.zw-a.xy;float L=length(d);vec2 dir=d/max(L,1e-4);vec2 r=P.xy-a.xy;float t=dot(r,dir),s=abs(r.x*dir.y-r.y*dir.x);if(t>0.0&&t<L&&s<b.z&&P.z>b.x&&P.z<b.y)return true;}
+    else if(roofHoles){vec2 r=P.xy-a.xy,vd=a.zw,ud=vec2(-vd.y,vd.x);float u=dot(r,ud),v=dot(r,vd);if(u>0.0&&u<b.z&&v>0.0&&v<b.w-1.0&&P.z>b.x&&P.z<b.y)return true;}}
+  return false;}`;
+// Per-building facade parameters (seed for the window style, storey height):
+// the interior generator uses the same values so floors line up with windows.
+export function facadeParams(key){const h=hash(key);return{seed:(h%997)/997,floorH:3.1+.5*(((h>>>12)%1000)/1000),wallIndex:h%WALLS.length};}
 function realFacades(material){
   const previous=material.onBeforeCompile;
   material.onBeforeCompile=(shader,renderer)=>{previous?.call(material,shader,renderer);
-    shader.vertexShader=shader.vertexShader.replace("void main() {","attribute vec4 aWall;attribute float aSeed;varying vec3 vWinPos;varying vec4 vWall;varying float vSeed;\nvoid main() {vWall=aWall;vSeed=aSeed;").replace("#include <begin_vertex>","#include <begin_vertex>\nvWinPos=(modelMatrix*vec4(transformed,1.0)).xyz;");
-    shader.fragmentShader=shader.fragmentShader.replace("void main() {","varying vec3 vWinPos;varying vec4 vWall;varying float vSeed;\nfloat fh(float n){return fract(sin(n*127.1)*43758.5453);}\nvoid main() {float facGlass=0.0,facRough=0.88;")
+    Object.assign(shader.uniforms,facadeCutouts);
+    shader.vertexShader=shader.vertexShader.replace("void main() {","attribute vec4 aWall;attribute float aSeed;attribute float aFloorH;varying vec3 vWinPos;varying vec4 vWall;varying float vSeed;varying float vFloorH;\nvoid main() {vWall=aWall;vSeed=aSeed;vFloorH=aFloorH;").replace("#include <begin_vertex>","#include <begin_vertex>\nvWinPos=(modelMatrix*vec4(transformed,1.0)).xyz;");
+    shader.fragmentShader=shader.fragmentShader.replace("void main() {","varying vec3 vWinPos;varying vec4 vWall;varying float vSeed;varying float vFloorH;\nfloat fh(float n){return fract(sin(n*127.1)*43758.5453);}\n"+CUTOUT_GLSL+"\nvoid main() {if(facadeCutout(vWinPos,true))discard;float facGlass=0.0,facRough=0.88;")
       .replace("#include <color_fragment>","#include <color_fragment>\n"+FACADE_GLSL)
       .replace("#include <roughnessmap_fragment>","#include <roughnessmap_fragment>\nroughnessFactor=mix(facRough,0.07,facGlass);")
       .replace("#include <metalnessmap_fragment>","#include <metalnessmap_fragment>\nmetalnessFactor=mix(0.0,0.35,facGlass);")
       // glass always mirrors some sky (Fresnel), even where the env map is dim
       .replace("#include <emissivemap_fragment>","#include <emissivemap_fragment>\n{float fr=pow(1.0-abs(dot(normalize(vViewPosition),normal)),3.0);totalEmissiveRadiance+=facGlass*mix(vec3(0.05,0.07,0.09),vec3(0.32,0.4,0.5),fr);}");
   };
-  const key=material.customProgramCacheKey?.bind(material);material.customProgramCacheKey=()=>`${key?key():""}|real-facades-v4`;return material;
+  const key=material.customProgramCacheKey?.bind(material);material.customProgramCacheKey=()=>`${key?key():""}|real-facades-v5-floors-cutouts`;return material;
 }
-const FACADE_GLSL=`{
+export const FACADE_GLSL=`{
   vec3 wn=normalize(cross(dFdx(vWinPos),dFdy(vWinPos)));
   vec3 base=diffuseColor.rgb;
   float u=vWall.x,len=vWall.y,z=vWall.z,H=vWall.w;
@@ -72,7 +87,7 @@ const FACADE_GLSL=`{
     float aa=clamp(1.6-fwidth(u)*1.2,0.0,1.0);
     float pil=1.0-step(0.38,u)*step(u,len-0.38);
     float tower=step(26.0,H);
-    float pitch=mix(2.7,3.7,fh(vSeed*7.0)),floorH=mix(3.1,3.6,fh(vSeed*3.0));
+    float pitch=mix(2.7,3.7,fh(vSeed*7.0)),floorH=vFloorH;
     float nWin=max(1.0,floor((len-0.8)/pitch)),margin=(len-nWin*pitch)*0.5;
     float lu=(u-margin)/pitch,fu=fract(lu),inRow=step(0.0,lu)*step(lu,nWin);
     float gl=0.0,trimM=0.0;
@@ -123,12 +138,12 @@ function ensureMeshes(scene){
 
 // Time-sliced geometry builder.
 function* buildSteps(footprints,center){
-  const pos=[],col=[],wa=[],ws=[],lines=[],thin=[],ranges=[],c=new THREE.Color(),wall=new THREE.Color(),roof=new THREE.Color(),plinth=new THREE.Color(),trim=new THREE.Color();
+  const pos=[],col=[],wa=[],ws=[],wf=[],lines=[],thin=[],ranges=[],c=new THREE.Color(),wall=new THREE.Color(),roof=new THREE.Color(),plinth=new THREE.Color(),trim=new THREE.Color();
   // wa = facade coordinates per vertex: (u along the wall [m], wall length,
   // height above the building base, building height); u<0 marks roof (-1)
   // and cornice trim (-2). ws = per-building seed for style variation.
-  let W=[-1,0,0,0],S=0;
-  const push=(x,y,z,k)=>{pos.push(x,y,z);col.push(k.r,k.g,k.b);wa.push(W[0],W[1],W[2],W[3]);ws.push(S);};
+  let W=[-1,0,0,0],S=0,FL=3.3;
+  const push=(x,y,z,k)=>{pos.push(x,y,z);col.push(k.r,k.g,k.b);wa.push(W[0],W[1],W[2],W[3]);ws.push(S);wf.push(FL);};
   let i=0;
   for(const fp of footprints){
     const d=buildingDamage(fp.key),base=Number(fp.base)||0,fullTop=Math.max(base+.5,Number(fp.top)||8),top=d?Math.max(base+.3,Math.min(fullTop,d.top)):fullTop,h=hash(fp.key);
@@ -136,7 +151,7 @@ function* buildSteps(footprints,center){
     const outer=(fp.outer||[]).map(p=>new THREE.Vector2(+p[0],+p[1])),holes=(fp.holes||[]).map(r=>r.map(p=>new THREE.Vector2(+p[0],+p[1])));
     if(outer.length<3)continue;const dist=Math.hypot(outer[0].x-center[0],outer[0].y-center[1]),near=dist<FAT_RADIUS_M,mid=!near&&dist<LINE_RADIUS_M;if(outer[0].distanceToSquared(outer.at(-1))<1e-10)outer.pop();for(const r of holes)if(r.length&&r[0].distanceToSquared(r.at(-1))<1e-10)r.pop();
     if(THREE.ShapeUtils.isClockWise(outer))outer.reverse();for(const r of holes)if(!THREE.ShapeUtils.isClockWise(r))r.reverse();
-    S=(h%997)/997;const H=top-base;trim.copy(wall).lerp(new THREE.Color("#f4efe4"),.45);
+    S=(h%997)/997;FL=3.1+.5*(((h>>>12)%1000)/1000);const H=top-base;trim.copy(wall).lerp(new THREE.Color("#f4efe4"),.45);
     const all=[...outer,...holes.flat()],range={key:String(fp.key),base,top,fullTop,cx:0,cy:0,p0:pos.length/3,l0:lines.length/6,t0:thin.length/3};for(const v of outer){range.cx+=v.x/outer.length;range.cy+=v.y/outer.length;}
     W=[-1,0,H,H];for(const f of THREE.ShapeUtils.triangulateShape(outer,holes)){const a=all[f[0]];let b=all[f[1]],cc=all[f[2]];if((b.x-a.x)*(cc.y-a.y)-(b.y-a.y)*(cc.x-a.x)<0)[b,cc]=[cc,b];push(a.x,a.y,top,roof);push(b.x,b.y,top,roof);push(cc.x,cc.y,top,roof);}
     for(const ring of[outer,...holes]){
@@ -160,7 +175,7 @@ function* buildSteps(footprints,center){
     range.p1=pos.length/3;range.l1=lines.length/6;range.t1=thin.length/3;ranges.push(range);
     if(++i%40===0)yield;
   }
-  return{pos,col,wa,ws,lines,thin,ranges};
+  return{pos,col,wa,ws,wf,lines,thin,ranges};
 }
 
 // ---- instant damage & sway on the live buffers
@@ -212,8 +227,8 @@ function pumpBuild(){
   if(!building)return;const until=performance.now()+SLICE_MS;let r;
   while(performance.now()<until){r=building.steps.next();if(r.done)break;}
   if(!r?.done)return;
-  const{pos,col,wa,ws,lines,thin,ranges}=r.value,geometry=new THREE.BufferGeometry();
-  geometry.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));geometry.setAttribute("color",new THREE.Float32BufferAttribute(col,3));geometry.setAttribute("aWall",new THREE.Float32BufferAttribute(wa,4));geometry.setAttribute("aSeed",new THREE.Float32BufferAttribute(ws,1));if(pos.length)geometry.computeVertexNormals();if(pos.length)geometry.computeBoundingSphere();
+  const{pos,col,wa,ws,wf,lines,thin,ranges}=r.value,geometry=new THREE.BufferGeometry();
+  geometry.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));geometry.setAttribute("color",new THREE.Float32BufferAttribute(col,3));geometry.setAttribute("aWall",new THREE.Float32BufferAttribute(wa,4));geometry.setAttribute("aSeed",new THREE.Float32BufferAttribute(ws,1));geometry.setAttribute("aFloorH",new THREE.Float32BufferAttribute(wf,1));if(pos.length)geometry.computeVertexNormals();if(pos.length)geometry.computeBoundingSphere();
   solid.geometry.dispose();solid.geometry=geometry;
   const outline=fatLineGeometry(lines.length?lines:[0,0,0,0,0,0]);edges.geometry.dispose?.();edges.geometry=outline;if(edgeGlow)edgeGlow.geometry=outline;
   const far=new THREE.BufferGeometry();far.setAttribute("position",new THREE.Float32BufferAttribute(thin,3));thinEdges.geometry.dispose();thinEdges.geometry=far;

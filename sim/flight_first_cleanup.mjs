@@ -10,6 +10,7 @@ import "./player_shield.mjs";
 import "./game_reset.mjs";
 import "./game_exit_button.mjs";
 import "./world_city_buildings.mjs";
+import "./building_interiors.mjs";
 import "./world_city_roads.mjs";
 import "./world_water.mjs";
 import "./world_ground.mjs";

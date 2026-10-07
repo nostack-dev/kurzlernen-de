@@ -62,6 +62,9 @@ try{
   await page.evaluate(()=>globalThis.__arondightRealWorld?.toggleMinimapExpanded?.());
   await step("on-foot",async()=>{await page.evaluate(()=>globalThis.__arondightWalkMode?.setMode?.("foot",{persist:false,reason:"diag"}));await pause(2500);});
   await step("foot-touch-move",async()=>{const r=await page.$eval("#footMove",e=>{const b=e.getBoundingClientRect();return{x:b.left+b.width/2,y:b.top+b.height/2,w:b.width};}).catch(()=>null);if(!r)throw new Error("no #footMove");const before=await page.evaluate(()=>({...globalThis.__arondightWalkMode.position}));const t=page.touchscreen;await t.touchStart(r.x,r.y);for(let i=1;i<=10;i++){await t.touchMove(r.x,r.y-r.w*.05*i);await pause(60);}await pause(1500);const after=await page.evaluate(()=>({...globalThis.__arondightWalkMode.position}));await t.touchEnd();report.walkMoved=Math.hypot(after.x-before.x,after.y-before.y);report.walkSprint=await page.$eval("#viewport",v=>v.dataset.walkTouchSprint);});
+  // Walkable building interiors: door, lobby, stairwell, upper storey, roof.
+  report.interior=await page.evaluate(()=>globalThis.__buildingInteriors?.activateNearest?.()||null).catch(e=>({error:String(e.message||e)}));
+  for(const where of["door","inside","stairs","upper","roof"])await step(`interior-${where}`,async()=>{const r=await page.evaluate(w=>globalThis.__buildingInteriors?.placePlayer?.(w),where);(report.interiorPoses??={})[where]=r;await pause(1200);const z=await page.evaluate(()=>globalThis.__arondightWalkMode?.position?.z);report.interiorPoses[where]={...(r||{}),eyeZ:z};});
   await page.evaluate(()=>globalThis.__arondightWalkMode?.setMode?.("drone",{persist:false,reason:"diag"}));await pause(1500);
   await page.evaluate(()=>{globalThis.__arondightDroneDamageModel?.reset?.();globalThis.__arondightDroneWeapons?.setMode?.("nuke");});
   report.arm=await armDroneAtomically().catch(e=>({error:String(e.message||e).slice(0,200)}));
