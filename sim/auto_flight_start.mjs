@@ -123,19 +123,32 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const nextFrame=()=>new Promise(resolve=>requestAnimationFrame(()=>resolve()));
 function withTimeout(promise,ms){return Promise.race([Promise.resolve(promise).catch(()=>{}),wait(ms)]);}
 async function mapSettled(){const map=bridge?.map;if(!bridge?.active||!map)return;if(!map.loaded?.())await withTimeout(new Promise(resolve=>map.once?.("idle",resolve)),6000);}
-async function neonSettled(){const neon=globalThis.__arondightNeonStyle;if(!neon)return;const until=performance.now()+5000;let calm=0;while(performance.now()<until){await nextFrame();calm=neon.pending()===0?calm+1:0;if(calm>=30)return;}}
+async function neonSettled(){const neon=globalThis.__arondightNeonStyle;if(!neon)return;const until=performance.now()+5000;let calm=0;while(performance.now()<until){await withTimeout(nextFrame(),250);let pending=0;try{pending=Number(neon.pending?.())||0;}catch{return;}calm=pending===0?calm+1:0;if(calm>=30)return;}}
 async function compileScene(){const renderer=bridge?.threeRenderer,scene=bridge?.threeScene,camera=bridge?.threeCamera;if(!renderer||!scene||!camera)return;try{if(renderer.compileAsync)await withTimeout(renderer.compileAsync(scene,camera),4000);else renderer.compile(scene,camera);}catch{}}
 let starting=false;
 async function startGame(){
   if(starting)return;starting=true;
   unlockIntroAudio();
   if(startButton){startButton.disabled=true;startButton.textContent="LOADING";}
-  if(!worldRequested){worldRequested=true;setMenuStatus("LOCATING");await withTimeout(autoWorld(requestStartupLocation()),15000);}
-  setMenuStatus("BUILDING CITY");launchDefaultFlight();
-  await mapSettled();setMenuStatus("PREPARING");await neonSettled();await compileScene();await nextFrame();await nextFrame();
-  window.dispatchEvent(new CustomEvent("arondight:game-start"));
-  if(menu&&!AUTOSTART){menu.classList.add("gm-leaving");await wait(650);}
+  let startupWarning="";
+  try{
+    if(!worldRequested){worldRequested=true;setMenuStatus("LOCATING");await withTimeout(autoWorld(requestStartupLocation()),15000);}
+    setMenuStatus("BUILDING CITY");launchDefaultFlight();
+    await withTimeout(mapSettled(),6500);
+    setMenuStatus("PREPARING");
+    await withTimeout(neonSettled(),5500);
+    await withTimeout(compileScene(),4500);
+    await withTimeout(nextFrame(),300);
+    await withTimeout(nextFrame(),300);
+  }catch(error){
+    startupWarning=String(error?.message||error||"startup preparation failed");
+    console.warn("game startup preparation continued after non-fatal failure",error);
+    setMenuStatus("STARTING");
+  }
+  try{window.dispatchEvent(new CustomEvent("arondight:game-start",{detail:{startupWarning}}));}catch{}
+  if(menu&&!AUTOSTART){menu.classList.add("gm-leaving");await wait(350);}
   if(menu){menu.hidden=true;menu.classList.remove("gm-leaving");}
+  if(startButton){startButton.disabled=false;startButton.textContent="START";}
   starting=false;
 }
 function showMenu(){stopIntroAudio();if(!menu)return;menu.hidden=false;starting=false;if(startButton){startButton.disabled=false;startButton.textContent="START";}setMenuStatus("READY");}
