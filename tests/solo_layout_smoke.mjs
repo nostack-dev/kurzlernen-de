@@ -108,4 +108,16 @@ try{
     if(exited.panel==="none"||exited.telemetry==="none"||exited.camera==="none"||exited.soloHidden!==true)throw new Error(`${viewport.name}: EXIT did not restore the main menu: ${JSON.stringify(exited)}`);
     console.log(`Solo layout ${viewport.name} passed: always-landscape FPV startup, clear race-free HUD, mapped controls, and EXIT-only menu reveal.`);
   }
+
+  // Manual START must be bounded as well. This exercises the exact path used on
+  // phones (menu=1) instead of webdriver autostart, and catches PREPARING hangs.
+  await page.setViewport({width:844,height:390,deviceScaleFactor:1,isMobile:true,hasTouch:true});
+  const manualUrl=new URL(simulatorUrl);manualUrl.searchParams.set("menu","1");
+  await page.goto(manualUrl.href,{waitUntil:"load",timeout:30000});
+  await page.waitForFunction(()=>document.getElementById("gameMenuStart")?.textContent?.trim()==="START",{timeout:30000});
+  const startedAt=Date.now();await page.click("#gameMenuStart");
+  await page.waitForFunction(()=>document.getElementById("gameMenu")?.hidden===true,{timeout:25000});
+  const manual=await page.evaluate(()=>({hidden:document.getElementById("gameMenu")?.hidden,status:document.getElementById("gameMenuStatus")?.textContent?.trim(),button:document.getElementById("gameMenuStart")?.textContent?.trim(),sim:document.querySelector("#status")?.textContent||""}));
+  if(!manual.hidden||manual.status==="PREPARING"||!manual.sim.includes("SIM ready"))throw new Error(`manual START remained blocked: ${JSON.stringify(manual)}`);
+  console.log(`Manual mobile START passed in ${Date.now()-startedAt} ms: PREPARING cannot hang indefinitely.`);
 }finally{await browser.close();}
