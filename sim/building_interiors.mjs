@@ -445,8 +445,9 @@ function collides(b,x,y,feet){
 }
 function valid(b,x,y,feet){
   const reg=region(b,x,y),ground=feet<b.levels[0]+1.2;
-  if(reg==="out")return ground&&nearDoor(b,x,y,3.4)?{z:null}:null;
-  if(reg==="wall")return ground&&inDoorTunnel(b,x,y)?{z:b.levels[0]}:null;
+  // outside next to a door the street level is whatever the terrain is there
+  if(reg==="out")return nearDoor(b,x,y,3.4)?{z:null}:null;
+  if(reg==="wall")return(ground||feet<b.levels[0]+STEP_MAX+2.5)&&inDoorTunnel(b,x,y)?{z:b.levels[0]}:null;
   // inside: keep off the inner walls (door openings excepted at street level)
   const dIn=ringDist(x,y,b.inner);if(dIn<R_PLAYER&&!(ground&&inDoorTunnel(b,x,y)))return null;if(b.innerHoles.some(h=>ringDist(x,y,h)<R_PLAYER))return null;
   const z=bestSurface(b,x,y,feet);if(z==null||Math.abs(z-feet)>STEP_MAX)return null;
@@ -458,6 +459,10 @@ function resolveMove(from,to,feet){
   if(rf==="out"&&rt==="out"&&!nearDoor(b,from.x,from.y)&&!nearDoor(b,to.x,to.y))return null;
   if(rf==="out"&&!nearDoor(b,from.x,from.y))return null;
   for(const p of[[to.x,to.y],[to.x,from.y],[from.x,to.y]]){const r=valid(b,p[0],p[1],feet);if(r){if(r.z===null&&region(b,p[0],p[1])==="out"&&!nearDoor(b,p[0],p[1],2.2))return null;return{x:p[0],y:p[1]};}}
+  // Never a trap: if the player already stands somewhere invalid (terrain or
+  // building changed under them, spawned into furniture, wrong storey) the
+  // move is let through so they can walk out instead of being pinned forever.
+  if(!valid(b,from.x,from.y,feet))return{x:to.x,y:to.y};
   return{x:from.x,y:from.y};
 }
 function feetHeightAt(x,y,feet){
