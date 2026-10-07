@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import {patchShockMaterial} from "./nuke_shock_field.mjs";
 import {craterHeightAt,onTerrainChange} from "./terrain_craters.mjs";
 
 // Real-world ground coloured from satellite imagery — used only indirectly:
@@ -49,8 +50,8 @@ function ensureMesh(scene){
   m.onBeforeCompile=shader=>{shader.vertexShader=shader.vertexShader.replace("void main() {","varying vec3 vGW;\nvoid main() {").replace("#include <begin_vertex>","#include <begin_vertex>\nvGW=(modelMatrix*vec4(transformed,1.0)).xyz;");
     shader.fragmentShader=shader.fragmentShader.replace("void main() {","varying vec3 vGW;\nfloat gh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.55);}\nfloat gn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(gh(i),gh(i+vec2(1,0)),f.x),mix(gh(i+vec2(0,1)),gh(i+vec2(1,1)),f.x),f.y);}\nvoid main() {")
       .replace("#include <color_fragment>","#include <color_fragment>\n{float n=gn(vGW.xy*.35)*.5+gn(vGW.xy*1.7)*.3+gn(vGW.xy*7.0)*.2;diffuseColor.rgb*=0.86+0.28*n;}");};
-  m.customProgramCacheKey=()=>"world-ground-v1";
-  mesh=new THREE.Mesh(g,m);mesh.name="WORLD_GROUND";mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.renderOrder=-4;mesh.userData.flightFireIgnore=true;mesh.userData.styleSkip=true;mesh.raycast=()=>{};mesh.visible=false;scene.add(mesh);center=[Infinity,Infinity];return mesh;
+  m.customProgramCacheKey=()=>"world-ground-v1";patchShockMaterial(m);
+  mesh=new THREE.Mesh(g,m);mesh.name="WORLD_GROUND";mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.renderOrder=1;mesh.userData.flightFireIgnore=true;mesh.userData.styleSkip=true;mesh.raycast=()=>{};mesh.visible=false;scene.add(mesh);center=[Infinity,Infinity];return mesh;
 }
 function applyHeights(){if(!mesh)return;const p=mesh.geometry.attributes.position;for(let i=0;i<p.count;i++)p.setZ(i,craterHeightAt(p.getX(i)+mesh.position.x,p.getY(i)+mesh.position.y));p.needsUpdate=true;mesh.geometry.computeVertexNormals();}
 async function rebuild(b,cx,cy){

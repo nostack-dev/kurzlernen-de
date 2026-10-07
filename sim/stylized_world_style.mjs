@@ -71,8 +71,10 @@ function bakeSky(renderer,now,force){
   if(!renderer)return false;skyBakeSetup();if(!force&&now-lastSkyBake<SKY_BAKE_MS)return true;lastSkyBake=now;
   const prev=renderer.getRenderTarget();renderer.setRenderTarget(skyRT);renderer.render(skyBake.scene,skyBake.camera);renderer.setRenderTarget(prev);return true;
 }
-function cachedSkyMaterial(){skyBakeSetup();return new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,depthTest:false,fog:false,uniforms:{tSky:{value:skyRT.texture}},
-  vertexShader:"varying vec3 vDir;void main(){vDir=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
+// Drawn AFTER the opaque world at the far plane (xyww) with depth test: only
+// pixels not covered by buildings/ground are shaded.
+function cachedSkyMaterial(){skyBakeSetup();return new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,depthTest:true,fog:false,uniforms:{tSky:{value:skyRT.texture}},
+  vertexShader:"varying vec3 vDir;void main(){vDir=position;vec4 p=projectionMatrix*modelViewMatrix*vec4(position,1.0);gl_Position=p.xyww;}",
   fragmentShader:`uniform sampler2D tSky;varying vec3 vDir;
 void main(){vec3 d=normalize(vDir);float u=fract(atan(d.y,d.x)/6.2831853),v=asin(clamp(d.z,0.0,1.0))/1.5707963;
   vec3 col=texture2D(tSky,vec2(u,clamp(v,0.5/${SKY_BAKE_H}.0,1.0-0.5/${SKY_BAKE_H}.0))).rgb;
@@ -83,7 +85,7 @@ void main(){vec3 d=normalize(vDir);float u=fract(atan(d.y,d.x)/6.2831853),v=asin
 }`});}
 function ensureSky(scene){
   if(sky?.parent===scene)return sky;const g=new THREE.SphereGeometry(1,32,16);g.rotateX(Math.PI/2);
-  sky=new THREE.Mesh(g,cachedSkyMaterial());sky.name="REAL_SKY";sky.renderOrder=-10000;sky.frustumCulled=false;sky.userData.styleSkip=true;sky.userData.flightFireIgnore=true;sky.raycast=()=>{};
+  sky=new THREE.Mesh(g,cachedSkyMaterial());sky.name="REAL_SKY";sky.renderOrder=100000;sky.frustumCulled=false;sky.userData.styleSkip=true;sky.userData.flightFireIgnore=true;sky.raycast=()=>{};
   sky.onBeforeRender=(r,s,camera)=>{sky.position.copy(camera.position);sky.scale.setScalar(Math.min(camera.far*.9,1800));};scene.add(sky);return sky;
 }
 // Image-based lighting: render the (cloudless) sky once into a PMREM env map.

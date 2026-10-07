@@ -102,9 +102,12 @@ function normalOf(hit,ray){
 // A bullet: hit (raycast result, may be null) along ray {origin,direction}.
 // Animals are small instanced decor: test them against the ray directly so
 // every weapon (also the drone gun, whose raycast skips decor) can hit them.
-function animalOnRay(ray,maxT){const o=ray.origin,d=ray.direction;let best=null;for(const a of globalThis.__ambientAnimals?.poses?.()||[]){const ax=a.x-o.x,ay=a.y-o.y,az=.3-o.z,t=ax*d.x+ay*d.y+az*d.z;if(t<=0||t>maxT)continue;const px=o.x+d.x*t-a.x,py=o.y+d.y*t-a.y,pz=o.z+d.z*t-.3;if(px*px+py*py+pz*pz<.5*.5*(a.sc||1)*(a.sc||1)*1.6&&(!best||t<best.t))best={a,t};}return best;}
+// Birds: sphere test along the shot (they are small and fast; the hit sphere
+// is a bit larger than the body so a clean shot counts).
+function birdOnRay(ray,maxT){const o=ray.origin,d=ray.direction;let best=null;for(const b of globalThis.__ambientBirds?.poses?.()||[]){const ax=b.x-o.x,ay=b.y-o.y,az=b.z-o.z,t=ax*d.x+ay*d.y+az*d.z;if(t<=0||t>maxT)continue;const px=o.x+d.x*t-b.x,py=o.y+d.y*t-b.y,pz=o.z+d.z*t-b.z,r=.75*(b.sc||1)+t*.004;if(px*px+py*py+pz*pz<r*r&&(!best||t<best.t))best={b,t};}return best;}
+function animalOnRay(ray,maxT){const o=ray.origin,d=ray.direction;let best=null;for(const a of globalThis.__ambientAnimals?.poses?.()||[]){const cz=(a.z??.2)+.1,ax=a.x-o.x,ay=a.y-o.y,az=cz-o.z,t=ax*d.x+ay*d.y+az*d.z;if(t<=0||t>maxT)continue;const px=o.x+d.x*t-a.x,py=o.y+d.y*t-a.y,pz=o.z+d.z*t-cz;if(px*px+py*py+pz*pz<.5*.5*(a.sc||1)*(a.sc||1)*1.6&&(!best||t<best.t))best={a,t};}return best;}
 export function bulletImpact(ray,hit,{routed=false,maxDistance=180}={}){
-  if(ray&&!(surfaceOf(hit)==="actor")){const maxT=hit?.distance??(hit?.point?ray.origin.distanceTo(hit.point):maxDistance),an=animalOnRay(ray,maxT);if(an){globalThis.__ambientAnimals.kill(an.a.i);chipBurst(new THREE.Vector3(an.a.x,an.a.y,.35),ray.direction.clone().negate(),"actor",5,2.5);return true;}}
+  if(ray&&!(surfaceOf(hit)==="actor")){const maxT=hit?.distance??(hit?.point?ray.origin.distanceTo(hit.point):maxDistance),bd=birdOnRay(ray,maxT);if(bd){globalThis.__ambientBirds.kill(bd.b.id);chipBurst(new THREE.Vector3(bd.b.x,bd.b.y,bd.b.z),ray.direction.clone().negate(),"actor",9,3.5);return true;}const an=animalOnRay(ray,maxT);if(an){globalThis.__ambientAnimals.kill(an.a.i);chipBurst(new THREE.Vector3(an.a.x,an.a.y,(an.a.z??.2)+.15),ray.direction.clone().negate(),"actor",5,2.5);return true;}}
   let point=hit?.point?.clone?.()||null,normal=null,surface=surfaceOf(hit);
   if(!point&&ray){const o=ray.origin,d=ray.direction;if(d.z<-1e-4){let t=(groundHeightAt(o.x,o.y)-o.z)/d.z;if(t>0&&t<maxDistance){point=o.clone().addScaledVector(d,t);point.z=groundHeightAt(point.x,point.y);normal=Z.clone();surface="ground";}}}
   // shots into a river / lake: splash on the water surface, no decal
@@ -130,6 +133,7 @@ function onExplosion(event){
     for(const pr of prisms){if(walls>=2)break;const pts=pr.points||[];for(let i=0;i<pts.length&&walls<2;i++){const a=pts[i],b=pts[(i+1)%pts.length],ex=b[0]-a[0],ey=b[1]-a[1],len=Math.hypot(ex,ey);if(len<.5)continue;const t=Math.max(0,Math.min(1,((x-a[0])*ex+(y-a[1])*ey)/(len*len))),px=a[0]+ex*t,py=a[1]+ey*t,dist=Math.hypot(x-px,y-py);if(dist<r*.5){const nx=-ey/len,ny=ex/len,sgn=Math.sign((x-px)*nx+(y-py)*ny)||1;addDecal(new THREE.Vector3(px,py,Math.max(g+.8,Math.min((Number.isFinite(z)?z:g)+.5,(+pr.top||8)-.3))),new THREE.Vector3(nx*sgn,ny*sgn,0),{size:Math.min(3,r*.35),color:0x1d1814});walls++;}}}
   }
   // animals in reach die
+  for(const bd of globalThis.__ambientBirds?.poses?.()||[]){if(Math.hypot(bd.x-x,bd.y-y,(bd.z-(Number(event?.detail?.position?.[2])||0))*.6)<(nuke?r*2.2:r*1.1)){globalThis.__ambientBirds.kill(bd.id);chipBurst(new THREE.Vector3(bd.x,bd.y,bd.z),Z,"actor",6,3);}}
   for(const a of globalThis.__ambientAnimals?.poses?.()||[]){if(Math.hypot(a.x-x,a.y-y)<(nuke?r*1.5:r*.9)){globalThis.__ambientAnimals.kill(a.i);chipBurst(new THREE.Vector3(a.x,a.y,.3),Z,"actor",4,3);}}
   // trees: knock over everything in reach, falling away from the blast
   const t=findTrees();if(t){const reach=nuke?Math.min(600,r*1.4):r*.85;for(let i=0;i<t.trunk.count;i++){t.trunk.getMatrixAt(i,m4);p.setFromMatrixPosition(m4);const dist=Math.hypot(p.x-x,p.y-y);if(dist<reach){if(nuke)setTimeout(()=>knockTree(i,x,y,1.4),dist/343*1000);else knockTree(i,x,y,1-dist/reach);}}}

@@ -1,3 +1,4 @@
+import {shockHeightAt} from "./nuke_shock_field.mjs";
 // Deformable ground: one height function shared by physics, rendering and
 // the walking player, so a nuke crater is real terrain — the drone can fly
 // down into it, the camera and rangefinder see it, the pilot walks the bowl.
@@ -40,7 +41,7 @@ export function craterHeightAt(x,y){let h=0;for(const c of craters){const r=Math
 export function waterAt(x,y){const l=waterBuckets.get(Math.floor(x/WB)*73856093^Math.floor(y/WB)*19349663);if(!l)return false;for(const r of l)if(x>=r.x0&&x<r.x1&&y>=r.y0&&y<r.y1)return true;return false;}
 export function waterFlowAt(x,y){return waterFlow&&waterAt(x,y)?waterFlow(x,y):null;}
 export function waterRegions(){return waterRects;}
-export function groundHeightAt(x,y){let h=0;for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return Math.min(h,-WATER_BED_M);return h;}
+export function groundHeightAt(x,y){let h=shockHeightAt(x,y);for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return Math.min(h,-WATER_BED_M);return h;}
 export function terrainCraters(){return craters.map(c=>({...c}));}
 export function addCrater(x,y){craters.push({x:Number(x)||0,y:Number(y)||0});while(craters.length>MAX_CRATERS)craters.shift();notify();}
 export function clearCraters(){if(!craters.length)return;craters.length=0;notify();}

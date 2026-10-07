@@ -63,6 +63,9 @@ function frame(now){
   }
   requestAnimationFrame(frame);
 }
+// CPU twin of the shader heave: walkers, pedestrians, animals and birds ride
+// the same ground wave that the ground, roads and city visibly do.
+export function shockHeightAt(x,y){const u=shockUniforms.uShock.value;if(u.w<=0||u.z<0)return 0;const d=Math.hypot(x-u.x,y-u.y)-u.z;const front=Math.exp(-(d*d)/(FRONT_WIDTH_M*FRONT_WIDTH_M)),trail=d<0?Math.exp(-((d+46)*(d+46))/900):0;return u.w*(front-.42*trail);}
 export function shockFieldState(){return active?{...active,radius:shockUniforms.uShock.value.z,heave:shockUniforms.uShock.value.w}:null;}
 export function installShockField(){
   if(installed||typeof window==="undefined")return;installed=true;

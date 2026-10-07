@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import {patchShockMaterial} from "./nuke_shock_field.mjs";
 import {craterHeightAt as groundHeightAt} from "./terrain_craters.mjs";
 
 // The real streets, parks and water of the map as stylized 3D ground:
@@ -70,7 +71,7 @@ function* build(b,cx,cy){
   return{buckets:[...buckets.values()],roads:roads.length};
 }
 function ensureMesh(scene){
-  if(mesh?.parent===scene)return mesh;material??=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.93,metalness:0,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4});mesh=new THREE.Group();
+  if(mesh?.parent===scene)return mesh;material??=patchShockMaterial(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.93,metalness:0,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4}));mesh=new THREE.Group();
   mesh.name="WORLD_CITY_ROADS";mesh.receiveShadow=true;mesh.renderOrder=-1;mesh.userData.flightFireIgnore=true;mesh.raycast=()=>{};scene.add(mesh);sceneRef=scene;center=[Infinity,Infinity];return mesh;
 }
 function frame(now){
@@ -78,7 +79,7 @@ function frame(now){
   ensureMesh(b.threeScene);mesh.visible=true;
   if(building){const until=performance.now()+SLICE_MS;let r;while(performance.now()<until){r=building.next();if(r.done)break;}
     if(r?.done){const{buckets,roads}=r.value;for(const old of[...mesh.children]){old.geometry.dispose();mesh.remove(old);}
-      for(const bk of buckets){const g=new THREE.BufferGeometry(),nv=bk.pos.length/3;g.setAttribute("position",new THREE.Float32BufferAttribute(bk.pos,3));g.setAttribute("color",new THREE.Float32BufferAttribute(bk.col,3));g.setAttribute("normal",new THREE.Float32BufferAttribute(new Float32Array(nv*3).map((_,i)=>i%3===2?1:0),3));g.computeBoundingSphere();const m=new THREE.Mesh(g,material);m.name="WORLD_CITY_ROADS_CHUNK";m.receiveShadow=true;m.renderOrder=-1;m.matrixAutoUpdate=false;m.userData.flightFireIgnore=true;m.raycast=()=>{};mesh.add(m);}
+      for(const bk of buckets){const g=new THREE.BufferGeometry(),nv=bk.pos.length/3;g.setAttribute("position",new THREE.Float32BufferAttribute(bk.pos,3));g.setAttribute("color",new THREE.Float32BufferAttribute(bk.col,3));g.setAttribute("normal",new THREE.Float32BufferAttribute(new Float32Array(nv*3).map((_,i)=>i%3===2?1:0),3));g.computeBoundingSphere();const m=new THREE.Mesh(g,material);m.name="WORLD_CITY_ROADS_CHUNK";m.receiveShadow=true;m.renderOrder=2;m.matrixAutoUpdate=false;m.userData.flightFireIgnore=true;m.raycast=()=>{};mesh.add(m);}
       building=null;if(!roads)center=[Infinity,Infinity];const v=document.getElementById("viewport");if(v){v.dataset.worldCityRoads=String(roads);v.dataset.worldCityRoadsVersion=CITY_ROADS_VERSION;}}
     return;}
   // Rebuild when the player moved far, or when more map tiles have loaded

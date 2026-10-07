@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import {patchShockMaterial} from "./nuke_shock_field.mjs";
 import {setWaterRegions,setBridgeDecks,WATER_LEVEL_M} from "./terrain_craters.mjs";
 
 // Real water from the map: rivers, canals, streams (waterway lines with a
@@ -114,7 +115,7 @@ void main() {`).replace("#include <color_fragment>",`#include <color_fragment>
    vec3 wN=normalize(vec3(-g.x,-g.y,1.0));normal=normalize((viewMatrix*vec4(wN,0.0)).xyz);}`)
       .replace("#include <roughnessmap_fragment>","#include <roughnessmap_fragment>\nroughnessFactor=mix(0.05,0.6,clamp(foam,0.0,1.0));");
   };
-  m.customProgramCacheKey=()=>"world-water-v1";return m;
+  m.customProgramCacheKey=()=>"world-water-v1";return patchShockMaterial(m);
 }
 function ensureMesh(scene){
   if(mesh?.parent===scene)return mesh;material??=makeMaterial();mesh=new THREE.Mesh(new THREE.BufferGeometry(),material);mesh.name="WORLD_WATER";mesh.frustumCulled=false;mesh.renderOrder=-2;mesh.receiveShadow=true;mesh.userData.flightFireIgnore=true;mesh.userData.styleSkip=true;mesh.raycast=()=>{};scene.add(mesh);center=[Infinity,Infinity];return mesh;
