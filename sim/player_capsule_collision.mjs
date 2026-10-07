@@ -1,3 +1,4 @@
+import {staticGroundHeightAt} from "./terrain_craters.mjs";
 export const PLAYER_CAPSULE_RADIUS_M=.28;
 export const PLAYER_CAPSULE_HEIGHT_M=1.72;
 export const PLAYER_CAPSULE_QUERY_CATEGORY=8n;
@@ -20,7 +21,7 @@ function bodyShapes(b3,body){
 export function ensurePlayerQueryAcceptedByTerrain(engine){
   const b3=engine?.b3;if(!b3||typeof b3.b3Shape_GetFilter!=="function"||typeof b3.b3Shape_SetFilter!=="function")return false;
   const buildingBody=engine.buildingState?.body||null;if(engine.__playerCapsuleGround===engine.ground&&engine.__playerCapsuleBuildingBody===buildingBody)return true;
-  const bodies=[engine.ground,buildingBody].filter(Boolean);let touched=0;
+  const bodies=[...(engine.terrainBodies||[engine.ground]),buildingBody].filter(Boolean);let touched=0;
   for(const body of bodies)for(const shape of bodyShapes(b3,body)){
     const current=b3.b3Shape_GetFilter(shape);if(!current)continue;
     const category=BigInt(current.categoryBits??0n);if((category&PLAYER_CAPSULE_TERRAIN_CATEGORY)===0n)continue;
@@ -31,24 +32,34 @@ export function ensurePlayerQueryAcceptedByTerrain(engine){
   return bodies.length>0;
 }
 
-function castFraction(b3,world,origin,delta,{radiusM=PLAYER_CAPSULE_RADIUS_M,heightM=PLAYER_CAPSULE_HEIGHT_M}={}){
-  if(typeof b3?.b3World_CastMover!=="function")return null;
-  const radius=clamp(radiusM,.18,.45),height=Math.max(radius*2+.20,Number(heightM)||PLAYER_CAPSULE_HEIGHT_M),capsule={center1:[0,0,radius],center2:[0,0,height-radius],radius};
-  const filter=typeof b3.b3DefaultQueryFilter==="function"?b3.b3DefaultQueryFilter():{};filter.categoryBits=PLAYER_CAPSULE_QUERY_CATEGORY;filter.maskBits=PLAYER_CAPSULE_TERRAIN_CATEGORY;
-  // box3d.js 0.1.1's Embind layer requires a callable even though upstream C accepts NULL here.
-  // Category/mask bits remain authoritative; this callback accepts every shape that survived them.
-  const fraction=Number(b3.b3World_CastMover(world,[Number(origin.x)||0,Number(origin.y)||0,0],capsule,[Number(delta.x)||0,Number(delta.y)||0,0],filter,acceptMoverShape,null));
-  return Number.isFinite(fraction)?clamp(fraction,0,1):null;
+function moverOptions(options){
+  const radius=clamp(options.radiusM??PLAYER_CAPSULE_RADIUS_M,.18,.45),height=Math.max(radius*2+.20,Number(options.heightM)||PLAYER_CAPSULE_HEIGHT_M);
+  return {center1:[0,0,radius],center2:[0,0,height-radius],radius};
 }
-function safeTravel(start,delta,fraction){const length=Math.hypot(delta.x,delta.y);if(length<1e-8)return{x:start.x,y:start.y};const allowed=Math.max(0,length*fraction-CONTACT_MARGIN_M),scale=clamp(allowed/length,0,1);return{x:start.x+delta.x*scale,y:start.y+delta.y*scale};}
-function castStep(b3,world,start,delta,options){const fraction=castFraction(b3,world,start,delta,options);if(fraction===null)return null;return{fraction,point:safeTravel(start,delta,fraction)};}
-function axisSlide(b3,world,start,remaining,firstAxis,options){let point={...start};for(const axis of[firstAxis,firstAxis==="x"?"y":"x"]){const delta={x:axis==="x"?remaining.x:0,y:axis==="y"?remaining.y:0};if(Math.hypot(delta.x,delta.y)<1e-7)continue;const step=castStep(b3,world,point,delta,options);if(!step)return null;point=step.point;}return point;}
+function feetAt(p,options){return (options.groundHeightAt||staticGroundHeightAt)(p.x,p.y)+.02;}
+function moveOnPlanes(b3,world,from,to,options){
+  const capsule=moverOptions(options),filter=b3.b3DefaultQueryFilter();filter.categoryBits=PLAYER_CAPSULE_QUERY_CATEGORY;filter.maskBits=PLAYER_CAPSULE_TERRAIN_CATEGORY;
+  let p=[Number(from.x),Number(from.y),feetAt(from,options)],target=[Number(to.x),Number(to.y),feetAt(to,options)],fraction=1;
+  // Official Box3D mover sequence: gather planes, solve penetration/slide,
+  // then sweep the capsule. Unlike axis casts, this can leave an overlap.
+  for(let iteration=0;iteration<5;iteration++){
+    const planes=[];
+    b3.b3World_CollideMover(world,p,capsule,filter,(_shape,buffer)=>{
+      for(let i=0;i<buffer.count;i++){const k=i*7,d=buffer.data;planes.push({plane:{normal:[d[k],d[k+1],d[k+2]],offset:d[k+3]},pushLimit:3.4e38,push:0,clipVelocity:true});}return true;
+    });
+    const result=b3.b3SolvePlanes(target.map((v,i)=>v-p[i]),planes),delta=result.delta;
+    if(!delta.every(Number.isFinite))return null;
+    const f=Number(b3.b3World_CastMover(world,p,capsule,delta,filter,acceptMoverShape,null));if(!Number.isFinite(f))return null;
+    fraction=Math.min(fraction,clamp(f,0,1));const length=Math.hypot(...delta),scale=f<1?Math.max(0,f-CONTACT_MARGIN_M/Math.max(length,1e-8)):1;
+    p=p.map((v,i)=>v+delta[i]*scale);if(length*scale<1e-5)break;
+  }
+  const blocked=Math.hypot(p[0]-to.x,p[1]-to.y)>.002;
+  return {x:p[0],y:p[1],blocked,fraction:blocked?Math.min(fraction,.999):1,source:"box3d-capsule-mover-v1"};
+}
 
 export function resolvePlayerCapsuleMove(engine,from,to,options={}){
   if(!finitePoint(from)||!finitePoint(to))return null;const b3=engine?.b3,world=engine?.world;if(!b3||!world||typeof b3.b3World_CastMover!=="function")return null;
   ensurePlayerQueryAcceptedByTerrain(engine);
-  const desired={x:Number(to.x)-Number(from.x),y:Number(to.y)-Number(from.y)},direct=castStep(b3,world,from,desired,options);if(!direct)return null;
-  if(direct.fraction>=.9999)return{x:Number(to.x),y:Number(to.y),blocked:false,fraction:1,source:"box3d-capsule-mover-v1"};
-  const remaining={x:Number(to.x)-direct.point.x,y:Number(to.y)-direct.point.y},xy=axisSlide(b3,world,direct.point,remaining,"x",options),yx=axisSlide(b3,world,direct.point,remaining,"y",options),distance=p=>p?Math.hypot(Number(to.x)-p.x,Number(to.y)-p.y):Infinity,best=distance(xy)<=distance(yx)?xy:yx,point=best||direct.point;
-  return{x:point.x,y:point.y,blocked:true,fraction:direct.fraction,source:"box3d-capsule-mover-v1"};
+  if(typeof b3.b3World_CollideMover!=="function"||typeof b3.b3SolvePlanes!=="function")return null;
+  return moveOnPlanes(b3,world,from,to,options);
 }

@@ -12,7 +12,7 @@ for(const marker of ["world-space-fixed-centres-v1","fixed-local-road-network-v1
   assert.ok(population.includes(marker),`population grounding contract missing ${marker}`);
 assert.ok(!population.includes("focus=populationFocus(),cx=focus?.x??anchorX,cy=focus?.y??anchorY"),"population still moves animals/birds with the player focus");
 
-for(const marker of ["Z_AREA=.05","Z_SIDEWALK=.09","Z_ROAD=.112","Z_MARKING=.135","map-roads-sidewalks-parks-v3-terrain-draped","z+h(ax,ay)","AREA_EDGE_M=8,ROAD_SEG_M=6"])
+for(const marker of ["Z_AREA=.05","Z_SIDEWALK=.09","Z_ROAD=.112","Z_MARKING=.135","map-roads-sidewalks-parks-v3-terrain-draped","drapeTerrainTriangle","AREA_EDGE_M=8,ROAD_SEG_M=6"])
   assert.ok(roads.includes(marker),`road depth contract missing ${marker}`);
 assert.ok(ground.includes('satellite-albedo-ground-v2-depth-base')&&ground.includes("polygonOffsetFactor:4,polygonOffsetUnits:8"),"ground is not the unambiguous depth base");
 assert.ok(water.includes('map-water-basins-buoyancy-v2-depth-stable')&&water.includes("WATER_RENDER_Z=WATER_LEVEL_M+.052")&&water.includes("color:0x176b98"),"water must be separated and saturated blue");

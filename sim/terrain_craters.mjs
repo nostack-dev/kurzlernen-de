@@ -1,3 +1,4 @@
+import {triangleHeightAt} from "./terrain_surface.mjs";
 import {shockHeightAt} from "./nuke_shock_field.mjs";
 import {elevationAt,onElevationChange,elevationCenter} from "./terrain_elevation.mjs";
 // Deformable ground: one height function shared by physics, rendering and
@@ -43,7 +44,8 @@ export function waterAt(x,y){const l=waterBuckets.get(Math.floor(x/WB)*73856093^
 export function waterFlowAt(x,y){return waterFlow&&waterAt(x,y)?waterFlow(x,y):null;}
 export function waterRegions(){return waterRects;}
 // Static ground (real elevation + craters + river/lake beds), without the transient pressure wave.
-export function staticGroundHeightAt(x,y){const e=elevationAt(x,y);let h=e;for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return Math.min(h,e-WATER_BED_M);return h;}
+function terrainNodeHeightAt(x,y){const e=elevationAt(x,y);let h=e;for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return Math.min(h,e-WATER_BED_M);return h;}
+export function staticGroundHeightAt(x,y){return triangleHeightAt(x,y,terrainNodeHeightAt);}
 export function groundHeightAt(x,y){return staticGroundHeightAt(x,y)+shockHeightAt(x,y);}
 // Underground guard. The collision terrain is a thin triangulated height
 // field: a body that ends up beneath it (spawned before the DEM arrived, the

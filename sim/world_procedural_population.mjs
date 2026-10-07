@@ -1,3 +1,4 @@
+import {vehicleFootprintsOverlap} from "./vehicle_spawn_clearance.mjs";
 import * as THREE from "three";
 import {groundHeightAt,staticGroundHeightAt,onTerrainChange} from "./terrain_craters.mjs";
 import {vehicleGeometry,vehicleMaterial,wheelGeometry} from "./vehicle_models.mjs";
@@ -179,8 +180,16 @@ function updatePhysicalVehicle(record,epoch,now){
   const physics=rigidBodies(),route=routeFor(record,now);if(!route)streamFallbackAroundFocus(record,populationFocus(),epoch);const shape=vehicleShape(record),fallback=fallbackVehicleSample(record,epoch),initial=route?samplePingPongRoute(route,epoch*record.speed+(record.motion?.phase||0)*route.length,laneWidth(route,record)):fallback;
   const driven=Boolean(record.group.userData?.playerDriven),focus=populationFocus(),here=record.physicsRegistered&&record.physicsPose?record.physicsPose.position:[initial.x,initial.y],dist=focus?Math.hypot(here[0]-focus.x,here[1]-focus.y):0,near=driven||!focus||dist<(record.physicsRegistered?PHYS_FAR_M:PHYS_NEAR_M);
   if(!near){if(record.physicsRegistered){physics?.removeBody?.(record.id);record.physicsRegistered=false;}record.physicsPose=null;record.wheelPoses=null;record.group.position.set(initial.x,initial.y,groundHeightAt(initial.x,initial.y));record.group.rotation.set(0,0,initial.yaw);record.group.visible=true;return;}
+  if(!record.physicsRegistered){
+    const candidate={x:initial.x,y:initial.y,yaw:initial.yaw,half:shape.half};
+    const occupied=records.some(other=>{
+      if(other===record||!other.physicsRegistered||(other.kind!=="car"&&other.kind!=="bus"))return false;
+      const p=physics?.pose?.(other.id);return p&&vehicleFootprintsOverlap(candidate,{x:p.position[0],y:p.position[1],yaw:p.yaw,half:vehicleShape(other).half});
+    });
+    if(occupied){record.group.visible=false;record.physicsPose=null;record.wheelPoses=null;return;}
+  }
   if(!record.physicsRegistered)record.physicsRegistered=Boolean(physics?.upsertBody?.({id:record.id,kind:record.kind,position:[initial.x,initial.y,groundHeightAt(initial.x,initial.y)+shape.half[2]],yaw:initial.yaw,halfExtents:shape.half,massKg:shape.mass}));
-  let pose=physics?.pose?.(record.id)||record.physicsPose;if(pose?.position?.[2]<-6){physics?.removeBody?.(record.id);record.physicsRegistered=false;pose=null;}
+  let pose=physics?.pose?.(record.id)||record.physicsPose;if(pose?.position&&pose.position[2]<staticGroundHeightAt(pose.position[0],pose.position[1])-6){physics?.removeBody?.(record.id);record.physicsRegistered=false;pose=null;}
   if(!driven&&pose){const current=pose.position;let targetPoint;
     if(route){const nearest=nearestRouteDistance(route,current[0],current[1]);if(nearest.distance>route.length-2.5)record.routeDirection=-1;else if(nearest.distance<2.5)record.routeDirection=1;const lookahead=Math.max(7,record.speed*1.3),targetDistance=clamp(nearest.distance+record.routeDirection*lookahead,0,route.length),offset=laneWidth(route,record)*record.routeDirection;targetPoint=sampleRoadRoute(route,targetDistance,offset,record.routeDirection);}else targetPoint=fallbackVehicleSample(record,epoch+1.1);
     physics?.setTarget?.(record.id,{position:[targetPoint.x,targetPoint.y,0],yaw:targetPoint.yaw,speedMps:record.speed});pose=physics?.pose?.(record.id)||pose;}
