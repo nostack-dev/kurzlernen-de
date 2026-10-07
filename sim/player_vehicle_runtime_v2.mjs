@@ -17,7 +17,7 @@ const PLAYER_FX_KIND="pistol";
 const WORLD_LIFE_FX_KIND="world-life-death-v1";
 const EARTH_RADIUS_M=6378137;
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,Number(v)||0));
-const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),forwardAxis=new THREE.Vector3(0,1,0);
+const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),forwardAxis=new THREE.Vector3(0,1,0),airframeQuat=new THREE.Quaternion(),airframeEuler=new THREE.Euler();
 
 let installed=false,lastMode=null,lastWalkShots=0,lastFrame=performance.now(),lastPoseTx=-Infinity,lastStepAt=-Infinity;
 // The chase camera sits 1.65 m behind the drone; with the pilot only 0.72 m
@@ -59,7 +59,7 @@ function airframe(now=performance.now()){
   if(now-lastAirframeScan<1000)return null;lastAirframeScan=now;
   scene.traverse?.(node=>{if(!airframeRoot&&node?.userData?.arondightAirframe)airframeRoot=node;});if(airframeRoot)airframeRoot.userData.localDamageTarget="drone";return airframeRoot;
 }
-function airframePose(){const root=airframe();if(!root)return null;root.getWorldPosition(tmp);const q=root.getWorldQuaternion(new THREE.Quaternion()),e=new THREE.Euler().setFromQuaternion(q,"XYZ");return{x:tmp.x,y:tmp.y,z:Math.max(0,tmp.z),yaw:e.z};}
+function airframePose(){const root=airframe();if(!root)return null;root.getWorldPosition(tmp);root.getWorldQuaternion(airframeQuat);airframeEuler.setFromQuaternion(airframeQuat,"XYZ");return{x:tmp.x,y:tmp.y,z:Math.max(0,tmp.z),yaw:airframeEuler.z};}
 function setAirframeVisible(visible){const root=airframe();if(root)root.visible=Boolean(visible);}
 
 function exposeVehicleModel(model){if(!model||typeof model.reset!=="function"||!model.p)return;const current=globalThis.__arondightVehicleRuntime;if(current?.model===model)return;globalThis.__arondightVehicleRuntime={model,teleportDrone({x=0,y=0,z=.08,yawDeg=0}={}){model.reset(model.p,{x:Number(x)||0,y:Number(y)||0,z:Number.isFinite(Number(z))?Number(z):.08,roll_deg:0,pitch_deg:0,yaw_deg:Number(yawDeg)||0});return model.state?.()||null;},getState(){return model.state?.()||null;}};const v=viewport();if(v)v.dataset.droneVehicleRuntime="box3d-reset-v2";}
