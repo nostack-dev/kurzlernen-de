@@ -47,7 +47,10 @@ try{
   await page.evaluate(()=>globalThis.__arondightWalkMode?.setMode?.("drone",{persist:false,reason:"diag"}));await pause(1500);
   await page.evaluate(()=>{globalThis.__arondightDroneDamageModel?.reset?.();globalThis.__arondightDroneWeapons?.setMode?.("nuke");});
   report.arm=await armDroneAtomically().catch(e=>({error:String(e.message||e).slice(0,200)}));
-  await step("nuke-fired",async()=>{const r=await page.$eval("#viewport",v=>{const b=v.getBoundingClientRect();return{x:b.left+b.width*.5,y:b.top+b.height*.35};});await page.touchscreen.tap(r.x,r.y);await pause(1500);});
+  // A real tap-fired nuke lands close (drone sits in its crater); for a
+  // readable view of the cloud the diagnostic also drops one 450 m ahead
+  // through the multiplayer entry point (exercises the remote path too).
+  await step("nuke-fired",async()=>{report.nukeRemote=await page.evaluate(()=>{const c=globalThis.__arondightRealWorld?.threeCamera;if(!c)return null;const d=c.getWorldDirection(c.position.clone());d.z=0;d.normalize();const p=[c.position.x+d.x*450,c.position.y+d.y*450,0];window.dispatchEvent(new CustomEvent("arondight:remote-nuke",{detail:{position:p}}));return p;});await pause(1500);});
   await step("nuke-3s",()=>pause(1500));
   await step("nuke-8s",()=>pause(5000));
   await step("nuke-16s",()=>pause(8000));

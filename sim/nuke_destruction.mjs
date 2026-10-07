@@ -162,7 +162,7 @@ function hitActor(scene,e){
   const stash=[];e.root.traverse(n=>{stash.push([n,n.userData]);n.userData={};});let clone=null;
   try{clone=e.root.clone(true);}catch{clone=null;}finally{for(const[n,u]of stash)n.userData=u;}
   if(!clone)return;e.root.updateWorldMatrix(true,false);e.root.matrixWorld.decompose(clone.position,clone.quaternion,clone.scale);
-  clone.traverse(n=>{n.userData={flightFireIgnore:true,nukeFlung:true};n.layers.enable(0);});scene.add(clone);
+  clone.traverse(n=>{n.userData={flightFireIgnore:true,nukeFlung:true,neonSkip:true};n.layers.enable(0);});scene.add(clone);
   const dir=tmp2.set(tmp.x-e.center.x,tmp.y-e.center.y,0);if(dir.lengthSq()<1)dir.set(1,0,0);dir.normalize();const light=e.kind==="person",speed=Math.min(90,(light?22:14)*Math.min(I,3)*rand(.7,1.2));
   flung.push({clone,root:e.root,kind:e.kind,v:new THREE.Vector3(dir.x*speed,dir.y*speed,(light?8:6)+speed*.45),spin:new THREE.Vector3(rand(-4,4),rand(-4,4),rand(-6,6)),age:0,landed:false});
 }
@@ -247,8 +247,20 @@ function runEvent(scene,e){
   else if(e.type==="police"){if(I<.15)return;const hits=Math.min(6,Math.ceil(I*4));for(let i=0;i<hits;i++)bridge()?.registerPoliceHit?.({object:e.drone.hitbox||e.drone.root,point:e.drone.root.position.clone()});}
   else if(e.type==="peer"){if(I<.15)return;const hits=Math.min(6,Math.ceil(I*4));for(let i=0;i<hits;i++)bridge()?.registerVsHit?.({object:e.peer,point:e.peer.position.clone()});}
 }
+// Compile every nuke shader during startup (behind the menu): the debris
+// pool is created right away, and a tiny crater sits far below the ground
+// until the game has been running for a few seconds.
+let prewarm=null;
+function ensurePrewarm(scene){
+  if(prewarm!==null)return;ensureDebris(scene);
+  const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute([0,0,0,1,0,0,0,1,0],3));g.setAttribute("color",new THREE.Float32BufferAttribute([0,0,0,0,0,0,0,0,0],3));
+  const mesh=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1}));
+  const rim=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(1,0,0)]),new THREE.LineBasicMaterial({color:0x00ff9c,toneMapped:false,transparent:true,opacity:.85}));
+  prewarm=new THREE.Group();prewarm.name="NUKE_PREWARM";prewarm.position.set(0,0,-3000);prewarm.scale.setScalar(.001);prewarm.userData.neonSkip=true;prewarm.userData.flightFireIgnore=true;for(const m of[mesh,rim]){m.frustumCulled=false;m.raycast=()=>{};}prewarm.add(mesh,rim);scene.add(prewarm);
+  const drop=()=>setTimeout(()=>{prewarm?.parent?.remove(prewarm);g.dispose();},4000);window.addEventListener("arondight:game-start",drop,{once:true});setTimeout(drop,60000);
+}
 function frame(now){
-  const dt=clamp((now-lastFrame)/1000,0,.05);lastFrame=now;const scene=bridge()?.threeScene;
+  const dt=clamp((now-lastFrame)/1000,0,.05);lastFrame=now;const scene=bridge()?.threeScene;if(scene)ensurePrewarm(scene);
   if(scene&&events.length){let budget=0;while(events.length&&events[0].at<=now&&budget<40){runEvent(scene,events.shift());budget++;}}
   if(pendingCommit){pendingCommit=false;commitDestruction();}
   const alive=stepDebris(dt);if(flung.length)stepFlung(dt);if(craters.length)stepCraters(now);

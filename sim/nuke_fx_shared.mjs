@@ -94,6 +94,6 @@ export function warmNukePrograms(){
   for(const additive of[true,false])for(const depthTest of[true,false]){for(const material of[fxMaterial(0xffffff,{additive,depthTest}),fxMaterial(0xffffff,{additive,depthTest,side:THREE.DoubleSide}),smokeMaterial(0x808080,{opacity:.5,depthTest})]){const mesh=new THREE.Mesh(sphereGeometry(.01,6,4),material);mesh.frustumCulled=false;probe.add(mesh);}}
   scene.add(probe);
   try{renderer.compile(scene,camera);warmed=true;}catch{warmed=false;}
-  finally{scene.remove(probe);probe.traverse(node=>node.material?.dispose?.());}
+  finally{scene.remove(probe);/* materials kept: disposing would release the compiled programs */}
   return warmed;
 }

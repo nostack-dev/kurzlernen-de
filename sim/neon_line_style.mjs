@@ -90,7 +90,7 @@ function darkFill(material,color,{flat=false}={}){
     if(flat)shader.fragmentShader="uniform vec3 neonTint;\n"+shader.fragmentShader.replace(/void\s+main\s*\(\s*\)\s*\{/,"void main() {\n\tgl_FragColor = vec4( neonTint, 1.0 );\n\treturn;");
     else shader.fragmentShader="uniform vec3 neonTint;\n"+shader.fragmentShader.replace("#include <dithering_fragment>","#include <dithering_fragment>\n\tgl_FragColor.rgb = gl_FragColor.rgb * 0.6 + neonTint;");});
   // Push fills back in depth so the edge lines drawn on their faces always win.
-  material.polygonOffset=true;material.polygonOffsetFactor=1;material.polygonOffsetUnits=2;
+  material.polygonOffset=true;material.polygonOffsetFactor=3;material.polygonOffsetUnits=6;
   stripTextures(material);
 }
 // Translucent drone parts (prop discs, markers) become faint neon green.
@@ -145,22 +145,25 @@ function needsWork(mesh){return (mesh.isMesh||mesh.isSprite)&&(mesh.userData.neo
 let gridAnchor=[Infinity,Infinity],gridTerrainVersion=-1,terrainVersion=0;
 onTerrainChange(()=>{terrainVersion++;});
 function rebuildGrid(cx,cy){
-  const half=GRID_SIZE_M/2,positions=[],step=GRID_STEP_M,x0=Math.round((cx-half)/step)*step,y0=Math.round((cy-half)/step)*step,n=Math.round(GRID_SIZE_M/step);
+  const half=GRID_SIZE_M/2,positions=[],colors=[],step=GRID_STEP_M,x0=Math.round((cx-half)/step)*step,y0=Math.round((cy-half)/step)*step,n=Math.round(GRID_SIZE_M/step);
   for(let i=0;i<=n;i++){const fixed=i*step;
     for(let k=0;k<n;k++){const a=k*step,b=a+step;
       positions.push(x0+a,y0+fixed,groundHeightAt(x0+a,y0+fixed)+.03,x0+b,y0+fixed,groundHeightAt(x0+b,y0+fixed)+.03);
       positions.push(x0+fixed,y0+a,groundHeightAt(x0+fixed,y0+a)+.03,x0+fixed,y0+b,groundHeightAt(x0+fixed,y0+b)+.03);}}
-  const grid=gridGroup.children[0];grid.geometry.dispose();const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));geometry.computeBoundingSphere();grid.geometry=geometry;
+  // Fade with distance so far lines don't merge into a solid band at the horizon.
+  for(let i=0;i<positions.length;i+=3){const d=Math.hypot(positions[i]-cx,positions[i+1]-cy),f=Math.max(0,1-d/half)**1.6;colors.push(f,f,f);}
+  const grid=gridGroup.children[0];grid.geometry.dispose();const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));geometry.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));geometry.computeBoundingSphere();grid.geometry=geometry;
   gridAnchor=[cx,cy];gridTerrainVersion=terrainVersion;
 }
 function ensureGrid(scene){
   if(gridGroup?.parent===scene)return gridGroup;
-  const grid=new THREE.LineSegments(new THREE.BufferGeometry(),neonLineMaterial(0x00ff9c,{opacity:.32}));grid.raycast=()=>{};grid.frustumCulled=false;
+  const material=neonLineMaterial(0x00ff9c,{opacity:.55});material.vertexColors=true;material.transparent=true;
+  const grid=new THREE.LineSegments(new THREE.BufferGeometry(),material);grid.raycast=()=>{};grid.frustumCulled=false;
   gridGroup=new THREE.Group();gridGroup.name="NEON_GROUND_GRID";gridGroup.userData.neonSkip=true;gridGroup.userData.flightFireIgnore=true;gridGroup.add(grid);gridGroup.renderOrder=-5;scene.add(gridGroup);gridAnchor=[Infinity,Infinity];return gridGroup;
 }
 function followGrid(){
   const camera=bridge()?.threeCamera;if(!gridGroup||!camera)return;
-  if(Math.hypot(camera.position.x-gridAnchor[0],camera.position.y-gridAnchor[1])>48||gridTerrainVersion!==terrainVersion)rebuildGrid(camera.position.x,camera.position.y);
+  if(Math.hypot(camera.position.x-gridAnchor[0],camera.position.y-gridAnchor[1])>24||gridTerrainVersion!==terrainVersion)rebuildGrid(camera.position.x,camera.position.y);
 }
 function styleScene(scene){
   if(styledScene===scene)return;styledScene=scene;

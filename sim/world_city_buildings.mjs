@@ -91,7 +91,7 @@ function sync(now){
   const list=features(b);if(!list.length)return;
   if(moved<RESYNC_MOVE_M&&list.length===lastFeatureCount&&currentHash.endsWith(`#d${destructionRevision()}`))return;
   lastSyncAt=now;lastFeatureCount=list.length;lastCenter=[p.x,p.y];
-  const project=b.projectLngLat||((lon,lat)=>b.lngLatToMeters(lon,lat));
+  const project=(lon,lat)=>b.projectLngLat(lon,lat);
   const footprints=buildingFootprintsFromFeatures(list,{project,center:[p.x,p.y],radiusM:VISUAL_RADIUS_M,maxFootprints:MAX_FOOTPRINTS,maxVertices:MAX_VERTICES});
   const key=`${buildingFootprintHash(footprints)}#d${destructionRevision()}`;if(key===currentHash)return;
   startBuild(footprints,key);
