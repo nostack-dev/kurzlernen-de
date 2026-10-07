@@ -1,7 +1,7 @@
 import {VS_FX_EVENT} from "./lan_vs.mjs";
 
 const EARTH_RADIUS_M=6378137;
-let installed=false,lastSession=null,raf=0;
+let installed=false,lastSession=null,timer=0;
 
 function bridge(){return globalThis.__arondightRealWorld||null;}
 function activeSession(){const session=bridge()?.vsSession;return session?.active||session||null;}
@@ -27,7 +27,7 @@ function decodeWorldCoordinates(packet){
 function patchSession(){
   const session=activeSession();if(!session||session===lastSession||typeof session.sendFx!=="function")return;lastSession=session;if(session.__vsFxGeoAdapter)return;session.__vsFxGeoAdapter=true;const base=session.sendFx.bind(session);session.sendFx=(packet,options)=>base(encodeWorldCoordinates(packet),options);
 }
-function frame(){patchSession();raf=requestAnimationFrame(frame);}
+function maintenance(){patchSession();timer=setTimeout(maintenance,250);}
 function onFx(event){decodeWorldCoordinates(event?.detail?.packet);}
 
-export function installVsFxGeoAdapter(){if(installed)return;installed=true;globalThis.addEventListener(VS_FX_EVENT,onFx);raf=requestAnimationFrame(frame);}
+export function installVsFxGeoAdapter(){if(installed)return;installed=true;globalThis.addEventListener(VS_FX_EVENT,onFx);patchSession();timer=setTimeout(maintenance,250);}
