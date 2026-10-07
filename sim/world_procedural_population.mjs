@@ -185,15 +185,15 @@ function updatePhysicalVehicle(record,epoch,now){
     const candidate={x:initial.x,y:initial.y,yaw:initial.yaw,half:shape.half};
     const occupied=records.some(other=>{
       if(other===record||!other.physicsRegistered||(other.kind!=="car"&&other.kind!=="bus"))return false;
-      const p=physics?.pose?.(other.id);return p&&vehicleFootprintsOverlap(candidate,{x:p.position[0],y:p.position[1],yaw:p.yaw,half:vehicleShape(other).half});
+      const p=other.physicsPose||physics?.pose?.(other.id);return p&&vehicleFootprintsOverlap(candidate,{x:p.position[0],y:p.position[1],yaw:p.yaw,half:vehicleShape(other).half});
     });
     if(occupied){record.group.visible=false;record.physicsPose=null;record.wheelPoses=null;return;}
   }
   if(!record.physicsRegistered)record.physicsRegistered=Boolean(physics?.upsertBody?.({id:record.id,kind:record.kind,position:[initial.x,initial.y,groundHeightAt(initial.x,initial.y)+shape.half[2]],yaw:initial.yaw,halfExtents:shape.half,massKg:shape.mass}));
-  let pose=physics?.pose?.(record.id)||record.physicsPose;if(pose?.position&&pose.position[2]<staticGroundHeightAt(pose.position[0],pose.position[1])-6){physics?.removeBody?.(record.id);record.physicsRegistered=false;pose=null;}
+  let pose=physics?.pose?.(record.id,record.physicsPose)||record.physicsPose;if(pose?.position&&pose.position[2]<staticGroundHeightAt(pose.position[0],pose.position[1])-6){physics?.removeBody?.(record.id);record.physicsRegistered=false;pose=null;}
   if(!driven&&pose){const current=pose.position;let targetPoint;
     if(route){const nearest=nearestRouteDistance(route,current[0],current[1]);if(nearest.distance>route.length-2.5)record.routeDirection=-1;else if(nearest.distance<2.5)record.routeDirection=1;const lookahead=Math.max(7,record.speed*1.3),targetDistance=clamp(nearest.distance+record.routeDirection*lookahead,0,route.length),offset=laneWidth(route,record)*record.routeDirection;targetPoint=sampleRoadRoute(route,targetDistance,offset,record.routeDirection);}else targetPoint=fallbackVehicleSample(record,epoch+1.1);
-    physics?.setTarget?.(record.id,{position:[targetPoint.x,targetPoint.y,0],yaw:targetPoint.yaw,speedMps:record.speed});pose=physics?.pose?.(record.id)||pose;}
+    physics?.setTarget?.(record.id,{position:[targetPoint.x,targetPoint.y,0],yaw:targetPoint.yaw,speedMps:record.speed});pose=physics?.pose?.(record.id,pose)||pose;}
   record.physicsPose=pose;
   if(pose){const q=pose.rotation,off=Number(pose.groundOffset)||shape.half[2];record.group.quaternion.set(q[0],q[1],q[2],q[3]);wheelUp.set(0,0,1).applyQuaternion(record.group.quaternion);record.group.position.set(pose.position[0]-wheelUp.x*off,pose.position[1]-wheelUp.y*off,pose.position[2]-wheelUp.z*off);record.wheelPoses=pose.wheels||null;}
   else{record.group.position.set(initial.x,initial.y,groundHeightAt(initial.x,initial.y));record.group.rotation.set(0,0,initial.yaw);record.wheelPoses=null;}
