@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {patchShockMaterial} from "./nuke_shock_field.mjs";
-import {staticGroundHeightAt,groundHeightAt,onTerrainChange} from "./terrain_craters.mjs";
+import {staticGroundHeightAt,terrainNodeHeightAt,groundHeightAt,onTerrainChange} from "./terrain_craters.mjs";
 
 // Real-world ground coloured from satellite imagery — used only indirectly:
 // the aerial tiles around the player are averaged down to one colour per
@@ -53,7 +53,7 @@ function ensureMesh(scene){
   m.customProgramCacheKey=()=>"world-ground-v1";patchShockMaterial(m);
   mesh=new THREE.Mesh(g,m);mesh.name="WORLD_GROUND";mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.renderOrder=1;mesh.userData.flightFireIgnore=true;mesh.userData.styleSkip=true;mesh.raycast=()=>{};mesh.visible=false;scene.add(mesh);center=[Infinity,Infinity];return mesh;
 }
-function applyHeights(){if(!mesh)return;const p=mesh.geometry.attributes.position;for(let i=0;i<p.count;i++)p.setZ(i,staticGroundHeightAt(p.getX(i)+mesh.position.x,p.getY(i)+mesh.position.y));p.needsUpdate=true;mesh.geometry.computeVertexNormals();}
+function applyHeights(){if(!mesh)return;const p=mesh.geometry.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i)+mesh.position.x,y=p.getY(i)+mesh.position.y;p.setZ(i,terrainNodeHeightAt(x,y));}p.needsUpdate=true;mesh.geometry.computeVertexNormals();}
 async function rebuild(b,cx,cy){
   busy=true;try{const colors=(await sampleColors(b,cx,cy).catch(()=>null))||fallbackColors(cx,cy);ensureMesh(b.threeScene);mesh.position.set(cx,cy,0);mesh.geometry.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));applyHeights();mesh.visible=true;
     const v=document.getElementById("viewport");if(v){v.dataset.worldGround=WORLD_GROUND_VERSION;v.dataset.worldGroundSource=colors.length&&colors[0]!==.16?"satellite-albedo":"fallback";}}
