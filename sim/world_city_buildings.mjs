@@ -4,8 +4,9 @@ import {buildingDamage,destructionRevision,onDestruction} from "./world_destruct
 import {NEON_DEBUG_PALETTE,fatLineMaterial,fatLineGeometry,fatLineSegments} from "./box3d_collider_debug.mjs";
 import {patchShockMaterial} from "./nuke_shock_field.mjs";
 import {elevationAt,onElevationChange} from "./terrain_elevation.mjs";
+import {buildingGroundBase,setBuildingPads,onTerrainChange} from "./terrain_craters.mjs";
 // Buildings stand on the real terrain: the footprint's lowest ground point.
-export function buildingTerrainBase(outer){let m=Infinity;for(const p of outer||[]){const x=Array.isArray(p)?p[0]:p.x,y=Array.isArray(p)?p[1]:p.y,e=elevationAt(+x,+y);if(e<m)m=e;}return Number.isFinite(m)?m:0;}
+export function buildingTerrainBase(outer){return buildingGroundBase(outer);}
 
 // The real city from the world map, drawn in the neon look.
 // Every building footprint of the loaded map tiles within VISUAL_RADIUS_M is
@@ -229,6 +230,7 @@ function sway(key,dirX,dirY,amplitudeM){const r=rangeByKey.get(String(key));if(!
   const h=Math.max(1,r.fullTop-r.base);sways.push({r,dx:dirX/l,dy:dirY/l,amp:Math.min(amplitudeM,h*.18),freq:.9+3.5/Math.sqrt(h),born:performance.now(),life:2.6});return true;}
 let lastFootprints=[];
 function startBuild(footprints,key){
+  setBuildingPads(footprints); // levelled pads become part of the shared terrain before anything is placed on it
   const steps=buildSteps(footprints,lastCenter);building={steps,key,count:footprints.length};lastFootprints=footprints;
 }
 globalThis.__arondightCityBuildings={footprints:()=>lastFootprints,version:CITY_BUILDINGS_VERSION,damageNow,sway,ranges:()=>rangeByKey};
@@ -285,6 +287,8 @@ export function installCityBuildings(){
   // rebuild follows ~1.5 s after the last change (not every frame of a wave).
   onDestruction(()=>{lastSyncAt=performance.now()-RESYNC_MS+1500;lastFeatureCount=-1;currentHash="";});
   onElevationChange(()=>{lastSyncAt=-Infinity;lastFeatureCount=-1;currentHash="";});
+  // craters / shock-free deformation: buildings follow the new ground (their own pads excluded)
+  onTerrainChange((_c,regions,source)=>{if(source==="pads"||!regions)return;lastSyncAt=-Infinity;lastFeatureCount=-1;currentHash="";});
   requestAnimationFrame(frame);
 }
 installCityBuildings();
