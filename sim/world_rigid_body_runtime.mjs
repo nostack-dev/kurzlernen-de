@@ -35,7 +35,7 @@ function frame(now=performance.now()){
   requestAnimationFrame(frame);const current=ensureEngine(),elapsed=Math.max(0,Math.min(.10,(now-lastFrame)/1000));lastFrame=now;if(!current){updateTelemetry(now);return;}if(now-lastBuildingSync>350){lastBuildingSync=now;current.syncBuildings(bridge()?.buildingCollisionSnapshot);}if(current.records.size){accumulator=Math.min(.075,accumulator+elapsed);let steps=0;while(accumulator>=FIXED_DT&&steps<MAX_STEPS_PER_FRAME){current.step(FIXED_DT,SOLVER_SUBSTEPS,now);accumulator-=FIXED_DT;steps++;}}else accumulator=0;updateTelemetry(now);
 }
 
-onTerrainChange(()=>{try{engine?.rebuildTerrain?.();}catch(error){console.warn("rigid terrain",error);}});
+onTerrainChange((_craters,regions)=>{try{engine?.rebuildTerrain?.(regions??null);}catch(error){console.warn("rigid terrain",error);}});
 export const worldRigidBodyRuntime=Object.freeze({upsertBody,setTarget,setDrive,clearTarget,setPose,setGravityScale,removeBody,applyImpulse,pose,raycast,get ready(){return Boolean(ensureEngine());},get engine(){return ensureEngine();}});
 globalThis.__arondightWorldRigidBodies=worldRigidBodyRuntime;
 requestAnimationFrame(frame);

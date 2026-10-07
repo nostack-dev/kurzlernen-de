@@ -38,6 +38,7 @@ export function setWaterRegions(rects,flowFn=null){
 // that keep a solid road surface at ground level across the basin.
 let bridges=[];
 export function setBridgeDecks(list){bridges=(list||[]).filter(b=>b.hl>.1&&b.hw>.1);}
+export function bridgeDecks(){return bridges;}
 function onBridge(x,y){for(const b of bridges){const dx=x-b.cx,dy=y-b.cy,c=Math.cos(b.yaw),s=Math.sin(b.yaw),u=dx*c+dy*s,v=-dx*s+dy*c;if(Math.abs(u)<=b.hl&&Math.abs(v)<=b.hw)return true;}return false;}
 export function craterHeightAt(x,y){let h=elevationAt(x,y);for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}return h;}
 export function waterAt(x,y){const l=waterBuckets.get(Math.floor(x/WB)*73856093^Math.floor(y/WB)*19349663);if(!l)return false;for(const r of l)if(x>=r.x0&&x<r.x1&&y>=r.y0&&y<r.y1)return true;return false;}
@@ -75,11 +76,15 @@ export function terrainRescueZ(x,y,z,clearance=.5){
 // Water surface follows the terrain (rivers sit at the local ground level).
 export function waterLevelAt(x,y){return elevationAt(x,y)+WATER_LEVEL_M;}
 export function terrainCraters(){return craters.map(c=>({...c}));}
-export function addCrater(x,y){craters.push({x:Number(x)||0,y:Number(y)||0});while(craters.length>MAX_CRATERS)craters.shift();notify();}
-export function clearCraters(){if(!craters.length)return;craters.length=0;notify();}
+const craterRect=c=>[c.x-CRATER_R,c.y-CRATER_R,c.x+CRATER_R,c.y+CRATER_R];
+// Deformations report the rectangle they changed, so the shared terrain tiles
+// (physics height fields and the rendered ground) rebuild only what moved.
+export function addCrater(x,y){const c={x:Number(x)||0,y:Number(y)||0},rects=[craterRect(c)];craters.push(c);while(craters.length>MAX_CRATERS)rects.push(craterRect(craters.shift()));notify(rects);}
+export function clearCraters(){if(!craters.length)return;const rects=craters.map(craterRect);craters.length=0;notify(rects);}
 export function onTerrainChange(fn){listeners.add(fn);return()=>listeners.delete(fn);}
 onElevationChange(()=>notify());
-function notify(){terrainCellCache.clear();for(const fn of listeners){try{fn(terrainCraters());}catch(error){console.warn("terrain listener",error);}}}
+// regions: null = everything changed, else [[x0,y0,x1,y1],...] that changed
+function notify(regions=null){terrainCellCache.clear();for(const fn of listeners){try{fn(terrainCraters(),regions);}catch(error){console.warn("terrain listener",error);}}}
 
 // Ground box minus the crater squares, as non-overlapping rectangles.
 function groundRectangles(half,holes){
@@ -103,20 +108,8 @@ export const TERRAIN_FIELD_HALF_M=1200,TERRAIN_FIELD_STEP_M=5;
 export function createTerrainBody(b3,world,shapeDef,half){
   const bodies=[];let shapeCount=0;
   const staticBody=(position,rotation=null)=>{const def=b3.b3DefaultBodyDef();def.type=b3.b3BodyType.b3_staticBody;def.position=position;if(rotation)def.rotation=rotation;const body=b3.b3CreateBody(world,def);bodies.push(body);return body;};
-  // Real terrain: a Box3D height field sampled from the shared height
-  // function (DEM elevation, crater bowls, river/lake beds) — the same
-  // surface the renderer, walkers and crowds use. Box3D height fields are
-  // y-up, so the body is rotated +90° about x (local y -> world z).
-  if(typeof b3.b3CreateHeightField==="function"&&typeof b3.b3CreateHeightFieldShape==="function"){
-    const[cx,cy]=elevationCenter(),H=TERRAIN_FIELD_HALF_M,st=TERRAIN_FIELD_STEP_M,n=Math.round(2*H/st)+1,x0=Math.round((cx-H)/st)*st,yTop=Math.round((cy+H)/st)*st,heights=new Float32Array(n*n);let mn=Infinity;
-    for(let j=0;j<n;j++){const y=yTop-j*st;for(let i=0;i<n;i++){const v=groundHeightAt(x0+i*st,y);heights[j*n+i]=v;if(v<mn)mn=v;}}
-    const field=b3.b3CreateHeightField(heights,n,n,[st,1,st]);
-    if(field){const body=staticBody([x0,yTop,0],[Math.SQRT1_2,0,0,Math.SQRT1_2]);try{b3.b3CreateHeightFieldShape(body,shapeDef,field);shapeCount++;}finally{b3.b3DestroyHeightField(field);}
-      // beyond the field: a flat floor at the field's lowest level
-      const floor=staticBody([0,0,mn-6]);b3.b3CreateBoxShape(floor,shapeDef,half,half,.5);shapeCount++;
-      for(const br of bridges){const e=elevationAt(br.cx,br.cy),body2=staticBody([br.cx,br.cy,e-.25],[0,0,Math.sin(br.yaw/2),Math.cos(br.yaw/2)]);b3.b3CreateBoxShape(body2,shapeDef,br.hl,br.hw,.25);shapeCount++;}
-      return{bodies,shapeCount,heightField:true};}
-  }
+  // (Height-field terrain lives in terrain_tiles.mjs; this is the fallback
+  // for Box3D builds without height fields.)
   const holes=[...craters.map(c=>[c.x-CRATER_R,c.y-CRATER_R,c.x+CRATER_R,c.y+CRATER_R]),...waterRects.map(r=>[r.x0,r.y0,r.x1,r.y1])];
   for(const[x0,y0,x1,y1]of groundRectangles(half,holes)){const hx=(x1-x0)/2,hy=(y1-y0)/2;if(hx<.01||hy<.01)continue;const body=staticBody([x0+hx,y0+hy,-GROUND_THICKNESS/2]);b3.b3CreateBoxShape(body,shapeDef,hx,hy,GROUND_THICKNESS/2);shapeCount++;}
   for(const br of bridges){const body=staticBody([br.cx,br.cy,-.25],[0,0,Math.sin(br.yaw/2),Math.cos(br.yaw/2)]);b3.b3CreateBoxShape(body,shapeDef,br.hl,br.hw,.25);shapeCount++;}

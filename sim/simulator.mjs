@@ -17,6 +17,7 @@ import {StabilizedExternalAirframeVisual,EXTERNAL_AIRFRAME_VISUAL_PROFILES} from
 import {renderPlatformProfile,quantizedViewportSize,viewportSizeChanged} from "./render_stability.mjs";
 import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,findClearBuildingLaunchPoint,resolveBox3dCameraPath} from "./world_building_collision_physics.mjs";
 import {Box3dColliderDebugDraw} from "./box3d_collider_debug.mjs";
+import {TerrainTiles} from "./terrain_tiles.mjs";
 import {createTerrainBody,onTerrainChange,TERRAIN_CRATERS_VERSION,staticGroundHeightAt,terrainRescueZ} from "./terrain_craters.mjs";
 import {addPropellerSweepColliders} from "./airframe_collision_envelope.mjs";
 import {deriveQuadMassProperties} from "./component_mass_model.mjs";
@@ -389,7 +390,7 @@ class PhysicsModel {
     this.noise=new Noise();
     this.p={...p,wind:[...p.wind]};
     this.worldBuildingLaunchResolved=false;this.worldBuildingLaunchPoint=[Number(initial?.x)||0,Number(initial?.y)||0];
-    if(this.world){this.worldBuildingCollisionState=null;b3.b3DestroyWorld(this.world);}
+    if(this.world){this.worldBuildingCollisionState=null;this.terrainTiles?.destroyAll();this.terrainTiles=null;b3.b3DestroyWorld(this.world);}
     const worldDef=b3.b3DefaultWorldDef();worldDef.gravity=[0,0,-G];worldDef.enableSleep=false;worldDef.enableContinuous=true;this.world=b3.b3CreateWorld(worldDef);
     this.terrainBodies=[];this.rebuildTerrain();
     const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;const initialZ=Number.isFinite(initial?.z)?initial.z:AIRFRAME_SPAWN_Z_M;const spawnGroundZ=staticGroundHeightAt(initial?.x||0,initial?.y||0);this.lastGroundZ=spawnGroundZ;bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(spawnGroundZ+AIRFRAME_SPAWN_Z_M,initialZ)];bodyDef.rotation=initial?[...eulerToQuat(initial.roll_deg||0,initial.pitch_deg||0,initial.yaw_deg||0)]:[0,0,0,1];bodyDef.linearDamping=.002;bodyDef.angularDamping=.002;bodyDef.enableSleep=false;this.body=b3.b3CreateBody(this.world,bodyDef);
@@ -411,7 +412,11 @@ class PhysicsModel {
   }
   // Ground = flat box with crater holes filled by surface-following slabs
   // (terrain_craters.mjs). Rebuilt when a nuke crater appears or resets.
-  rebuildTerrain(){if(!this.world)return 0;for(const body of this.terrainBodies||[])if(b3.b3Body_IsValid?.(body)!==false)b3.b3DestroyBody(body);this.terrainBodies=[];const groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,groupIndex:0};const result=createTerrainBody(b3,this.world,groundShape,TERRAIN_HALF);this.terrainBodies=result.bodies;const viewport=$("viewport");if(viewport){viewport.dataset.terrainVersion=TERRAIN_CRATERS_VERSION;viewport.dataset.terrainShapes=String(result.shapeCount);}return result.shapeCount;}
+  rebuildTerrain(regions=null){if(!this.world)return 0;const groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,groupIndex:0};
+    // Box3D height-field tiles shared with the rendered ground; deformations rebuild only changed tiles.
+    if(!this.terrainTiles){this.terrainTiles=new TerrainTiles(b3,this.world,groundShape,{floorHalfM:TERRAIN_HALF});regions=null;}
+    let result;if(this.terrainTiles.available){this.terrainTiles.update(regions);this.terrainBodies=this.terrainTiles.bodies;result={shapeCount:this.terrainTiles.shapeCount};}
+    else{for(const body of this.terrainBodies||[])if(b3.b3Body_IsValid?.(body)!==false)b3.b3DestroyBody(body);this.terrainBodies=[];result=createTerrainBody(b3,this.world,groundShape,TERRAIN_HALF);this.terrainBodies=result.bodies;}const viewport=$("viewport");if(viewport){viewport.dataset.terrainVersion=TERRAIN_CRATERS_VERSION;viewport.dataset.terrainShapes=String(result.shapeCount);}return result.shapeCount;}
   // Never trapped under the terrain: if the airframe is below the physical
   // surface (terrain rose under it, spawned before the DEM loaded, tunnelled
   // through), put it back on top with its horizontal motion and no downward speed.
@@ -536,6 +541,7 @@ class PhysicsModel {
     this.capturePresentationStep();
     this.applyForces(pulses,dt);
     const before=this.linear();
+    this.terrainTiles?.tick();
     b3.b3World_Step(this.world,dt,4);
     if(((this.terrainGuardTick=(this.terrainGuardTick||0)+1)&3)===0)this.rescueFromTerrain();
     this.worldAcceleration=scale(sub(this.linear(),before),1/dt);
@@ -603,7 +609,7 @@ function setBox3dColliderDebugEnabled(enabled){
 }
 setBox3dColliderDebugEnabled(box3dColliderDebugEnabled);
 globalThis.__arondightRealWorld?.attachBuildingCollisionSink?.(snapshot=>physics.setWorldBuildingCollisions(snapshot));
-onTerrainChange(()=>{physics.rebuildTerrain();physics.reseatOnTerrain();});
+onTerrainChange((_craters,regions)=>{physics.rebuildTerrain(regions??null);physics.reseatOnTerrain();});
 const motorSound=new HybridMotorSound($("viewport"));
 function updateSoundButton(){const button=$("soundToggle");if(button)button.textContent=motorSound.enabled?(motorSound.isRunning()?"SOUND ON":"SOUND TAP"):"SOUND OFF";}
 $("soundToggle").onclick=async()=>{if(!motorSound.enabled||!motorSound.isRunning()){motorSound.setEnabled(true);await motorSound.unlock();}else motorSound.setEnabled(false);updateSoundButton();};

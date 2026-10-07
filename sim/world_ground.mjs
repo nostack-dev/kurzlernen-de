@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {patchShockMaterial} from "./nuke_shock_field.mjs";
-import {groundHeightAt,onTerrainChange} from "./terrain_craters.mjs";
+import {groundHeightAt,terrainNodeHeightAt,onTerrainChange} from "./terrain_craters.mjs";
 
 // One visible terrain, one physical terrain. No imagery, no textures, no second
 // decorative ground plane. The same 5 m node field that feeds Box3D deforms
@@ -39,9 +39,13 @@ function ensureMesh(scene){
     g.setIndex(idx);}
   mesh=new THREE.Mesh(g,m);mesh.name="WORLD_GROUND";mesh.frustumCulled=false;mesh.renderOrder=1;mesh.userData.flightFireIgnore=true;mesh.userData.styleSkip=true;mesh.userData.neonSkip=true;mesh.raycast=()=>{};mesh.visible=false;scene.add(mesh);center=[Infinity,Infinity];return mesh;
 }
-function applyHeights(){
+// Vertices are exactly the physics nodes (5 m, same diagonal) and carry the
+// static terrain height of the Box3D height-field tiles (terrain_tiles.mjs);
+// the moving pressure wave is added by the shared shock shader, exactly like
+// on the physics tiles under the front. Never bake the wave in here as well.
+function applyHeights(regions=null){
   if(!mesh)return;const a=mesh.geometry.attributes.position.array,ox=mesh.position.x,oy=mesh.position.y;
-  for(let i=0;i<a.length;i+=3)a[i+2]=groundHeightAt(a[i]+ox,a[i+1]+oy);
+  for(let i=0;i<a.length;i+=3){const x=a[i]+ox,y=a[i+1]+oy;if(regions&&!regions.some(r=>x>=r[0]-5&&x<=r[2]+5&&y>=r[1]-5&&y<=r[3]+5))continue;a[i+2]=terrainNodeHeightAt(Math.round(x/5)*5,Math.round(y/5)*5);}
   mesh.geometry.attributes.position.needsUpdate=true;
   mesh.geometry.computeBoundingSphere();
 }
@@ -63,7 +67,7 @@ function keepCameraAboveGround(scene,camera){
 }
 export function installWorldGround(){
   if(installed||typeof window==="undefined")return;installed=true;
-  onTerrainChange(()=>applyHeights());requestAnimationFrame(frame);
+  onTerrainChange((_craters,regions)=>applyHeights(regions??null));requestAnimationFrame(frame);
   const attach=()=>{const b=bridge();if(typeof b?.addPreRenderHook!=="function")return requestAnimationFrame(attach);b.addPreRenderHook(keepCameraAboveGround);};attach();
 }
 installWorldGround();
