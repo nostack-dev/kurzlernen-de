@@ -31,7 +31,7 @@ const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tmp3=new THREE.Vector3(),
 const shotCamera=new THREE.PerspectiveCamera(78,16/9,.01,500),shotRaycaster=new THREE.Raycaster(),boxHits=new Box3dHitscanWorld();
 const tracerAxis=new THREE.Vector3(0,1,0),tracerVector=new THREE.Vector3(),grenadeAxis=new THREE.Vector3(0,0,-1),bounceFxAxis=new THREE.Vector3(0,0,1);
 let installed=false,audioSettings=loadAudioSettings(),footWeapon=loadMode(FOOT_WEAPON_KEY,"smg",FOOT_WEAPON_ORDER),droneWeapon=loadMode(DRONE_WEAPON_KEY,"gun",["gun","missile"]),lastSmg=-Infinity,lastGlock=-Infinity,lastGrenade=-Infinity,lastMissile=-Infinity;
-let tracerScene=null,tracerPool=[],tracerCursor=0,blastScene=null,blastPool=[],blastCursor=0,bounceFxScene=null,bounceFxPool=[],bounceFxCursor=0,activeMovePointer=null,activeMoveElement=null,tap=null,lastPedScan=-Infinity,pedestrians=[],actorCacheScene=null,actorCacheAt=-Infinity,actorCachePhysicsReady=false,actorCache=[],grenadeOrganicCache=[],actorByPhysicsId=new Map();
+let tracerScene=null,tracerPool=[],tracerCursor=0,blastScene=null,blastPool=[],blastCursor=0,bounceFxScene=null,bounceFxPool=[],bounceFxCursor=0,activeMovePointer=null,activeMoveElement=null,tap=null,lastPedScan=-Infinity,lastPedTelemetry=-Infinity,pedestrians=[],actorCacheScene=null,actorCacheAt=-Infinity,actorCachePhysicsReady=false,actorCache=[],grenadeOrganicCache=[],actorByPhysicsId=new Map();
 const pedState=new WeakMap(),missiles=[],grenades=[];
 
 function viewport(){return document.getElementById("viewport");}
