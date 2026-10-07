@@ -11,7 +11,7 @@
 // traffic (an AI driver steers towards its route target and controls speed
 // with the same pedal). Frame: world z up; chassis local x forward, y left.
 
-export const VEHICLE_DYNAMICS_VERSION="box3d-wheel-joint-vehicles-v2.6-centered-tyres";
+export const VEHICLE_DYNAMICS_VERSION="box3d-wheel-joint-vehicles-v2.7-physical-direction-change";
 
 // Joint frame: local x -> up (suspension + steering axis), local z -> left
 // (wheel spin axis), local y -> forward. Same frame on chassis and wheel.
@@ -82,7 +82,17 @@ export function driveWheeled(physics,record,dt){
   // joint motor reaches it at a finite actuator rate. No speed-based axis clamp.
   const target=clamp(input.steer,-1,1)*spec.steerLock,rate=(record.kind==="bus"?1.45:2.8)*dt;record.steerAngle+=clamp(target-record.steerAngle,-rate,rate);
   // brake until (almost) stopped — also while sliding sideways — then reverse
-  let mode="coast";if(pedal>0.02)mode=vf<-.8?"brake":"drive";else if(pedal<-0.02)mode=vf>.8||(speed>2&&vf>-.5)?"brake":"reverse";
+  let mode="coast";
+  if(pedal>0.02){
+    // A real transmission cannot cancel sideways momentum by selecting Drive.
+    // Brake until the chassis is nearly stopped if it is moving backwards OR
+    // still sliding substantially with almost no longitudinal speed.
+    mode=vf<-.4||(Math.abs(vf)<=.4&&speed>.8)?"brake":"drive";
+  }else if(pedal<-0.02){
+    // Likewise, Reverse is engaged only after forward/sideways motion has
+    // actually been arrested by the wheel brakes.
+    mode=vf>.4||(Math.abs(vf)<=.4&&speed>.8)?"brake":"reverse";
+  }
   const torqueCurve=s=>Math.max(.15,1-Math.max(0,s/maxSpeed-.55)/.45);
   for(const wheel of record.wheels){
     const j=wheel.joint;if(wheel.front)b3.b3WheelJoint_SetTargetSteeringAngle(j,record.steerAngle);
