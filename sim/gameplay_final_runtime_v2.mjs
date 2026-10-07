@@ -86,17 +86,37 @@ function updateTracers(now){for(const group of tracerPool){if(!group.visible)con
 function routeHit(hit){if(!hit)return false;const b=bridge(),object=hit.object||physicsSceneObject(hit.physicsId,hit.physicsKind),routed={...hit,object};if(hit.box3d&&!object)return false;const police=Boolean(b?.registerPoliceHit?.(routed)),population=!police&&Boolean(b?.registerWorldPopulationHit?.(routed)),versus=!police&&!population&&Boolean(b?.registerVsHit?.(routed));return police||population||versus;}
 function addFallbackDecal(hit){if(!hit?.point)return;const b=bridge(),scene=b?.threeScene;if(!scene)return;const g=new THREE.CircleGeometry(.026,8),m=new THREE.MeshBasicMaterial({color:0x171717,transparent:true,opacity:.9,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,side:THREE.DoubleSide}),mesh=new THREE.Mesh(g,m),n=hit.worldNormal?.clone?.()||hit.face?.normal?.clone?.().transformDirection(hit.object?.matrixWorld)||new THREE.Vector3(0,0,1);mesh.position.copy(hit.point).addScaledVector(n.normalize(),.004);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),n);mesh.userData.flightFireIgnore=true;scene.add(mesh);setTimeout(()=>{scene.remove(mesh);g.dispose();m.dispose();},9000);}
 
+export const SMG_INTERVAL_MS=55,GLOCK_MIN_INTERVAL_MS=110; // MP ~1090 rpm
 let cachedWeaponGun=null,cachedMuzzleFlash=null,cachedMuzzleFlashLeft=null;
+// Muzzle flash: a hot star burst facing down the barrel (randomised spikes,
+// white-hot core fading to orange), two crossed side flames licking forward,
+// plus a sparse spark spray — shader-drawn, additive, new shape every shot.
+const FLASH_STAR_FS=`uniform float uSeed,uFade;varying vec2 vUv;
+void main(){vec2 p=vUv*2.-1.;float r=length(p),a=atan(p.y,p.x);
+float sp=pow(abs(cos(a*2.5+uSeed)),14.)+.75*pow(abs(cos(a*4.+uSeed*2.3)),26.)+.5*pow(abs(cos(a*7.+uSeed*5.1)),40.);
+float star=clamp(1.-r/(.18+.82*clamp(sp,0.,1.)),0.,1.);float core=exp(-r*r*26.);
+float i=(core*1.9+star*star*1.25)*uFade;vec3 c=mix(vec3(1.,.42,.08),vec3(1.,.96,.82),clamp(core*1.6+star*.35,0.,1.));
+gl_FragColor=vec4(c*i,1.);}`;
+const FLASH_SIDE_FS=`uniform float uSeed,uFade;varying vec2 vUv;
+void main(){float x=vUv.x,y=vUv.y*2.-1.;float w=(1.-x)*(.42+.18*sin(x*17.+uSeed*7.))+.05;
+float body=smoothstep(w,w*.15,abs(y))*pow(1.-x,1.25);float lick=.65+.35*sin(x*31.+uSeed*11.+y*6.);
+float i=body*lick*1.5*uFade;vec3 c=mix(vec3(1.,.38,.06),vec3(1.,.93,.75),clamp((1.-x)*(1.-abs(y)/max(w,.01))*1.3,0.,1.));
+gl_FragColor=vec4(c*i,1.);}`;
+const FLASH_VS=`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
+function flashMaterial(fs){return new THREE.ShaderMaterial({uniforms:{uSeed:{value:0},uFade:{value:0}},vertexShader:FLASH_VS,fragmentShader:fs,transparent:true,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,toneMapped:false});}
 function makeMuzzleFlash(name){
-  const custom=new THREE.Group();custom.name=name;custom.position.set(0,.008,-.39);
-  const coreMat=new THREE.MeshBasicMaterial({color:0xf4fff8,transparent:true,opacity:1,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}),hotMat=new THREE.MeshBasicMaterial({color:0xffe3a0,transparent:true,opacity:.96,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}),haloMat=new THREE.MeshBasicMaterial({color:0xffb347,transparent:true,opacity:.32,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});
-  const core=new THREE.Mesh(new THREE.SphereGeometry(.036,8,6),coreMat),halo=new THREE.Mesh(new THREE.SphereGeometry(.070,8,6),haloMat),cone=new THREE.Mesh(new THREE.ConeGeometry(.055,.18,8),hotMat),crossA=new THREE.Mesh(new THREE.ConeGeometry(.026,.12,6),hotMat),crossB=new THREE.Mesh(new THREE.ConeGeometry(.026,.12,6),hotMat);
-  cone.position.z=-.085;cone.rotation.x=Math.PI/2;crossA.position.z=-.050;crossA.rotation.set(Math.PI/2,.42,0);crossB.position.z=-.050;crossB.rotation.set(Math.PI/2,-.42,0);
-  for(const m of[core,halo,cone,crossA,crossB]){m.renderOrder=10001;m.userData.flightFireIgnore=true;m.userData.walkWeaponPart=true;m.userData.flashBaseOpacity=m.material.opacity;}
-  custom.add(halo,core,cone,crossA,crossB);custom.visible=false;custom.userData.flashStartedAt=-Infinity;custom.userData.flashUntil=-Infinity;return custom;
+  const custom=new THREE.Group();custom.name=name;custom.userData.neonSkip=true;custom.userData.flightFireIgnore=true;custom.userData.walkWeaponPart=true;
+  const starMat=flashMaterial(FLASH_STAR_FS),sideMat=flashMaterial(FLASH_SIDE_FS);
+  const star=new THREE.Mesh(new THREE.PlaneGeometry(.2,.2),starMat);star.position.z=-.012;
+  const sideGeo=new THREE.PlaneGeometry(1,1);sideGeo.translate(.5,0,0);sideGeo.rotateY(Math.PI/2); // local x (0..1) -> -z (forward)
+  const sideA=new THREE.Mesh(sideGeo,sideMat);sideA.scale.set(1,.11,.26);const sideB=new THREE.Mesh(sideGeo,sideMat);sideB.scale.set(1,.11,.26);sideB.rotation.z=Math.PI/2;
+  const sparkGeo=new THREE.BufferGeometry(),sp=new Float32Array(14*3);for(let i=0;i<14;i++){const a=i*2.39996,r=.02+.05*((i*37)%11)/11;sp[i*3]=Math.cos(a)*r;sp[i*3+1]=Math.sin(a)*r;sp[i*3+2]=-.05-.22*((i*53)%13)/13;}sparkGeo.setAttribute("position",new THREE.BufferAttribute(sp,3));
+  const sparks=new THREE.Points(sparkGeo,new THREE.PointsMaterial({color:0xffd27a,size:.012,transparent:true,opacity:1,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));
+  for(const m of[star,sideA,sideB,sparks]){m.renderOrder=10001;m.frustumCulled=false;m.userData.flightFireIgnore=true;m.userData.walkWeaponPart=true;m.userData.neonSkip=true;m.userData.flashBaseOpacity=1;}
+  custom.add(sideA,sideB,star,sparks);custom.visible=false;custom.userData.flashStartedAt=-Infinity;custom.userData.flashUntil=-Infinity;return custom;
 }
 function attachFlash(flash,node,scale=1){
-  if(!flash||!node)return false;if(flash.parent!==node)node.add(flash);flash.position.set(0,0,0);flash.quaternion.identity();flash.scale.setScalar(scale);return true;
+  if(!flash||!node)return false;if(flash.parent!==node)node.add(flash);flash.position.set(0,0,0);if(!flash.visible)flash.rotation.set(0,0,flash.rotation.z);flash.userData.flashBase=scale;if(!flash.visible)flash.scale.setScalar(scale);return true;
 }
 function patchWeaponVisual(){
   const scene=bridge()?.threeScene;if(!scene)return;const gun=cachedWeaponGun?.parent?cachedWeaponGun:scene.getObjectByName?.("WALK_PISTOL_3D");if(!gun)return;cachedWeaponGun=gun;const legacy=gun.getObjectByName?.("WALK_MUZZLE_FLASH");
@@ -106,18 +126,20 @@ function patchWeaponVisual(){
   let smg=gun.getObjectByName?.("FINAL_SMG_CONVERSION");
   if(!smg){smg=new THREE.Group();smg.name="FINAL_SMG_CONVERSION";const metal=new THREE.MeshStandardMaterial({color:0x222a30,roughness:.38,metalness:.62,depthTest:true,depthWrite:true}),dark=new THREE.MeshStandardMaterial({color:0x101418,roughness:.72,metalness:.15,depthTest:true,depthWrite:true});const add=(geo,mat,pos,rot=[0,0,0])=>{const m=new THREE.Mesh(geo,mat);m.position.set(...pos);m.rotation.set(...rot);m.renderOrder=10000;m.userData.flightFireIgnore=true;m.userData.walkWeaponPart=true;smg.add(m);};add(new THREE.BoxGeometry(.095,.085,.30),metal,[0,.002,-.31]);add(new THREE.CylinderGeometry(.014,.014,.26,10),dark,[0,.005,-.53],[Math.PI/2,0,0]);add(new THREE.BoxGeometry(.055,.18,.08),dark,[0,-.115,-.22],[.28,0,0]);add(new THREE.BoxGeometry(.06,.05,.20),dark,[0,-.015,-.06]);gun.add(smg);}
   smg.visible=footWeapon==="smg";
-  const rightNode=gun.getObjectByName?.(footWeapon==="grenade"?"WALK_GRENADE_MUZZLE_NODE":footWeapon==="glock"?"WALK_GLOCK_MUZZLE_NODE":"WALK_SMG_MUZZLE_NODE"),leftNode=footWeapon==="glock"?gun.getObjectByName?.("WALK_GLOCK_MUZZLE_LEFT"):null;
+  const rightNode=gun.getObjectByName?.(footWeapon==="grenade"?"WALK_GRENADE_MUZZLE_NODE":footWeapon==="glock"?"WALK_GLOCK_MUZZLE_NODE":"WALK_SMG_MUZZLE_NODE"),leftNode=footWeapon==="glock"?scene.getObjectByName?.("WALK_GLOCK_MUZZLE_LEFT"):null;
   if(rightNode)attachFlash(custom,rightNode,footWeapon==="grenade"?1.45:footWeapon==="glock"?1.7:1);
   if(leftNode)attachFlash(leftFlash,leftNode,1.7);else leftFlash.visible=false;
   gun.userData.finalWeapon=footWeapon;const view=viewport();if(view){view.dataset.walkMuzzleDepth="depth-tested-viewmodel-occlusion-v2";view.dataset.walkWeaponViewmodelAlignment="camera-owned-sights-v2";view.dataset.walkMuzzleAnchor=rightNode?"dedicated-weapon-node-v1":"fallback";view.dataset.walkGlockMuzzleFx=footWeapon==="glock"&&leftNode?"independent-right+left-v3":"single";}
 }
-function resetFlashOpacity(flash){flash?.traverse?.(node=>{if(node?.material&&Number.isFinite(node.userData?.flashBaseOpacity))node.material.opacity=node.userData.flashBaseOpacity;});}
+function resetFlashOpacity(flash){flash?.traverse?.(node=>{if(!node?.material||!Number.isFinite(node.userData?.flashBaseOpacity))return;if(node.material.uniforms?.uFade)node.material.uniforms.uFade.value=1;else node.material.opacity=node.userData.flashBaseOpacity;});}
 function flashWeapon(duration=34,hand=0){
-  const flash=footWeapon==="glock"&&hand===1?cachedMuzzleFlashLeft:cachedMuzzleFlash;if(!flash)return;const now=performance.now();flash.userData.flashStartedAt=now;flash.userData.flashUntil=now+duration;flash.rotation.z=(Math.random()-.5)*.42;resetFlashOpacity(flash);
+  const flash=footWeapon==="glock"&&hand===1?cachedMuzzleFlashLeft:cachedMuzzleFlash;if(!flash)return;const now=performance.now();flash.userData.flashStartedAt=now;flash.userData.flashUntil=now+duration;
+  // every shot a different burst: roll, size, spike pattern
+  flash.rotation.z=Math.random()*Math.PI*2;const k=.82+Math.random()*.42;flash.userData.flashScale=k;const seed=Math.random()*40;flash.traverse?.(n=>{if(n.material?.uniforms?.uSeed)n.material.uniforms.uSeed.value=seed;});resetFlashOpacity(flash);
 }
 function updateOneFlash(flash,now){
   if(!flash?.parent)return;const started=Number(flash.userData.flashStartedAt)||-Infinity,until=Number(flash.userData.flashUntil)||-Infinity,visible=isFoot()&&now<until;flash.visible=visible;if(!visible)return;
-  const t=clamp((now-started)/Math.max(1,until-started),0,1),fade=(1-t)**.42;flash.traverse?.(node=>{if(node?.material&&Number.isFinite(node.userData?.flashBaseOpacity))node.material.opacity=node.userData.flashBaseOpacity*fade;});
+  const t=clamp((now-started)/Math.max(1,until-started),0,1),fade=(1-t)**1.6,grow=1+.35*t;flash.traverse?.(node=>{if(!node?.material||!Number.isFinite(node.userData?.flashBaseOpacity))return;if(node.material.uniforms?.uFade)node.material.uniforms.uFade.value=fade;else node.material.opacity=node.userData.flashBaseOpacity*fade;});const sc=(Number(flash.userData.flashScale)||1)*(Number(flash.userData.flashBase)||1)*grow;flash.scale.setScalar(sc);
 }
 function updateFlash(){const now=performance.now();updateOneFlash(cachedMuzzleFlash,now);updateOneFlash(cachedMuzzleFlashLeft,now);}
 function footMuzzle(out,ray,hand=0){const scene=bridge()?.threeScene,node=scene?.getObjectByName?.(footWeapon==="grenade"?"WALK_GRENADE_MUZZLE_NODE":footWeapon==="glock"&&hand===1?"WALK_GLOCK_MUZZLE_LEFT":footWeapon==="glock"?"WALK_GLOCK_MUZZLE_NODE":"WALK_SMG_MUZZLE_NODE");if(node?.getWorldPosition){node.updateWorldMatrix?.(true,false);node.getWorldPosition(out);return out;}const muzzle=footWeapon==="glock"&&hand===1?cachedMuzzleFlashLeft:cachedMuzzleFlash;if(muzzle?.getWorldPosition){muzzle.updateWorldMatrix?.(true,false);muzzle.getWorldPosition(out);return out;}right.set(ray.direction.y,-ray.direction.x,0).normalize();return out.copy(ray.origin).addScaledVector(ray.direction,.34).addScaledVector(right,hand===1?-.20:.20).add(new THREE.Vector3(0,0,-.16));}
@@ -171,15 +193,16 @@ function updateFootGrenades(now,dt){
 function footShotAt(clientX,clientY,now=performance.now(),hand=0){
   if(footWeapon==="grenade")return launchFootGrenade(clientX,clientY,now,"foot-screen");
   if(footWeapon==="glock")return glockShotAt(clientX,clientY,now,hand);
-  if(!isFoot()||walk()?.dead||now-lastSmg<72)return false;lastSmg=now-lastSmg<360?lastSmg+72:now; // fixed cadence: a slow frame may catch up missed rounds
+  if(!isFoot()||walk()?.dead||now-lastSmg<SMG_INTERVAL_MS)return false;lastSmg=now-lastSmg<SMG_INTERVAL_MS*5?lastSmg+SMG_INTERVAL_MS:now; // fixed cadence: a slow frame may catch up missed rounds
   const ray=footRay(clientX,clientY);if(!ray)return false;const hit=nearestGrenadeHit(ray,180),end=hit?.point?.clone?.()||tmp.copy(ray.origin).addScaledVector(ray.direction,130).clone(),start=footMuzzle(tmp2,ray).clone();showTracer(start,end);{const routed=hit?routeHit(hit):false;if(globalThis.__worldImpacts)globalThis.__worldImpacts.bullet(ray,hit,{routed});else if(hit&&!routed)addFallbackDecal(hit);}flashWeapon(34);audioShot(.18);weaponFired("smg",.14,"foot-screen","foot");
   const view=viewport();if(view){view.dataset.walkWeapon="smg";view.dataset.walkTouchFire="screen-point-raycast-v2";view.dataset.walkPistolTracer="world-ray-muzzle-origin-v2";view.dataset.walkSmgAutoFire="always-on-hold-v1";view.dataset.walkEnhancedShots=String((Number(view.dataset.walkEnhancedShots)||0)+1);view.dataset.walkTouchAimX=ray.point.x.toFixed(1);view.dataset.walkTouchAimY=ray.point.y.toFixed(1);}return true;
 }
 // GOLDEN HAND CANNON (Glock): semi-auto, brutal. One round counts as six
 // hits (one-shots people, cops and most SWAT), pierces up to three bodies,
 // shoves cars and drones hard, leaves big impacts; walls stop it.
+// Each pistol has its own trigger and cadence (fast double taps possible).
 function glockShotAt(clientX,clientY,now,hand=0){
-  const h=hand===1?1:0;if(!isFoot()||walk()?.dead||now-lastGlock[h]<260)return false;lastGlock[h]=now;
+  const h=hand===1?1:0;if(!isFoot()||walk()?.dead||now-lastGlock[h]<GLOCK_MIN_INTERVAL_MS)return false;lastGlock[h]=now;
   const ray=footRay(clientX,clientY);if(!ray)return false;const start=footMuzzle(tmp2,ray,h).clone();let origin=ray.origin.clone(),remaining=240,pierced=0,end=null;
   while(pierced<3&&remaining>1){const r={origin,direction:ray.direction},hit=nearestGrenadeHit(r,remaining);
     if(!hit){end=origin.clone().addScaledVector(ray.direction,remaining);globalThis.__worldImpacts?.bullet(r,null,{maxDistance:remaining});break;}
@@ -188,7 +211,7 @@ function glockShotAt(clientX,clientY,now,hand=0){
     if(hit.physicsId)rigid()?.applyImpulse?.(hit.physicsId,[ray.direction.x*60000,ray.direction.y*60000,Math.max(8000,ray.direction.z*60000)],{point:[hit.point.x,hit.point.y,hit.point.z]});
     end=hit.point?.clone?.()||origin.clone().addScaledVector(ray.direction,Number(hit.distance)||10);
     if(!routed&&!hit.physicsId)break;pierced++;const d=Number(hit.distance)||origin.distanceTo(end);origin=end.clone().addScaledVector(ray.direction,.6);remaining-=d+.6;}
-  showTracer(start,end||origin);flashWeapon(80,h);
+  showTracer(start,end||origin);flashWeapon(52,h);
   if(audioSettings.soundEnabled&&audioSettings.shotsVolume>0){const ctx=getSharedCombatAudioContext({resume:true});if(ctx)playCombatAudio(ctx,"pistol",{gain:.72*audioSettings.shotsVolume/100,playbackRate:1,minIntervalMs:0});}
   weaponFired("glock",.55,"foot-screen","foot");const view=viewport();if(view){view.dataset.walkWeapon="glock";view.dataset.walkGlockShots=String((Number(view.dataset.walkGlockShots)||0)+1);view.dataset.walkGlockLastHand=String(h);view.dataset.walkGlockMultitouch="one-pointer-one-pistol-v3";view.dataset.walkGlockMuzzleHand=String(h);}return true;
 }

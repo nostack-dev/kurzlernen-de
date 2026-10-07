@@ -27,16 +27,11 @@ function ensureGrenadeLauncher(gun){return mount(gun,"WALK_GRENADE_LAUNCHER_3D",
 function ensureGlock(gun){
   let group=gun.getObjectByName?.("WALK_GLOCK_3D");if(group)return group;
   group=new THREE.Group();group.name="WALK_GLOCK_3D";group.position.set(.01,-.01,0);group.userData.flightFireIgnore=true;group.userData.walkWeaponPart=true;group.userData.walkGlockViewmodel="dual-mirrored-matte-black-v3";
-  const right=buildGoldenHandCannon(),left=buildGoldenHandCannon();right.name="WALK_GLOCK_RIGHT";left.name="WALK_GLOCK_LEFT";
-  right.position.x+=.125;left.position.x-=.125;right.rotation.z=-.025;left.rotation.z=.025;
-  // True akimbo viewmodel: the left pistol is the geometric mirror of the
-  // right one, not a second right-hand gun translated to the left.
-  left.scale.x*=-1;left.userData.walkGlockHand="left-mirrored";right.userData.walkGlockHand="right";
-  const lm=left.getObjectByName?.("WALK_GLOCK_MUZZLE_NODE");if(lm)lm.name="WALK_GLOCK_MUZZLE_LEFT";
-  const lg=left.getObjectByName?.("WALK_GLOCK_GRIP");if(lg)lg.name="WALK_GLOCK_GRIP_LEFT";
-  const lr=left.getObjectByName?.("WALK_GLOCK_REAR_SIGHT");if(lr)lr.name="WALK_GLOCK_REAR_SIGHT_LEFT";
-  const lf=left.getObjectByName?.("WALK_GLOCK_FRONT_SIGHT");if(lf)lf.name="WALK_GLOCK_FRONT_SIGHT_LEFT";
-  group.add(right,left);gun.add(group);return group;
+  // The right pistol sits in the right hand (the gun anchor). The left pistol
+  // is a separate, mirrored viewmodel anchored in the left hand by the
+  // first-person controller, so each gun aims at its own finger.
+  const right=buildGoldenHandCannon();right.name="WALK_GLOCK_RIGHT";right.userData.walkGlockHand="right";
+  group.add(right);gun.add(group);return group;
 }
 function setWeaponModeVisual(gun,mode){
   const smg=ensureSmg(gun),launcher=ensureGrenadeLauncher(gun),glock=ensureGlock(gun),isSmg=mode==="smg",isGrenade=mode==="grenade",isGlock=mode==="glock";smg.visible=isSmg;launcher.visible=isGrenade;glock.visible=isGlock;const conversion=gun.getObjectByName?.("FINAL_SMG_CONVERSION");if(conversion)conversion.visible=false;

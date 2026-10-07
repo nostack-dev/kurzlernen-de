@@ -16,7 +16,7 @@ assert.ok(bootstrap.includes("if(!this.active){this.runPreRenderHooks(scene,came
 assert.ok(runtime.includes("__arondightFirstPersonController?.screenRay?.(clientX,clientY)"),"foot shots must use the presented-camera ray");
 
 // Weapon: grip-anchored, sight line aimed at the target, follows the drag.
-for(const marker of["alignSights(gun,aimPoint)","WALK_VM_REAR_SIGHT","WALK_VM_FRONT_SIGHT","WALK_SMG_REAR_SIGHT","WALK_SMG_FRONT_SIGHT","gun.position.add(","\"crosshair-rest\"","\"touch-drag\""])assert.ok(controller.includes(marker),`weapon aim missing: ${marker}`);
+for(const marker of["alignSights(gun,hands[0].aim)","WALK_VM_REAR_SIGHT","WALK_VM_FRONT_SIGHT","WALK_SMG_REAR_SIGHT","WALK_SMG_FRONT_SIGHT","gun.position.add(","\"crosshair-rest\"","\"touch-drag\""])assert.ok(controller.includes(marker),`weapon aim missing: ${marker}`);
 assert.ok(input.includes('"arondight:foot-aim",{detail:{clientX:entry.x,clientY:entry.y,phase:"move"}}'),"drag must stream the touch point to the aim controller");
 assert.ok(input.includes('phase:"end"'),"touch release must end drag aiming");
 assert.ok(!v3.includes("alignGunToShot(gun,now);else"),"legacy v3 alignment still competes with the controller");

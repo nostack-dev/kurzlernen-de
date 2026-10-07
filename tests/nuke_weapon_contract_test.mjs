@@ -31,7 +31,7 @@ for(const [name,source] of [["nuke_weapon",nuke],["nuke_overkill_fx",overkill],[
 
 for(const forbidden of ['function ensureScreenCloud','nukeCinematicScreenCloud\");if(root)return root','presentationAnchor(position)']) assert.ok(!overkill.includes(forbidden),`forbidden nuclear renderer remains: ${forbidden}`);
 
-for(const marker of ['page.touchscreen.tap(','legacyMissilesAfter===shot.legacyMissilesBefore','inputRoute==="window-capture-fireNuke-v1"','legacyBypass==="blocked-v1"','targetResolver==="ground-burst-xy-v1"','Math.abs(shot.targetXYZ[2])<.05','worldAnchorError','screenCloudRemoved','depthPriorityOverkill','depth-tested-v4','visibleHotCrown','volumetricHeat']) assert.ok(mobileLive.includes(marker),`real-touch live nuke gate missing: ${marker}`);
+for(const marker of ['page.touchscreen.tap(','legacyMissilesAfter===shot.legacyMissilesBefore','inputRoute==="window-capture-fireNuke-v1"','legacyBypass==="blocked-v1"','targetResolver==="ground-burst-xy-v1"','Math.abs(shot.targetXYZ[2]-shot.groundZ)<.05','worldAnchorError','screenCloudRemoved','depthPriorityOverkill','depth-tested-v4','visibleHotCrown','volumetricHeat']) assert.ok(mobileLive.includes(marker),`real-touch live nuke gate missing: ${marker}`);
 
 assert.ok(cleanup.includes('import "./nuke_weapon.mjs";'),"nuke runtime is not wired into flight-first cleanup");
 assert.ok(cleanup.includes('import "./nuke_overkill_fx.mjs";'),"nuclear overkill visual runtime is not wired into flight-first cleanup");

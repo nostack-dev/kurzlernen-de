@@ -23,7 +23,7 @@ import "./spawn_visibility_guard.mjs";
 let installed=false;
 const active=new Map();
 let inputLoop=0,lastInputFrame=performance.now();
-const FIRE_INTERVAL_MS=72;
+const FIRE_INTERVAL_MS=55;
 
 function viewport(){return document.getElementById("viewport");}
 function walk(){return globalThis.__arondightWalkMode||null;}

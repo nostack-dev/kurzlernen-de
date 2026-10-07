@@ -101,7 +101,12 @@ function followGrid(camera){
   const x=camera.position.x,y=camera.position.y,h=groundHeightAt(x,y);
   grid.position.x=Math.round(x/GRID_STEP_M)*GRID_STEP_M;grid.position.y=Math.round(y/GRID_STEP_M)*GRID_STEP_M;grid.position.z=(Number.isFinite(h)?h:0)+GRID_LIFT_M;
 }
-function skip(node){for(let n=node;n;n=n.parent){const u=n.userData||{};if(u.styleSkip||u.neonSkip||u.worldBuildingDepthOccluder||u.vsPeerHitProxy||u.vsCombatHitbox)return true;}return false;}
+// FX and proxies keep their own look and never get neon edges: additive /
+// see-through effects (muzzle flashes, explosions, halos, shields) would turn
+// into wireframe balls, and invisible hit boxes / colliders into floating boxes.
+function fxOrProxy(node){if(!node.isMesh)return false;const u=node.userData||{};if(u.walkWeaponPart&&!(u.walkGlockPart||u.walkSmgPart||u.walkGrenadePart))return true;if(/hitbox|hit_?proxy|collider|proxy|halo|flash|shell|shield|glow|tracer/i.test(node.name||""))return true;
+  for(const m of materialsOf(node)){if(!m)continue;if(m.visible===false||m.colorWrite===false||m.blending===THREE.AdditiveBlending||(m.transparent&&(m.opacity??1)<.9)||m.wireframe)return true;}return false;}
+function skip(node){if(fxOrProxy(node))return true;for(let n=node;n;n=n.parent){const u=n.userData||{};if(u.styleSkip||u.neonSkip||u.worldBuildingDepthOccluder||u.vsPeerHitProxy||u.vsCombatHitbox||u.policeDroneHitbox)return true;}return false;}
 function phosphorize(material,hot){
   if(!material||processed.has(material))return;processed.add(material);stripTextures(material);
   const glow=material.transparent||material.blending===THREE.AdditiveBlending||hot;

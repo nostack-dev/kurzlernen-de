@@ -92,6 +92,18 @@ export function staticGroundHeightAt(x,y){
   const st=TERRAIN_FIELD_STEP_M,ix=Math.floor(x/st),iy=Math.floor(y/st),x0=ix*st,y0=iy*st,u=(x-x0)/st,v=(y-y0)/st,[a,b,c,d]=terrainCell(ix,iy);
   return u>=v?a+(b-a)*(u-v)+(d-a)*v:a+(c-a)*(v-u)+(d-a)*u;
 }
+// Ray against the one terrain surface (static height incl. pads, craters,
+// basins): adaptive march (step <= height above ground, the surface is never
+// steeper than ~45°) + bisection. o/d: {x,y,z}. Returns distance or null.
+export function terrainRayDistance(o,d,max=2000){
+  const ox=+o.x,oy=+o.y,oz=+o.z,dx=+d.x,dy=+d.y,dz=+d.z;if(![ox,oy,oz,dx,dy,dz].every(Number.isFinite))return null;
+  let prev=0,above=oz-staticGroundHeightAt(ox,oy);if(above<0)return null;
+  for(let t=0,i=0;t<max&&i<600;i++){const step=Math.max(.4,Math.min(12,above*.7));t=Math.min(max,t+step);const z=oz+dz*t-staticGroundHeightAt(ox+dx*t,oy+dy*t);
+    if(z<=0){let a=prev,b=t;for(let k=0;k<14;k++){const m=(a+b)/2;if(oz+dz*m-staticGroundHeightAt(ox+dx*m,oy+dy*m)>0)a=m;else b=m;}return(a+b)/2;}
+    prev=t;above=z;if(t>=max)break;}
+  return null;
+}
+export function terrainNormalAt(x,y){const e=.5,hx=staticGroundHeightAt(x+e,y)-staticGroundHeightAt(x-e,y),hy=staticGroundHeightAt(x,y+e)-staticGroundHeightAt(x,y-e),l=Math.hypot(hx,hy,2*e);return[-hx/l,-hy/l,2*e/l];}
 export function groundHeightAt(x,y){return staticGroundHeightAt(x,y)+shockHeightAt(x,y);}
 // Underground guard. The collision terrain is a thin triangulated height
 // field: a body that ends up beneath it (spawned before the DEM arrived, the
@@ -160,3 +172,4 @@ export function createTerrainBody(b3,world,shapeDef,half){
   }
   return{bodies,shapeCount};
 }
+if(typeof window!=="undefined")globalThis.__terrain=Object.freeze({staticGroundHeightAt,groundHeightAt,terrainRayDistance});

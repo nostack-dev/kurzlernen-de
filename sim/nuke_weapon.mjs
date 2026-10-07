@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import {Box3dHitscanWorld} from "./box3d_hitscan.mjs";
+import {staticGroundHeightAt,terrainRayDistance} from "./terrain_craters.mjs";
 import {fatLineMaterial,fatLineGeometry,fatLineSegments} from "./box3d_collider_debug.mjs";
 import {FX,sphereGeometry,ringGeometry,cylinderGeometry,circleGeometry,fxMaterial,disposeEffect,setData,warmNukePrograms} from "./nuke_fx_shared.mjs";
 
@@ -40,8 +41,8 @@ function candidates(scene){const out=[];scene?.traverse?.(node=>{if(!node?.isMes
 // ground zero: the nuke always targets at least MIN_TARGET_M away.
 const MIN_TARGET_M=25;
 function nearestHit(origin,direction,maxDistance){const b=bridge(),scene=b?.threeScene;if(!scene)return null;raycaster.set(origin,direction);raycaster.near=MIN_TARGET_M;raycaster.far=maxDistance;const sceneHit=raycaster.intersectObjects(candidates(scene),false)[0]||null;let staticHit=null;if(b.active&&b.buildingCollisionSnapshot){const hit=boxHits.cast([origin.x,origin.y,origin.z],[direction.x,direction.y,direction.z],maxDistance,b.buildingCollisionSnapshot);if(hit&&hit.distanceM>=MIN_TARGET_M)staticHit={distance:hit.distanceM,point:new THREE.Vector3(...hit.point)};}return staticHit&&(!sceneHit||staticHit.distance<sceneHit.distance)?staticHit:sceneHit;}
-function groundBurstPoint(point){const target=point.clone();target.z=GROUND_BURST_Z;return target;}
-function targetForRay(ray){const hit=nearestHit(ray.origin,ray.direction,MAX_RANGE_M);if(hit?.point)return groundBurstPoint(hit.point);const dz=ray.direction.z;if(Math.abs(dz)>.0001){const t=(GROUND_BURST_Z-ray.origin.z)/dz;if(t>MIN_TARGET_M&&t<MAX_RANGE_M)return groundBurstPoint(ray.origin.clone().addScaledVector(ray.direction,t));}return groundBurstPoint(ray.origin.clone().addScaledVector(ray.direction,Math.min(140,MAX_RANGE_M)));}
+function groundBurstPoint(point){const target=point.clone();target.z=staticGroundHeightAt(target.x,target.y)+GROUND_BURST_Z;return target;} // ground burst on the real terrain
+function targetForRay(ray){const hit=nearestHit(ray.origin,ray.direction,MAX_RANGE_M);if(hit?.point)return groundBurstPoint(hit.point);{const t=terrainRayDistance(ray.origin,ray.direction,MAX_RANGE_M);if(t!==null&&t>MIN_TARGET_M)return groundBurstPoint(ray.origin.clone().addScaledVector(ray.direction,t));}return groundBurstPoint(ray.origin.clone().addScaledVector(ray.direction,Math.min(140,MAX_RANGE_M)));}
 
 function tag(node,role="part"){node.userData.nukeWeaponPart=true;node.userData.flightFireIgnore=true;node.userData.nukeRole=role;return node;}
 function ensureFlashOverlay(){const view=viewport();if(!view)return null;let el=document.getElementById("nukeFlashOverlay");if(el)return el;el=document.createElement("i");el.id="nukeFlashOverlay";el.setAttribute("aria-hidden","true");el.style.cssText="position:absolute;inset:-2%;z-index:80;pointer-events:none;background:#fff6d8;opacity:0;will-change:opacity";view.appendChild(el);return el;}

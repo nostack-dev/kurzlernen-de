@@ -1,4 +1,4 @@
-export const COMBAT_AUDIO_BANK_VERSION="prebaked-pcm-buffer-bank-v3";
+export const COMBAT_AUDIO_BANK_VERSION="prebaked-pcm-buffer-bank-v3"; // pistol: hard 9 mm N-wave report v4
 export const COMBAT_AUDIO_SAMPLE_RATE=44100;
 
 const TAU=Math.PI*2;
@@ -22,20 +22,38 @@ function renderShot(sampleRate,variant){
 }
 
 function renderPistol(sampleRate,variant){
-  // Compact 9 mm-style report: very fast muzzle crack, short pressure body,
-  // then a quieter metallic slide/action tail. Pre-baked once, never synthesized
-  // on the gameplay hot path.
-  const duration=.19+variant*.006,data=new Float32Array(Math.ceil(duration*sampleRate)),random=rng(0x9a17c3+variant*1223),echoDelay=Math.floor(sampleRate*(.024+variant*.0014));let low=0,mid=0,phase=0,metal=0;
+  // Hard, realistic 9 mm handgun report (Glock 17 class), built from what a
+  // recording of one actually contains:
+  //  1. muzzle blast N-wave: ~0.3 ms rise to the peak, ~1 ms linear fall
+  //     through zero into a negative lobe — the "crack" that makes it hard;
+  //  2. broadband blast noise (band 0.3–6 kHz) dying in ~10 ms;
+  //  3. pressure thump: 150 -> 55 Hz sweep, ~30 ms — the punch in the chest;
+  //  4. slide cycling: two short metallic clacks (~24 ms, ~48 ms), 2.3/3.6 kHz;
+  //  5. urban slap-back: early reflections from walls (14–80 ms, low-passed)
+  //     and a short diffuse street tail (~0.35 s).
+  // Hard-clipped like a close mic'd shot (tanh drive), then normalised.
+  const duration=.46+variant*.012,data=new Float32Array(Math.ceil(duration*sampleRate)),random=rng(0x61c0a7+variant*7919),dry=new Float32Array(data.length);
+  const rise=.00028+variant*.00002,fall=.00105+variant*.00006;let hp=0,lpA=0,lpB=0,tail=0,phase=0,ring1=0,ring2=0;
   for(let n=0;n<data.length;n++){
-    const t=n/sampleRate,white=random()*2-1;low+=.07*(white-low);mid+=.31*(white-mid);
-    const crack=(white-mid)*Math.exp(-t/(.0038+variant*.0002));
-    const pressure=(mid*.72+low*.9)*Math.exp(-t/Math.max(.020,.031+variant*.001));
-    const f=305*Math.exp(-t*17)+92;phase+=TAU*f/sampleRate;const body=Math.sin(phase+.22*Math.sin(phase*.43))*Math.exp(-t*29);
-    const actionT=t-.052;if(actionT>0){const af=1260*Math.exp(-actionT*9)+410;metal+=TAU*af/sampleRate;}const action=actionT>0?(Math.sin(metal)+.32*Math.sin(metal*1.73))*Math.exp(-actionT*34):0;
-    const room=n>=echoDelay?data[n-echoDelay]*(.085+variant*.008):0;
-    data[n]=crack*1.10+pressure*.64+body*.48+action*.16+room;
+    const t=n/sampleRate,white=random()*2-1;
+    let nwave=0;if(t<rise)nwave=t/rise;else if(t<rise+fall)nwave=1-1.6*(t-rise)/fall;else if(t<rise+fall*1.9)nwave=-.6*(1-(t-rise-fall)/(fall*.9));
+    lpA+=.55*(white-lpA);hp=white-lpA;lpB+=.22*(lpA-lpB);const band=lpA-lpB;
+    const blast=(band*.9+hp*.55)*Math.exp(-t/.0105);
+    const f=150*Math.exp(-t*24)+55;phase+=TAU*f/sampleRate;const thump=Math.sin(phase)*Math.exp(-t/.030)*(1-Math.exp(-t/.0009));
+    let mech=0;for(const[at,f1,f2,g]of[[.0235+variant*.0011,2300,3610,1],[.0478+variant*.0017,1980,3120,.7]]){const u=t-at;if(u>=0&&u<.02)mech+=g*(Math.sin(TAU*f1*u)+.6*Math.sin(TAU*f2*u)+.4*(random()*2-1))*Math.exp(-u/.0042);}
+    dry[n]=nwave*1.25+blast*.95+thump*.85+mech*.22;
   }
-  return finish(data,.97);
+  // reflections + street tail
+  const taps=[[.0142,.42],[.0235,.30],[.0371,.24],[.0516,.17],[.0784,.11]].map(([d,g])=>[Math.floor((d+variant*.0007)*sampleRate),g]);
+  for(let n=0;n<data.length;n++){
+    const t=n/sampleRate;let v=dry[n];for(const[d,g]of taps)if(n>=d){ring1+=0;v+=g*dry[n-d]*.8;}
+    ring2+=.08*((random()*2-1)-ring2);tail+=.15*(ring2-tail);const diffuse=t>.012?tail*.34*Math.exp(-(t-.012)/.11):0;
+    data[n]=v+diffuse;
+  }
+  // low-pass the reflections a bit (walls absorb highs) while keeping the dry crack
+  let lp=0;for(let n=0;n<data.length;n++){lp+=.45*(data[n]-lp);data[n]=dry[n]+(lp-dry[n]*.45);}
+  for(let n=0;n<data.length;n++)data[n]=Math.tanh(data[n]*2.2);
+  return finish(data,.99);
 }
 
 function renderHit(sampleRate,variant){
