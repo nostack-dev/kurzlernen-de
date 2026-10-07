@@ -73,8 +73,8 @@ function aiInput(record,position,forward,vf){
 }
 
 // One physics step of the drivetrain (called before b3World_Step).
-export function driveWheeled(physics,record,dt){
-  const b3=physics.b3,spec=record.spec,body=record.body,q=b3.b3Body_GetRotation([0,0,0,1],body),v=b3.b3Body_GetLinearVelocity([0,0,0],body),p=b3.b3Body_GetPosition([0,0,0],body);
+export function driveWheeled(physics,record,dt,state=null){
+  const b3=physics.b3,spec=record.spec,body=record.body,q=state?.rotation||b3.b3Body_GetRotation([0,0,0,1],body),v=state?.velocity||b3.b3Body_GetLinearVelocity([0,0,0],body),p=state?.position||b3.b3Body_GetPosition([0,0,0],body);
   const forward=rotate(q,[1,0,0]),vf=v[0]*forward[0]+v[1]*forward[1]+v[2]*forward[2],speed=Math.hypot(v[0],v[1],v[2]);
   const input=record.drive||(record.target?aiInput(record,p,forward,vf):{pedal:0,steer:0,handbrake:false,maxSpeed:30,maxReverse:6});
   const r=spec.radius,pedal=clamp(input.pedal,-1,1),handbrake=Boolean(input.handbrake),maxSpeed=clamp(input.maxSpeed??36,3,80),maxReverse=clamp(input.maxReverse??9,1,30);
