@@ -14,7 +14,7 @@ assert.ok(!population.includes("focus=populationFocus(),cx=focus?.x??anchorX,cy=
 
 for(const marker of ["Z_AREA=.05","Z_SIDEWALK=.09","Z_ROAD=.112","Z_MARKING=.135","map-roads-sidewalks-parks-v3-terrain-draped","drapeTerrainTriangle","AREA_EDGE_M=8,ROAD_SEG_M=6"])
   assert.ok(roads.includes(marker),`road depth contract missing ${marker}`);
-assert.ok(ground.includes('satellite-albedo-ground-v2-depth-base')&&ground.includes("polygonOffsetFactor:4,polygonOffsetUnits:8"),"ground is not the unambiguous depth base");
+assert.ok(ground.includes('shared-neon-terrain-v3-no-texture')&&ground.includes("polygonOffsetFactor:4,polygonOffsetUnits:8")&&ground.includes('worldGroundTexture="none"'),"ground must be the shared textureless terrain depth base");
 assert.ok(water.includes('map-water-basins-buoyancy-v2-depth-stable')&&water.includes("WATER_RENDER_Z=WATER_LEVEL_M+.052")&&water.includes("color:0x176b98"),"water must be separated and saturated blue");
 assert.ok(buildings.includes("polygonOffsetFactor:3,polygonOffsetUnits:6"),"building wall/roof depth bias missing");
 assert.ok(depth.includes('scene.getObjectByName?.("WORLD_CITY_BUILDINGS")?.visible')&&!depth.includes('&&Number(viewport()?.dataset.worldCityBuildings)>0'),"collision prism duplicate draw guard must switch off immediately");
