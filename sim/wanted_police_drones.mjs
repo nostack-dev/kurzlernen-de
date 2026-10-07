@@ -36,7 +36,7 @@ const lastTargetDamageAt={player:-Infinity,drone:-Infinity};
 let installed=false;
 let sceneRef=null;
 let policeRoot=null;
-let hud=null;
+let hud=null,empButton=null,hudStars=[],hudTitle=null,hudDetail=null,lastHudRender=-Infinity,policeHitBridge=null;
 let empButton=null;
 let empPulse=null;
 let heat=0;
@@ -159,13 +159,14 @@ function updateTelemetry(remainingMs=0){
   if(clearReason)view.dataset.wantedLastClear=clearReason;
 }
 
-function renderHud(remainingMs=0){
+function renderHud(remainingMs=0,force=false){
   if(!installHud())return;
-  const now=performance.now(),showWanted=stars>0,showBanner=now<escapedBannerUntil;
+  const now=performance.now();if(!force&&now-lastHudRender<100)return;lastHudRender=now;const showWanted=stars>0,showBanner=now<escapedBannerUntil;
   renderEmpControl(now);
   hud.hidden=!showWanted&&!showBanner;
   if(hud.hidden){updateTelemetry(0);return;}
-  const starNodes=hud.querySelectorAll(".wanted-stars i"),title=hud.querySelector("strong"),detail=hud.querySelector("small");
+  if(!hudStars.length){hudStars=[...hud.querySelectorAll(".wanted-stars i")];hudTitle=hud.querySelector("strong");hudDetail=hud.querySelector("small");}
+  const starNodes=hudStars,title=hudTitle,detail=hudDetail;
   starNodes.forEach((node,index)=>node.classList.toggle("hot",showWanted&&index<stars));
   const active=drones.filter(drone=>drone.active).length;
   if(showBanner){hud.dataset.phase="escaped";title.textContent=clearReason==="busted"?"BUSTED":"ESCAPED";detail.textContent=clearReason==="busted"?"POLICE PURSUIT ENDED":"WANTED LEVEL CLEARED";hud.setAttribute("aria-label",title.textContent);}
@@ -354,14 +355,14 @@ function reportCrime(detail={}){
   const now=performance.now();if(severity<=0||!rememberCrime(detail.id,now))return false;
   heat=Math.min(99,heat+severity);const previousStars=stars;stars=wantedStarsForHeat(heat);lastCrimeAt=now;clearReason="";
   if(stars>0){const revealPlayer=detail.revealPlayer!==false;if(revealPlayer){phase="pursuit";lastContactAt=now;const player=currentPlayerPosition();if(player)lastKnownPosition.copy(player);}for(const drone of drones)if(drone.active&&drone.retreating){drone.retreating=false;drone.retreatUntil=-Infinity;drone.hitbox.visible=true;drone.engageAt=now+wantedPoliceEngageDelayMs(stars);drone.nextShotAt=drone.engageAt+drone.index*160;}if(stars>previousStars)playTone({frequency:520+stars*90,endFrequency:760+stars*100,duration:.16,gain:.022,type:"square"});}
-  const view=viewport();if(view){view.dataset.wantedLastCrime=kind||"unknown";view.dataset.wantedCrimeEvents=String((Number(view.dataset.wantedCrimeEvents)||0)+1);}renderHud(wantedEscapeDurationMs(stars));return true;
+  const view=viewport();if(view){view.dataset.wantedLastCrime=kind||"unknown";view.dataset.wantedCrimeEvents=String((Number(view.dataset.wantedCrimeEvents)||0)+1);}renderHud(wantedEscapeDurationMs(stars),true);return true;
 }
 
 function clearWanted(reason="escaped"){
   const now=performance.now(),hadWanted=stars>0,clearedStars=stars;heat=0;stars=0;phase="clear";clearReason=String(reason||"clear");lastContactAt=-Infinity;lastCrimeAt=-Infinity;for(const drone of drones){if(reason==="escaped"&&drone.active&&!drone.empDisabled)beginPoliceRetreat(drone,now);else deactivateDrone(drone);}
   lastTargetDamageAt.player=-Infinity;lastTargetDamageAt.drone=-Infinity;waveNumber=0;waveStartedAt=-Infinity;nextWaveAt=-Infinity;playerSpeedMps=0;playerSampleAt=-Infinity;
   if(reason==="reset"){seenCrimes.clear();empReadyAt=-Infinity;empFeedbackUntil=-Infinity;empActivations=0;empLastAffected=0;empInRangeCount=0;}
-  escapedBannerUntil=hadWanted&&reason!=="reset"?now+2100:-Infinity;if(hadWanted&&reason==="escaped")playTone({frequency:660,endFrequency:1040,duration:.22,gain:.023,type:"sine"});renderHud(0);if(reason!=="reset")window.dispatchEvent(new CustomEvent("arondight:wanted-cleared",{detail:{reason:clearReason,hadWanted,stars:clearedStars}}));return hadWanted;
+  escapedBannerUntil=hadWanted&&reason!=="reset"?now+2100:-Infinity;if(hadWanted&&reason==="escaped")playTone({frequency:660,endFrequency:1040,duration:.22,gain:.023,type:"sine"});renderHud(0,true);if(reason!=="reset")window.dispatchEvent(new CustomEvent("arondight:wanted-cleared",{detail:{reason:clearReason,hadWanted,stars:clearedStars}}));return hadWanted;
 }
 
 function findDrone(hit){
@@ -377,7 +378,7 @@ function registerPoliceHit(hit){
   return true;
 }
 
-function installPoliceHitApi(){const currentBridge=bridge();if(!currentBridge)return false;currentBridge.registerPoliceHit=registerPoliceHit;return true;}
+function installPoliceHitApi(){const currentBridge=bridge();if(!currentBridge)return false;if(currentBridge===policeHitBridge&&currentBridge.registerPoliceHit===registerPoliceHit)return true;currentBridge.registerPoliceHit=registerPoliceHit;policeHitBridge=currentBridge;return true;}
 
 function updateSensors(now){
   let seesPlayer=false,closestContact=null,closestDistance=Infinity;const radius=wantedDetectionRadiusM(stars),targets=currentDamageTargets();
@@ -441,7 +442,7 @@ function onCombatKill(event){const detail=event?.detail||{};if(!detail.killed||d
 function onPhysicsImpact(event){const detail=event?.detail||{},id=String(detail.id||""),match=id.match(/^police-drone-(\d+)$/),drone=match?drones[Number(match[1])]:null;if(!drone?.active)return;const now=performance.now(),impact=Number(detail.deltaVelocityMps)||0;drone.hitUntil=Math.max(drone.hitUntil,now+90);drone.flash.visible=true;if(drone.empDisabled&&impact>=1.4&&now-drone.empImpactAt>420){drone.empImpactAt=now;drone.hp=0;armPoliceCritical(drone,now,true);}else if(impact>=3.8&&now-drone.lastCollisionDamageAt>520){drone.lastCollisionDamageAt=now;const damage=clamp(Math.round((impact-3.2)*5),3,18);drone.hp=Math.max(0,drone.hp-damage);if(isCriticalDamage("police-drone",drone.hp,POLICE_HP))armPoliceCritical(drone,now,drone.critical||drone.hp===0);}const view=viewport();if(view){view.dataset.wantedPolicePhysicalImpacts=String((Number(view.dataset.wantedPolicePhysicalImpacts)||0)+1);view.dataset.wantedPoliceLastImpactMps=impact.toFixed(2);view.dataset.wantedPoliceLastHp=String(drone.hp);if(drone.empDisabled)view.dataset.wantedEmpCrashImpacts=String((Number(view.dataset.wantedEmpCrashImpacts)||0)+1);}}
 
 function frame(now=performance.now()){
-  requestAnimationFrame(frame);const dt=clamp((now-lastFrameAt)/1000,0,MAX_FRAME_DT);lastFrameAt=now;installHud();if(!ensureScene()){renderHud(0);return;}updateWanted(now,dt);
+  requestAnimationFrame(frame);const dt=clamp((now-lastFrameAt)/1000,0,MAX_FRAME_DT);lastFrameAt=now;if(!ensureScene()){renderHud(0);return;}updateWanted(now,dt);
 }
 
 export function installWantedPoliceDrones(){
