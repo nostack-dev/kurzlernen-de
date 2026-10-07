@@ -1,9 +1,9 @@
 {
- "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32",
+ "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc",
  "steps": [
   {
    "name": "boot-5s",
-   "ms": 8839,
+   "ms": 8359,
    "draws": [
     [
      "TRAINING_SHOWCASE_PLAZA",
@@ -38,7 +38,7 @@
      1
     ]
    ],
-   "fps": 1.4,
+   "fps": 4.4,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
@@ -142,10 +142,10 @@
      1
     ]
    ],
-   "fps": 3.9,
-   "drawCalls": 1,
-   "triangles": 2,
-   "lines": 0,
+   "fps": 3.8,
+   "drawCalls": 108,
+   "triangles": 44741,
+   "lines": 271,
    "programs": 49,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
@@ -201,7 +201,7 @@
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "training",
    "water": "0/0/0",
-   "bloom": "quarter-res-two-level-bloom-v1",
+   "bloom": "off-slow-device",
    "style": "realistic-pbr-sun-ibl-v4",
    "terrainShapes": "2",
    "droneHp": "100",
@@ -211,7 +211,7 @@
   },
   {
    "name": "started",
-   "ms": 23032,
+   "ms": 22101,
    "draws": [
     [
      "WORLD_CROWD_EXTRAS",
@@ -219,7 +219,7 @@
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
-     135
+     145
     ],
     [
      "Group",
@@ -228,10 +228,6 @@
     [
      "WORLD_CITY_BUILDINGS",
      19
-    ],
-    [
-     "WORLD_CITY_ROADS",
-     15
     ],
     [
      "LOCAL_HUMAN_VR",
@@ -270,11 +266,11 @@
      1
     ]
    ],
-   "fps": 3.1,
-   "drawCalls": 128,
-   "triangles": 359608,
+   "fps": 4.2,
+   "drawCalls": 189,
+   "triangles": 309306,
    "lines": 0,
-   "programs": 98,
+   "programs": 80,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
     "?#physical,STANDARD,,highp",
@@ -325,54 +321,36 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#10,11,highp,srgb,false,,",
     "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp"
    ],
    "status": "SIM ready: shared production runtime active.",
@@ -381,7 +359,6 @@
    "cityBuildings": "621",
    "water": "8077/188/222",
    "ground": "satellite-albedo",
-   "roads": "990",
    "bloom": "off-slow-device",
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
@@ -393,7 +370,7 @@
   },
   {
    "name": "city-drone",
-   "ms": 5334,
+   "ms": 5744,
    "draws": [
     [
      "WORLD_CROWD_EXTRAS",
@@ -401,7 +378,7 @@
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
-     135
+     145
     ],
     [
      "Group",
@@ -452,11 +429,11 @@
      1
     ]
    ],
-   "fps": 3.4,
-   "drawCalls": 126,
-   "triangles": 360099,
+   "fps": 4.1,
+   "drawCalls": 171,
+   "triangles": 755442,
    "lines": 0,
-   "programs": 98,
+   "programs": 81,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
     "?#physical,STANDARD,,highp",
@@ -507,53 +484,36 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#10,11,highp,srgb,false,,",
     "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp"
    ],
@@ -575,7 +535,7 @@
   },
   {
    "name": "minimap-expanded",
-   "ms": 5720,
+   "ms": 5062,
    "draws": [
     [
      "WORLD_CROWD_EXTRAS",
@@ -583,7 +543,7 @@
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
-     153
+     151
     ],
     [
      "Group",
@@ -634,11 +594,11 @@
      1
     ]
    ],
-   "fps": 3.8,
-   "drawCalls": 157,
-   "triangles": 411102,
+   "fps": 2.9,
+   "drawCalls": 170,
+   "triangles": 806045,
    "lines": 0,
-   "programs": 103,
+   "programs": 85,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
     "?#physical,STANDARD,,highp",
@@ -689,58 +649,40 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#10,11,highp,srgb,false,,",
     "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#depth,highp,srgb-linear,",
     "?#depth,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp"
    ],
@@ -762,7 +704,7 @@
   },
   {
    "name": "on-foot",
-   "ms": 7048,
+   "ms": 6805,
    "draws": [
     [
      "WORLD_CROWD_EXTRAS",
@@ -770,7 +712,7 @@
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
-     159
+     151
     ],
     [
      "Group",
@@ -825,11 +767,11 @@
      1
     ]
    ],
-   "fps": 3.2,
-   "drawCalls": 107,
-   "triangles": 406763,
+   "fps": 3,
+   "drawCalls": 206,
+   "triangles": 746323,
    "lines": 0,
-   "programs": 107,
+   "programs": 90,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
     "?#physical,STANDARD,,highp",
@@ -880,53 +822,36 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#10,11,highp,srgb,false,,",
     "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#depth,highp,srgb-linear,",
@@ -957,11 +882,11 @@
   },
   {
    "name": "foot-touch-move",
-   "ms": 16006,
+   "ms": 15925,
    "draws": [
     [
      "WORLD_PROCEDURAL_POPULATION",
-     217
+     232
     ],
     [
      "WORLD_CROWD_EXTRAS",
@@ -1020,11 +945,11 @@
      1
     ]
    ],
-   "fps": 2.6,
-   "drawCalls": 167,
-   "triangles": 408861,
+   "fps": 2.7,
+   "drawCalls": 197,
+   "triangles": 746401,
    "lines": 0,
-   "programs": 107,
+   "programs": 90,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
     "?#physical,STANDARD,,highp",
@@ -1075,53 +1000,36 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#10,11,highp,srgb,false,,",
     "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#depth,highp,srgb-linear,",
@@ -1152,11 +1060,11 @@
   },
   {
    "name": "interior-door",
-   "ms": 5909,
+   "ms": 6045,
    "draws": [
     [
      "WORLD_PROCEDURAL_POPULATION",
-     218
+     233
     ],
     [
      "WORLD_CROWD_EXTRAS",
@@ -1216,10 +1124,10 @@
     ]
    ],
    "fps": 1.9,
-   "drawCalls": 95,
-   "triangles": 482724,
+   "drawCalls": 78,
+   "triangles": 1000865,
    "lines": 0,
-   "programs": 107,
+   "programs": 90,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
     "?#physical,STANDARD,,highp",
@@ -1270,53 +1178,36 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#10,11,highp,srgb,false,,",
     "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#depth,highp,srgb-linear,",
@@ -1347,11 +1238,11 @@
   },
   {
    "name": "interior-inside",
-   "ms": 5170,
+   "ms": 6069,
    "draws": [
     [
      "WORLD_PROCEDURAL_POPULATION",
-     218
+     233
     ],
     [
      "WORLD_CROWD_EXTRAS",
@@ -1411,10 +1302,10 @@
     ]
    ],
    "fps": 2,
-   "drawCalls": 89,
-   "triangles": 481373,
+   "drawCalls": 96,
+   "triangles": 1001535,
    "lines": 0,
-   "programs": 107,
+   "programs": 90,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
     "?#physical,STANDARD,,highp",
@@ -1465,53 +1356,36 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#10,11,highp,srgb,false,,",
     "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#depth,highp,srgb-linear,",
@@ -1542,11 +1416,11 @@
   },
   {
    "name": "interior-stairs",
-   "ms": 6442,
+   "ms": 5716,
    "draws": [
     [
      "WORLD_PROCEDURAL_POPULATION",
-     224
+     233
     ],
     [
      "WORLD_CROWD_EXTRAS",
@@ -1562,7 +1436,7 @@
     ],
     [
      "WALK_PISTOL_3D",
-     18
+     22
     ],
     [
      "WORLD_CITY_ROADS",
@@ -1605,11 +1479,11 @@
      1
     ]
    ],
-   "fps": 1.8,
-   "drawCalls": 121,
-   "triangles": 474634,
+   "fps": 2.2,
+   "drawCalls": 87,
+   "triangles": 889628,
    "lines": 0,
-   "programs": 107,
+   "programs": 90,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
     "?#physical,STANDARD,,highp",
@@ -1660,53 +1534,36 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#10,11,highp,srgb,false,,",
     "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#depth,highp,srgb-linear,",
@@ -1737,11 +1594,11 @@
   },
   {
    "name": "interior-upper",
-   "ms": 6358,
+   "ms": 6063,
    "draws": [
     [
      "WORLD_PROCEDURAL_POPULATION",
-     224
+     233
     ],
     [
      "WORLD_CROWD_EXTRAS",
@@ -1756,12 +1613,12 @@
      26
     ],
     [
-     "WORLD_CITY_ROADS",
+     "WALK_PISTOL_3D",
      22
     ],
     [
-     "WALK_PISTOL_3D",
-     22
+     "WORLD_CITY_ROADS",
+     15
     ],
     [
      "BUILDING_INTERIORS[inst]",
@@ -1800,11 +1657,11 @@
      1
     ]
    ],
-   "fps": 2.4,
-   "drawCalls": 179,
-   "triangles": 523351,
+   "fps": 2.5,
+   "drawCalls": 159,
+   "triangles": 645553,
    "lines": 0,
-   "programs": 107,
+   "programs": 90,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
     "?#physical,STANDARD,,highp",
@@ -1855,53 +1712,36 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#10,11,highp,srgb,false,,",
     "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#depth,highp,srgb-linear,",
@@ -1920,7 +1760,7 @@
    "cityBuildings": "1207",
    "water": "8077/188/222",
    "ground": "satellite-albedo",
-   "roads": "1433",
+   "roads": "992",
    "bloom": "off-slow-device",
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
@@ -1932,11 +1772,11 @@
   },
   {
    "name": "interior-roof",
-   "ms": 6484,
+   "ms": 5794,
    "draws": [
     [
      "WORLD_PROCEDURAL_POPULATION",
-     230
+     233
     ],
     [
      "WORLD_CROWD_EXTRAS",
@@ -1951,12 +1791,12 @@
      26
     ],
     [
-     "WORLD_CITY_ROADS",
+     "WALK_PISTOL_3D",
      22
     ],
     [
-     "WALK_PISTOL_3D",
-     18
+     "WORLD_CITY_ROADS",
+     15
     ],
     [
      "BUILDING_INTERIORS[inst]",
@@ -1995,11 +1835,11 @@
      1
     ]
    ],
-   "fps": 1.7,
-   "drawCalls": 175,
-   "triangles": 498413,
+   "fps": 2.5,
+   "drawCalls": 191,
+   "triangles": 620919,
    "lines": 0,
-   "programs": 107,
+   "programs": 90,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
     "?#physical,STANDARD,,highp",
@@ -2050,53 +1890,36 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#10,11,highp,srgb,false,,",
     "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#depth,highp,srgb-linear,",
@@ -2115,7 +1938,7 @@
    "cityBuildings": "1207",
    "water": "8077/188/222",
    "ground": "satellite-albedo",
-   "roads": "1433",
+   "roads": "992",
    "bloom": "off-slow-device",
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
@@ -2127,19 +1950,19 @@
   },
   {
    "name": "nuke-fired",
-   "ms": 12975,
+   "ms": 6888,
    "draws": [
     [
      "WORLD_PROCEDURAL_POPULATION",
-     261
-    ],
-    [
-     "Group",
-     201
+     283
     ],
     [
      "WORLD_CROWD_EXTRAS",
-     120
+     168
+    ],
+    [
+     "Group",
+     117
     ],
     [
      "NUKE_TORN_CHUNK",
@@ -2150,14 +1973,6 @@
      26
     ],
     [
-     "WORLD_CITY_ROADS",
-     22
-    ],
-    [
-     "Mesh",
-     19
-    ],
-    [
      "LOCAL_HUMAN_VR",
      10
     ],
@@ -2166,12 +1981,217 @@
      6
     ],
     [
-     "SANDBOX_SWAT",
+     "PILOT_SHIELD",
+     2
+    ],
+    [
+     "Mesh",
+     1
+    ],
+    [
+     "REAL_SKY",
+     1
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION[inst]",
+     1
+    ],
+    [
+     "NUKE_DEBRIS[inst]",
+     1
+    ],
+    [
+     "WORLD_WATER",
+     1
+    ],
+    [
+     "WORLD_GROUND",
+     1
+    ],
+    [
+     "NUKE_CRATER_GROUND",
+     1
+    ],
+    [
+     "Points",
+     1
+    ]
+   ],
+   "fps": 0.9,
+   "drawCalls": 254,
+   "triangles": 410374,
+   "lines": 1590,
+   "programs": 101,
+   "programNames": [
+    "BackgroundMaterial#0,1,highp,srgb,false,,uv",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#2,3,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#depth,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
+    "?#10,11,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#12,13,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#6,14,highp,srgb-linear,f",
+    "?#6,15,highp,srgb-linear,f",
+    "?#6,16,highp,srgb-linear,f",
+    "?#6,17,highp,srgb,false,,f",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#10,11,highp,srgb,false,,",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#10,11,highp,srgb,false,,",
+    "?#points,highp,srgb,false,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#depth,highp,srgb-linear,",
+    "?#depth,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#points,highp,srgb,false,"
+   ],
+   "status": "SIM ready: shared production runtime active.",
+   "worldMode": "real",
+   "mapSync": "data-only-topdown-v1",
+   "cityBuildings": "1207",
+   "water": "8077/188/222",
+   "ground": "satellite-albedo",
+   "roads": "1433",
+   "bloom": "off-slow-device",
+   "style": "realistic-pbr-sun-ibl-v4",
+   "collisionPrisms": "900",
+   "terrainShapes": "224",
+   "nukeDebris": "1548",
+   "nukeFlung": "1",
+   "nukeBuildings": "765",
+   "nukeActors": "104",
+   "droneHp": "100",
+   "footTouch": "single-owner-foot-touch-v2",
+   "walkMode": "drone",
+   "menuHidden": true
+  },
+  {
+   "name": "nuke-3s",
+   "ms": 6018,
+   "draws": [
+    [
+     "Group",
+     203
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     49
+    ],
+    [
+     "WORLD_CROWD_EXTRAS",
+     48
+    ],
+    [
+     "Mesh",
+     37
+    ],
+    [
+     "WORLD_CITY_BUILDINGS",
+     26
+    ],
+    [
+     "LOCAL_HUMAN_VR",
+     20
+    ],
+    [
+     "SANDBOX_COP",
+     12
+    ],
+    [
+     "NUKE_TORN_CHUNK",
+     8
+    ],
+    [
+     "WORLD_PROCEDURAL_DECOR[inst]",
      6
     ],
     [
      "Sprite",
-     4
+     6
+    ],
+    [
+     "SANDBOX_HEAVY",
+     6
     ],
     [
      "PILOT_SHIELD",
@@ -2202,11 +2222,11 @@
      1
     ]
    ],
-   "fps": 0.9,
-   "drawCalls": 336,
-   "triangles": 538715,
-   "lines": 1761,
-   "programs": 124,
+   "fps": 3.2,
+   "drawCalls": 156,
+   "triangles": 385055,
+   "lines": 111,
+   "programs": 108,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
     "?#physical,STANDARD,,highp",
@@ -2257,53 +2277,36 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#10,11,highp,srgb,false,,",
     "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#depth,highp,srgb-linear,",
@@ -2325,11 +2328,12 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#sprite,highp,srgb,false,",
     "?#points,highp,srgb,false,",
     "?#lambert,highp,srgb,306,1",
     "?#lambert,highp,srgb,306,1",
     "?#basic,highp,srgb,false,,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,"
    ],
@@ -2344,263 +2348,10 @@
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
    "terrainShapes": "224",
-   "nukeDebris": "790",
-   "nukeFlung": "16",
-   "nukeBuildings": "800",
-   "nukeActors": "123",
-   "droneHp": "100",
-   "footTouch": "single-owner-foot-touch-v2",
-   "walkMode": "drone",
-   "menuHidden": true
-  },
-  {
-   "name": "nuke-3s",
-   "ms": 6262,
-   "draws": [
-    [
-     "WANTED_POLICE_DRONES",
-     260
-    ],
-    [
-     "Group",
-     203
-    ],
-    [
-     "NUKE_TORN_CHUNK",
-     44
-    ],
-    [
-     "Mesh",
-     37
-    ],
-    [
-     "WORLD_CITY_BUILDINGS",
-     26
-    ],
-    [
-     "WORLD_CITY_ROADS",
-     22
-    ],
-    [
-     "LOCAL_HUMAN_VR",
-     20
-    ],
-    [
-     "SANDBOX_COP",
-     12
-    ],
-    [
-     "WORLD_PROCEDURAL_DECOR[inst]",
-     6
-    ],
-    [
-     "SANDBOX_SWAT",
-     6
-    ],
-    [
-     "SANDBOX_HEAVY",
-     6
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     2
-    ],
-    [
-     "PILOT_SHIELD",
-     2
-    ],
-    [
-     "Sprite",
-     2
-    ],
-    [
-     "REAL_SKY",
-     1
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION[inst]",
-     1
-    ],
-    [
-     "NUKE_DEBRIS[inst]",
-     1
-    ],
-    [
-     "WORLD_WATER",
-     1
-    ]
-   ],
-   "fps": 1.7,
-   "drawCalls": 492,
-   "triangles": 430795,
-   "lines": 1098,
-   "programs": 149,
-   "programNames": [
-    "BackgroundMaterial#0,1,highp,srgb,false,,uv",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#2,3,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#depth,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#6,14,highp,srgb-linear,f",
-    "?#6,15,highp,srgb-linear,f",
-    "?#6,16,highp,srgb-linear,f",
-    "?#6,17,highp,srgb,false,,f",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#10,11,highp,srgb,false,,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#10,11,highp,srgb,false,,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#depth,highp,srgb-linear,",
-    "?#depth,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#sprite,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#depth,highp,srgb-linear,",
-    "?#depth,highp,srgb-linear,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#sprite,highp,srgb,false,"
-   ],
-   "status": "SIM ready: shared production runtime active.",
-   "worldMode": "real",
-   "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1207",
-   "water": "8077/188/222",
-   "ground": "satellite-albedo",
-   "roads": "1433",
-   "bloom": "off-slow-device",
-   "style": "realistic-pbr-sun-ibl-v4",
-   "collisionPrisms": "900",
-   "terrainShapes": "224",
-   "nukeDebris": "1353",
-   "nukeFlung": "38",
-   "nukeBuildings": "800",
-   "nukeActors": "123",
+   "nukeDebris": "2000",
+   "nukeFlung": "35",
+   "nukeBuildings": "765",
+   "nukeActors": "104",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v2",
    "walkMode": "drone",
@@ -2608,43 +2359,35 @@
   },
   {
    "name": "nuke-8s",
-   "ms": 10053,
+   "ms": 8823,
    "draws": [
     [
-     "WANTED_POLICE_DRONES",
-     260
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     175
-    ],
-    [
      "WORLD_CROWD_EXTRAS",
-     120
+     138
     ],
     [
      "Group",
-     119
+     118
     ],
     [
-     "SANDBOX_COP",
-     30
+     "WORLD_PROCEDURAL_POPULATION",
+     84
+    ],
+    [
+     "NUKE_TORN_CHUNK",
+     56
     ],
     [
      "WORLD_CITY_BUILDINGS",
      27
     ],
     [
-     "WORLD_CITY_ROADS",
-     22
+     "SANDBOX_COP",
+     24
     ],
     [
      "LOCAL_HUMAN_VR",
      20
-    ],
-    [
-     "SANDBOX_SWAT",
-     12
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
@@ -2652,6 +2395,10 @@
     ],
     [
      "SANDBOX_HEAVY",
+     6
+    ],
+    [
+     "SANDBOX_SWAT",
      6
     ],
     [
@@ -2681,13 +2428,17 @@
     [
      "WORLD_GROUND",
      1
+    ],
+    [
+     "NUKE_CRATER_GROUND",
+     1
     ]
    ],
-   "fps": 2.1,
-   "drawCalls": 489,
-   "triangles": 432403,
-   "lines": 270,
-   "programs": 149,
+   "fps": 2.7,
+   "drawCalls": 240,
+   "triangles": 385609,
+   "lines": 978,
+   "programs": 108,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
     "?#physical,STANDARD,,highp",
@@ -2738,53 +2489,36 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#10,11,highp,srgb,false,,",
     "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#12,13,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#depth,highp,srgb-linear,",
@@ -2806,43 +2540,19 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#sprite,highp,srgb,false,",
     "?#points,highp,srgb,false,",
     "?#lambert,highp,srgb,306,1",
     "?#lambert,highp,srgb,306,1",
     "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#sprite,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
+    "?#sprite,highp,srgb,false,",
     "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#depth,highp,srgb-linear,",
-    "?#depth,highp,srgb-linear,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#sprite,highp,srgb,false,"
+    "?#basic,highp,srgb,false,,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
    "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1211",
+   "cityBuildings": "1208",
    "water": "8077/188/222",
    "ground": "satellite-albedo",
    "roads": "1433",
@@ -2851,9 +2561,9 @@
    "collisionPrisms": "900",
    "terrainShapes": "224",
    "nukeDebris": "2000",
-   "nukeFlung": "38",
-   "nukeBuildings": "800",
-   "nukeActors": "123",
+   "nukeFlung": "35",
+   "nukeBuildings": "765",
+   "nukeActors": "104",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v2",
    "walkMode": "drone",
@@ -2861,23 +2571,19 @@
   },
   {
    "name": "nuke-16s",
-   "ms": 13519,
+   "ms": 12405,
    "draws": [
     [
-     "WANTED_POLICE_DRONES",
-     260
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     194
-    ],
-    [
      "WORLD_CROWD_EXTRAS",
-     120
+     138
     ],
     [
      "Group",
-     84
+     110
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     92
     ],
     [
      "SANDBOX_COP",
@@ -2889,268 +2595,22 @@
     ],
     [
      "WORLD_CITY_ROADS",
-     22
+     25
     ],
     [
      "LOCAL_HUMAN_VR",
      20
-    ],
-    [
-     "NUKE_TORN_CHUNK",
-     20
-    ],
-    [
-     "SANDBOX_SWAT",
-     12
-    ],
-    [
-     "SANDBOX_HEAVY",
-     12
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
      6
     ],
     [
-     "PILOT_SHIELD",
-     2
-    ],
-    [
-     "Mesh",
-     1
-    ],
-    [
-     "REAL_SKY",
-     1
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION[inst]",
-     1
-    ],
-    [
-     "NUKE_DEBRIS[inst]",
-     1
-    ],
-    [
-     "WORLD_WATER",
-     1
-    ]
-   ],
-   "fps": 1.9,
-   "drawCalls": 492,
-   "triangles": 496927,
-   "lines": 291,
-   "programs": 142,
-   "programNames": [
-    "BackgroundMaterial#0,1,highp,srgb,false,,uv",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#2,3,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#depth,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#6,14,highp,srgb-linear,f",
-    "?#6,15,highp,srgb-linear,f",
-    "?#6,16,highp,srgb-linear,f",
-    "?#6,17,highp,srgb,false,,f",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#10,11,highp,srgb,false,,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#10,11,highp,srgb,false,,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#depth,highp,srgb-linear,",
-    "?#depth,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#depth,highp,srgb-linear,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#depth,highp,srgb-linear,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#sprite,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#sprite,highp,srgb,false,"
-   ],
-   "status": "SIM ready: shared production runtime active.",
-   "worldMode": "real",
-   "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1211",
-   "water": "8077/188/222",
-   "ground": "satellite-albedo",
-   "roads": "1433",
-   "bloom": "off-slow-device",
-   "style": "realistic-pbr-sun-ibl-v4",
-   "collisionPrisms": "900",
-   "terrainShapes": "224",
-   "nukeDebris": "2000",
-   "nukeFlung": "38",
-   "nukeBuildings": "800",
-   "nukeActors": "123",
-   "droneHp": "100",
-   "footTouch": "single-owner-foot-touch-v2",
-   "walkMode": "drone",
-   "menuHidden": true
-  },
-  {
-   "name": "nuke-30s",
-   "ms": 19748,
-   "draws": [
-    [
-     "WANTED_POLICE_DRONES",
-     260
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     194
-    ],
-    [
-     "WORLD_CROWD_EXTRAS",
-     120
-    ],
-    [
-     "Group",
-     84
-    ],
-    [
-     "SANDBOX_COP",
-     30
-    ],
-    [
-     "WORLD_CITY_BUILDINGS",
-     27
-    ],
-    [
-     "WORLD_CITY_ROADS",
-     22
-    ],
-    [
-     "LOCAL_HUMAN_VR",
-     20
+     "SANDBOX_HEAVY",
+     6
     ],
     [
      "SANDBOX_SWAT",
-     12
-    ],
-    [
-     "SANDBOX_HEAVY",
-     12
-    ],
-    [
-     "WORLD_PROCEDURAL_DECOR[inst]",
      6
     ],
     [
@@ -3180,13 +2640,17 @@
     [
      "WORLD_GROUND",
      1
+    ],
+    [
+     "NUKE_CRATER_GROUND",
+     1
     ]
    ],
-   "fps": 2.1,
-   "drawCalls": 522,
-   "triangles": 498039,
+   "fps": 2.9,
+   "drawCalls": 195,
+   "triangles": 1063836,
    "lines": 0,
-   "programs": 142,
+   "programs": 106,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
     "?#physical,STANDARD,,highp",
@@ -3237,115 +2701,287 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
     "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#10,11,highp,srgb,false,,",
     "?#points,highp,srgb,false,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#depth,highp,srgb-linear,",
+    "?#depth,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#12,13,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#12,13,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#12,13,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#depth,highp,srgb-linear,",
-    "?#depth,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#depth,highp,srgb-linear,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#depth,highp,srgb-linear,",
-    "?#sprite,highp,srgb,false,",
     "?#points,highp,srgb,false,",
     "?#lambert,highp,srgb,306,1",
     "?#lambert,highp,srgb,306,1",
     "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#sprite,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#sprite,highp,srgb,false,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
    "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1210",
+   "cityBuildings": "1211",
    "water": "8077/188/222",
    "ground": "satellite-albedo",
-   "roads": "1433",
+   "roads": "1439",
    "bloom": "off-slow-device",
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
    "terrainShapes": "224",
    "nukeDebris": "2000",
-   "nukeFlung": "38",
-   "nukeBuildings": "800",
-   "nukeActors": "123",
+   "nukeFlung": "35",
+   "nukeBuildings": "765",
+   "nukeActors": "104",
+   "droneHp": "100",
+   "footTouch": "single-owner-foot-touch-v2",
+   "walkMode": "drone",
+   "menuHidden": true
+  },
+  {
+   "name": "nuke-30s",
+   "ms": 18429,
+   "draws": [
+    [
+     "WORLD_CROWD_EXTRAS",
+     138
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     92
+    ],
+    [
+     "Group",
+     83
+    ],
+    [
+     "SANDBOX_COP",
+     30
+    ],
+    [
+     "WORLD_CITY_BUILDINGS",
+     27
+    ],
+    [
+     "WORLD_CITY_ROADS",
+     25
+    ],
+    [
+     "LOCAL_HUMAN_VR",
+     20
+    ],
+    [
+     "WORLD_PROCEDURAL_DECOR[inst]",
+     6
+    ],
+    [
+     "SANDBOX_HEAVY",
+     6
+    ],
+    [
+     "SANDBOX_SWAT",
+     6
+    ],
+    [
+     "PILOT_SHIELD",
+     2
+    ],
+    [
+     "Mesh",
+     1
+    ],
+    [
+     "REAL_SKY",
+     1
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION[inst]",
+     1
+    ],
+    [
+     "NUKE_DEBRIS[inst]",
+     1
+    ],
+    [
+     "WORLD_WATER",
+     1
+    ],
+    [
+     "WORLD_GROUND",
+     1
+    ],
+    [
+     "NUKE_CRATER_GROUND",
+     1
+    ]
+   ],
+   "fps": 2.9,
+   "drawCalls": 187,
+   "triangles": 1059868,
+   "lines": 0,
+   "programs": 104,
+   "programNames": [
+    "BackgroundMaterial#0,1,highp,srgb,false,,uv",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#2,3,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#depth,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
+    "?#10,11,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#12,13,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#6,14,highp,srgb-linear,f",
+    "?#6,15,highp,srgb-linear,f",
+    "?#6,16,highp,srgb-linear,f",
+    "?#6,17,highp,srgb,false,,f",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#10,11,highp,srgb,false,,",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#10,11,highp,srgb,false,,",
+    "?#points,highp,srgb,false,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#depth,highp,srgb-linear,",
+    "?#depth,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#sprite,highp,srgb,false,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,"
+   ],
+   "status": "SIM ready: shared production runtime active.",
+   "worldMode": "real",
+   "mapSync": "data-only-topdown-v1",
+   "cityBuildings": "1211",
+   "water": "8077/188/222",
+   "ground": "satellite-albedo",
+   "roads": "1439",
+   "bloom": "off-slow-device",
+   "style": "realistic-pbr-sun-ibl-v4",
+   "collisionPrisms": "900",
+   "terrainShapes": "224",
+   "nukeDebris": "2000",
+   "nukeFlung": "35",
+   "nukeBuildings": "765",
+   "nukeActors": "104",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v2",
    "walkMode": "drone",
@@ -3601,10 +3237,42 @@
   "memory access out of bounds",
   "memory access out of bounds",
   "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
+  "memory access out of bounds",
   "memory access out of bounds"
  ],
- "domContentLoadedMs": 1445,
- "loadEventMs": 2371,
+ "domContentLoadedMs": 1455,
+ "loadEventMs": 2309,
  "boot": {
   "readyState": "complete",
   "status": "SIM ready: shared production runtime active.",
@@ -3612,32 +3280,32 @@
   "resources": [
    {
     "n": "l,opsz,wght@0,14..32,400..900;1,14..32,700..900&display=swap",
-    "ms": 57,
+    "ms": 80,
     "kb": 1
    },
    {
     "n": "https://kurzlernen.de/drone_simulator.webmanifest",
-    "ms": 106,
+    "ms": 58,
     "kb": 1
    },
    {
-    "n": "ps://kurzlernen.de/drone_simulator.html?vcheck=1791400204380",
-    "ms": 72,
-    "kb": 1392
+    "n": "ps://kurzlernen.de/drone_simulator.html?vcheck=1791401359409",
+    "ms": 74,
+    "kb": 1393
    },
    {
     "n": "https://kurzlernen.de/sim/icons/rush-192.png",
-    "ms": 110,
+    "ms": 73,
     "kb": 19
    },
    {
     "n": "https://kurzlernen.de/sim/icons/rush-192.png",
-    "ms": 103,
+    "ms": 77,
     "kb": 0
    },
    {
     "n": "https://kurzlernen.de/sim/icons/rush-192.png",
-    "ms": 103,
+    "ms": 79,
     "kb": 0
    }
   ]
@@ -3757,19 +3425,19 @@
   "font": "Inter, -apple-system, \"SF Pro Text\", system-ui, \"Segoe UI\", Roboto, sans-serif"
  },
  "attribution": {
-  "baseline": 3.2,
-  "noCitySolids": 3.4,
-  "noCityEdges": 3.3,
-  "noObjectEdges": 4.3,
-  "noGrid": 3.2,
-  "no_WORLD_CITY_ROADS": 2.9,
-  "no_WORLD_GROUND": 3.3,
+  "baseline": 3.4,
+  "noCitySolids": 3.3,
+  "noCityEdges": 3.2,
+  "noObjectEdges": 4.1,
+  "noGrid": 3.1,
+  "no_WORLD_CITY_ROADS": 3.8,
+  "no_WORLD_GROUND": 3.9,
   "no_WORLD_WATER": 3,
-  "no_REAL_SKY": 3.2,
+  "no_REAL_SKY": 3.1,
   "no_WORLD_PROCEDURAL_POPULATION": 3.2,
-  "no_WORLD_PROCEDURAL_DECOR": 3.1,
-  "noShadows": 3.2,
-  "halfRes": 3.9,
+  "no_WORLD_PROCEDURAL_DECOR": 3.2,
+  "noShadows": 3.1,
+  "halfRes": 3.3,
   "noMapCanvas": 3.9,
   "objectEdges": 0
  },
@@ -3777,66 +3445,66 @@
   "drone": [
    [
     "(idle) :0",
-    64
+    65.5
    ],
    [
     "(program) :0",
-    14.8
+    12.7
    ],
    [
-    "wasm-function[240] 003320de:1",
-    1.3
+    "(garbage collector) :0",
+    1.4
    ],
    [
-    "vo drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:9707",
-    1.3
-   ],
-   [
-    "toWireType drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:9695",
+    "vo drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:9707",
     1.1
    ],
    [
-    "(anon) drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10188",
-    0.9
+    "wasm-function[240] 003320de:1",
+    1.1
    ],
    [
-    "applyForces drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10572",
+    "toWireType drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:9695",
     0.8
+   ],
+   [
+    "now :0",
+    0.6
    ],
    [
     "getBoundingClientRect :0",
     0.6
    ],
    [
-    "(anon) drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10741",
+    "Wp drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:9707",
     0.5
    ],
    [
-    "now :0",
-    0.5
-   ],
-   [
-    "(garbage collector) :0",
-    0.5
-   ],
-   [
-    "Gbe drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10572",
+    "yv drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:9707",
     0.4
    ],
    [
-    "vv drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:9707",
+    "applyForces drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10572",
     0.4
    ],
    [
-    "Wp drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:9707",
+    "wasm-function[438] 003320de:1",
+    0.4
+   ],
+   [
+    "Yv drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:4366",
+    0.4
+   ],
+   [
+    "(anon) drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10741",
     0.3
    ],
    [
-    "wasm-function[342] 003320de:1",
+    "getObjectByProperty drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:258",
     0.3
    ],
    [
-    "wasm-to-js :1",
+    "get geometry drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:4366",
     0.3
    ],
    [
@@ -3844,55 +3512,59 @@
     0.3
    ],
    [
+    "Dz drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10188",
+    0.3
+   ],
+   [
+    "eA drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:4366",
+    0.3
+   ],
+   [
+    "drawMinimap drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10741",
+    0.3
+   ],
+   [
     "(anon) :3",
     0.3
    ],
    [
-    "e1 drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:4366",
+    "exchangeSync drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10572",
     0.3
    ],
    [
-    "traverse drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:258",
+    "js-to-wasm:iii: 003320de:1",
     0.3
    ],
    [
-    "FYe drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10572",
+    "wasm-to-js :1",
+    0.3
+   ],
+   [
+    "TE drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10371",
     0.2
    ],
    [
-    "getObjectByProperty drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:258",
+    "wasm-function[342] 003320de:1",
     0.2
    ],
    [
-    "get geometry drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:4366",
+    "Xbe drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10572",
     0.2
    ],
    [
-    "stepBias drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10572",
+    "eme drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10235",
     0.2
    ],
    [
-    "exchangeSync drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10572",
+    "zYe drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10572",
     0.2
    ],
    [
-    "wasm-function[438] 003320de:1",
+    "(anon) drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10188",
     0.2
    ],
    [
-    "lineTo :0",
-    0.2
-   ],
-   [
-    "wasm-function[343] 003320de:1",
-    0.2
-   ],
-   [
-    "drawMinimap drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10741",
-    0.2
-   ],
-   [
-    "TM drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10572",
+    "updateMatrixWorld drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:258",
     0.2
    ],
    [
@@ -3900,145 +3572,117 @@
     0.2
    ],
    [
-    "uz drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:9796",
+    "setTimeout :0",
     0.2
    ],
    [
-    "js-to-wasm:iii: 003320de:1",
-    0.1
-   ],
-   [
-    "imuRaw drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10572",
-    0.1
-   ],
-   [
     "wasm-function[315] 003320de:1",
-    0.1
-   ],
-   [
-    "fill :0",
-    0.1
-   ],
-   [
-    "wasm-function[113] 003320de:1",
-    0.1
+    0.2
    ],
    [
     "wasm-function[15] 00017c56:1",
+    0.2
+   ],
+   [
+    "wasm-function[343] 003320de:1",
+    0.2
+   ],
+   [
+    "traverse drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:258",
+    0.2
+   ],
+   [
+    "fu drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10188",
+    0.2
+   ],
+   [
+    "stepBias drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10572",
     0.1
    ],
    [
-    "setTimeout :0",
+    "lineTo :0",
     0.1
    ],
    [
-    "Jve drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10408",
+    "wasm-function[458] 003320de:1",
+    0.1
+   ],
+   [
+    "bEe drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:4366",
+    0.1
+   ],
+   [
+    "loadMatchingFeature drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:4366",
+    0.1
+   ],
+   [
+    "RAe drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10188",
     0.1
    ],
    [
     "querySelector :0",
-    0.1
-   ],
-   [
-    "js-to-wasm:iif: 003320de:1",
-    0.1
-   ],
-   [
-    "updateMatrixWorld drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:258",
-    0.1
-   ],
-   [
-    "_x drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:258",
-    0.1
-   ],
-   [
-    "Qr drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:4365",
     0.1
    ]
   ],
   "foot": [
    [
     "(idle) :0",
-    78.7
+    78.3
    ],
    [
     "(program) :0",
-    6.6
+    6.4
    ],
    [
-    "toWireType drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:9695",
-    1.1
-   ],
-   [
-    "kz drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10188",
-    0.8
-   ],
-   [
-    "(anon) :3",
+    "toWireType drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:9695",
     0.8
    ],
    [
     "wasm-function[240] 003320de:1",
-    0.4
+    0.8
    ],
    [
-    "getBoundingClientRect :0",
-    0.4
+    "vo drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:9707",
+    0.6
    ],
    [
-    "Gbe drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10572",
-    0.3
+    "(anon) :3",
+    0.6
    ],
    [
-    "(anon) drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10741",
-    0.3
+    "Dz drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10188",
+    0.5
    ],
    [
     "(garbage collector) :0",
+    0.4
+   ],
+   [
+    "yv drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:9707",
+    0.4
+   ],
+   [
+    "Xbe drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10572",
     0.3
    ],
    [
-    "drawMinimap drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10741",
+    "drawMinimap drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10741",
     0.3
    ],
    [
-    "traverse drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:258",
+    "traverse drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:258",
     0.3
    ],
    [
-    "get geometry drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:4366",
-    0.3
-   ],
-   [
-    "TE drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10371",
+    "exchangeSync drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10572",
     0.2
    ],
    [
-    "setTimeout :0",
+    "WM drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10714",
     0.2
    ],
    [
-    "e1 drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:4366",
-    0.2
-   ],
-   [
-    "step drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10572",
-    0.2
-   ],
-   [
-    "DW drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10572",
-    0.2
-   ],
-   [
-    "renderReal drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10741",
-    0.2
-   ],
-   [
-    "fill :0",
-    0.2
-   ],
-   [
-    "vo drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:9707",
+    "getBoundingClientRect :0",
     0.2
    ],
    [
@@ -4046,39 +3690,83 @@
     0.2
    ],
    [
-    "vv drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:9707",
+    "get geometry drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:4366",
     0.2
    ],
    [
-    "FYe drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10572",
+    "updateMatrixWorld drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:258",
     0.2
    ],
    [
-    "fromWireType drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:9695",
-    0.1
+    "Yv drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:4366",
+    0.2
    ],
    [
-    "updateMatrixWorld drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:258",
-    0.1
+    "wasm-function[438] 003320de:1",
+    0.2
    ],
    [
-    "Qr drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:4365",
-    0.1
+    "TE drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10371",
+    0.2
    ],
    [
-    "gaussian drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10572",
-    0.1
+    "zYe drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10572",
+    0.2
+   ],
+   [
+    "kM drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10572",
+    0.2
+   ],
+   [
+    "Wp drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:9707",
+    0.2
+   ],
+   [
+    "step drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10572",
+    0.2
+   ],
+   [
+    "setTimeout :0",
+    0.2
    ],
    [
     "wasm-to-js :1",
+    0.2
+   ],
+   [
+    "wasm-function[342] 003320de:1",
+    0.2
+   ],
+   [
+    "(anon) drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10741",
     0.1
    ],
    [
-    "TM drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10572",
+    "fromWireType drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:9695",
     0.1
    ],
    [
-    "db drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:562",
+    "wasm-function[113] 003320de:1",
+    0.1
+   ],
+   [
+    "stepBias drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10572",
+    0.1
+   ],
+   [
+    "j7e drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:9739",
+    0.1
+   ],
+   [
+    "cie drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10667",
+    0.1
+   ],
+   [
+    "oJe drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10408",
+    0.1
+   ],
+   [
+    "hd drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:4365",
     0.1
    ],
    [
@@ -4086,60 +3774,40 @@
     0.1
    ],
    [
-    "multiplyMatrices drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:258",
+    "wasm-function[712] 003320de:1",
     0.1
    ],
    [
-    "getObjectByProperty drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:258",
+    "Txe drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10369",
     0.1
    ],
    [
-    "wasm-function[342] 003320de:1",
+    "gaussian drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10572",
     0.1
    ],
    [
-    "js-to-wasm:iii: 003320de:1",
+    "Kge drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10242",
     0.1
    ],
    [
-    "rA drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:4366",
+    "setFromEuler drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:258",
     0.1
    ],
    [
-    "wasm-function[110] 003320de:1",
+    "applyForces drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10572",
     0.1
    ],
    [
-    "bindVertexArray :0",
+    "rfe drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc&menu=1&hq=1:10195",
     0.1
    ],
    [
-    "Ixe drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10371",
-    0.1
-   ],
-   [
-    "Ad drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:4365",
-    0.1
-   ],
-   [
-    "(anon) drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:152",
-    0.1
-   ],
-   [
-    "imuRaw drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10572",
-    0.1
-   ],
-   [
-    "qXe drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:10406",
-    0.1
-   ],
-   [
-    "queryIntersectsFeature drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32&menu=1&hq=1:4366",
+    "postMessage :0",
     0.1
    ]
   ]
  },
- "walkMoved": 5.228650793650791,
+ "walkMoved": 4.823650793650795,
  "walkSprint": "0",
  "interior": {
   "key": "26295923:-380,1411;187,1033;957,1971;434,2545|-10,1535;-39,1549;-90,1477;-24,1426;19,1484;136,1397;361,1695;579,1949;426,2116;354,2014;361,1993;354,1956;303,1949;237,2007;34,1738;107,1680;114,1637;92,1629;56,1637",
@@ -4156,7 +3824,7 @@
    "where": "door",
    "levels": 6,
    "roof": false,
-   "eyeZ": 1.780385642508977
+   "eyeZ": 1.780569517826442
   },
   "inside": {
    "x": 3.930802622656394,
@@ -4196,11 +3864,11 @@
   }
  },
  "arm": {
-  "error": "could not atomically arm healthy drone for NUKE: {\"destroyed\":false,\"canDeploy\":true,\"disabled\":false,\"button\":\"ARMING…\",\"fc\":\"DISARMED\",\"mode\":\"drone\"}"
+  "error": "could not atomically arm healthy drone for NUKE: {\"destroyed\":false,\"canDeploy\":true,\"disabled\":false,\"button\":\"ARMING…\",\"fc\":\"FAULT 4\",\"mode\":\"drone\"}"
  },
  "nukeRemote": [
-  199.37192578399353,
-  -328.1401609689064,
+  -203.54691199694184,
+  -306.8929869823861,
   0
  ]
 }

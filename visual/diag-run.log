@@ -1,9 +1,9 @@
 {
- "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=bd3beb3da0ccf69647c9751b9ee72e7445368d32",
+ "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=1aebc69d3659f01fdaaf25b2b4eb369e728ab3bc",
  "steps": [
   {
    "name": "boot-5s",
-   "ms": 8839,
+   "ms": 8359,
    "draws": [
     [
      "TRAINING_SHOWCASE_PLAZA",
@@ -38,7 +38,7 @@
      1
     ]
    ],
-   "fps": 1.4,
+   "fps": 4.4,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
@@ -142,10 +142,10 @@
      1
     ]
    ],
-   "fps": 3.9,
-   "drawCalls": 1,
-   "triangles": 2,
-   "lines": 0,
+   "fps": 3.8,
+   "drawCalls": 108,
+   "triangles": 44741,
+   "lines": 271,
    "programs": 49,
    "programNames": [
     "BackgroundMaterial#0,1,highp,srgb,false,,uv",
@@ -201,7 +201,7 @@
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "training",
    "water": "0/0/0",
-   "bloom": "quarter-res-two-level-bloom-v1",
+   "bloom": "off-slow-device",
    "style": "realistic-pbr-sun-ibl-v4",
    "terrainShapes": "2",
    "droneHp": "100",
@@ -211,7 +211,7 @@
   },
   {
    "name": "started",
-   "ms": 23032,
+   "ms": 22101,
    "draws": [
     [
      "WORLD_CROWD_EXTRAS",
@@ -219,7 +219,7 @@
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
-     135
+     145
     ],
     [
      "Group",
@@ -228,10 +228,6 @@
     [
      "WORLD_CITY_BUILDINGS",
      19
-    ],
-    [
-     "WORLD_CITY_ROADS",
-     15
     ],
     [
      "LOCAL_HUMAN_VR",
@@ -270,10 +266,11 @@
      1
     ]
    ],
-   "fps": 3.1,
-   "drawCalls": 128,
-   "triangles": 359608,
+   "fps": 4.2,
+   "drawCalls": 189,
+   "triangles": 309306,
    "lines": 0,
-   "programs": 98,
+   "programs": 80,
    "programNames": [
-    "BackgroundMateri
+    "BackgroundMaterial#0,1,highp,srgb,false,,uv",
+    "?#physical,STANDAR
