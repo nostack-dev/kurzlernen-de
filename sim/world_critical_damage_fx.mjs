@@ -20,6 +20,9 @@ function clearPool(){for(const puff of puffs)puff.sprite.parent?.remove(puff.spr
 function ensurePool(){
   const scene=bridge()?.threeScene;if(!scene)return false;if(scene!==sceneRef){clearPool();sceneRef=scene;}
   const map=makeTexture();while(puffs.length<MAX_PUFFS){const material=new THREE.SpriteMaterial({map,color:0x4a4d4f,transparent:true,opacity:0,depthWrite:false,depthTest:true}),sprite=new THREE.Sprite(material);sprite.visible=false;sprite.renderOrder=16;sprite.userData.flightFireIgnore=true;sprite.userData.worldCriticalSmoke=true;scene.add(sprite);puffs.push({sprite,velocity:new THREE.Vector3(),born:0,expires:0,startScale:1,endScale:2,ember:false,serial:0});}
+  // Compile the sprite program now (one invisible, zero-opacity frame), not
+  // on the frame the first building starts smoking (that was a nuke hitch).
+  if(!puffs.warmed){puffs.warmed=true;const warm=new THREE.Sprite(new THREE.SpriteMaterial({map,color:0x4a4d4f,transparent:true,opacity:0,depthWrite:false,depthTest:true}));warm.frustumCulled=false;warm.position.set(0,0,-4000);warm.userData.flightFireIgnore=true;scene.add(warm);setTimeout(()=>{warm.parent?.remove(warm);},3000);}
   const view=viewport();if(view){view.dataset.worldCriticalDamageFx="dark-smoke+ember-countdown-v1";view.dataset.worldCriticalSmokePool=String(MAX_PUFFS);}return true;
 }
 
