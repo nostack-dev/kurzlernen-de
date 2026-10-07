@@ -9,7 +9,7 @@ const DECOR_REFRESH_MS=900;
 const UI_SELECTOR="button,input,select,textarea,a,label,dialog,[role=button],#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud";
 const WORLD_DECOR_RE=/(?:WORLD_.*(?:TREE|LAMP|PROP|SIGN|DECOR|STREET)|WORLD_LIVELINESS_(?:TREES|LAMPS))/i;
 
-let installed=false,lastTapAt=-Infinity,lastDecorRefresh=-Infinity,lastFrame=performance.now(),lastDetailedImpactAt=-Infinity;
+let installed=false,lastTapAt=-Infinity,lastDecorRefresh=-Infinity,lastFrame=performance.now(),lastDetailedImpactAt=-Infinity,decorScanScene=null,decorScanStack=[],decorScanReleased=0,decorScanPopulation=0;
 let routingPopulationHit=false,audioCtx=null,audioMaster=null,noiseBuffer=null,audioSettings=loadAudioSettings();
 let particleScene=null,particlePoints=null,particleGeometry=null,particlePositions=null,particleColors=null,particleCursor=0;
 const particles=Array.from({length:PARTICLE_COUNT},()=>({active:false,v:new THREE.Vector3(),expires:0}));
@@ -97,15 +97,26 @@ function spawnImpactParticles(hit,kind){
 function updateParticles(now,dt){if(!particlePoints)return;let any=false;for(let i=0;i<PARTICLE_COUNT;i++){const p=particles[i];if(!p.active)continue;if(now>=p.expires){p.active=false;particlePositions[i*3+2]=-999;continue;}any=true;p.v.z-=3.1*dt;particlePositions[i*3]+=p.v.x*dt;particlePositions[i*3+1]+=p.v.y*dt;particlePositions[i*3+2]+=p.v.z*dt;}particlePoints.visible=any;if(any)particleGeometry.attributes.position.needsUpdate=true;}
 
 function ancestorName(node){let names="";for(let n=node;n;n=n.parent)names+=` ${String(n.name||"")}`;return names;}
+function beginDecorScan(scene){decorScanScene=scene;decorScanStack.length=0;decorScanStack.push(scene);decorScanReleased=0;decorScanPopulation=0;}
+function stepDecorScan(deadline){
+  while(decorScanStack.length&&performance.now()<deadline){
+    const node=decorScanStack.pop();if(!node)continue;
+    if((node.isMesh||node.isInstancedMesh)&&!node.userData?.flightFireDecal&&!node.userData?.flightFireTracer&&!node.userData?.worldActionFeedbackFx){
+      const populationKind=String(node.userData?.worldPopulationKind||node.userData?.worldLifeKind||""),decor=WORLD_DECOR_RE.test(ancestorName(node));
+      if(node.userData?.flightFireIgnore===true&&(populationKind||decor)){node.userData.flightFireIgnore=false;node.userData.worldActionShootable=true;decorScanReleased++;}
+      if(populationKind)decorScanPopulation++;
+    }
+    const children=node.children;for(let i=children.length-1;i>=0;i--)decorScanStack.push(children[i]);
+  }
+  if(decorScanStack.length)return false;
+  const v=viewport();if(v){v.dataset.worldShootablePopulation=String(decorScanPopulation);v.dataset.worldShootableDecorReleased=String((Number(v.dataset.worldShootableDecorReleased)||0)+decorScanReleased);v.dataset.worldActionFeedback="decals+particles+audio+population-reaction-v2";v.dataset.worldActionScan="incremental-1ms-v1";}
+  decorScanScene=null;return true;
+}
 function releaseShootableWorldDecor(now){
-  if(now-lastDecorRefresh<DECOR_REFRESH_MS)return;lastDecorRefresh=now;const scene=bridge()?.threeScene,v=viewport();if(!scene||!v)return;let released=0,population=0;
-  scene.traverse?.(node=>{
-    if(!(node?.isMesh||node?.isInstancedMesh)||node.userData?.flightFireDecal||node.userData?.flightFireTracer||node.userData?.worldActionFeedbackFx)return;
-    const populationKind=String(node.userData?.worldPopulationKind||node.userData?.worldLifeKind||"");const decor=WORLD_DECOR_RE.test(ancestorName(node));
-    if(node.userData?.flightFireIgnore===true&&(populationKind||decor)){node.userData.flightFireIgnore=false;node.userData.worldActionShootable=true;released++;}
-    if(populationKind)population++;
-  });
-  v.dataset.worldShootablePopulation=String(population);v.dataset.worldShootableDecorReleased=String((Number(v.dataset.worldShootableDecorReleased)||0)+released);v.dataset.worldActionFeedback="decals+particles+audio+population-reaction-v2";
+  const scene=bridge()?.threeScene;if(!scene)return;
+  if(decorScanScene&&decorScanScene!==scene){decorScanScene=null;decorScanStack.length=0;}
+  if(!decorScanScene&&now-lastDecorRefresh>=DECOR_REFRESH_MS){lastDecorRefresh=now;beginDecorScan(scene);}
+  if(decorScanScene)stepDecorScan(performance.now()+1.0);
 }
 
 function acknowledgeSceneHit(hit,handledWorld=false){
