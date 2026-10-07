@@ -22,7 +22,7 @@ function setMenuStatus(text){if(menuStatus)menuStatus.textContent=text;}
 // Unlock on START (before any awaits), then play at the actual game reveal.
 // Web Audio preserves the gesture unlock across GPS / world loading on iOS.
 let introContext=null,introSource=null,introGeneration=0;
-const introBytes=AUTOSTART?Promise.resolve(null):fetch("./sim/audio/oppenheimer-intro.m4a")
+const introBytes=AUTOSTART?Promise.resolve(null):fetch("./sim/audio/oppenheimer-intro.m4a?v=2")
   .then(response=>response.ok?response.arrayBuffer():null).catch(()=>null);
 function introSoundEnabled(){try{return JSON.parse(localStorage.getItem("arondight45AudioSettingsV1")||"{}").soundEnabled!==false;}catch{return true;}}
 function unlockIntroAudio(){
