@@ -15,7 +15,12 @@ function ensureEngine(){
   try{engine=new WorldRigidBodyPhysics(b3,{buildingSnapshot:bridge()?.buildingCollisionSnapshot,onImpact:detail=>{globalThis.dispatchEvent(new CustomEvent("arondight:world-physics-impact",{detail}));const v=viewport();if(v){v.dataset.worldPhysicsImpacts=String(engine?.impactCount||0);v.dataset.worldPhysicsLastImpact=detail.kind;v.dataset.worldPhysicsLastImpactMps=detail.deltaVelocityMps.toFixed(2);}}});for(const config of pendingBodies.values())engine.addBody(config);for(const[id,target]of pendingTargets)engine.setTarget(id,target);bootError="";}catch(error){bootError=String(error?.message||error);const v=viewport();if(v)v.dataset.worldRigidBodyError=bootError;return null;}return engine;
 }
 function upsertBody(config={}){const id=String(config.id||"");if(!id)return false;pendingBodies.set(id,{...config,id});const current=ensureEngine();if(current&&!current.records.has(id))current.addBody(pendingBodies.get(id));const target=pendingTargets.get(id);if(current&&target)current.setTarget(id,target);return true;}
-function setTarget(id,target={}){const key=String(id||"");if(!key)return false;pendingTargets.set(key,{...target,position:Array.isArray(target.position)?[...target.position]:target.position});return ensureEngine()?.setTarget(key,pendingTargets.get(key))??true;}
+function setTarget(id,target={}){
+  const key=String(id||""),position=target?.position;if(!key||!Array.isArray(position)||position.length!==3)return false;
+  let stored=pendingTargets.get(key);if(!stored){stored={position:[0,0,0],speedMps:0,response:3.2,maxAccelerationMps2:undefined,yaw:null};pendingTargets.set(key,stored);}
+  stored.position[0]=Number(position[0])||0;stored.position[1]=Number(position[1])||0;stored.position[2]=Number(position[2])||0;stored.speedMps=Number(target.speedMps)||0;stored.response=target.response??3.2;stored.maxAccelerationMps2=target.maxAccelerationMps2;stored.yaw=Number.isFinite(target.yaw)?Number(target.yaw):null;
+  return ensureEngine()?.setTarget(key,stored)??true;
+}
 function setDrive(id,drive=null){return ensureEngine()?.setDrive?.(String(id||""),drive)??false;}
 function clearTarget(id){const key=String(id||"");pendingTargets.delete(key);return ensureEngine()?.clearTarget(key)??false;}
 function setPose(id,pose={}){const key=String(id||""),config=pendingBodies.get(key),position=pose?.position;if(!key||!config||!Array.isArray(position)||position.length!==3||!position.every(Number.isFinite))return false;const current=ensureEngine();if(!current?.setPose(key,pose))return false;pendingBodies.set(key,{...config,position:[...position],...(Number.isFinite(pose.yaw)?{yaw:Number(pose.yaw)}:{})});return true;}
