@@ -2,21 +2,27 @@ import * as THREE from "three";
 import "./neon_ui_theme.mjs";
 import "./emp_button_layout.mjs";
 import {groundHeightAt} from "./terrain_craters.mjs";
+import {patchShockMaterial} from "./nuke_shock_field.mjs";
 
 // Neon wireframe city, matching the RUSH start screen: black plate, bright
 // green edges, ground grid. No maps, no imagery, no shadow maps.
-// Wireframe primitives only: filled city/road/ground faces and textured meshes
-// are hidden; the city builder's EDGES line segments and the grid stay.
+// WebGL line primitives only: before every render each Mesh/Line material is
+// forced to wireframe (gl.LINES), untextured, #3dff8a. No filled fragments.
+// Fat screen-space edge lines (LineMaterial) keep their own line shader.
 
-export const STYLIZED_STYLE_VERSION="rush-wire-primitives-v1";
+export const STYLIZED_STYLE_VERSION="rush-wire-primitives-v2";
 export const STYLE_PALETTE=Object.freeze({skyZenith:0x020c07,skyHorizon:0x052515,haze:0x07331d,ground:0x02140c,phosphor:0x3dff8a,edge:0x39ff14,fill:0x032417});
 export const NEON_BUILDING_EXTRUSION_COLOR="#032417";
 const PHOSPHOR=0x3dff8a,FILL=0x032417,SURFACE=0x087043,HOT=0xb6ffcf;
 const MOBILE=typeof navigator!=="undefined"&&/android|iphone|ipad|mobile/i.test(navigator.userAgent||"");
 const SCAN_INTERVAL_MS=MOBILE?900:650,FRAME_BUDGET_MS=2.8,EDGE_THRESHOLD=26;
 const CLEAR_COLOR=0x010806,GRID_STEP_M=16,GRID_LIFT_M=.2;
-const HIDE_NAMES=new Set(["WORLD_CITY_SOLIDS","WORLD_CITY_ROADS","WORLD_GROUND"]);
-const hiddenFaces=new Set(),clearColor=new THREE.Color(CLEAR_COLOR);
+const WIRE_COLOR=0x3dff8a,FORCE_VISIBLE=new Set(["WORLD_CITY_SOLIDS","WORLD_CITY_ROADS","WORLD_GROUND"]);
+const clearColor=new THREE.Color(CLEAR_COLOR),wireStats={materials:0,swapped:0,sprites:0};
+// Lit materials render black once the lights are off, and the ground's own
+// shader paints its colour procedurally; both are swapped for this one.
+const WIRE_MESH=patchShockMaterial(new THREE.MeshBasicMaterial({color:WIRE_COLOR,wireframe:true,fog:false,toneMapped:false,transparent:false,opacity:1,side:THREE.FrontSide}));
+WIRE_MESH.userData.rushWire=true;
 
 let installed=false,queue=[],lastScan=-Infinity,styledScene=null,sky=null,grid=null,converted=0,lastCull=-Infinity,actorRoots=[],scanStack=[],scanActors=[],scanSceneRef=null;
 const processed=new WeakSet(),edgeCache=new Map();
@@ -47,11 +53,41 @@ function killLights(scene,renderer){
 const edgeMat=new THREE.LineBasicMaterial({color:PHOSPHOR,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false});
 function edgesFor(geometry){const key=geometry.uuid;let g=edgeCache.get(key);if(!g){g=new THREE.EdgesGeometry(geometry,EDGE_THRESHOLD);edgeCache.set(key,g);}return g;}
 function materialsOf(mesh){return(Array.isArray(mesh.material)?mesh.material:[mesh.material]).filter(Boolean);}
-function keepsEdges(node){return typeof node?.name==="string"&&node.name.includes("EDGES");}
-function hasTextureMap(node){return Boolean(node?.isMesh&&materialsOf(node).some(m=>m.map||m.emissiveMap));}
-function wantsHidden(node){return !keepsEdges(node)&&(HIDE_NAMES.has(node.name)||hasTextureMap(node));}
-function hideFace(node){if(node.visible)node.visible=false;if(!hiddenFaces.has(node)){hiddenFaces.add(node);node.userData.wireHidden=true;}}
-function hideFilledFaces(){for(const node of hiddenFaces){if(!node.parent){hiddenFaces.delete(node);continue;}if(node.visible)node.visible=false;}}
+function needsSwap(node,m){
+  if(m.userData?.rushWire)return false;
+  if(node.name==="WORLD_GROUND")return true;
+  return Boolean(m.isMeshStandardMaterial||m.isMeshPhongMaterial||m.isMeshLambertMaterial||m.isMeshToonMaterial||m.isMeshMatcapMaterial||m.isMeshNormalMaterial);
+}
+function wireMaterial(m){
+  if(!m||m.isLineMaterial)return;let rebuild=false;
+  for(const slot of["map","emissiveMap","alphaMap"])if(m[slot]){m[slot]=null;rebuild=true;}
+  if(m.wireframe!==true)m.wireframe=true;
+  if(m.color&&m.color.getHex()!==WIRE_COLOR)m.color.setHex(WIRE_COLOR);
+  if("emissiveIntensity"in m&&m.emissiveIntensity!==0)m.emissiveIntensity=0;
+  if(m.vertexColors){m.vertexColors=false;rebuild=true;}
+  if(m.fog!==false){m.fog=false;rebuild=true;}
+  if(m.toneMapped!==false){m.toneMapped=false;rebuild=true;}
+  if(m.transparent!==false){m.transparent=false;rebuild=true;}
+  if(m.opacity!==1)m.opacity=1;
+  if(m.side!==THREE.FrontSide){m.side=THREE.FrontSide;rebuild=true;}
+  if(rebuild)m.needsUpdate=true;wireStats.materials++;
+}
+// Pre-render pass: runs after every module's frame work (city rebuilds,
+// ground rebuilds, restyling), so nothing can turn a filled face back on.
+function wireScene(scene){
+  wireStats.materials=0;wireStats.swapped=0;wireStats.sprites=0;
+  scene.traverse(node=>{
+    if(node===sky){node.visible=false;return;}
+    if(FORCE_VISIBLE.has(node.name)&&!node.visible)node.visible=true;
+    if(node.isSprite){if(node.visible)node.visible=false;wireStats.sprites++;return;}
+    if(!(node.isMesh||node.isLine||node.isLineSegments))return;
+    if(node.isMesh&&!node.isLineSegments2&&!node.isLine2){
+      if(Array.isArray(node.material)){if(node.material.some(m=>needsSwap(node,m))){node.userData.wireOriginalMaterial??=node.material;node.material=WIRE_MESH;wireStats.swapped++;}}
+      else if(node.material&&needsSwap(node,node.material)){node.userData.wireOriginalMaterial??=node.material;node.material=WIRE_MESH;wireStats.swapped++;}
+    }
+    for(const m of materialsOf(node))wireMaterial(m);
+  });
+}
 function wireBackdrop(scene,renderer){
   if(!scene.background?.isColor||scene.background.getHex()!==CLEAR_COLOR)scene.background=new THREE.Color(CLEAR_COLOR);
   if(renderer?.setClearColor)renderer.setClearColor(clearColor,1);
@@ -78,12 +114,7 @@ function addEdges(node){
   lines.userData.styleSkip=true;lines.frustumCulled=node.frustumCulled;lines.renderOrder=(node.renderOrder||0)+1;node.add(lines);node.userData.phosphorEdges=true;
 }
 function convert(node){
-  if(node.userData.wireHidden)return;
-  node.userData.stylized=STYLIZED_STYLE_VERSION;node.userData.stylizedMaterial=node.material;node.castShadow=false;node.receiveShadow=false;
-  if(node.isSprite){for(const m of materialsOf(node))phosphorize(m,true);converted++;return;}
-  if(!node.isMesh||skip(node))return;
-  for(const m of materialsOf(node))phosphorize(m,false);
-  addEdges(node);converted++;
+  node.userData.stylized=STYLIZED_STYLE_VERSION;node.userData.stylizedMaterial=node.material;node.castShadow=false;node.receiveShadow=false;converted++;
 }
 function needsWork(node){return(node.isMesh||node.isSprite)&&(node.userData.stylized!==STYLIZED_STYLE_VERSION||node.userData.stylizedMaterial!==node.material);}
 function styleScene(scene){
@@ -92,7 +123,7 @@ function styleScene(scene){
   // New lights are disabled by the incremental scanner below.
   killLights(scene,bridge()?.threeRenderer);
   scene.background=new THREE.Color(STYLE_PALETTE.skyZenith);scene.fog=new THREE.FogExp2(STYLE_PALETTE.haze,.00038);
-  scene.traverse(n=>{if(n.isMesh&&n.parent===scene&&n.geometry?.type==="BoxGeometry"&&(n.geometry.parameters?.width||0)>1000){hideFace(n);n.userData.stylized=STYLIZED_STYLE_VERSION;}});
+  
 }
 const ACTOR_CULL_M=260,CULL_INTERVAL_MS=600,cullPos=new THREE.Vector3();
 const actorId=n=>String(n?.userData?.worldPopulationId||n?.userData?.worldLifeId||"");
@@ -103,8 +134,7 @@ function stepScan(deadline){
     const node=scanStack.pop();if(!node)continue;
     if((node.isDirectionalLight||node.isHemisphereLight||node.isAmbientLight||node.isPointLight||node.isSpotLight)&&!node.userData.phosphorKeep&&node.intensity>0){node.intensity=0;node.castShadow=false;}
     const id=actorId(node);if(id&&actorId(node.parent)!==id)scanActors.push(node);
-    if(node!==grid&&node!==sky&&wantsHidden(node))hideFace(node);
-    else if(needsWork(node))queue.push(node);
+    if(needsWork(node))queue.push(node);
     const children=node.children;for(let i=children.length-1;i>=0;i--)scanStack.push(children[i]);
   }
   if(!scanStack.length&&scanSceneRef){actorRoots=scanActors.slice();scanActors.length=0;scanSceneRef=null;return true;}return false;
@@ -113,22 +143,22 @@ function cullActors(now){if(now-lastCull<CULL_INTERVAL_MS)return;lastCull=now;co
 function frame(now){
   const scene=bridge()?.threeScene;if(!scene)return requestAnimationFrame(frame);
   styleScene(scene);skyUniforms.uTime.value=now/1000;
-  followGrid(bridge()?.threeCamera);wireBackdrop(scene,bridge()?.threeRenderer);hideFilledFaces();
+  followGrid(bridge()?.threeCamera);wireBackdrop(scene,bridge()?.threeRenderer);
   if(!scanStack.length&&!scanSceneRef&&now-lastScan>SCAN_INTERVAL_MS){lastScan=now;beginScan(scene);}
   const deadline=performance.now()+FRAME_BUDGET_MS;stepScan(deadline);cullActors(now);
   while(queue.length&&performance.now()<deadline){const node=queue.pop();if(node.parent)convert(node);}
-  const view=viewport();if(view){if(view.dataset.visualStyle!==STYLIZED_STYLE_VERSION)view.dataset.visualStyle=STYLIZED_STYLE_VERSION;view.dataset.styleSceneScan="incremental-budgeted-neon-v2";view.dataset.wireHiddenFaces=String(hiddenFaces.size);}
+  const view=viewport();if(view){if(view.dataset.visualStyle!==STYLIZED_STYLE_VERSION)view.dataset.visualStyle=STYLIZED_STYLE_VERSION;view.dataset.styleSceneScan="incremental-budgeted-neon-v2";view.dataset.wireMaterials=String(wireStats.materials);view.dataset.wireSwapped=String(wireStats.swapped);}
   requestAnimationFrame(frame);
 }
 globalThis.__arondightNeonStyle={pending:()=>queue.length,lastScan:()=>lastScan};
 globalThis.__arondightStylizedStyle={version:STYLIZED_STYLE_VERSION,palette:STYLE_PALETTE,pending:()=>queue.length};
 function injectMapCanvasHide(){
   if(typeof document==="undefined"||document.querySelector("style[data-neon-map-canvas]"))return;
-  const tag=document.createElement("style");tag.dataset.neonMapCanvas=STYLIZED_STYLE_VERSION;tag.textContent="html.neon-line-style .maplibregl-canvas{opacity:0!important}";
+  const tag=document.createElement("style");tag.dataset.neonMapCanvas=STYLIZED_STYLE_VERSION;tag.textContent="html.neon-line-style .maplibregl-canvas{opacity:0!important}html.neon-line-style .maplibregl-map{visibility:hidden!important;opacity:0!important}";
   (document.head||document.documentElement).appendChild(tag);
 }
 export function installStylizedWorldStyle(){if(installed||typeof window==="undefined")return;installed=true;document.documentElement.classList.add("stylized-world","neon-line-style");injectMapCanvasHide();const view=viewport();if(view)view.dataset.visualStyle=STYLIZED_STYLE_VERSION;requestAnimationFrame(frame);
-  const attach=()=>{const b=bridge();if(typeof b?.addPreRenderHook!=="function")return requestAnimationFrame(attach);b.addPreRenderHook((scene,camera)=>{hideFilledFaces();followGrid(camera||b.threeCamera);if(scene)wireBackdrop(scene,b.threeRenderer);});};attach();}
+  const attach=()=>{const b=bridge();if(typeof b?.addPreRenderHook!=="function")return requestAnimationFrame(attach);b.addPreRenderHook((scene,camera)=>{if(!scene)return;wireBackdrop(scene,b.threeRenderer);followGrid(camera||b.threeCamera);wireScene(scene);});};attach();}
 installStylizedWorldStyle();
 export function applyNeonMapStyle(map){
   injectMapCanvasHide();
