@@ -143,7 +143,7 @@ assert.ok(simulator.includes('if(gameMenu&&!gameMenu.hidden){lastPresentationDra
 
 const terrain=files["sim/terrain_craters.mjs"],ground=files["sim/world_ground.mjs"];
 assert.ok(terrain.includes("terrainCellCache")&&terrain.includes("terrainNodeHeightAt"),"terrain hot queries must share cached physical grid nodes");
-assert.ok(ground.includes("terrainNodeHeightAt(x,y)"),"visible ground vertices must use the exact Box3D terrain nodes");
+assert.ok(ground.includes("function applyHeights()")&&ground.includes("terrainNodeHeightAt("),"visible ground vertices must use the exact Box3D terrain nodes");
 
 const action=files["sim/world_action_feedback.mjs"];
 const actionScan=action.slice(action.indexOf("function releaseShootableWorldDecor"),action.indexOf("function acknowledgeSceneHit"));
