@@ -55,9 +55,35 @@ void main(){
   #include <colorspace_fragment>
 }`;
 function skyMaterial(clouds=true){return new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,depthTest:false,fog:false,uniforms:{...skyUniforms,uClouds:{value:clouds?1:0}},vertexShader:"varying vec3 vDir;void main(){vDir=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",fragmentShader:SKY_FRAG});}
+// Sky cache: the procedural sky (gradient, sun, 5-octave clouds) is baked
+// ~10x per second into an upper-hemisphere HDR panorama; the sky dome only
+// samples it — one texture fetch per pixel instead of ~12 noise evaluations
+// over most of the screen. During a nuke blast it is re-baked every frame.
+const SKY_BAKE_W=1536,SKY_BAKE_H=384,SKY_BAKE_MS=100;
+let skyRT=null,skyBake=null,lastSkyBake=-Infinity;
+function skyBakeSetup(){
+  if(skyRT)return;skyRT=new THREE.WebGLRenderTarget(SKY_BAKE_W,SKY_BAKE_H,{type:THREE.HalfFloatType,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,generateMipmaps:false,depthBuffer:false});skyRT.texture.wrapS=THREE.RepeatWrapping;
+  const frag=SKY_FRAG.replace("varying vec3 vDir;","varying vec2 vUv;").replace("void main(){","void main(){float az=vUv.x*6.2831853,el=vUv.y*1.5707963;vec3 vDir=vec3(cos(el)*cos(az),cos(el)*sin(az),sin(el));");
+  const m=new THREE.ShaderMaterial({uniforms:{...skyUniforms,uClouds:{value:1}},vertexShader:"varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}",fragmentShader:frag,depthTest:false,depthWrite:false});
+  const scene=new THREE.Scene(),quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),m);quad.frustumCulled=false;scene.add(quad);skyBake={scene,camera:new THREE.Camera()};
+}
+function bakeSky(renderer,now,force){
+  if(!renderer)return false;skyBakeSetup();if(!force&&now-lastSkyBake<SKY_BAKE_MS)return true;lastSkyBake=now;
+  const prev=renderer.getRenderTarget();renderer.setRenderTarget(skyRT);renderer.render(skyBake.scene,skyBake.camera);renderer.setRenderTarget(prev);return true;
+}
+function cachedSkyMaterial(){skyBakeSetup();return new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,depthTest:false,fog:false,uniforms:{tSky:{value:skyRT.texture}},
+  vertexShader:"varying vec3 vDir;void main(){vDir=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
+  fragmentShader:`uniform sampler2D tSky;varying vec3 vDir;
+void main(){vec3 d=normalize(vDir);float u=fract(atan(d.y,d.x)/6.2831853),v=asin(clamp(d.z,0.0,1.0))/1.5707963;
+  vec3 col=texture2D(tSky,vec2(u,clamp(v,0.5/${SKY_BAKE_H}.0,1.0-0.5/${SKY_BAKE_H}.0))).rgb;
+  col=mix(col,vec3(0.52,0.66,0.86)*0.92,smoothstep(0.0,-0.2,d.z));
+  gl_FragColor=vec4(col,1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`});}
 function ensureSky(scene){
   if(sky?.parent===scene)return sky;const g=new THREE.SphereGeometry(1,32,16);g.rotateX(Math.PI/2);
-  sky=new THREE.Mesh(g,skyMaterial(true));sky.name="REAL_SKY";sky.renderOrder=-10000;sky.frustumCulled=false;sky.userData.styleSkip=true;sky.userData.flightFireIgnore=true;sky.raycast=()=>{};
+  sky=new THREE.Mesh(g,cachedSkyMaterial());sky.name="REAL_SKY";sky.renderOrder=-10000;sky.frustumCulled=false;sky.userData.styleSkip=true;sky.userData.flightFireIgnore=true;sky.raycast=()=>{};
   sky.onBeforeRender=(r,s,camera)=>{sky.position.copy(camera.position);sky.scale.setScalar(Math.min(camera.far*.9,1800));};scene.add(sky);return sky;
 }
 // Image-based lighting: render the (cloudless) sky once into a PMREM env map.
@@ -143,6 +169,7 @@ function frame(now){
   const scene=bridge()?.threeScene;
   if(scene){
     styleScene(scene);skyUniforms.uTime.value=now/1000;skyUniforms.uBlastAge.value=blastAt<0?-1:Math.min(60,(now-blastAt)/1000);
+    try{bakeSky(bridge()?.threeRenderer,now,blastAt>=0&&now-blastAt<14000);}catch(e){console.warn("sky bake",e);}
     if(!queue.length&&now-lastScan>SCAN_INTERVAL_MS){lastScan=now;scanScene(scene);}cullActors(now);
     const menuEl=document.getElementById("gameMenu"),covered=Boolean(menuEl&&!menuEl.hidden),deadline=performance.now()+(covered?14:FRAME_BUDGET_MS);
     while(queue.length&&performance.now()<deadline){const node=queue.pop();if(node.parent)convert(node);}

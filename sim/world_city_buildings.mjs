@@ -31,6 +31,11 @@ const RESYNC_MOVE_M=140,RESYNC_MS=2500,SLICE_MS=4;
 // render; dark slate / bitumen / terracotta roofs.
 const WALLS=["#c9bfae","#b9a88c","#8e5443","#9c9a94","#d8d2c4","#a87c5f","#7d8590","#cbb79a"],ROOFS=["#4a4c50","#3b3d40","#6e4334","#55585c"],SUN=(()=>{const x=-.55,y=-.83,l=Math.hypot(x,y);return[x/l,y/l];})();
 
+// The city is split into CHUNK_M tiles, one mesh each, so the camera and the
+// sun's shadow camera only draw the tiles they actually see (the merged mesh
+// used to be drawn whole — 900 m of city — twice per frame).
+const CHUNK_M=170;
+let chunks=[],solidMaterial=null;
 let installed=false,group=null,solid=null,edgeGlow=null,edges=null,thinEdges=null,sceneRef=null,lastCenter=[Infinity,Infinity],lastSyncAt=-Infinity,currentHash="",building=null,lastFeatureCount=-1;
 const viewport=()=>document.getElementById("viewport");
 const bridge=()=>globalThis.__arondightRealWorld||null;
@@ -123,7 +128,7 @@ function ensureMeshes(scene){
   if(group?.parent===scene)return;
   if(group?.parent)group.parent.remove(group);
   group=new THREE.Group();group.name="WORLD_CITY_BUILDINGS";
-  solid=new THREE.Mesh(new THREE.BufferGeometry(),patchShockMaterial(realFacades(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.88,metalness:0,polygonOffset:true,polygonOffsetFactor:3,polygonOffsetUnits:6}))));solid.castShadow=true;solid.receiveShadow=true;solid.name="WORLD_CITY_SOLIDS";solid.frustumCulled=false;
+  solidMaterial=patchShockMaterial(realFacades(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.88,metalness:0,polygonOffset:true,polygonOffsetFactor:3,polygonOffsetUnits:6})));solid=new THREE.Group();chunks=[];solid.castShadow=true;solid.receiveShadow=true;solid.name="WORLD_CITY_SOLIDS";solid.frustumCulled=false;
   const empty=fatLineGeometry([0,0,0,0,0,0]);
   edgeGlow=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x29e6ff,{width:7,opacity:.2,additive:true,depthTest:true}),{lines:true}));edgeGlow.name="WORLD_CITY_EDGES_GLOW";edgeGlow.frustumCulled=false;
   edges=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x7ff3ff,{width:2.4,opacity:1,additive:true,depthTest:true}),{lines:true}));edges.name="WORLD_CITY_EDGES";edges.frustumCulled=false;
@@ -138,7 +143,7 @@ function ensureMeshes(scene){
 
 // Time-sliced geometry builder.
 function* buildSteps(footprints,center){
-  const pos=[],col=[],wa=[],ws=[],wf=[],lines=[],thin=[],ranges=[],c=new THREE.Color(),wall=new THREE.Color(),roof=new THREE.Color(),plinth=new THREE.Color(),trim=new THREE.Color();
+  const lines=[],thin=[],ranges=[],buckets=new Map();let pos,col,wa,ws,wf,ci=0;const bucketOf=(x,y)=>{const k=`${Math.floor(x/CHUNK_M)},${Math.floor(y/CHUNK_M)}`;let bk=buckets.get(k);if(!bk){bk={pos:[],col:[],wa:[],ws:[],wf:[],index:buckets.size};buckets.set(k,bk);}return bk;};const c=new THREE.Color(),wall=new THREE.Color(),roof=new THREE.Color(),plinth=new THREE.Color(),trim=new THREE.Color();
   // wa = facade coordinates per vertex: (u along the wall [m], wall length,
   // height above the building base, building height); u<0 marks roof (-1)
   // and cornice trim (-2). ws = per-building seed for style variation.
@@ -152,7 +157,8 @@ function* buildSteps(footprints,center){
     if(outer.length<3)continue;const dist=Math.hypot(outer[0].x-center[0],outer[0].y-center[1]),near=dist<FAT_RADIUS_M,mid=!near&&dist<LINE_RADIUS_M;if(outer[0].distanceToSquared(outer.at(-1))<1e-10)outer.pop();for(const r of holes)if(r.length&&r[0].distanceToSquared(r.at(-1))<1e-10)r.pop();
     if(THREE.ShapeUtils.isClockWise(outer))outer.reverse();for(const r of holes)if(!THREE.ShapeUtils.isClockWise(r))r.reverse();
     S=(h%997)/997;FL=3.1+.5*(((h>>>12)%1000)/1000);const H=top-base;trim.copy(wall).lerp(new THREE.Color("#f4efe4"),.45);
-    const all=[...outer,...holes.flat()],range={key:String(fp.key),base,top,fullTop,cx:0,cy:0,p0:pos.length/3,l0:lines.length/6,t0:thin.length/3};for(const v of outer){range.cx+=v.x/outer.length;range.cy+=v.y/outer.length;}
+    let mx=0,my=0;for(const v of outer){mx+=v.x/outer.length;my+=v.y/outer.length;}const bk=bucketOf(mx,my);({pos,col,wa,ws,wf}=bk);ci=bk.index;
+    const all=[...outer,...holes.flat()],range={key:String(fp.key),chunk:ci,base,top,fullTop,cx:0,cy:0,p0:pos.length/3,l0:lines.length/6,t0:thin.length/3};for(const v of outer){range.cx+=v.x/outer.length;range.cy+=v.y/outer.length;}
     W=[-1,0,H,H];for(const f of THREE.ShapeUtils.triangulateShape(outer,holes)){const a=all[f[0]];let b=all[f[1]],cc=all[f[2]];if((b.x-a.x)*(cc.y-a.y)-(b.y-a.y)*(cc.x-a.x)<0)[b,cc]=[cc,b];push(a.x,a.y,top,roof);push(b.x,b.y,top,roof);push(cc.x,cc.y,top,roof);}
     for(const ring of[outer,...holes]){
       for(let k=0;k<ring.length;k++){const a=ring[k],b=ring[(k+1)%ring.length],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1,nx=dy/len,ny=-dx/len,light=.9+.25*Math.max(0,-(nx*SUN[0]+ny*SUN[1]));
@@ -169,25 +175,25 @@ function* buildSteps(footprints,center){
         // Cartoon outline: roof edge + real corners (thin native lines, cheap).
         // Neon outline: roof edge + real corners; glowing fat lines near,
         // cheap 1 px lines further out.
-        if(near){lines.push(a.x,a.y,top,b.x,b.y,top);const p=ring[(k+ring.length-1)%ring.length],ex=a.x-p.x,ey=a.y-p.y,el=Math.hypot(ex,ey)||1;if(Math.abs((ex*dx+ey*dy)/(el*len))<.94)lines.push(a.x,a.y,base,a.x,a.y,top);}
-        else if(mid)thin.push(a.x,a.y,top,b.x,b.y,top);}
+        if(false&&near){lines.push(a.x,a.y,top,b.x,b.y,top);const p=ring[(k+ring.length-1)%ring.length],ex=a.x-p.x,ey=a.y-p.y,el=Math.hypot(ex,ey)||1;if(Math.abs((ex*dx+ey*dy)/(el*len))<.94)lines.push(a.x,a.y,base,a.x,a.y,top);}
+        else if(false&&mid)thin.push(a.x,a.y,top,b.x,b.y,top);}
     }
     range.p1=pos.length/3;range.l1=lines.length/6;range.t1=thin.length/3;ranges.push(range);
     if(++i%40===0)yield;
   }
-  return{pos,col,wa,ws,wf,lines,thin,ranges};
+  return{buckets:[...buckets.values()],lines,thin,ranges};
 }
 
 // ---- instant damage & sway on the live buffers
 let rangeByKey=new Map(),sways=[];
-function solidAttr(){return solid?.geometry?.attributes?.position||null;}
+function solidAttr(r){return chunks[r?.chunk]?.geometry?.attributes?.position||null;}
 function edgeBuffer(){const a=edges?.geometry?.attributes?.instanceStart;return a?.data||null;}
 function thinAttr(){return thinEdges?.geometry?.attributes?.position||null;}
 function installRanges(ranges){
   rangeByKey=new Map();for(const r of ranges)rangeByKey.set(r.key,r);
   // Keep the original (undamaged-at-build) z values for sway/clamp.
-  const sp=solidAttr(),eb=edgeBuffer(),tp=thinAttr();
-  for(const r of ranges){r.solidZ=sp?Float32Array.from({length:r.p1-r.p0},(_,i)=>sp.getZ(r.p0+i)):null;r.edgeZ=eb?Float32Array.from({length:(r.l1-r.l0)*2},(_,i)=>eb.array[(r.l0+(i>>1))*6+(i&1)*3+2]):null;r.thinZ=tp?Float32Array.from({length:r.t1-r.t0},(_,i)=>tp.getZ(r.t0+i)):null;}
+  const eb=edgeBuffer(),tp=thinAttr();
+  for(const r of ranges){const sp=solidAttr(r);r.solidZ=sp?Float32Array.from({length:r.p1-r.p0},(_,i)=>sp.getZ(r.p0+i)):null;r.edgeZ=eb?Float32Array.from({length:(r.l1-r.l0)*2},(_,i)=>eb.array[(r.l0+(i>>1))*6+(i&1)*3+2]):null;r.thinZ=tp?Float32Array.from({length:r.t1-r.t0},(_,i)=>tp.getZ(r.t0+i)):null;}
   sways=[];
   // Damage applied while this build was being assembled.
   for(const r of ranges){const d=buildingDamage(r.key);if(d&&d.top<r.top-.01)clampRange(r,d.top);}
@@ -195,13 +201,13 @@ function installRanges(ranges){
 function markDirty(attr,from,count){if(!attr)return;attr.needsUpdate=true;}
 // Drops every vertex of the building above newTop to newTop (roof follows).
 function clampRange(r,newTop){
-  const sp=solidAttr(),eb=edgeBuffer(),tp=thinAttr();r.top=Math.min(r.top,newTop);
+  const sp=solidAttr(r),eb=edgeBuffer(),tp=thinAttr();r.top=Math.min(r.top,newTop);
   if(sp&&r.solidZ){for(let i=r.p0;i<r.p1;i++){const z=Math.min(r.solidZ[i-r.p0],newTop);sp.setZ(i,z);}markDirty(sp);}
   if(eb&&r.edgeZ){const a=eb.array;for(let k=r.l0;k<r.l1;k++){a[k*6+2]=Math.min(r.edgeZ[(k-r.l0)*2],newTop);a[k*6+5]=Math.min(r.edgeZ[(k-r.l0)*2+1],newTop);}eb.needsUpdate=true;}
   if(tp&&r.thinZ){for(let i=r.t0;i<r.t1;i++)tp.setZ(i,Math.min(r.thinZ[i-r.t0],newTop));markDirty(tp);}
 }
 function swayRange(r,ox,oy){
-  const sp=solidAttr(),eb=edgeBuffer(),h=Math.max(1,r.fullTop-r.base);
+  const sp=solidAttr(r),eb=edgeBuffer(),h=Math.max(1,r.fullTop-r.base);
   // Offset grows with height: the base stays, the top leans.
   if(sp&&r.solidX===undefined){r.solidX=Float32Array.from({length:r.p1-r.p0},(_,i)=>sp.getX(r.p0+i));r.solidY=Float32Array.from({length:r.p1-r.p0},(_,i)=>sp.getY(r.p0+i));}
   if(eb&&r.edgeXY===undefined){const a=eb.array;r.edgeXY=Float32Array.from({length:(r.l1-r.l0)*4},(_,i)=>{const k=r.l0+(i>>2),j=i&3;return a[k*6+(j<2?j:j+1)];});}
@@ -209,10 +215,10 @@ function swayRange(r,ox,oy){
   if(eb){const a=eb.array;for(let k=r.l0;k<r.l1;k++){const o=(k-r.l0)*4,w0=Math.max(0,(a[k*6+2]-r.base)/h)**1.3,w1=Math.max(0,(a[k*6+5]-r.base)/h)**1.3;a[k*6]=r.edgeXY[o]+ox*w0;a[k*6+1]=r.edgeXY[o+1]+oy*w0;a[k*6+3]=r.edgeXY[o+2]+ox*w1;a[k*6+4]=r.edgeXY[o+3]+oy*w1;}}
 }
 function stepSways(now){
-  if(!sways.length)return;const sp=solidAttr(),eb=edgeBuffer();
+  if(!sways.length)return;const eb=edgeBuffer();
   for(let i=sways.length-1;i>=0;i--){const s=sways[i],t=(now-s.born)/1000;const done=t>s.life;const a=done?0:s.amp*Math.exp(-t*2.2)*Math.sin(t*s.freq*Math.PI*2+Math.PI/2*0)*(t<.12?t/.12:1);
-    swayRange(s.r,s.dx*a,s.dy*a);if(done)sways.splice(i,1);}
-  if(sp)sp.needsUpdate=true;if(eb)eb.needsUpdate=true;
+    swayRange(s.r,s.dx*a,s.dy*a);const sp=solidAttr(s.r);if(sp)sp.needsUpdate=true;if(done)sways.splice(i,1);}
+  if(eb)eb.needsUpdate=true;
 }
 // Public API used by the nuke shock front (nuke_destruction.mjs).
 function damageNow(key,newTop){const r=rangeByKey.get(String(key));if(!r||!(newTop<r.top-.01))return false;clampRange(r,newTop);return true;}
@@ -227,9 +233,13 @@ function pumpBuild(){
   if(!building)return;const until=performance.now()+SLICE_MS;let r;
   while(performance.now()<until){r=building.steps.next();if(r.done)break;}
   if(!r?.done)return;
-  const{pos,col,wa,ws,wf,lines,thin,ranges}=r.value,geometry=new THREE.BufferGeometry();
-  geometry.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));geometry.setAttribute("color",new THREE.Float32BufferAttribute(col,3));geometry.setAttribute("aWall",new THREE.Float32BufferAttribute(wa,4));geometry.setAttribute("aSeed",new THREE.Float32BufferAttribute(ws,1));geometry.setAttribute("aFloorH",new THREE.Float32BufferAttribute(wf,1));if(pos.length)geometry.computeVertexNormals();if(pos.length)geometry.computeBoundingSphere();
-  solid.geometry.dispose();solid.geometry=geometry;
+  const{buckets,lines,thin,ranges}=r.value;
+  for(const c of chunks){c.geometry.dispose();c.parent?.remove(c);}chunks=[];
+  for(const bk of buckets){const geometry=new THREE.BufferGeometry();
+    geometry.setAttribute("position",new THREE.Float32BufferAttribute(bk.pos,3));geometry.setAttribute("color",new THREE.Float32BufferAttribute(bk.col,3));geometry.setAttribute("aWall",new THREE.Float32BufferAttribute(bk.wa,4));geometry.setAttribute("aSeed",new THREE.Float32BufferAttribute(bk.ws,1));geometry.setAttribute("aFloorH",new THREE.Float32BufferAttribute(bk.wf,1));
+    if(bk.pos.length){geometry.computeVertexNormals();geometry.computeBoundingSphere();geometry.boundingSphere.radius+=30;} // margin for sway / shock heave
+    const m=new THREE.Mesh(geometry,solidMaterial);m.name="WORLD_CITY_CHUNK";m.castShadow=true;m.receiveShadow=true;m.frustumCulled=true;m.matrixAutoUpdate=false;Object.assign(m.userData,{neonSkip:true,flightFireIgnore:true,worldCityBuildings:true});chunks[bk.index]=m;solid.add(m);}
+  setData("worldCityChunks",chunks.length);
   const outline=fatLineGeometry(lines.length?lines:[0,0,0,0,0,0]);edges.geometry.dispose?.();edges.geometry=outline;if(edgeGlow)edgeGlow.geometry=outline;
   const far=new THREE.BufferGeometry();far.setAttribute("position",new THREE.Float32BufferAttribute(thin,3));thinEdges.geometry.dispose();thinEdges.geometry=far;
   installRanges(ranges);

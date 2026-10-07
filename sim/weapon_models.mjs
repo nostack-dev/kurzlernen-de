@@ -27,6 +27,19 @@ function solid(geo,mat,x=0,y=0,z=0,partKey){const m=new THREE.Mesh(geo,mat);m.po
 function marker(name,x,y,z){const n=new THREE.Object3D();n.name=name;n.position.set(x,y,z);n.userData.flightFireIgnore=true;n.userData.walkWeaponPart=true;return n;}
 function muzzle(name,z,y=0){const n=new THREE.Object3D();n.name=name;n.position.set(0,y,z);n.userData.flightFireIgnore=true;n.userData.walkWeaponPart=true;return n;}
 
+// Draw-call diet: all static parts that share a material are merged into one
+// mesh (a weapon goes from ~25 draw calls to ~6); anchor/muzzle nodes stay.
+function mergeByMaterial(group){
+  const byMat=new Map(),keep=[];
+  for(const child of[...group.children]){if(!child.isMesh){keep.push(child);continue;}child.updateMatrix();let l=byMat.get(child.material);if(!l){l=[];byMat.set(child.material,l);}l.push(child);}
+  const merged=[];
+  for(const[mat,list]of byMat){let n=0;const parts=list.map(m=>{const g=(m.geometry.index?m.geometry.toNonIndexed():m.geometry.clone());g.applyMatrix4(m.matrix);n+=g.attributes.position.count;return g;});
+    const pos=new Float32Array(n*3),nrm=new Float32Array(n*3);let o=0;for(const g of parts){pos.set(g.attributes.position.array,o*3);nrm.set(g.attributes.normal.array,o*3);o+=g.attributes.position.count;g.dispose();}
+    const geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.BufferAttribute(pos,3));geo.setAttribute("normal",new THREE.BufferAttribute(nrm,3));geo.computeBoundingSphere();
+    const mesh=new THREE.Mesh(geo,mat);Object.assign(mesh.userData,list[0].userData);mesh.renderOrder=list[0].renderOrder;mesh.frustumCulled=false;mesh.name=`${list[0].name||"WEAPON_PART"}_MERGED`;merged.push(mesh);
+    for(const m of list){group.remove(m);m.geometry.dispose();}}
+  group.add(...merged);return group;
+}
 export function buildVoltSmg(){
   const g=new THREE.Group(),K="walkSmgPart";
   const graphite=std(0x2b2f36,.5,.35),panel=std(0x7b4dff,.32,.25),gold=std(0xf2b233,.28,.85),rubber=std(0x15171b,.85,0),cell=glow(0x4fe3ff),led=glow(0xb48bff);
@@ -55,7 +68,7 @@ export function buildVoltSmg(){
   g.add(tag(new THREE.Mesh(new THREE.SphereGeometry(.007,8,6),glow(0x4fe3ff)),K)).children.at(-1).position.set(0,.152,-.405);
   g.add(marker("WALK_SMG_PISTOL_GRIP",0,-.15,-.15),marker("WALK_SMG_REAR_SIGHT",0,.152,-.1),marker("WALK_SMG_FRONT_SIGHT",0,.152,-.405));
   g.add(muzzle("WALK_SMG_MUZZLE_NODE",-.9,.02));
-  return g;
+  return mergeByMaterial(g);
 }
 
 export function buildGoldenHandCannon(){
@@ -81,7 +94,7 @@ export function buildGoldenHandCannon(){
   g.add(box(.016,.026,.016,red,0,.084,-.29,K));
   g.add(marker("WALK_GLOCK_GRIP",0,-.12,.01),marker("WALK_GLOCK_REAR_SIGHT",0,.098,.0),marker("WALK_GLOCK_FRONT_SIGHT",0,.098,-.29));
   g.add(muzzle("WALK_GLOCK_MUZZLE_NODE",-.40,.04));
-  g.scale.setScalar(1.35);g.position.set(.0,-.02,-.05);
+  mergeByMaterial(g);g.scale.setScalar(1.35);g.position.set(.0,-.02,-.05);
   return g;
 }
 
@@ -104,5 +117,5 @@ export function buildBoomstick(){
   g.add(box(.02,.04,.02,glowO,0,.16,-.3,K));
   g.add(marker("WALK_GL_GRIP",0,-.15,-.095),marker("WALK_GL_REAR_SIGHT",0,.175,-.08),marker("WALK_GL_FRONT_SIGHT",0,.175,-.32));
   g.add(muzzle("WALK_GRENADE_MUZZLE_NODE",-.87,.03));
-  return g;
+  return mergeByMaterial(g);
 }
