@@ -10,6 +10,11 @@ const impacts=[],wall={hash:"traffic-wall",footprintCount:1,prisms:[{buildingKey
 
 physics.addBody({id:"grounded-car",kind:"car",position:[-12,-8,.42],yaw:.2,halfExtents:[1.78,.82,.42],massKg:1420});
 physics.addBody({id:"grounded-bus",kind:"bus",position:[12,-8,1.08],yaw:-.2,halfExtents:[4,1.17,1.08],massKg:9200});
+const projectileCarHit=physics.raycast([-20,-8,.42],[1,0,0],20);
+assert.ok(projectileCarHit?.physics&&projectileCarHit.id==="grounded-car"&&projectileCarHit.kind==="car",`projectile query must hit dynamic car with symmetric Box3D filter: ${JSON.stringify(projectileCarHit)}`);
+const projectileGroundHit=physics.raycast([30,30,4],[0,0,-1],10);
+assert.ok(projectileGroundHit?.physics&&projectileGroundHit.kind==="terrain"&&projectileGroundHit.distanceM>3.8&&projectileGroundHit.distanceM<4.2,`projectile query must hit terrain with symmetric Box3D filter: ${JSON.stringify(projectileGroundHit)}`);
+
 for(let index=0;index<240;index++)physics.step(1/60,4,index*1000/60);
 const groundedCar=physics.pose("grounded-car"),groundedBus=physics.pose("grounded-bus");
 assert.ok(groundedCar.position[2]>=.35&&groundedCar.position[2]<.60,`car fell through the Box3D ground: ${JSON.stringify(groundedCar)}`);
