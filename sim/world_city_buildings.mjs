@@ -39,7 +39,7 @@ const WALLS=["#c9bfae","#b9a88c","#8e5443","#9c9a94","#d8d2c4","#a87c5f","#7d859
 // used to be drawn whole — 900 m of city — twice per frame).
 const CHUNK_M=360;
 let chunks=[],solidMaterial=null;
-let installed=false,group=null,solid=null,edgeGlow=null,edges=null,thinEdges=null,sceneRef=null,lastCenter=[Infinity,Infinity],lastSyncAt=-Infinity,currentHash="",building=null,lastFeatureCount=-1;
+let installed=false,group=null,solid=null,edgeGlow=null,edges=null,thinEdges=null,sceneRef=null,lastCenter=[Infinity,Infinity],lastSyncCheck=-Infinity,lastSyncAt=-Infinity,currentHash="",building=null,lastFeatureCount=-1;
 const viewport=()=>document.getElementById("viewport");
 const bridge=()=>globalThis.__arondightRealWorld||null;
 function setData(key,value){const v=viewport();if(v){const s=String(value);if(v.dataset[key]!==s)v.dataset[key]=s;}}
@@ -265,7 +265,7 @@ function features(b){
   try{const list=b.map.querySourceFeatures?.(b.buildingSourceId,{sourceLayer:"building"});if(Array.isArray(list))return list;}catch{}return[];
 }
 function sync(now){
-  const b=bridge();if(!b?.active||!b.threeScene||!Number.isFinite(b.originLon)){if(group)group.visible=false;return;}
+  if(now-lastSyncCheck<200)return;lastSyncCheck=now;const b=bridge();if(!b?.active||!b.threeScene||!Number.isFinite(b.originLon)){if(group)group.visible=false;return;}
   ensureMeshes(b.threeScene);group.visible=true;
   const air=b.airframeFor?.(b.threeScene),walk=globalThis.__arondightWalkMode,p=walk?.mode==="foot"&&walk.position?walk.position:air?.position;if(!p)return;
   const moved=Math.hypot(p.x-lastCenter[0],p.y-lastCenter[1]);
