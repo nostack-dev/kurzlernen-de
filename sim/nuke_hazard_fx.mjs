@@ -89,7 +89,7 @@ function frame(now){lastFrame=now;requestAnimationFrame(frame);}
 // Panic: people inside the fallout zone run away from ground zero. Applied in
 // the pre-render hook (after every population update) as an accumulated
 // offset, so it works whether or not their own module rewrites positions.
-const PANIC_RADIUS_M=900,PANIC_S=45,RUN_MPS=6.5;let panicRoots=[],panicScan=-Infinity,panicFrame=performance.now();
+const PANIC_RADIUS_M=900,PANIC_S=45,RUN_MPS=3.4;let panicRoots=[],panicScan=-Infinity,panicFrame=performance.now();
 function panic(scene){
   const now=performance.now(),dt=Math.min(.1,(now-panicFrame)/1000);panicFrame=now;const zone=zones.at(-1);if(!zone||(now-zone.born)/1000>PANIC_S||!scene)return;
   if(now-panicScan>1000){panicScan=now;panicRoots=[...actorRoots(scene).values()].filter(a=>a.kind==="person").map(a=>a.root);}
