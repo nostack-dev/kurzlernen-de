@@ -5,7 +5,8 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
 const shotCamera=new THREE.PerspectiveCamera(78,16/9,.01,500),raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2(),forward=new THREE.Vector3(),target=new THREE.Vector3();
 const localBarrelForward=new THREE.Vector3(0,0,-1),currentBarrelForward=new THREE.Vector3(),shotDirection=new THREE.Vector3(0,1,0),fullAdjust=new THREE.Quaternion(),weightedAdjust=new THREE.Quaternion(),identityQuat=new THREE.Quaternion(),lastAppliedAdjust=new THREE.Quaternion();
 const PISTOL_PARTS=new Set(["WALK_VM_FRAME","WALK_VM_RAIL","WALK_VM_SLIDE","WALK_VM_SLIDE_TOP","WALK_VM_BARREL","WALK_VM_MUZZLE","WALK_VM_EJECTION_PORT","WALK_VM_GRIP","WALK_VM_MAG_BASE","WALK_VM_TRIGGER_GUARD","WALK_VM_TRIGGER","WALK_VM_REAR_SIGHT","WALK_VM_FRONT_SIGHT","WALK_VM_FRONT_DOT"]);
-let installed=false,lastScreenShotAt=-Infinity,lastSwitchAt=-Infinity,lastMode="",lastGun=null,hasAppliedAdjust=false,lastShotClientX=NaN,lastShotClientY=NaN;
+const WEAPON_NAMES={smg:"MP",glock:"GLOCK",grenade:"WERFER"},WEAPON_ORDER=["smg","glock","grenade"];
+let installed=false,lastScreenShotAt=-Infinity,lastSwitchAt=-Infinity,lastMode="",lastGun=null,hasAppliedAdjust=false,lastShotClientX=NaN,lastShotClientY=NaN,weaponButton=null,lastButtonMode="";
 
 function viewport(){return document.getElementById("viewport");}
 function bridge(){return globalThis.__arondightRealWorld||null;}
@@ -39,9 +40,9 @@ let lastVisualSync=-Infinity,gunRef=null,gunLookupAt=-Infinity;
 // getObjectByName walks the whole scene — cache the viewmodel and re-check rarely
 function findGun(now){const scene=bridge()?.threeScene;if(!scene)return null;let ok=false;for(let n=gunRef;n;n=n.parent)if(n===scene){ok=true;break;}if(ok&&now-gunLookupAt<2000)return gunRef;if(!ok&&now-gunLookupAt<250)return null;gunLookupAt=now;gunRef=scene.getObjectByName?.("WALK_PISTOL_3D")||null;return gunRef;} // visual sync (traversal + material flags) only on change or once a second, not every frame
 function frame(now=performance.now()){
-  const gun=findGun(now),mode=String(footWeapons()?.mode||"smg");if(gun){if(gun!==lastGun){hasAppliedAdjust=false;lastAppliedAdjust.identity();lastGun=gun;lastMode="";}if(mode!==lastMode||now-lastVisualSync>1000){lastMode=mode;lastVisualSync=now;setWeaponModeVisual(gun,mode);}/* aiming is owned by first_person_controller_v5.mjs */}
-  const button=document.getElementById("footWeaponToggle");if(button){const NAMES={smg:"MP",glock:"GLOCK",grenade:"WERFER"},ORDER=["smg","glock","grenade"],next=ORDER[(ORDER.indexOf(mode)+1)%ORDER.length],text=`${NAMES[mode]||"MP"} → ${NAMES[next]}`;if(button.textContent!==text)button.textContent=text;button.setAttribute("aria-label",`Switch from ${mode} to ${next}`);}
-  const view=viewport();if(view){view.dataset.walkWeaponRuntime="dedicated-mp+40mm-no-pistol-v6";view.dataset.walkTouchFire="screen-point-raycast-v5";}requestAnimationFrame(frame);
+  const gun=findGun(now),mode=String(footWeapons()?.mode||"smg");if(gun){if(gun!==lastGun){hasAppliedAdjust=false;lastAppliedAdjust.identity();lastGun=gun;lastMode="";}if(mode!==lastMode){lastMode=mode;lastVisualSync=now;setWeaponModeVisual(gun,mode);}/* aiming is owned by first_person_controller_v5.mjs */}
+  if(!weaponButton?.isConnected)weaponButton=document.getElementById("footWeaponToggle");if(weaponButton&&mode!==lastButtonMode){lastButtonMode=mode;const next=WEAPON_ORDER[(WEAPON_ORDER.indexOf(mode)+1)%WEAPON_ORDER.length],text=`${WEAPON_NAMES[mode]||"MP"} → ${WEAPON_NAMES[next]}`;if(weaponButton.textContent!==text)weaponButton.textContent=text;weaponButton.setAttribute("aria-label",`Switch from ${mode} to ${next}`);}
+  requestAnimationFrame(frame);
 }
-export function installFirstPersonWeaponRuntimeV3(){if(installed)return;installed=true;addEventListener("arondight:foot-screen-fire",onScreenFire);window.addEventListener("pointerdown",reliableTouchSwitch,{capture:true,passive:false});window.addEventListener("click",suppressSyntheticClick,{capture:true,passive:false});requestAnimationFrame(frame);}
+export function installFirstPersonWeaponRuntimeV3(){if(installed)return;installed=true;addEventListener("arondight:foot-screen-fire",onScreenFire);window.addEventListener("pointerdown",reliableTouchSwitch,{capture:true,passive:false});window.addEventListener("click",suppressSyntheticClick,{capture:true,passive:false});addEventListener("arondight:world-reset",()=>{gunRef=null;lastGun=null;lastMode="";gunLookupAt=-Infinity;});const view=viewport();if(view){view.dataset.walkWeaponRuntime="dedicated-mp+40mm-no-pistol-v7";view.dataset.walkTouchFire="screen-point-raycast-v5";view.dataset.walkWeaponHousekeeping="change-driven-v1";}requestAnimationFrame(frame);}
 installFirstPersonWeaponRuntimeV3();
