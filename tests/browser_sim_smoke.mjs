@@ -203,7 +203,7 @@ try{
   await page.click('.phone-settings-dialog [data-invert-right-vertical]');
   stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(stored.invertRightHorizontal!==false||stored.invertRightVertical!==true)throw new Error(`right-axis invert default restore failed: ${JSON.stringify(stored)}`);
-  if(document.querySelectorAll('.phone-settings-dialog [data-lock-horizontal],.phone-settings-dialog [data-lock-left-horizontal]').length)throw new Error("axis-lock controls must not exist");
+  const lockControlCount=await page.$eval('.phone-settings-dialog [data-lock-horizontal],.phone-settings-dialog [data-lock-left-horizontal]',els=>els.length);if(lockControlCount)throw new Error(`axis-lock controls must not exist: ${lockControlCount}`);
   await page.$eval('.phone-settings-dialog [data-slider="hover"]',e=>{e.value="2.2";e.dispatchEvent(new Event("input",{bubbles:true}));});
   stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("arondight45PhoneControlSettingsV5")||"{}"));
   if(Math.abs(stored.defaultHoverAgl-2.2)>.001)throw new Error(`default hover AGL did not persist: ${JSON.stringify(stored)}`);
