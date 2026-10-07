@@ -36,7 +36,17 @@ function paintKnob(entry,axes){const knob=entry.knob;if(!knob)return;knob.style.
 function fire(x,y,source){window.dispatchEvent(new CustomEvent("arondight:foot-screen-fire-anchor",{detail:{clientX:x,clientY:y,source}}));return Boolean(weapons()?.fireAt?.({clientX:x,clientY:y,source}));}
 
 function claim(event){event.preventDefault();event.stopImmediatePropagation();}
+// EMP works in every mode and wins over any overlay or later handler: if the
+// EMP button is anywhere in the hit stack of a touch, trigger it directly.
+function empAt(event){
+  const button=document.getElementById("wantedEmpButton");if(!button||button.hidden||getComputedStyle(button).display==="none")return false;
+  const r=button.getBoundingClientRect();if(!(event.clientX>=r.left&&event.clientX<=r.right&&event.clientY>=r.top&&event.clientY<=r.bottom))return false;
+  const api=globalThis.__arondightWantedSystem;if(typeof api?.triggerEmp!=="function")return false;
+  const result=api.triggerEmp(),v=viewport();if(v){v.dataset.mobileEmpRoute="wanted-api-direct-v1";v.dataset.mobileEmpResult=result?.activated?"activated":String(result?.reason||"gated");v.dataset.mobileEmpAffected=String(Number(result?.affected)||0);}
+  return true;
+}
 function onDown(event){
+  if(event.pointerType!=="mouse"&&(navigator.maxTouchPoints||0)>0&&empAt(event))return claim(event);
   if(event.pointerType==="mouse"||!active())return;
   const target=event.target instanceof Element?event.target:null;if(!target||!viewport()?.contains(target))return;
   if(target.closest(PASS_SELECTOR)&&!target.closest("#footMove,#footLook"))return;
