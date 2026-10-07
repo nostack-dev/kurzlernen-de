@@ -97,6 +97,19 @@ function buildEnvironment(scene,renderer){
     const ground=new THREE.Mesh(new THREE.CircleGeometry(9.5,32),new THREE.MeshBasicMaterial({color:0x5b6450}));ground.position.z=-1.2;envScene.add(ground);
     const rt=pm.fromScene(envScene,0,.1,100);envTexture=rt.texture;scene.environment=rt.texture;scene.environmentIntensity=.9;pm.dispose();envReady=true;}catch(error){console.warn("environment",error);envReady=true;}
 }
+// ---------------------------------------------------------------- colour grade
+// Filmic grade inside every material's tone mapping (no extra pass): ACES,
+// then a touch more saturation and contrast, warm highlights and slightly
+// cool shadows — the 'golden afternoon' look instead of a flat grey cast.
+const GRADE_GLSL=`vec3 CustomToneMapping( vec3 color ) {
+  vec3 c=ACESFilmicToneMapping(color);
+  float l=dot(c,vec3(0.2126,0.7152,0.0722));
+  c=mix(vec3(l),c,1.14);
+  c=mix(c,c*c*(3.0-2.0*c),0.22);
+  c+=vec3(0.016,0.006,-0.014)*smoothstep(0.35,1.0,l)+vec3(-0.006,0.0,0.012)*(1.0-smoothstep(0.0,0.3,l));
+  return clamp(c,0.0,1.0);
+}`;
+if(!THREE.ShaderChunk.tonemapping_pars_fragment.includes("ACESFilmicToneMapping(color);\n  float l"))THREE.ShaderChunk.tonemapping_pars_fragment=THREE.ShaderChunk.tonemapping_pars_fragment.replace("vec3 CustomToneMapping( vec3 color ) { return color; }",GRADE_GLSL);
 // ---------------------------------------------------------------- light
 function ensureLights(scene,renderer){
   if(sun?.parent===scene)return;
@@ -105,7 +118,7 @@ function ensureLights(scene,renderer){
   sun=new THREE.DirectionalLight(0xfff0dc,2.8);sun.userData.realLight=true;sun.castShadow=true;
   const sc=sun.shadow.camera;sc.left=-SHADOW_RANGE_M;sc.right=SHADOW_RANGE_M;sc.top=SHADOW_RANGE_M;sc.bottom=-SHADOW_RANGE_M;sc.near=1;sc.far=900;sun.shadow.mapSize.set(SHADOW_SIZE,SHADOW_SIZE);sun.shadow.bias=-.0004;sun.shadow.normalBias=.04;sun.shadow.radius=2;
   scene.add(sun,sun.target);
-  if(renderer){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=true;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;renderer.outputColorSpace=THREE.SRGBColorSpace;}
+  if(renderer){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=true;renderer.toneMapping=THREE.CustomToneMapping;renderer.toneMappingExposure=1.0;renderer.outputColorSpace=THREE.SRGBColorSpace;}
 }
 const texel=new THREE.Vector3(),sunForward=new THREE.Vector3();
 function followSun(){
