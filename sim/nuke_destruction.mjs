@@ -1,5 +1,7 @@
 import * as THREE from "three";
-import {setBuildingDamage,commitDestruction} from "./world_destruction_state.mjs";
+import {setBuildingDamage,commitDestruction,buildingDamage} from "./world_destruction_state.mjs";
+import {actorRoots} from "./world_actor_roots.mjs";
+import {addCrater,clearCraters,craterProfile,CRATER_R as TERRAIN_CRATER_R} from "./terrain_craters.mjs";
 
 // Physical nuke aftermath, driven by the real shock front (343 m/s):
 //  * every building is hit when the shock reaches it; overpressure falls off
@@ -19,8 +21,8 @@ const FULL_DESTROY_M=180;          // overpressure intensity 1.0 here
 const MAX_EFFECT_M=900;
 const RUBBLE_M=1.6;
 const DEBRIS_POOL=2000,DEBRIS_LIFE_S=22,GRAVITY=9.81;
-const FLING_LIFE_S=9,MAX_FLUNG=48,MAX_SECONDARY=10;
-const CRATER_R=210,CRATER_DEPTH=22,CRATER_RIM=7,CRATER_RINGS=30,CRATER_SEGMENTS=72,MAX_CRATERS=3;
+const FLING_LIFE_S=9,MAX_FLUNG=140,MAX_SECONDARY=10;
+const CRATER_R=TERRAIN_CRATER_R,CRATER_RINGS=30,CRATER_SEGMENTS=72,MAX_CRATERS=3;
 
 let installed=false,debris=null,debrisFree=[],events=[],flung=[],craters=[],secondaryLeft=0,lastFrame=performance.now(),pendingCommit=false;
 const UP=new THREE.Vector3(0,0,1),tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),m4=new THREE.Matrix4(),qa=new THREE.Quaternion(),sc=new THREE.Vector3(),col=new THREE.Color();
@@ -76,11 +78,14 @@ function stepDebris(dt){
 }
 
 // ------------------------------------------------------------- buildings
+// Every building that is drawn: collision prisms near the player plus the
+// full map city (world_city_buildings.mjs), merged by footprint key.
 function buildingsFromSnapshot(){
-  const prisms=bridge()?.buildingCollisionSnapshot?.prisms||[],groups=new Map();
-  for(const prism of prisms){const key=String(prism?.buildingKey||"");if(!key||prism.leveled)continue;const pts=(prism.points||[]).filter(p=>Number.isFinite(Number(p?.[0]))&&Number.isFinite(Number(p?.[1])));if(pts.length<3)continue;
-    let g=groups.get(key);if(!g){g={key,points:[],rings:[],base:Number(prism.base)||0,top:Number(prism.top)||8};groups.set(key,g);}g.points.push(...pts);g.rings.push(pts);g.base=Math.min(g.base,Number(prism.base)||0);g.top=Math.max(g.top,Number(prism.top)||0);}
-  const list=[];for(const g of groups.values()){let cx=0,cy=0;for(const p of g.points){cx+=+p[0];cy+=+p[1];}cx/=g.points.length;cy/=g.points.length;let r=0,minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;for(const p of g.points){r=Math.max(r,Math.hypot(p[0]-cx,p[1]-cy));minX=Math.min(minX,p[0]);maxX=Math.max(maxX,p[0]);minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);}list.push({...g,cx,cy,r,minX,maxX,minY,maxY,height:Math.max(1,g.top-g.base)});}
+  const groups=new Map();
+  const add=(key,rings,base,top,leveled)=>{if(!key||leveled)return;let g=groups.get(key);if(!g){g={key,points:[],rings:[],base,top};groups.set(key,g);}for(const r of rings){const pts=r.filter(p=>Number.isFinite(Number(p?.[0]))&&Number.isFinite(Number(p?.[1])));if(pts.length<3)continue;g.points.push(...pts);g.rings.push(pts);}g.base=Math.min(g.base,base);g.top=Math.max(g.top,top);};
+  for(const prism of bridge()?.buildingCollisionSnapshot?.prisms||[])add(String(prism?.buildingKey||""),[prism.points||[]],Number(prism.base)||0,Number(prism.top)||8,prism.leveled);
+  for(const fp of globalThis.__arondightCityBuildings?.footprints?.()||[]){if(groups.has(String(fp.key)))continue;const d=buildingDamage(fp.key);add(String(fp.key),[fp.outer||[]],Number(fp.base)||0,d?Math.min(Number(fp.top)||8,d.top):Number(fp.top)||8,d?.leveled);}
+  const list=[];for(const g of groups.values()){if(!g.points.length)continue;let cx=0,cy=0;for(const p of g.points){cx+=+p[0];cy+=+p[1];}cx/=g.points.length;cy/=g.points.length;let r=0,minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;for(const p of g.points){r=Math.max(r,Math.hypot(p[0]-cx,p[1]-cy));minX=Math.min(minX,p[0]);maxX=Math.max(maxX,p[0]);minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);}list.push({...g,cx,cy,r,minX,maxX,minY,maxY,height:Math.max(1,g.top-g.base)});}
   return list;
 }
 function segmentPointDistance(ax,ay,bx,by,px,py){const dx=bx-ax,dy=by-ay,l=dx*dx+dy*dy||1,t=clamp(((px-ax)*dx+(py-ay)*dy)/l,0,1);return Math.hypot(ax+dx*t-px,ay+dy*t-py);}
@@ -137,7 +142,7 @@ function flattenProp(scene,e){
 }
 
 // --------------------------------------------- vehicles, people, bodies
-function populationRoots(scene){const roots=new Map();scene?.traverse?.(node=>{const u=node.userData||{},id=String(u.worldPopulationId||u.worldLifeId||""),kind=String(u.worldPopulationKind||u.worldLifeKind||"");if(!id||!kind)return;let root=node;while(root.parent&&String(root.parent.userData?.worldPopulationId||root.parent.userData?.worldLifeId||"")===id)root=root.parent;if(!roots.has(id))roots.set(id,{root,kind});});return roots;}
+function populationRoots(scene){const out=new Map();for(const[id,{root,kind}]of actorRoots(scene))out.set(id,{root,kind});return out;}
 function meshFor(root){let found=null;root.traverse?.(n=>{if(!found&&n.isMesh)found=n;});return found||root;}
 function planActors(scene,center){
   let n=0;for(const[id,{root,kind}]of populationRoots(scene)){if(root.visible===false)continue;root.getWorldPosition(tmp);const d=Math.hypot(tmp.x-center.x,tmp.y-center.y);if(d>MAX_EFFECT_M*.8)continue;events.push({at:performance.now()+d/SHOCK_MPS*1000,type:"actor",id,root,kind:kind.replace(/^life-/,""),center:center.clone(),distance:d});n++;}
@@ -170,10 +175,8 @@ function stepFlung(dt){
 }
 
 // ---------------------------------------------------------------- crater
-function craterHeight(r){
-  const bowl=CRATER_R*.5;if(r<bowl)return-CRATER_DEPTH*(1-(r/bowl)**2);
-  const x=(r-bowl)/(CRATER_R-bowl);const k=(x-.12)/.14;return CRATER_RIM*Math.exp(-(k*k))*(1-x);
-}
+// Same surface as the physics terrain (terrain_craters.mjs).
+function craterHeight(r){return craterProfile(r);}
 function spawnCrater(scene,center){
   const positions=[],colors=[],index=[],cols=CRATER_SEGMENTS,rows=CRATER_RINGS;
   for(let r=0;r<=rows;r++)for(let s=0;s<cols;s++){const rad=CRATER_R*(r/rows)**1.15,a=s/cols*Math.PI*2+(r%2)*.04;positions.push(Math.cos(a)*rad,Math.sin(a)*rad,0);colors.push(0,0,0);}
@@ -183,7 +186,7 @@ function spawnCrater(scene,center){
   mesh.name="NUKE_CRATER_GROUND";mesh.position.set(center.x,center.y,.02);mesh.userData.flightFireIgnore=true;mesh.userData.neonSkip=true;mesh.userData.nukeCrater=true;mesh.frustumCulled=false;mesh.renderOrder=-9000;
   const rimPts=[];for(let s=0;s<=96;s++){const a=s/96*Math.PI*2,r=CRATER_R*.56;rimPts.push(new THREE.Vector3(Math.cos(a)*r,Math.sin(a)*r,0));}
   const rim=new THREE.Line(new THREE.BufferGeometry().setFromPoints(rimPts),new THREE.LineBasicMaterial({color:0x00ff9c,toneMapped:false,transparent:true,opacity:.85}));rim.raycast=()=>{};mesh.add(rim);
-  scene.add(mesh);craters.push({mesh,rim,born:performance.now(),lastColor:-Infinity});
+  scene.add(mesh);craters.push({mesh,rim,born:performance.now(),lastColor:-Infinity});setTimeout(()=>addCrater(center.x,center.y),1400);
   while(craters.length>MAX_CRATERS){const old=craters.shift();old.mesh.parent?.remove(old.mesh);old.mesh.geometry.dispose();old.mesh.material.dispose();old.rim.geometry.dispose();old.rim.material.dispose();}
 }
 const HOT=new THREE.Color(0xff7a1a),GLASS=new THREE.Color(0x3a1f0e),SCORCH=new THREE.Color(0x0b0f09),RIM=new THREE.Color(0x12301d);
@@ -253,7 +256,7 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 function resetWorld(){
-  events.length=0;buildingHp.clear();for(const f of flattenedProps.splice(0)){f.mesh.setMatrixAt(f.index,f.matrix);f.mesh.instanceMatrix.needsUpdate=true;}for(const f of flung){f.clone.parent?.remove(f.clone);f.root.visible=true;}flung.length=0;
+  clearCraters();events.length=0;buildingHp.clear();for(const f of flattenedProps.splice(0)){f.mesh.setMatrixAt(f.index,f.matrix);f.mesh.instanceMatrix.needsUpdate=true;}for(const f of flung){f.clone.parent?.remove(f.clone);f.root.visible=true;}flung.length=0;
   if(debris){const zero=new THREE.Matrix4().makeScale(0,0,0);debris.items.forEach((it,i)=>{if(it.alive){it.alive=false;debris.mesh.setMatrixAt(i,zero);}});debrisFree=debris.items.map((_,i)=>DEBRIS_POOL-1-i);debris.mesh.instanceMatrix.needsUpdate=true;}
   for(const c of craters){c.mesh.parent?.remove(c.mesh);c.mesh.geometry.dispose();c.mesh.material.dispose();c.rim.geometry.dispose();c.rim.material.dispose();}craters.length=0;
   setData("nukeDebrisAlive",0);setData("nukeFlungActors",0);

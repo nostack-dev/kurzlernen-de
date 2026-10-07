@@ -9,6 +9,8 @@ import "./nuke_hazard_fx.mjs";
 import "./player_shield.mjs";
 import "./game_reset.mjs";
 import "./game_exit_button.mjs";
+import "./world_city_buildings.mjs";
+import "./world_sync.mjs";
 import "./music_player.mjs";
 import "./spawn_visibility_guard.mjs";
 

@@ -1,0 +1,88 @@
+name: Visual diagnostics
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "sim/**"
+      - "drone_simulator.html"
+      - "tests/visual_diagnostics_live.mjs"
+      - ".github/workflows/visual-diagnostics.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: visual-diagnostics
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install browser harness
+        run: |
+          set -euxo pipefail
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund puppeteer-core@24.16.0
+      - name: Wait for live build containing this commit
+        env:
+          GH_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          ok=0
+          for attempt in $(seq 1 120); do
+            if curl -fsSL --retry 1 --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}-${attempt}" -o /tmp/mobile-live.html; then
+              LIVE_SHA="$(grep -oE 'ARONDIGHT45_BUILD_SHA:[0-9a-f]{40}' /tmp/mobile-live.html | head -1 | cut -d: -f2 || true)"
+              if [ "$LIVE_SHA" = "$GH_SHA" ]; then
+                ok=1
+                break
+              fi
+              if [ -n "$LIVE_SHA" ] && curl -fsSL --connect-timeout 8 --max-time 20 \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${GH_TOKEN}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/compare/${GH_SHA}...${LIVE_SHA}" -o /tmp/mobile-compare.json \
+                && jq -e '.status == "ahead" or .status == "identical"' /tmp/mobile-compare.json >/dev/null; then
+                echo "Live descendant ${LIVE_SHA} contains tested commit ${GH_SHA}."
+                ok=1
+                break
+              fi
+            fi
+            sleep 5
+          done
+          test "$ok" = 1
+      - name: Live visual + performance diagnostics
+        env:
+          GH_SHA: ${{ github.sha }}
+        run: |
+          set -euxo pipefail
+          mkdir -p artifacts
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          CHROME_BIN="$CHROME_BIN" node tests/visual_diagnostics_live.mjs "https://kurzlernen.de/drone_simulator.html?diag-ci=${GH_SHA}" 2>&1 | tee artifacts/diag-run.log
+      - name: Publish diagnostics to the ci-diagnostics branch
+        if: always()
+        env:
+          GH_SHA: ${{ github.sha }}
+          SUBDIR: visual
+        run: |
+          set -eux
+          mkdir -p artifacts
+          rm -rf /tmp/diag-pub && mkdir -p /tmp/diag-pub
+          cd /tmp/diag-pub
+          git init -q
+          git config user.name "ci-diagnostics"
+          git config user.email "ci-diagnostics@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth 1 origin ci-diagnostics; then git checkout -q -b ci-diagnostics FETCH_HEAD; else git checkout -q --orphan ci-diagnostics; fi
+          rm -rf "$SUBDIR" && mkdir -p "$SUBDIR"
+          cp -r "$GITHUB_WORKSPACE"/artifacts/. "$SUBDIR"/ 2>/dev/null || true
+          echo "${GH_SHA}" > "$SUBDIR/SHA"
+          git add -A
+          git commit -q -m "diagnostics ${SUBDIR} ${GH_SHA}" || true
+          for i in 1 2 3; do git push -q origin HEAD:ci-diagnostics && break; git fetch -q --depth 1 origin ci-diagnostics && git rebase -q FETCH_HEAD || true; sleep 3; done

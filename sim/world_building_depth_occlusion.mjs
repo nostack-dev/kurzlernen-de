@@ -116,7 +116,11 @@ function ensureMesh(scene){
 }
 
 export function syncWorldBuildingDepthOcclusion(bridge=globalThis.__arondightRealWorld){
-  const scene=bridge?.threeScene;if(!scene)return 0;const target=ensureMesh(scene),snapshot=bridge?.buildingCollisionSnapshot,prisms=Array.isArray(snapshot?.prisms)?snapshot.prisms:[],hash=String(snapshot?.hash||"");
+  const scene=bridge?.threeScene;if(!scene)return 0;const target=ensureMesh(scene);
+  // The full map city (world_city_buildings.mjs) draws every building now;
+  // this collision-prism copy would double-draw the nearest ones.
+  if(scene.getObjectByName?.("WORLD_CITY_BUILDINGS")?.visible){target.visible=false;if(edges)edges.visible=false;if(halo)halo.visible=false;return Number(target.userData.worldBuildingDepthPrisms)||0;}
+  const snapshot=bridge?.buildingCollisionSnapshot,prisms=Array.isArray(snapshot?.prisms)?snapshot.prisms:[],hash=String(snapshot?.hash||"");
   if(!bridge?.active||!prisms.length){target.visible=false;if(edges)edges.visible=false;if(halo)halo.visible=false;const view=viewport();if(view){view.dataset.worldBuildingDepthOccluders="0";view.dataset.worldBuildingOcclusion="inactive";}return 0;}
   if(hash!==lastHash){const geometry=buildStylizedBuildingGeometry(prisms),outline=fatLineGeometry(buildBuildingOutlineGeometry(prisms));edges.geometry.dispose?.();edges.geometry=outline;halo.geometry=outline;target.geometry.dispose?.();target.geometry=geometry;lastHash=hash;target.userData.worldBuildingDepthHash=hash;target.userData.worldBuildingDepthPrisms=geometry.userData.worldBuildingOccluderPrisms||0;}
   const count=Number(target.userData.worldBuildingDepthPrisms)||0;target.visible=count>0;if(edges)edges.visible=count>0;if(halo)halo.visible=count>0;const view=viewport();if(view){view.dataset.worldBuildingDepthOccluders=String(count);view.dataset.worldBuildingOcclusion=count?"depth-active":"inactive";view.dataset.worldBuildingStyle=count?"neon-solid-outlined-v1":"inactive";}return count;

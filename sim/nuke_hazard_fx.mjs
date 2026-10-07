@@ -1,4 +1,5 @@
 import {getSharedCombatAudioContext} from "./combat_audio_bank.mjs";
+import {actorRoots} from "./world_actor_roots.mjs";
 import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./audio_settings.mjs";
 
 // What it feels like to be near ground zero after the bang:
@@ -105,7 +106,7 @@ function frame(now){
 const PANIC_RADIUS_M=900,PANIC_S=45,RUN_MPS=6.5;let panicRoots=[],panicScan=-Infinity,panicFrame=performance.now();
 function panic(scene){
   const now=performance.now(),dt=Math.min(.1,(now-panicFrame)/1000);panicFrame=now;const zone=zones.at(-1);if(!zone||(now-zone.born)/1000>PANIC_S||!scene)return;
-  if(now-panicScan>1000){panicScan=now;panicRoots=[];scene.traverse(n=>{const u=n.userData||{},kind=String(u.worldPopulationKind||u.worldLifeKind||"");if(kind!=="person"&&kind!=="life-person")return;const id=String(u.worldPopulationId||u.worldLifeId||"");if(id&&String(n.parent?.userData?.worldPopulationId||n.parent?.userData?.worldLifeId||"")===id)return;panicRoots.push(n);});}
+  if(now-panicScan>1000){panicScan=now;panicRoots=[...actorRoots(scene).values()].filter(a=>a.kind==="person").map(a=>a.root);}
   for(const r of panicRoots){if(!r.parent||r.visible===false)continue;const u=r.userData,p=r.position;
     const fresh=!u.panicLast||Math.abs(p.x-u.panicLast.x)>1e-6||Math.abs(p.y-u.panicLast.y)>1e-6;const ox=u.panicOffset?.x||0,oy=u.panicOffset?.y||0;
     const bx=fresh?p.x:p.x-ox,by=fresh?p.y:p.y-oy,dx=bx+ox-zone.x,dy=by+oy-zone.y,d=Math.hypot(dx,dy);if(d>PANIC_RADIUS_M&&!u.panicOffset)continue;

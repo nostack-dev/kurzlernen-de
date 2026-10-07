@@ -10,8 +10,8 @@ import {
 
 assert.deepEqual(
   readdirSync(".github/workflows").sort(),
-  ["deploy.yml","editor3d-assemble.yml","editor3d-box3d-main-upgrade.yml","editor3d-e2e.yml","editor3d-flicker-fix.yml","editor3d-live.yml","editor3d-mobile-orbit.yml","editor3d-newton-cradle.yml","mobile-gameplay-regression.yml","s31-hil.yml"],
-  "production tree must contain only the approved Pages, Editor3D, mobile gameplay, and S31 HIL workflows",
+  ["deploy.yml","editor3d-assemble.yml","editor3d-box3d-main-upgrade.yml","editor3d-e2e.yml","editor3d-flicker-fix.yml","editor3d-live.yml","editor3d-mobile-orbit.yml","editor3d-newton-cradle.yml","mobile-gameplay-regression.yml","s31-hil.yml","visual-diagnostics.yml"],
+  "production tree must contain only the approved Pages, Editor3D, mobile gameplay, visual diagnostics and S31 HIL workflows",
 );
 
 const near=(a,b,eps=1e-6,msg="")=>assert.ok(Math.abs(a-b)<=eps,`${msg} expected ${b}, got ${a}`);

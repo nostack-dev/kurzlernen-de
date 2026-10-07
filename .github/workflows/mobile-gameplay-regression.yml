@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   mobile-live:
@@ -67,44 +67,49 @@ jobs:
           GH_SHA: ${{ github.sha }}
         run: |
           set -euxo pipefail
+          mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/desktop_controls_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?desktop-ci=${GH_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/desktop_controls_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?desktop-ci=${GH_SHA}" 2>&1 | tee -a artifacts/desktop_controls_live_smoke.log
       - name: Test deterministic mobile startup
         env:
           GH_SHA: ${{ github.sha }}
         run: |
           set -euxo pipefail
+          mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/mobile_startup_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_startup_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_startup_live_smoke.log
       - name: Test mobile reset and readonly traffic API
         env:
           GH_SHA: ${{ github.sha }}
         run: |
           set -euxo pipefail
+          mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/mobile_reset_readonly_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_reset_readonly_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_reset_readonly_live_smoke.log
       - name: Test screen-dominating live nuclear explosion
         env:
           GH_SHA: ${{ github.sha }}
         run: |
           set -euxo pipefail
+          mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/nuke_mobile_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/nuke_mobile_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/nuke_mobile_live_smoke.log
       - name: Test portrait controls and capture mobile gameplay
         if: always()
         env:
           GH_SHA: ${{ github.sha }}
         run: |
           set -euxo pipefail
+          mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          if ! CHROME_BIN="$CHROME_BIN" node tests/mobile_gameplay_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}-portrait-1"; then
+          if ! CHROME_BIN="$CHROME_BIN" node tests/mobile_gameplay_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}-portrait-1" 2>&1 | tee -a artifacts/mobile_gameplay_live_smoke.log; then
             echo "Portrait regression hit a transient FC fault; rerunning once in a fresh browser process."
-            CHROME_BIN="$CHROME_BIN" node tests/mobile_gameplay_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}-portrait-2"
+            CHROME_BIN="$CHROME_BIN" node tests/mobile_gameplay_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}-portrait-2" 2>&1 | tee -a artifacts/mobile_gameplay_live_smoke.log
           fi
       - name: Test grip anchor full-auto traffic crowd FPV and EMP
         if: always()
@@ -112,18 +117,41 @@ jobs:
           GH_SHA: ${{ github.sha }}
         run: |
           set -euxo pipefail
+          mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/mobile_combat_traffic_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_combat_traffic_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_combat_traffic_live_smoke.log
       - name: Test dual-mobile live multiplayer pairing
         if: always()
         env:
           GH_SHA: ${{ github.sha }}
         run: |
           set -euxo pipefail
+          mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/mobile_multiplayer_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}"
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_multiplayer_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_multiplayer_live_smoke.log
+      - name: Publish diagnostics to the ci-diagnostics branch
+        if: always()
+        env:
+          GH_SHA: ${{ github.sha }}
+          SUBDIR: regression
+        run: |
+          set -eux
+          mkdir -p artifacts
+          rm -rf /tmp/diag-pub && mkdir -p /tmp/diag-pub
+          cd /tmp/diag-pub
+          git init -q
+          git config user.name "ci-diagnostics"
+          git config user.email "ci-diagnostics@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth 1 origin ci-diagnostics; then git checkout -q -b ci-diagnostics FETCH_HEAD; else git checkout -q --orphan ci-diagnostics; fi
+          rm -rf "$SUBDIR" && mkdir -p "$SUBDIR"
+          cp -r "$GITHUB_WORKSPACE"/artifacts/. "$SUBDIR"/ 2>/dev/null || true
+          echo "${GH_SHA}" > "$SUBDIR/SHA"
+          git add -A
+          git commit -q -m "diagnostics ${SUBDIR} ${GH_SHA}" || true
+          for i in 1 2 3; do git push -q origin HEAD:ci-diagnostics && break; git fetch -q --depth 1 origin ci-diagnostics && git rebase -q FETCH_HEAD || true; sleep 3; done
       - uses: actions/upload-artifact@v4
         if: always()
         with:

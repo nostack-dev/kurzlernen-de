@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import "./neon_ui_theme.mjs";
+import {groundHeightAt,onTerrainChange} from "./terrain_craters.mjs";
 import {neonLineMaterial,NEON_DEBUG_PALETTE,fatLineMaterial,fatLineGeometry,fatLineSegments,syncFatLineResolution} from "./box3d_collider_debug.mjs";
 
 // Arcade neon line look for the whole world, built on the Box3D debug-draw
@@ -137,17 +138,29 @@ function convert(mesh){
 }
 function needsWork(mesh){return (mesh.isMesh||mesh.isSprite)&&(mesh.userData.neonStyled!==NEON_STYLE_VERSION||mesh.userData.neonMaterial!==mesh.material||(mesh.userData.neonEdgesFor&&mesh.userData.neonEdgesFor!==mesh.geometry));}
 
+// Neon ground grid, world-anchored and draped over the real terrain
+// (terrain_craters.mjs): inside a crater the grid bends down into the bowl
+// and over the rim. Rebuilt only when the player moves ~48 m or the terrain
+// changes.
+let gridAnchor=[Infinity,Infinity],gridTerrainVersion=-1,terrainVersion=0;
+onTerrainChange(()=>{terrainVersion++;});
+function rebuildGrid(cx,cy){
+  const half=GRID_SIZE_M/2,positions=[],step=GRID_STEP_M,x0=Math.round((cx-half)/step)*step,y0=Math.round((cy-half)/step)*step,n=Math.round(GRID_SIZE_M/step);
+  for(let i=0;i<=n;i++){const fixed=i*step;
+    for(let k=0;k<n;k++){const a=k*step,b=a+step;
+      positions.push(x0+a,y0+fixed,groundHeightAt(x0+a,y0+fixed)+.03,x0+b,y0+fixed,groundHeightAt(x0+b,y0+fixed)+.03);
+      positions.push(x0+fixed,y0+a,groundHeightAt(x0+fixed,y0+a)+.03,x0+fixed,y0+b,groundHeightAt(x0+fixed,y0+b)+.03);}}
+  const grid=gridGroup.children[0];grid.geometry.dispose();const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));geometry.computeBoundingSphere();grid.geometry=geometry;
+  gridAnchor=[cx,cy];gridTerrainVersion=terrainVersion;
+}
 function ensureGrid(scene){
   if(gridGroup?.parent===scene)return gridGroup;
-  const positions=[],half=GRID_SIZE_M/2;
-  for(let v=-half;v<=half;v+=GRID_STEP_M){positions.push(-half,v,0,half,v,0,v,-half,0,v,half,0);}
-  const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));
-  const grid=new THREE.LineSegments(geometry,neonLineMaterial(0x00ff9c,{opacity:.32}));grid.raycast=()=>{};grid.frustumCulled=false;
-  gridGroup=new THREE.Group();gridGroup.name="NEON_GROUND_GRID";gridGroup.userData.neonSkip=true;gridGroup.userData.flightFireIgnore=true;gridGroup.add(grid);gridGroup.renderOrder=-5;scene.add(gridGroup);return gridGroup;
+  const grid=new THREE.LineSegments(new THREE.BufferGeometry(),neonLineMaterial(0x00ff9c,{opacity:.32}));grid.raycast=()=>{};grid.frustumCulled=false;
+  gridGroup=new THREE.Group();gridGroup.name="NEON_GROUND_GRID";gridGroup.userData.neonSkip=true;gridGroup.userData.flightFireIgnore=true;gridGroup.add(grid);gridGroup.renderOrder=-5;scene.add(gridGroup);gridAnchor=[Infinity,Infinity];return gridGroup;
 }
 function followGrid(){
   const camera=bridge()?.threeCamera;if(!gridGroup||!camera)return;
-  gridGroup.position.set(Math.round(camera.position.x/GRID_STEP_M)*GRID_STEP_M,Math.round(camera.position.y/GRID_STEP_M)*GRID_STEP_M,.03);
+  if(Math.hypot(camera.position.x-gridAnchor[0],camera.position.y-gridAnchor[1])>48||gridTerrainVersion!==terrainVersion)rebuildGrid(camera.position.x,camera.position.y);
 }
 function styleScene(scene){
   if(styledScene===scene)return;styledScene=scene;

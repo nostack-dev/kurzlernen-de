@@ -26,6 +26,13 @@ export function installGameExitButton(){
   style.textContent=`#gameExitButton{position:absolute;z-index:47;width:44px;min-height:0;margin:0;padding:0!important;display:flex;align-items:center;justify-content:center;font-size:8px!important;letter-spacing:.14em!important;border-top-left-radius:0!important;border-bottom-left-radius:0!important;pointer-events:auto;touch-action:manipulation}
 #gameExitButton[hidden]{display:none!important}
 html.neon-line-style:not(#ng-a):not(#ng-b):not(#ng-c) #gameExitButton{border-top-left-radius:0!important;border-bottom-left-radius:0!important;padding:0!important;font-size:8px!important}
+/* Desktop gets the same MULTI | EXIT control as mobile (one multiplayer
+   entry point everywhere); the old FIND MATE topbar button stays in the DOM
+   (MULTI routes to it) but is no longer shown twice. */
+body.solo-flight:not(.mobile-gameplay-compact) #mobileGameplayMultiplayer{display:flex!important;align-items:center;justify-content:center;position:absolute;top:max(60px,calc(var(--solo-safe-top,env(safe-area-inset-top)) + 54px));left:max(10px,var(--solo-safe-left,env(safe-area-inset-left)));min-height:32px;z-index:47;pointer-events:auto;padding:0 6px!important;font-size:9px!important}
+body.solo-flight:not(.mobile-gameplay-compact) #mobileGameplayMultiplayerStatus{display:block;position:absolute;top:max(98px,calc(var(--solo-safe-top,env(safe-area-inset-top)) + 92px));left:max(10px,var(--solo-safe-left,env(safe-area-inset-left)));z-index:45;font-size:9px}
+body.solo-flight:not(.mobile-gameplay-compact) #mobileGameplayMultiplayerStatus:empty{display:none}
+body.solo-flight #soloTopbar #lanVsButton{display:none!important}
 html.neon-line-style:not(#ng-a):not(#ng-b):not(#ng-c) #mobileGameplayMultiplayer.split-left{width:52px!important;border-top-right-radius:0!important;border-bottom-right-radius:0!important;border-right-width:0!important}`;
   document.head.appendChild(style);sync();
 }

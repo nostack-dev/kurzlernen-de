@@ -15,7 +15,7 @@ function requestStartupLocation(){
 // gesture — and flight startup never waits for it, so denied GPS or an
 // offline network cannot block the game. Automated browsers (webdriver) and
 // ?autostart=1 skip the menu exactly like before.
-const AUTOSTART=Boolean(navigator.webdriver)||/[?&]autostart=1/.test(location.search);
+const AUTOSTART=!/[?&]menu=1/.test(location.search)&&(Boolean(navigator.webdriver)||/[?&]autostart=1/.test(location.search));
 const menu=$("gameMenu"),startButton=$("gameMenuStart"),menuStatus=$("gameMenuStatus");
 function setMenuStatus(text){if(menuStatus)menuStatus.textContent=text;}
 
