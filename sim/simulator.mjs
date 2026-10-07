@@ -391,7 +391,7 @@ class PhysicsModel {
     this.worldBuildingLaunchResolved=false;this.worldBuildingLaunchPoint=[Number(initial?.x)||0,Number(initial?.y)||0];
     if(this.world){this.worldBuildingCollisionState=null;b3.b3DestroyWorld(this.world);}
     const worldDef=b3.b3DefaultWorldDef();worldDef.gravity=[0,0,-G];worldDef.enableSleep=false;worldDef.enableContinuous=true;this.world=b3.b3CreateWorld(worldDef);
-    this.terrainBody=null;this.rebuildTerrain();
+    this.terrainBodies=[];this.rebuildTerrain();
     const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_dynamicBody;const initialZ=Number.isFinite(initial?.z)?initial.z:AIRFRAME_SPAWN_Z_M;bodyDef.position=[initial?.x||0,initial?.y||0,Math.max(AIRFRAME_SPAWN_Z_M,initialZ)];bodyDef.rotation=initial?[...eulerToQuat(initial.roll_deg||0,initial.pitch_deg||0,initial.yaw_deg||0)]:[0,0,0,1];bodyDef.linearDamping=.002;bodyDef.angularDamping=.002;bodyDef.enableSleep=false;this.body=b3.b3CreateBody(this.world,bodyDef);
     const shapeDef=b3.b3DefaultShapeDef();shapeDef.density=100;shapeDef.baseMaterial.friction=.65;shapeDef.baseMaterial.restitution=.08;shapeDef.filter={categoryBits:COLLISION_AIRFRAME,maskBits:COLLISION_TERRAIN,groupIndex:0};b3.b3CreateBoxShape(this.body,shapeDef,.055,.045,AIRFRAME_COLLISION_HALF_Z_M);
     const arm=p.span/(2*Math.sqrt(2));this.motorPos=[[-arm,-arm,0],[-arm,arm,0],[arm,arm,0],[arm,-arm,0]];
@@ -411,7 +411,7 @@ class PhysicsModel {
   }
   // Ground = flat box with crater holes filled by surface-following slabs
   // (terrain_craters.mjs). Rebuilt when a nuke crater appears or resets.
-  rebuildTerrain(){if(!this.world)return 0;if(this.terrainBody&&b3.b3Body_IsValid?.(this.terrainBody))b3.b3DestroyBody(this.terrainBody);const groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,groupIndex:0};const result=createTerrainBody(b3,this.world,groundShape,TERRAIN_HALF);this.terrainBody=result.body;const viewport=$("viewport");if(viewport){viewport.dataset.terrainVersion=TERRAIN_CRATERS_VERSION;viewport.dataset.terrainShapes=String(result.shapeCount);}return result.shapeCount;}
+  rebuildTerrain(){if(!this.world)return 0;for(const body of this.terrainBodies||[])if(b3.b3Body_IsValid?.(body)!==false)b3.b3DestroyBody(body);this.terrainBodies=[];const groundShape=b3.b3DefaultShapeDef();groundShape.baseMaterial.friction=.75;groundShape.baseMaterial.restitution=.03;groundShape.filter={categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,groupIndex:0};const result=createTerrainBody(b3,this.world,groundShape,TERRAIN_HALF);this.terrainBodies=result.bodies;const viewport=$("viewport");if(viewport){viewport.dataset.terrainVersion=TERRAIN_CRATERS_VERSION;viewport.dataset.terrainShapes=String(result.shapeCount);}return result.shapeCount;}
   setWorldBuildingCollisions(value){const snapshot=normalizeBuildingCollisionSnapshot(value);if(snapshot.hash===this.worldBuildingCollisionSnapshot.hash&&snapshot.prismCount===this.worldBuildingCollisionSnapshot.prismCount)return false;this.worldBuildingCollisionSnapshot=snapshot;this.rebuildWorldBuildingCollisions();return true;}
   resolveWorldBuildingLaunch(){
     if(!this.body||!this.worldBuildingCollisionSnapshot.prismCount)return false;

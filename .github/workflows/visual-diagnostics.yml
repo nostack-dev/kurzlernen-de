@@ -56,6 +56,11 @@ jobs:
             sleep 5
           done
           test "$ok" = 1
+      - name: Save the live build for offline inspection
+        run: |
+          set -eux
+          mkdir -p artifacts/live
+          curl -fsSL -H 'Cache-Control: no-cache' "https://kurzlernen.de/drone_simulator.html?save=${{ github.sha }}" -o artifacts/live/drone_simulator.html || true
       - name: Live visual + performance diagnostics
         env:
           GH_SHA: ${{ github.sha }}

@@ -33,7 +33,10 @@ async function armDroneAtomically(){
 }
 
 try{
-  await page.goto(url.href,{waitUntil:"load",timeout:60000});
+  const t0=Date.now();await page.goto(url.href,{waitUntil:"domcontentloaded",timeout:60000});report.domContentLoadedMs=Date.now()-t0;
+  page.evaluate(()=>new Promise(r=>document.readyState==="complete"?r():addEventListener("load",r,{once:true}))).then(()=>{report.loadEventMs=Date.now()-t0;}).catch(()=>{});
+  await step("boot-5s",()=>pause(5000));
+  report.boot=await page.evaluate(()=>({readyState:document.readyState,status:document.querySelector("#status")?.textContent,pendingResources:performance.getEntriesByType("resource").filter(e=>!e.responseEnd).map(e=>e.name).slice(0,10),resources:performance.getEntriesByType("resource").map(e=>({n:e.name.slice(-60),ms:Math.round(e.duration),kb:Math.round((e.transferSize||0)/1024)})).slice(0,40)})).catch(e=>({error:String(e)}));
   await step("menu",()=>page.waitForFunction(()=>document.getElementById("gameMenuStart")?.textContent?.trim()==="START",{timeout:45000}));
   await step("started",async()=>{await page.click("#gameMenuStart");await page.waitForFunction(()=>document.getElementById("gameMenu")?.hidden===true,{timeout:60000});await pause(4000);});
   await step("city-drone",async()=>{await page.waitForFunction(()=>Number(document.querySelector("#viewport")?.dataset.worldCityBuildings)>20,{timeout:30000}).catch(()=>{});await pause(1500);});
