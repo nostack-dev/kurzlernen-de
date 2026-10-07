@@ -5,10 +5,10 @@ import "./emp_button_layout.mjs";
 // Neon wireframe city, matching the RUSH start screen: black plate, bright
 // green edges, ground grid. No maps, no imagery, no shadow maps.
 
-export const STYLIZED_STYLE_VERSION="rush-neon-wire-v1";
-export const STYLE_PALETTE=Object.freeze({skyZenith:0x010806,skyHorizon:0x02180e,haze:0x02140c,ground:0x010806,phosphor:0x3dff8a,edge:0x39ff14,fill:0x02140c});
-export const NEON_BUILDING_EXTRUSION_COLOR="#02140c";
-const PHOSPHOR=0x3dff8a,FILL=0x02140c,HOT=0xb6ffcf;
+export const STYLIZED_STYLE_VERSION="rush-neon-wire-v2-bright-clear";
+export const STYLE_PALETTE=Object.freeze({skyZenith:0x020c07,skyHorizon:0x052515,haze:0x07331d,ground:0x02140c,phosphor:0x3dff8a,edge:0x39ff14,fill:0x032417});
+export const NEON_BUILDING_EXTRUSION_COLOR="#032417";
+const PHOSPHOR=0x3dff8a,FILL=0x032417,SURFACE=0x087043,HOT=0xb6ffcf;
 const MOBILE=typeof navigator!=="undefined"&&/android|iphone|ipad|mobile/i.test(navigator.userAgent||"");
 const SCAN_INTERVAL_MS=MOBILE?900:650,FRAME_BUDGET_MS=2.8,EDGE_THRESHOLD=26;
 
@@ -31,7 +31,7 @@ function ensureGrid(scene){
   const size=640,step=16,positions=[];
   for(let i=-size;i<=size;i+=step)positions.push(-size,i,0,size,i,0,-i,-size,0,-i,size,0);
   const geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));
-  grid=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color:PHOSPHOR,transparent:true,opacity:.32,blending:THREE.AdditiveBlending,depthWrite:false}));
+  grid=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color:PHOSPHOR,transparent:true,opacity:.46,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false}));
   grid.position.z=.04;grid.frustumCulled=false;grid.userData.styleSkip=true;grid.name="RUSH_NEON_GRID";scene.add(grid);
 }
 function killLights(scene,renderer){
@@ -45,8 +45,8 @@ function skip(node){for(let n=node;n;n=n.parent){const u=n.userData||{};if(u.sty
 function phosphorize(material,hot){
   if(!material||processed.has(material))return;processed.add(material);stripTextures(material);
   const glow=material.transparent||material.blending===THREE.AdditiveBlending||hot;
-  if(material.color)material.color.set(glow?HOT:FILL);
-  if(material.emissive){material.emissive.set(PHOSPHOR);material.emissiveIntensity=glow?1.4:.15;}
+  if(material.color)material.color.set(glow?HOT:(material.emissive?FILL:SURFACE));
+  if(material.emissive){material.emissive.set(PHOSPHOR);material.emissiveIntensity=glow?1.55:.42;}
   if("roughness"in material)material.roughness=1;if("metalness"in material)material.metalness=0;if("envMapIntensity"in material)material.envMapIntensity=0;
   material.needsUpdate=true;
 }
@@ -69,7 +69,7 @@ function styleScene(scene){
   // Full-scene light discovery is a scene-change operation, never a frame task.
   // New lights are disabled by the incremental scanner below.
   killLights(scene,bridge()?.threeRenderer);
-  scene.background=new THREE.Color(STYLE_PALETTE.skyZenith);scene.fog=new THREE.FogExp2(STYLE_PALETTE.haze,.0012);
+  scene.background=new THREE.Color(STYLE_PALETTE.skyZenith);scene.fog=new THREE.FogExp2(STYLE_PALETTE.haze,.00038);
   scene.traverse(n=>{if(n.isMesh&&n.parent===scene&&n.geometry?.type==="BoxGeometry"&&(n.geometry.parameters?.width||0)>1000&&n.material?.color){stripTextures(n.material);n.material.color.set(STYLE_PALETTE.ground);n.userData.stylized=STYLIZED_STYLE_VERSION;}});
 }
 const ACTOR_CULL_M=260,CULL_INTERVAL_MS=600,cullPos=new THREE.Vector3();
@@ -90,7 +90,7 @@ function cullActors(now){if(now-lastCull<CULL_INTERVAL_MS)return;lastCull=now;co
 function frame(now){
   const scene=bridge()?.threeScene;if(!scene)return requestAnimationFrame(frame);
   styleScene(scene);skyUniforms.uTime.value=now/1000;
-  if(grid){const camera=bridge()?.threeCamera;if(camera){grid.position.x=Math.round(camera.position.x/16)*16;grid.position.y=Math.round(camera.position.y/16)*16;}}
+  if(grid){const camera=bridge()?.threeCamera;grid.visible=!bridge()?.active;if(camera){grid.position.x=Math.round(camera.position.x/16)*16;grid.position.y=Math.round(camera.position.y/16)*16;}}
   if(!scanStack.length&&!scanSceneRef&&now-lastScan>SCAN_INTERVAL_MS){lastScan=now;beginScan(scene);}
   const deadline=performance.now()+FRAME_BUDGET_MS;stepScan(deadline);cullActors(now);
   while(queue.length&&performance.now()<deadline){const node=queue.pop();if(node.parent)convert(node);}
