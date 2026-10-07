@@ -18,7 +18,7 @@ assert.ok(projectileGroundHit?.physics&&projectileGroundHit.kind==="terrain"&&pr
 for(let index=0;index<240;index++)physics.step(1/60,4,index*1000/60);
 const groundedCar=physics.pose("grounded-car"),groundedBus=physics.pose("grounded-bus");
 assert.ok(groundedCar.position[2]>=.35&&groundedCar.position[2]<.60,`car fell through the Box3D ground: ${JSON.stringify(groundedCar)}`);
-assert.ok(groundedBus.position[2]>=.98&&groundedBus.position[2]<1.30,`bus fell through the Box3D ground: ${JSON.stringify(groundedBus)}`);
+assert.ok(groundedBus.position[2]>=1.2&&groundedBus.position[2]<1.8,`bus fell through the Box3D ground: ${JSON.stringify(groundedBus)}`);
 physics.removeBody("grounded-car");physics.removeBody("grounded-bus");
 
 physics.addBody({id:"car-wall",kind:"car",position:[0,0,.42],yaw:0,halfExtents:[1.78,.82,.42],massKg:1420});

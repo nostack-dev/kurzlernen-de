@@ -29,7 +29,8 @@ function sedan(paint){
   P.push({g:extrudeProfile([[-1.02,.8],[-.64,1.32],[.3,1.34],[.86,.8]],1.42,.06),c:GLASS});
   P.push({g:box(.9,1.36,.06),at:[-.17,0,1.36],c:paint}); // roof
   for(const y of[-.7,.7])P.push({g:box(.08,.04,.5),at:[-.15,y,1.07],c:paint}); // B-pillars
-  for(const x of[-1.15,1.2])for(const y of[-.78,.78]){P.push({g:cyl(.34,.22),at:[x,y,.34],c:RUBBER});P.push({g:cyl(.21,.235,12),at:[x,y,.34],c:RIM});}
+  // wheels are separate (physical, instanced): see wheelGeometry()
+  for(const x of[-1.15,1.2])for(const y of[-.8,.8])P.push({g:box(.8,.05,.06),at:[x,y,.7],c:TRIM}); // wheel-arch trims
   P.push({g:box(.08,1.5,.2),at:[1.83,0,.36],c:TRIM},{g:box(.08,1.5,.2),at:[-1.83,0,.36],c:TRIM});
   for(const y of[-.56,.56]){P.push({g:box(.06,.32,.1),at:[1.82,y,.62],c:HEAD},{g:box(.06,.34,.1),at:[-1.82,y,.64],c:TAIL});}
   P.push({g:box(.03,.36,.11),at:[-1.86,0,.45],c:PLATE},{g:box(.03,.36,.11),at:[1.86,0,.45],c:PLATE});
@@ -42,9 +43,10 @@ function bus(paint){
   P.push({g:box(7.2,2.46,.95),at:[.1,0,2.05],c:GLASS});
   P.push({g:box(.05,2.0,1.3),at:[4.03,0,1.95],c:GLASS});
   P.push({g:box(8.04,2.44,.12),at:[0,0,.62],c:TRIM});
-  for(const x of[-2.55,2.6])for(const y of[-1.08,1.08]){P.push({g:cyl(.46,.28),at:[x,y,.46],c:RUBBER});P.push({g:cyl(.27,.3,12),at:[x,y,.46],c:RIM});}
   for(const y of[-.95,.95]){P.push({g:box(.06,.28,.16),at:[4.02,y,.75],c:HEAD},{g:box(.06,.24,.3),at:[-4.02,y,.95],c:TAIL});}
   P.push({g:box(.05,1.6,.28),at:[4.03,0,2.85],c:0x111111});
   return merge(P);
 }
+// One tyre + rim + hub, radius .34 (scaled for buses), spin axis = y.
+let wheelGeo=null;export function wheelGeometry(){if(!wheelGeo){const tread=new THREE.CylinderGeometry(.34,.34,.22,18),rim=new THREE.CylinderGeometry(.215,.215,.235,12),hub=new THREE.CylinderGeometry(.07,.07,.25,8),spokes=[0,1,2,3,4].map(i=>{const g=new THREE.BoxGeometry(.05,.236,.36);g.rotateY(i/5*Math.PI);return g;});wheelGeo=merge([{g:tread,c:RUBBER},{g:rim,c:0x8f959b},{g:hub,c:0x3a3d42},...spokes.map(g=>({g,c:RIM}))]);}return wheelGeo;}
 export function vehicleGeometry(kind,paint){const key=`${kind}:${paint}`;let g=cache.get(key);if(!g){g=kind==="bus"?bus(paint):sedan(paint);cache.set(key,g);}return g;}

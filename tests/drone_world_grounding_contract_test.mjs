@@ -8,7 +8,7 @@ const [population,roads,water,ground,buildings,depth,training,organic,cleanup,ba
   "sim/nuke_volumetric_cloud_v2.mjs","sim/nuke_overkill_fx.mjs"
 ].map(path=>readFile(path,"utf8")));
 
-for(const marker of ["world-space-fixed-centres-v1","fixed-local-road-network-v1","const cx=anchorX,cy=anchorY","cx=anchorX+m.cx,cy=anchorY+m.cy","visualYaw=speed>.35?Math.atan2(vy,vx)"])
+for(const marker of ["world-space-fixed-centres-v1","fixed-local-road-network-v1","const cx=anchorX,cy=anchorY","cx=anchorX+m.cx,cy=anchorY+m.cy","record.wheelPoses=pose.wheels||null"])
   assert.ok(population.includes(marker),`population grounding contract missing ${marker}`);
 assert.ok(!population.includes("focus=populationFocus(),cx=focus?.x??anchorX,cy=focus?.y??anchorY"),"population still moves animals/birds with the player focus");
 
