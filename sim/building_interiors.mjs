@@ -63,6 +63,15 @@ class Shell{
   geometry(){const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(this.pos,3));g.setAttribute("normal",new THREE.Float32BufferAttribute(this.nrm,3));g.setAttribute("aWall",new THREE.Float32BufferAttribute(this.wall,4));g.setAttribute("aKind",new THREE.Float32BufferAttribute(this.kind,1));g.setAttribute("aLocal",new THREE.Float32BufferAttribute(this.local,1));g.computeBoundingSphere();return g;}
 }
 
+// One shell per storey (index F = roof parts) so only the storeys around the
+// player are drawn — no overdraw from the floors above and below.
+class LevelShells{
+  constructor(b){this.b=b;this.m=new Map();this.k=0;}
+  at(k){this.k=k;return this;}
+  cur(){let s=this.m.get(this.k);if(!s){s=new Shell(this.b);this.m.set(this.k,s);}return s;}
+  quad(...a){this.cur().quad(...a);}tri(...a){this.cur().tri(...a);}slab(...a){this.cur().slab(...a);}beam(...a){this.cur().beam(...a);}
+  geometries(){return[...this.m].map(([k,s])=>[k,s.geometry()]);}
+}
 // ------------------------------------------------------------------ interior material
 const interiorUniforms={vSeed:{value:.5},vFloorH:{value:3.3},uWallColor:{value:new THREE.Color("#e9e4da")},uAccent:{value:new THREE.Color("#7f9a8a")},uAxis:{value:new THREE.Vector2(1,0)}};
 let shellMaterial=null;
@@ -84,7 +93,7 @@ void main() {float iRough=0.85,iMetal=0.0;vec3 iEmit=vec3(0.0);`)
   if(kd<0.5){
     if(facadeCutout(P,false))discard;
     float facGlass=0.0,facRough=0.88;
-    ${FACADE_GLSL}
+    ${FACADE_GLSL.replace("float aa=clamp(1.6-fwidth(u)*1.2,0.0,1.0);","float aa=1.0;")}
     if(facGlass>0.5)discard;
     float n=inoise(P.xy*1.7+P.z*2.3)*0.5+inoise(vec2(q.x,P.z)*7.0)*0.5;
     vec3 c=uWallColor*(0.94+0.08*n);
@@ -137,7 +146,7 @@ void main() {float iRough=0.85,iMetal=0.0;vec3 iEmit=vec3(0.0);`)
       .replace("#include <lights_fragment_end>","#include <lights_fragment_end>\nreflectedLight.indirectDiffuse*=vec3(0.66,0.56,0.45);reflectedLight.indirectSpecular*=0.5;");
   };
   m.envMapIntensity=.35;
-  m.customProgramCacheKey=()=>"building-interior-shell-v3";
+  m.customProgramCacheKey=()=>"building-interior-shell-v4";
   shellMaterial=m;return m;
 }
 
@@ -213,9 +222,9 @@ function findCore(inner,innerHoles,holes,doors,centroid,axis){
 }
 
 // ------------------------------------------------------------------ interior build
-let active=null,group=null,shellMesh=null,propMeshes=[],doorMesh=null,leafMesh=null,sceneRef=null;
-function disposeActive(){if(shellMesh){shellMesh.geometry.dispose();shellMesh.parent?.remove(shellMesh);shellMesh=null;}for(const m of propMeshes){m.parent?.remove(m);m.dispose?.();}propMeshes=[];active=null;facadeCutouts.uCutN.value=0;setData("buildingInterior","none");}
-function ensureGroup(scene){if(group?.parent===scene)return group;group?.parent?.remove(group);group=new THREE.Group();group.name="BUILDING_INTERIORS";scene.add(group);sceneRef=scene;doorMesh=leafMesh=null;shellMesh=null;propMeshes=[];return group;}
+let active=null,group=null,shellMeshes=[],propMeshes=[],doorMesh=null,leafMesh=null,sceneRef=null;
+function disposeActive(){for(const m of shellMeshes){m.geometry.dispose();m.parent?.remove(m);}shellMeshes=[];for(const m of propMeshes){m.parent?.remove(m);m.dispose?.();}propMeshes=[];active=null;facadeCutouts.uCutN.value=0;setData("buildingInterior","none");}
+function ensureGroup(scene){if(group?.parent===scene)return group;group?.parent?.remove(group);group=new THREE.Group();group.name="BUILDING_INTERIORS";scene.add(group);sceneRef=scene;doorMesh=leafMesh=null;shellMeshes=[];propMeshes=[];return group;}
 
 function buildInterior(fp){
   const key=String(fp.key),params=facadeParams(key),seed=hashKey(key),R=rng(seed^0x9e3779b9);
@@ -244,22 +253,22 @@ function buildInterior(fp){
 }
 
 function buildShell(b){
-  const S=new Shell(b),{outer,inner,holes,innerHoles,base,top,levels,core,doors}=b,H=top-base,F=levels.length;
+  const S=new LevelShells(b),{outer,inner,holes,innerHoles,base,top,levels,core,doors}=b,H=top-base,F=levels.length;
   const exteriorEdge=i=>{const a=outer[i],c=outer[(i+1)%outer.length],l=Math.hypot(c[0]-a[0],c[1]-a[1])||1;return{a,l,dx:(c[0]-a[0])/l,dy:(c[1]-a[1])/l};};
   const holeEdge=(h,i)=>{const r=holes[h],a=r[i],c=r[(i+1)%r.length],l=Math.hypot(c[0]-a[0],c[1]-a[1])||1;return{a,l,dx:(c[0]-a[0])/l,dy:(c[1]-a[1])/l};};
   const coreHole=core?[...core.rect].reverse():null;
   // walls (inner faces, facade window openings via the shared shader)
   const wallRing=(ring,edgeOf)=>{for(let i=0;i<ring.length;i++){const A=ring[i],B=ring[(i+1)%ring.length],e=edgeOf(i),uA=Math.max(.001,Math.min(e.l-.001,(A[0]-e.a[0])*e.dx+(A[1]-e.a[1])*e.dy)),uB=Math.max(.001,Math.min(e.l-.001,(B[0]-e.a[0])*e.dx+(B[1]-e.a[1])*e.dy));
-    for(let k=0;k<F;k++){const z0=k===0?base:levels[k],z1=b.ceilOf(k)+.02;S.quad([B[0],B[1],z0],[A[0],A[1],z0],[A[0],A[1],z1],[B[0],B[1],z1],K.wall,{wall:[[uB,e.l,z0-base,H],[uA,e.l,z0-base,H],[uA,e.l,z1-base,H],[uB,e.l,z1-base,H]],local:[z0-levels[k],z0-levels[k],z1-levels[k],z1-levels[k]]});}}};
+    for(let k=0;k<F;k++){const z0=k===0?base:levels[k],z1=b.ceilOf(k)+.02;S.at(k).quad([B[0],B[1],z0],[A[0],A[1],z0],[A[0],A[1],z1],[B[0],B[1],z1],K.wall,{wall:[[uB,e.l,z0-base,H],[uA,e.l,z0-base,H],[uA,e.l,z1-base,H],[uB,e.l,z1-base,H]],local:[z0-levels[k],z0-levels[k],z1-levels[k],z1-levels[k]]});}}};
   wallRing(inner,i=>exteriorEdge(i));innerHoles.forEach((r,h)=>wallRing(r,i=>holeEdge(h,i)));
   // floors and ceilings
   for(let k=0;k<F;k++){const floorKind=k===0?K.tile:((b.params.seed*7+k)%2<1?K.wood:K.carpet);
-    const hs=[...innerHoles];if(core&&k>0)hs.push(coreHole);S.slab(inner,hs,levels[k],floorKind,true);
+    const hs=[...innerHoles];if(core&&k>0)hs.push(coreHole);S.at(k).slab(inner,hs,levels[k],floorKind,true);
     const ch=[...innerHoles];if(core&&(k<F-1||b.roofAccess))ch.push(coreHole);S.slab(inner,ch,b.ceilOf(k),K.ceil,false);}
   // roof parapet when the roof is walkable
-  if(b.roofAccess){for(let i=0;i<inner.length;i++){const A=inner[i],B=inner[(i+1)%inner.length];S.quad([B[0],B[1],top],[A[0],A[1],top],[A[0],A[1],top+.95],[B[0],B[1],top+.95],K.plain);const C=outer[i],D=outer[(i+1)%outer.length];S.quad([B[0],B[1],top+.95],[A[0],A[1],top+.95],[C[0],C[1],top+.95],[D[0],D[1],top+.95],K.concrete);}}
+  S.at(F);if(b.roofAccess){for(let i=0;i<inner.length;i++){const A=inner[i],B=inner[(i+1)%inner.length];S.quad([B[0],B[1],top],[A[0],A[1],top],[A[0],A[1],top+.95],[B[0],B[1],top+.95],K.plain);const C=outer[i],D=outer[(i+1)%outer.length];S.quad([B[0],B[1],top+.95],[A[0],A[1],top+.95],[C[0],C[1],top+.95],[D[0],D[1],top+.95],K.concrete);}}
   // doors: reveal tunnel, threshold, interior trim
-  for(const d of doors){const t0=d.t-DOOR_W/2,t1=d.t+DOOR_W/2,P=(t,o,z)=>[d.ax+d.dx*t-d.nx*o,d.ay+d.dy*t-d.ny*o,z],z0=levels[0],zt=z0+DOOR_H;
+  S.at(0);for(const d of doors){const t0=d.t-DOOR_W/2,t1=d.t+DOOR_W/2,P=(t,o,z)=>[d.ax+d.dx*t-d.nx*o,d.ay+d.dy*t-d.ny*o,z],z0=levels[0],zt=z0+DOOR_H;
     S.quad(P(t0,0,base),P(t0,WALL_IN+.02,base),P(t0,WALL_IN+.02,zt),P(t0,0,zt),K.plain,{local:[0,0,9,9]});
     S.quad(P(t1,WALL_IN+.02,base),P(t1,0,base),P(t1,0,zt),P(t1,WALL_IN+.02,zt),K.plain,{local:[0,0,9,9]});
     S.quad(P(t0,0,zt),P(t0,WALL_IN+.02,zt),P(t1,WALL_IN+.02,zt),P(t1,0,zt),K.plain);
@@ -267,7 +276,7 @@ function buildShell(b){
     S.beam(P(t0-.05,WALL_IN+.03,z0),P(t0-.05,WALL_IN+.03,zt+.08),.1,.06,K.metal);S.beam(P(t1+.05,WALL_IN+.03,z0),P(t1+.05,WALL_IN+.03,zt+.08),.1,.06,K.metal);
     S.beam(P(t0-.1,WALL_IN+.03,zt+.05),P(t1+.1,WALL_IN+.03,zt+.05),.06,.1,K.metal);}
   // partition walls with doorways (rooms on the upper storeys)
-  (b.partitions||[]).forEach((parts,k)=>{if(!parts?.length||k>=F)return;const z0=levels[k],z1=b.ceilOf(k)+.02;
+  (b.partitions||[]).forEach((parts,k)=>{if(!parts?.length||k>=F)return;S.at(k);const z0=levels[k],z1=b.ceilOf(k)+.02;
     for(const w of parts){const dx=w.x1-w.x0,dy=w.y1-w.y0,l=Math.hypot(dx,dy)||1,nx=-dy/l*.06,ny=dx/l*.06,kind=w.accent?K.accent:K.plain,loc=[0,0,z1-z0,z1-z0];
       S.quad([w.x0+nx,w.y0+ny,z0],[w.x1+nx,w.y1+ny,z0],[w.x1+nx,w.y1+ny,z1],[w.x0+nx,w.y0+ny,z1],kind,{local:loc});
       S.quad([w.x1-nx,w.y1-ny,z0],[w.x0-nx,w.y0-ny,z0],[w.x0-nx,w.y0-ny,z1],[w.x1-nx,w.y1-ny,z1],K.plain,{local:loc});
@@ -278,14 +287,14 @@ function buildShell(b){
       S.beam([g.x-g.dx*.62,g.y-g.dy*.62,zl+.04],[g.x+g.dx*.62,g.y+g.dy*.62,zl+.04],.16,.07,K.woodTrim);}
   });
   if(core)buildCore(S,b);
-  return S.geometry();
+  return S.geometries();
 }
 function buildCore(S,b){
   const c=b.core,{levels,stairs,top}=b,F=levels.length,P=(u,v,z)=>{const p=c.P(u,v);return[p[0],p[1],z];};
   const coreTop=b.roofAccess?top+ROOF_HOUSE:b.ceilOf(F-1)+.02,zBase=b.base,W=c.W,L=c.L,T=.075;
   // shaft walls (outside face towards the floors with skirting, inside face plain), per storey
-  const spans=[];for(let k=0;k<F;k++)spans.push([k===0?zBase:levels[k],k<F-1?levels[k+1]:(b.roofAccess?top:coreTop),levels[k]]);if(b.roofAccess)spans.push([top,coreTop,top]);
-  for(const[z0,z1,lz]of spans){
+  const spans=[];for(let k=0;k<F;k++)spans.push([k===0?zBase:levels[k],k<F-1?levels[k+1]:(b.roofAccess?top:coreTop),levels[k],k]);if(b.roofAccess)spans.push([top,coreTop,top,F]);
+  for(const[z0,z1,lz,sk]of spans){S.at(sk);
     S.quad(P(-T,L,z0),P(-T,0,z0),P(-T,0,z1),P(-T,L,z1),K.accent,{local:[z0-lz,z0-lz,z1-lz,z1-lz]});S.quad(P(T,0,z0),P(T,L,z0),P(T,L,z1),P(T,0,z1),K.stairWall);
     S.quad(P(W+T,0,z0),P(W+T,L,z0),P(W+T,L,z1),P(W+T,0,z1),K.accent,{local:[z0-lz,z0-lz,z1-lz,z1-lz]});S.quad(P(W-T,L,z0),P(W-T,0,z0),P(W-T,0,z1),P(W-T,L,z1),K.stairWall);
     S.quad(P(-T,L+T,z0),P(W+T,L+T,z0),P(W+T,L+T,z1),P(-T,L+T,z1),K.accent,{local:[z0-lz,z0-lz,z1-lz,z1-lz]});S.quad(P(W,L-T,z0),P(0,L-T,z0),P(0,L-T,z1),P(W,L-T,z1),K.stairWall);
@@ -297,9 +306,9 @@ function buildCore(S,b){
     S.quad(P(-T,0,z0),P(T,0,z0),P(T,0,z1),P(-T,0,z1),K.plain);S.quad(P(W-T,0,z0),P(W+T,0,z0),P(W+T,0,z1),P(W-T,0,z1),K.plain);
   }
   // stair house roof
-  if(b.roofAccess){S.slab([P(-T,-T,0),P(W+T,-T,0),P(W+T,L+T,0),P(-T,L+T,0)].map(p=>[p[0],p[1]]),[],coreTop,K.concrete,true);S.slab([P(0,0,0),P(W,0,0),P(W,L,0),P(0,L,0)].map(p=>[p[0],p[1]]),[],coreTop-.01,K.ceil,false);}
+  if(b.roofAccess){S.at(F);S.slab([P(-T,-T,0),P(W+T,-T,0),P(W+T,L+T,0),P(-T,L+T,0)].map(p=>[p[0],p[1]]),[],coreTop,K.concrete,true);S.slab([P(0,0,0),P(W,0,0),P(W,L,0),P(0,L,0)].map(p=>[p[0],p[1]]),[],coreTop-.01,K.ceil,false);}
   // flights, landings, soffits, handrails
-  for(let k=0;k<stairs.length;k++){const{z0,R}=stairs[k],half=R/2,n=Math.max(6,Math.round(half/.175)),rs=half/n,tr=RUN/n,uA0=.02,uA1=W/2-.07,uB0=W/2+.07,uB1=W-.02;
+  for(let k=0;k<stairs.length;k++){S.at(k);const{z0,R}=stairs[k],half=R/2,n=Math.max(6,Math.round(half/.175)),rs=half/n,tr=RUN/n,uA0=.02,uA1=W/2-.07,uB0=W/2+.07,uB1=W-.02;
     for(let i=0;i<n;i++){const va=LAND+i*tr,vb=va+tr,za=z0+i*rs,zb=za+rs;
       S.quad(P(uA0,va,zb),P(uA1,va,zb),P(uA1,vb,zb),P(uA0,vb,zb),K.stone);S.quad(P(uA1,va,za),P(uA0,va,za),P(uA0,va,zb),P(uA1,va,zb),K.riser);
       const wb=LAND+RUN-i*tr,wa=wb-tr,zc=z0+half+i*rs,zd=zc+rs;S.quad(P(uB0,wa,zd),P(uB1,wa,zd),P(uB1,wb,zd),P(uB0,wb,zd),K.stone);S.quad(P(uB0,wb,zc),P(uB1,wb,zc),P(uB1,wb,zd),P(uB0,wb,zd),K.riser);}
@@ -314,7 +323,7 @@ function buildCore(S,b){
     for(const u of[W/2-.12,.1])S.beam(P(u,LAND,z0+.92),P(u,LAND+RUN,z0+half+.92),.05,.05,K.metal);
     for(const u of[W/2+.12,W-.1])S.beam(P(u,LAND+RUN,z0+half+.92),P(u,LAND,z0+R+.92),.05,.05,K.metal);}
   // guard rail across the top flight opening
-  const zt=b.topWalk;S.beam(P(.05,LAND+.04,zt+1.0),P(W/2-.08,LAND+.04,zt+1.0),.05,.05,K.metal);S.beam(P(.05,LAND+.04,zt+.5),P(W/2-.08,LAND+.04,zt+.5),.03,.03,K.metal);
+  const zt=b.topWalk;S.at(b.roofAccess?F:F-1);S.beam(P(.05,LAND+.04,zt+1.0),P(W/2-.08,LAND+.04,zt+1.0),.05,.05,K.metal);S.beam(P(.05,LAND+.04,zt+.5),P(W/2-.08,LAND+.04,zt+.5),.03,.03,K.metal);
   for(const u of[.08,W/4,W/2-.1])S.beam(P(u,LAND+.04,zt),P(u,LAND+.04,zt+1.0),.04,.04,K.metal);
 }
 
@@ -387,21 +396,22 @@ let shownLevel=-99;
 function buildPropMeshes(b){
   propGeos??=Object.fromEntries(Object.entries(PROP_DEFS).map(([k,d])=>[k,propGeometry(d.parts)]));
   const byType=new Map();for(const p of b.props){let l=byType.get(p.type);if(!l){l=[];byType.set(p.type,l);}l.push(p);}
-  for(const[type,list]of byType){const mesh=new THREE.InstancedMesh(propGeos[type],propMaterial,list.length);mesh.name=`INTERIOR_PROPS_${type}`;mesh.receiveShadow=true;mesh.castShadow=false;mesh.frustumCulled=false;mesh.userData.styleSkip=true;mesh.userData.props=list;mesh.count=0;propMeshes.push(mesh);group.add(mesh);}
+  for(const[type,list]of byType){const mesh=new THREE.InstancedMesh(propGeos[type],propMaterial,list.length);mesh.name=`INTERIOR_PROPS_${type}`;mesh.receiveShadow=true;mesh.castShadow=false;mesh.userData.styleSkip=true;mesh.userData.props=list;mesh.count=0;propMeshes.push(mesh);group.add(mesh);}
   shownLevel=-99;
 }
 function showPropLevels(level){
   if(level===shownLevel)return;shownLevel=level;
+  const F=active?.levels.length??0;for(const m of shellMeshes){const k=m.userData.level;m.visible=Math.abs(k-level)<=1||k===F;}
   const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),s=new THREE.Vector3(1,1,1),v=new THREE.Vector3(),zAxis=new THREE.Vector3(0,0,1),c=new THREE.Color();
   for(const mesh of propMeshes){let n=0;for(const p of mesh.userData.props){if(Math.abs(p.k-level)>1)continue;q.setFromAxisAngle(zAxis,p.yaw);m4.compose(v.set(p.x,p.y,p.z),q,s);mesh.setMatrixAt(n,m4);mesh.setColorAt(n,c.set(p.tint||"#ffffff"));n++;}
-    mesh.count=n;mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;}
+    mesh.count=n;mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;mesh.computeBoundingSphere();}
 }
 function currentLevel(b,feet){let best=0,d=Infinity;const zs=[...b.levels];if(b.roofZ!=null)zs.push(b.roofZ);zs.forEach((z,i)=>{const e=Math.abs(z-feet);if(e<d){d=e;best=i;}});return best;}
 function activate(fp,scene){
   const b=buildInterior(fp);if(!b)return false;disposeActive();ensureGroup(scene);active=b;
   interiorUniforms.vSeed.value=b.params.seed;interiorUniforms.vFloorH.value=b.params.floorH;interiorUniforms.uAxis.value.set(b.axis[0],b.axis[1]);
   interiorUniforms.uWallColor.value.set(["#ece7dd","#e6e1d6","#dfe3e0","#efe9df","#e4ddd2","#e9e6e1"][hashKey(b.key)%6]);interiorUniforms.uAccent.value.set(["#7f9a8a","#b0705a","#5f7590","#c9a35e","#8a7aa0","#6f8f7a","#a6644f","#4f6a7c"][(hashKey(b.key)>>>5)%8]);
-  shellMesh=new THREE.Mesh(b.shell,getShellMaterial());shellMesh.name="BUILDING_INTERIOR_SHELL";shellMesh.receiveShadow=true;shellMesh.castShadow=false;shellMesh.userData.styleSkip=true;group.add(shellMesh);
+  for(const[k,g]of b.shell){const m=new THREE.Mesh(g,getShellMaterial());m.name=`BUILDING_INTERIOR_SHELL_${k}`;m.userData.level=k;m.receiveShadow=true;m.castShadow=false;m.userData.styleSkip=true;group.add(m);shellMeshes.push(m);}
   buildPropMeshes(b);showPropLevels(0);
   // open doorways + roof hatch in the exterior
   let n=0;for(const d of b.doors){if(n>=MAX_FACADE_CUTOUTS)break;const t0=d.t-DOOR_W/2,t1=d.t+DOOR_W/2;facadeCutouts.uCutA.value[n].set(d.ax+d.dx*t0,d.ay+d.dy*t0,d.ax+d.dx*t1,d.ay+d.dy*t1);facadeCutouts.uCutB.value[n].set(b.base-2,b.levels[0]+DOOR_H,.85,0);n++;}
@@ -482,7 +492,7 @@ function tick(now){
   const p=w.position;if(!p)return;
   if(now-lastDoors>900){lastDoors=now;try{updateDoors(b.threeScene,p,list);}catch(e){console.warn("doors",e);}}
   if(active){const d=buildingDamage(active.key);if(d&&d.top<active.top-.3){disposeActive();return;}}
-  const inActive=active&&region(active,p.x,p.y)!=="out";if(active)showPropLevels(inActive?currentLevel(active,p.z-1.68):0);if(inActive||(active&&now<pinUntil))return;
+  const inActive=active&&region(active,p.x,p.y)!=="out";if(active){showPropLevels(inActive?currentLevel(active,p.z-1.68):0);const seen=inActive||nearDoor(active,p.x,p.y,18);for(const m of propMeshes)m.visible=seen;}if(inActive||(active&&now<pinUntil))return;
   // stay with the current building while standing at its door / along its walls
   if(active&&polyDistance({outer:active.outer},p.x,p.y)<7)return;
   let best=null,bd=Infinity;for(const fp of list){const c=fp.center||fp.outer?.[0];if(!c||Math.hypot(c[0]-p.x,c[1]-p.y)>ACTIVATE_M+160)continue;const d=polyDistance(fp,p.x,p.y);if(d<bd){bd=d;best=fp;}}

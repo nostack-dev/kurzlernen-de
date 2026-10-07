@@ -21,6 +21,11 @@ const metrics=()=>page.evaluate(async()=>{const v=document.querySelector("#viewp
   const r=globalThis.__arondightRealWorld?.threeRenderer?.info;
   return{fps:+fps.toFixed(1),drawCalls:r?.render?.calls,triangles:r?.render?.triangles,lines:r?.render?.lines,programs:r?.programs?.length,programNames:(r?.programs||[]).map(p=>`${p.name||"?"}#${String(p.cacheKey||"").slice(0,24)}`),status:document.querySelector("#status")?.textContent,worldMode:d.worldMode,mapSync:d.worldMapSyncMode,cityBuildings:d.worldCityBuildings,water:`${d.worldWaterCells||0}/${d.worldWaterBasins||0}/${d.worldWaterBridges||0}`,ground:d.worldGroundSource,roads:d.worldCityRoads,bloom:d.neonBloom,style:d.visualStyle,collisionPrisms:d.worldBuildingCollisionPrisms,neonMeshes:d.neonStyledMeshes,terrainShapes:d.terrainShapes,nukeDebris:d.nukeDebrisAlive,nukeFlung:d.nukeFlungActors,nukeBuildings:d.nukeDestructionBuildings,nukeActors:d.nukeDestructionActors,droneHp:d.droneHp,footTouch:d.footTouch,walkMode:globalThis.__arondightWalkMode?.mode,menuHidden:document.getElementById("gameMenu")?.hidden};});
 async function step(name,fn){const t=Date.now();try{await fn?.();}catch(e){report.errors.push(`${name}: ${String(e.message||e).slice(0,300)}`);}let m={};try{m=await metrics();}catch(e){m={error:String(e).slice(0,200)};}try{await page.screenshot({path:`${OUT}/${String(report.steps.length).padStart(2,"0")}-${name}.png`});}catch{}report.steps.push({name,ms:Date.now()-t,...m});}
+// CPU profile (JS self time per function) — which code costs frame time.
+async function cpuProfile(label,ms=5000){try{const cdp=await page.target().createCDPSession();await cdp.send("Profiler.enable");await cdp.send("Profiler.setSamplingInterval",{interval:500});await cdp.send("Profiler.start");await pause(ms);const{profile}=await cdp.send("Profiler.stop");
+  const byId=new Map(profile.nodes.map(n=>[n.id,n])),self=new Map(),dt=profile.timeDeltas||[];let total=0;
+  profile.samples.forEach((id,i)=>{const n=byId.get(id),d=dt[i]||0;total+=d;const cf=n.callFrame,key=`${cf.functionName||"(anon)"} ${String(cf.url).split("/").pop()}:${cf.lineNumber+1}`;self.set(key,(self.get(key)||0)+d);});
+  const top=[...self].sort((a,b)=>b[1]-a[1]).slice(0,45).map(([k,v])=>[k,+(v/total*100).toFixed(1)]);(report.cpuProfiles??={})[label]=top;await cdp.detach();}catch(e){(report.cpuProfiles??={})[label]={error:String(e.message||e).slice(0,200)};}}
 async function armDroneAtomically(){
   const deadline=Date.now()+15000;
   while(Date.now()<deadline){
@@ -55,12 +60,19 @@ try{
     await trial("noCityEdges",()=>{const m=byName("WORLD_CITY_EDGES");if(m)m.visible=false;},()=>{const m=byName("WORLD_CITY_EDGES");if(m)m.visible=true;});
     await trial("noObjectEdges",()=>edges.forEach(e=>e.visible=false),()=>edges.forEach(e=>e.visible=true));
     await trial("noGrid",()=>{const m=byName("NEON_GROUND_GRID");if(m)m.visible=false;},()=>{const m=byName("NEON_GROUND_GRID");if(m)m.visible=true;});
+    const hide=n=>()=>{const m=byName(n);if(m)m.visible=false;},show=n=>()=>{const m=byName(n);if(m)m.visible=true;};
+    for(const n of["WORLD_CITY_ROADS","WORLD_GROUND","WORLD_WATER","REAL_SKY","WORLD_PROCEDURAL_POPULATION","WORLD_PROCEDURAL_DECOR"])await trial(`no_${n}`,hide(n),show(n));
+    const r=globalThis.__arondightRealWorld?.threeRenderer;if(r)await trial("noShadows",()=>{r.shadowMap.enabled=false;},()=>{r.shadowMap.enabled=true;});
+    const bl=globalThis.__arondightNeonBloom;if(bl&&bl.enabled)await trial("noBloom",()=>{bl.enabled=false;},()=>{bl.enabled=true;});
+    if(r)await trial("halfRes",()=>{r.__pr=r.getPixelRatio();r.setPixelRatio(r.__pr/2);},()=>r.setPixelRatio(r.__pr));
     await trial("noMapCanvas",()=>{if(geo)geo.style.display="none";},()=>{if(geo)geo.style.display="";});
     out.objectEdges=edges.length;return out;
   }).catch(e=>({error:String(e)}));
   await step("minimap-expanded",async()=>{await page.evaluate(()=>globalThis.__arondightRealWorld?.toggleMinimapExpanded?.());await pause(800);});
   await page.evaluate(()=>globalThis.__arondightRealWorld?.toggleMinimapExpanded?.());
+  await cpuProfile("drone");
   await step("on-foot",async()=>{await page.evaluate(()=>globalThis.__arondightWalkMode?.setMode?.("foot",{persist:false,reason:"diag"}));await pause(2500);});
+  await cpuProfile("foot");
   await step("foot-touch-move",async()=>{const r=await page.$eval("#footMove",e=>{const b=e.getBoundingClientRect();return{x:b.left+b.width/2,y:b.top+b.height/2,w:b.width};}).catch(()=>null);if(!r)throw new Error("no #footMove");const before=await page.evaluate(()=>({...globalThis.__arondightWalkMode.position}));const t=page.touchscreen;await t.touchStart(r.x,r.y);for(let i=1;i<=10;i++){await t.touchMove(r.x,r.y-r.w*.05*i);await pause(60);}await pause(1500);const after=await page.evaluate(()=>({...globalThis.__arondightWalkMode.position}));await t.touchEnd();report.walkMoved=Math.hypot(after.x-before.x,after.y-before.y);report.walkSprint=await page.$eval("#viewport",v=>v.dataset.walkTouchSprint);});
   // Walkable building interiors: door, lobby, stairwell, upper storey, roof.
   report.interior=await page.evaluate(()=>globalThis.__buildingInteriors?.activateNearest?.()||null).catch(e=>({error:String(e.message||e)}));
