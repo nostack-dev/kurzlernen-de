@@ -23,7 +23,9 @@ const files=Object.fromEntries(await Promise.all([
   "sim/speed_lines.mjs",
   "sim/wanted_police_pre_guard.mjs",
   "sim/wanted_police_drones.mjs",
-  "sim/world_city_buildings.mjs"
+  "sim/world_city_buildings.mjs",
+  "sim/camera_collision_guard.mjs",
+  "sim/auto_flight_start.mjs"
 ].map(async path=>[path,await readFile(path,"utf8")])));
 
 const style=files["sim/stylized_world_style.mjs"];
@@ -44,6 +46,7 @@ assert.ok(publishStart>=0&&!cleanupDiagnostics.includes("requestAnimationFrame("
 const gameplay=files["sim/gameplay_final_runtime_v2.mjs"];
 assert.ok(gameplay.includes("lastHousekeeping=-Infinity")&&gameplay.includes("now-lastHousekeeping>=250"),"weapon hierarchy housekeeping must be throttled");
 assert.ok(gameplay.includes("cachedWeaponGun")&&gameplay.includes("cachedMuzzleFlash"),"weapon scene lookups must be cached");
+assert.ok(gameplay.includes("lastPedTelemetry=-Infinity"),"pedestrian telemetry throttle must declare its state instead of crashing the render loop");
 
 const wanted=files["sim/wanted_police_drones.mjs"];
 assert.ok(wanted.includes("now-lastHudRender<100")&&wanted.includes("hudStars=[...hud.querySelectorAll"),"wanted HUD DOM updates must be throttled and cached");
@@ -93,5 +96,13 @@ assert.ok(police.includes("BUILDING_GRID_CELL_M=32")&&police.includes("linePrism
 
 const city=files["sim/world_city_buildings.mjs"];
 assert.ok(city.includes("now-lastSyncCheck<200"),"city rebuild discovery must not poll map/player state every render frame");
+
+const cameraGuard=files["sim/camera_collision_guard.mjs"];
+assert.ok(cameraGuard.includes("lastTelemetry=-Infinity"),"camera collision telemetry throttle must declare its state");
+assert.ok(cameraGuard.includes("setTimeout(maintenance,500)")&&!cameraGuard.includes("requestAnimationFrame(frame)"),"camera provider wrapping must stay off RAF while collision itself remains frame-exact");
+
+const startup=files["sim/auto_flight_start.mjs"];
+assert.ok(startup.includes("await withTimeout(neonSettled(),5500)")&&startup.includes("await withTimeout(compileScene(),4500)"),"optional visual preparation must be bounded so START can never hang forever");
+assert.ok(startup.includes("startup preparation continued after non-fatal failure"),"startup must fail open after optional preparation errors");
 
 console.log("Drone runtime performance contract passed: graphics stay frame-driven while scans, DOM and integration housekeeping are throttled.");
