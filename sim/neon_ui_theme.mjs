@@ -19,12 +19,15 @@ ${R} :is(#worldLookHud,#soloHud,#footHud,#vehicleHud,dialog,.panel,.telemetry){
 ${R} :is(input,select,textarea){background:#010806!important;color:#d8ffe8!important;border:1px solid #3dff8a!important;border-radius:10px!important;font-family:var(--ui-font)!important}
 `;
 const MIN_FONT_PX=9;
+let labelNodes=[],labelTreeDirty=true,labelFitQueued=0;
+function collectLabelNodes(){labelNodes=[...document.querySelectorAll("#viewport button,#soloTopbar button,#mobileGameplayDock button,.phone-settings-button")];labelTreeDirty=false;}
 function fitLabels(){
-  const nodes=document.querySelectorAll("#viewport button,#soloTopbar button,#mobileGameplayDock button,.phone-settings-button");
-  for(const el of nodes){if(!el.clientWidth)continue;const text=el.textContent;if(el.dataset.ngFitText!==text){el.style.removeProperty("font-size");el.dataset.ngFitText=text;}
+  labelFitQueued=0;if(labelTreeDirty)collectLabelNodes();
+  for(const el of labelNodes){if(!el.isConnected||!el.clientWidth)continue;const text=el.textContent;if(el.dataset.ngFitText===text&&el.dataset.ngFitWidth===String(el.clientWidth))continue;
+    el.style.removeProperty("font-size");el.dataset.ngFitText=text;el.dataset.ngFitWidth=String(el.clientWidth);
     let size=parseFloat(getComputedStyle(el).fontSize)||12,guard=0;while(el.scrollWidth>el.clientWidth+1&&size>MIN_FONT_PX&&guard++<12){size-=.75;el.style.setProperty("font-size",`${size}px`,"important");}}
-  setTimeout(fitLabels,500);
 }
+function scheduleLabelFit(tree=false){if(tree)labelTreeDirty=true;if(labelFitQueued)return;labelFitQueued=requestAnimationFrame(fitLabels);}
 function guardMinimap(){
   setTimeout(guardMinimap,1000);const b=globalThis.__arondightRealWorld,hud=document.getElementById("worldLookHud");if(!b?.active||!hud)return;
   const cs=getComputedStyle(hud),r=hud.getBoundingClientRect(),why=hud.hidden?"hidden-attr":cs.display==="none"?"display-none":cs.visibility==="hidden"?"visibility":parseFloat(cs.opacity)<.2?"opacity":r.width<20||r.height<20?"zero-size":r.right<10||r.bottom<10||r.left>innerWidth-10||r.top>innerHeight-10?"offscreen":"";
@@ -39,6 +42,8 @@ export function installNeonUiTheme(){
   document.documentElement.classList.add("neon-line-style");
   const style=document.createElement("style");style.dataset.neonUiTheme=NEON_UI_THEME_VERSION;style.textContent=CSS;
   (document.head||document.documentElement).appendChild(style);
-  setTimeout(fitLabels,300);setTimeout(guardMinimap,1500);
+  const labelObserver=new MutationObserver(()=>scheduleLabelFit(true));labelObserver.observe(document.body,{subtree:true,childList:true,characterData:true});
+  addEventListener("resize",()=>scheduleLabelFit(true),{passive:true});addEventListener("orientationchange",()=>scheduleLabelFit(true),{passive:true});
+  scheduleLabelFit(true);setTimeout(guardMinimap,1500);
 }
 installNeonUiTheme();
