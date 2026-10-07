@@ -11,7 +11,7 @@ const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-s
 const page=await browser.newPage(),pause=ms=>new Promise(r=>setTimeout(r,ms));
 page.on("pageerror",e=>report.errors.push(String(e.message||e).slice(0,300)));
 page.on("console",m=>{if(m.type()==="error"||m.type()==="warning")report.errors.push(`${m.type()}: ${m.text().slice(0,240)}`);});
-const url=new URL(input);url.searchParams.set("menu","1");
+const url=new URL(input);url.searchParams.set("menu","1");url.searchParams.set("hq","1");
 await browser.defaultBrowserContext().overridePermissions(url.origin,["geolocation"]);
 await page.setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1");
 await page.setViewport({width:844,height:390,deviceScaleFactor:1,isMobile:true,hasTouch:true});
@@ -40,6 +40,9 @@ try{
   await step("menu",()=>page.waitForFunction(()=>document.getElementById("gameMenuStart")?.textContent?.trim()==="START",{timeout:45000}));
   await step("started",async()=>{await page.click("#gameMenuStart");await page.waitForFunction(()=>document.getElementById("gameMenu")?.hidden===true,{timeout:60000});await pause(4000);});
   await step("city-drone",async()=>{await page.waitForFunction(()=>Number(document.querySelector("#viewport")?.dataset.worldCityBuildings)>20,{timeout:30000}).catch(()=>{});await pause(1500);});
+  report.mapProbe=await page.evaluate(()=>{const b=globalThis.__arondightRealWorld,out={source:b?.buildingSourceId,cam:b?.threeCamera?[+b.threeCamera.position.x.toFixed(1),+b.threeCamera.position.y.toFixed(1)]:null,layers:{}};
+    for(const layer of["transportation","water","waterway","park","landcover","landuse","building"]){try{const f=b.map.querySourceFeatures(b.buildingSourceId,{sourceLayer:layer});const g=f[0]?.geometry,c=g?.coordinates;let first=null;try{first=g?.type==="Polygon"?c[0][0]:g?.type==="LineString"?c[0]:g?.type==="MultiLineString"?c[0][0]:g?.type==="MultiPolygon"?c[0][0][0]:null;}catch{}out.layers[layer]={n:f.length,type:g?.type,cls:f[0]?.properties?.class,first,proj:first?b.projectLngLat(first[0],first[1]).map(v=>+v.toFixed(1)):null};}catch(e){out.layers[layer]={error:String(e.message||e)};}}
+    const v=document.getElementById("viewport");out.roads=v?.dataset.worldCityRoads;out.water=[v?.dataset.worldWaterCells,v?.dataset.worldWaterBasins,v?.dataset.worldWaterBridges];return out;});
   // Cost attribution: frame rate with individual layers switched off.
   report.attribution=await page.evaluate(async()=>{
     const fps=()=>new Promise(res=>{let n=0;const t0=performance.now();const f=()=>{n++;if(performance.now()-t0<2500)requestAnimationFrame(f);else res(+(n/((performance.now()-t0)/1000)).toFixed(1));};requestAnimationFrame(f);});
