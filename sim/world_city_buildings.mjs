@@ -230,7 +230,6 @@ function sway(key,dirX,dirY,amplitudeM){const r=rangeByKey.get(String(key));if(!
   const h=Math.max(1,r.fullTop-r.base);sways.push({r,dx:dirX/l,dy:dirY/l,amp:Math.min(amplitudeM,h*.18),freq:.9+3.5/Math.sqrt(h),born:performance.now(),life:2.6});return true;}
 let lastFootprints=[];
 function startBuild(footprints,key){
-  setBuildingPads(footprints); // levelled pads become part of the shared terrain before anything is placed on it
   const steps=buildSteps(footprints,lastCenter);building={steps,key,count:footprints.length};lastFootprints=footprints;
 }
 globalThis.__arondightCityBuildings={footprints:()=>lastFootprints,version:CITY_BUILDINGS_VERSION,damageNow,sway,ranges:()=>rangeByKey};

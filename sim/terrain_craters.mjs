@@ -61,7 +61,13 @@ function padBlend(x,y,e){const l=padBuckets.get(padBucketKey(Math.floor(x/PB),Ma
   return e+(z-e)*best;}
 export function padHeight(key){return pads.get(String(key))?.z;}
 // footprints: [{key, outer:[[x,y],...]}]. Only changed pads re-shape the terrain.
-export function setBuildingPads(footprints){
+// Terrain pads are disabled: re-shaping the ground under every streamed
+// building made the streets between houses bumpy (pads of neighbours blend
+// into the road) and rebuilt physics tiles on every city sync, which left the
+// roads undrivable. Buildings instead stand on their lowest outline point
+// (buildingGroundBase) like a house with a basement on a slope.
+export const BUILDING_PADS_ENABLED=false;
+export function setBuildingPads(footprints){if(!BUILDING_PADS_ENABLED){if(pads.size){const regions=[...pads.values()].map(p=>p.bb);pads=new Map();padBuckets=new Map();notify(regions,"pads");}return false;}
   const next=new Map(),regions=[];
   for(const fp of footprints||[]){if((Number(fp.base)||0)>.6)continue;const ring=(fp.outer||[]).map(p=>Array.isArray(p)?[+p[0],+p[1]]:[+p.x,+p.y]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));if(ring.length<3)continue;const key=String(fp.key??`${ring[0][0].toFixed(1)},${ring[0][1].toFixed(1)}`),old=pads.get(key);
     if(old&&old.n===ring.length&&Math.abs(old.ring[0][0]-ring[0][0])<.01&&Math.abs(old.ring[0][1]-ring[0][1])<.01){next.set(key,old);continue;}

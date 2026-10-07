@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {setElevationGrid} from "../sim/terrain_elevation.mjs";
-import {setBuildingPads,buildingGroundBase,staticGroundHeightAt,addCrater,clearCraters,onTerrainChange,PAD_BLEND_M} from "../sim/terrain_craters.mjs";
+import {BUILDING_PADS_ENABLED,setBuildingPads,buildingGroundBase,staticGroundHeightAt,addCrater,clearCraters,onTerrainChange,PAD_BLEND_M} from "../sim/terrain_craters.mjs";
 
 // Buildings stand on levelled pads that are part of the one terrain: no house
 // tilted into a hill or hanging over the downhill side, and after a crater
@@ -8,6 +8,7 @@ import {setBuildingPads,buildingGroundBase,staticGroundHeightAt,addCrater,clearC
 const n=161,step=5,h=new Float32Array(n*n);
 for(let j=0;j<n;j++)for(let i=0;i<n;i++){const x=-400+i*step;h[j*n+i]=.12*x;} // 12 % slope along x
 setElevationGrid({x0:-400,y0:-400,step,n,h,cx:0,cy:0});
+if(!BUILDING_PADS_ENABLED){const ring=[[10,10],[34,10],[34,26],[10,26]];const base=buildingGroundBase(ring);for(const[x,y]of ring)assert.ok(staticGroundHeightAt(x,y)>=base-1e-6,'building never floats');assert.ok(Math.abs(staticGroundHeightAt(80,18)-.12*80)<1e-6,'terrain untouched by buildings');addCrater(40,18);assert.ok(buildingGroundBase(ring)<base-5,'base follows crater');clearCraters();console.log('building base test passed (pads disabled)');process.exit(0);}
 const ring=[[10,10],[34,10],[34,26],[10,26]];let events=[];onTerrainChange((c,regions,source)=>events.push({regions,source}));
 assert.ok(setBuildingPads([{key:"house",outer:ring}]));assert.equal(events.at(-1).source,"pads");assert.ok(events.at(-1).regions.length===1,"only the pad region changes");
 assert.equal(setBuildingPads([{key:"house",outer:ring}]),false,"unchanged pads do not re-shape the terrain");
