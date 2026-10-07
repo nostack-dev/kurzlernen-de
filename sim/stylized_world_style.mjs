@@ -118,7 +118,7 @@ function ensureLights(scene,renderer){
   sun=new THREE.DirectionalLight(0xfff0dc,2.8);sun.userData.realLight=true;sun.castShadow=true;
   const sc=sun.shadow.camera;sc.left=-SHADOW_RANGE_M;sc.right=SHADOW_RANGE_M;sc.top=SHADOW_RANGE_M;sc.bottom=-SHADOW_RANGE_M;sc.near=1;sc.far=900;sun.shadow.mapSize.set(SHADOW_SIZE,SHADOW_SIZE);sun.shadow.bias=-.0004;sun.shadow.normalBias=.04;sun.shadow.radius=2;
   scene.add(sun,sun.target);
-  if(renderer){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=true;renderer.toneMapping=THREE.CustomToneMapping;renderer.toneMappingExposure=1.0;renderer.outputColorSpace=THREE.SRGBColorSpace;}
+  if(renderer){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;renderer.toneMapping=THREE.CustomToneMapping;renderer.toneMappingExposure=1.0;renderer.outputColorSpace=THREE.SRGBColorSpace;}
 }
 const texel=new THREE.Vector3(),sunForward=new THREE.Vector3();
 function followSun(){
