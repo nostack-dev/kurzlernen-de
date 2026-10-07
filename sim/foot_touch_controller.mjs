@@ -17,7 +17,7 @@
 
 import {normalizedPointer,endPointerDrag} from "./control_semantics.mjs";
 
-export const FOOT_TOUCH_VERSION="single-owner-foot-touch-v2";
+export const FOOT_TOUCH_VERSION="single-owner-foot-touch-v3-dual-fire";
 const PASS_SELECTOR="button,input,select,textarea,a,label,dialog,.phone-settings-dialog,#worldLookHud,#soloTopbar,#mobileGameplayDock,#gameExitButton,#soundSwitch,#installApp,#gameMenu,#wantedEmpButton,#vsRespawnHud";
 const STICK_RADIUS=.42,SPRINT_AT=.9,LOOK_EDGE=.72,FIRE_INTERVAL_MS=72;
 
@@ -33,7 +33,7 @@ function setData(key,value){const v=viewport();if(v){const s=String(value);if(v.
 // in portrait (css-landscape), so "up" on screen is always forward.
 function stickAxes(entry,event){const a=normalizedPointer(entry.el,event),m=Math.min(1,Math.hypot(a.x,a.y));return{x:a.x,y:a.y,m};}
 function paintKnob(entry,axes){const knob=entry.knob;if(!knob)return;knob.style.left=`${50+axes.x*31}%`;knob.style.top=`${50+axes.y*31}%`;}
-function fire(x,y,source){window.dispatchEvent(new CustomEvent("arondight:foot-screen-fire-anchor",{detail:{clientX:x,clientY:y,source}}));return Boolean(weapons()?.fireAt?.({clientX:x,clientY:y,source}));}
+function fire(x,y,source,hand=0){window.dispatchEvent(new CustomEvent("arondight:foot-screen-fire-anchor",{detail:{clientX:x,clientY:y,source,hand}}));return Boolean(weapons()?.fireAt?.({clientX:x,clientY:y,source,hand}));}
 
 function claim(event){event.preventDefault();event.stopImmediatePropagation();}
 // EMP works in every mode and wins over any overlay or later handler: if the
@@ -53,7 +53,7 @@ function onDown(event){
   const now=performance.now(),move=target.closest("#footMove"),look=target.closest("#footLook");
   if(move){for(const e of pointers.values())if(e.kind==="move")return claim(event);const entry={kind:"move",el:move,rect:move.getBoundingClientRect(),knob:move.querySelector(".knob")};pointers.set(event.pointerId,entry);updateMove(entry,event);}
   else if(look){for(const e of pointers.values())if(e.kind==="look")return claim(event);const entry={kind:"look",el:look,rect:look.getBoundingClientRect(),knob:look.querySelector(".knob"),axes:{x:0,y:0,m:0}};pointers.set(event.pointerId,entry);walk()?.beginTouchLook?.("touch-stick");entry.axes=stickAxes(entry,event);paintKnob(entry,entry.axes);}
-  else{const entry={kind:"fire",x:event.clientX,y:event.clientY,lastShot:now};pointers.set(event.pointerId,entry);fire(entry.x,entry.y,"screen-touch-hold-start");setData("walkFirePointerActive","1");setData("walkFirePointerId",event.pointerId);setData("walkHoldFire","screen-pointer-owned-smg-v1");setData("walkScreenTouch","fire-only-v1");}
+  else{const used=new Set([...pointers.values()].filter(e=>e.kind==="fire").map(e=>e.hand)),hand=!used.has(0)?0:!used.has(1)?1:(event.pointerId&1);const entry={kind:"fire",x:event.clientX,y:event.clientY,lastShot:now,hand};pointers.set(event.pointerId,entry);fire(entry.x,entry.y,"screen-touch-hold-start",entry.hand);setData("walkFirePointerActive","1");setData("walkFirePointerId",event.pointerId);setData("walkFireHand",entry.hand);setData("walkHoldFire","screen-pointer-owned-smg-v1");setData("walkScreenTouch","dual-fire-pointer-v2");}
   // Keep the established input contracts that the live regression checks.
   setData("walkTouchContract","drone-normalized-pointer-origin-v2");setData("walkStickSemantics","drone-normalizedPointer-v1");setData("walkMultiTouchMoveIsolation","pointer-id-owned-v1");setData("walkAimStickCoordinates","drone-normalizedPointer-v2");setData("walkWeaponTouchVector","screen-ray+hand-anchor-v1");
   setData("footTouch",FOOT_TOUCH_VERSION);setData("footTouchPointers",pointers.size);ensureLoop();claim(event);
@@ -89,7 +89,7 @@ function ensureLoop(){if(loop)return;lastLoop=performance.now();const tick=now=>
     else if(entry.kind==="fire"&&String(weapons()?.mode||"")==="smg"){
       // Fire rate is independent of the frame rate: catch up on missed
       // intervals (bounded) so a slow frame doesn't throttle the MP.
-      let n=0;while(now-entry.lastShot>=FIRE_INTERVAL_MS&&n<4){entry.lastShot+=FIRE_INTERVAL_MS;n++;fire(entry.x,entry.y,"screen-touch-hold-repeat");}
+      let n=0;while(now-entry.lastShot>=FIRE_INTERVAL_MS&&n<4){entry.lastShot+=FIRE_INTERVAL_MS;n++;fire(entry.x,entry.y,"screen-touch-hold-repeat",entry.hand);}
       if(now-entry.lastShot>=FIRE_INTERVAL_MS)entry.lastShot=now;}
   }
   loop=requestAnimationFrame(tick);};loop=requestAnimationFrame(tick);}
