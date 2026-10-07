@@ -38,7 +38,9 @@
 #soundSwitch{position:fixed;z-index:100001;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));width:40px;height:32px;display:flex;align-items:center;justify-content:center;padding:0;background:rgba(10,13,18,.56);border:1px solid rgba(255,255,255,.16);border-radius:6px;color:#fff;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.45)}
 #soundSwitch svg{width:20px;height:20px;display:block}
 #soundSwitch[data-on="0"] .ss-wave{display:none}#soundSwitch[data-on="1"] .ss-x{display:none}
-#soundSwitch[hidden]{display:none!important}
+#soundSwitch[hidden],#musicSwitch[hidden]{display:none!important}
+#musicSwitch{position:fixed;z-index:100001;top:max(10px,env(safe-area-inset-top));right:calc(max(10px,env(safe-area-inset-right)) + 46px);width:40px;height:32px;display:flex;align-items:center;justify-content:center;padding:0;background:rgba(10,13,18,.56);border:1px solid rgba(255,255,255,.16);border-radius:6px;color:#fff;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.45)}
+#musicSwitch svg{width:20px;height:20px;display:block}#musicSwitch[data-on="1"] .ms-x{display:none}#musicSwitch[data-on="0"]{color:rgba(255,255,255,.55)}
 #installApp{position:fixed;z-index:100001;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));height:32px;display:flex;align-items:center;gap:7px;padding:0 11px;background:rgba(10,13,18,.56);border:1px solid rgba(255,255,255,.16);border-radius:6px;color:#fff;font:600 11px Inter,system-ui,sans-serif;letter-spacing:.12em;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.45)}
 #installApp svg{width:14px;height:14px}
 #installApp[hidden],#installHint[hidden]{display:none!important}
@@ -94,7 +96,7 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
       [[932.33,0],[1244.51,.07]].slice(0,strong?2:1).forEach(function(n){var o=ctx.createOscillator(),g=ctx.createGain();o.type="square";o.frequency.value=n[0];g.gain.setValueAtTime(0,t+n[1]);g.gain.linearRampToValueAtTime(1,t+n[1]+.005);g.gain.exponentialRampToValueAtTime(.001,t+n[1]+.16);o.connect(g).connect(lp);o.start(t+n[1]);o.stop(t+n[1]+.2);});}catch(e){}
   }
   window.__oppUiBlip=blip;
-  document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("#gameMenuStart,#installApp,#soundSwitch,#gameExitButton");if(!el)return;
+  document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("#gameMenuStart,#installApp,#soundSwitch,#musicSwitch,#gameExitButton");if(!el)return;
     if(el.id==="soundSwitch"){setTimeout(function(){blip(false);},0);return;}blip(el.id==="gameMenuStart");},true);
 })();
 </script>
@@ -121,11 +123,13 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   sync();
 })();
 </script>
-<button id="soundSwitch" type="button" aria-label="Sound on/off" data-on="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="ss-wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="ss-x" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>
+<button id="musicSwitch" type="button" aria-label="Music on/off" data-on="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/><path class="ms-x" d="M4 4l16 16"/></svg></button>
+<button id="soundSwitch" type="button" aria-label="Effects on/off" data-on="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="ss-wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="ss-x" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>
 <script>
-// Sound on/off (music + effects) — top right in the menu, and in game it
-// docks left of RESET. Writes the shared audio settings, so every audio
-// module (music, effects, Geiger, drone) follows immediately.
+// Two toggles, top right in the menu and (docked left of RESET) in game:
+// EFFECTS (soundEnabled — every effect, drone, shots, ambience) and MUSIC
+// (musicEnabled) — independent. Both write the shared audio settings, so
+// every audio module follows immediately.
 (function(){
   var KEY="arondight45AudioSettingsV1",btn=document.getElementById("soundSwitch");
   function read(){try{return JSON.parse(localStorage.getItem(KEY)||"{}");}catch(e){return{};}}
@@ -134,12 +138,18 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   btn.addEventListener("pointerdown",function(e){e.stopPropagation();},true);
   btn.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();
     var cfg=read();cfg.soundEnabled=!on();try{localStorage.setItem(KEY,JSON.stringify(cfg));}catch(err){}
-    var m=window.__oppMusicElement;if(m){if(cfg.soundEnabled===false)m.pause();else if(cfg.musicEnabled!==false)m.play().catch(function(){});}
     window.dispatchEvent(new CustomEvent("arondight45-audio-settings-change",{detail:cfg}));render();});
+  var mbtn=document.getElementById("musicSwitch");function musicOn(){return read().musicEnabled!==false;}
+  function renderMusic(){mbtn.dataset.on=musicOn()?"1":"0";mbtn.setAttribute("aria-pressed",musicOn()?"true":"false");}
+  mbtn.addEventListener("pointerdown",function(e){e.stopPropagation();},true);
+  mbtn.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();var cfg=read();cfg.musicEnabled=!musicOn();try{localStorage.setItem(KEY,JSON.stringify(cfg));}catch(err){}
+    var m=window.__oppMusicElement;if(m){if(cfg.musicEnabled===false)m.pause();else m.play().catch(function(){});}
+    window.dispatchEvent(new CustomEvent("arondight45-audio-settings-change",{detail:cfg}));renderMusic();});
+  window.addEventListener("arondight45-audio-settings-change",function(){renderMusic();});renderMusic();
   window.addEventListener("arondight45-audio-settings-change",function(){render();});
   // In game: sit just left of RESET (falls back to the menu's top-right spot).
   function dock(){var reset=null,menu=document.getElementById("gameMenu");["mobileGameplayReset","soloReset"].forEach(function(id){var el=document.getElementById(id);if(!el||!el.offsetParent)return;var q=el.getBoundingClientRect();if(q.width<4||q.height<4)return;if(!reset||q.top<reset.getBoundingClientRect().top-2)reset=el;});var inGame=menu&&menu.hidden&&reset;
-    if(inGame){var r=reset.getBoundingClientRect();btn.style.top=r.top+"px";btn.style.right=(window.innerWidth-r.left+6)+"px";btn.style.height=r.height+"px";}else{btn.style.top="";btn.style.right="";btn.style.height="";}
+    if(inGame){var r=reset.getBoundingClientRect(),right=window.innerWidth-r.left+6;btn.style.top=r.top+"px";btn.style.right=right+"px";btn.style.height=r.height+"px";mbtn.style.top=r.top+"px";mbtn.style.right=(right+btn.offsetWidth+6)+"px";mbtn.style.height=r.height+"px";}else{btn.style.top="";btn.style.right="";btn.style.height="";mbtn.style.top="";mbtn.style.right="";mbtn.style.height="";}
     setTimeout(dock,400);}
   render();dock();
 })();
@@ -151,7 +161,7 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
 // so the track never restarts or doubles when START is pressed.
 (function(){
   var cfg={};try{cfg=JSON.parse(localStorage.getItem("arondight45AudioSettingsV1")||"{}");}catch(e){}
-  if(cfg.soundEnabled===false||cfg.musicEnabled===false)return;
+  if(cfg.musicEnabled===false)return;
   var vol=Math.max(0,Math.min(1,(cfg.musicVolume==null?32:cfg.musicVolume)/100))*0.45;
   var a=new Audio("./sim/audio/8_bits_only.m4a");a.loop=true;a.preload="auto";a.volume=vol;a.setAttribute("playsinline","");
   window.__oppMusicElement=a;
