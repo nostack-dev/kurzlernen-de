@@ -12,13 +12,20 @@ const softClip=value=>Math.tanh(value*1.35);
 function finish(data,target=.92){let peak=1e-6;for(const value of data)peak=Math.max(peak,Math.abs(value));const gain=target/peak;for(let i=0;i<data.length;i++)data[i]=softClip(data[i]*gain);return data;}
 
 function renderShot(sampleRate,variant){
-  const duration=.115+variant*.006,data=new Float32Array(Math.ceil(duration*sampleRate)),random=rng(0x45a391+variant*977),delay=Math.floor(sampleRate*(.014+variant*.0015));let low=0,phase=0;
-  for(let i=0;i<data.length;i++){
-    const t=i/sampleRate,p=t/duration,white=random()*2-1;low+=.12*(white-low);const crack=(white-low)*Math.exp(-t/Math.max(.006,.012+variant*.001));
-    const frequency=205*Math.exp(-t*19)+58;phase+=TAU*frequency/sampleRate;const body=Math.sin(phase+.18*Math.sin(phase*.47))*Math.exp(-t*25);
-    const echo=i>=delay?data[i-delay]*(.20-variant*.018):0;data[i]=crack*.72+body*.54+echo;
-  }
-  return finish(data,.88);
+  // 9 mm sub-machine gun round: the same hard N-wave crack and blast as the
+  // pistol but a tighter, higher, shorter report (it is played up to ~18x/s),
+  // a dry bolt clack and only a short slap-back so full-auto stays crisp.
+  const duration=.2+variant*.01,data=new Float32Array(Math.ceil(duration*sampleRate)),random=rng(0x5a1c0d+variant*4049);let lpA=0,lpB=0,phase=0;
+  const rise=.00024,fall=.0009+variant*.00005,dry=new Float32Array(data.length);
+  for(let n=0;n<data.length;n++){const t=n/sampleRate,white=random()*2-1;
+    let nwave=0;if(t<rise)nwave=t/rise;else if(t<rise+fall)nwave=1-1.6*(t-rise)/fall;else if(t<rise+fall*1.9)nwave=-.6*(1-(t-rise-fall)/(fall*.9));
+    lpA+=.6*(white-lpA);lpB+=.25*(lpA-lpB);const blast=((lpA-lpB)*.9+(white-lpA)*.5)*Math.exp(-t/.008);
+    phase+=TAU*(185*Math.exp(-t*30)+70)/sampleRate;const thump=Math.sin(phase)*Math.exp(-t/.02)*(1-Math.exp(-t/.0008));
+    const u=t-.017-variant*.001,bolt=u>0&&u<.012?(Math.sin(TAU*2700*u)+.5*(random()*2-1))*Math.exp(-u/.003)*.25:0;
+    dry[n]=nwave*1.2+blast*.9+thump*.7+bolt;}
+  for(const[d,g]of[[.011,.32],[.019,.22],[.031,.14]]){const k=Math.floor((d+variant*.0006)*sampleRate);for(let n=data.length-1;n>=k;n--)data[n]+=dry[n-k]*g;}
+  let lp=0;for(let n=0;n<data.length;n++){lp+=.5*(data[n]-lp);data[n]=Math.tanh((dry[n]+lp*.8)*2.1);}
+  return finish(data,.95);
 }
 
 function renderPistol(sampleRate,variant){
@@ -112,14 +119,20 @@ function renderStep(sampleRate,variant){
 }
 
 function renderBounce(sampleRate,variant){
-  const duration=.13+variant*.012,data=new Float32Array(Math.ceil(duration*sampleRate)),random=rng(0xb01ce+variant*593),delay=Math.floor(sampleRate*(.017+variant*.0015));let phase=0,ring=0,low=0;
+  // A 40 mm grenade hitting the ground: a hard, dry "dock" — sharp impact
+  // click, short hollow body knock (~150-210 Hz, damped in ~25 ms), a little
+  // metallic ring of the shell and scattered grit. No springy boing.
+  const duration=.16+variant*.01,data=new Float32Array(Math.ceil(duration*sampleRate)),random=rng(0xd0c4+variant*977);let lp=0,phase=0,ring=0;
+  const f0=150+variant*18,fr=1850+variant*240;
   for(let i=0;i<data.length;i++){
-    const t=i/sampleRate,white=random()*2-1;low+=.16*(white-low);const click=(white-low)*Math.exp(-t*68);
-    const frequency=(330+variant*22)*Math.exp(-t*8.5)+(118+variant*7);phase+=TAU*frequency/sampleRate;ring=Math.sin(phase)+.34*Math.sin(phase*2.02+.4);
-    const body=ring*Math.exp(-t*(20-variant*.8)),echo=i>=delay?data[i-delay]*(.17-variant*.012):0;
-    data[i]=click*.28+body*.82+echo;
+    const t=i/sampleRate,white=random()*2-1;lp+=.35*(white-lp);
+    const click=(white-lp)*Math.exp(-t/.0022);
+    phase+=TAU*(f0*(1+.6*Math.exp(-t*90)))/sampleRate;const knock=Math.sin(phase)*Math.exp(-t/.026)*(1-Math.exp(-t/.0006));
+    ring+=TAU*fr/sampleRate;const shell=Math.sin(ring)*Math.exp(-t/.012)*.35;
+    const grit=lp*Math.exp(-t/.05)*.18*(random()<.04?2.5:1);
+    data[i]=click*.9+knock*1.1+shell+grit;
   }
-  return finish(data,.76);
+  return finish(data,.82);
 }
 
 // Reward / fail cues composed to sit inside the soundtrack ("8 Bits Only":

@@ -21,10 +21,10 @@ const GRENADE_RESTITUTION=.58;
 const GRENADE_SURFACE_DAMPING=.88;
 const GRENADE_MAX_BOUNCES=7;
 const GRENADE_BASE_RADIUS_M=.039;
-const GRENADE_VISUAL_SCALE=1.15;
+const GRENADE_VISUAL_SCALE=1.35;
 const GRENADE_RADIUS_M=GRENADE_BASE_RADIUS_M*GRENADE_VISUAL_SCALE;
 const GRENADE_FLOOR_NORMAL_Z=.58;
-const GRENADE_BLAST_RADIUS_M=6;
+const GRENADE_BLAST_RADIUS_M=8.5;
 const GRENADE_MAX_DAMAGE=125;
 const FOOT_WEAPON_ORDER=Object.freeze(["smg","glock","grenade"]);
 const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tmp3=new THREE.Vector3(),right=new THREE.Vector3(),forward=new THREE.Vector3(),ndc=new THREE.Vector2();
@@ -83,7 +83,8 @@ function nearestGrenadeHit(ray,maxDistance){
 function ensureTracerPool(scene){if(tracerScene===scene&&tracerPool.length)return;if(tracerScene)for(const group of tracerPool)group.parent?.remove(group);tracerScene=scene;tracerPool=[];const coreGeo=new THREE.CylinderGeometry(.017,.017,1,6),haloGeo=new THREE.CylinderGeometry(.06,.06,1,8),coreMat=new THREE.MeshBasicMaterial({color:0xfff6e0,transparent:true,opacity:1,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}),haloMat=new THREE.MeshBasicMaterial({color:0xff9a3c,transparent:true,opacity:.42,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});for(let i=0;i<24;i++){const group=new THREE.Group(),halo=new THREE.Mesh(haloGeo,haloMat),core=new THREE.Mesh(coreGeo,coreMat);for(const mesh of[halo,core]){mesh.frustumCulled=false;mesh.renderOrder=14;mesh.userData.flightFireIgnore=true;mesh.userData.flightFireTracer=true;}group.add(halo,core);group.visible=false;group.userData.flightFireIgnore=true;group.userData.flightFireTracer=true;group.userData.tracerState={start:new THREE.Vector3(),direction:new THREE.Vector3(),distance:0,born:0,speed:240,tailM:9,holdMs:130,impacted:false};scene.add(group);tracerPool.push(group);}
   // impact flashes at the end of every trail (Robo Recall-style: you always see where the round lands)
   const flashGeo=new THREE.SphereGeometry(1,10,8),flashMat=new THREE.MeshBasicMaterial({color:0xffd9a0,transparent:true,opacity:.9,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});impactPool=[];for(let i=0;i<16;i++){const m=new THREE.Mesh(flashGeo,flashMat.clone());m.visible=false;m.frustumCulled=false;m.renderOrder=15;m.userData.flightFireIgnore=true;m.userData.neonSkip=true;m.userData.born=0;scene.add(m);impactPool.push(m);}}
-function showTracer(start,end){const scene=bridge()?.threeScene;if(!scene)return;ensureTracerPool(scene);const group=tracerPool[tracerCursor++%tracerPool.length],state=group.userData.tracerState;tracerVector.copy(end).sub(start);const length=tracerVector.length();if(length<.03)return;state.start.copy(start);state.direction.copy(tracerVector).normalize();state.distance=length;state.born=performance.now();state.impacted=false;group.visible=true;group.scale.set(1,.02,1);const view=viewport();if(view)view.dataset.walkShotVisibility="moving-bullet-segment+phosphor-halo-v2";}
+let tracerHand=0;
+function showTracer(start,end){const scene=bridge()?.threeScene;if(!scene)return;if(isFoot()){try{window.dispatchEvent(new CustomEvent("arondight:foot-tracer",{detail:{start:[start.x,start.y,start.z],end:[end.x,end.y,end.z],weapon:footWeapon,hand:tracerHand}}));}catch{}}tracerHand=0;ensureTracerPool(scene);const group=tracerPool[tracerCursor++%tracerPool.length],state=group.userData.tracerState;tracerVector.copy(end).sub(start);const length=tracerVector.length();if(length<.03)return;state.start.copy(start);state.direction.copy(tracerVector).normalize();state.distance=length;state.born=performance.now();state.impacted=false;group.visible=true;group.scale.set(1,.02,1);const view=viewport();if(view)view.dataset.walkShotVisibility="moving-bullet-segment+phosphor-halo-v2";}
 let impactPool=[],impactCursor=0;
 function updateTracers(now){for(const group of tracerPool){if(!group.visible)continue;const state=group.userData.tracerState,elapsed=Math.max(0,(now-state.born)/1000),head=Math.min(state.distance,elapsed*state.speed),arrivedMs=now-state.born-state.distance/state.speed*1000,tail=Math.max(0,head-state.tailM),segment=Math.max(.02,head-tail),done=head>=state.distance&&arrivedMs>=state.holdMs;if(done){group.visible=false;continue;}
   if(head>=state.distance&&!state.impacted){state.impacted=true;const f=impactPool[impactCursor++%Math.max(1,impactPool.length)];if(f){f.position.copy(state.start).addScaledVector(state.direction,state.distance);f.userData.born=now;f.visible=true;}}
@@ -158,6 +159,9 @@ function makeGrenade(scene,start,direction){
   bandA.rotation.x=Math.PI/2;bandB.rotation.y=Math.PI/2;for(const node of[body,bandA,bandB,halo]){node.userData.flightFireIgnore=true;node.userData.walkWeaponPart=true;}group.userData.flightFireIgnore=true;group.userData.walkGrenadeProjectile=true;group.userData.walkGrenadeVisual="round-phosphor-orb-115pct-v1";group.add(halo,body,bandA,bandB);group.scale.setScalar(GRENADE_VISUAL_SCALE);group.position.copy(start);group.quaternion.setFromUnitVectors(grenadeAxis,direction);scene.add(group);return group;
 }
 function launchFootGrenade(clientX,clientY,now=performance.now(),source="foot-screen"){
+  // Remote detonation: while a round is still flying / bouncing, the next tap
+  // fires the clacker in the left hand instead of launching — boom, right now.
+  if(isFoot()&&!walk()?.dead&&grenades.length){for(let i=grenades.length-1;i>=0;i--)detonateFootGrenade(i,grenades[i].group.position.clone(),"remote");lastGrenade=now-GRENADE_COOLDOWN_MS*.5;try{window.dispatchEvent(new CustomEvent("arondight:grenade-detonator",{detail:{fired:true}}));}catch{}const v=viewport();if(v)v.dataset.walkGrenadeRemoteDetonations=String((Number(v.dataset.walkGrenadeRemoteDetonations)||0)+1);return true;}
   if(!isFoot()||walk()?.dead||now-lastGrenade<GRENADE_COOLDOWN_MS)return false;const ray=footRay(clientX,clientY),scene=bridge()?.threeScene;if(!ray||!scene)return false;lastGrenade=now;const start=footMuzzle(tmp2,ray).clone().addScaledVector(ray.direction,.10),direction=ray.direction.clone().normalize(),group=makeGrenade(scene,start,direction);grenades.push({group,scene,velocity:direction.clone().multiplyScalar(GRENADE_SPEED_MPS),born:now,fuseAt:now+GRENADE_FUSE_MS,bounces:0,nextCollisionAt:0,resting:false,source});flashWeapon(62);audioShot(.34);weaponFired("grenade",.62,source,"foot");const view=viewport();if(view){view.dataset.walkWeapon="grenade";view.dataset.walkGrenadeLaunches=String((Number(view.dataset.walkGrenadeLaunches)||0)+1);view.dataset.walkGrenadeBallistics="spring-orb-floor-bounce+impact-fuse-v3";view.dataset.walkGrenadeFuseMs=String(GRENADE_FUSE_MS);view.dataset.walkGrenadeProjectileSpeedMps=String(GRENADE_SPEED_MPS);view.dataset.walkGrenadeVisualScale=String(GRENADE_VISUAL_SCALE);view.dataset.walkGrenadeShape="round-phosphor-orb-v1";}return true;
 }
 function detonateFootGrenade(index,position,reason="fuse"){
@@ -219,7 +223,7 @@ function glockShotAt(clientX,clientY,now,hand=0){
     if(hit.physicsId)rigid()?.applyImpulse?.(hit.physicsId,[ray.direction.x*60000,ray.direction.y*60000,Math.max(8000,ray.direction.z*60000)],{point:[hit.point.x,hit.point.y,hit.point.z]});
     end=hit.point?.clone?.()||origin.clone().addScaledVector(ray.direction,Number(hit.distance)||10);
     if(!routed&&!hit.physicsId)break;pierced++;const d=Number(hit.distance)||origin.distanceTo(end);origin=end.clone().addScaledVector(ray.direction,.6);remaining-=d+.6;}
-  showTracer(start,end||origin);flashWeapon(52,h);
+  tracerHand=h;showTracer(start,end||origin);flashWeapon(52,h);
   if(audioSettings.soundEnabled&&audioSettings.shotsVolume>0){const ctx=getSharedCombatAudioContext({resume:true});if(ctx)playCombatAudio(ctx,"pistol",{gain:.72*audioSettings.shotsVolume/100,playbackRate:1,minIntervalMs:0});}
   weaponFired("glock",.55,"foot-screen","foot");const view=viewport();if(view){view.dataset.walkWeapon="glock";view.dataset.walkGlockShots=String((Number(view.dataset.walkGlockShots)||0)+1);view.dataset.walkGlockLastHand=String(h);view.dataset.walkGlockMultitouch="one-pointer-one-pistol-v3";view.dataset.walkGlockMuzzleHand=String(h);}return true;
 }

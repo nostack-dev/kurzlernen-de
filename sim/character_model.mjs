@@ -11,6 +11,7 @@ import * as THREE from "three";
 export const CHARACTER_MODEL_VERSION="articulated-soldier-v1";
 export const OUTFITS=Object.freeze({
   player:{shirt:0x4b5238,vest:0x2b3024,pants:0x3d3b33,boots:0x1a1a18,skin:0xc08a68,gloves:0x1c1e1b,helmet:0x3a4030},
+  civilian:{shirt:0x5a6f86,vest:0x5a6f86,pants:0x2c3138,boots:0x24221f,skin:0xc8956f,gloves:0xc8956f,helmet:0x2a211b},
   zombie:{shirt:0x5d5a4a,vest:0x3b3428,pants:0x2f2c28,boots:0x1f1b18,skin:0x8a9a78,gloves:0x8a9a78,helmet:null},
 });
 const geoCache=new Map();
@@ -50,7 +51,9 @@ export function buildCharacter({outfit="player",shirt=null,id=""}={}){
   part(gun,boxG(.035,.22,.05),M.dark,0,.08,.02);part(gun,boxG(.03,.05,.1),M.dark,0,.0,-.04);gun.visible=false;
   const gunL=gun.clone();arms.L.wr.add(gunL);gunL.visible=false;
   const rig={root,pelvis,spine,neck,head,visor,arms,legs,gun,gunL,phase:Math.random()*6,outfit,state:"idle"};
-  root.traverse(n=>{n.userData.characterPart=true;});
+  // colour category of every mesh (instanced crowds recolour per person)
+  const cats=new Map([[M.shirt,"shirt"],[M.vest,"vest"],[M.pants,"pants"],[M.boots,"boots"],[M.skin,"skin"],[M.gloves,"gloves"],[M.dark,"dark"]]);if(M.helmet)cats.set(M.helmet,"helmet");
+  root.traverse(n=>{n.userData.characterPart=true;if(n.isMesh)n.userData.cat=cats.get(n.material)||"dark";});
   return rig;
 }
 
@@ -82,3 +85,9 @@ export function animateCharacter(rig,{state="idle",speed=0,weapon="none",dt=1/60
   else{set(arms.L.sh,-swing*.6,0,.06,k);set(arms.R.sh,swing*.6,0,-.06,k);set(arms.L.el,.25+(moving?.2:0),0,0,k);set(arms.R.el,.25+(moving?.2:0),0,0,k);}
   rig.gun.visible=weapon!=="none"&&state!=="vr"&&state!=="drive"&&state!=="dead"&&state!=="zombie";rig.gunL.visible=rig.gun.visible&&weapon==="akimbo";
 }
+
+// Joint state of a rig as a flat array (instanced crowds keep one per person
+// and pose a single shared template rig with it).
+export function rigJoints(rig){return[rig.spine,rig.neck,rig.head,rig.arms.L.sh,rig.arms.L.el,rig.arms.R.sh,rig.arms.R.el,rig.legs.L.hip,rig.legs.L.kn,rig.legs.R.hip,rig.legs.R.kn];}
+export function saveRigState(rig,out){const j=rigJoints(rig);out.length=j.length*3+2;for(let i=0;i<j.length;i++){out[i*3]=j[i].rotation.x;out[i*3+1]=j[i].rotation.y;out[i*3+2]=j[i].rotation.z;}out[j.length*3]=rig.pelvis.position.z;out[j.length*3+1]=rig.phase;return out;}
+export function loadRigState(rig,src){const j=rigJoints(rig);if(!src||src.length<j.length*3+2){for(const x of j)x.rotation.set(0,0,0);rig.pelvis.position.z=.96;return;}for(let i=0;i<j.length;i++)j[i].rotation.set(src[i*3],src[i*3+1],src[i*3+2]);rig.pelvis.position.z=src[j.length*3];rig.phase=src[j.length*3+1];}

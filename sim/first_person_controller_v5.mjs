@@ -99,6 +99,31 @@ function placeLeftPistol(scene,camera,gun){
   if(!left.userData.styled){const src=[];right.traverse(n=>{if(n.isMesh)src.push(n);});let i=0;left.traverse(n=>{if(n.isMesh){const m=src[i++%Math.max(1,src.length)];if(m){n.renderOrder=m.renderOrder;}}});left.userData.styled=true;}
   left.visible=true;return left;
 }
+// Grenade launcher: the left hand holds a clacker (remote detonator). Its LED
+// glows green while a round is out; a tap then squeezes the lever and fires it.
+let detonator=null,detonatorPressAt=-Infinity;const detLocal=new THREE.Vector3(),detQ=new THREE.Quaternion(),detE=new THREE.Euler();
+function ensureDetonator(scene){
+  if(detonator?.root.parent===scene)return detonator;if(detonator?.root.parent)detonator.root.parent.remove(detonator.root);
+  const root=new THREE.Group();root.name="WALK_DETONATOR_ROOT";root.userData.flightFireIgnore=true;root.userData.walkWeaponPart=true;root.visible=false;
+  const M=(c,r=.7,m=0)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m,depthTest:true});
+  const add=(g,m,x,y,z,rx=0,ry=0,rz=0,parent=root)=>{const o=new THREE.Mesh(g,m);o.position.set(x,y,z);o.rotation.set(rx,ry,rz);o.renderOrder=9998;o.frustumCulled=false;o.userData.flightFireIgnore=true;o.userData.walkWeaponPart=true;o.userData.walkGrenadePart=true;parent.add(o);return o;};
+  add(new THREE.CapsuleGeometry(.05,.26,4,8),M(0x4b5238,.86),-.02,-.12,.16,-.9,0,.25);            // sleeve
+  add(new THREE.CapsuleGeometry(.042,.07,4,8),M(0x1c1e1b),0,-.02,.02,-.25,0,.1);                     // gloved fist
+  const body=add(new THREE.BoxGeometry(.05,.035,.11),M(0x3d4530,.6),0,.01,-.04);                       // M57-style clacker body
+  const hinge=new THREE.Group();hinge.position.set(0,.03,.01);root.add(hinge);
+  add(new THREE.BoxGeometry(.044,.012,.1),M(0x2b2f25,.5,.2),0,.006,-.05,0,0,0,hinge);                 // lever
+  add(new THREE.BoxGeometry(.012,.012,.03),M(0xb0b4b8,.4,.6),0,.03,.02);                                // safety bail
+  const led=add(new THREE.SphereGeometry(.007,8,6),new THREE.MeshBasicMaterial({color:0x2a2a2a,toneMapped:false}),.017,.03,-.085);
+  const wire=add(new THREE.CylinderGeometry(.004,.004,.22,5),M(0x111111,.8),0,-.03,.12,1.2,0,0);void body;void wire;
+  scene.add(root);detonator={root,hinge,led};return detonator;
+}
+function placeDetonator(scene,camera,now){
+  const d=ensureDetonator(scene),grenade=String(footWeapons()?.mode||"")==="grenade"&&isFoot();d.root.visible=grenade;if(!grenade)return;
+  camera.updateMatrixWorld();detLocal.set(-.25,-.2,-.44);d.root.position.copy(detLocal).applyMatrix4(camera.matrixWorld);
+  detQ.setFromEuler(detE.set(.18,.32,.12));d.root.quaternion.copy(camera.quaternion).multiply(detQ);
+  const k=(now-detonatorPressAt)/180,press=k>=0&&k<1?Math.sin(Math.PI*k):0;d.hinge.rotation.x=.38-press*.38;
+  const armed=Number(viewport()?.dataset.walkGrenadesActive||0)>0;d.led.material.color.setHex(k>=0&&k<1.5?0xff3020:armed?(Math.sin(now/90)>0?0x30ff60:0x0a4018):0x202020);
+}
 function leftParts(left){return{grip:left.getObjectByName("WALK_GLOCK_GRIP_LEFT"),rear:left.getObjectByName("WALK_GLOCK_REAR_SIGHT_LEFT"),front:left.getObjectByName("WALK_GLOCK_FRONT_SIGHT_LEFT")};}
 function stepAim(h,dt,now,rest){
   if(h.pointer){const ray=screenRay(h.pointer.x,h.pointer.y);if(ray)h.desired.copy(ray.origin).addScaledVector(ray.direction,h.depth);}
@@ -117,6 +142,7 @@ function beforeRender(scene,camera,now=performance.now()){
   // view placed: in a car, in the drone or dead they are hidden — otherwise
   // they stayed hanging in the world where the player got in (floating hands).
   const gun=scene?.getObjectByName?.("WALK_PISTOL_3D");if(gun&&(!isFoot()||now-(Number(gun.userData.placedAt)||-Infinity)>250))gun.visible=false;
+  if(detonator)detonator.root.visible=false;if(isFoot()&&gun&&gun.visible!==false)placeDetonator(scene,camera,now);
   if(!isFoot()){if(leftRoot)leftRoot.visible=false;return;}if(!gun||gun.visible===false){if(leftRoot)leftRoot.visible=false;return;}
   const dt=clamp((now-lastFrameMs)/1000,0,.1);lastFrameMs=now;
   let rest=null;{const ray=centerRay();if(ray){if(now-lastRestResolve>REST_RESOLVE_MS){lastRestResolve=now;restDepth=resolveDistance(ray);}rest=restPoint.copy(ray.origin).addScaledVector(ray.direction,restDepth);}}
@@ -154,6 +180,7 @@ export function installFirstPersonController(){
   addEventListener("arondight:foot-screen-fire-anchor",onAimStart);
   addEventListener("arondight:foot-screen-fire",onAimStart);
   addEventListener("arondight:foot-aim",onAimMove);
+  addEventListener("arondight:grenade-detonator",()=>{detonatorPressAt=performance.now();});
   addEventListener("arondight:vehicle-mode",e=>{if(!e?.detail?.active)return;const gun=bridge()?.threeScene?.getObjectByName?.("WALK_PISTOL_3D");if(gun)gun.visible=false;if(leftRoot)leftRoot.visible=false;});
   globalThis.__arondightFirstPersonController=Object.freeze({version:FIRST_PERSON_CONTROLLER_VERSION,screenRay,snapshotPresentedCamera,get hasPresentedCamera(){return presentedValid;}});
 }

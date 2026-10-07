@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import {groundHeightAt} from "./terrain_craters.mjs";
 
 const MOBILE_RE=/(?:android|iphone|ipad|ipod|macintosh.*mobile)/i;
 const MOBILE=MOBILE_RE.test(globalThis.navigator?.userAgent||"");
@@ -34,8 +35,8 @@ const LINKS=[
 ];
 const SEGMENTS=[
   ["pelvis","chest",.19,"shirt"],["chest","lShoulder",.12,"shirt"],["chest","rShoulder",.12,"shirt"],
-  ["lShoulder","lElbow",.085,"skin"],["lElbow","lHand",.072,"skin"],
-  ["rShoulder","rElbow",.085,"skin"],["rElbow","rHand",.072,"skin"],
+  ["lShoulder","lElbow",.075,"shirt"],["lElbow","lHand",.064,"shirt"],
+  ["rShoulder","rElbow",.075,"shirt"],["rElbow","rHand",.064,"shirt"],
   ["pelvis","lHip",.13,"pants"],["lHip","lKnee",.10,"pants"],["lKnee","lFoot",.085,"pants"],
   ["pelvis","rHip",.13,"pants"],["rHip","rKnee",.10,"pants"],["rKnee","rFoot",.085,"pants"],
 ];
@@ -80,10 +81,11 @@ function renderRagdoll(r){
   r.head.position.copy(r.points.head.p);
 }
 
+// the floor is the real terrain under each point (not a flat z=0 plane)
 function floorPoint(point){
-  if(point.p.z>=FLOOR_Z)return;
+  const floor=groundHeightAt(point.p.x,point.p.y)+FLOOR_Z;if(point.p.z>=floor)return;
   const vx=point.p.x-point.prev.x,vy=point.p.y-point.prev.y,vz=point.p.z-point.prev.z;
-  point.p.z=FLOOR_Z;point.prev.x=point.p.x-vx*FRICTION;point.prev.y=point.p.y-vy*FRICTION;point.prev.z=point.p.z+vz*BOUNCE;
+  point.p.z=floor;point.prev.x=point.p.x-vx*FRICTION;point.prev.y=point.p.y-vy*FRICTION;point.prev.z=point.p.z+vz*BOUNCE;
 }
 function solveConstraints(r){
   for(let iter=0;iter<CONSTRAINT_ITERS;iter++){
@@ -107,12 +109,13 @@ function update(now=performance.now()){
 
 function startLoop(){if(raf)return;lastNow=performance.now();raf=requestAnimationFrame(update);}
 
-export function spawnWorldPersonRagdoll({position,yaw=0,impulse=[0,0,0],seed="",id=""}={}){
+export function spawnWorldPersonRagdoll({position,yaw=0,impulse=[0,0,0],seed="",id="",colors=null}={}){
   const r=chooseRagdoll();if(!r||!position)return false;startLoop();const origin=Array.isArray(position)?position:[position.x,position.y,position.z],ox=Number(origin[0])||0,oy=Number(origin[1])||0,oz=Number(origin[2])||0,ix=Number(impulse?.[0])||0,iy=Number(impulse?.[1])||0,iz=Number(impulse?.[2])||0,seedNumber=hashText(seed||id||String(++serial));
-  const shirt=[0x32a4d8,0xd85a42,0x5cbb57,0xd4b640,0x835dcc,0x2fb69a][seedNumber%6];r.materials.shirt.color.setHex(shirt);r.materials.pants.color.setHex([0x263647,0x3a3130,0x20323b,0x343a45][seedNumber%4]);setOpacity(r,1);
+  // same clothes as the person who fell (no colour swap on death)
+  const shirt=colors?.shirt??[0x32a4d8,0xd85a42,0x5cbb57,0xd4b640,0x835dcc,0x2fb69a][seedNumber%6];r.materials.shirt.color.setHex(shirt);r.materials.pants.color.setHex(colors?.pants??[0x263647,0x3a3130,0x20323b,0x343a45][seedNumber%4]);if(colors?.skin!=null&&r.materials.skin)r.materials.skin.color.setHex(colors.skin);setOpacity(r,1);
   for(let i=0;i<POINT_NAMES.length;i++){
     const name=POINT_NAMES[i],rest=REST[name],[rx,ry]=rotateYaw(rest[0],rest[1],yaw),p=r.points[name].p,prev=r.points[name].prev,limbBoost=(name==="chest"||name==="head")?1.15:(name.includes("Hand")||name.includes("Foot"))?1.28:1,noise=.65;
-    p.set(ox+rx,oy+ry,oz+rest[2]);const vx=(ix*limbBoost+seededNoise(seedNumber,i*3)*noise),vy=(iy*limbBoost+seededNoise(seedNumber,i*3+1)*noise),vz=(iz*limbBoost+1.1+Math.abs(seededNoise(seedNumber,i*3+2))*.9);prev.set(p.x-vx*FIXED_STEP,p.y-vy*FIXED_STEP,p.z-vz*FIXED_STEP);
+    p.set(ox+rx,oy+ry,Math.max(oz,groundHeightAt(ox+rx,oy+ry))+rest[2]);const vx=(ix*limbBoost+seededNoise(seedNumber,i*3)*noise),vy=(iy*limbBoost+seededNoise(seedNumber,i*3+1)*noise),vz=(iz*limbBoost+1.1+Math.abs(seededNoise(seedNumber,i*3+2))*.9);prev.set(p.x-vx*FIXED_STEP,p.y-vy*FIXED_STEP,p.z-vz*FIXED_STEP);
   }
   r.active=true;r.born=performance.now();r.expires=r.born+LIFE_MS;r.seed=seedNumber;r.id=String(id||"");r.settledMs=0;r.group.visible=true;r.group.userData.worldRagdollId=r.id;renderRagdoll(r);const view=viewport();if(view){view.dataset.worldRagdollSpawns=String((Number(view.dataset.worldRagdollSpawns)||0)+1);view.dataset.worldRagdollLastId=r.id;}return true;
 }
