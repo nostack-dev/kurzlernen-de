@@ -30,7 +30,8 @@ const files=Object.fromEntries(await Promise.all([
   "sim/terrain_craters.mjs",
   "sim/world_ground.mjs",
   "sim/nuke_destruction.mjs",
-  "sim/world_action_feedback.mjs"
+  "sim/world_action_feedback.mjs",
+  "sim/neon_ui_theme.mjs"
 ].map(async path=>[path,await readFile(path,"utf8")])));
 
 const style=files["sim/stylized_world_style.mjs"];
@@ -42,6 +43,10 @@ assert.ok(style.includes("SCAN_INTERVAL_MS=MOBILE?900:650"),"style discovery sca
 const styleFrame=style.slice(style.indexOf("function frame(now)"),style.indexOf("globalThis.__arondightNeonStyle"));
 assert.ok(!styleFrame.includes("scene.traverse")&&!styleFrame.includes("killLights(scene"),"neon render hot path must never synchronously traverse the scene or rediscover lights");
 assert.ok(style.includes("renderer.shadowMap.enabled=false"),"neon renderer must not pay for invisible shadow maps");
+
+const neonUi=files["sim/neon_ui_theme.mjs"];
+assert.ok(neonUi.includes("MutationObserver")&&neonUi.includes("scheduleLabelFit"),"UI label sizing must be event-driven");
+assert.ok(!neonUi.includes("setTimeout(fitLabels,500)"),"UI label sizing must not force layout polling every 500 ms");
 
 const mobile=files["sim/mobile_gameplay_ui.mjs"];
 assert.ok(mobile.includes("const UI_SYNC_MS=100")&&mobile.includes("setTimeout(sync,UI_SYNC_MS)"),"mobile HUD must use low-frequency state sync");
