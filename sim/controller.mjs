@@ -230,7 +230,7 @@ ui.createOffer.onclick=async()=>{await disconnect();ui.pairDialog.showModal();aw
 ui.applyAnswer.onclick=async()=>{try{await applyAnswerCode(ui.answerCode.value);}catch(error){setPairStatus(error.message,"bad");}};
 ui.closePair.onclick=async()=>{await answerScanner.stop();ui.pairDialog.close();};
 ui.copyOffer.onclick=async()=>{try{await copySignal(ui.offerCode.value);setPairStatus("Offer copied.","good");}catch(error){setPairStatus(error.message,"bad");}};
-ui.shareOffer.onclick=async()=>{try{await shareSignal("SKY RUSH controller offer",ui.offerCode.value);setPairStatus("Offer shared.","good");}catch(error){if(error?.name!=="AbortError")setPairStatus(error.message,"bad");}};
+ui.shareOffer.onclick=async()=>{try{await shareSignal("RUSH controller offer",ui.offerCode.value);setPairStatus("Offer shared.","good");}catch(error){if(error?.name!=="AbortError")setPairStatus(error.message,"bad");}};
 ui.fullscreen.onclick=async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen();try{await screen.orientation?.lock?.("landscape");}catch{}}catch{}};
 
 mountPhoneControlSettings({

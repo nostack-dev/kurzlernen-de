@@ -34,10 +34,14 @@ function* build(b,cx,cy){
   // polygons
   for(const f of features(b,"water")){
     const geom=f.geometry,polys=geom?.type==="Polygon"?[geom.coordinates]:geom?.type==="MultiPolygon"?geom.coordinates:[];
+    // scanline fill (even-odd over all rings → holes handled): O(rows × edges)
     for(const poly of polys){const rings=poly.map(r=>r.map(p=>project(p[0],p[1])));const outer=rings[0];if(!outer||outer.length<3)continue;
-      let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;for(const p of outer){minX=Math.min(minX,p[0]);maxX=Math.max(maxX,p[0]);minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);}
-      const [i0,j0]=cellOf(minX,minY),[i1,j1]=cellOf(maxX,maxY);
-      for(let i=Math.max(0,i0);i<=Math.min(N-1,i1);i++){for(let j=Math.max(0,j0);j<=Math.min(N-1,j1);j++){const x=x0+(i+.5)*CELL,y=y0+(j+.5)*CELL;if(pip(x,y,outer)&&!rings.slice(1).some(h=>pip(x,y,h)))water[i*N+j]=1;}if(++steps%40===0)yield;}}
+      let minY=Infinity,maxY=-Infinity;for(const p of outer){minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);}
+      const ja=Math.max(0,cellOf(0,minY)[1]),jb=Math.min(N-1,cellOf(0,maxY)[1]),xs=[];
+      for(let j=ja;j<=jb;j++){const y=y0+(j+.5)*CELL;xs.length=0;
+        for(const ring of rings)for(let a=0,c=ring.length-1;a<ring.length;c=a++){const ya=ring[a][1],yc=ring[c][1];if((ya>y)!==(yc>y))xs.push(ring[a][0]+(y-ya)/(yc-ya)*(ring[c][0]-ring[a][0]));}
+        xs.sort((p,q)=>p-q);for(let k=0;k+1<xs.length;k+=2){const ia=Math.max(0,Math.ceil((xs[k]-x0)/CELL-.5)),ib=Math.min(N-1,Math.floor((xs[k+1]-x0)/CELL-.5));for(let i=ia;i<=ib;i++)water[i*N+j]=1;}
+        if(++steps%60===0)yield;}}
   }
   // waterways (lines with width): mark cells and record the flow direction
   const ways=[];
@@ -97,12 +101,12 @@ function frame(now){
   requestAnimationFrame(frame);waterUniforms.uTime.value=now/1000;const b=bridge();
   if(!b?.active||!b.threeScene||!b.map||!b.buildingSourceId||typeof b.projectLngLat!=="function"){if(mesh)mesh.visible=false;return;}
   ensureMesh(b.threeScene);mesh.visible=true;
-  if(job){const until=performance.now()+SLICE_MS;let r;while(performance.now()<until){r=job.next();if(r.done)break;}
+  if(job){const until=performance.now()+SLICE_MS;let r;try{while(performance.now()<until){r=job.next();if(r.done)break;}}catch(error){job=null;center=[Infinity,Infinity];const view=document.getElementById("viewport");if(view)view.dataset.worldWaterState=`error:${String(error?.message||error).slice(0,80)}`;console.warn("world water build failed",error);return;}
     if(r?.done){const v=r.value,g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(v.pos,3));g.setAttribute("normal",new THREE.Float32BufferAttribute(new Float32Array(v.pos.length).map((_,i)=>i%3===2?1:0),3));g.setAttribute("aShore",new THREE.Float32BufferAttribute(v.shore,1));g.setAttribute("aFlow",new THREE.Float32BufferAttribute(v.flow,2));g.setIndex(v.idx);mesh.geometry.dispose();mesh.geometry=g;
-      setBridgeDecks(v.decks);setWaterRegions(v.rects,v.flowAt);job=null;const view=document.getElementById("viewport");if(view){view.dataset.worldWaterCells=String(v.cells);view.dataset.worldWaterBasins=String(v.rects.length);view.dataset.worldWaterBridges=String(v.decks.length);view.dataset.worldWater=WORLD_WATER_VERSION;}}
+      setBridgeDecks(v.decks);setWaterRegions(v.rects,v.flowAt);job=null;const view=document.getElementById("viewport");if(view){view.dataset.worldWaterCells=String(v.cells);view.dataset.worldWaterBasins=String(v.rects.length);view.dataset.worldWaterBridges=String(v.decks.length);view.dataset.worldWater=WORLD_WATER_VERSION;view.dataset.worldWaterState=`done:${builtCount}`;}}
     return;}
   const cam=b.threeCamera;if(!cam||now-lastTry<3000)return;lastTry=now;const count=features(b,"water").length+features(b,"waterway").length,roads=features(b,"transportation").length;
-  if(!roads&&!count)return;const moved=Math.hypot(cam.position.x-center[0],cam.position.y-center[1]);if(moved<REBUILD_MOVE_M&&count<=builtCount*1.15+2&&roads<=builtRoads*1.3+20)return;builtCount=count;builtRoads=roads;center=[cam.position.x,cam.position.y];job=build(b,center[0],center[1]);
+  if(!roads&&!count)return;const moved=Math.hypot(cam.position.x-center[0],cam.position.y-center[1]);if(moved<REBUILD_MOVE_M&&count<=builtCount*1.15+2&&roads<=builtRoads*1.3+20)return;builtCount=count;builtRoads=roads;center=[cam.position.x,cam.position.y];job=build(b,center[0],center[1]);const view=document.getElementById("viewport");if(view)view.dataset.worldWaterState=`building:${count}`;
 }
 export function installWorldWater(){if(installed||typeof window==="undefined")return;installed=true;globalThis.__worldWater={level:WATER_LEVEL_M,version:WORLD_WATER_VERSION};requestAnimationFrame(frame);}
 installWorldWater();

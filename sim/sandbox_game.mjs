@@ -4,7 +4,7 @@ import {getSharedCombatAudioContext,playCombatAudio} from "./combat_audio_bank.m
 import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./audio_settings.mjs";
 import {addTrauma} from "./camera_shake.mjs";
 
-// SKY RUSH sandbox loop — no story, just a fun escalation:
+// RUSH sandbox loop — no story, just a fun escalation:
 //  * CHAOS earns SCORE: takedowns, wrecked cars, demolished buildings,
 //    police drones, drifting, escaping. Events close together build a
 //    COMBO multiplier (FLOW meter); flashy pop texts call them out.
@@ -50,7 +50,7 @@ function ensureHud(){
   hud.innerHTML='<div class="sb-flow"><span>FLOW</span><i><b></b></i><em>x1</em></div><div class="sb-score">0</div><div class="sb-pops"></div>';
   view.appendChild(hud);scoreEl=hud.querySelector(".sb-score");comboEl=hud.querySelector(".sb-flow em");flowEl=hud.querySelector(".sb-flow b");popLayer=hud.querySelector(".sb-pops");
   const style=document.createElement("style");style.dataset.sandboxHud=SANDBOX_GAME_VERSION;style.textContent=`
-#sandboxHud{position:absolute;inset:0;z-index:9;pointer-events:none;font-family:"Barlow Condensed","Barlow","Segoe UI",system-ui,sans-serif}
+#sandboxHud{position:absolute;inset:0;z-index:9;pointer-events:none;font-family:"Inter",system-ui,-apple-system,sans-serif}
 #sandboxHud .sb-score{position:absolute;left:max(14px,var(--solo-safe-left,env(safe-area-inset-left)));top:calc(max(8px,var(--solo-safe-top,env(safe-area-inset-top))) + 82px);font-weight:700;font-size:clamp(17px,2.6vw,24px);letter-spacing:.08em;color:#f2f4f7;text-shadow:0 1px 3px rgba(0,0,0,.7)}
 #sandboxHud .sb-flow{position:absolute;left:max(14px,var(--solo-safe-left,env(safe-area-inset-left)));top:calc(max(8px,var(--solo-safe-top,env(safe-area-inset-top))) + 112px);display:flex;align-items:center;gap:6px;color:#f2f4f7;font-weight:600;font-size:10px;letter-spacing:.18em;text-shadow:0 1px 2px rgba(0,0,0,.6)}
 #sandboxHud .sb-flow i{display:block;width:70px;height:4px;border-radius:2px;background:rgba(10,13,18,.5);overflow:hidden;box-shadow:none}

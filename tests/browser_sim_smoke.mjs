@@ -77,7 +77,7 @@ try{
     modelValidation:document.querySelector("#modelValidationStatus")?.dataset.validation||"",
     modelValidationText:document.querySelector("#modelValidationStatus")?.textContent||"",
   }));
-  if(boot.title!=="SKY RUSH"||!boot.status.includes("SIM ready")||
+  if(boot.title!=="RUSH"||!boot.status.includes("SIM ready")||
      !boot.controller.includes("shared fc::StateRuntime → fc::Runtime / WASM")||boot.canvasCount<1||boot.mode!=="SIM"||boot.modelValidation!=="unvalidated"||!boot.modelValidationText.includes("UNVALIDATED"))
     throw new Error(`boot mismatch: ${JSON.stringify(boot)}`);
   const remoteScripts=boot.scripts.filter(src=>{const u=new URL(src);return u.hostname!=="127.0.0.1"&&u.hostname!=="localhost";});

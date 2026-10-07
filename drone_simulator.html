@@ -9,27 +9,27 @@
 <meta name="screen-orientation" content="landscape">
 <meta name="x5-orientation" content="landscape">
 <link rel="manifest" href="./drone_simulator.webmanifest">
-<link rel="icon" href="./sim/icons/sky-rush-192.png">
+<link rel="icon" href="./sim/icons/rush-192.png">
 <link rel="apple-touch-icon" href="./sim/icons/apple-touch-icon.png">
-<meta name="apple-mobile-web-app-title" content="SKY RUSH">
-<meta name="application-name" content="SKY RUSH">
+<meta name="apple-mobile-web-app-title" content="RUSH">
+<meta name="application-name" content="RUSH">
 <meta name="theme-color" content="#1d2430">
-<title>SKY RUSH</title>
+<title>RUSH</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..900;1,14..32,700..900&display=swap" rel="stylesheet">
 <style>
 :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:#070a0f;color:#e9eef8}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070a0f}.viewport{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}.panel{position:fixed;z-index:5;top:12px;left:12px;width:360px;max-height:calc(100vh - 24px);overflow:auto;background:#09101bea;border:1px solid #273044;border-radius:14px;padding:14px;backdrop-filter:blur(12px);box-shadow:0 12px 36px #0009}.telemetry{position:fixed;z-index:5;right:12px;top:12px;width:292px;background:#09101bdf;border:1px solid #273044;border-radius:12px;padding:12px;backdrop-filter:blur(10px)}h1{font-size:18px;margin:0 0 4px}.sub{font-size:12px;color:#96a6bd;line-height:1.45;margin:0 0 12px}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}.tabs button.active{background:#175f49;border-color:#38a985}.row{display:flex;gap:8px;margin:8px 0}.row>*{flex:1}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.card{border:1px solid #263148;border-radius:9px;padding:10px;margin:10px 0}.card h2{font-size:12px;margin:0 0 8px;color:#cbd7e8}.help{font-size:11px;color:#8f9fb6;line-height:1.5}.kv{display:grid;grid-template-columns:1fr auto;gap:5px 10px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}.good{color:#5bd9aa!important;border-color:#2d8266!important}.warn{color:#ffd06d!important;border-color:#836b34!important}.bad{color:#ff7185!important;border-color:#8b3443!important}button,input,select,textarea{font:inherit}button,.linkbutton{border:1px solid #3a4964;border-radius:7px;background:#182235;color:#eef4ff;padding:8px;cursor:pointer;text-align:center;text-decoration:none}button:hover,.linkbutton:hover{background:#22304a}button:disabled{opacity:.42;cursor:not-allowed}.primary{background:#175f49;border-color:#2e9b77}label{font-size:11px;color:#aab6c8;display:block}input[type=number],input[type=text],input[type=range],select,textarea{width:100%;background:#0d1420;color:#fff;border:1px solid #303a4e;border-radius:6px;padding:6px}.modebox{padding:8px;border-radius:8px;background:#0c1522;border:1px solid #243149;font-size:12px;line-height:1.45}.mobile-controls{display:none!important}.statusline{font-size:11px;color:#9db0c9;margin-top:6px}.progress{height:7px;background:#111b29;border-radius:999px;overflow:hidden}.progress>div{height:100%;width:0;background:#4fbf92}.remote-card{border-color:#315d73}.remote-card .row{align-items:end}dialog{width:min(94vw,760px);max-height:94vh;overflow:auto;border:1px solid #35435d;border-radius:14px;background:#09101b;color:#eef4ff;padding:16px;box-shadow:0 24px 80px #000c}dialog::backdrop{background:#000c;backdrop-filter:blur(5px)}dialog h2{font-size:18px;margin:0 0 6px}dialog p{font-size:12px;color:#9bacbf;line-height:1.45}.signal{width:100%;min-height:70px;resize:vertical;font:9px ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}.pair-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.pair-step{border:1px solid #263148;border-radius:10px;padding:10px;background:#0d1522;min-width:0}.pair-step b{display:block;margin-bottom:6px}.scanner{position:relative;width:min(100%,340px);aspect-ratio:1;margin:8px auto;border-radius:10px;overflow:hidden;background:#030609;border:1px solid #30405a}.scanner video{width:100%;height:100%;object-fit:cover}.scanner:after{content:"SCAN CONTROLLER OFFER";position:absolute;left:9%;right:9%;top:44%;padding:7px;text-align:center;border:1px solid #fff8;border-radius:8px;background:#0008;font-size:11px;letter-spacing:.08em}.qr{display:block;width:min(100%,340px);aspect-ratio:1;margin:8px auto;background:#fff;border-radius:10px;padding:8px;image-rendering:pixelated}.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}details{margin-top:12px;border-top:1px solid #263148;padding-top:10px}summary{cursor:pointer;color:#8294ad;font-size:11px}@media(max-width:900px){html,body{height:auto;min-height:100%;overflow-x:hidden;overflow-y:auto}.viewport{position:relative;height:48vh;min-height:320px;max-height:520px;inset:auto}.panel,.telemetry{position:relative;inset:auto;width:auto;max-height:none;margin:10px 12px}.telemetry{margin-bottom:max(18px,env(safe-area-inset-bottom))}.desktop-help{display:none}.grid{grid-template-columns:1fr 1fr}.panel{order:1}.telemetry{order:2}body{display:flex;flex-direction:column}.viewport{order:0}.tabs button{padding:10px 4px}.row{flex-wrap:wrap}.kv{font-size:11px}.pair-grid{grid-template-columns:1fr 1fr}}@media(max-height:500px){dialog{padding:10px}.qr,.scanner{width:min(28vh,250px)}}
 
 /* ---- Game start menu (shown instantly, before the game bundle loads) ---- */
-#gameMenu{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:#1d2430;color:#fff;font-family:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;overflow:hidden;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+#gameMenu{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:#1d2430;color:#fff;font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 #gameMenu[hidden]{display:none!important}
 #gameMenu{transition:opacity .6s ease}#gameMenu.gm-leaving{opacity:0;pointer-events:none}
 #gameMenuBg{position:absolute;inset:0;width:100%;height:100%;display:block}
 #gameMenu .gm-center{position:relative;display:flex;flex-direction:column;align-items:center;gap:clamp(10px,2.4vh,22px);padding:24px;text-align:center}
-#gameMenu .gm-title{font-family:"Barlow Condensed","Barlow",system-ui,sans-serif;font-weight:800;font-size:clamp(46px,10vw,120px);letter-spacing:.14em;line-height:1;color:#f2f4f7;text-transform:uppercase;text-shadow:0 2px 18px rgba(0,0,0,.55)}
-#gameMenu .gm-title span{color:#f5b301;margin-left:.22em}
-#gameMenu .gm-sub{font-weight:600;font-size:clamp(11px,1.6vw,15px);letter-spacing:.5em;color:rgba(242,244,247,.85);text-shadow:0 1px 6px rgba(0,0,0,.6)}
-#gameMenuStart{margin-top:clamp(6px,2vh,18px);min-width:min(64vw,300px);padding:15px 28px;font:700 clamp(17px,2.4vw,22px) "Barlow Condensed","Barlow",system-ui,sans-serif;letter-spacing:.32em;text-transform:uppercase;color:#1a1200;background:#f5b301;border:1px solid rgba(255,255,255,.35);border-radius:4px;box-shadow:0 8px 24px rgba(0,0,0,.45);cursor:pointer}
+#gameMenu .gm-title{position:relative;font-family:"Inter",system-ui,-apple-system,sans-serif;font-weight:900;font-style:italic;font-size:clamp(56px,12vw,140px);letter-spacing:-.01em;line-height:1;color:#f2f4f7;text-transform:uppercase;text-shadow:0 3px 22px rgba(0,0,0,.55);padding:0 .08em .16em}
+#gameMenu .gm-title::after{content:"";position:absolute;left:.14em;right:0;bottom:0;height:.1em;background:#f5b301;transform:skewX(-18deg);box-shadow:0 2px 10px rgba(0,0,0,.4)}
+#gameMenu .gm-sub{font-weight:600;font-size:clamp(11px,1.6vw,15px);letter-spacing:.32em;color:rgba(242,244,247,.85);text-shadow:0 1px 6px rgba(0,0,0,.6)}
+#gameMenuStart{margin-top:clamp(6px,2vh,18px);min-width:min(64vw,300px);padding:15px 28px;font:700 clamp(17px,2.4vw,22px) "Inter",system-ui,-apple-system,sans-serif;letter-spacing:.32em;text-transform:uppercase;color:#1a1200;background:#f5b301;border:1px solid rgba(255,255,255,.35);border-radius:4px;box-shadow:0 8px 24px rgba(0,0,0,.45);cursor:pointer}
 #gameMenuStart:not([disabled]){animation:none}
 #gameMenuStart:active{filter:brightness(.92)}
 #gameMenuStart[disabled]{opacity:.7;cursor:default;animation:none;filter:saturate(.4)}
@@ -39,7 +39,7 @@
 #soundSwitch svg{width:20px;height:20px;display:block}
 #soundSwitch[data-on="0"] .ss-wave{display:none}#soundSwitch[data-on="1"] .ss-x{display:none}
 #soundSwitch[hidden]{display:none!important}
-#installApp{position:fixed;z-index:100001;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));height:32px;display:flex;align-items:center;gap:7px;padding:0 11px;background:rgba(10,13,18,.56);border:1px solid rgba(255,255,255,.16);border-radius:6px;color:#fff;font:600 11px Barlow,system-ui,sans-serif;letter-spacing:.12em;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.45)}
+#installApp{position:fixed;z-index:100001;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));height:32px;display:flex;align-items:center;gap:7px;padding:0 11px;background:rgba(10,13,18,.56);border:1px solid rgba(255,255,255,.16);border-radius:6px;color:#fff;font:600 11px Inter,system-ui,sans-serif;letter-spacing:.12em;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.45)}
 #installApp svg{width:14px;height:14px}
 #installApp[hidden],#installHint[hidden]{display:none!important}
 #installHint{position:fixed;z-index:100002;top:calc(max(10px,env(safe-area-inset-top)) + 40px);left:max(10px,env(safe-area-inset-left));max-width:min(80vw,320px);padding:12px 14px;background:#12161cf5;border:1px solid rgba(255,255,255,.16);border-radius:14px;color:#fff;font:600 13px/1.4 system-ui,sans-serif}
@@ -53,7 +53,7 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
 <div id="gameMenu" role="dialog" aria-label="Start game">
   <canvas id="gameMenuBg" aria-hidden="true"></canvas>
   <div class="gm-center">
-    <div class="gm-title">SKY<span>RUSH</span></div>
+    <div class="gm-title">RUSH</div>
     <div class="gm-sub">FLY · DRIVE · BLAST</div>
     <button id="gameMenuStart" type="button" disabled>LOADING</button>
     <div id="gameMenuStatus">PREPARING WORLD</div>
@@ -116,7 +116,7 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   btn.addEventListener("pointerdown",function(e){e.stopPropagation();},true);
   btn.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();
     if(deferred){deferred.prompt();deferred.userChoice.finally(function(){deferred=null;});return;}
-    if(ios){hint.innerHTML='Tippe unten in Safari auf <b>Teilen</b> &#x2191; und dann auf <b>Zum Home-Bildschirm</b>. SKY RUSH startet danach im Vollbild wie eine App.';hint.hidden=!hint.hidden;}});
+    if(ios){hint.innerHTML='Tippe unten in Safari auf <b>Teilen</b> &#x2191; und dann auf <b>Zum Home-Bildschirm</b>. RUSH startet danach im Vollbild wie eine App.';hint.hidden=!hint.hidden;}});
   document.addEventListener("click",function(e){if(!hint.hidden&&e.target!==btn&&!btn.contains(e.target))hint.hidden=true;},true);
   sync();
 })();
@@ -206,7 +206,7 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
 </script>
 <div class="viewport" id="viewport"></div>
 <section class="panel">
-<h1>SKY RUSH · engineering</h1><p class="sub">Phone 1 is the simulation/view station. Phone 2 is the dedicated remote controller. In SIM mode the exact shared C++ <code>fc::Runtime</code> executes as WebAssembly. The two phones talk directly over WebRTC; GitHub Pages remains purely static.</p>
+<h1>RUSH · engineering</h1><p class="sub">Phone 1 is the simulation/view station. Phone 2 is the dedicated remote controller. In SIM mode the exact shared C++ <code>fc::Runtime</code> executes as WebAssembly. The two phones talk directly over WebRTC; GitHub Pages remains purely static.</p>
 <div class="tabs"><button id="modeSim" class="active">SIM</button><button id="modeHil">HIL</button><button id="modeReplay">REAL LOG</button></div><div id="modeInfo" class="modebox"></div>
 <div class="row"><button id="connect">Controller ready</button><button id="run" class="primary" disabled>Start</button><button id="reset">Reset</button><button id="exportLog">Export run</button></div><div class="statusline" id="status">Loading flight core…</div>
 <div class="card remote-card"><h2>Two-phone control · serverless P2P</h2><label>Input source<select id="inputSource"><option value="remote" selected>REMOTE PHONE · WEBRTC P2P</option><option value="local">LOCAL FALLBACK</option></select></label><div class="row"><button id="remoteConnect">PAIR CONTROLLER</button><a id="controllerLink" class="linkbutton" href="./drone_controller.html" target="_blank" rel="noopener">Open controller page</a></div><div id="remoteStatus" class="statusline">P2P disconnected. Missing/stale control always forces throttle 0 and ARM OFF.</div></div>

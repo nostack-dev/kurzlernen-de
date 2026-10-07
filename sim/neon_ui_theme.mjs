@@ -5,19 +5,19 @@
 // so all layout and visibility logic keeps working. The html class
 // "neon-line-style" is kept as the specificity hook other modules use.
 
-export const NEON_UI_THEME_VERSION="realistic-hud-ui-v4";
+export const NEON_UI_THEME_VERSION="realistic-hud-ui-v5-inter";
 
 // The :not(#…) chain lifts specificity above the per-module id rules.
 const R="html.neon-line-style:not(#ng-a):not(#ng-b):not(#ng-c)";
 const CSS=`
-${R}{--ui-fill:rgba(10,13,18,.56);--ui-fill-strong:rgba(10,13,18,.82);--ui-line:rgba(255,255,255,.16);--ui-text:#f2f4f7;--ui-soft:rgba(242,244,247,.72);--ui-accent:#f5b301;--ui-accent-ink:#1a1200;--ui-cyan:#7cc4ff;--ui-shadow:0 1px 2px rgba(0,0,0,.45);--ui-font:"Barlow","Segoe UI",Roboto,system-ui,-apple-system,sans-serif;
+${R}{--ui-fill:rgba(10,13,18,.56);--ui-fill-strong:rgba(10,13,18,.82);--ui-line:rgba(255,255,255,.16);--ui-text:#f2f4f7;--ui-soft:rgba(242,244,247,.72);--ui-accent:#f5b301;--ui-accent-ink:#1a1200;--ui-cyan:#7cc4ff;--ui-shadow:0 1px 2px rgba(0,0,0,.45);--ui-font:"Inter",-apple-system,"SF Pro Text",system-ui,"Segoe UI",Roboto,sans-serif;
   /* legacy variable names other modules still read */
   --ng:var(--ui-text);--ng-core:#fff;--ng-dim:var(--ui-line);--ng-glow:transparent;--ng-glow-soft:transparent;--ng-fill:var(--ui-fill);--ng-text:var(--ui-text);--ng-font:var(--ui-font)}
 ${R} #viewport :is(button,[role="button"],a.linkbutton),${R} :is(#mobileGameplayDock,#soloTopbar,#cameraModes,#desktopDroneWeaponSwitch) button,${R} .phone-settings-button,
 ${R} :is(#playerModeButton,#driveModeButton,#gtaVehicleButton,#lanVsButton,#wantedEmpButton,#droneWeaponToggle,#footWeaponToggle,#footFire,#soloArm,#soloReset,#soloExit,#soloWorld,#soloLogbook,#soloCamera,#mobileGameplayReset,#mobileGameplayMultiplayer,#gameExitButton,#gameplayContractButton,#soundToggle){
   background:var(--ui-fill)!important;background-image:none!important;color:var(--ui-text)!important;border:1px solid var(--ui-line)!important;border-radius:6px!important;
   box-shadow:var(--ui-shadow)!important;text-shadow:0 1px 1px rgba(0,0,0,.5)!important;filter:none!important;text-transform:uppercase!important;
-  font-family:var(--ui-font)!important;font-weight:600!important;font-style:normal!important;letter-spacing:.09em!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+  font-family:var(--ui-font)!important;font-weight:600!important;font-style:normal!important;letter-spacing:.05em!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 ${R} :is(#soloArm,#gameMenu .menu-start,#gameMenuStart){background:var(--ui-accent)!important;color:var(--ui-accent-ink)!important;border-color:rgba(255,255,255,.35)!important;text-shadow:none!important;box-shadow:0 1px 2px rgba(0,0,0,.45)!important}
 ${R} #soloArm.armed{background:#2f9e5a!important;color:#ffffff!important;box-shadow:0 1px 2px rgba(0,0,0,.45)!important}
 ${R} #wantedEmpButton{background:rgba(40,110,170,.85)!important;color:#fff!important;border-color:rgba(255,255,255,.35)!important}
@@ -34,7 +34,7 @@ ${R} :is(#playerVitalsHud,#soloClearance,.solo-height-pad,#soloHeightPad) :is(b,
 /* Joysticks: soft white rings */
 ${R} :is(.foot-stick .ring,.solo-ring){border:1.5px solid rgba(255,255,255,.35)!important;background:rgba(10,13,18,.18)!important;background-image:none!important;box-shadow:none!important}
 ${R} :is(.foot-stick .knob,.solo-knob,.solo-height-knob){background:rgba(242,244,247,.7)!important;background-image:none!important;border:1px solid rgba(255,255,255,.9)!important;box-shadow:0 1px 3px rgba(0,0,0,.4)!important}
-${R} :is(.foot-stick,.solo-stick),${R} :is(.foot-stick,.solo-stick) *{color:#f2f4f7!important;font-family:var(--ui-font)!important;font-weight:600!important;letter-spacing:.1em!important;text-shadow:0 1px 1px rgba(0,0,0,.5)!important}
+${R} :is(.foot-stick,.solo-stick),${R} :is(.foot-stick,.solo-stick) *{color:#f2f4f7!important;font-family:var(--ui-font)!important;font-weight:600!important;letter-spacing:.06em!important;text-shadow:0 1px 1px rgba(0,0,0,.5)!important}
 ${R} #footMove.sprinting .ring{border-color:var(--ui-accent)!important;box-shadow:none!important}
 /* Settings dialog */
 ${R} :is(.phone-settings-dialog,#flightLogbookDialog,dialog){background:#12161cf5!important;background-image:none!important;border:1px solid var(--ui-line)!important;box-shadow:0 10px 30px rgba(0,0,0,.45)!important;color:var(--ui-text)!important;font-family:var(--ui-font)!important;border-radius:8px!important}
@@ -42,6 +42,11 @@ ${R} :is(.phone-settings-dialog,dialog) :is(h2,h3,h4){color:var(--ui-accent)!imp
 ${R} :is(.phone-settings-dialog,dialog) :is(button,select,input[type=number],input[type=text]){background:rgba(255,255,255,.1)!important;background-image:none!important;color:#fff!important;border:1.5px solid var(--ui-line)!important}
 ${R} :is(.phone-settings-dialog,dialog) input[type=range],${R} :is(.phone-settings-dialog,dialog) input[type=checkbox]{accent-color:var(--ui-accent)!important}
 ${R} #viewport{background:#b7c9dc!important}
+/* One typeface everywhere (the per-module system-ui/monospace mixes looked
+   cheap): Inter, tabular figures so numbers don't jitter. */
+${R} body,${R} body *:not(svg):not(svg *):not(code):not(pre){font-family:var(--ui-font)!important;font-feature-settings:"tnum" 1,"cv11" 1}
+/* The minimap always sits above every overlay layer */
+${R} #worldLookHud{z-index:12!important}
 /* Wanted banner sits below the top dock, never on it */
 ${R} #wantedHud{top:calc(max(8px,var(--solo-safe-top,env(safe-area-inset-top))) + 56px)!important;background:var(--ui-fill)!important;border:1px solid var(--ui-line)!important;border-radius:6px!important;box-shadow:var(--ui-shadow)!important}
 ${R} :is(#soloHud,#footHud,#vehicleHud,#gtaVehicleHud){background:transparent!important;border:0!important;box-shadow:none!important}
@@ -60,6 +65,17 @@ function fitLabels(){
   }
   setTimeout(fitLabels,500);
 }
+// The minimap must never silently vanish: while the real world runs, undo
+// anything that hid it (hidden attr, display/visibility/opacity, pushed
+// off-screen) and note the cause for diagnostics.
+function guardMinimap(){
+  setTimeout(guardMinimap,1000);const b=globalThis.__arondightRealWorld,hud=document.getElementById("worldLookHud");if(!b?.active||!hud)return;
+  const cs=getComputedStyle(hud),r=hud.getBoundingClientRect(),why=hud.hidden?"hidden-attr":cs.display==="none"?"display-none":cs.visibility==="hidden"?"visibility":parseFloat(cs.opacity)<.2?"opacity":r.width<20||r.height<20?"zero-size":r.right<10||r.bottom<10||r.left>innerWidth-10||r.top>innerHeight-10?"offscreen":"";
+  if(!why){const top=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);if(top&&!hud.contains(top)&&!top.closest?.("dialog")){const v=document.getElementById("viewport");if(v)v.dataset.minimapGuard=`covered:${top.id||top.className||top.tagName}`;}return;}
+  const v=document.getElementById("viewport");if(v)v.dataset.minimapGuard=why;
+  hud.hidden=false;hud.style.setProperty("display","block","important");hud.style.setProperty("visibility","visible","important");hud.style.setProperty("opacity","1","important");
+  if(why==="zero-size"||why==="offscreen"){hud.style.setProperty("width","132px","important");hud.style.setProperty("height","132px","important");hud.style.setProperty("right","max(8px,env(safe-area-inset-right))","important");hud.style.setProperty("left","auto","important");hud.style.setProperty("top","calc(max(8px,env(safe-area-inset-top)) + 46px)","important");}
+}
 let installed=false;
 export function installNeonUiTheme(){
   if(installed||typeof document==="undefined")return;installed=true;
@@ -67,6 +83,6 @@ export function installNeonUiTheme(){
   const style=document.createElement("style");style.dataset.neonUiTheme=NEON_UI_THEME_VERSION;style.textContent=CSS;
   (document.head||document.documentElement).appendChild(style);
   document.getElementById("crtPhosphorOverlay")?.remove();
-  setTimeout(fitLabels,300);
+  setTimeout(fitLabels,300);setTimeout(guardMinimap,1500);
 }
 installNeonUiTheme();
