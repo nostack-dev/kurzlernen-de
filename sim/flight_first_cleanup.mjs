@@ -25,8 +25,6 @@ function footWeapons(){return globalThis.__arondightFootWeapons||null;}
 function isFoot(){return walk()?.mode==="foot"&&document.body.classList.contains("on-foot-mode");}
 function touchDevice(){return (navigator.maxTouchPoints||0)>0;}
 function interactive(target){return Boolean(target?.closest?.("#worldLookHud,button,input,select,textarea,a,label,dialog,#soloTopbar,.phone-settings-dialog,#footWeaponToggle"));}
-function activeMovePointerId(){for(const[id,entry]of active)if(entry.kind==="move")return id;return null;}
-function rewriteForMove(event,entry,axes){try{Object.defineProperty(event,"clientX",{configurable:true,value:entry.cx+axes.x*entry.walkRadius});Object.defineProperty(event,"clientY",{configurable:true,value:entry.cy+axes.y*entry.walkRadius});Object.defineProperty(event,"__arondightLogicalPointer",{configurable:true,value:true});}catch{}}
 function paintLook(entry,axes){const knob=entry.element.querySelector(".knob");if(knob){knob.style.left=`${50+axes.x*42}%`;knob.style.top=`${50+axes.y*42}%`;}}
 function resetLook(entry){paintLook(entry,{x:0,y:0});walk()?.endTouchLook?.("right-stick");entry.axes={x:0,y:0};}
 function fireScreenAt(clientX,clientY,source="screen-touch"){
@@ -37,19 +35,18 @@ function ensureInputLoop(){if(inputLoop)return;const frame=now=>{inputLoop=reque
     if(entry.kind==="look")walk()?.applyTouchLookStick?.({x:entry.axes.x,y:entry.axes.y,dt,now,source:"right-stick"});
     else if(entry.kind==="fire"&&String(footWeapons()?.mode||"")==="smg"&&now-entry.lastShotAt>=FIRE_INTERVAL_MS){entry.lastShotAt=now;fireScreenAt(entry.x,entry.y,"screen-touch-hold-repeat");}
   }};lastInputFrame=performance.now();inputLoop=requestAnimationFrame(frame);}
-function releaseActivePointer(pointerId,reason="lifecycle"){const entry=active.get(pointerId);if(!entry)return false;active.delete(pointerId);if(entry.kind==="look"){endPointerDrag(entry.element,pointerId);resetLook(entry);}else if(entry.kind==="move"){endPointerDrag(entry.element,pointerId);const knob=entry.element?.querySelector?.(".knob");if(knob){knob.style.left="50%";knob.style.top="50%";}}else if(entry.kind==="fire"){const view=viewport();if(view){view.dataset.walkFirePointerActive="0";view.dataset.walkFirePointerRelease=reason;}}const view=viewport();if(view){view.dataset.walkTouchLifecycleRelease=reason;view.dataset.walkTouchLifecycleReleases=String((Number(view.dataset.walkTouchLifecycleReleases)||0)+1);}return true;}function releaseAllActive(reason="lifecycle"){for(const id of [...active.keys()])releaseActivePointer(id,reason);}function protectMoveOwnership(event){const moveId=activeMovePointerId();if(event.pointerId===moveId){releaseActivePointer(event.pointerId,"lostpointercapture");return;}if(moveId===null)return;event.stopImmediatePropagation();const view=viewport();if(view)view.dataset.walkMoveForeignCaptureIgnored=String((Number(view.dataset.walkMoveForeignCaptureIgnored)||0)+1);}
+function releaseActivePointer(pointerId,reason="lifecycle"){const entry=active.get(pointerId);if(!entry)return false;active.delete(pointerId);if(entry.kind==="look"){endPointerDrag(entry.element,pointerId);resetLook(entry);}else if(entry.kind==="fire"){const view=viewport();if(view){view.dataset.walkFirePointerActive="0";view.dataset.walkFirePointerRelease=reason;}}const view=viewport();if(view){view.dataset.walkTouchLifecycleRelease=reason;view.dataset.walkTouchLifecycleReleases=String((Number(view.dataset.walkTouchLifecycleReleases)||0)+1);}return true;}function releaseAllActive(reason="lifecycle"){for(const id of [...active.keys()])releaseActivePointer(id,reason);}function releaseCapturedPointer(event){releaseActivePointer(event.pointerId,"lostpointercapture");}
 
 function capture(event){
   if(!touchDevice()||event.pointerType==="mouse"||!isFoot())return;
   const target=event.target instanceof Element?event.target:null;
   if(event.type==="pointerdown"){
     const move=target?.closest("#footMove"),lookStick=target?.closest("#footLook");
-    if(move||lookStick){
-      const element=move||lookStick,r=element.getBoundingClientRect(),axes=normalizedPointer(element,event),entry={kind:move?"move":"look",element,cx:r.left+r.width/2,cy:r.top+r.height/2,walkRadius:Math.max(1,Math.min(r.width,r.height)*.38),axes};
-      active.set(event.pointerId,entry);
-      if(entry.kind==="move")rewriteForMove(event,entry,axes);
-      else{event.preventDefault();event.stopImmediatePropagation();element.setPointerCapture?.(event.pointerId);walk()?.beginTouchLook?.("right-stick");paintLook(entry,axes);ensureInputLoop();}
-      const view=viewport();if(view){view.dataset.walkStickSemantics="drone-normalizedPointer-v1";view.dataset.walkMultiTouchMoveIsolation="pointer-id-owned-v1";}
+    if(move)return;
+    if(lookStick){
+      const element=lookStick,axes=normalizedPointer(element,event),entry={kind:"look",element,axes};
+      active.set(event.pointerId,entry);event.preventDefault();event.stopImmediatePropagation();element.setPointerCapture?.(event.pointerId);walk()?.beginTouchLook?.("right-stick");paintLook(entry,axes);ensureInputLoop();
+      const view=viewport();if(view){view.dataset.walkStickSemantics="walk-left-single-owner+look-normalized-v1";view.dataset.walkMultiTouchMoveIsolation="left-stick-owned-by-player-walk-v1";}
       return;
     }
     if(interactive(target))return;
@@ -57,7 +54,6 @@ function capture(event){
   }
   const entry=active.get(event.pointerId);if(!entry)return;
   if(event.type==="pointermove"){
-    if(entry.kind==="move"){entry.axes=normalizedPointer(entry.element,event);rewriteForMove(event,entry,entry.axes);return;}
     if(entry.kind==="look"){entry.axes=normalizedPointer(entry.element,event);paintLook(entry,entry.axes);event.preventDefault();event.stopImmediatePropagation();return;}
     if(entry.kind==="fire"){entry.x=event.clientX;entry.y=event.clientY;window.dispatchEvent(new CustomEvent("arondight:foot-aim",{detail:{clientX:entry.x,clientY:entry.y,phase:"move"}}));event.preventDefault();event.stopImmediatePropagation();return;}
   }
@@ -65,7 +61,6 @@ function capture(event){
     active.delete(event.pointerId);
     if(entry.kind==="look"){endPointerDrag(entry.element,event.pointerId);resetLook(entry);event.preventDefault();event.stopImmediatePropagation();}
     else if(entry.kind==="fire"){window.dispatchEvent(new CustomEvent("arondight:foot-aim",{detail:{clientX:event.clientX,clientY:event.clientY,phase:"end"}}));const view=viewport();if(view){view.dataset.walkFirePointerActive="0";view.dataset.walkFirePointerRelease=event.type;}event.preventDefault();event.stopImmediatePropagation();}
-    else if(entry.kind==="move")endPointerDrag(entry.element,event.pointerId);
   }
 }
 
@@ -89,4 +84,4 @@ dialog.phone-settings-dialog[open] .phone-settings-titlebar{position:sticky!impo
 }
 function publish(){const view=viewport();if(!view)return;view.dataset.flightFirstUi="real-estate-first-v2";view.dataset.walkTouchContract="drone-normalized-pointer-origin-v2";view.dataset.walkFullscreenLook="disabled";view.dataset.walkScreenTouch="fire-only-v1";view.dataset.walkFireOverlay="removed";view.dataset.gameplayArcadeHud="hidden";view.dataset.walkMultiTouchMoveIsolation="pointer-id-owned-v1";view.dataset.walkHoldFire="screen-pointer-owned-smg-v1";}
 function frame(){publish();requestAnimationFrame(frame);}
-export function installFlightFirstCleanup(){if(installed)return;installed=true;installStyle();window.addEventListener("pointerdown",capture,{capture:true,passive:false});window.addEventListener("pointermove",capture,{capture:true,passive:false});window.addEventListener("pointerup",capture,{capture:true,passive:false});window.addEventListener("pointercancel",capture,{capture:true,passive:false});window.addEventListener("lostpointercapture",protectMoveOwnership,{capture:true,passive:false});addEventListener("blur",()=>releaseAllActive("window-blur"),{capture:true});addEventListener("pagehide",()=>releaseAllActive("pagehide"),{capture:true});addEventListener("orientationchange",()=>releaseAllActive("orientationchange"),{capture:true});document.addEventListener("visibilitychange",()=>{if(document.hidden)releaseAllActive("visibility-hidden");},{capture:true});addEventListener("arondight:player-mode",()=>releaseAllActive("mode-change"),{capture:true});requestAnimationFrame(frame);}
+export function installFlightFirstCleanup(){if(installed)return;installed=true;installStyle();window.addEventListener("pointerdown",capture,{capture:true,passive:false});window.addEventListener("pointermove",capture,{capture:true,passive:false});window.addEventListener("pointerup",capture,{capture:true,passive:false});window.addEventListener("pointercancel",capture,{capture:true,passive:false});window.addEventListener("lostpointercapture",releaseCapturedPointer,{capture:true,passive:false});addEventListener("blur",()=>releaseAllActive("window-blur"),{capture:true});addEventListener("pagehide",()=>releaseAllActive("pagehide"),{capture:true});addEventListener("orientationchange",()=>releaseAllActive("orientationchange"),{capture:true});document.addEventListener("visibilitychange",()=>{if(document.hidden)releaseAllActive("visibility-hidden");},{capture:true});addEventListener("arondight:player-mode",()=>releaseAllActive("mode-change"),{capture:true});requestAnimationFrame(frame);}
