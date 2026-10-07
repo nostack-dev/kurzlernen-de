@@ -13,6 +13,8 @@ import "./world_city_buildings.mjs";
 import "./world_city_roads.mjs";
 import "./world_water.mjs";
 import "./world_ground.mjs";
+import "./training_test_level_v2.mjs";
+import "./world_organic_hit_audio.mjs";
 import "./world_sync.mjs";
 import "./music_player.mjs";
 import "./spawn_visibility_guard.mjs";

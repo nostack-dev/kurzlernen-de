@@ -108,7 +108,7 @@ function ensureMeshes(scene){
   if(group?.parent===scene)return;
   if(group?.parent)group.parent.remove(group);
   group=new THREE.Group();group.name="WORLD_CITY_BUILDINGS";
-  solid=new THREE.Mesh(new THREE.BufferGeometry(),patchShockMaterial(realFacades(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.88,metalness:0,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:2}))));solid.castShadow=true;solid.receiveShadow=true;solid.name="WORLD_CITY_SOLIDS";solid.frustumCulled=false;
+  solid=new THREE.Mesh(new THREE.BufferGeometry(),patchShockMaterial(realFacades(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.88,metalness:0,polygonOffset:true,polygonOffsetFactor:3,polygonOffsetUnits:6}))));solid.castShadow=true;solid.receiveShadow=true;solid.name="WORLD_CITY_SOLIDS";solid.frustumCulled=false;
   const empty=fatLineGeometry([0,0,0,0,0,0]);
   edgeGlow=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x29e6ff,{width:7,opacity:.2,additive:true,depthTest:true}),{lines:true}));edgeGlow.name="WORLD_CITY_EDGES_GLOW";edgeGlow.frustumCulled=false;
   edges=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x7ff3ff,{width:2.4,opacity:1,additive:true,depthTest:true}),{lines:true}));edges.name="WORLD_CITY_EDGES";edges.frustumCulled=false;

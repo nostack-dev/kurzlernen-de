@@ -16,7 +16,7 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,Number(v)||0));}
 function easeOut(t){t=clamp(t,0,1);return 1-Math.pow(1-t,3);}
 function smooth(t){t=clamp(t,0,1);return t*t*(3-2*t);}
 function tag(node,role){node.userData.nukeWeaponPart=true;node.userData.flightFireIgnore=true;node.userData.nukeOverkillPart=true;node.userData.nukeOverkillRole=role;node.renderOrder=CINEMATIC_RENDER_ORDER;return node;}
-function basic(color,opacity=1,additive=false,side=THREE.BackSide){return fxMaterial(color,{opacity,additive,depthTest:false,side});}
+function basic(color,opacity=1,additive=false,side=THREE.BackSide){return fxMaterial(color,{opacity,additive,depthTest:true,side});}
 function sphere(group,r,color,opacity,additive,role,segments=22){const mesh=tag(new THREE.Mesh(sphereGeometry(r,segments,Math.max(10,Math.floor(segments*.62))),basic(color,opacity,additive)),role);group.add(mesh);return mesh;}
 function makeShock(group,role,color,opacity=.9){const ring=tag(new THREE.Mesh(ringGeometry(.985,1.015,128),basic(color,opacity,true,THREE.DoubleSide)),role);ring.position.z=.24;group.add(ring);return ring;}
 function makeOverlay(id,z,background){const view=viewport();if(!view)return null;let el=document.getElementById(id);if(el)return el;el=document.createElement("i");el.id=id;el.setAttribute("aria-hidden","true");el.style.cssText=`position:absolute;inset:-8%;z-index:${z};pointer-events:none;opacity:0;will-change:opacity;${background}`;view.appendChild(el);return el;}
@@ -33,19 +33,19 @@ function spawn(position){
   const group=tag(new THREE.Group(),"world-root");group.position.copy(position);scene.add(group);
   // One flat white-hot core (no stacked yellow/orange/red glow spheres).
   const white=sphere(group,7.5,0xfff6d8,1,true,"white-core");white.position.z=9*NUKE_SCALE;
-  const shock1=makeShock(group,"shock-ring-1",0xffffff,.9),shock2=makeShock(group,"shock-ring-2",0xffd23f,.7),shock3=makeShock(group,"shock-ring-3",0xff8a3d,.5);
-  const dust=tag(new THREE.Mesh(ringGeometry(.97,.985,96),basic(0xd8c8a8,.46,false,THREE.DoubleSide)),"dust-ring");dust.position.z=.08;group.add(dust);
-  const sparks=[];for(let i=0;i<14;i++){const a=i/14*Math.PI*2,p=sphere(group,1+(i%3)*.3,i%2?0xfff6d8:0xffb347,.34,true,`spark-${i}`,8);p.position.set(Math.cos(a)*(8+(i%7)*2.3),Math.sin(a)*(8+(i%6)*2.1),5+(i%5)*2.5);sparks.push(p);}
+  const shock1=makeShock(group,"shock-ring-1",0xfffbef,.58),shock2=makeShock(group,"shock-ring-2",0xd8cdbd,.34),shock3=makeShock(group,"shock-ring-3",0xa69279,.20);
+  const dust=tag(new THREE.Mesh(ringGeometry(.95,.99,96),basic(0xb89d7c,.56,false,THREE.DoubleSide)),"dust-ring");dust.position.z=.08;group.add(dust);
+  const sparks=[];for(let i=0;i<14;i++){const a=i*2.399963229728653,p=sphere(group,.8+(i%4)*.24,i%3?0xffd39a:0xfff3cf,.28,true,`spark-${i}`,8),r=7+(i*11%31);p.position.set(Math.cos(a)*r,Math.sin(a)*r,4+(i*7%19));sparks.push(p);}
   effects.push({scene,group,born:performance.now(),white,shock1,shock2,shock3,dust,sparks,sparkBase:sparks.map(p=>p.scale.x),position:position.clone()});
-  const view=viewport();if(view){view.dataset.nukeOverkill="world-anchored-nuclear-v5";view.dataset.nukeOverkillParts=String(1+4+sparks.length);view.dataset.nukeOverkillFireballM="450";view.dataset.nukeOverkillAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;view.dataset.nukeOverkillComposition="world-space-impact-locked-v4";view.dataset.nukeScreenCloud="removed-v2";view.dataset.nukeVisibleRenderer="world-space-3d-v5";view.dataset.nukeVisibilityPolicy="cinematic-depth-priority-v1";}
+  const view=viewport();if(view){view.dataset.nukeOverkill="world-anchored-nuclear-v6-realistic";view.dataset.nukeOverkillParts=String(1+4+sparks.length);view.dataset.nukeOverkillFireballM="450";view.dataset.nukeOverkillAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;view.dataset.nukeOverkillComposition="world-space-impact-locked-v4";view.dataset.nukeScreenCloud="removed-v2";view.dataset.nukeVisibleRenderer="world-space-3d-v6-smoke-pressure";view.dataset.nukeVisibilityPolicy="cinematic-depth-priority-v1";}
   document.getElementById("nukeCinematicScreenCloud")?.remove();
   document.getElementById("nukeOverkillShockScreen")?.remove();
   cameraBlast();
 }
 function update(item,now){
   const age=now-item.born,fireT=easeOut(age/1500),shockT=clamp(age/4700,0,1),fade=1-clamp((age-18500)/7500,0,1);
-  item.white.scale.setScalar(NUKE_SCALE*(.45+fireT*6.0));item.white.material.opacity=Math.max(0,1-age/1450);item.white.visible=item.white.material.opacity>.003;
-  const r1=NUKE_SCALE*(22+shockT*500),r2=NUKE_SCALE*(16+clamp((age-160)/4700,0,1)*455),r3=NUKE_SCALE*(9+clamp((age-360)/4900,0,1)*395);item.shock1.scale.setScalar(r1);item.shock2.scale.setScalar(r2);item.shock3.scale.setScalar(r3);item.dust.scale.setScalar(NUKE_SCALE*(14+shockT*330));item.shock1.material.opacity=.96*fade;item.shock2.material.opacity=.76*fade;item.shock3.material.opacity=.54*fade;item.dust.material.opacity=.42*fade;
+  item.white.scale.setScalar(NUKE_SCALE*(.45+fireT*6.0));item.white.material.color?.setHex(age<420?0xfff8dc:age<1050?0xffc06a:0xff7a36);item.white.material.opacity=Math.max(0,1-age/1550);item.white.visible=item.white.material.opacity>.003;
+  const r1=NUKE_SCALE*(22+shockT*500),r2=NUKE_SCALE*(16+clamp((age-160)/4700,0,1)*455),r3=NUKE_SCALE*(9+clamp((age-360)/4900,0,1)*395);item.shock1.scale.setScalar(r1);item.shock2.scale.setScalar(r2);item.shock3.scale.setScalar(r3);item.dust.scale.setScalar(NUKE_SCALE*(14+shockT*330));item.shock1.material.opacity=.58*fade;item.shock2.material.opacity=.34*fade;item.shock3.material.opacity=.20*fade;item.dust.material.opacity=.56*Math.max(0,1-age/12500);
   for(let i=0;i<item.sparks.length;i++){const spark=item.sparks[i];spark.material.opacity=Math.max(0,.34-age/7800);spark.visible=spark.material.opacity>.002;spark.scale.setScalar(item.sparkBase[i]*Math.exp(age*.00009));}
   const view=viewport();setData(view,"nukeOverkillPhase",age<700?"whiteout":age<2100?"fireball":age<5800?"shockwave+mushroom":"mushroom");setData(view,"nukeOverkillShockM",r1.toFixed(0));
   return age<27000;

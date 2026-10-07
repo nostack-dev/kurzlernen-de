@@ -21,7 +21,7 @@ const HEIGHT_M=112*NUKE_SCALE;       // final top of the dome (~336 m)
 const RISE_TAU_S=3.6,LIFE_S=34;
 const STEM_RINGS=10,TORUS_FLOWS=7;
 
-const clouds=[];let installed=false,unitCircle=null;
+const clouds=[];let installed=false,unitCircle=null;const smokeColor=new THREE.Color();
 
 function viewport(){return document.getElementById("viewport");}
 function scene(){return globalThis.__arondightRealWorld?.threeScene||null;}
@@ -37,8 +37,8 @@ const DOME={z:.84,r:.27,squash:.62};
 
 // Cartoon palette: creamy cloud, warm outlines, white-hot core lines
 // cooling to orange.
-const NEON=new THREE.Color(0xff7a2a),WHITE_HOT=new THREE.Color(0xfff6d8);
-function darkMaterial(){return new THREE.MeshBasicMaterial({color:0xd9d2c8,toneMapped:false,fog:false,side:THREE.FrontSide,transparent:true,opacity:1,depthWrite:true});}
+const EMBER=new THREE.Color(0xff6a24),WHITE_HOT=new THREE.Color(0xfff4d2),SMOKE_WARM=new THREE.Color(0x75685a),SMOKE_COOL=new THREE.Color(0x42474b);
+function darkMaterial(){return new THREE.MeshLambertMaterial({color:0x6f655b,fog:true,side:THREE.FrontSide,transparent:true,opacity:.98,depthWrite:true});}
 // Hot core lines: inside the stem, under the cap, along the base surge.
 function circlePositions(radius,z,seg=56){const out=[];for(let i=0;i<seg;i++){const a=i/seg*Math.PI*2,b=(i+1)/seg*Math.PI*2;out.push(Math.cos(a)*radius,Math.sin(a)*radius,z,Math.cos(b)*radius,Math.sin(b)*radius,z);}return out;}
 function stemCorePositions(){const out=[],n=8;for(let k=0;k<n;k++){const a=(k+.5)/n*Math.PI*2,c=Math.cos(a),si=Math.sin(a);for(let i=0;i<STEM_PROFILE.length-1;i++){const[r0,h0]=STEM_PROFILE[i],[r1,h1]=STEM_PROFILE[i+1];out.push(c*r0*.5,si*r0*.5,h0,c*r1*.5,si*r1*.5,h1);}}return out;}
@@ -75,7 +75,7 @@ function sharedGeometries(){
 function buildParts(group){
   const parts={},G=sharedGeometries();
   parts.stem=tag(new THREE.Mesh(G.stem,darkMaterial()),"stem-silhouette");
-  const hotMat=fatLineMaterial(0xf4fff9,{width:2.4,opacity:1,additive:true});parts.hotMat=hotMat;
+  const hotMat=fatLineMaterial(0xffd7a8,{width:1.8,opacity:.82,additive:true});parts.hotMat=hotMat;
   parts.stemHeat=tag(fatLineSegments(G.stemHot,hotMat),"hot-plume-visible-stem");delete parts.stemHeat.userData.neonEdge;
   parts.cap=tag(new THREE.Mesh(G.cap,darkMaterial()),"crown-visible-core");parts.cap.position.z=CAP.z;
   parts.capHeat=tag(fatLineSegments(G.capHot,hotMat),"hot-crown-visible-core");delete parts.capHeat.userData.neonEdge;parts.capHeat.position.z=CAP.z;
@@ -85,7 +85,7 @@ function buildParts(group){
   parts.surgeHeat=tag(fatLineSegments(G.surgeHot,hotMat),"hot-plume-visible-surge");delete parts.surgeHeat.userData.neonEdge;parts.surgeHeat.position.z=0;
   for(const key of Object.keys(parts))if(parts[key]?.isObject3D)group.add(parts[key]);
   unitCircle??=(()=>{const pts=[],n=64;for(let i=0;i<n;i++){const a=i/n*Math.PI*2,b=(i+1)/n*Math.PI*2;pts.push(Math.cos(a),Math.sin(a),0,Math.cos(b),Math.sin(b),0);}const g=fatLineGeometry(pts);g.userData.nukeSharedGeometry=true;return g;})();
-  const lineMat=fatLineMaterial(0xffffff,{width:2,opacity:.55}),wireMat=fatLineMaterial(0xa9a196,{width:1.4,opacity:.45});
+  const lineMat=fatLineMaterial(0xcfc4b8,{width:1.3,opacity:.16}),wireMat=fatLineMaterial(0x91887f,{width:1.1,opacity:.11});
   const stemWire=tag(fatLineSegments(G.stemWire,wireMat),"plume-volumetric-wire");delete stemWire.userData.neonEdge;group.add(stemWire);
   const capWire=tag(fatLineSegments(G.capWire,wireMat),"crown-volumetric-wire");delete capWire.userData.neonEdge;parts.cap.add(capWire);
   const domeWire=tag(fatLineSegments(G.domeWire,wireMat),"crown-volumetric-dome-wire");delete domeWire.userData.neonEdge;parts.dome.add(domeWire);
@@ -101,7 +101,7 @@ function spawn(position){
   const group=tag(new THREE.Group(),"volumetric-world-root");group.position.copy(position);world.add(group);
   const parts=buildParts(group);group.scale.setScalar(.001);
   clouds.push({group,world,parts,born:performance.now(),position:position.clone()});
-  const v=viewport();if(v){v.dataset.nukeVolumetricCloud="sculpted-mushroom-v3";v.dataset.nukeVolumetricStyle="flat-silhouette+neon-hot-lines-v2";v.dataset.nukeVolumetricAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;v.dataset.nukeVolumetricParts=String(group.children.length);v.dataset.nukeVolumetricHotParts="3";v.dataset.nukeVolumetricScreenSpace="none";v.dataset.nukeVolumetricVisibility="depth-tested-v4";}
+  const v=viewport();if(v){v.dataset.nukeVolumetricCloud="sculpted-mushroom-v4";v.dataset.nukeVolumetricStyle="lit-smoke+brief-ember-core-v3";v.dataset.nukeVolumetricAnchor=`${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`;v.dataset.nukeVolumetricParts=String(group.children.length);v.dataset.nukeVolumetricHotParts="3";v.dataset.nukeVolumetricScreenSpace="none";v.dataset.nukeVolumetricVisibility="depth-tested-v4";}
 }
 
 function update(item,now){
@@ -109,17 +109,17 @@ function update(item,now){
   const rise=1-Math.exp(-age/RISE_TAU_S),spread=.55+.45*smooth(age/9)+.12*smooth((age-9)/25);
   item.group.scale.set(HEIGHT_M*spread,HEIGHT_M*spread,HEIGHT_M*Math.max(.02,rise));
   const open=smooth((age-.6)/5);p.cap.scale.set(.6+.4*open,.6+.4*open,1+.25*(1-open));p.capHeat.scale.copy(p.cap.scale);p.dome.scale.set(.75+.25*open,.75+.25*open,1);
-  const fade=1-smooth((age-(LIFE_S-9))/9),heat=Math.max(0,1-age/24)*fade;
-  for(const m of[p.stem,p.cap,p.dome,p.surge]){m.material.opacity=fade;m.material.depthWrite=fade>.98;}
-  // Hot lines: white-hot at detonation, cooling to the neon green.
-  p.hotMat.color.copy(NEON).lerp(WHITE_HOT,clamp(heat*1.25,0,1));p.hotMat.opacity=fade*(.55+.45*heat);
+  const fade=1-smooth((age-(LIFE_S-9))/9),heat=Math.max(0,1-age/10)*fade,smokeMix=smooth(age/14);smokeColor.copy(SMOKE_WARM).lerp(SMOKE_COOL,smokeMix);
+  for(const m of[p.stem,p.cap,p.dome,p.surge]){m.material.opacity=fade*(m===p.surge ? .72 : .96);m.material.depthWrite=fade>.9;m.material.color?.copy(smokeColor);}
+  // Real blast appearance: a very brief white/orange interior, then smoke owns the silhouette.
+  p.hotMat.color.copy(EMBER).lerp(WHITE_HOT,clamp(heat*1.35,0,1));p.hotMat.opacity=fade*(.08+.72*heat);
   p.surgeHeat.visible=age<14;
   p.collarMat.opacity=.85*smooth((age-3)/2)*(1-smooth((age-10)/5));p.collar.position.z=.46+.06*smooth(age/8);p.collar.scale.setScalar(1+.25*smooth((age-3)/8));
   const surge=1+2.2*(1-Math.exp(-age/4));p.surge.scale.set(surge,surge,1);p.surgeHeat.scale.set(surge,surge,1);
   const flow=age*.06;
   for(let i=0;i<p.stemRings.length;i++){const h=((i/p.stemRings.length+flow)%1)*.76,r=stemRadiusAt(h),ring=p.stemRings[i];ring.position.z=h;ring.scale.set(r*1.06,r*1.06,1);ring.visible=fade>.02;}
   for(let i=0;i<p.capFlows.length;i++){const phi=i/p.capFlows.length*Math.PI*2+age*.9,R=(CAP.R+CAP.r*1.05*Math.cos(phi))*(.6+.4*open),ring=p.capFlows[i];ring.position.z=CAP.z+CAP.r*1.05*Math.sin(phi)*(1+.25*(1-open));ring.scale.set(R,R,1);ring.visible=fade>.02;}
-  p.lineMat.opacity=.95*fade;p.wireMat.opacity=.9*fade;
+  p.lineMat.opacity=.16*fade;p.wireMat.opacity=.11*fade;
   const v=viewport();setData(v,"nukeVolumetricProgress",clamp(rise,0,1).toFixed(2));setData(v,"nukeVolumetricRiseM",(HEIGHT_M*rise).toFixed(0));setData(v,"nukeVolumetricHeat",heat.toFixed(2));
   return age<LIFE_S;
 }
