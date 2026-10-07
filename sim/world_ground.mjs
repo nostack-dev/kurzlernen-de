@@ -10,7 +10,7 @@ import {craterHeightAt,onTerrainChange} from "./terrain_craters.mjs";
 // procedural variation in the shader. Rebuilt after 350 m of travel; if the
 // imagery can't be loaded the ground falls back to a natural grass/soil mix.
 
-export const WORLD_GROUND_VERSION="satellite-albedo-ground-v1";
+export const WORLD_GROUND_VERSION="satellite-albedo-ground-v2-depth-base";
 const SIZE_M=1600,CELLS=160,ZOOM=15,REBUILD_MOVE_M=350;
 const TILE_URL=(z,x,y)=>`https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
 let installed=false,mesh=null,center=[Infinity,Infinity],busy=false,lastTry=-Infinity,tileCache=new Map();
@@ -45,12 +45,12 @@ async function sampleColors(b,cx,cy){
 function fallbackColors(cx,cy){const colors=new Float32Array((CELLS+1)*(CELLS+1)*3);for(let k=0;k<colors.length;k+=3){colors[k]=.16;colors[k+1]=.2;colors[k+2]=.1;}return colors;}
 function ensureMesh(scene){
   if(mesh?.parent===scene)return mesh;const g=new THREE.PlaneGeometry(SIZE_M,SIZE_M,CELLS,CELLS);
-  const m=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:0,polygonOffset:true,polygonOffsetFactor:2,polygonOffsetUnits:4});
+  const m=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:0,polygonOffset:true,polygonOffsetFactor:4,polygonOffsetUnits:8});
   m.onBeforeCompile=shader=>{shader.vertexShader=shader.vertexShader.replace("void main() {","varying vec3 vGW;\nvoid main() {").replace("#include <begin_vertex>","#include <begin_vertex>\nvGW=(modelMatrix*vec4(transformed,1.0)).xyz;");
     shader.fragmentShader=shader.fragmentShader.replace("void main() {","varying vec3 vGW;\nfloat gh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.55);}\nfloat gn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(gh(i),gh(i+vec2(1,0)),f.x),mix(gh(i+vec2(0,1)),gh(i+vec2(1,1)),f.x),f.y);}\nvoid main() {")
       .replace("#include <color_fragment>","#include <color_fragment>\n{float n=gn(vGW.xy*.35)*.5+gn(vGW.xy*1.7)*.3+gn(vGW.xy*7.0)*.2;diffuseColor.rgb*=0.86+0.28*n;}");};
   m.customProgramCacheKey=()=>"world-ground-v1";
-  mesh=new THREE.Mesh(g,m);mesh.name="WORLD_GROUND";mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.renderOrder=-3;mesh.userData.flightFireIgnore=true;mesh.userData.styleSkip=true;mesh.raycast=()=>{};mesh.visible=false;scene.add(mesh);center=[Infinity,Infinity];return mesh;
+  mesh=new THREE.Mesh(g,m);mesh.name="WORLD_GROUND";mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.renderOrder=-4;mesh.userData.flightFireIgnore=true;mesh.userData.styleSkip=true;mesh.raycast=()=>{};mesh.visible=false;scene.add(mesh);center=[Infinity,Infinity];return mesh;
 }
 function applyHeights(){if(!mesh)return;const p=mesh.geometry.attributes.position;for(let i=0;i<p.count;i++)p.setZ(i,craterHeightAt(p.getX(i)+mesh.position.x,p.getY(i)+mesh.position.y));p.needsUpdate=true;mesh.geometry.computeVertexNormals();}
 async function rebuild(b,cx,cy){
