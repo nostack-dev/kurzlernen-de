@@ -49,7 +49,7 @@ function install(renderer){
   const original=renderer.render.bind(renderer);let inside=false;
   renderer.render=function(scene,camera){
     const main=bridge()?.threeScene;
-    if(inside||!enabled||scene!==main||renderer.getRenderTarget()!==null||renderer.xr?.isPresenting)return original(scene,camera);
+    if(inside||!enabled||globalThis.__stereoSBS?.active||scene!==main||renderer.getRenderTarget()!==null||renderer.xr?.isPresenting)return original(scene,camera);
     inside=true;
     try{
       state??=makeState(renderer);const s=state;resize(s);trackFrame(performance.now());

@@ -1,4 +1,5 @@
 import {mountAudioSettings} from "./audio_settings.mjs";
+import {loadStereoSetting,setStereoEnabled,STEREO_SETTINGS_EVENT} from "./stereo_sbs.mjs";
 
 // Camera settings remain render/optics-only. Flight/control timing is independent
 // of camera, minimap and map render FPS.
@@ -32,6 +33,8 @@ export function mountCameraSettings({dialog,onChange=()=>{}}={}){
     <div class="phone-settings-row"><label>FPV VERTICAL TILT</label><output data-camera-out="tilt"></output><input data-camera-slider="tilt" type="range" min="-15" max="50" step="1"><div class="phone-settings-scale"><span>DOWN</span><span>UP</span></div></div>
     <div class="phone-settings-row"><label>VIEW FOV</label><output data-camera-out="fov"></output><input data-camera-slider="fov" type="range" min="50" max="120" step="1"><div class="phone-settings-scale"><span>NARROW</span><span>WIDE</span></div></div>
     <div class="phone-settings-row"><label>THIRD PERSON DISTANCE</label><output data-camera-out="third"></output><input data-camera-slider="third" type="range" min="1.5" max="6" step="0.1"><div class="phone-settings-scale"><span>NEAR</span><span>FAR</span></div></div>
+    <label class="phone-settings-toggle"><span>SIDE-BY-SIDE 3D (CROSS-EYE)</span><input data-stereo-sbs type="checkbox"></label>
+    <p class="phone-settings-note">SIDE-BY-SIDE 3D splits the screen left | right for cross-eye viewing: look "through" the screen with crossed eyes until both halves merge into one 3D image.</p>
     <p class="phone-settings-note">VIEW FOV is the same persisted value changed by pinch on the WORLD mini-map. Camera-only optics never alter aircraft attitude, motor commands, flight-controller code or physics.</p>`;
   const actions=dialog.querySelector(".phone-settings-actions");dialog.insertBefore(section,actions);
   const tilt=section.querySelector('[data-camera-slider="tilt"]'),fov=section.querySelector('[data-camera-slider="fov"]'),third=section.querySelector('[data-camera-slider="third"]');
@@ -39,6 +42,7 @@ export function mountCameraSettings({dialog,onChange=()=>{}}={}){
   const render=()=>{tilt.value=String(settings.fpvTiltDeg);fov.value=String(settings.fpvFovDeg);third.value=String(settings.thirdDistanceM);tiltOut.value=`${Math.round(settings.fpvTiltDeg)}°`;fovOut.value=`${Math.round(settings.fpvFovDeg)}°`;thirdOut.value=`${settings.thirdDistanceM.toFixed(1)} m`;};
   const apply=()=>{settings=saveCameraSettings({fpvTiltDeg:+tilt.value,fpvFovDeg:+fov.value,thirdDistanceM:+third.value});render();onChange({...settings});};
   for(const input of [tilt,fov,third])input.addEventListener("input",apply);
+  const sbs=section.querySelector("[data-stereo-sbs]");sbs.checked=loadStereoSetting();sbs.addEventListener("change",()=>setStereoEnabled(sbs.checked));window.addEventListener(STEREO_SETTINGS_EVENT,e=>{sbs.checked=Boolean(e.detail?.enabled);});
   const external=event=>{settings=normalizeCameraSettings(event.detail||loadCameraSettings());render();};window.addEventListener(CAMERA_SETTINGS_EVENT,external);
   dialog.addEventListener("close",()=>{settings=loadCameraSettings();render();});
   dialog.querySelector("[data-reset]")?.addEventListener("click",()=>{settings=saveCameraSettings(DEFAULT_CAMERA_SETTINGS);render();onChange({...settings});});
