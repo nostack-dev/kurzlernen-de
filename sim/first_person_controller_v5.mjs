@@ -55,7 +55,7 @@ function staticDistance(ray,max){const b=bridge();let best=max;try{if(b?.active)
 function resolveDistance(ray,{full=false}={}){let distance=staticDistance(ray,MAX_RAY_M);if(full){const scene=bridge()?.threeScene;if(scene){raycaster.set(ray.origin,ray.direction);raycaster.near=.05;raycaster.far=distance;const hit=raycaster.intersectObjects(sceneCandidates(scene),false)[0];if(hit)distance=Math.min(distance,hit.distance);}}return clamp(distance,1.2,MAX_RAY_M);}
 
 function gunParts(gun){
-  const mode=String(footWeapons()?.mode||"pistol"),smg=mode==="smg",grenade=mode==="grenade";
+  const mode=String(footWeapons()?.mode||"smg"),smg=mode==="smg",grenade=mode==="grenade";
   const grip=gun.getObjectByName(grenade?"WALK_GL_GRIP":smg?"WALK_SMG_PISTOL_GRIP":"WALK_VM_GRIP")||gun.getObjectByName("WALK_VM_GRIP");
   const rear=gun.getObjectByName(grenade?"WALK_GL_REAR_SIGHT":smg?"WALK_SMG_REAR_SIGHT":"WALK_VM_REAR_SIGHT");
   const front=gun.getObjectByName(grenade?"WALK_GL_FRONT_SIGHT":smg?"WALK_SMG_FRONT_SIGHT":"WALK_VM_FRONT_SIGHT")||gun.getObjectByName(grenade?"WALK_GRENADE_MUZZLE_NODE":smg?"WALK_SMG_MUZZLE_NODE":"WALK_VM_MUZZLE");

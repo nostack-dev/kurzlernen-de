@@ -29,7 +29,7 @@ const VISUAL_RADIUS_M=900,LINE_RADIUS_M=600,FAT_RADIUS_M=180,MAX_FOOTPRINTS=2600
 const RESYNC_MOVE_M=140,RESYNC_MS=2500,SLICE_MS=4;
 const WALLS=["#03160d","#04180e","#03140c"],ROOFS=["#05200f","#062212"],SUN=(()=>{const x=-.55,y=-.83,l=Math.hypot(x,y);return[x/l,y/l];})();
 
-let installed=false,group=null,solid=null,edges=null,thinEdges=null,sceneRef=null,lastCenter=[Infinity,Infinity],lastSyncAt=-Infinity,currentHash="",building=null,lastFeatureCount=-1;
+let installed=false,group=null,solid=null,edgeGlow=null,edges=null,thinEdges=null,sceneRef=null,lastCenter=[Infinity,Infinity],lastSyncAt=-Infinity,currentHash="",building=null,lastFeatureCount=-1;
 const viewport=()=>document.getElementById("viewport");
 const bridge=()=>globalThis.__arondightRealWorld||null;
 function setData(key,value){const v=viewport();if(v){const s=String(value);if(v.dataset[key]!==s)v.dataset[key]=s;}}
@@ -41,13 +41,13 @@ function ensureMeshes(scene){
   group=new THREE.Group();group.name="WORLD_CITY_BUILDINGS";
   solid=new THREE.Mesh(new THREE.BufferGeometry(),patchShockMaterial(new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false,fog:false,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:2})));solid.name="WORLD_CITY_SOLIDS";solid.frustumCulled=false;
   const empty=fatLineGeometry([0,0,0,0,0,0]);
-  edges=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(NEON_DEBUG_PALETTE.building,{width:2.55,opacity:.98,additive:true,depthTest:true}),{lines:true}));edges.name="WORLD_CITY_EDGES";edges.frustumCulled=false;
-  // Far outlines stay native 1 px for performance, but use a brighter
-  // single-pass additive stroke so the wireframe remains readable at range.
-  thinEdges=new THREE.LineSegments(new THREE.BufferGeometry(),patchShockMaterial(new THREE.LineBasicMaterial({color:NEON_DEBUG_PALETTE.building,toneMapped:false,fog:false,transparent:true,opacity:.98,blending:THREE.AdditiveBlending,depthTest:true,depthWrite:false})));thinEdges.name="WORLD_CITY_EDGES_FAR";thinEdges.frustumCulled=false;
-  for(const node of[group,solid,edges,thinEdges]){node.userData.neonSkip=true;node.userData.flightFireIgnore=true;node.userData.worldCityBuildings=true;}
-  delete edges.userData.neonEdge;
-  group.add(solid,edges,thinEdges);scene.add(group);sceneRef=scene;currentHash="";
+  edgeGlow=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x00ff66,{width:7.2,opacity:.22,additive:true,depthTest:true}),{lines:true}));edgeGlow.name="WORLD_CITY_EDGES_GLOW";edgeGlow.frustumCulled=false;
+  edges=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x66ff99,{width:2.65,opacity:1,additive:true,depthTest:true}),{lines:true}));edges.name="WORLD_CITY_EDGES";edges.frustumCulled=false;
+  // Far outlines stay native 1 px for performance, but use a bright phosphor core.
+  thinEdges=new THREE.LineSegments(new THREE.BufferGeometry(),patchShockMaterial(new THREE.LineBasicMaterial({color:0x66ff99,toneMapped:false,fog:false,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthTest:true,depthWrite:false})));thinEdges.name="WORLD_CITY_EDGES_FAR";thinEdges.frustumCulled=false;
+  for(const node of[group,solid,edgeGlow,edges,thinEdges]){node.userData.neonSkip=true;node.userData.flightFireIgnore=true;node.userData.worldCityBuildings=true;}
+  delete edgeGlow.userData.neonEdge;delete edges.userData.neonEdge;
+  group.add(solid,edgeGlow,edges,thinEdges);scene.add(group);sceneRef=scene;currentHash="";
 }
 
 // Time-sliced geometry builder.
@@ -130,10 +130,10 @@ function pumpBuild(){
   const{pos,col,lines,thin,ranges}=r.value,geometry=new THREE.BufferGeometry();
   geometry.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));geometry.setAttribute("color",new THREE.Float32BufferAttribute(col,3));if(pos.length)geometry.computeBoundingSphere();
   solid.geometry.dispose();solid.geometry=geometry;
-  const outline=fatLineGeometry(lines.length?lines:[0,0,0,0,0,0]);edges.geometry.dispose?.();edges.geometry=outline;
+  const outline=fatLineGeometry(lines.length?lines:[0,0,0,0,0,0]);edges.geometry.dispose?.();edges.geometry=outline;if(edgeGlow)edgeGlow.geometry=outline;
   const far=new THREE.BufferGeometry();far.setAttribute("position",new THREE.Float32BufferAttribute(thin,3));thinEdges.geometry.dispose();thinEdges.geometry=far;
   installRanges(ranges);
-  currentHash=building.key;setData("worldCityBuildings",building.count);setData("worldCityBuildingsVersion",CITY_BUILDINGS_VERSION);building=null;
+  currentHash=building.key;setData("worldCityBuildings",building.count);setData("worldCityBuildingsVersion",CITY_BUILDINGS_VERSION);setData("worldCityGlow","crt-phosphor-core+halo-v1");building=null;
 }
 
 function features(b){

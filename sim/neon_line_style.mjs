@@ -16,21 +16,21 @@ import {neonLineMaterial,NEON_DEBUG_PALETTE,fatLineMaterial,fatLineGeometry,fatL
 // tactical-overlay style: you = green, drones = cyan, cars = amber,
 // people = magenta, hostiles = red, projectiles = white-yellow.
 
-export const NEON_STYLE_VERSION="box3d-debug-neon-lines-v2";
+export const NEON_STYLE_VERSION="crt-phosphor-neon-lines-v3";
 // One green (sampled from the reference screenshot: #00ff9c). Only hostiles
 // get red so threats stay identifiable; everything else is uniform.
 export const NEON_PALETTE=Object.freeze({
-  airframe:0x00ff9c,
-  self:0x00ff9c,
-  vehicle:0x00ff9c,
-  person:0x00ff9c,
+  airframe:0x66ff99,
+  self:0x66ff99,
+  vehicle:0x66ff99,
+  person:0x66ff99,
   hostile:0xff2a4d,
   projectile:0xeafff4,
-  wildlife:0x00ff9c,
-  track:0x00ff9c,
-  world:0x00ff9c,
+  wildlife:0x66ff99,
+  track:0x66ff99,
+  world:0x66ff99,
   ground:NEON_DEBUG_PALETTE.ground,
-  background:0x020805,
+  background:0x000201,
 });
 const EDGE_THRESHOLD_DEG=28;
 const MAX_EDGE_SOURCE_TRIANGLES=40000;
@@ -102,14 +102,14 @@ function neonTranslucent(material,color){
 }
 // Edges are screen-space fat lines (EDGE_WIDTH_PX) so they read as bright
 // neon strokes instead of dim 1 px hairlines. Geometry is shared per source.
-const EDGE_WIDTH_PX=2.25;
+const EDGE_WIDTH_PX=2.45;
 function edgesFor(geometry){
   let edges=edgeCache.get(geometry);if(edges!==undefined)return edges;
   const triangles=(geometry.index?geometry.index.count:geometry.attributes?.position?.count||0)/3;
   if(triangles>0&&triangles<=MAX_EDGE_SOURCE_TRIANGLES){const plain=new THREE.EdgesGeometry(geometry,EDGE_THRESHOLD_DEG);edges=fatLineGeometry(plain);plain.dispose();edges.userData.neonSharedEdges=true;}else edges=null;
   edgeCache.set(geometry,edges);return edges;
 }
-function fatMaterial(color){let material=lineMaterials.get(color);if(!material){material=fatLineMaterial(color,{width:EDGE_WIDTH_PX,opacity:.98,additive:true,depthTest:true});lineMaterials.set(color,material);}return material;}
+function fatMaterial(color){let material=lineMaterials.get(color);if(!material){material=fatLineMaterial(color,{width:EDGE_WIDTH_PX,opacity:1,additive:true,depthTest:true});lineMaterials.set(color,material);}return material;}
 function attachEdges(mesh,color){
   let lines=mesh.children.find(child=>child.userData?.neonEdge);
   const edges=edgesFor(mesh.geometry);
@@ -154,14 +154,15 @@ function rebuildGrid(cx,cy){
       positions.push(x0+fixed,y0+a,groundHeightAt(x0+fixed,y0+a)+.03,x0+fixed,y0+b,groundHeightAt(x0+fixed,y0+b)+.03);}}
   // Fade with distance so far lines don't merge into a solid band at the horizon.
   for(let i=0;i<positions.length;i+=3){const d=Math.hypot(positions[i]-cx,positions[i+1]-cy),f=Math.max(0,1-d/half)**1.6;colors.push(f,f,f);}
-  const grid=gridGroup.children[0];grid.geometry.dispose();const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));geometry.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));geometry.computeBoundingSphere();grid.geometry=geometry;
+  const core=gridGroup.children[0],glow=gridGroup.children[1];core.geometry.dispose();const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));geometry.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));geometry.computeBoundingSphere();core.geometry=geometry;if(glow)glow.geometry=geometry;
   gridAnchor=[cx,cy];gridTerrainVersion=terrainVersion;
 }
 function ensureGrid(scene){
   if(gridGroup?.parent===scene)return gridGroup;
-  const material=patchShockMaterial(neonLineMaterial(0x00ff9c,{opacity:.74}));material.vertexColors=true;material.transparent=true;material.blending=THREE.AdditiveBlending;material.depthWrite=false;
-  const grid=new THREE.LineSegments(new THREE.BufferGeometry(),material);grid.raycast=()=>{};grid.frustumCulled=false;
-  gridGroup=new THREE.Group();gridGroup.name="NEON_GROUND_GRID";gridGroup.userData.neonSkip=true;gridGroup.userData.flightFireIgnore=true;gridGroup.add(grid);gridGroup.renderOrder=-5;scene.add(gridGroup);gridAnchor=[Infinity,Infinity];return gridGroup;
+  const coreMaterial=patchShockMaterial(neonLineMaterial(0x66ff99,{opacity:.94}));coreMaterial.vertexColors=true;coreMaterial.transparent=true;coreMaterial.blending=THREE.AdditiveBlending;coreMaterial.depthWrite=false;
+  const glowMaterial=patchShockMaterial(neonLineMaterial(0x00ff66,{opacity:.24}));glowMaterial.vertexColors=true;glowMaterial.transparent=true;glowMaterial.blending=THREE.AdditiveBlending;glowMaterial.depthWrite=false;
+  const grid=new THREE.LineSegments(new THREE.BufferGeometry(),coreMaterial),glow=new THREE.LineSegments(new THREE.BufferGeometry(),glowMaterial);for(const line of[grid,glow]){line.raycast=()=>{};line.frustumCulled=false;}glow.scale.set(1.001,1.001,1.001);
+  gridGroup=new THREE.Group();gridGroup.name="NEON_GROUND_GRID";gridGroup.userData.neonSkip=true;gridGroup.userData.flightFireIgnore=true;gridGroup.add(grid,glow);gridGroup.renderOrder=-5;scene.add(gridGroup);gridAnchor=[Infinity,Infinity];const view=viewport();if(view)view.dataset.neonGroundGlow="crt-core+halo-v1";return gridGroup;
 }
 function followGrid(){
   const camera=bridge()?.threeCamera;if(!gridGroup||!camera)return;
@@ -214,17 +215,17 @@ installNeonLineStyle();
 // Other modules (liveliness palette, traffic "opaque buildings") repaint the
 // map once or periodically; the enforcer below re-applies the neon paint only
 // where a value actually differs, so the result is stable and cheap.
-const MAP_NEON={background:"#020805",land:"#020805",green:"#030b07",industry:"#020805",water:"#02090c",waterLine:"#0a4a3c",roadMajor:"#0d6b44",roadMid:"#0a5235",roadMinor:"#073d27",boundary:"#06301f",buildingFlat:"#03160d"};
-export const NEON_BUILDING_EXTRUSION_COLOR="#062818";
+const MAP_NEON={background:"#000201",land:"#000201",green:"#001b0b",industry:"#000603",water:"#000507",waterLine:"#00b866",roadMajor:"#66ff99",roadMid:"#00df78",roadMinor:"#009b54",boundary:"#00bd68",buildingFlat:"#001109"};
+export const NEON_BUILDING_EXTRUSION_COLOR="#002513";
 export function neonMapPaint(layer){
   const source=String(layer?.["source-layer"]||"").toLowerCase(),id=String(layer?.id||"").toLowerCase(),out=[];
   if(layer.type==="background")out.push(["background-color",MAP_NEON.background]);
   else if(layer.type==="fill"&&source==="water")out.push(["fill-color",MAP_NEON.water],["fill-opacity",1]);
-  else if(layer.type==="line"&&(source==="waterway"||source==="water"))out.push(["line-color",MAP_NEON.waterLine],["line-opacity",.9]);
+  else if(layer.type==="line"&&(source==="waterway"||source==="water"))out.push(["line-color",MAP_NEON.waterLine],["line-opacity",1],["line-blur",.45]);
   else if(layer.type==="fill"&&(source==="landcover"||source==="landuse")){const green=/park|wood|forest|grass|garden|pitch|meadow|farmland|scrub/.test(id),industry=/industrial|commercial|retail|parking/.test(id);out.push(["fill-color",green?MAP_NEON.green:industry?MAP_NEON.industry:MAP_NEON.land],["fill-opacity",1]);}
   else if(layer.type==="fill"&&source==="building")out.push(["fill-color",MAP_NEON.buildingFlat],["fill-opacity",1]);
-  else if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);out.push(["line-color",major?MAP_NEON.roadMajor:mid?MAP_NEON.roadMid:MAP_NEON.roadMinor],["line-opacity",major?1:.9]);}
-  else if(layer.type==="line"&&source==="boundary")out.push(["line-color",MAP_NEON.boundary],["line-opacity",.7]);
+  else if(layer.type==="line"&&source==="transportation"){const major=/motorway|trunk|primary/.test(id),mid=/secondary|tertiary/.test(id);out.push(["line-color",major?MAP_NEON.roadMajor:mid?MAP_NEON.roadMid:MAP_NEON.roadMinor],["line-opacity",1],["line-blur",major?.65:mid?.42:.24]);}
+  else if(layer.type==="line"&&source==="boundary")out.push(["line-color",MAP_NEON.boundary],["line-opacity",.9],["line-blur",.35]);
   else if(layer.type==="fill-extrusion"&&(source==="building"||id.includes("building")))out.push(["fill-extrusion-color",NEON_BUILDING_EXTRUSION_COLOR],["fill-extrusion-opacity",1],["fill-extrusion-vertical-gradient",false]);
   return out;
 }
@@ -232,7 +233,7 @@ export function applyNeonMapStyle(map){
   if(!map?.getStyle||!map?.setPaintProperty)return 0;let changed=0;
   let layers=[];try{layers=map.getStyle()?.layers||[];}catch{return 0;}
   for(const layer of layers){if(!layer?.id||!map.getLayer?.(layer.id))continue;for(const [property,value] of neonMapPaint(layer)){try{const current=map.getPaintProperty?.(layer.id,property);if(JSON.stringify(current)===JSON.stringify(value))continue;map.setPaintProperty(layer.id,property,value);changed++;}catch{}}}
-  if(!map.__neonSkyApplied&&typeof map.setSky==="function"){try{map.setSky({"sky-color":"#020805","horizon-color":"#05140c","fog-color":"#020805","sky-horizon-blend":.6,"horizon-fog-blend":.6,"fog-ground-blend":.8,"atmosphere-blend":0});map.__neonSkyApplied=true;}catch{}}
+  if(!map.__neonSkyApplied&&typeof map.setSky==="function"){try{map.setSky({"sky-color":"#000201","horizon-color":"#001108","fog-color":"#000201","sky-horizon-blend":.6,"horizon-fog-blend":.6,"fog-ground-blend":.8,"atmosphere-blend":0});map.__neonSkyApplied=true;}catch{}}
   const view=viewport();if(view&&changed)view.dataset.worldVisualPalette="neon-tactical-v1";
   return changed;
 }
