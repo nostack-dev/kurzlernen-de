@@ -3,6 +3,9 @@ import {buildingFootprintsFromFeatures,buildingFootprintHash} from "./world_buil
 import {buildingDamage,destructionRevision,onDestruction} from "./world_destruction_state.mjs";
 import {NEON_DEBUG_PALETTE,fatLineMaterial,fatLineGeometry,fatLineSegments} from "./box3d_collider_debug.mjs";
 import {patchShockMaterial} from "./nuke_shock_field.mjs";
+import {elevationAt,onElevationChange} from "./terrain_elevation.mjs";
+// Buildings stand on the real terrain: the footprint's lowest ground point.
+export function buildingTerrainBase(outer){let m=Infinity;for(const p of outer||[]){const x=Array.isArray(p)?p[0]:p.x,y=Array.isArray(p)?p[1]:p.y,e=elevationAt(+x,+y);if(e<m)m=e;}return Number.isFinite(m)?m:0;}
 
 // The real city from the world map, drawn in the neon look.
 // Every building footprint of the loaded map tiles within VISUAL_RADIUS_M is
@@ -147,8 +150,8 @@ function* buildSteps(footprints,center){
   // wa = facade coordinates per vertex: (u along the wall [m], wall length,
   // height above the building base, building height); u<0 marks roof (-1)
   // and cornice trim (-2). ws = per-building seed for style variation.
-  let W=[-1,0,0,0],S=0,FL=3.3;
-  const push=(x,y,z,k)=>{pos.push(x,y,z);col.push(k.r,k.g,k.b);wa.push(W[0],W[1],W[2],W[3]);ws.push(S);wf.push(FL);};
+  let W=[-1,0,0,0],S=0,FL=3.3,E=0;
+  const push=(x,y,z,k)=>{pos.push(x,y,z+E);col.push(k.r,k.g,k.b);wa.push(W[0],W[1],W[2],W[3]);ws.push(S);wf.push(FL);};
   let i=0;
   for(const fp of footprints){
     const d=buildingDamage(fp.key),base=Number(fp.base)||0,fullTop=Math.max(base+.5,Number(fp.top)||8),top=d?Math.max(base+.3,Math.min(fullTop,d.top)):fullTop,h=hash(fp.key);
@@ -156,9 +159,9 @@ function* buildSteps(footprints,center){
     const outer=(fp.outer||[]).map(p=>new THREE.Vector2(+p[0],+p[1])),holes=(fp.holes||[]).map(r=>r.map(p=>new THREE.Vector2(+p[0],+p[1])));
     if(outer.length<3)continue;const dist=Math.hypot(outer[0].x-center[0],outer[0].y-center[1]),near=dist<FAT_RADIUS_M,mid=!near&&dist<LINE_RADIUS_M;if(outer[0].distanceToSquared(outer.at(-1))<1e-10)outer.pop();for(const r of holes)if(r.length&&r[0].distanceToSquared(r.at(-1))<1e-10)r.pop();
     if(THREE.ShapeUtils.isClockWise(outer))outer.reverse();for(const r of holes)if(!THREE.ShapeUtils.isClockWise(r))r.reverse();
-    S=(h%997)/997;FL=3.1+.5*(((h>>>12)%1000)/1000);const H=top-base;trim.copy(wall).lerp(new THREE.Color("#f4efe4"),.45);
+    S=(h%997)/997;FL=3.1+.5*(((h>>>12)%1000)/1000);E=buildingTerrainBase(outer);const H=top-base;trim.copy(wall).lerp(new THREE.Color("#f4efe4"),.45);
     let mx=0,my=0;for(const v of outer){mx+=v.x/outer.length;my+=v.y/outer.length;}const bk=bucketOf(mx,my);({pos,col,wa,ws,wf}=bk);ci=bk.index;
-    const all=[...outer,...holes.flat()],range={key:String(fp.key),chunk:ci,base,top,fullTop,cx:0,cy:0,p0:pos.length/3,l0:lines.length/6,t0:thin.length/3};for(const v of outer){range.cx+=v.x/outer.length;range.cy+=v.y/outer.length;}
+    const all=[...outer,...holes.flat()],range={key:String(fp.key),chunk:ci,elev:E,base,top,fullTop,cx:0,cy:0,p0:pos.length/3,l0:lines.length/6,t0:thin.length/3};for(const v of outer){range.cx+=v.x/outer.length;range.cy+=v.y/outer.length;}
     W=[-1,0,H,H];for(const f of THREE.ShapeUtils.triangulateShape(outer,holes)){const a=all[f[0]];let b=all[f[1]],cc=all[f[2]];if((b.x-a.x)*(cc.y-a.y)-(b.y-a.y)*(cc.x-a.x)<0)[b,cc]=[cc,b];push(a.x,a.y,top,roof);push(b.x,b.y,top,roof);push(cc.x,cc.y,top,roof);}
     for(const ring of[outer,...holes]){
       for(let k=0;k<ring.length;k++){const a=ring[k],b=ring[(k+1)%ring.length],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1,nx=dy/len,ny=-dx/len,light=.9+.25*Math.max(0,-(nx*SUN[0]+ny*SUN[1]));
@@ -202,7 +205,7 @@ function markDirty(attr,from,count){if(!attr)return;attr.needsUpdate=true;}
 // Drops every vertex of the building above newTop to newTop (roof follows).
 function clampRange(r,newTop){
   const sp=solidAttr(r),eb=edgeBuffer(),tp=thinAttr();r.top=Math.min(r.top,newTop);
-  if(sp&&r.solidZ){for(let i=r.p0;i<r.p1;i++){const z=Math.min(r.solidZ[i-r.p0],newTop);sp.setZ(i,z);}markDirty(sp);}
+  if(sp&&r.solidZ){for(let i=r.p0;i<r.p1;i++){const z=Math.min(r.solidZ[i-r.p0],newTop+(r.elev||0));sp.setZ(i,z);}markDirty(sp);}
   if(eb&&r.edgeZ){const a=eb.array;for(let k=r.l0;k<r.l1;k++){a[k*6+2]=Math.min(r.edgeZ[(k-r.l0)*2],newTop);a[k*6+5]=Math.min(r.edgeZ[(k-r.l0)*2+1],newTop);}eb.needsUpdate=true;}
   if(tp&&r.thinZ){for(let i=r.t0;i<r.t1;i++)tp.setZ(i,Math.min(r.thinZ[i-r.t0],newTop));markDirty(tp);}
 }
@@ -211,7 +214,7 @@ function swayRange(r,ox,oy){
   // Offset grows with height: the base stays, the top leans.
   if(sp&&r.solidX===undefined){r.solidX=Float32Array.from({length:r.p1-r.p0},(_,i)=>sp.getX(r.p0+i));r.solidY=Float32Array.from({length:r.p1-r.p0},(_,i)=>sp.getY(r.p0+i));}
   if(eb&&r.edgeXY===undefined){const a=eb.array;r.edgeXY=Float32Array.from({length:(r.l1-r.l0)*4},(_,i)=>{const k=r.l0+(i>>2),j=i&3;return a[k*6+(j<2?j:j+1)];});}
-  if(sp)for(let i=r.p0;i<r.p1;i++){const w=Math.max(0,(sp.getZ(i)-r.base)/h)**1.3;sp.setX(i,r.solidX[i-r.p0]+ox*w);sp.setY(i,r.solidY[i-r.p0]+oy*w);}
+  if(sp)for(let i=r.p0;i<r.p1;i++){const w=Math.max(0,(sp.getZ(i)-r.base-(r.elev||0))/h)**1.3;sp.setX(i,r.solidX[i-r.p0]+ox*w);sp.setY(i,r.solidY[i-r.p0]+oy*w);}
   if(eb){const a=eb.array;for(let k=r.l0;k<r.l1;k++){const o=(k-r.l0)*4,w0=Math.max(0,(a[k*6+2]-r.base)/h)**1.3,w1=Math.max(0,(a[k*6+5]-r.base)/h)**1.3;a[k*6]=r.edgeXY[o]+ox*w0;a[k*6+1]=r.edgeXY[o+1]+oy*w0;a[k*6+3]=r.edgeXY[o+2]+ox*w1;a[k*6+4]=r.edgeXY[o+3]+oy*w1;}}
 }
 function stepSways(now){
@@ -281,6 +284,7 @@ export function installCityBuildings(){
   // The live buffers already show the damage instantly; the authoritative
   // rebuild follows ~1.5 s after the last change (not every frame of a wave).
   onDestruction(()=>{lastSyncAt=performance.now()-RESYNC_MS+1500;lastFeatureCount=-1;currentHash="";});
+  onElevationChange(()=>{lastSyncAt=-Infinity;lastFeatureCount=-1;currentHash="";});
   requestAnimationFrame(frame);
 }
 installCityBuildings();

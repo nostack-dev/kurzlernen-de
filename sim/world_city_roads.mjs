@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import {patchShockMaterial} from "./nuke_shock_field.mjs";
 import {craterHeightAt as groundHeightAt} from "./terrain_craters.mjs";
+import {onElevationChange} from "./terrain_elevation.mjs";
 
 // The real streets, parks and water of the map as stylized 3D ground:
 //   * roads: asphalt ribbons sized by class, a lighter sidewalk band on both
@@ -87,5 +88,5 @@ function frame(now){
   const cam=b.threeCamera;if(!cam||now-lastTry<2500)return;lastTry=now;const moved=Math.hypot(cam.position.x-center[0],cam.position.y-center[1]),count=features(b,"transportation").length+features(b,"park").length+features(b,"landcover").length+features(b,"landuse").length;
   if(!count)return;if(moved<REBUILD_MOVE_M&&count<=builtCount*1.15+5)return;builtCount=count;center=[cam.position.x,cam.position.y];building=build(b,center[0],center[1]);
 }
-export function installCityRoads(){if(installed||typeof window==="undefined")return;installed=true;requestAnimationFrame(frame);}
+export function installCityRoads(){if(installed||typeof window==="undefined")return;installed=true;onElevationChange(()=>{center=[Infinity,Infinity];builtCount=0;});requestAnimationFrame(frame);}
 installCityRoads();

@@ -1,6 +1,7 @@
 import * as THREE from "three";
-import {FACADE_GLSL,CUTOUT_GLSL,facadeCutouts,facadeParams,MAX_FACADE_CUTOUTS} from "./world_city_buildings.mjs";
+import {FACADE_GLSL,CUTOUT_GLSL,facadeCutouts,facadeParams,MAX_FACADE_CUTOUTS,buildingTerrainBase} from "./world_city_buildings.mjs";
 import {buildingDamage} from "./world_destruction_state.mjs";
+import {onElevationChange} from "./terrain_elevation.mjs";
 
 // Walkable buildings. Every real building of the map can be entered on foot
 // through its front door(s): storeys that line up with the facade windows,
@@ -231,7 +232,7 @@ function buildInterior(fp){
   let outer=cleanRing(fp.outer);if(outer.length<3)return null;if(area2(outer)<0)outer.reverse();
   const holes=(fp.holes||[]).map(cleanRing).filter(r=>r.length>2).map(r=>area2(r)>0?r.reverse():r);
   const area=Math.abs(area2(outer))-holes.reduce((s,h)=>s+Math.abs(area2(h)),0);if(area<24||area>40000)return null;
-  const base=Number(fp.base)||0,top=Math.max(base+3,Number(fp.fullTop??fp.top)||8);if(base>.6)return null;
+  const rel=Number(fp.base)||0;if(rel>.6)return null;const elev=buildingTerrainBase(fp.outer),base=rel+elev,top=Math.max(base+3,(Number(fp.fullTop??fp.top)||8)+elev);
   const inner=offsetRing(outer,WALL_IN),innerHoles=holes.map(h=>offsetRing(h,WALL_IN));
   let cx=0,cy=0;for(const p of outer){cx+=p[0]/outer.length;cy+=p[1]/outer.length;}
   let best=null;for(let i=0;i<outer.length;i++){const a=outer[i],b=outer[(i+1)%outer.length],l=Math.hypot(b[0]-a[0],b[1]-a[1]);if(!best||l>best.l)best={l,dx:(b[0]-a[0])/l,dy:(b[1]-a[1])/l};}
@@ -248,7 +249,7 @@ function buildInterior(fp){
   const ceilOf=k=>k<F-1?levels[k+1]-SLAB:ceilTop;
   const stairs=[];if(core){for(let k=0;k<F-1;k++)stairs.push({z0:levels[k],R:levels[k+1]-levels[k]});if(roofAccess)stairs.push({z0:levels[F-1],R:top-levels[F-1]});}
   const topWalk=roofAccess?top:levels[F-1];
-  const b={key,outer,holes,inner,innerHoles,base,top,area,axis,doors,core,levels,stairs,roofAccess,roofZ:roofAccess?top:null,ceilOf,topWalk,params,cx,cy,furniture:[],props:[]};
+  const b={key,elev,outer,holes,inner,innerHoles,base,top,area,axis,doors,core,levels,stairs,roofAccess,roofZ:roofAccess?top:null,ceilOf,topWalk,params,cx,cy,furniture:[],props:[]};
   placeProps(b,R);b.shell=buildShell(b);return b;
 }
 
@@ -473,9 +474,9 @@ function updateDoors(scene,player,list){
   const near=[];for(const fp of list){const c=fp.center||fp.outer?.[0];if(!c)continue;const d=Math.hypot(c[0]-player.x,c[1]-player.y);if(d<DOORS_RADIUS_M+40)near.push([d,fp]);}near.sort((a,b)=>a[0]-b[0]);
   const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),s=new THREE.Vector3(1,1,1),v=new THREE.Vector3(),zAxis=new THREE.Vector3(0,0,1);let nf=0,nl=0;
   for(const[,fp]of near){if(nf>=MAX_CLOSED_DOORS*2-2)break;const key=String(fp.key);if((Number(fp.base)||0)>.6)continue;const dmg=buildingDamage(key);if(dmg&&dmg.top<(Number(fp.top)||8)-.3)continue;
-    let doors=doorCache.get(key);if(!doors){let outer=cleanRing(fp.outer);if(outer.length<3){doorCache.set(key,[]);continue;}if(area2(outer)<0)outer.reverse();const area=Math.abs(area2(outer));doors=area>=24&&area<=40000?doorsFor(outer,area):[];doorCache.set(key,doors);if(doorCache.size>3000)doorCache.delete(doorCache.keys().next().value);}
+    let doors=doorCache.get(key);if(!doors){let outer=cleanRing(fp.outer);if(outer.length<3){doorCache.set(key,[]);continue;}if(area2(outer)<0)outer.reverse();const area=Math.abs(area2(outer));doors=area>=24&&area<=40000?doorsFor(outer,area):[];doors.elev=buildingTerrainBase(outer);doorCache.set(key,doors);if(doorCache.size>3000)doorCache.delete(doorCache.keys().next().value);}
     const isActive=active?.key===key;
-    for(const d of doors){q.setFromAxisAngle(zAxis,Math.atan2(d.dy,d.dx)+Math.PI);m4.compose(v.set(d.cx,d.cy,(Number(fp.base)||0)+.03),q,s);doorMesh.setMatrixAt(nf++,m4);if(!isActive)leafMesh.setMatrixAt(nl++,m4);}}
+    for(const d of doors){q.setFromAxisAngle(zAxis,Math.atan2(d.dy,d.dx)+Math.PI);m4.compose(v.set(d.cx,d.cy,(Number(fp.base)||0)+(doors.elev||0)+.03),q,s);doorMesh.setMatrixAt(nf++,m4);if(!isActive)leafMesh.setMatrixAt(nl++,m4);}}
   doorMesh.count=nf;leafMesh.count=nl;doorMesh.instanceMatrix.needsUpdate=true;leafMesh.instanceMatrix.needsUpdate=true;
 }
 
@@ -491,7 +492,7 @@ function tick(now){
   ensureGroup(b.threeScene);group.visible=true;
   const p=w.position;if(!p)return;
   if(now-lastDoors>900){lastDoors=now;try{updateDoors(b.threeScene,p,list);}catch(e){console.warn("doors",e);}}
-  if(active){const d=buildingDamage(active.key);if(d&&d.top<active.top-.3){disposeActive();return;}}
+  if(active){const d=buildingDamage(active.key);if(d&&d.top+(active.elev||0)<active.top-.3){disposeActive();return;}}
   const inActive=active&&region(active,p.x,p.y)!=="out";if(active){showPropLevels(inActive?currentLevel(active,p.z-1.68):0);const seen=inActive||nearDoor(active,p.x,p.y,18);for(const m of propMeshes)m.visible=seen;}if(inActive||(active&&now<pinUntil))return;
   // stay with the current building while standing at its door / along its walls
   if(active&&polyDistance({outer:active.outer},p.x,p.y)<7)return;
@@ -520,6 +521,7 @@ function activateNearest(){
 }
 export function installBuildingInteriors(){
   if(installed||typeof window==="undefined")return;installed=true;
+  onElevationChange(()=>{doorCache.clear();if(active)disposeActive();lastDoors=-Infinity;});
   globalThis.__buildingInteriors={version:BUILDING_INTERIORS_VERSION,resolveMove,feetHeightAt,placePlayer,activateNearest,get _debug(){return active;},get active(){return active?{key:active.key,levels:active.levels.length,roof:active.roofAccess,props:active.props.length,core:Boolean(active.core)}:null;}};
   requestAnimationFrame(tick);
 }

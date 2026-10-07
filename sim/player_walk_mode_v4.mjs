@@ -1,7 +1,7 @@
 import * as THREE from "three";
-import {groundHeightAt,waterAt,WATER_LEVEL_M} from "./terrain_craters.mjs";
+import {groundHeightAt,waterAt,waterLevelAt} from "./terrain_craters.mjs";
 // In rivers and lakes the pilot swims: head stays above the surface.
-function standHeightAt(x,y){const g=groundHeightAt(x,y);return waterAt(x,y)?Math.max(g+EYE_Z,WATER_LEVEL_M+.42):g+EYE_Z;}
+function standHeightAt(x,y){const g=groundHeightAt(x,y);return waterAt(x,y)?Math.max(g+EYE_Z,waterLevelAt(x,y)+.42):g+EYE_Z;}
 import {FPS_CONTROL_PROFILE,FPS_DISPLAY_PITCH_LIMIT_RAD,FPS_PITCH_LIMIT_RAD,addFpsShotImpulse,createFpsCameraMotionState,fpsAimAssist,fpsStickVelocity,fpsTouchLookDelta,fpsVerticalFovDegForAspect,integrateFpsLookVelocity,resetFpsCameraMotion,shapeFpsStick,stepFpsCameraMotion,wrapFpsAngleRad} from "./fps_control_math.mjs";
 import {FIRST_PERSON_CONTROL_SETTINGS_EVENT,buildFirstPersonLookProfile,firstPersonLookAxes,firstPersonLookDelta,firstPersonLookSensitivity,loadFirstPersonControlSettings,normalizeFirstPersonControlSettings,shapeFirstPersonMove} from "./first_person_control_settings.mjs";
 import {wantedLineBlockedByPrisms} from "./wanted_system_logic.mjs";

@@ -1,4 +1,4 @@
-import {createTerrainBody,waterAt,waterFlowAt,WATER_LEVEL_M,groundHeightAt} from "./terrain_craters.mjs";
+import {createTerrainBody,waterAt,waterFlowAt,waterLevelAt,groundHeightAt} from "./terrain_craters.mjs";
 import {vehicleSpec,vehicleGroundOffset,attachWheels,detachWheels,placeWheels,driveWheeled,wheelPoses} from "./world_vehicle_dynamics.mjs";
 import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,normalizeBuildingCollisionSnapshot} from "./world_building_collision_physics.mjs";
 
@@ -24,7 +24,10 @@ export class WorldRigidBodyPhysics{
   // Shared terrain (terrain_craters.mjs): flat ground with crater bowls and
   // real river/lake basins + bridge decks, so cars sink into water, float
   // and drift. Rebuilt when the terrain changes.
-  rebuildTerrain(){const b3=this.b3;for(const body of this.terrainBodies||[])if(b3.b3Body_IsValid?.(body)!==false)b3.b3DestroyBody(body);const shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.82;shapeDef.baseMaterial.restitution=.025;shapeDef.filter={categoryBits:WORLD_PHYSICS_CATEGORIES.terrain,maskBits:ALL_DYNAMIC|WORLD_PHYSICS_CATEGORIES.projectileQuery,groupIndex:0};const{bodies}=createTerrainBody(b3,this.world,shapeDef,10000);this.terrainBodies=bodies;this.ground=bodies[0]||null;return bodies.length;}
+  rebuildTerrain(){const b3=this.b3;for(const body of this.terrainBodies||[])if(b3.b3Body_IsValid?.(body)!==false)b3.b3DestroyBody(body);const shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.82;shapeDef.baseMaterial.restitution=.025;shapeDef.filter={categoryBits:WORLD_PHYSICS_CATEGORIES.terrain,maskBits:ALL_DYNAMIC|WORLD_PHYSICS_CATEGORIES.projectileQuery,groupIndex:0};const{bodies}=createTerrainBody(b3,this.world,shapeDef,10000);this.terrainBodies=bodies;this.ground=bodies[0]||null;
+    // building colliders stand on the terrain too: re-create them with the new ground
+    if(this.buildingSnapshot?.prismCount){const snap=this.buildingSnapshot;this.buildingSnapshot={...snap,hash:"__terrain-changed"};this.syncBuildings(snap);}
+    return bodies.length;}
   syncBuildings(value){const snapshot=normalizeBuildingCollisionSnapshot(value);if(snapshot.hash===this.buildingSnapshot.hash&&snapshot.prismCount===this.buildingSnapshot.prismCount)return false;destroyWorldBuildingCollisionBodies(this.b3,this.buildingState);this.buildingSnapshot=snapshot;this.buildingState=createWorldBuildingCollisionBodies(this.b3,this.world,snapshot,{categoryBits:WORLD_PHYSICS_CATEGORIES.terrain,maskBits:ALL_DYNAMIC|WORLD_PHYSICS_CATEGORIES.projectileQuery,rangefinderCategoryBits:0n,launchExclusionPoint:[Infinity,Infinity]});return true;}
   shapeKeyOf(shape){return shapeKey(shape);}
   addBody({id,kind="vehicle",position=[0,0,0],yaw=0,halfExtents=[1,.5,.5],massKg=1000,gravityScale,linearDamping,angularDamping,wheeled=true}={}){
@@ -81,7 +84,7 @@ export class WorldRigidBodyPhysics{
     // Water: Archimedes buoyancy from the submerged fraction of the body's
     // box, linear + quadratic water drag and the river current. Cars are
     // lighter than the water they displace, so they float low and drift.
-    if(!record.drone&&waterAt(position[0],position[1])){const hz=record.halfExtents[2],bottom=position[2]-hz,sub=clamp((WATER_LEVEL_M-bottom)/(2*hz),0,1);if(sub>0){const volume=8*record.halfExtents[0]*record.halfExtents[1]*hz,flow=waterFlowAt(position[0],position[1])||[0,0],rel=[velocity[0]-flow[0],velocity[1]-flow[1],velocity[2]],speed=length3(rel),k=sub*(1.6+.9*speed)*record.massKg*.35;
+    if(!record.drone&&waterAt(position[0],position[1])){const hz=record.halfExtents[2],bottom=position[2]-hz,sub=clamp((waterLevelAt(position[0],position[1])-bottom)/(2*hz),0,1);if(sub>0){const volume=8*record.halfExtents[0]*record.halfExtents[1]*hz,flow=waterFlowAt(position[0],position[1])||[0,0],rel=[velocity[0]-flow[0],velocity[1]-flow[1],velocity[2]],speed=length3(rel),k=sub*(1.6+.9*speed)*record.massKg*.35;
       b3.b3Body_ApplyForceToCenter(body,[-rel[0]*k,-rel[1]*k,1000*9.80665*volume*sub*.62-rel[2]*k*1.4],true);b3.b3Body_ApplyTorque(body,[-angular[0]*record.massKg*sub*.8,-angular[1]*record.massKg*sub*.8,-angular[2]*record.massKg*sub*.5],true);record.inWater=sub;}else record.inWater=0;}else record.inWater=0;
     if(length3(record.pendingImpulse)>.0001){const force=record.pendingImpulse.map(value=>value/Math.max(.001,dt));if(record.impulsePoint)b3.b3Body_ApplyForce(body,force,record.impulsePoint,true);else b3.b3Body_ApplyForceToCenter(body,force,true);record.pendingImpulse=[0,0,0];record.impulsePoint=null;}
   }

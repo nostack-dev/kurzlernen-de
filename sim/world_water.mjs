@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import {patchShockMaterial} from "./nuke_shock_field.mjs";
 import {setWaterRegions,setBridgeDecks,WATER_LEVEL_M} from "./terrain_craters.mjs";
+import {elevationAt,onElevationChange} from "./terrain_elevation.mjs";
 
 // Real water from the map: rivers, canals, streams (waterway lines with a
 // width per class) and lakes/ponds/harbours (water polygons).
@@ -77,7 +78,7 @@ function* build(b,cx,cy){
   // mesh: one quad per water cell, vertex attributes shared per corner
   const pos=[],shore=[],flow=[],idx=[],corner=new Map();
   const vtx=(ci,cj)=>{const key=ci*(N+1)+cj;let v=corner.get(key);if(v!==undefined)return v;let d=0,fx=0,fy=0,sp=0,n=0;for(const[di,dj]of[[0,0],[-1,0],[0,-1],[-1,-1]]){const i=ci+di,j=cj+dj;if(i<0||j<0||i>=N||j>=N)continue;const k=i*N+j;if(!water[k])continue;d+=dist[k];fx+=flowX[k];fy+=flowY[k];sp+=speed[k];n++;}
-    const allWater=n===4;v=pos.length/3;pos.push(x0+ci*CELL,y0+cj*CELL,WATER_RENDER_Z);shore.push(allWater?d/n*CELL:0);flow.push(n?fx/n*sp/n:0,n?fy/n*sp/n:0);corner.set(key,v);return v;};
+    const allWater=n===4;v=pos.length/3;pos.push(x0+ci*CELL,y0+cj*CELL,WATER_RENDER_Z+elevationAt(x0+ci*CELL,y0+cj*CELL));shore.push(allWater?d/n*CELL:0);flow.push(n?fx/n*sp/n:0,n?fy/n*sp/n:0);corner.set(key,v);return v;};
   let cells=0;for(let i=0;i<N;i++){for(let j=0;j<N;j++){if(!water[i*N+j])continue;const a=vtx(i,j),bb=vtx(i+1,j),c=vtx(i+1,j+1),d=vtx(i,j+1);idx.push(a,bb,c,a,c,d);cells++;}if(i%24===0)yield;}
   // physics basins: greedy-merge cells into rectangles (rows, then stacked)
   // (on an 8 m grid — a block counts as water when ≥3 of its 4 cells are —
@@ -132,5 +133,5 @@ function frame(now){
   const cam=b.threeCamera;if(!cam||now-lastTry<3000)return;lastTry=now;const count=cache.water.size+cache.waterway.size,roads=cache.transportation.size;
   if(!roads&&!count)return;const moved=Math.hypot(cam.position.x-center[0],cam.position.y-center[1]);if(moved<REBUILD_MOVE_M&&count<=builtCount*1.15+2&&roads<=builtRoads*1.3+20)return;builtCount=count;builtRoads=roads;center=[cam.position.x,cam.position.y];job=build(b,center[0],center[1]);const view=document.getElementById("viewport");if(view)view.dataset.worldWaterState=`building:${count}`;
 }
-export function installWorldWater(){if(installed||typeof window==="undefined")return;installed=true;globalThis.__worldWater={level:WATER_LEVEL_M,version:WORLD_WATER_VERSION};requestAnimationFrame(frame);}
+export function installWorldWater(){if(installed||typeof window==="undefined")return;installed=true;onElevationChange(()=>{center=[Infinity,Infinity];});globalThis.__worldWater={level:WATER_LEVEL_M,version:WORLD_WATER_VERSION};requestAnimationFrame(frame);}
 installWorldWater();

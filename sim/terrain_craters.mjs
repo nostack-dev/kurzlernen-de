@@ -1,4 +1,5 @@
 import {shockHeightAt} from "./nuke_shock_field.mjs";
+import {elevationAt,onElevationChange,elevationCenter} from "./terrain_elevation.mjs";
 // Deformable ground: one height function shared by physics, rendering and
 // the walking player, so a nuke crater is real terrain — the drone can fly
 // down into it, the camera and rangefinder see it, the pilot walks the bowl.
@@ -37,15 +38,20 @@ export function setWaterRegions(rects,flowFn=null){
 let bridges=[];
 export function setBridgeDecks(list){bridges=(list||[]).filter(b=>b.hl>.1&&b.hw>.1);}
 function onBridge(x,y){for(const b of bridges){const dx=x-b.cx,dy=y-b.cy,c=Math.cos(b.yaw),s=Math.sin(b.yaw),u=dx*c+dy*s,v=-dx*s+dy*c;if(Math.abs(u)<=b.hl&&Math.abs(v)<=b.hw)return true;}return false;}
-export function craterHeightAt(x,y){let h=0;for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}return h;}
+export function craterHeightAt(x,y){let h=elevationAt(x,y);for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}return h;}
 export function waterAt(x,y){const l=waterBuckets.get(Math.floor(x/WB)*73856093^Math.floor(y/WB)*19349663);if(!l)return false;for(const r of l)if(x>=r.x0&&x<r.x1&&y>=r.y0&&y<r.y1)return true;return false;}
 export function waterFlowAt(x,y){return waterFlow&&waterAt(x,y)?waterFlow(x,y):null;}
 export function waterRegions(){return waterRects;}
-export function groundHeightAt(x,y){let h=shockHeightAt(x,y);for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return Math.min(h,-WATER_BED_M);return h;}
+// Static ground (real elevation + craters + river/lake beds), without the transient pressure wave.
+export function staticGroundHeightAt(x,y){const e=elevationAt(x,y);let h=e;for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return Math.min(h,e-WATER_BED_M);return h;}
+export function groundHeightAt(x,y){return staticGroundHeightAt(x,y)+shockHeightAt(x,y);}
+// Water surface follows the terrain (rivers sit at the local ground level).
+export function waterLevelAt(x,y){return elevationAt(x,y)+WATER_LEVEL_M;}
 export function terrainCraters(){return craters.map(c=>({...c}));}
 export function addCrater(x,y){craters.push({x:Number(x)||0,y:Number(y)||0});while(craters.length>MAX_CRATERS)craters.shift();notify();}
 export function clearCraters(){if(!craters.length)return;craters.length=0;notify();}
 export function onTerrainChange(fn){listeners.add(fn);return()=>listeners.delete(fn);}
+onElevationChange(()=>notify());
 function notify(){for(const fn of listeners){try{fn(terrainCraters());}catch(error){console.warn("terrain listener",error);}}}
 
 // Ground box minus the crater squares, as non-overlapping rectangles.
@@ -66,23 +72,34 @@ function groundRectangles(half,holes){
 // (one static body per rectangle, centred on it — like the original single
 // ground box); only the small crater cells use convex hulls.
 // Returns {bodies,shapeCount}.
+export const TERRAIN_FIELD_HALF_M=1200,TERRAIN_FIELD_STEP_M=5;
 export function createTerrainBody(b3,world,shapeDef,half){
   const bodies=[];let shapeCount=0;
   const staticBody=(position,rotation=null)=>{const def=b3.b3DefaultBodyDef();def.type=b3.b3BodyType.b3_staticBody;def.position=position;if(rotation)def.rotation=rotation;const body=b3.b3CreateBody(world,def);bodies.push(body);return body;};
+  // Real terrain: a Box3D height field sampled from the shared height
+  // function (DEM elevation, crater bowls, river/lake beds) — the same
+  // surface the renderer, walkers and crowds use. Box3D height fields are
+  // y-up, so the body is rotated +90° about x (local y -> world z).
+  if(typeof b3.b3CreateHeightField==="function"&&typeof b3.b3CreateHeightFieldShape==="function"){
+    const[cx,cy]=elevationCenter(),H=TERRAIN_FIELD_HALF_M,st=TERRAIN_FIELD_STEP_M,n=Math.round(2*H/st)+1,x0=Math.round((cx-H)/st)*st,yTop=Math.round((cy+H)/st)*st,heights=new Array(n*n);let mn=Infinity;
+    for(let j=0;j<n;j++){const y=yTop-j*st;for(let i=0;i<n;i++){const v=staticGroundHeightAt(x0+i*st,y);heights[j*n+i]=v;if(v<mn)mn=v;}}
+    const field=b3.b3CreateHeightField(heights,n,n,[st,1,st]);
+    if(field){const body=staticBody([x0,yTop,0],[Math.SQRT1_2,0,0,Math.SQRT1_2]);try{b3.b3CreateHeightFieldShape(body,shapeDef,field);shapeCount++;}finally{b3.b3DestroyHeightField(field);}
+      // beyond the field: a flat floor at the field's lowest level
+      const floor=staticBody([0,0,mn-.6]);b3.b3CreateBoxShape(floor,shapeDef,half,half,.5);shapeCount++;
+      for(const br of bridges){const e=elevationAt(br.cx,br.cy),body2=staticBody([br.cx,br.cy,e-.25],[0,0,Math.sin(br.yaw/2),Math.cos(br.yaw/2)]);b3.b3CreateBoxShape(body2,shapeDef,br.hl,br.hw,.25);shapeCount++;}
+      return{bodies,shapeCount,heightField:true};}
+  }
   const holes=[...craters.map(c=>[c.x-CRATER_R,c.y-CRATER_R,c.x+CRATER_R,c.y+CRATER_R]),...waterRects.map(r=>[r.x0,r.y0,r.x1,r.y1])];
   for(const[x0,y0,x1,y1]of groundRectangles(half,holes)){const hx=(x1-x0)/2,hy=(y1-y0)/2;if(hx<.01||hy<.01)continue;const body=staticBody([x0+hx,y0+hy,-GROUND_THICKNESS/2]);b3.b3CreateBoxShape(body,shapeDef,hx,hy,GROUND_THICKNESS/2);shapeCount++;}
-  // bridge decks (solid road across the basin)
   for(const br of bridges){const body=staticBody([br.cx,br.cy,-.25],[0,0,Math.sin(br.yaw/2),Math.cos(br.yaw/2)]);b3.b3CreateBoxShape(body,shapeDef,br.hl,br.hw,.25);shapeCount++;}
-  // river / lake beds
   for(const r of waterRects){const hx=(r.x1-r.x0)/2,hy=(r.y1-r.y0)/2;if(hx<.01||hy<.01)continue;const body=staticBody([r.x0+hx,r.y0+hy,-WATER_BED_M-.1]);b3.b3CreateBoxShape(body,shapeDef,hx,hy,.1);shapeCount++;}
   if(craters.length){
     const step=CRATER_R*2/SLAB_CELLS,done=new Set();
     for(const c of craters)for(let i=0;i<SLAB_CELLS;i++)for(let j=0;j<SLAB_CELLS;j++){
-      // Hull vertices relative to the cell centre keep Box3D's hull builder
-      // well-conditioned (no 10 km offsets inside the hull).
       const x0=c.x-CRATER_R+i*step,y0=c.y-CRATER_R+j*step,x1=x0+step,y1=y0+step,key=`${x0.toFixed(1)},${y0.toFixed(1)}`;if(done.has(key))continue;done.add(key);
       const cx=(x0+x1)/2,cy=(y0+y1)/2,cell=staticBody([cx,cy,0]),verts=[];
-      for(const[x,y]of[[x0,y0],[x1,y0],[x1,y1],[x0,y1]])verts.push(x-cx,y-cy,groundHeightAt(x,y));
+      for(const[x,y]of[[x0,y0],[x1,y0],[x1,y1],[x0,y1]])verts.push(x-cx,y-cy,staticGroundHeightAt(x,y));
       for(const[x,y]of[[x0,y0],[x1,y0],[x1,y1],[x0,y1]])verts.push(x-cx,y-cy,SLAB_BOTTOM_Z);
       const hull=b3.b3CreateHull(verts);if(!hull)continue;try{b3.b3CreateHullShape(cell,shapeDef,hull);shapeCount++;}finally{b3.b3DestroyHull(hull);}
     }

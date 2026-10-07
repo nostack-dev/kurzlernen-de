@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import {groundHeightAt} from "./terrain_craters.mjs";
+import {groundHeightAt,staticGroundHeightAt,onTerrainChange} from "./terrain_craters.mjs";
 import {vehicleGeometry,vehicleMaterial,wheelGeometry} from "./vehicle_models.mjs";
 import {VS_FX_EVENT} from "./lan_vs.mjs";
 import {spawnWorldPersonRagdoll} from "./world_person_ragdoll.mjs";
@@ -80,7 +80,8 @@ function createDecor(scene){
   scene.add(decorRoot);
 }
 function createLights(scene){lightRoot=new THREE.Group();lightRoot.name="WORLD_PROCEDURAL_LIGHTS";const hemi=new THREE.HemisphereLight(0xd8e7ef,0x5e5446,.26),sun=new THREE.DirectionalLight(0xffe6c5,.34);sun.position.set(-70,-40,110);lightRoot.add(hemi,sun);scene.add(lightRoot);}
-function setInstance(mesh,i,x,y,z,s=1){matrix.compose(tmp.set(x,y,z),quat.identity(),scale.set(s,s,s));mesh.setMatrixAt(i,matrix);}
+function setInstance(mesh,i,x,y,z,s=1){matrix.compose(tmp.set(x,y,z+staticGroundHeightAt(x,y)),quat.identity(),scale.set(s,s,s));mesh.setMatrixAt(i,matrix);}
+if(typeof window!=="undefined")onTerrainChange(()=>{try{positionDecor();}catch{}});
 function positionDecor(){if(!worldSeed||!treeTrunks)return;for(let i=0;i<TREE_COUNT;i++){const seed=hashText(`${worldSeed}:tree:${i}`),x=anchorX+range(seed,1,-82,82),y=anchorY+range(seed,2,-82,82),sc=range(seed,3,.78,1.18);setInstance(treeTrunks,i,x,y,1.15,sc);setInstance(treeCrowns,i,x,y,2.75,sc*1.12);setInstance(treeGlow,i,x,y,2.75,sc*1.25);}treeTrunks.instanceMatrix.needsUpdate=true;treeCrowns.instanceMatrix.needsUpdate=true;treeGlow.instanceMatrix.needsUpdate=true;for(let i=0;i<LAMP_COUNT;i++){const seed=hashText(`${worldSeed}:lamp:${i}`),axis=u(seed,1)>.5,x=anchorX+(axis?range(seed,2,-78,78):(u(seed,3)>.5?42:-42)),y=anchorY+(axis?(u(seed,3)>.5?42:-42):range(seed,2,-78,78));setInstance(lampPoles,i,x,y,1.85);setInstance(lampHeads,i,x,y,3.72);}lampPoles.instanceMatrix.needsUpdate=true;lampHeads.instanceMatrix.needsUpdate=true;}
 // Animals are real targets: a hit or a blast kills them (they topple over,
 // vanish after a while and a new one wanders in later).
