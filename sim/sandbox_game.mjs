@@ -51,13 +51,13 @@ function ensureHud(){
   view.appendChild(hud);scoreEl=hud.querySelector(".sb-score");comboEl=hud.querySelector(".sb-flow em");flowEl=hud.querySelector(".sb-flow b");popLayer=hud.querySelector(".sb-pops");
   const style=document.createElement("style");style.dataset.sandboxHud=SANDBOX_GAME_VERSION;style.textContent=`
 #sandboxHud{position:absolute;inset:0;z-index:9;pointer-events:none;font-family:"Barlow Condensed","Barlow","Segoe UI",system-ui,sans-serif}
-#sandboxHud .sb-score{position:absolute;right:max(16px,var(--solo-safe-right,env(safe-area-inset-right)));bottom:calc(max(14px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 168px);font-weight:700;font-size:clamp(24px,4.4vw,40px);letter-spacing:.06em;color:#f2f4f7;text-shadow:0 1px 3px rgba(0,0,0,.6)}
-#sandboxHud .sb-flow{position:absolute;right:max(16px,var(--solo-safe-right,env(safe-area-inset-right)));bottom:calc(max(14px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 214px);display:flex;align-items:center;gap:7px;color:#f2f4f7;font-weight:600;font-size:12px;letter-spacing:.16em;text-shadow:0 1px 2px rgba(0,0,0,.6)}
-#sandboxHud .sb-flow i{display:block;width:92px;height:7px;border-radius:4px;background:rgba(10,13,18,.5);overflow:hidden;box-shadow:none}
+#sandboxHud .sb-score{position:absolute;left:max(14px,var(--solo-safe-left,env(safe-area-inset-left)));top:calc(max(8px,var(--solo-safe-top,env(safe-area-inset-top))) + 82px);font-weight:700;font-size:clamp(17px,2.6vw,24px);letter-spacing:.08em;color:#f2f4f7;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+#sandboxHud .sb-flow{position:absolute;left:max(14px,var(--solo-safe-left,env(safe-area-inset-left)));top:calc(max(8px,var(--solo-safe-top,env(safe-area-inset-top))) + 112px);display:flex;align-items:center;gap:6px;color:#f2f4f7;font-weight:600;font-size:10px;letter-spacing:.18em;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+#sandboxHud .sb-flow i{display:block;width:70px;height:4px;border-radius:2px;background:rgba(10,13,18,.5);overflow:hidden;box-shadow:none}
 #sandboxHud .sb-flow b{display:block;height:100%;width:0;background:#f5b301;transition:width .15s linear}
 #sandboxHud .sb-flow em{font-style:italic;color:#f5b301;font-style:normal;text-shadow:0 1px 2px rgba(0,0,0,.6);min-width:2.2em}
-#sandboxHud .sb-pops{position:absolute;left:0;right:0;top:34%;display:flex;flex-direction:column;align-items:center;gap:4px}
-#sandboxHud .sb-pop{font-weight:700;font-size:clamp(18px,3.6vw,32px);letter-spacing:.14em;animation:sbPop 1.5s ease-out forwards;white-space:nowrap}
+#sandboxHud .sb-pops{position:absolute;left:0;right:0;top:40%;display:flex;flex-direction:column;align-items:center;gap:4px}
+#sandboxHud .sb-pop{font-weight:700;font-size:clamp(15px,2.6vw,24px);letter-spacing:.16em;animation:sbPop 1.5s ease-out forwards;white-space:nowrap}
 #sandboxHud .sb-pop.pink{color:#f2f4f7;text-shadow:0 1px 4px rgba(0,0,0,.7)}
 #sandboxHud .sb-pop.cyan{color:#9fd3ff;text-shadow:0 1px 4px rgba(0,0,0,.7)}
 #sandboxHud .sb-pop.red{color:#ff6a5a;text-shadow:0 1px 4px rgba(0,0,0,.7)}
@@ -65,7 +65,7 @@ function ensureHud(){
 @keyframes sbPop{0%{opacity:0;transform:scale(1.25)}10%{opacity:1;transform:scale(1)}75%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}`;
   document.head.appendChild(style);return true;
 }
-function pop(text,color="pink"){if(!ensureHud())return;const el=document.createElement("div");el.className=`sb-pop ${color}`;el.textContent=text;popLayer.appendChild(el);while(popLayer.children.length>3)popLayer.firstChild.remove();setTimeout(()=>el.remove(),1550);}
+function pop(text,color="pink"){if(!ensureHud())return;const key=String(text).replace(/\s+x\d+$/,"");for(const old of popLayer.children)if(old.dataset.key===key){old.textContent=text;old.style.animation="none";void old.offsetWidth;old.style.animation="";clearTimeout(old._t);old._t=setTimeout(()=>old.remove(),1550);return;}const el=document.createElement("div");el.dataset.key=key;el.className=`sb-pop ${color}`;el.textContent=text;popLayer.appendChild(el);while(popLayer.children.length>2)popLayer.firstChild.remove();el._t=setTimeout(()=>el.remove(),1550);}
 export function award(points,label,color){
   const now=performance.now();if(now<comboUntil)combo=Math.min(8,combo+1);else combo=1;comboUntil=now+COMBO_MS;flow=Math.min(1,flow+.18);
   const gained=Math.round(points*combo);score+=gained;if(label)pop(combo>1?`${label}  x${combo}`:label,color);renderHud(true);

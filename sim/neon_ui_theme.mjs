@@ -42,6 +42,8 @@ ${R} :is(.phone-settings-dialog,dialog) :is(h2,h3,h4){color:var(--ui-accent)!imp
 ${R} :is(.phone-settings-dialog,dialog) :is(button,select,input[type=number],input[type=text]){background:rgba(255,255,255,.1)!important;background-image:none!important;color:#fff!important;border:1.5px solid var(--ui-line)!important}
 ${R} :is(.phone-settings-dialog,dialog) input[type=range],${R} :is(.phone-settings-dialog,dialog) input[type=checkbox]{accent-color:var(--ui-accent)!important}
 ${R} #viewport{background:#b7c9dc!important}
+/* Wanted banner sits below the top dock, never on it */
+${R} #wantedHud{top:calc(max(8px,var(--solo-safe-top,env(safe-area-inset-top))) + 56px)!important;background:var(--ui-fill)!important;border:1px solid var(--ui-line)!important;border-radius:6px!important;box-shadow:var(--ui-shadow)!important}
 ${R} :is(#soloHud,#footHud,#vehicleHud,#gtaVehicleHud){background:transparent!important;border:0!important;box-shadow:none!important}
 `;
 

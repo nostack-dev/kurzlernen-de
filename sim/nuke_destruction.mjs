@@ -247,11 +247,11 @@ function spawnCrater(scene,center){
   for(let r=0;r<=rows;r++)for(let s=0;s<cols;s++){const rad=CRATER_R*(r/rows)**1.15,a=s/cols*Math.PI*2+(r%2)*.04;positions.push(Math.cos(a)*rad,Math.sin(a)*rad,0);}
   for(let r=0;r<rows;r++)for(let s=0;s<cols;s++){const a=r*cols+s,b=r*cols+(s+1)%cols,c=(r+1)*cols+s,d=(r+1)*cols+(s+1)%cols;index.push(a,c,b,b,c,d);}
   const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));geometry.setIndex(index);
-  const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:0x6b5642,toneMapped:false,fog:true,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1}));
-  mesh.name="NUKE_CRATER_GROUND";mesh.position.set(center.x,center.y,.02);mesh.userData.flightFireIgnore=true;mesh.userData.neonSkip=true;mesh.userData.nukeCrater=true;mesh.frustumCulled=false;mesh.renderOrder=-9000;
+  const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color:0x3a2e24,roughness:1,metalness:0,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
+  mesh.name="NUKE_CRATER_GROUND";mesh.receiveShadow=true;mesh.position.set(center.x,center.y,.02);mesh.userData.flightFireIgnore=true;mesh.userData.neonSkip=true;mesh.userData.nukeCrater=true;mesh.frustumCulled=false;mesh.renderOrder=-9000;
   contourXY??=contourBase();const linePos=new Float32Array(contourXY.length/2*3);for(let i=0,j=0;i<contourXY.length;i+=2,j+=3){linePos[j]=contourXY[i];linePos[j+1]=contourXY[i+1];linePos[j+2]=.15;}
   const lineGeo=new THREE.BufferGeometry();lineGeo.setAttribute("position",new THREE.BufferAttribute(linePos,3));
-  const rim=new THREE.LineSegments(lineGeo,new THREE.LineBasicMaterial({color:0xf4fff9,toneMapped:false,fog:false,transparent:true,opacity:.9}));rim.raycast=()=>{};rim.frustumCulled=false;rim.userData.neonSkip=true;mesh.add(rim);
+  const rim=new THREE.LineSegments(lineGeo,new THREE.LineBasicMaterial({color:0x2a2018,transparent:true,opacity:0}));rim.visible=false;rim.raycast=()=>{};rim.frustumCulled=false;rim.userData.neonSkip=true;mesh.add(rim);
   scene.add(mesh);craters.push({mesh,rim,born:performance.now(),lastColor:-Infinity});setTimeout(()=>addCrater(center.x,center.y),1400);
   while(craters.length>MAX_CRATERS){const old=craters.shift();old.mesh.parent?.remove(old.mesh);old.mesh.geometry.dispose();old.mesh.material.dispose();old.rim.geometry.dispose();old.rim.material.dispose();}
 }
@@ -260,7 +260,7 @@ function stepCraters(now){
   for(const c of craters){const age=(now-c.born)/1000,dig=clamp(age/1.4,0,1),ease=1-(1-dig)**3;if(dig>=1&&now-c.lastColor<400)continue;c.lastColor=now;
     const heat=Math.max(0,1-age/45);c.rim.material.color.copy(LINE_NEON).lerp(LINE_HOT,heat*heat);
     if(dig<1||!c.settled){c.settled=dig>=1;
-      const pos=c.mesh.geometry.attributes.position;for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i);pos.setZ(i,craterHeight(Math.hypot(x,y))*ease);}pos.needsUpdate=true;c.mesh.geometry.computeBoundingSphere();
+      const pos=c.mesh.geometry.attributes.position;for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i);pos.setZ(i,craterHeight(Math.hypot(x,y))*ease);}pos.needsUpdate=true;c.mesh.geometry.computeVertexNormals();c.mesh.geometry.computeBoundingSphere();
       const lp=c.rim.geometry.attributes.position;for(let i=0;i<lp.count;i++){const x=lp.getX(i),y=lp.getY(i);lp.setZ(i,craterHeight(Math.hypot(x,y))*ease+.15);}lp.needsUpdate=true;}}
 }
 

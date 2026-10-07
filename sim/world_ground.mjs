@@ -23,10 +23,10 @@ function loadTile(z,x,y){const key=`${z}/${x}/${y}`;if(tileCache.has(key))return
 // Satellite RGB → albedo: lift shadows, remove haze, clamp to plausible
 // natural ranges, slightly desaturate concrete greys.
 function albedo(r,g,b,out){
-  const l=.2126*r+.7152*g+.0722*b,target=Math.min(.42,Math.max(.16,l*1.05+.06)),k=target/Math.max(.02,l);
+  const l=.2126*r+.7152*g+.0722*b,target=Math.min(.24,Math.max(.07,l*.8+.03)),k=target/Math.max(.02,l);
   let R=r*k,G=g*k,B=b*k;const m=(R+G+B)/3,sat=Math.max(R,G,B)-Math.min(R,G,B);if(sat<.05){R=R*.85+m*.15;G=G*.85+m*.15;B=B*.85+m*.15;}
   if(B>G&&B>R&&sat>.04){B*=.85;} // haze / water-ish blue cast → calmer
-  out[0]=Math.min(.7,R);out[1]=Math.min(.7,G);out[2]=Math.min(.7,B);return out;
+  out[0]=Math.min(.45,R);out[1]=Math.min(.45,G);out[2]=Math.min(.45,B);return out;
 }
 async function sampleColors(b,cx,cy){
   const half=SIZE_M/2,[lon0,lat0]=b.unprojectMeters(cx-half,cy+half),[lon1,lat1]=b.unprojectMeters(cx+half,cy-half);
