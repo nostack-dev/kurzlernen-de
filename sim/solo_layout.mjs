@@ -17,6 +17,7 @@ import "./camera_shake.mjs";
 import "./speed_lines.mjs";
 import "./neon_bloom.mjs";
 import "./sandbox_game.mjs";
+import "./world_impacts.mjs";
 import "./wanted_dispatch_guard.mjs";
 import "./training_showcase.mjs";
 import "./immersive_soundscape.mjs";

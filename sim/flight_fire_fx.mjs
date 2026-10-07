@@ -105,17 +105,17 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     return sceneHit;
   }
   function routeHit(sceneHit){
-    if(!sceneHit)return false;if(sceneHit.box3d){addThreeDecal(sceneHit);return false;}
+    if(!sceneHit)return false;if(sceneHit.box3d){if(!globalThis.__worldImpacts)addThreeDecal(sceneHit);return false;}
     const police=Boolean(worldBridge?.registerPoliceHit?.(sceneHit));
     const population=!police&&Boolean(worldBridge?.registerWorldPopulationHit?.(sceneHit));
     const vsHit=!police&&!population&&Boolean(worldBridge?.registerVsHit?.(sceneHit));
-    if(!police&&!population&&!vsHit)addThreeDecal(sceneHit);
+    if(!police&&!population&&!vsHit&&!globalThis.__worldImpacts)addThreeDecal(sceneHit);
     if(police||population||vsHit){viewport.dataset.fireVsHits=String((Number(viewport.dataset.fireVsHits)||0)+1);gamepadCrosshair.classList.remove("hit-confirm");void gamepadCrosshair.offsetWidth;gamepadCrosshair.classList.add("hit-confirm");hitConfirmSound();}
     return police||population||vsHit;
   }
   function fire(now){
     if(!active||missileMode()||combatLocked()||now+.25<nextShotAt)return false;nextShotAt=now+SHOT_INTERVAL_MS;const aim=aimPoint();pointerNdc.set(aim.x/aim.rect.width*2-1,-(aim.y/aim.rect.height)*2+1);raycaster.setFromCamera(pointerNdc,camera);
-    const hit=immediateHit(raycaster.ray);routeHit(hit);const tracerEnd=hit?.point||worldPoint.copy(raycaster.ray.origin).addScaledVector(raycaster.ray.direction,80);showTracer(tracerEnd);screenImpact(aim.x,aim.y);shotSound();onRecoil(.16);window.dispatchEvent(new CustomEvent("arondight:weapon-fired",{detail:{weapon:"drone-gun",intensity:.12,mode:"drone",source:"flight-fire"}}));viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);viewport.dataset.fireRaycastShots=String((Number(viewport.dataset.fireRaycastShots)||0)+1);viewport.dataset.fireAimX=aim.x.toFixed(2);viewport.dataset.fireAimY=aim.y.toFixed(2);viewport.dataset.fireInputSource=active.source||"pointer";return true;
+    const hit=immediateHit(raycaster.ray);routeHit(hit);globalThis.__worldImpacts?.bullet(raycaster.ray,hit?{...hit,point:hit.point?.clone?.()||hit.point}:null);const tracerEnd=hit?.point||worldPoint.copy(raycaster.ray.origin).addScaledVector(raycaster.ray.direction,80);showTracer(tracerEnd);screenImpact(aim.x,aim.y);shotSound();onRecoil(.16);window.dispatchEvent(new CustomEvent("arondight:weapon-fired",{detail:{weapon:"drone-gun",intensity:.12,mode:"drone",source:"flight-fire"}}));viewport.dataset.fireShots=String((Number(viewport.dataset.fireShots)||0)+1);viewport.dataset.fireRaycastShots=String((Number(viewport.dataset.fireRaycastShots)||0)+1);viewport.dataset.fireAimX=aim.x.toFixed(2);viewport.dataset.fireAimY=aim.y.toFixed(2);viewport.dataset.fireInputSource=active.source||"pointer";return true;
   }
   function scheduleFire(){if(!active||fireTimer||missileMode()||combatLocked())return;const tick=()=>{fireTimer=0;if(!active)return;if(missileMode()||combatLocked()){stop();return;}fire(performance.now());fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));};fireTimer=setTimeout(tick,Math.max(4,nextShotAt-performance.now()+1));}
   function move(event){if(!active||active.source==="gamepad"||event.pointerId!==active.id)return;active.clientX=event.clientX;active.clientY=event.clientY;if(missileMode()||combatLocked()){stop(event);return;}fire(performance.now());scheduleFire();event.preventDefault();}
