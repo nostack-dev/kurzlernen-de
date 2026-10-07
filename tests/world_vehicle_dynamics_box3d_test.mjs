@@ -32,7 +32,7 @@ physics.setDrive("car",{pedal:1,steer:1,maxSpeed:36});step(120);
 const yaw1=physics.pose("car").yaw;console.log("yaw after left steer",yaw1.toFixed(2),"up",upOf("car").toFixed(3));
 assert.ok(yaw1>.5,`steering left turns the car left: ${yaw1}`);
 assert.ok(upOf("car")>.72,"car remains dynamically stable in the turn without an upright constraint");
-physics.setDrive("car",{pedal:-1,steer:0});let vb=Infinity;const v0=speedOf("car");for(let i=0;i<150;i++){physics.step(1/60,4,i*16);vb=Math.min(vb,speedOf("car"));}console.log("braking from",v0.toFixed(1),"min",vb.toFixed(2));
+physics.setDrive("car",{pedal:-1,steer:0});let vb=Infinity;const v0=speedOf("car");for(let i=0;i<150;i++){physics.step(1/60,4,i*16);vb=Math.min(vb,speedOf("car"));}p=physics.pose("car");{const rec=physics.records.get("car"),f=[Math.cos(p.yaw),Math.sin(p.yaw)],l=[-f[1],f[0]],vf=p.velocity[0]*f[0]+p.velocity[1]*f[1],vl=p.velocity[0]*l[0]+p.velocity[1]*l[1],angles=(rec?.wheels||[]).map(w=>w.front?b3.b3WheelJoint_GetSteeringAngle?.(w.joint):0),spins=(rec?.wheels||[]).map(w=>b3.b3WheelJoint_GetSpinSpeed?.(w.joint));console.log("brake diagnostics",{velocity:p.velocity.map(x=>Number(x.toFixed(3))),vf:Number(vf.toFixed(3)),vl:Number(vl.toFixed(3)),yaw:Number(p.yaw.toFixed(3)),steer:angles.map(x=>Number((x||0).toFixed(3))),spin:spins.map(x=>Number((x||0).toFixed(3)))});}console.log("braking from",v0.toFixed(1),"min",vb.toFixed(2));
 assert.ok(vb<2.2,`brakes stop the car: ${vb}`);
 physics.setDrive("car",{pedal:-1,steer:0,maxReverse:8});step(120);
 p=physics.pose("car");const fwd=[Math.cos(p.yaw),Math.sin(p.yaw)],vf=p.velocity[0]*fwd[0]+p.velocity[1]*fwd[1];console.log("reverse speed",vf.toFixed(2));
