@@ -45,6 +45,8 @@ ${R} #viewport{background:#b7c9dc!important}
 /* One typeface everywhere (the per-module system-ui/monospace mixes looked
    cheap): Inter, tabular figures so numbers don't jitter. */
 ${R} body,${R} body *:not(svg):not(svg *):not(code):not(pre){font-family:var(--ui-font)!important;font-feature-settings:"tnum" 1,"cv11" 1}
+/* No aiming reticle anywhere (the tracers show where shots go) */
+${R} :is(#footReticle,.xbox-crosshair){display:none!important}
 /* The minimap always sits above every overlay layer */
 ${R} #worldLookHud{z-index:12!important}
 /* Wanted banner sits below the top dock, never on it */

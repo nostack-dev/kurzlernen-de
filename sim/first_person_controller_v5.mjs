@@ -113,7 +113,11 @@ function centerRay(){const view=viewport(),r=view?.getBoundingClientRect();retur
 function beforeRender(scene,camera,now=performance.now()){
   snapshotPresentedCamera(camera);
   const glock=String(footWeapons()?.mode||"smg")==="glock";
-  if(!isFoot()){if(leftRoot)leftRoot.visible=false;return;}const gun=scene?.getObjectByName?.("WALK_PISTOL_3D");if(!gun||gun.visible===false){if(leftRoot)leftRoot.visible=false;return;}
+  // The first-person hands/guns exist only in a frame whose camera the walk
+  // view placed: in a car, in the drone or dead they are hidden — otherwise
+  // they stayed hanging in the world where the player got in (floating hands).
+  const gun=scene?.getObjectByName?.("WALK_PISTOL_3D");if(gun&&(!isFoot()||now-(Number(gun.userData.placedAt)||-Infinity)>250))gun.visible=false;
+  if(!isFoot()){if(leftRoot)leftRoot.visible=false;return;}if(!gun||gun.visible===false){if(leftRoot)leftRoot.visible=false;return;}
   const dt=clamp((now-lastFrameMs)/1000,0,.1);lastFrameMs=now;
   let rest=null;{const ray=centerRay();if(ray){if(now-lastRestResolve>REST_RESOLVE_MS){lastRestResolve=now;restDepth=resolveDistance(ray);}rest=restPoint.copy(ray.origin).addScaledVector(ray.direction,restDepth);}}
   // the left pistol takes its rest pose from the right one *before* aiming
@@ -150,6 +154,7 @@ export function installFirstPersonController(){
   addEventListener("arondight:foot-screen-fire-anchor",onAimStart);
   addEventListener("arondight:foot-screen-fire",onAimStart);
   addEventListener("arondight:foot-aim",onAimMove);
+  addEventListener("arondight:vehicle-mode",e=>{if(!e?.detail?.active)return;const gun=bridge()?.threeScene?.getObjectByName?.("WALK_PISTOL_3D");if(gun)gun.visible=false;if(leftRoot)leftRoot.visible=false;});
   globalThis.__arondightFirstPersonController=Object.freeze({version:FIRST_PERSON_CONTROLLER_VERSION,screenRay,snapshotPresentedCamera,get hasPresentedCamera(){return presentedValid;}});
 }
 installFirstPersonController();
