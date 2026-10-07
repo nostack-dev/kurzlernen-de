@@ -2,7 +2,7 @@ export const COMBAT_AUDIO_BANK_VERSION="prebaked-pcm-buffer-bank-v2";
 export const COMBAT_AUDIO_SAMPLE_RATE=44100;
 
 const TAU=Math.PI*2;
-const BANK_VARIANTS=Object.freeze({shot:3,hit:4,damage:2,scream:4,explosion:2,step:3,bounce:4,reward:3,fail:2});
+const BANK_VARIANTS=Object.freeze({shot:3,hit:4,crack:4,damage:2,scream:4,explosion:2,step:3,bounce:4,reward:3,fail:2});
 const contextBanks=new WeakMap();
 let sharedContext=null;
 
@@ -29,6 +29,17 @@ function renderHit(sampleRate,variant){
     const slap=i>=delay?data[i-delay]*.16:0;data[i]=surface*.78+thud*.58+slap;
   }
   return finish(data,.82);
+}
+
+function renderCrack(sampleRate,variant){
+  const duration=.082+variant*.006,data=new Float32Array(Math.ceil(duration*sampleRate)),random=rng(0xc12ac7+variant*991);let low=0,phase=0;
+  for(let i=0;i<data.length;i++){
+    const t=i/sampleRate,white=random()*2-1;low+=.08*(white-low);const snap=(white-low)*Math.exp(-t*(92-variant*4));
+    const frequency=(760+variant*85)*Math.exp(-t*24)+(135+variant*13);phase+=TAU*frequency/sampleRate;
+    const wood=(Math.sin(phase)+.28*Math.sin(phase*2.07+.4))*Math.exp(-t*(42-variant*2));
+    data[i]=snap*.82+wood*.52;
+  }
+  return finish(data,.84);
 }
 
 function renderDamage(sampleRate,variant){
@@ -114,7 +125,7 @@ function renderFail(sampleRate,variant){
   return renderCue(sampleRate,{notes:[63,58,51],lengths:[1,1,4],cutoff:1100,echo:.2,level:.72});           // falling E♭ octaves: lost
 }
 
-const renderers={shot:renderShot,hit:renderHit,damage:renderDamage,scream:renderScream,explosion:renderExplosion,step:renderStep,bounce:renderBounce,reward:renderReward,fail:renderFail};
+const renderers={shot:renderShot,hit:renderHit,crack:renderCrack,damage:renderDamage,scream:renderScream,explosion:renderExplosion,step:renderStep,bounce:renderBounce,reward:renderReward,fail:renderFail};
 export function createCombatPcmBank(sampleRate=COMBAT_AUDIO_SAMPLE_RATE){
   const rate=Math.max(8000,Math.round(Number(sampleRate)||COMBAT_AUDIO_SAMPLE_RATE)),bank={};
   for(const [kind,count] of Object.entries(BANK_VARIANTS))bank[kind]=Array.from({length:count},(_,variant)=>renderers[kind](rate,variant));
