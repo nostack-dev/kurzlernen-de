@@ -148,8 +148,8 @@ assert.ok(simulator.includes('if(gameMenu&&!gameMenu.hidden){lastPresentationDra
 
 const terrain=files["sim/terrain_craters.mjs"],ground=files["sim/world_ground.mjs"];
 assert.ok(terrain.includes("terrainCellCache")&&terrain.includes("terrainNodeHeightAt"),"terrain hot queries must share cached physical grid nodes");
-assert.ok(ground.includes("function applyHeights()")&&ground.includes("terrainNodeHeightAt("),"visible ground vertices must use the exact Box3D terrain nodes");
-assert.ok(ground.includes('WORLD_GROUND_VERSION="shared-neon-terrain-v3-no-texture"')&&ground.includes('worldGroundTexture="none"'),"WORLD ground must be textureless neon");
+assert.ok(ground.includes("function applyHeights()")&&ground.includes("groundHeightAt(")&&ground.includes("idx.push(a,b,d,a,d,c)"),"visible ground vertices must use the exact Box3D collision surface and diagonal");
+assert.ok(ground.includes('WORLD_GROUND_VERSION="mesh-is-collision-v1"')&&ground.includes('worldGroundTexture="none"'),"WORLD ground must be textureless neon");
 assert.ok(!ground.includes("MapServer/tile")&&!ground.includes("sampleColors("),"WORLD ground must not fetch/process satellite imagery");
 assert.ok(ground.includes("vGroundWorld")&&ground.includes("diffuseColor.rgb=mix(base,neon,line)"),"neon grid must be generated on the deformed terrain mesh itself");
 

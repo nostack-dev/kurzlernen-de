@@ -34,7 +34,7 @@ function ensureMesh(scene){
   {const gridX=CELLS,gridY=CELLS,gridX1=gridX+1,idx=[];
     for(let iy=0;iy<gridY;iy++)for(let ix=0;ix<gridX;ix++){
       const c=ix+gridX1*iy,a=ix+gridX1*(iy+1),d=(ix+1)+gridX1*iy,b=(ix+1)+gridX1*(iy+1);
-      idx.push(a,b,d,a,c,d);
+      idx.push(a,b,d,a,d,c); // (a,c,d) wound CCW so it faces +z
     }
     g.setIndex(idx);}
   mesh=new THREE.Mesh(g,m);mesh.name="WORLD_GROUND";mesh.frustumCulled=false;mesh.renderOrder=1;mesh.userData.flightFireIgnore=true;mesh.userData.styleSkip=true;mesh.userData.neonSkip=true;mesh.raycast=()=>{};mesh.visible=false;scene.add(mesh);center=[Infinity,Infinity];return mesh;
