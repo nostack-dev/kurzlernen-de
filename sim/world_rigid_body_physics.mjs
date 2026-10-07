@@ -34,7 +34,7 @@ export class WorldRigidBodyPhysics{
   addBody({id,kind="vehicle",position=[0,0,0],yaw=0,halfExtents=[1,.5,.5],massKg=1000,gravityScale,linearDamping,angularDamping,wheeled=true}={}){
     // cars and buses are real wheeled vehicles (chassis + 4 wheel joints)
     const spec=wheeled&&typeof this.b3.b3CreateWheelJoint==="function"?vehicleSpec(kind==='vehicle'?null:kind):null;if(spec&&finiteVector(position)){halfExtents=[...spec.half];massKg=spec.mass;const gz=groundHeightAt(position[0],position[1])+vehicleGroundOffset(spec)+.06;position=[position[0],position[1],Math.max(position[2],gz)];}
-    const key=String(id||"");if(!key||!finiteVector(position)||!finiteVector(halfExtents)||halfExtents.some(value=>!(value>.02)))return null;this.removeBody(key);const drone=kind==="drone"||kind==="police-drone",category=drone?WORLD_PHYSICS_CATEGORIES.drone:WORLD_PHYSICS_CATEGORIES.vehicle,b3=this.b3,bodyDef=b3.b3DefaultBodyDef(),resolvedGravityScale=Number.isFinite(gravityScale)?gravityScale:drone?0:1;bodyDef.type=b3.b3BodyType.b3_dynamicBody;bodyDef.position=[...position];bodyDef.rotation=yawQuaternion(yaw);bodyDef.linearDamping=Number.isFinite(linearDamping)?linearDamping:drone? .42:spec?.03:.16;bodyDef.angularDamping=Number.isFinite(angularDamping)?angularDamping:drone?1.15:spec?.3:.78;bodyDef.gravityScale=resolvedGravityScale;bodyDef.enableSleep=false;bodyDef.isBullet=true;const body=b3.b3CreateBody(this.world,bodyDef),shapeDef=b3.b3DefaultShapeDef(),volume=8*halfExtents[0]*halfExtents[1]*halfExtents[2];shapeDef.density=Math.max(.01,(Number(massKg)||1)/Math.max(.01,volume));shapeDef.baseMaterial.friction=drone? .48:.18;shapeDef.baseMaterial.restitution=drone? .12:.035;shapeDef.enableContactEvents=true;shapeDef.enableHitEvents=true;shapeDef.filter={categoryBits:category,maskBits:WORLD_PHYSICS_CATEGORIES.terrain|ALL_DYNAMIC|WORLD_PHYSICS_CATEGORIES.projectileQuery,groupIndex:0};const shape=b3.b3CreateBoxShape(body,shapeDef,...halfExtents);
+    const key=String(id||"");if(!key||!finiteVector(position)||!finiteVector(halfExtents)||halfExtents.some(value=>!(value>.02)))return null;this.removeBody(key);const drone=kind==="drone"||kind==="police-drone",category=drone?WORLD_PHYSICS_CATEGORIES.drone:WORLD_PHYSICS_CATEGORIES.vehicle,b3=this.b3,bodyDef=b3.b3DefaultBodyDef(),resolvedGravityScale=Number.isFinite(gravityScale)?gravityScale:drone?0:1;bodyDef.type=b3.b3BodyType.b3_dynamicBody;bodyDef.position=[...position];bodyDef.rotation=yawQuaternion(yaw);bodyDef.linearDamping=Number.isFinite(linearDamping)?linearDamping:drone? .42:spec?.03:.16;bodyDef.angularDamping=Number.isFinite(angularDamping)?angularDamping:drone?1.15:spec?.08:.78;bodyDef.gravityScale=resolvedGravityScale;bodyDef.enableSleep=false;bodyDef.isBullet=true;const body=b3.b3CreateBody(this.world,bodyDef),shapeDef=b3.b3DefaultShapeDef(),volume=8*halfExtents[0]*halfExtents[1]*halfExtents[2];shapeDef.density=Math.max(.01,(Number(massKg)||1)/Math.max(.01,volume));shapeDef.baseMaterial.friction=drone? .48:.18;shapeDef.baseMaterial.restitution=drone? .12:.035;shapeDef.enableContactEvents=true;shapeDef.enableHitEvents=true;shapeDef.filter={categoryBits:category,maskBits:WORLD_PHYSICS_CATEGORIES.terrain|ALL_DYNAMIC|WORLD_PHYSICS_CATEGORIES.projectileQuery,groupIndex:0};const shape=b3.b3CreateBoxShape(body,shapeDef,...halfExtents);
     const record={id:key,kind:String(kind||"vehicle"),body,shape,halfExtents:[...halfExtents],massKg:Math.max(.1,Number(massKg)||1),gravityScale:resolvedGravityScale,drone,target:null,pendingImpulse:[0,0,0],impulsePoint:null,preVelocity:[0,0,0],lastVelocity:[0,0,0],lastImpactAt:-Infinity,impactCount:0};this.records.set(key,record);this.shapeRecords.set(shapeKey(shape),record);
     if(spec){try{attachWheels(this,record,spec,{category,mask:WORLD_PHYSICS_CATEGORIES.terrain|ALL_DYNAMIC|WORLD_PHYSICS_CATEGORIES.projectileQuery});}catch(error){console.warn("vehicle wheels",error);record.wheels=null;}}
     return record;
@@ -42,12 +42,9 @@ export class WorldRigidBodyPhysics{
   removeBody(id){const key=String(id||""),record=this.records.get(key);if(!record)return false;if(record.wheels)detachWheels(this,record);this.records.delete(key);this.shapeRecords.delete(shapeKey(record.shape));if(record.body&&this.b3.b3Body_IsValid(record.body))this.b3.b3DestroyBody(record.body);return true;}
   setTarget(id,{position,speedMps=0,response=3.2,maxAccelerationMps2,yaw=null}={}){const record=this.records.get(String(id||""));if(!record||!finiteVector(position))return false;record.target={position:[...position],speedMps:Math.max(0,Number(speedMps)||0),response:clamp(response,.2,10),maxAccelerationMps2:clamp(maxAccelerationMps2??(record.drone?13:6),.5,30),yaw:Number.isFinite(yaw)?Number(yaw):null};return true;}
   clearTarget(id){const record=this.records.get(String(id||""));if(!record)return false;record.target=null;return true;}
-  // Player driving: an arcade bicycle model evaluated every physics step.
-  // It sets the car's velocity (not its pose), so Box3D still resolves every
-  // contact — hitting a wall stops you, the next step starts from the real,
-  // post-collision velocity. Strong lateral grip = no unwanted drifting;
-  // the handbrake deliberately breaks grip for a controllable slide.
-  setDrive(id,drive=null){const record=this.records.get(String(id||""));if(!record)return false;if(!drive){record.drive=null;record.steerAngle=0;return true;}record.drive={pedal:clamp(drive.pedal,-1,1),steer:clamp(drive.steer,-1,1),handbrake:Boolean(drive.handbrake),maxSpeed:clamp(drive.maxSpeed??36,4,80),maxReverse:clamp(drive.maxReverse??9,1,30)};record.target=null;record.steerAngle??=0;return true;}
+  // Player driving is accepted only for the real chassis + wheel-joint model.
+  // No velocity/yaw/pose fallback is allowed for a drivable vehicle.
+  setDrive(id,drive=null){const record=this.records.get(String(id||""));if(!record)return false;if(!drive){record.drive=null;record.steerAngle=0;return true;}if(!record.wheels?.length)return false;record.drive={pedal:clamp(drive.pedal,-1,1),steer:clamp(drive.steer,-1,1),handbrake:Boolean(drive.handbrake),maxSpeed:clamp(drive.maxSpeed??36,4,80),maxReverse:clamp(drive.maxReverse??9,1,30)};record.target=null;record.steerAngle??=0;return true;}
   setPose(id,{position,yaw=null,velocity=[0,0,0],angularVelocity=[0,0,0]}={}){
     const record=this.records.get(String(id||""));if(!record||!finiteVector(position)||!finiteVector(velocity)||!finiteVector(angularVelocity)||!this.b3.b3Body_IsValid(record.body))return false;const rotation=Number.isFinite(yaw)?yawQuaternion(yaw):this.b3.b3Body_GetRotation([0,0,0,1],record.body);this.b3.b3Body_SetTransform(record.body,[...position],rotation);this.b3.b3Body_SetLinearVelocity(record.body,[...velocity]);this.b3.b3Body_SetAngularVelocity(record.body,[...angularVelocity]);this.b3.b3Body_SetAwake?.(record.body,true);record.pendingImpulse=[0,0,0];record.impulsePoint=null;record.preVelocity=[...velocity];record.lastVelocity=[...velocity];if(record.wheels)placeWheels(this,record);return true;
   }
@@ -64,7 +61,6 @@ export class WorldRigidBodyPhysics{
   controlBody(record,dt){
     const b3=this.b3,body=record.body,position=b3.b3Body_GetPosition([0,0,0],body),velocity=b3.b3Body_GetLinearVelocity([0,0,0],body),angular=b3.b3Body_GetAngularVelocity([0,0,0],body);record.preVelocity=[...velocity];
     if(record.wheels){driveWheeled(this,record,dt);}
-    else if(record.drive){this.driveBody(record,dt,velocity,angular);}
     else if(record.target){
       const offset=record.target.position.map((value,index)=>value-position[index]),horizontal=Math.hypot(offset[0],offset[1]),distance=record.drone?length3(offset):horizontal;
       if(distance>.03){
@@ -88,32 +84,6 @@ export class WorldRigidBodyPhysics{
     if(!record.drone&&waterAt(position[0],position[1])){const hz=record.halfExtents[2],bottom=position[2]-hz,sub=clamp((waterLevelAt(position[0],position[1])-bottom)/(2*hz),0,1);if(sub>0){const volume=8*record.halfExtents[0]*record.halfExtents[1]*hz,flow=waterFlowAt(position[0],position[1])||[0,0],rel=[velocity[0]-flow[0],velocity[1]-flow[1],velocity[2]],speed=length3(rel),k=sub*(1.6+.9*speed)*record.massKg*.35;
       b3.b3Body_ApplyForceToCenter(body,[-rel[0]*k,-rel[1]*k,1000*9.80665*volume*sub*.62-rel[2]*k*1.4],true);b3.b3Body_ApplyTorque(body,[-angular[0]*record.massKg*sub*.8,-angular[1]*record.massKg*sub*.8,-angular[2]*record.massKg*sub*.5],true);record.inWater=sub;}else record.inWater=0;}else record.inWater=0;
     if(length3(record.pendingImpulse)>.0001){const force=record.pendingImpulse.map(value=>value/Math.max(.001,dt));if(record.impulsePoint)b3.b3Body_ApplyForce(body,force,record.impulsePoint,true);else b3.b3Body_ApplyForceToCenter(body,force,true);record.pendingImpulse=[0,0,0];record.impulsePoint=null;}
-  }
-  driveBody(record,dt,velocity,angular){
-    const b3=this.b3,body=record.body,d=record.drive,rotation=b3.b3Body_GetRotation([0,0,0,1],body),yaw=quaternionYaw(rotation),fx=Math.cos(yaw),fy=Math.sin(yaw),rx=-fy,ry=fx;
-    const[qx,qy,qz,qw]=rotation,upZ=1-2*(qx*qx+qy*qy);
-    let vf=velocity[0]*fx+velocity[1]*fy,vl=velocity[0]*rx+velocity[1]*ry;const sgn=Math.sign(vf),speed=Math.abs(vf);
-    // Longitudinal: throttle with a soft top-speed curve, strong brakes, coast drag.
-    if(d.pedal>0){if(vf<-.4)vf=Math.min(0,vf+20*d.pedal*dt);else vf+=d.pedal*10.5*Math.max(0,1-vf/d.maxSpeed)**.75*dt;}
-    else if(d.pedal<0){if(vf>.4)vf=Math.max(0,vf+20*d.pedal*dt);else vf=Math.max(-d.maxReverse,vf+d.pedal*6*dt);}
-    else vf-=sgn*Math.min(speed,(.55+.011*vf*vf)*dt);
-    if(d.handbrake)vf-=Math.sign(vf)*Math.min(Math.abs(vf),6.5*dt);
-    // Steering: speed-sensitive lock, rate-limited wheel, grip-limited yaw rate.
-    const lock=.62/(1+Math.abs(vf)/10),targetAngle=d.steer*lock,maxRate=3.6*dt;record.steerAngle+=clamp(targetAngle-record.steerAngle,-maxRate,maxRate);
-    const WHEELBASE=2.65,latLimit=d.handbrake?6:11.5;let yawRate=vf/WHEELBASE*Math.tan(record.steerAngle);
-    if(Math.abs(yawRate*vf)>latLimit)yawRate=Math.sign(yawRate)*latLimit/Math.max(.5,Math.abs(vf));
-    if(d.handbrake&&Math.abs(vf)>5)yawRate*=1.55;
-    vl*=Math.exp(-(d.handbrake?1.3:15)*dt);
-    // Wheels only grip on ground: floating in water you barely steer.
-    const grip=(record.inWater||0)>.25?.06:1;
-    if(upZ>.6){
-      const tvx=fx*vf+rx*vl,tvy=fy*vf+ry*vl;
-      b3.b3Body_SetLinearVelocity(body,[velocity[0]+(tvx-velocity[0])*grip,velocity[1]+(tvy-velocity[1])*grip,grip<1?velocity[2]:Math.min(velocity[2],2)]);
-      b3.b3Body_SetAngularVelocity(body,[angular[0]*.6,angular[1]*.6,angular[2]+(yawRate-angular[2])*grip]);
-    }else if(Math.hypot(velocity[0],velocity[1])<1.5){
-      // Upside down / on its side and nearly stopped: put it back on its wheels.
-      const p=b3.b3Body_GetPosition([0,0,0],body);b3.b3Body_SetTransform(body,[p[0],p[1],p[2]+.9],yawQuaternion(yaw));b3.b3Body_SetLinearVelocity(body,[0,0,0]);b3.b3Body_SetAngularVelocity(body,[0,0,0]);
-    }
   }
   // Nothing stays trapped below the terrain surface (terrain rose under it,
   // DEM arrived late, tunnelling): lift it back on top, keep its horizontal motion.
