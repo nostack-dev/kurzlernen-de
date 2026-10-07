@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import {setBuildingDamage,commitDestruction,buildingDamage} from "./world_destruction_state.mjs";
 import {actorRoots} from "./world_actor_roots.mjs";
-import {addCrater,clearCraters,craterProfile,CRATER_R as TERRAIN_CRATER_R} from "./terrain_craters.mjs";
+import {addCrater,clearCraters,staticGroundHeightAt,CRATER_R as TERRAIN_CRATER_R} from "./terrain_craters.mjs";
 
 // Physical nuke aftermath, driven by the real shock front (343 m/s):
 //  * every building is hit when the shock reaches it; overpressure falls off
@@ -228,8 +228,9 @@ function stepFlung(dt){
 }
 
 // ---------------------------------------------------------------- crater
-// Same surface as the physics terrain (terrain_craters.mjs).
-function craterHeight(r){return craterProfile(r);}
+// The visible crater surface is WORLD_GROUND itself. It is rebuilt from the same
+// 5 m triangle field as Box3D, so there is never a second decorative floor that
+// can sit above the physical bowl. This module only adds contour lines.
 // The crater is a real deformed mesh: flat dark fill (the game's look, no
 // colour gradients) plus neon contour lines — concentric rings and radial
 // spokes that sit on the deformed surface, so the bowl and the raised rim
@@ -243,25 +244,29 @@ function contourBase(){
 }
 let contourXY=null;
 function spawnCrater(scene,center){
-  const positions=[],index=[],cols=CRATER_SEGMENTS,rows=CRATER_RINGS;
-  for(let r=0;r<=rows;r++)for(let s=0;s<cols;s++){const rad=CRATER_R*(r/rows)**1.15,a=s/cols*Math.PI*2+(r%2)*.04;positions.push(Math.cos(a)*rad,Math.sin(a)*rad,0);}
-  for(let r=0;r<rows;r++)for(let s=0;s<cols;s++){const a=r*cols+s,b=r*cols+(s+1)%cols,c=(r+1)*cols+s,d=(r+1)*cols+(s+1)%cols;index.push(a,c,b,b,c,d);}
-  const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));geometry.setIndex(index);
-  const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color:0x7a6650,roughness:1,metalness:0,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
-  mesh.name="NUKE_CRATER_GROUND";mesh.receiveShadow=true;mesh.position.set(center.x,center.y,.02);mesh.userData.flightFireIgnore=true;mesh.userData.neonSkip=true;mesh.userData.nukeCrater=true;mesh.frustumCulled=false;mesh.renderOrder=-9000;
-  contourXY??=contourBase();const linePos=new Float32Array(contourXY.length/2*3);for(let i=0,j=0;i<contourXY.length;i+=2,j+=3){linePos[j]=contourXY[i];linePos[j+1]=contourXY[i+1];linePos[j+2]=.15;}
+  // Commit the shared terrain immediately: renderer, walking height and Box3D
+  // receive one terrain-change event and therefore agree from this frame on.
+  addCrater(center.x,center.y);
+  contourXY??=contourBase();
+  const linePos=new Float32Array(contourXY.length/2*3);
+  for(let i=0,j=0;i<contourXY.length;i+=2,j+=3){
+    const x=contourXY[i],y=contourXY[i+1];
+    linePos[j]=x;linePos[j+1]=y;
+    linePos[j+2]=staticGroundHeightAt(center.x+x,center.y+y)+.08;
+  }
   const lineGeo=new THREE.BufferGeometry();lineGeo.setAttribute("position",new THREE.BufferAttribute(linePos,3));
-  const rim=new THREE.LineSegments(lineGeo,new THREE.LineBasicMaterial({color:0x2a2018,transparent:true,opacity:0}));rim.visible=false;rim.raycast=()=>{};rim.frustumCulled=false;rim.userData.neonSkip=true;mesh.add(rim);
-  scene.add(mesh);craters.push({mesh,rim,born:performance.now(),lastColor:-Infinity});setTimeout(()=>addCrater(center.x,center.y),1400);
-  while(craters.length>MAX_CRATERS){const old=craters.shift();old.mesh.parent?.remove(old.mesh);old.mesh.geometry.dispose();old.mesh.material.dispose();old.rim.geometry.dispose();old.rim.material.dispose();}
+  const rim=new THREE.LineSegments(lineGeo,new THREE.LineBasicMaterial({color:0x2a2018,transparent:true,opacity:.82,depthWrite:false}));
+  rim.name="NUKE_CRATER_CONTOURS";rim.position.set(center.x,center.y,0);rim.raycast=()=>{};rim.frustumCulled=false;rim.userData.neonSkip=true;rim.userData.flightFireIgnore=true;scene.add(rim);
+  craters.push({mesh:rim,rim,born:performance.now(),lastColor:-Infinity,contourOnly:true});
+  while(craters.length>MAX_CRATERS){
+    const old=craters.shift();old.mesh.parent?.remove(old.mesh);old.mesh.geometry.dispose();old.mesh.material.dispose();
+  }
+  setData("nukeCraterSurface","shared-terrain-box3d-exact-v2");
 }
 const LINE_HOT=new THREE.Color(0xff8a3d),LINE_NEON=new THREE.Color(0x4a3a2c);
 function stepCraters(now){
-  for(const c of craters){const age=(now-c.born)/1000,dig=clamp(age/1.4,0,1),ease=1-(1-dig)**3;if(dig>=1&&now-c.lastColor<400)continue;c.lastColor=now;
-    const heat=Math.max(0,1-age/45);c.rim.material.color.copy(LINE_NEON).lerp(LINE_HOT,heat*heat);
-    if(dig<1||!c.settled){c.settled=dig>=1;
-      const pos=c.mesh.geometry.attributes.position;for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i);pos.setZ(i,craterHeight(Math.hypot(x,y))*ease);}pos.needsUpdate=true;c.mesh.geometry.computeVertexNormals();c.mesh.geometry.computeBoundingSphere();
-      const lp=c.rim.geometry.attributes.position;for(let i=0;i<lp.count;i++){const x=lp.getX(i),y=lp.getY(i);lp.setZ(i,craterHeight(Math.hypot(x,y))*ease+.15);}lp.needsUpdate=true;}}
+  for(const c of craters){const age=(now-c.born)/1000;if(now-c.lastColor<120)continue;c.lastColor=now;
+    const heat=Math.max(0,1-age/45),appear=clamp(age/.32,0,1);c.rim.material.color.copy(LINE_NEON).lerp(LINE_HOT,heat*heat);c.rim.material.opacity=.82*appear;}
 }
 
 // ----------------------------------------------------------------- driver
@@ -340,7 +345,7 @@ function frame(now){
 function resetWorld(){
   clearCraters();clearChunks();events.length=0;buildingHp.clear();for(const f of flattenedProps.splice(0)){f.mesh.setMatrixAt(f.index,f.matrix);f.mesh.instanceMatrix.needsUpdate=true;}for(const f of flung){f.clone.parent?.remove(f.clone);f.root.visible=true;}flung.length=0;
   if(debris){const zero=new THREE.Matrix4().makeScale(0,0,0);debris.items.forEach((it,i)=>{if(it.alive){it.alive=false;debris.mesh.setMatrixAt(i,zero);}});debrisFree=debris.items.map((_,i)=>DEBRIS_POOL-1-i);debris.mesh.instanceMatrix.needsUpdate=true;}
-  for(const c of craters){c.mesh.parent?.remove(c.mesh);c.mesh.geometry.dispose();c.mesh.material.dispose();c.rim.geometry.dispose();c.rim.material.dispose();}craters.length=0;
+  for(const c of craters){c.mesh.parent?.remove(c.mesh);c.mesh.geometry.dispose();c.mesh.material.dispose();}craters.length=0;
   setData("nukeDebrisAlive",0);setData("nukeFlungActors",0);
 }
 export function installNukeDestruction(){if(installed)return;installed=true;window.addEventListener("arondight:nuke-impact",onImpact);window.addEventListener("arondight:world-reset",resetWorld);window.addEventListener("arondight:world-explosion",onWorldExplosion);requestAnimationFrame(frame);}
