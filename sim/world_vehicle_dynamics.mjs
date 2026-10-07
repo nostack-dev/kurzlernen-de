@@ -109,4 +109,8 @@ export function driveWheeled(physics,record,dt){
   // If the vehicle rolls, jumps or flips, Box3D suspension/contact dynamics own it.
   record.vf=vf;
 }
-export function wheelPoses(physics,record){const b3=physics.b3;return(record.wheels||[]).map(w=>({position:[...b3.b3Body_GetPosition([0,0,0],w.body)],rotation:[...b3.b3Body_GetRotation([0,0,0,1],w.body)],front:w.front}));}
+export function wheelPoses(physics,record,out=null){
+  const b3=physics.b3,wheels=record.wheels||[],result=Array.isArray(out)?out:[];
+  for(let i=0;i<wheels.length;i++){const w=wheels[i],item=result[i]||(result[i]={position:[0,0,0],rotation:[0,0,0,1],front:false});b3.b3Body_GetPosition(item.position,w.body);b3.b3Body_GetRotation(item.rotation,w.body);item.front=w.front;}
+  result.length=wheels.length;return result;
+}
