@@ -37,7 +37,7 @@ float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix
 float fbm(vec2 p){float a=.5,s=0.0;for(int i=0;i<5;i++){s+=a*vnoise(p);p=p*2.03+vec2(17.1,9.3);a*=.5;}return s;}
 void main(){
   vec3 d=normalize(vDir);float h=max(d.z,0.0);vec3 s=normalize(uSun);float mu=max(dot(d,s),0.0);
-  vec3 zen=vec3(0.13,0.32,0.68),hor=vec3(0.70,0.80,0.90);
+  vec3 zen=vec3(0.05,0.2,0.62),hor=vec3(0.52,0.66,0.86);
   vec3 col=mix(hor,zen,pow(h,0.45));
   col+=vec3(1.0,0.72,0.42)*pow(1.0-h,6.0)*0.18*(0.5+0.5*dot(normalize(d.xy+1e-4),normalize(s.xy+1e-4)));
   col+=vec3(1.0,0.93,0.8)*(pow(mu,8.0)*0.22+pow(mu,64.0)*0.5)+vec3(1.0,0.97,0.9)*smoothstep(0.9993,0.99975,mu)*12.0;
@@ -74,7 +74,7 @@ function ensureLights(scene,renderer){
   sun=new THREE.DirectionalLight(0xfff0dc,3.1);sun.userData.realLight=true;sun.castShadow=true;
   const sc=sun.shadow.camera;sc.left=-SHADOW_RANGE_M;sc.right=SHADOW_RANGE_M;sc.top=SHADOW_RANGE_M;sc.bottom=-SHADOW_RANGE_M;sc.near=1;sc.far=900;sun.shadow.mapSize.set(SHADOW_SIZE,SHADOW_SIZE);sun.shadow.bias=-.0004;sun.shadow.normalBias=.04;sun.shadow.radius=2;
   scene.add(sun,sun.target);
-  if(renderer){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=true;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;renderer.outputColorSpace=THREE.SRGBColorSpace;}
+  if(renderer){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=true;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;renderer.outputColorSpace=THREE.SRGBColorSpace;}
 }
 const texel=new THREE.Vector3();
 function followSun(){

@@ -20,7 +20,7 @@ import {setWaterRegions,setBridgeDecks,WATER_LEVEL_M} from "./terrain_craters.mj
 export const WORLD_WATER_VERSION="map-water-basins-buoyancy-v1";
 const RADIUS_M=520,CELL=3,REBUILD_MOVE_M=300,SLICE_MS=5;
 const WIDTH={river:18,canal:12,stream:4.5,drain:2.4,ditch:2.2,brook:3};
-let installed=false,mesh=null,material=null,center=[Infinity,Infinity],job=null,lastTry=-Infinity;
+let installed=false,mesh=null,material=null,center=[Infinity,Infinity],job=null,lastTry=-Infinity,builtCount=0,builtRoads=0;
 const bridge=()=>globalThis.__arondightRealWorld||null;
 export const waterUniforms={uTime:{value:0}};
 
@@ -101,8 +101,8 @@ function frame(now){
     if(r?.done){const v=r.value,g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(v.pos,3));g.setAttribute("normal",new THREE.Float32BufferAttribute(new Float32Array(v.pos.length).map((_,i)=>i%3===2?1:0),3));g.setAttribute("aShore",new THREE.Float32BufferAttribute(v.shore,1));g.setAttribute("aFlow",new THREE.Float32BufferAttribute(v.flow,2));g.setIndex(v.idx);mesh.geometry.dispose();mesh.geometry=g;
       setBridgeDecks(v.decks);setWaterRegions(v.rects,v.flowAt);job=null;const view=document.getElementById("viewport");if(view){view.dataset.worldWaterCells=String(v.cells);view.dataset.worldWaterBasins=String(v.rects.length);view.dataset.worldWaterBridges=String(v.decks.length);view.dataset.worldWater=WORLD_WATER_VERSION;}}
     return;}
-  const cam=b.threeCamera;if(!cam||now-lastTry<2000)return;if(Math.hypot(cam.position.x-center[0],cam.position.y-center[1])<REBUILD_MOVE_M)return;lastTry=now;
-  if(!features(b,"water").length&&!features(b,"waterway").length&&!features(b,"transportation").length)return;center=[cam.position.x,cam.position.y];job=build(b,center[0],center[1]);
+  const cam=b.threeCamera;if(!cam||now-lastTry<3000)return;lastTry=now;const count=features(b,"water").length+features(b,"waterway").length,roads=features(b,"transportation").length;
+  if(!roads&&!count)return;const moved=Math.hypot(cam.position.x-center[0],cam.position.y-center[1]);if(moved<REBUILD_MOVE_M&&count<=builtCount*1.15+2&&roads<=builtRoads*1.3+20)return;builtCount=count;builtRoads=roads;center=[cam.position.x,cam.position.y];job=build(b,center[0],center[1]);
 }
 export function installWorldWater(){if(installed||typeof window==="undefined")return;installed=true;globalThis.__worldWater={level:WATER_LEVEL_M,version:WORLD_WATER_VERSION};requestAnimationFrame(frame);}
 installWorldWater();

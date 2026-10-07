@@ -12,7 +12,7 @@ export const CITY_ROADS_VERSION="map-roads-sidewalks-parks-v1";
 const RADIUS_M=720,REBUILD_MOVE_M=260,MAX_FEATURES=2200,SLICE_MS=4;
 const WIDTH={motorway:14,trunk:12,primary:11,secondary:9,tertiary:8,minor:6.5,service:4.2,track:3,path:2.2,pedestrian:3.6,raceway:8,busway:7};
 const C={asphalt:0x3c3f44,asphaltMajor:0x34373c,sidewalk:0x9d9a93,line:0xe6e4dc,lineYellow:0xd6b54a,park:0x4f6e35,wood:0x3a5729,water:0x2f5f86,pitch:0x4f7a35,sand:0xc9b88f};
-let installed=false,mesh=null,sceneRef=null,center=[Infinity,Infinity],building=null,lastTry=-Infinity;
+let installed=false,mesh=null,sceneRef=null,center=[Infinity,Infinity],building=null,lastTry=-Infinity,builtCount=0;
 const bridge=()=>globalThis.__arondightRealWorld||null;
 
 function features(b,layer){try{return b.map.querySourceFeatures(b.buildingSourceId,{sourceLayer:layer})||[];}catch{return[];}}
@@ -62,10 +62,12 @@ function frame(now){
   requestAnimationFrame(frame);const b=bridge();if(!b?.active||!b.threeScene||!b.map||!b.buildingSourceId||typeof b.projectLngLat!=="function"){if(mesh)mesh.visible=Boolean(b?.active);return;}
   ensureMesh(b.threeScene);mesh.visible=true;
   if(building){const until=performance.now()+SLICE_MS;let r;while(performance.now()<until){r=building.next();if(r.done)break;}
-    if(r?.done){const{pos,col,nrm,roads}=r.value;const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));g.setAttribute("color",new THREE.Float32BufferAttribute(col,3));g.setAttribute("normal",new THREE.Float32BufferAttribute(nrm,3));mesh.geometry.dispose();mesh.geometry=g;building=null;const v=document.getElementById("viewport");if(v){v.dataset.worldCityRoads=String(roads);v.dataset.worldCityRoadsVersion=CITY_ROADS_VERSION;}}
+    if(r?.done){const{pos,col,nrm,roads}=r.value;const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));g.setAttribute("color",new THREE.Float32BufferAttribute(col,3));g.setAttribute("normal",new THREE.Float32BufferAttribute(nrm,3));mesh.geometry.dispose();mesh.geometry=g;building=null;if(!roads)center=[Infinity,Infinity];const v=document.getElementById("viewport");if(v){v.dataset.worldCityRoads=String(roads);v.dataset.worldCityRoadsVersion=CITY_ROADS_VERSION;}}
     return;}
-  const cam=b.threeCamera;if(!cam||now-lastTry<1500)return;const moved=Math.hypot(cam.position.x-center[0],cam.position.y-center[1]);if(moved<REBUILD_MOVE_M)return;
-  lastTry=now;if(!features(b,"transportation").length)return;center=[cam.position.x,cam.position.y];building=build(b,center[0],center[1]);
+  // Rebuild when the player moved far, or when more map tiles have loaded
+  // since the last build (the first build often sees only a few tiles).
+  const cam=b.threeCamera;if(!cam||now-lastTry<2500)return;lastTry=now;const moved=Math.hypot(cam.position.x-center[0],cam.position.y-center[1]),count=features(b,"transportation").length;
+  if(!count)return;if(moved<REBUILD_MOVE_M&&count<=builtCount*1.15+5)return;builtCount=count;center=[cam.position.x,cam.position.y];building=build(b,center[0],center[1]);
 }
 export function installCityRoads(){if(installed||typeof window==="undefined")return;installed=true;requestAnimationFrame(frame);}
 installCityRoads();
