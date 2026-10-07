@@ -28,8 +28,8 @@ export function buildingTerrainBase(outer){return buildingGroundBase(outer);}
 // vertices). The full rebuild later produces the same shapes from the
 // shared damage state.
 
-export const CITY_BUILDINGS_VERSION="world-map-green-neon-v5-registered-outline";
-const VISUAL_RADIUS_M=900,LINE_RADIUS_M=600,FAT_RADIUS_M=180,MAX_FOOTPRINTS=2600,MAX_VERTICES=96;
+export const CITY_BUILDINGS_VERSION="world-map-neon-city-v2-instant-damage";
+const VISUAL_RADIUS_M=900,LINE_RADIUS_M=420,FAT_RADIUS_M=220,MAX_FOOTPRINTS=2600,MAX_VERTICES=96;
 const RESYNC_MOVE_M=140,RESYNC_MS=2500,SLICE_MS=4;
 // Realistic urban palette: plaster, sandstone, brick, concrete, painted
 // render; dark slate / bitumen / terracotta roofs.
@@ -132,16 +132,16 @@ function ensureMeshes(scene){
   if(group?.parent===scene)return;
   if(group?.parent)group.parent.remove(group);
   group=new THREE.Group();group.name="WORLD_CITY_BUILDINGS";
-  solidMaterial=patchShockMaterial(new THREE.MeshBasicMaterial({color:0x061d14,toneMapped:false,fog:true,polygonOffset:true,polygonOffsetFactor:3,polygonOffsetUnits:6}));solid=new THREE.Group();chunks=[];solid.castShadow=false;solid.receiveShadow=false;solid.name="WORLD_CITY_SOLIDS";solid.frustumCulled=false;
+  solidMaterial=patchShockMaterial(realFacades(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.88,metalness:0,polygonOffset:true,polygonOffsetFactor:3,polygonOffsetUnits:6})));solid=new THREE.Group();chunks=[];solid.castShadow=true;solid.receiveShadow=true;solid.name="WORLD_CITY_SOLIDS";solid.frustumCulled=false;
   const empty=fatLineGeometry([0,0,0,0,0,0]);
-  edgeGlow=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x39ff14,{width:3.0,opacity:.035,additive:true,depthTest:true}),{lines:true}));edgeGlow.name="WORLD_CITY_EDGES_GLOW";edgeGlow.frustumCulled=false;
-  edges=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x3dff8a,{width:1.45,opacity:.96,additive:false,depthTest:true}),{lines:true}));edges.name="WORLD_CITY_EDGES";edges.frustumCulled=false;
+  edgeGlow=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x29e6ff,{width:7,opacity:.2,additive:true,depthTest:true}),{lines:true}));edgeGlow.name="WORLD_CITY_EDGES_GLOW";edgeGlow.frustumCulled=false;
+  edges=fatLineSegments(empty,patchShockMaterial(fatLineMaterial(0x7ff3ff,{width:2.4,opacity:1,additive:true,depthTest:true}),{lines:true}));edges.name="WORLD_CITY_EDGES";edges.frustumCulled=false;
   // Far outlines stay native 1 px for performance, but use a bright phosphor core.
-  thinEdges=new THREE.LineSegments(new THREE.BufferGeometry(),patchShockMaterial(new THREE.LineBasicMaterial({color:0x3dff8a,toneMapped:false,fog:true,transparent:true,opacity:.52,blending:THREE.NormalBlending,depthTest:true,depthWrite:false})));thinEdges.name="WORLD_CITY_EDGES_FAR";thinEdges.frustumCulled=false;
+  thinEdges=new THREE.LineSegments(new THREE.BufferGeometry(),patchShockMaterial(new THREE.LineBasicMaterial({color:0x29e6ff,toneMapped:false,fog:true,transparent:true,opacity:.55,blending:THREE.AdditiveBlending,depthTest:true,depthWrite:false})));thinEdges.name="WORLD_CITY_EDGES_FAR";thinEdges.frustumCulled=false;
   for(const node of[group,solid,edgeGlow,edges,thinEdges]){node.userData.neonSkip=true;node.userData.flightFireIgnore=true;node.userData.worldCityBuildings=true;}
   delete edgeGlow.userData.neonEdge;delete edges.userData.neonEdge;
-  // The green neon outline is the world look: three shared draw calls for the whole city.
-  edgeGlow.visible=false;edges.visible=thinEdges.visible=true;
+  // No outlines in the hero-stylized look (and no line draw calls).
+  edgeGlow.visible=edges.visible=thinEdges.visible=false;
   group.add(solid,edgeGlow,edges,thinEdges);scene.add(group);sceneRef=scene;currentHash="";
 }
 
@@ -152,7 +152,7 @@ function* buildSteps(footprints,center){
   // height above the building base, building height); u<0 marks roof (-1)
   // and cornice trim (-2). ws = per-building seed for style variation.
   let W=[-1,0,0,0],S=0,FL=3.3,E=0;
-  const worldZ=z=>z+E;const push=(x,y,z,k)=>{pos.push(x,y,worldZ(z));col.push(k.r,k.g,k.b);wa.push(W[0],W[1],W[2],W[3]);ws.push(S);wf.push(FL);};
+  const push=(x,y,z,k)=>{pos.push(x,y,z+E);col.push(k.r,k.g,k.b);wa.push(W[0],W[1],W[2],W[3]);ws.push(S);wf.push(FL);};
   let i=0;
   for(const fp of footprints){
     const d=buildingDamage(fp.key),base=Number(fp.base)||0,fullTop=Math.max(base+.5,Number(fp.top)||8),top=d?Math.max(base+.3,Math.min(fullTop,d.top)):fullTop,h=hash(fp.key);
@@ -179,8 +179,8 @@ function* buildSteps(footprints,center){
         // Cartoon outline: roof edge + real corners (thin native lines, cheap).
         // Neon outline: roof edge + real corners; glowing fat lines near,
         // cheap 1 px lines further out.
-        const zTop=worldZ(top),zBase=worldZ(base);if(near){lines.push(a.x,a.y,zTop,b.x,b.y,zTop);const p=ring[(k+ring.length-1)%ring.length],ex=a.x-p.x,ey=a.y-p.y,el=Math.hypot(ex,ey)||1;if(Math.abs((ex*dx+ey*dy)/(el*len))<.94)lines.push(a.x,a.y,zBase,a.x,a.y,zTop);}
-        else if(mid)thin.push(a.x,a.y,zTop,b.x,b.y,zTop);}
+        if(false&&near){lines.push(a.x,a.y,top,b.x,b.y,top);const p=ring[(k+ring.length-1)%ring.length],ex=a.x-p.x,ey=a.y-p.y,el=Math.hypot(ex,ey)||1;if(Math.abs((ex*dx+ey*dy)/(el*len))<.94)lines.push(a.x,a.y,base,a.x,a.y,top);}
+        else if(false&&mid)thin.push(a.x,a.y,top,b.x,b.y,top);}
     }
     range.p1=pos.length/3;range.l1=lines.length/6;range.t1=thin.length/3;ranges.push(range);
     if(++i%40===0)yield;
@@ -207,8 +207,8 @@ function markDirty(attr,from,count){if(!attr)return;attr.needsUpdate=true;}
 function clampRange(r,newTop){
   const sp=solidAttr(r),eb=edgeBuffer(),tp=thinAttr();r.top=Math.min(r.top,newTop);
   if(sp&&r.solidZ){for(let i=r.p0;i<r.p1;i++){const z=Math.min(r.solidZ[i-r.p0],newTop+(r.elev||0));sp.setZ(i,z);}markDirty(sp);}
-  if(eb&&r.edgeZ){const a=eb.array;for(let k=r.l0;k<r.l1;k++){a[k*6+2]=Math.min(r.edgeZ[(k-r.l0)*2],newTop+(r.elev||0));a[k*6+5]=Math.min(r.edgeZ[(k-r.l0)*2+1],newTop+(r.elev||0));}eb.needsUpdate=true;}
-  if(tp&&r.thinZ){for(let i=r.t0;i<r.t1;i++)tp.setZ(i,Math.min(r.thinZ[i-r.t0],newTop+(r.elev||0)));markDirty(tp);}
+  if(eb&&r.edgeZ){const a=eb.array;for(let k=r.l0;k<r.l1;k++){a[k*6+2]=Math.min(r.edgeZ[(k-r.l0)*2],newTop);a[k*6+5]=Math.min(r.edgeZ[(k-r.l0)*2+1],newTop);}eb.needsUpdate=true;}
+  if(tp&&r.thinZ){for(let i=r.t0;i<r.t1;i++)tp.setZ(i,Math.min(r.thinZ[i-r.t0],newTop));markDirty(tp);}
 }
 function swayRange(r,ox,oy){
   const sp=solidAttr(r),eb=edgeBuffer(),h=Math.max(1,r.fullTop-r.base);
@@ -216,7 +216,7 @@ function swayRange(r,ox,oy){
   if(sp&&r.solidX===undefined){r.solidX=Float32Array.from({length:r.p1-r.p0},(_,i)=>sp.getX(r.p0+i));r.solidY=Float32Array.from({length:r.p1-r.p0},(_,i)=>sp.getY(r.p0+i));}
   if(eb&&r.edgeXY===undefined){const a=eb.array;r.edgeXY=Float32Array.from({length:(r.l1-r.l0)*4},(_,i)=>{const k=r.l0+(i>>2),j=i&3;return a[k*6+(j<2?j:j+1)];});}
   if(sp)for(let i=r.p0;i<r.p1;i++){const w=Math.max(0,(sp.getZ(i)-r.base-(r.elev||0))/h)**1.3;sp.setX(i,r.solidX[i-r.p0]+ox*w);sp.setY(i,r.solidY[i-r.p0]+oy*w);}
-  if(eb){const a=eb.array;for(let k=r.l0;k<r.l1;k++){const o=(k-r.l0)*4,w0=Math.max(0,(a[k*6+2]-r.base-(r.elev||0))/h)**1.3,w1=Math.max(0,(a[k*6+5]-r.base-(r.elev||0))/h)**1.3;a[k*6]=r.edgeXY[o]+ox*w0;a[k*6+1]=r.edgeXY[o+1]+oy*w0;a[k*6+3]=r.edgeXY[o+2]+ox*w1;a[k*6+4]=r.edgeXY[o+3]+oy*w1;}}
+  if(eb){const a=eb.array;for(let k=r.l0;k<r.l1;k++){const o=(k-r.l0)*4,w0=Math.max(0,(a[k*6+2]-r.base)/h)**1.3,w1=Math.max(0,(a[k*6+5]-r.base)/h)**1.3;a[k*6]=r.edgeXY[o]+ox*w0;a[k*6+1]=r.edgeXY[o+1]+oy*w0;a[k*6+3]=r.edgeXY[o+2]+ox*w1;a[k*6+4]=r.edgeXY[o+3]+oy*w1;}}
 }
 function stepSways(now){
   if(!sways.length)return;const eb=edgeBuffer();
@@ -248,7 +248,7 @@ function pumpBuild(){
   const outline=fatLineGeometry(lines.length?lines:[0,0,0,0,0,0]);edges.geometry.dispose?.();edges.geometry=outline;if(edgeGlow)edgeGlow.geometry=outline;
   const far=new THREE.BufferGeometry();far.setAttribute("position",new THREE.Float32BufferAttribute(thin,3));thinEdges.geometry.dispose();thinEdges.geometry=far;
   installRanges(ranges);
-  currentHash=building.key;setData("worldCityBuildings",building.count);setData("worldCityBuildingsVersion",CITY_BUILDINGS_VERSION);setData("worldCityLook","structured-dark-solids+registered-1.45px-green-v5");building=null;
+  currentHash=building.key;setData("worldCityBuildings",building.count);setData("worldCityBuildingsVersion",CITY_BUILDINGS_VERSION);setData("worldCityLook","hero-stylized-facades-v1");building=null;
 }
 
 // The map can hold the same building from several tile zoom levels (slightly

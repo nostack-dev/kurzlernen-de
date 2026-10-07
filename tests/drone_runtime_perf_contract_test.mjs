@@ -44,12 +44,11 @@ const cull=style.slice(style.indexOf("function cullActors"),style.indexOf("let b
 assert.ok(!cull.includes("scene.traverse"),"actor culling must not traverse the full scene");
 assert.ok(style.includes("SCAN_INTERVAL_MS=MOBILE?900:650"),"style discovery scans must be throttled");
 const styleFrame=style.slice(style.indexOf("function frame(now)"),style.indexOf("globalThis.__arondightNeonStyle"));
-assert.ok(!styleFrame.includes("scene.traverse")&&!styleFrame.includes("killLights(scene"),"neon render hot path must never synchronously traverse the scene or rediscover lights");
-assert.ok(style.includes("renderer.shadowMap.enabled=false"),"neon renderer must not pay for invisible shadow maps");
+assert.ok(!styleFrame.includes("scene.traverse")&&!styleFrame.includes("killLights(scene"),"render hot path must never synchronously traverse the scene or rediscover lights");
+assert.ok(style.includes("renderer.shadowMap.autoUpdate=false")&&style.includes("renderer.shadowMap.needsUpdate=true"),"realistic look: shadow maps are refreshed on a schedule, never every frame");
+assert.ok(style.includes("function updateDayNight(now,scene,renderer)")&&style.includes("DAY_S=300,NIGHT_S=180"),"short day/night cycle must drive sun, moon, sky and fog");
 assert.ok(!style.includes("b.addPreRenderHook((scene,camera)=>{if(!scene)return;wireBackdrop")&&!style.includes("wireScene(scene);});"),"neon look must never force every mesh into global wireframe during pre-render");
-assert.ok(style.includes("if(node.userData.wireOriginalMaterial){node.material=node.userData.wireOriginalMaterial"),"hot reload must restore materials from the old wireframe override");
-assert.ok(style.includes("if(bridge()?.active){grid.visible=false;return;}")&&style.includes("groundHeightAt(x,y)")&&style.includes("GRID_LIFT_M=.2"),"real WORLD must use the deformed terrain grid, never a second flat helper grid");
-assert.ok(style.includes("FogExp2(STYLE_PALETTE.haze,.00016)"),"green neon world must keep depth fog subtle instead of becoming a dark veil");
+assert.ok(style.includes("FogExp2(STYLE_PALETTE.haze,FOG_DENSITY)"),"world keeps one subtle exponential depth fog");
 
 const neonUi=files["sim/neon_ui_theme.mjs"];
 assert.ok(neonUi.includes("MutationObserver")&&neonUi.includes("scheduleLabelFit"),"UI label sizing must be event-driven");
@@ -133,8 +132,8 @@ assert.ok(police.includes("BUILDING_GRID_CELL_M=32")&&police.includes("linePrism
 
 const city=files["sim/world_city_buildings.mjs"];
 assert.ok(city.includes("now-lastSyncCheck<200"),"city rebuild discovery must not poll map/player state every render frame");
-assert.ok(city.includes("dark-depth+selective-green-neon-v4")&&city.includes("new THREE.MeshBasicMaterial({color:0x061d14"),"city must keep dark readable textureless solids under the neon edges");
-assert.ok(city.includes("edgeGlow.visible=edges.visible=thinEdges.visible=true")&&city.includes("fatLineMaterial(0x39ff14")&&city.includes("width:5.2,opacity:.11"),"green neon city outlines must remain enabled without overexposing the scene");
+assert.ok(city.includes("realFacades(new THREE.MeshStandardMaterial("),"city buildings are physically lit facades");
+assert.ok(city.includes("edgeGlow.visible=edges.visible=thinEdges.visible=false"),"no outline draw calls in the realistic look");
 
 const cameraGuard=files["sim/camera_collision_guard.mjs"];
 assert.ok(cameraGuard.includes("lastTelemetry=-Infinity"),"camera collision telemetry throttle must declare its state");
@@ -150,10 +149,9 @@ assert.ok(simulator.includes('if(gameMenu&&!gameMenu.hidden){lastPresentationDra
 
 const terrain=files["sim/terrain_craters.mjs"],ground=files["sim/world_ground.mjs"];
 assert.ok(terrain.includes("terrainCellCache")&&terrain.includes("terrainNodeHeightAt"),"terrain hot queries must share cached physical grid nodes");
-assert.ok(ground.includes("function applyHeights()")&&ground.includes("groundHeightAt(")&&ground.includes("idx.push(a,b,d,a,d,c)"),"visible ground vertices must use the exact Box3D collision surface and diagonal");
-assert.ok(ground.includes('WORLD_GROUND_VERSION="mesh-is-collision-v1"')&&ground.includes('worldGroundTexture="none"'),"WORLD ground must be textureless neon");
-assert.ok(!ground.includes("MapServer/tile")&&!ground.includes("sampleColors("),"WORLD ground must not fetch/process satellite imagery");
-assert.ok(ground.includes("vGroundWorld")&&ground.includes("diffuseColor.rgb=mix(base,neon,line)"),"neon grid must be generated on the deformed terrain mesh itself");
+assert.ok(ground.includes("function applyHeights(regions=null)")&&ground.includes("terrainNodeHeightAt(Math.round(x/5)*5,Math.round(y/5)*5)")&&ground.includes("idx.push(a,b,d,a,d,c)"),"visible ground vertices must be the exact Box3D collision nodes and diagonal");
+assert.ok(ground.includes('WORLD_GROUND_VERSION="satellite-albedo-ground-v3-mesh-is-collision"'),"WORLD ground: satellite albedo on the collision mesh");
+assert.ok(ground.includes("await yieldMain()"),"satellite albedo sampling must be time-sliced");
 
 const action=files["sim/world_action_feedback.mjs"];
 const actionScan=action.slice(action.indexOf("function releaseShootableWorldDecor"),action.indexOf("function acknowledgeSceneHit"));

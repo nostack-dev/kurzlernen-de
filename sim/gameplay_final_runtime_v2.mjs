@@ -120,9 +120,11 @@ function attachFlash(flash,node,scale=1){
 }
 function patchWeaponVisual(){
   const scene=bridge()?.threeScene;if(!scene)return;const gun=cachedWeaponGun?.parent?cachedWeaponGun:scene.getObjectByName?.("WALK_PISTOL_3D");if(!gun)return;cachedWeaponGun=gun;const legacy=gun.getObjectByName?.("WALK_MUZZLE_FLASH");
-  if(legacy){legacy.visible=false;legacy.traverse?.(n=>{if(n.isMesh&&n.material){n.material.depthTest=true;n.material.depthWrite=false;n.material.needsUpdate=true;}if(n.isMesh)n.renderOrder=9997;});}
+  if(legacy){legacy.parent?.remove(legacy);legacy.visible=false;legacy.traverse?.(n=>{if(n.isMesh&&n.material){n.material.depthTest=true;n.material.depthWrite=false;n.material.needsUpdate=true;}if(n.isMesh)n.renderOrder=9997;});}
   let custom=gun.getObjectByName?.("FINAL_MUZZLE_FLASH");if(!custom){custom=makeMuzzleFlash("FINAL_MUZZLE_FLASH");gun.add(custom);}cachedMuzzleFlash=custom;
-  let leftFlash=gun.getObjectByName?.("FINAL_MUZZLE_FLASH_LEFT");if(!leftFlash){leftFlash=makeMuzzleFlash("FINAL_MUZZLE_FLASH_LEFT");gun.add(leftFlash);}cachedMuzzleFlashLeft=leftFlash;
+  // the left flash lives on the scene-level left pistol: keep the one instance (re-creating it
+  // every housekeeping tick left orphaned, still-visible flashes hanging at the gun)
+  let leftFlash=cachedMuzzleFlashLeft||scene.getObjectByName?.("FINAL_MUZZLE_FLASH_LEFT");if(!leftFlash){leftFlash=makeMuzzleFlash("FINAL_MUZZLE_FLASH_LEFT");gun.add(leftFlash);}cachedMuzzleFlashLeft=leftFlash;
   let smg=gun.getObjectByName?.("FINAL_SMG_CONVERSION");
   if(!smg){smg=new THREE.Group();smg.name="FINAL_SMG_CONVERSION";const metal=new THREE.MeshStandardMaterial({color:0x222a30,roughness:.38,metalness:.62,depthTest:true,depthWrite:true}),dark=new THREE.MeshStandardMaterial({color:0x101418,roughness:.72,metalness:.15,depthTest:true,depthWrite:true});const add=(geo,mat,pos,rot=[0,0,0])=>{const m=new THREE.Mesh(geo,mat);m.position.set(...pos);m.rotation.set(...rot);m.renderOrder=10000;m.userData.flightFireIgnore=true;m.userData.walkWeaponPart=true;smg.add(m);};add(new THREE.BoxGeometry(.095,.085,.30),metal,[0,.002,-.31]);add(new THREE.CylinderGeometry(.014,.014,.26,10),dark,[0,.005,-.53],[Math.PI/2,0,0]);add(new THREE.BoxGeometry(.055,.18,.08),dark,[0,-.115,-.22],[.28,0,0]);add(new THREE.BoxGeometry(.06,.05,.20),dark,[0,-.015,-.06]);gun.add(smg);}
   smg.visible=footWeapon==="smg";
@@ -138,7 +140,7 @@ function flashWeapon(duration=34,hand=0){
   flash.rotation.z=Math.random()*Math.PI*2;const k=.82+Math.random()*.42;flash.userData.flashScale=k;const seed=Math.random()*40;flash.traverse?.(n=>{if(n.material?.uniforms?.uSeed)n.material.uniforms.uSeed.value=seed;});resetFlashOpacity(flash);
 }
 function updateOneFlash(flash,now){
-  if(!flash?.parent)return;const started=Number(flash.userData.flashStartedAt)||-Infinity,until=Number(flash.userData.flashUntil)||-Infinity,visible=isFoot()&&now<until;flash.visible=visible;if(!visible)return;
+  if(!flash)return;if(!flash.parent){flash.visible=false;return;}const started=Number(flash.userData.flashStartedAt)||-Infinity,until=Number(flash.userData.flashUntil)||-Infinity,visible=isFoot()&&now<until;flash.visible=visible;if(!visible)return;
   const t=clamp((now-started)/Math.max(1,until-started),0,1),fade=(1-t)**1.6,grow=1+.35*t;flash.traverse?.(node=>{if(!node?.material||!Number.isFinite(node.userData?.flashBaseOpacity))return;if(node.material.uniforms?.uFade)node.material.uniforms.uFade.value=fade;else node.material.opacity=node.userData.flashBaseOpacity*fade;});const sc=(Number(flash.userData.flashScale)||1)*(Number(flash.userData.flashBase)||1)*grow;flash.scale.setScalar(sc);
 }
 function updateFlash(){const now=performance.now();updateOneFlash(cachedMuzzleFlash,now);updateOneFlash(cachedMuzzleFlashLeft,now);}

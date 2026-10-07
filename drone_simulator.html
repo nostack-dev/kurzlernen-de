@@ -21,19 +21,19 @@
 :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:#010806;color:#b6ffcf}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#010806}.viewport{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}.panel{position:fixed;z-index:5;top:12px;left:12px;width:360px;max-height:calc(100vh - 24px);overflow:auto;background:#09101bea;border:1px solid #273044;border-radius:14px;padding:14px;backdrop-filter:blur(12px);box-shadow:0 12px 36px #0009}.telemetry{position:fixed;z-index:5;right:12px;top:12px;width:292px;background:#09101bdf;border:1px solid #273044;border-radius:12px;padding:12px;backdrop-filter:blur(10px)}h1{font-size:18px;margin:0 0 4px}.sub{font-size:12px;color:#96a6bd;line-height:1.45;margin:0 0 12px}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}.tabs button.active{background:#175f49;border-color:#38a985}.row{display:flex;gap:8px;margin:8px 0}.row>*{flex:1}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.card{border:1px solid #263148;border-radius:9px;padding:10px;margin:10px 0}.card h2{font-size:12px;margin:0 0 8px;color:#cbd7e8}.help{font-size:11px;color:#8f9fb6;line-height:1.5}.kv{display:grid;grid-template-columns:1fr auto;gap:5px 10px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}.good{color:#5bd9aa!important;border-color:#2d8266!important}.warn{color:#ffd06d!important;border-color:#836b34!important}.bad{color:#ff7185!important;border-color:#8b3443!important}button,input,select,textarea{font:inherit}button,.linkbutton{border:1px solid #3a4964;border-radius:7px;background:#182235;color:#eef4ff;padding:8px;cursor:pointer;text-align:center;text-decoration:none}button:hover,.linkbutton:hover{background:#22304a}button:disabled{opacity:.42;cursor:not-allowed}.primary{background:#175f49;border-color:#2e9b77}label{font-size:11px;color:#aab6c8;display:block}input[type=number],input[type=text],input[type=range],select,textarea{width:100%;background:#0d1420;color:#fff;border:1px solid #303a4e;border-radius:6px;padding:6px}.modebox{padding:8px;border-radius:8px;background:#0c1522;border:1px solid #243149;font-size:12px;line-height:1.45}.mobile-controls{display:none!important}.statusline{font-size:11px;color:#9db0c9;margin-top:6px}.progress{height:7px;background:#111b29;border-radius:999px;overflow:hidden}.progress>div{height:100%;width:0;background:#4fbf92}.remote-card{border-color:#315d73}.remote-card .row{align-items:end}dialog{width:min(94vw,760px);max-height:94vh;overflow:auto;border:1px solid #35435d;border-radius:14px;background:#09101b;color:#eef4ff;padding:16px;box-shadow:0 24px 80px #000c}dialog::backdrop{background:#000c;backdrop-filter:blur(5px)}dialog h2{font-size:18px;margin:0 0 6px}dialog p{font-size:12px;color:#9bacbf;line-height:1.45}.signal{width:100%;min-height:70px;resize:vertical;font:9px ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}.pair-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.pair-step{border:1px solid #263148;border-radius:10px;padding:10px;background:#0d1522;min-width:0}.pair-step b{display:block;margin-bottom:6px}.scanner{position:relative;width:min(100%,340px);aspect-ratio:1;margin:8px auto;border-radius:10px;overflow:hidden;background:#030609;border:1px solid #30405a}.scanner video{width:100%;height:100%;object-fit:cover}.scanner:after{content:"SCAN CONTROLLER OFFER";position:absolute;left:9%;right:9%;top:44%;padding:7px;text-align:center;border:1px solid #fff8;border-radius:8px;background:#0008;font-size:11px;letter-spacing:.08em}.qr{display:block;width:min(100%,340px);aspect-ratio:1;margin:8px auto;background:#fff;border-radius:10px;padding:8px;image-rendering:pixelated}.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}details{margin-top:12px;border-top:1px solid #263148;padding-top:10px}summary{cursor:pointer;color:#8294ad;font-size:11px}@media(max-width:900px){html,body{height:auto;min-height:100%;overflow-x:hidden;overflow-y:auto}.viewport{position:relative;height:48vh;min-height:320px;max-height:520px;inset:auto}.panel,.telemetry{position:relative;inset:auto;width:auto;max-height:none;margin:10px 12px}.telemetry{margin-bottom:max(18px,env(safe-area-inset-bottom))}.desktop-help{display:none}.grid{grid-template-columns:1fr 1fr}.panel{order:1}.telemetry{order:2}body{display:flex;flex-direction:column}.viewport{order:0}.tabs button{padding:10px 4px}.row{flex-wrap:wrap}.kv{font-size:11px}.pair-grid{grid-template-columns:1fr 1fr}}@media(max-height:500px){dialog{padding:10px}.qr,.scanner{width:min(28vh,250px)}}
 
 /* ---- Game start menu (shown instantly, before the game bundle loads) ---- */
-#gameMenu{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:#010806;color:#d8ffe8;font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+#gameMenu{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:#0b0d10;color:#eef0f2;font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 #gameMenu[hidden]{display:none!important}
 #gameMenu{transition:opacity .6s ease}#gameMenu.gm-leaving{opacity:0;pointer-events:none}
 #gameMenuBg{position:absolute;inset:0;width:100%;height:100%;display:block}
 #gameMenu .gm-center{position:relative;display:flex;flex-direction:column;align-items:center;gap:clamp(10px,2.4vh,22px);padding:24px;text-align:center}
-#gameMenu .gm-title{position:relative;font-family:"Inter",system-ui,-apple-system,sans-serif;font-weight:900;font-style:normal;font-size:clamp(56px,12vw,140px);letter-spacing:-.01em;line-height:1;color:#3dff8a;text-transform:uppercase;text-shadow:0 0 18px rgba(0,255,140,.85),0 0 42px rgba(0,255,120,.35);padding:0 .08em .16em}
-#gameMenu .gm-title::after{content:none}
-#gameMenu .gm-sub{font-weight:600;font-size:clamp(11px,1.6vw,15px);letter-spacing:.42em;color:rgba(120,255,170,.78);text-shadow:0 0 8px rgba(61,255,138,.45)}
-#gameMenuStart{margin-top:clamp(6px,2vh,18px);min-width:min(64vw,300px);padding:15px 28px;font:700 clamp(17px,2.4vw,22px) "Inter",system-ui,-apple-system,sans-serif;letter-spacing:.32em;text-transform:uppercase;color:#7dffb0;background:rgba(0,12,6,.55);border:1.5px solid #3dff8a;border-radius:16px;box-shadow:0 0 16px rgba(61,255,138,.45),inset 0 0 12px rgba(61,255,138,.12);text-shadow:0 0 8px rgba(61,255,138,.6);cursor:pointer}
+#gameMenu .gm-title{position:relative;font-family:"Inter",system-ui,-apple-system,sans-serif;font-weight:900;font-style:italic;font-size:clamp(56px,12vw,140px);letter-spacing:.02em;line-height:1;color:#f4f5f6;text-transform:uppercase;text-shadow:0 3px 0 rgba(0,0,0,.55),0 10px 30px rgba(0,0,0,.6);padding:0 .08em .16em}
+#gameMenu .gm-title::after{content:"";position:absolute;left:4%;right:4%;bottom:.02em;height:.09em;background:linear-gradient(90deg,transparent,#ff7a1a 18%,#ffb02e 60%,transparent);transform:skewX(-24deg);box-shadow:0 0 18px rgba(255,122,26,.55)}
+#gameMenu .gm-sub{font-weight:700;font-size:clamp(11px,1.6vw,15px);letter-spacing:.42em;color:rgba(238,240,242,.78);text-shadow:0 2px 4px rgba(0,0,0,.7)}
+#gameMenuStart{margin-top:clamp(6px,2vh,18px);min-width:min(64vw,300px);padding:15px 28px;font:700 clamp(17px,2.4vw,22px) "Inter",system-ui,-apple-system,sans-serif;letter-spacing:.32em;text-transform:uppercase;color:#16120c;background:linear-gradient(180deg,#ffb02e,#ff7a1a);border:0;border-radius:4px;box-shadow:0 6px 18px rgba(0,0,0,.55),inset 0 -3px 0 rgba(0,0,0,.18);text-shadow:none;cursor:pointer;clip-path:polygon(4% 0,100% 0,96% 100%,0 100%)}
 #gameMenuStart:not([disabled]){animation:none}
 #gameMenuStart:active{filter:brightness(.92)}
 #gameMenuStart[disabled]{opacity:.7;cursor:default;animation:none;filter:saturate(.4)}
-#gameMenuStatus{min-height:1.2em;font-size:11px;font-weight:600;letter-spacing:.3em;color:rgba(120,255,170,.62);text-shadow:0 0 6px rgba(61,255,138,.35)}
+#gameMenuStatus{min-height:1.2em;font-size:11px;font-weight:700;letter-spacing:.3em;color:rgba(238,240,242,.62);text-shadow:0 1px 3px rgba(0,0,0,.7)}
 @keyframes gmPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
 #soundSwitch{position:fixed;z-index:100001;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));width:40px;height:32px;display:flex;align-items:center;justify-content:center;padding:0;background:rgba(10,13,18,.56);border:1px solid rgba(255,255,255,.16);border-radius:6px;color:#fff;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.45)}
 #soundSwitch svg{width:20px;height:20px;display:block}
@@ -56,7 +56,7 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   <canvas id="gameMenuBg" aria-hidden="true"></canvas>
   <div class="gm-center">
     <div class="gm-title">RUSH</div>
-    <div class="gm-sub">DRONE · CITY · NUKE</div>
+    <div class="gm-sub">DRONE · CITY · ZOMBIES</div>
     <button id="gameMenuStart" type="button" disabled>LOADING</button>
     <div id="gameMenuStatus">PREPARING WORLD</div>
   </div>
@@ -187,7 +187,7 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   var c=document.getElementById("gameMenuBg"),menu=document.getElementById("gameMenu"),DPR=Math.min(1.5,window.devicePixelRatio||1);
   function FLY(g,canvasRef,DPR,RAF){var W=0,H=0,HIDDEN=false,NEED_SIZE=true,GLOW=false,blocks=[],last=performance.now();
   function size(){W=canvasRef.w;H=canvasRef.h;canvasRef.c.width=Math.max(1,Math.round(W*DPR));canvasRef.c.height=Math.max(1,Math.round(H*DPR));g.setTransform(DPR,0,0,DPR,0,0);NEED_SIZE=false;}
-  var STREET=10,FAR=520,GRID=16,BG="#010806",LINE="#3dff8a";
+  var STREET=10,FAR=520,GRID=16,BG="#0c0f13",LINE="rgba(255,190,120,.10)";
   var cam={x:0,y:12,z:0,yaw:0,roll:0,pitch:0};
   function rnd(a,b){return a+Math.random()*(b-a);}
   function shapeBlock(b,z){b.z0=z;b.z1=z+rnd(14,34);b.depth=rnd(12,22);b.h=Math.random()<.2?rnd(40,78):rnd(14,30);b.floors=Math.random()<.5;return b;}
@@ -197,7 +197,7 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   // world (x right, y up, z forward) -> screen
   function P(x,y,z,f){var dx=x-cam.x,dz=z-cam.z,rx=dx*cy-dz*sy,rz=dx*sy+dz*cy;if(rz<1.2)return null;return[W/2+rx/rz*f,H*(.55+cam.pitch)-(y-cam.y)/rz*f];}
   function path(p){for(var i=0;i<p.length;i++)if(!p[i])return false;g.beginPath();g.moveTo(p[0][0],p[0][1]);for(var k=1;k<p.length;k++)g.lineTo(p[k][0],p[k][1]);g.closePath();return true;}
-  function face(p){if(!path(p))return false;g.fillStyle=BG;g.fill();if(GLOW){var lw=g.lineWidth,ss=g.strokeStyle;g.lineWidth=lw*4;g.strokeStyle="rgba(61,255,138,.16)";g.stroke();g.lineWidth=lw;g.strokeStyle=ss;}g.stroke();return true;}
+  function face(p,fill){if(!path(p))return false;g.fillStyle=fill||BG;g.fill();g.stroke();return true;}
   function seg(a,b){if(!a||!b)return;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();}
   function frame(now){
     if(HIDDEN){RAF(frame);last=now;return;}
@@ -207,27 +207,40 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
     // recycle what is behind the camera to the far end (world stays put)
     for(var k=0;k<blocks.length;k++){var b=blocks[k];if(b.z1<cam.z-8){var far=-1e9;for(var m=0;m<blocks.length;m++)if(blocks[m].side===b.side)far=Math.max(far,blocks[m].z1);shapeBlock(b,far+rnd(2,7));}}
     var f=H*.95,hz=H*(.55+cam.pitch);g.setTransform(DPR,0,0,DPR,0,0);
-    g.fillStyle=BG;g.fillRect(0,0,W,H);
-    var glow=g.createLinearGradient(0,hz-H*.12,0,hz+2);glow.addColorStop(0,"rgba(61,255,138,0)");glow.addColorStop(1,"rgba(61,255,138,.16)");g.fillStyle=glow;g.fillRect(0,hz-H*.12,W,H*.12+2);
+    // dusk sky: deep blue zenith -> burning orange horizon, sun glow at the vanishing point
+    var sk=g.createLinearGradient(0,0,0,hz+2);sk.addColorStop(0,"#0b1322");sk.addColorStop(.55,"#33303a");sk.addColorStop(.86,"#a4532a");sk.addColorStop(1,"#e88a3c");g.fillStyle=sk;g.fillRect(0,0,W,hz+2);
+    var sg=g.createRadialGradient(W/2,hz,0,W/2,hz,H*.7);sg.addColorStop(0,"rgba(255,190,110,.55)");sg.addColorStop(.25,"rgba(255,140,60,.18)");sg.addColorStop(1,"rgba(255,120,40,0)");g.fillStyle=sg;g.fillRect(0,0,W,hz+2);
+    var gr=g.createLinearGradient(0,hz,0,H);gr.addColorStop(0,"#4a3428");gr.addColorStop(.18,"#1d1a19");gr.addColorStop(1,"#0d0e10");g.fillStyle=gr;g.fillRect(0,hz,W,H-hz);
     g.translate(W/2,hz);g.rotate(cam.roll);g.translate(-W/2,-hz);
     g.lineJoin="round";
-    // ground grid
-    var zn=cam.z+1.5,zf=cam.z+FAR,gx0=Math.floor((cam.x-260)/GRID)*GRID;
-    g.strokeStyle="rgba(61,255,138,.32)";g.lineWidth=1;
-    for(var gx=gx0;gx<=cam.x+260;gx+=GRID)seg(P(gx,0,zn,f),P(gx,0,zf,f));
-    for(var gz=Math.ceil(zn/GRID)*GRID;gz<zf;gz+=GRID){g.globalAlpha=Math.max(.15,1-(gz-cam.z)/FAR);seg(P(-260+cam.x,0,gz,f),P(260+cam.x,0,gz,f));}
-    g.globalAlpha=1;g.strokeStyle="rgba(61,255,138,.7)";seg(P(-STREET,0,zn,f),P(-STREET,0,zf,f));seg(P(STREET,0,zn,f),P(STREET,0,zf,f));
-    // buildings: far to near, black faces with green edges
+    var zn=cam.z+1.5,zf=cam.z+FAR;
+    // road: lane dashes and kerbs (world-fixed, so they stream past)
+    g.strokeStyle="rgba(235,225,200,.55)";g.lineWidth=1.4;
+    for(var dz=Math.ceil(zn/12)*12;dz<zf;dz+=12){g.globalAlpha=Math.max(.05,1-(dz-cam.z)/260);seg(P(0,0,dz,f),P(0,0,dz+5,f));}
+    g.globalAlpha=1;g.strokeStyle="rgba(160,150,140,.45)";seg(P(-STREET+1.5,0,zn,f),P(-STREET+1.5,0,zf,f));seg(P(STREET-1.5,0,zn,f),P(STREET-1.5,0,zf,f));
+    function fogged(r,gg,bb,d){var k=Math.min(1,Math.max(0,(d-30)/420));return"rgb("+Math.round(r+(170-r)*k*.75)+","+Math.round(gg+(95-gg)*k*.75)+","+Math.round(bb+(60-bb)*k*.75)+")";}
+    function hash(a,b,c){var x=Math.sin(a*127.1+b*311.7+c*74.7)*43758.5453;return x-Math.floor(x);}
+    // buildings: far to near, dark concrete with lit windows
     var list=blocks.filter(function(b){return b.z1>cam.z+1.5&&b.z0<cam.z+FAR;}).sort(function(a,b){return b.z0-a.z0;});
-    g.strokeStyle=LINE;g.lineWidth=1.3;GLOW=true;
-    for(var i=0;i<list.length;i++){var b=list[i],x=b.side*STREET,xb=b.side*(STREET+b.depth),z0=Math.max(b.z0,cam.z+1.6),z1=b.z1;
-      g.globalAlpha=Math.max(.25,Math.min(1,1-(b.z0-cam.z-120)/520));
-      face([P(x,0,z0,f),P(xb,0,z0,f),P(xb,b.h,z0,f),P(x,b.h,z0,f)]);
+    g.lineWidth=1;
+    for(var i=0;i<list.length;i++){var b=list[i],x=b.side*STREET,xb=b.side*(STREET+b.depth),z0=Math.max(b.z0,cam.z+1.6),z1=b.z1,dist=b.z0-cam.z;
+      if(!b.seed)b.seed=Math.random()*1000;
+      g.strokeStyle="rgba(0,0,0,.55)";
+      face([P(x,0,z0,f),P(xb,0,z0,f),P(xb,b.h,z0,f),P(x,b.h,z0,f)],fogged(30,30,34,dist));
       var fac=[P(x,0,z0,f),P(x,0,z1,f),P(x,b.h,z1,f),P(x,b.h,z0,f)];
-      if(face(fac)){
+      if(face(fac,fogged(44,42,44,dist))){
         var near=fac[0]&&fac[1]?Math.abs(fac[0][0]-fac[1][0]):0;
-        if(b.floors&&near>30){g.save();g.globalAlpha*=.45;for(var yy=6;yy<b.h-1;yy+=6)seg(P(x,yy,z0,f),P(x,yy,z1,f));g.restore();}
-        if(cam.y>b.h)face([P(x,b.h,z0,f),P(x,b.h,z1,f),P(xb,b.h,z1,f),P(xb,b.h,z0,f)]);}}
+        if(near>16){var cols=Math.floor((b.z1-b.z0)/3.4),rows=Math.floor(b.h/3.3);
+          for(var r=0;r<rows;r++)for(var q=0;q<cols;q++){var lit=hash(b.seed,r,q);if(lit<.6)continue;var wz=b.z0+1+q*3.4;if(wz<z0||wz+1.6>z1)continue;var wy=2+r*3.3;
+            var A=P(x,wy,wz,f),B=P(x,wy,wz+1.5,f),C=P(x,wy+1.6,wz+1.5,f),D=P(x,wy+1.6,wz,f);if(!A||!B||!C||!D)continue;
+            g.beginPath();g.moveTo(A[0],A[1]);g.lineTo(B[0],B[1]);g.lineTo(C[0],C[1]);g.lineTo(D[0],D[1]);g.closePath();
+            g.fillStyle=lit>.93?"rgba(255,214,150,.95)":lit>.8?"rgba(255,180,100,.75)":"rgba(150,170,190,.35)";g.fill();}}
+        if(cam.y>b.h)face([P(x,b.h,z0,f),P(x,b.h,z1,f),P(xb,b.h,z1,f),P(xb,b.h,z0,f)],fogged(26,26,28,dist));}}
+    // sodium street lamps
+    for(var lz=Math.ceil(zn/26)*26;lz<zf;lz+=26)for(var sd=-1;sd<=1;sd+=2){var L=P(sd*(STREET-1),7,lz,f),Lb=P(sd*(STREET-1),0,lz,f);if(!L||!Lb)continue;var dd=lz-cam.z,rr=Math.max(1,30/Math.max(dd,1)*6);
+      g.globalAlpha=Math.max(.15,1-dd/420);g.strokeStyle="rgba(20,20,22,.9)";g.lineWidth=Math.max(1,rr*.25);seg(L,Lb);
+      var lg=g.createRadialGradient(L[0],L[1],0,L[0],L[1],rr*5);lg.addColorStop(0,"rgba(255,190,110,.95)");lg.addColorStop(.25,"rgba(255,150,60,.35)");lg.addColorStop(1,"rgba(255,140,50,0)");g.fillStyle=lg;g.fillRect(L[0]-rr*5,L[1]-rr*5,rr*10,rr*10);}
+    g.globalAlpha=1;
     GLOW=false;g.globalAlpha=1;
     g.setTransform(DPR,0,0,DPR,0,0);var vg=g.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,H*.95);vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(1,"rgba(0,0,0,.6)");g.fillStyle=vg;g.fillRect(0,0,W,H);RAF(frame);
   }
