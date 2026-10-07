@@ -31,7 +31,10 @@ const files=Object.fromEntries(await Promise.all([
   "sim/world_ground.mjs",
   "sim/nuke_destruction.mjs",
   "sim/world_action_feedback.mjs",
-  "sim/neon_ui_theme.mjs"
+  "sim/neon_ui_theme.mjs",
+  "sim/world_rigid_body_runtime.mjs",
+  "sim/world_rigid_body_physics.mjs",
+  "sim/world_vehicle_dynamics.mjs"
 ].map(async path=>[path,await readFile(path,"utf8")])));
 
 const style=files["sim/stylized_world_style.mjs"];
@@ -86,6 +89,10 @@ assert.ok(world.includes("trainingObjectClassified=new WeakSet()")&&world.includ
 assert.ok(!world.includes("this.frameVisibility=new Map()"),"real-world render path must not allocate/clear a visibility Map every frame");
 
 const population=files["sim/world_procedural_population.mjs"],spawnGuard=files["sim/spawn_visibility_guard.mjs"];
+const rigidRuntime=files["sim/world_rigid_body_runtime.mjs"],rigidPhysics=files["sim/world_rigid_body_physics.mjs"],vehicleDynamics=files["sim/world_vehicle_dynamics.mjs"];
+assert.ok(rigidRuntime.includes("function pose(id,out=null)")&&rigidPhysics.includes("pose(id,out=null)"),"traffic pose reads must support reusable buffers");
+assert.ok(vehicleDynamics.includes("wheelPoses(physics,record,out=null)")&&population.includes("pose?.(record.id,record.physicsPose)"),"wheel/chassis pose snapshots must not allocate every population tick");
+assert.ok(rigidRuntime.includes("let stored=pendingTargets.get(key)")&&rigidPhysics.includes("const target=record.target||(record.target="),"vehicle AI target state must be reused instead of cloned every tick");
 assert.ok(population.includes("spawnVisibilityRoots=[]")&&population.includes("__arondightProceduralPopulation"),"population must expose its existing roots instead of forcing scene rescans");
 assert.ok(population.includes("cachedRoutePoolTick")&&population.includes("cachedFocusTick"),"population must cache route ranking and player focus once per population tick");
 assert.ok(population.includes("animalMotion=[]")&&population.includes("Math.max(groundHeightAt(a.x,a.y)+.18,airborne)"),"animals must reuse motion parameters and cats must never pass below the shared terrain surface");
