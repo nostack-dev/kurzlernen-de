@@ -14,7 +14,7 @@ const RADIUS_M=720,REBUILD_MOVE_M=260,MAX_FEATURES=2200,SLICE_MS=4;
 const Z_AREA=.026,Z_SIDEWALK=.060,Z_ROAD=.082,Z_MARKING=.108;
 const WIDTH={motorway:14,trunk:12,primary:11,secondary:9,tertiary:8,minor:6.5,service:4.2,track:3,path:2.2,pedestrian:3.6,raceway:8,busway:7};
 const C={asphalt:0x3c3f44,asphaltMajor:0x34373c,sidewalk:0x86837c,line:0xe6e4dc,lineYellow:0xd6b54a,park:0x4f6e35,wood:0x3a5729,water:0x2f5f86,pitch:0x4f7a35,sand:0xc9b88f};
-const CHUNK_M=200;let material=null;
+const CHUNK_M=420;let material=null;
 let installed=false,mesh=null,sceneRef=null,center=[Infinity,Infinity],building=null,lastTry=-Infinity,builtCount=0;
 const bridge=()=>globalThis.__arondightRealWorld||null;
 

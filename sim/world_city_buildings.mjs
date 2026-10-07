@@ -34,7 +34,7 @@ const WALLS=["#c9bfae","#b9a88c","#8e5443","#9c9a94","#d8d2c4","#a87c5f","#7d859
 // The city is split into CHUNK_M tiles, one mesh each, so the camera and the
 // sun's shadow camera only draw the tiles they actually see (the merged mesh
 // used to be drawn whole — 900 m of city — twice per frame).
-const CHUNK_M=170;
+const CHUNK_M=360;
 let chunks=[],solidMaterial=null;
 let installed=false,group=null,solid=null,edgeGlow=null,edges=null,thinEdges=null,sceneRef=null,lastCenter=[Infinity,Infinity],lastSyncAt=-Infinity,currentHash="",building=null,lastFeatureCount=-1;
 const viewport=()=>document.getElementById("viewport");
