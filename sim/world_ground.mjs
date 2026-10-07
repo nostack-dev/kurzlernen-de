@@ -1,13 +1,13 @@
 import * as THREE from "three";
 import {patchShockMaterial} from "./nuke_shock_field.mjs";
-import {terrainNodeHeightAt,groundHeightAt,onTerrainChange} from "./terrain_craters.mjs";
+import {groundHeightAt,onTerrainChange} from "./terrain_craters.mjs";
 
 // One visible terrain, one physical terrain. No imagery, no textures, no second
 // decorative ground plane. The same 5 m node field that feeds Box3D deforms
 // this mesh; the neon grid is generated in the material from world XY so it
 // bends into every crater instead of floating across valleys.
 
-export const WORLD_GROUND_VERSION="shared-neon-terrain-v3-no-texture";
+export const WORLD_GROUND_VERSION="mesh-is-collision-v1";
 const SIZE_M=1600,CELLS=320,REBUILD_MOVE_M=350,GRID_M=16;
 let installed=false,mesh=null,center=[Infinity,Infinity],lastTry=-Infinity;
 const bridge=()=>globalThis.__arondightRealWorld||null;
@@ -29,11 +29,19 @@ function ensureMesh(scene){
   if(mesh?.parent===scene)return mesh;
   if(mesh?.parent)mesh.parent.remove(mesh);
   const g=new THREE.PlaneGeometry(SIZE_M,SIZE_M,CELLS,CELLS),m=makeMaterial();
+  // Match staticGroundHeightAt: per cell a=min-x/min-y, b=max-x/min-y, c=min-x/max-y, d=max-x/max-y;
+  // triangles (a,b,d) and (a,c,d) so the shared diagonal is the u>=v split.
+  {const gridX=CELLS,gridY=CELLS,gridX1=gridX+1,idx=[];
+    for(let iy=0;iy<gridY;iy++)for(let ix=0;ix<gridX;ix++){
+      const c=ix+gridX1*iy,a=ix+gridX1*(iy+1),d=(ix+1)+gridX1*iy,b=(ix+1)+gridX1*(iy+1);
+      idx.push(a,b,d,a,c,d);
+    }
+    g.setIndex(idx);}
   mesh=new THREE.Mesh(g,m);mesh.name="WORLD_GROUND";mesh.frustumCulled=false;mesh.renderOrder=1;mesh.userData.flightFireIgnore=true;mesh.userData.styleSkip=true;mesh.userData.neonSkip=true;mesh.raycast=()=>{};mesh.visible=false;scene.add(mesh);center=[Infinity,Infinity];return mesh;
 }
 function applyHeights(){
   if(!mesh)return;const a=mesh.geometry.attributes.position.array,ox=mesh.position.x,oy=mesh.position.y;
-  for(let i=0;i<a.length;i+=3)a[i+2]=terrainNodeHeightAt(a[i]+ox,a[i+1]+oy);
+  for(let i=0;i<a.length;i+=3)a[i+2]=groundHeightAt(a[i]+ox,a[i+1]+oy);
   mesh.geometry.attributes.position.needsUpdate=true;
   mesh.geometry.computeBoundingSphere();
 }
@@ -47,7 +55,7 @@ function frame(now){
   {const camera=b.threeCamera,want=globalThis.__arondightWalkMode?.mode==="foot"?.06:.25;if(camera&&Math.abs(camera.near-want)>1e-4){camera.near=want;camera.updateProjectionMatrix();}}
   const cam=b.threeCamera;if(!cam||now-lastTry<250)return;
   if(Math.hypot(cam.position.x-center[0],cam.position.y-center[1])<REBUILD_MOVE_M&&mesh.visible)return;
-  lastTry=now;center=[Math.round(cam.position.x/10)*10,Math.round(cam.position.y/10)*10];rebuild(b,center[0],center[1]);
+  lastTry=now;center=[Math.round(cam.position.x/5)*5,Math.round(cam.position.y/5)*5];rebuild(b,center[0],center[1]);
 }
 function keepCameraAboveGround(scene,camera){
   if(!camera||globalThis.__arondightWalkMode?.mode==="foot")return;if(camera.parent&&camera.parent!==scene)return;

@@ -11,7 +11,7 @@ import {elevationAt,onElevationChange,elevationCenter} from "./terrain_elevation
 // whose tops follow the crater surface — a concave bowl built from convex
 // pieces. Rebuilt only when a crater appears or the world resets.
 
-export const TERRAIN_CRATERS_VERSION="single-surface-cached-grid-v2";
+export const TERRAIN_CRATERS_VERSION="mesh-is-collision-v1";
 export const CRATER_R=210,CRATER_DEPTH=22,CRATER_RIM=7;
 const SLAB_CELLS=16,SLAB_BOTTOM_Z=-90,GROUND_THICKNESS=.1,MAX_CRATERS=3;
 
@@ -109,11 +109,11 @@ export function createTerrainBody(b3,world,shapeDef,half){
   // y-up, so the body is rotated +90° about x (local y -> world z).
   if(typeof b3.b3CreateHeightField==="function"&&typeof b3.b3CreateHeightFieldShape==="function"){
     const[cx,cy]=elevationCenter(),H=TERRAIN_FIELD_HALF_M,st=TERRAIN_FIELD_STEP_M,n=Math.round(2*H/st)+1,x0=Math.round((cx-H)/st)*st,yTop=Math.round((cy+H)/st)*st,heights=new Float32Array(n*n);let mn=Infinity;
-    for(let j=0;j<n;j++){const y=yTop-j*st;for(let i=0;i<n;i++){const v=terrainNodeHeightAt(x0+i*st,y);heights[j*n+i]=v;if(v<mn)mn=v;}}
+    for(let j=0;j<n;j++){const y=yTop-j*st;for(let i=0;i<n;i++){const v=groundHeightAt(x0+i*st,y);heights[j*n+i]=v;if(v<mn)mn=v;}}
     const field=b3.b3CreateHeightField(heights,n,n,[st,1,st]);
     if(field){const body=staticBody([x0,yTop,0],[Math.SQRT1_2,0,0,Math.SQRT1_2]);try{b3.b3CreateHeightFieldShape(body,shapeDef,field);shapeCount++;}finally{b3.b3DestroyHeightField(field);}
       // beyond the field: a flat floor at the field's lowest level
-      const floor=staticBody([0,0,mn-.6]);b3.b3CreateBoxShape(floor,shapeDef,half,half,.5);shapeCount++;
+      const floor=staticBody([0,0,mn-6]);b3.b3CreateBoxShape(floor,shapeDef,half,half,.5);shapeCount++;
       for(const br of bridges){const e=elevationAt(br.cx,br.cy),body2=staticBody([br.cx,br.cy,e-.25],[0,0,Math.sin(br.yaw/2),Math.cos(br.yaw/2)]);b3.b3CreateBoxShape(body2,shapeDef,br.hl,br.hw,.25);shapeCount++;}
       return{bodies,shapeCount,heightField:true};}
   }
