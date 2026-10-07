@@ -1,8 +1,8 @@
-export const COMBAT_AUDIO_BANK_VERSION="prebaked-pcm-buffer-bank-v2";
+export const COMBAT_AUDIO_BANK_VERSION="prebaked-pcm-buffer-bank-v3";
 export const COMBAT_AUDIO_SAMPLE_RATE=44100;
 
 const TAU=Math.PI*2;
-const BANK_VARIANTS=Object.freeze({shot:3,hit:4,crack:4,damage:2,scream:4,explosion:2,step:3,bounce:4,reward:3,fail:2});
+const BANK_VARIANTS=Object.freeze({shot:3,pistol:4,hit:4,crack:4,damage:2,scream:4,explosion:2,step:3,bounce:4,reward:3,fail:2});
 const contextBanks=new WeakMap();
 let sharedContext=null;
 
@@ -19,6 +19,23 @@ function renderShot(sampleRate,variant){
     const echo=i>=delay?data[i-delay]*(.20-variant*.018):0;data[i]=crack*.72+body*.54+echo;
   }
   return finish(data,.88);
+}
+
+function renderPistol(sampleRate,variant){
+  // Compact 9 mm-style report: very fast muzzle crack, short pressure body,
+  // then a quieter metallic slide/action tail. Pre-baked once, never synthesized
+  // on the gameplay hot path.
+  const duration=.19+variant*.006,data=new Float32Array(Math.ceil(duration*sampleRate)),random=rng(0x9a17c3+variant*1223),echoDelay=Math.floor(sampleRate*(.024+variant*.0014));let low=0,mid=0,phase=0,metal=0;
+  for(let n=0;n<data.length;n++){
+    const t=n/sampleRate,white=random()*2-1;low+=.07*(white-low);mid+=.31*(white-mid);
+    const crack=(white-mid)*Math.exp(-t/(.0038+variant*.0002));
+    const pressure=(mid*.72+low*.9)*Math.exp(-t/Math.max(.020,.031+variant*.001));
+    const f=305*Math.exp(-t*17)+92;phase+=TAU*f/sampleRate;const body=Math.sin(phase+.22*Math.sin(phase*.43))*Math.exp(-t*29);
+    const actionT=t-.052;if(actionT>0){const af=1260*Math.exp(-actionT*9)+410;metal+=TAU*af/sampleRate;}const action=actionT>0?(Math.sin(metal)+.32*Math.sin(metal*1.73))*Math.exp(-actionT*34):0;
+    const room=n>=echoDelay?data[n-echoDelay]*(.085+variant*.008):0;
+    data[n]=crack*1.10+pressure*.64+body*.48+action*.16+room;
+  }
+  return finish(data,.97);
 }
 
 function renderHit(sampleRate,variant){
@@ -125,7 +142,7 @@ function renderFail(sampleRate,variant){
   return renderCue(sampleRate,{notes:[63,58,51],lengths:[1,1,4],cutoff:1100,echo:.2,level:.72});           // falling E♭ octaves: lost
 }
 
-const renderers={shot:renderShot,hit:renderHit,crack:renderCrack,damage:renderDamage,scream:renderScream,explosion:renderExplosion,step:renderStep,bounce:renderBounce,reward:renderReward,fail:renderFail};
+const renderers={shot:renderShot,pistol:renderPistol,hit:renderHit,crack:renderCrack,damage:renderDamage,scream:renderScream,explosion:renderExplosion,step:renderStep,bounce:renderBounce,reward:renderReward,fail:renderFail};
 export function createCombatPcmBank(sampleRate=COMBAT_AUDIO_SAMPLE_RATE){
   const rate=Math.max(8000,Math.round(Number(sampleRate)||COMBAT_AUDIO_SAMPLE_RATE)),bank={};
   for(const [kind,count] of Object.entries(BANK_VARIANTS))bank[kind]=Array.from({length:count},(_,variant)=>renderers[kind](rate,variant));
