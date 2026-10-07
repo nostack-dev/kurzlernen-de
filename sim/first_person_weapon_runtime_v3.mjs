@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import {buildVoltSmg,buildGoldenHandCannon,buildBoomstick} from "./weapon_models.mjs";
 
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
 const shotCamera=new THREE.PerspectiveCamera(78,16/9,.01,500),raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2(),forward=new THREE.Vector3(),target=new THREE.Vector3();
@@ -17,51 +18,17 @@ function shotRayDirection(clientX,clientY){const w=walk(),p=logicalPoint(clientX
 function material(options){return new THREE.MeshStandardMaterial({depthTest:true,depthWrite:true,...options});}
 function mesh(name,geometry,mat,x,y,z,rx=0,ry=0,rz=0,order=9998){const m=new THREE.Mesh(geometry,mat);m.name=name;m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.renderOrder=order;m.frustumCulled=false;m.userData.flightFireIgnore=true;m.userData.walkWeaponPart=true;m.userData.walkSmgPart=true;return m;}
 function launcherMesh(name,geometry,mat,x,y,z,rx=0,ry=0,rz=0,order=9998){const m=new THREE.Mesh(geometry,mat);m.name=name;m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.renderOrder=order;m.frustumCulled=false;m.userData.flightFireIgnore=true;m.userData.walkWeaponPart=true;m.userData.walkGrenadePart=true;return m;}
-function ensureSmg(gun){
-  let group=gun.getObjectByName?.("WALK_SMG_3D");if(group)return group;
-  group=new THREE.Group();group.name="WALK_SMG_3D";group.position.set(.012,-.008,.015);group.userData.flightFireIgnore=true;group.userData.walkWeaponPart=true;group.userData.walkSmgViewmodel="dedicated-mp-mesh-v4";
-  const steel=material({color:0x202a31,roughness:.30,metalness:.72}),upper=material({color:0x38444d,roughness:.27,metalness:.68}),polymer=material({color:0x0d1317,roughness:.72,metalness:.08}),rubber=material({color:0x080b0d,roughness:.90,metalness:0}),sight=new THREE.MeshBasicMaterial({color:0xbfefff,depthTest:true,depthWrite:false});
-  group.add(
-    mesh("WALK_SMG_RECEIVER",new THREE.BoxGeometry(.178,.132,.390),steel,0,-.010,-.300),
-    mesh("WALK_SMG_UPPER",new THREE.BoxGeometry(.158,.060,.345),upper,0,.075,-.320),
-    mesh("WALK_SMG_HANDGUARD",new THREE.BoxGeometry(.162,.145,.275),polymer,0,-.005,-.575),
-    mesh("WALK_SMG_BARREL",new THREE.CylinderGeometry(.020,.020,.270,12),steel,0,.020,-.735,Math.PI/2,0,0),
-    mesh("WALK_SMG_MUZZLE",new THREE.CylinderGeometry(.039,.034,.074,12),rubber,0,.020,-.875,Math.PI/2,0,0),
-    mesh("WALK_SMG_PISTOL_GRIP",new THREE.BoxGeometry(.098,.220,.120),polymer,0,-.178,-.155,-.13,0,0),
-    mesh("WALK_SMG_MAGAZINE",new THREE.BoxGeometry(.090,.255,.112),upper,0,-.225,-.315,-.08,0,0),
-    mesh("WALK_SMG_MAG_BASE",new THREE.BoxGeometry(.104,.028,.122),rubber,0,-.352,-.307,-.08,0,0),
-    mesh("WALK_SMG_REAR_BLOCK",new THREE.BoxGeometry(.162,.108,.110),polymer,0,-.020,-.060),
-    mesh("WALK_SMG_BRACE",new THREE.BoxGeometry(.190,.084,.175),rubber,0,-.040,.082),
-    mesh("WALK_SMG_TOP_RAIL",new THREE.BoxGeometry(.118,.024,.320),rubber,0,.120,-.330),
-    mesh("WALK_SMG_REAR_SIGHT",new THREE.BoxGeometry(.070,.034,.032),rubber,0,.142,-.125),
-    mesh("WALK_SMG_FRONT_SIGHT",new THREE.BoxGeometry(.032,.040,.028),rubber,0,.143,-.705),
-    mesh("WALK_SMG_FRONT_DOT",new THREE.SphereGeometry(.0065,6,4),sight,0,.161,-.713,0,0,0,9999)
-  );
-  const muzzleNode=new THREE.Object3D();muzzleNode.name="WALK_SMG_MUZZLE_NODE";muzzleNode.position.set(0,.020,-.915);muzzleNode.userData.flightFireIgnore=true;group.add(muzzleNode);gun.add(group);return group;
-}
-function ensureGrenadeLauncher(gun){
-  let group=gun.getObjectByName?.("WALK_GRENADE_LAUNCHER_3D");if(group)return group;
-  group=new THREE.Group();group.name="WALK_GRENADE_LAUNCHER_3D";group.position.set(.010,-.015,.018);group.userData.flightFireIgnore=true;group.userData.walkWeaponPart=true;group.userData.walkGrenadePart=true;group.userData.walkGrenadeViewmodel="dedicated-40mm-break-action-v1";
-  const steel=material({color:0x202923,roughness:.32,metalness:.68}),tube=material({color:0x111713,roughness:.42,metalness:.54}),polymer=material({color:0x0a100d,roughness:.82,metalness:.05}),accent=new THREE.MeshBasicMaterial({color:0xffb347,depthTest:true,depthWrite:false,toneMapped:false});
-  group.add(
-    launcherMesh("WALK_GL_RECEIVER",new THREE.BoxGeometry(.190,.145,.285),steel,0,-.010,-.245),
-    launcherMesh("WALK_GL_TUBE",new THREE.CylinderGeometry(.052,.052,.545,14),tube,0,.020,-.565,Math.PI/2,0,0),
-    launcherMesh("WALK_GL_MUZZLE_RING",new THREE.TorusGeometry(.055,.008,6,16),accent,0,.020,-.840,Math.PI/2,0,0,9999),
-    launcherMesh("WALK_GL_BREECH",new THREE.BoxGeometry(.205,.170,.120),steel,0,-.005,-.080),
-    launcherMesh("WALK_GL_GRIP",new THREE.BoxGeometry(.105,.235,.115),polymer,0,-.190,-.115,-.16,0,0),
-    launcherMesh("WALK_GL_STOCK",new THREE.BoxGeometry(.180,.105,.235),polymer,0,-.060,.130,-.04,0,0),
-    launcherMesh("WALK_GL_TOP_RAIL",new THREE.BoxGeometry(.100,.026,.360),polymer,0,.125,-.335),
-    launcherMesh("WALK_GL_REAR_SIGHT",new THREE.BoxGeometry(.072,.042,.036),polymer,0,.151,-.120),
-    launcherMesh("WALK_GL_FRONT_SIGHT",new THREE.BoxGeometry(.038,.050,.032),polymer,0,.154,-.720),
-    launcherMesh("WALK_GL_FRONT_DOT",new THREE.SphereGeometry(.007,6,4),accent,0,.177,-.728,0,0,0,9999)
-  );
-  const muzzleNode=new THREE.Object3D();muzzleNode.name="WALK_GRENADE_MUZZLE_NODE";muzzleNode.position.set(0,.020,-.895);muzzleNode.userData.flightFireIgnore=true;muzzleNode.userData.walkWeaponPart=true;muzzleNode.userData.walkGrenadePart=true;group.add(muzzleNode);gun.add(group);return group;
-}
+// Hero weapon skins (weapon_models.mjs). Group and muzzle-node names stay
+// the same, so firing, muzzle flash and aiming code keep working.
+function mount(gun,name,build,offset,meta){let group=gun.getObjectByName?.(name);if(group)return group;group=build();group.name=name;group.position.add(offset);group.userData.flightFireIgnore=true;group.userData.walkWeaponPart=true;Object.assign(group.userData,meta);gun.add(group);return group;}
+function ensureSmg(gun){return mount(gun,"WALK_SMG_3D",buildVoltSmg,new THREE.Vector3(.012,-.008,.015),{walkSmgViewmodel:"volt-smg-epic-v5"});}
+function ensureGrenadeLauncher(gun){return mount(gun,"WALK_GRENADE_LAUNCHER_3D",buildBoomstick,new THREE.Vector3(.01,-.015,.018),{walkGrenadePart:true,walkGrenadeViewmodel:"boomstick-40mm-v2"});}
+function ensureGlock(gun){return mount(gun,"WALK_GLOCK_3D",buildGoldenHandCannon,new THREE.Vector3(.01,-.01,.0),{walkGlockViewmodel:"golden-hand-cannon-v1"});}
 function setWeaponModeVisual(gun,mode){
-  const smg=ensureSmg(gun),launcher=ensureGrenadeLauncher(gun),isSmg=mode==="smg",isGrenade=mode==="grenade";smg.visible=isSmg;launcher.visible=isGrenade;const conversion=gun.getObjectByName?.("FINAL_SMG_CONVERSION");if(conversion)conversion.visible=false;
-  gun.traverse?.(node=>{if(PISTOL_PARTS.has(node.name))node.visible=!isSmg&&!isGrenade;});
+  const smg=ensureSmg(gun),launcher=ensureGrenadeLauncher(gun),glock=ensureGlock(gun),isSmg=mode==="smg",isGrenade=mode==="grenade",isGlock=mode==="glock";smg.visible=isSmg;launcher.visible=isGrenade;glock.visible=isGlock;const conversion=gun.getObjectByName?.("FINAL_SMG_CONVERSION");if(conversion)conversion.visible=false;
+  gun.traverse?.(node=>{if(PISTOL_PARTS.has(node.name))node.visible=false;});
   const flash=gun.getObjectByName?.("FINAL_MUZZLE_FLASH")||gun.getObjectByName?.("WALK_MUZZLE_FLASH");if(flash){flash.traverse?.(node=>{if(node.isMesh&&node.material){node.material.depthTest=true;node.material.depthWrite=false;node.material.needsUpdate=true;}if(node.isMesh)node.renderOrder=9996;});}
-  gun.userData.finalWeapon=mode;gun.userData.walkWeaponViewmodel=isGrenade?"dedicated-40mm-break-action-v1":isSmg?"dedicated-mp-mesh-v4":"compact-pistol-gloves-v2";const view=viewport();if(view){view.dataset.walkWeapon=mode;view.dataset.walkWeaponViewmodel=gun.userData.walkWeaponViewmodel;view.dataset.walkSmgMesh=isSmg?"dedicated-receiver+barrel+magazine+brace-v4":"hidden";view.dataset.walkGrenadeLauncher=isGrenade?"40mm-visible-v1":"hidden";view.dataset.walkWeaponSwitch="single-owner-touch+q+dpad-v4";view.dataset.walkMuzzleOwnership="gameplay-runtime-dedicated-node-v1";}
+  gun.userData.finalWeapon=mode;gun.userData.walkWeaponViewmodel=isGrenade?"boomstick-40mm-v2":isSmg?"volt-smg-epic-v5":"golden-hand-cannon-v1";const view=viewport();if(view){view.dataset.walkWeapon=mode;view.dataset.walkWeaponViewmodel=gun.userData.walkWeaponViewmodel;view.dataset.walkSmgMesh=isSmg?"dedicated-receiver+barrel+magazine+brace-v4":"hidden";view.dataset.walkGrenadeLauncher=isGrenade?"40mm-visible-v1":"hidden";view.dataset.walkWeaponSwitch="single-owner-touch+q+dpad-v4";view.dataset.walkMuzzleOwnership="gameplay-runtime-dedicated-node-v1";}
 }
 function clearPreviousVectorAdjustment(gun){if(!hasAppliedAdjust||gun!==lastGun)return;const inverse=lastAppliedAdjust.clone().invert();gun.quaternion.premultiply(inverse);hasAppliedAdjust=false;lastAppliedAdjust.identity();}
 function alignGunToShot(gun,now){clearPreviousVectorAdjustment(gun);const age=now-lastScreenShotAt;if(age<0||age>900)return;const liveDirection=shotRayDirection(lastShotClientX,lastShotClientY);if(liveDirection)shotDirection.copy(liveDirection).normalize();currentBarrelForward.copy(localBarrelForward).applyQuaternion(gun.quaternion).normalize();if(currentBarrelForward.lengthSq()<.5||shotDirection.lengthSq()<.5)return;fullAdjust.setFromUnitVectors(currentBarrelForward,shotDirection);const weight=1;weightedAdjust.copy(fullAdjust);lastAppliedAdjust.copy(weightedAdjust);gun.quaternion.premultiply(weightedAdjust);hasAppliedAdjust=true;currentBarrelForward.copy(localBarrelForward).applyQuaternion(gun.quaternion).normalize();const errorDeg=currentBarrelForward.angleTo(shotDirection)*180/Math.PI,view=viewport();if(view){view.dataset.walkWeaponVectorAlignment="exact-screen-ray-from-hand-anchor-v5";view.dataset.walkWeaponAimVector=`${shotDirection.x.toFixed(4)},${shotDirection.y.toFixed(4)},${shotDirection.z.toFixed(4)}`;view.dataset.walkWeaponAimWeight=weight.toFixed(3);view.dataset.walkWeaponAimErrorDeg=errorDeg.toFixed(3);view.dataset.walkWeaponHandAnchor="position-fixed-rotation-only-v1";}}
@@ -70,7 +37,7 @@ function reliableTouchSwitch(event){const button=event.target instanceof Element
 function suppressSyntheticClick(event){const button=event.target instanceof Element?event.target.closest("#footWeaponToggle"):null;if(!button)return;const at=Number(button.dataset.weaponPointerToggleAt)||-Infinity;if(performance.now()-at<750){event.preventDefault();event.stopImmediatePropagation();}}
 function frame(now=performance.now()){
   const gun=bridge()?.threeScene?.getObjectByName?.("WALK_PISTOL_3D"),mode=String(footWeapons()?.mode||"smg");if(gun){if(gun!==lastGun){hasAppliedAdjust=false;lastAppliedAdjust.identity();lastGun=gun;lastMode="";}if(mode!==lastMode){lastMode=mode;setWeaponModeVisual(gun,mode);}else setWeaponModeVisual(gun,mode);/* aiming is owned by first_person_controller_v5.mjs */}
-  const button=document.getElementById("footWeaponToggle");if(button){const next=mode==="smg"?"GRENADE":"MP";button.textContent=`${mode==="smg"?"MP":"GRENADE"} → ${next}`;button.setAttribute("aria-label",`Switch from ${mode} to ${next.toLowerCase()}`);}
+  const button=document.getElementById("footWeaponToggle");if(button){const NAMES={smg:"MP",glock:"GLOCK",grenade:"WERFER"},ORDER=["smg","glock","grenade"],next=ORDER[(ORDER.indexOf(mode)+1)%ORDER.length],text=`${NAMES[mode]||"MP"} → ${NAMES[next]}`;if(button.textContent!==text)button.textContent=text;button.setAttribute("aria-label",`Switch from ${mode} to ${next}`);}
   const view=viewport();if(view){view.dataset.walkWeaponRuntime="dedicated-mp+40mm-no-pistol-v6";view.dataset.walkTouchFire="screen-point-raycast-v5";}requestAnimationFrame(frame);
 }
 export function installFirstPersonWeaponRuntimeV3(){if(installed)return;installed=true;addEventListener("arondight:foot-screen-fire",onScreenFire);window.addEventListener("pointerdown",reliableTouchSwitch,{capture:true,passive:false});window.addEventListener("click",suppressSyntheticClick,{capture:true,passive:false});requestAnimationFrame(frame);}

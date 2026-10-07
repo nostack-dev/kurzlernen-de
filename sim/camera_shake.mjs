@@ -32,6 +32,7 @@ function onWeapon(event){
   if(w==="smg"||w==="drone-gun"||w==="gun")addTrauma(m==="drone"?.07:.035,.42);
   else if(w==="missile"||w==="nuke")addTrauma(.28);
   else if(w==="grenade"||w==="launcher")addTrauma(.2);
+  else if(w==="glock")addTrauma(.3,.7);
   else addTrauma(clamp(d.intensity,0,.5)*.4,.6);
 }
 function onExplosion(event){
