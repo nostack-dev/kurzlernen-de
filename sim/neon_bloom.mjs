@@ -8,8 +8,8 @@ import * as THREE from "three";
 // Guarded by the frame time: if the device can't keep up it switches itself
 // off for the session (performance first).
 
-export const NEON_BLOOM_VERSION="quarter-res-two-level-bloom-v1";
-const DISABLE_FRAME_MS=27,DISABLE_AFTER_MS=3500,STRENGTH_NEAR=.22,STRENGTH_WIDE=.2,THRESHOLD=.95;
+export const NEON_BLOOM_VERSION="quarter-res-two-level-bloom-v2-crisp";
+const DISABLE_FRAME_MS=27,DISABLE_AFTER_MS=3500,STRENGTH_NEAR=.13,STRENGTH_WIDE=.08,THRESHOLD=.88;
 
 let installed=false,enabled=true,state=null,slowSince=0,frameAvg=16,lastFrameAt=0;
 const bridge=()=>globalThis.__arondightRealWorld||null;
