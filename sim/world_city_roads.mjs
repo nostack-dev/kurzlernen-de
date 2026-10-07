@@ -15,7 +15,18 @@ const C={asphalt:0x3c3f44,asphaltMajor:0x34373c,sidewalk:0x86837c,line:0xe6e4dc,
 let installed=false,mesh=null,sceneRef=null,center=[Infinity,Infinity],building=null,lastTry=-Infinity,builtCount=0;
 const bridge=()=>globalThis.__arondightRealWorld||null;
 
-function features(b,layer){try{return b.map.querySourceFeatures(b.buildingSourceId,{sourceLayer:layer})||[];}catch{return[];}}
+// MapLibre answers only for the tiles it holds at that instant, so features
+// are accumulated across queries (keyed by geometry) and pruned when far.
+const cache=new Map();
+function firstPoint(c){while(Array.isArray(c?.[0]))c=c[0];return c;}
+function pointCount(c){return Array.isArray(c[0])?c.reduce((n,x)=>n+pointCount(x),0):1;}
+function features(b,layer){
+  let m=cache.get(layer);if(!m){m=new Map();cache.set(layer,m);}
+  let fresh=[];try{fresh=b.map.querySourceFeatures(b.buildingSourceId,{sourceLayer:layer})||[];}catch{}
+  for(const f of fresh){let g;try{g=f.geometry;}catch{continue;}if(!g?.coordinates?.length)continue;const p=firstPoint(g.coordinates);if(!p)continue;const key=`${g.type}:${(+p[0]).toFixed(6)},${(+p[1]).toFixed(6)}:${pointCount(g.coordinates)}`;if(!m.has(key))m.set(key,{properties:{...f.properties},geometry:{type:g.type,coordinates:g.coordinates}});}
+  if(m.size>9000&&b.threeCamera){const c=b.threeCamera.position;for(const[k,f]of m){const q=firstPoint(f.geometry.coordinates),[x,y]=b.projectLngLat(q[0],q[1]);if(Math.hypot(x-c.x,y-c.y)>3000)m.delete(k);}}
+  return[...m.values()];
+}
 function lines(geometry){if(!geometry)return[];if(geometry.type==="LineString")return[geometry.coordinates];if(geometry.type==="MultiLineString")return geometry.coordinates;return[];}
 function polys(geometry){if(!geometry)return[];if(geometry.type==="Polygon")return[geometry.coordinates];if(geometry.type==="MultiPolygon")return geometry.coordinates;return[];}
 
@@ -66,7 +77,7 @@ function frame(now){
     return;}
   // Rebuild when the player moved far, or when more map tiles have loaded
   // since the last build (the first build often sees only a few tiles).
-  const cam=b.threeCamera;if(!cam||now-lastTry<2500)return;lastTry=now;const moved=Math.hypot(cam.position.x-center[0],cam.position.y-center[1]),count=features(b,"transportation").length;
+  const cam=b.threeCamera;if(!cam||now-lastTry<2500)return;lastTry=now;const moved=Math.hypot(cam.position.x-center[0],cam.position.y-center[1]),count=features(b,"transportation").length+features(b,"park").length+features(b,"landcover").length+features(b,"landuse").length;
   if(!count)return;if(moved<REBUILD_MOVE_M&&count<=builtCount*1.15+5)return;builtCount=count;center=[cam.position.x,cam.position.y];building=build(b,center[0],center[1]);
 }
 export function installCityRoads(){if(installed||typeof window==="undefined")return;installed=true;requestAnimationFrame(frame);}

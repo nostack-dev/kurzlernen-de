@@ -20,11 +20,25 @@ import {setWaterRegions,setBridgeDecks,WATER_LEVEL_M} from "./terrain_craters.mj
 export const WORLD_WATER_VERSION="map-water-basins-buoyancy-v1";
 const RADIUS_M=1000,CELL=4,REBUILD_MOVE_M=420,SLICE_MS=5;
 const WIDTH={river:18,canal:12,stream:4.5,drain:2.4,ditch:2.2,brook:3};
-let installed=false,mesh=null,material=null,center=[Infinity,Infinity],job=null,lastTry=-Infinity,builtCount=0,builtRoads=0;
+let lastHarvest=-Infinity,installed=false,mesh=null,material=null,center=[Infinity,Infinity],job=null,lastTry=-Infinity,builtCount=0,builtRoads=0;
 const bridge=()=>globalThis.__arondightRealWorld||null;
 export const waterUniforms={uTime:{value:0}};
 
 function features(b,layer){try{return b.map.querySourceFeatures(b.buildingSourceId,{sourceLayer:layer})||[];}catch{return[];}}
+// MapLibre only answers for the tiles it holds at that instant (the set
+// flickers while the hidden map streams), so water and bridge features are
+// harvested into a cache across frames and the build works on a snapshot.
+const cache={water:new Map(),waterway:new Map(),transportation:new Map()};
+function pointCount(c){return Array.isArray(c[0])?c.reduce((n,x)=>n+pointCount(x),0):1;}
+function firstPoint(c){while(Array.isArray(c[0]))c=c[0];return c;}
+function harvest(b){
+  let added=0;for(const layer of Object.keys(cache)){const m=cache[layer];
+    for(const f of features(b,layer)){if(layer==="transportation"&&f.properties?.brunnel!=="bridge")continue;let g;try{g=f.geometry;}catch{continue;}if(!g?.coordinates?.length)continue;
+      const p=firstPoint(g.coordinates),key=`${g.type}:${(+p[0]).toFixed(6)},${(+p[1]).toFixed(6)}:${pointCount(g.coordinates)}`;if(m.has(key))continue;m.set(key,{properties:{...f.properties},geometry:{type:g.type,coordinates:g.coordinates}});added++;}
+    if(m.size>4000){const cam=b.threeCamera;for(const[k,f]of m){const q=firstPoint(f.geometry.coordinates),[x,y]=b.projectLngLat(q[0],q[1]);if(Math.hypot(x-cam.position.x,y-cam.position.y)>3500)m.delete(k);}}}
+  return added;
+}
+const cached=layer=>[...cache[layer].values()];
 function pip(x,y,ring){let inside=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];if(((yi>y)!==(yj>y))&&x<(xj-xi)*(y-yi)/((yj-yi)||1e-9)+xi)inside=!inside;}return inside;}
 
 function* build(b,cx,cy){
@@ -32,7 +46,7 @@ function* build(b,cx,cy){
   const water=new Uint8Array(N*N),flowX=new Float32Array(N*N),flowY=new Float32Array(N*N),speed=new Float32Array(N*N);let steps=0;const stats={cx:Math.round(cx),cy:Math.round(cy),N,polys:0,rings:0,bbox:null};const countWater=()=>{let n=0;for(let k=0;k<water.length;k++)n+=water[k];return n;};
   const cellOf=(x,y)=>[Math.floor((x-x0)/CELL),Math.floor((y-y0)/CELL)];
   // polygons
-  for(const f of features(b,"water")){
+  for(const f of cached("water")){
     const geom=f.geometry,polys=geom?.type==="Polygon"?[geom.coordinates]:geom?.type==="MultiPolygon"?geom.coordinates:[];
     // scanline fill (even-odd over all rings → holes handled): O(rows × edges)
     for(const poly of polys){const rings=poly.map(r=>r.map(p=>project(p[0],p[1])));const outer=rings[0];stats.polys++;if(!outer||outer.length<3)continue;stats.rings+=rings.length;if(!stats.bbox)stats.bbox=[outer[0][0],outer[0][1],typeof outer[0][0],Array.isArray(outer[0])];
@@ -46,7 +60,7 @@ function* build(b,cx,cy){
   // waterways (lines with width): mark cells and record the flow direction
   stats.polyCells=countWater();
   const ways=[];
-  for(const f of features(b,"waterway")){const cls=String(f.properties?.class||"stream").toLowerCase(),w=WIDTH[cls]??4;if(f.properties?.brunnel==="tunnel")continue;const geom=f.geometry,lines=geom?.type==="LineString"?[geom.coordinates]:geom?.type==="MultiLineString"?geom.coordinates:[];
+  for(const f of cached("waterway")){const cls=String(f.properties?.class||"stream").toLowerCase(),w=WIDTH[cls]??4;if(f.properties?.brunnel==="tunnel")continue;const geom=f.geometry,lines=geom?.type==="LineString"?[geom.coordinates]:geom?.type==="MultiLineString"?geom.coordinates:[];
     for(const line of lines){const pts=line.map(p=>project(p[0],p[1]));for(let k=0;k<pts.length-1;k++){const a=pts[k],c=pts[k+1],dx=c[0]-a[0],dy=c[1]-a[1],l=Math.hypot(dx,dy);if(l<.2)continue;ways.push({a,c,ux:dx/l,uy:dy/l,l,w,v:cls==="river"?1.6:cls==="canal"?.5:1.1});}}}
   for(const s of ways){const r=s.w/2+CELL,minX=Math.min(s.a[0],s.c[0])-r,maxX=Math.max(s.a[0],s.c[0])+r,minY=Math.min(s.a[1],s.c[1])-r,maxY=Math.max(s.a[1],s.c[1])+r,[i0,j0]=cellOf(minX,minY),[i1,j1]=cellOf(maxX,maxY);
     for(let i=Math.max(0,i0);i<=Math.min(N-1,i1);i++)for(let j=Math.max(0,j0);j<=Math.min(N-1,j1);j++){const x=x0+(i+.5)*CELL,y=y0+(j+.5)*CELL,t=Math.max(0,Math.min(s.l,(x-s.a[0])*s.ux+(y-s.a[1])*s.uy)),px=s.a[0]+s.ux*t,py=s.a[1]+s.uy*t,d=Math.hypot(x-px,y-py);if(d<=s.w/2)water[i*N+j]=1;if(d<s.w/2+30&&speed[i*N+j]<s.v*(1-d/(s.w/2+30))){flowX[i*N+j]=s.ux;flowY[i*N+j]=s.uy;speed[i*N+j]=s.v*(1-d/(s.w/2+30));}}
@@ -68,7 +82,7 @@ function* build(b,cx,cy){
   for(let j=0;j<N;j++)for(let i=0;i<N;i++){const k=i*N+j;if(!water[k]||used[k])continue;let w=1;while(i+w<N&&water[(i+w)*N+j]&&!used[(i+w)*N+j])w++;let h=1;outer:while(j+h<N){for(let t=0;t<w;t++){const kk=(i+t)*N+j+h;if(!water[kk]||used[kk])break outer;}h++;}for(let a=0;a<w;a++)for(let c=0;c<h;c++)used[(i+a)*N+j+c]=1;rects.push({x0:x0+i*CELL,y0:y0+j*CELL,x1:x0+(i+w)*CELL,y1:y0+(j+h)*CELL});}
   // bridges: road segments flagged as bridges that cross water
   const decks=[];
-  for(const f of features(b,"transportation")){if(f.properties?.brunnel!=="bridge")continue;const cls=String(f.properties?.class||"minor"),w={motorway:14,trunk:12,primary:11,secondary:9,tertiary:8}[cls]??6.5,geom=f.geometry,lines=geom?.type==="LineString"?[geom.coordinates]:geom?.type==="MultiLineString"?geom.coordinates:[];
+  for(const f of cached("transportation")){const cls=String(f.properties?.class||"minor"),w={motorway:14,trunk:12,primary:11,secondary:9,tertiary:8}[cls]??6.5,geom=f.geometry,lines=geom?.type==="LineString"?[geom.coordinates]:geom?.type==="MultiLineString"?geom.coordinates:[];
     for(const line of lines){const pts=line.map(p=>project(p[0],p[1]));for(let k=0;k<pts.length-1;k++){const a=pts[k],c=pts[k+1],l=Math.hypot(c[0]-a[0],c[1]-a[1]);if(l<.5)continue;decks.push({cx:(a[0]+c[0])/2,cy:(a[1]+c[1])/2,hl:l/2+1,hw:w/2+1.5,yaw:Math.atan2(c[1]-a[1],c[0]-a[0])});}}}
   // flow field query for the physics (nearest cell)
   const flowAt=(x,y)=>{const i=Math.floor((x-x0)/CELL),j=Math.floor((y-y0)/CELL);if(i<0||j<0||i>=N||j>=N)return[0,0];const k=i*N+j;return[flowX[k]*speed[k],flowY[k]*speed[k]];};
@@ -103,11 +117,12 @@ function frame(now){
   requestAnimationFrame(frame);waterUniforms.uTime.value=now/1000;const b=bridge();
   if(!b?.active||!b.threeScene||!b.map||!b.buildingSourceId||typeof b.projectLngLat!=="function"){if(mesh)mesh.visible=false;return;}
   ensureMesh(b.threeScene);mesh.visible=true;
+  if(now-lastHarvest>600){lastHarvest=now;harvest(b);}
   if(job){const until=performance.now()+SLICE_MS;let r;try{while(performance.now()<until){r=job.next();if(r.done)break;}}catch(error){job=null;center=[Infinity,Infinity];const view=document.getElementById("viewport");if(view)view.dataset.worldWaterState=`error:${String(error?.message||error).slice(0,80)}`;console.warn("world water build failed",error);return;}
     if(r?.done){const v=r.value,g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(v.pos,3));g.setAttribute("normal",new THREE.Float32BufferAttribute(new Float32Array(v.pos.length).map((_,i)=>i%3===2?1:0),3));g.setAttribute("aShore",new THREE.Float32BufferAttribute(v.shore,1));g.setAttribute("aFlow",new THREE.Float32BufferAttribute(v.flow,2));g.setIndex(v.idx);mesh.geometry.dispose();mesh.geometry=g;
       setBridgeDecks(v.decks);setWaterRegions(v.rects,v.flowAt);job=null;const view=document.getElementById("viewport");if(view){view.dataset.worldWaterCells=String(v.cells);view.dataset.worldWaterBasins=String(v.rects.length);view.dataset.worldWaterBridges=String(v.decks.length);view.dataset.worldWater=WORLD_WATER_VERSION;view.dataset.worldWaterState=`done:${builtCount}`;try{view.dataset.worldWaterStats=JSON.stringify(v.stats);}catch{}}}
     return;}
-  const cam=b.threeCamera;if(!cam||now-lastTry<3000)return;lastTry=now;const count=features(b,"water").length+features(b,"waterway").length,roads=features(b,"transportation").length;
+  const cam=b.threeCamera;if(!cam||now-lastTry<3000)return;lastTry=now;const count=cache.water.size+cache.waterway.size,roads=cache.transportation.size;
   if(!roads&&!count)return;const moved=Math.hypot(cam.position.x-center[0],cam.position.y-center[1]);if(moved<REBUILD_MOVE_M&&count<=builtCount*1.15+2&&roads<=builtRoads*1.3+20)return;builtCount=count;builtRoads=roads;center=[cam.position.x,cam.position.y];job=build(b,center[0],center[1]);const view=document.getElementById("viewport");if(view)view.dataset.worldWaterState=`building:${count}`;
 }
 export function installWorldWater(){if(installed||typeof window==="undefined")return;installed=true;globalThis.__worldWater={level:WATER_LEVEL_M,version:WORLD_WATER_VERSION};requestAnimationFrame(frame);}
