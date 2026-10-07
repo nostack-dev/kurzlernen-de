@@ -25,7 +25,7 @@ const FLING_LIFE_S=9,MAX_FLUNG=140,MAX_SECONDARY=10;
 const CRATER_R=TERRAIN_CRATER_R,CRATER_RINGS=30,CRATER_SEGMENTS=72,MAX_CRATERS=3;
 
 let lastCommit=-Infinity;
-let installed=false,debris=null,debrisFree=[],events=[],flung=[],craters=[],secondaryLeft=0,lastFrame=performance.now(),pendingCommit=false;
+let installed=false,debris=null,debrisFree=[],debrisActive=[],events=[],flung=[],craters=[],secondaryLeft=0,lastFrame=performance.now(),pendingCommit=false;
 const UP=new THREE.Vector3(0,0,1),tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),m4=new THREE.Matrix4(),qa=new THREE.Quaternion(),sc=new THREE.Vector3(),col=new THREE.Color();
 
 const viewport=()=>document.getElementById("viewport");
@@ -64,18 +64,18 @@ function ensureDebris(scene){
 }
 function spawnDebris(scene,at,velocity,size,color,yaw=null){
   const d=ensureDebris(scene);if(!debrisFree.length)return;const i=debrisFree.pop(),item=d.items[i];
-  item.alive=true;item.rest=false;item.age=0;item.p.copy(at);item.v.copy(velocity);item.base.setFromAxisAngle(UP,yaw??Math.random()*6.28);item.axis.set(rand(-1,1),rand(-1,1),rand(-1,1)).normalize();item.angle=rand(0,6.28);item.spin=rand(-9,9);item.size.copy(size);
+  item.alive=true;item.rest=false;item.age=0;item.p.copy(at);item.v.copy(velocity);item.base.setFromAxisAngle(UP,yaw??Math.random()*6.28);item.axis.set(rand(-1,1),rand(-1,1),rand(-1,1)).normalize();item.angle=rand(0,6.28);item.spin=rand(-9,9);item.size.copy(size);debrisActive.push(i);
   d.mesh.setColorAt(i,color);d.mesh.instanceColor.needsUpdate=true;
 }
 function stepDebris(dt){
-  if(!debris)return 0;let alive=0;const{mesh,items}=debris;
-  for(let i=0;i<items.length;i++){const it=items[i];if(!it.alive)continue;alive++;it.age+=dt;
+  if(!debris||!debrisActive.length)return 0;const{mesh,items}=debris;
+  for(let slot=debrisActive.length-1;slot>=0;slot--){const i=debrisActive[slot],it=items[i];it.age+=dt;
     if(!it.rest){it.v.z-=GRAVITY*dt;it.v.multiplyScalar(Math.exp(-.08*dt));it.p.addScaledVector(it.v,dt);it.angle+=it.spin*dt;const floor=it.size.z*.5;
       if(it.p.z<floor){it.p.z=floor;if(Math.abs(it.v.z)<2.2&&Math.hypot(it.v.x,it.v.y)<1.5){it.rest=true;it.v.set(0,0,0);it.spin=0;}else{it.v.z=-it.v.z*.28;it.v.x*=.55;it.v.y*=.55;it.spin*=.5;}}}
     let sink=0;if(it.age>DEBRIS_LIFE_S-3)sink=(it.age-(DEBRIS_LIFE_S-3))/3*it.size.z;
-    if(it.age>DEBRIS_LIFE_S){it.alive=false;debrisFree.push(i);m4.makeScale(0,0,0);mesh.setMatrixAt(i,m4);continue;}
+    if(it.age>DEBRIS_LIFE_S){it.alive=false;debrisFree.push(i);debrisActive.splice(slot,1);m4.makeScale(0,0,0);mesh.setMatrixAt(i,m4);continue;}
     qa.setFromAxisAngle(it.axis,it.angle).multiply(it.base);tmp.copy(it.p);tmp.z-=sink;m4.compose(tmp,qa,it.size);mesh.setMatrixAt(i,m4);}
-  mesh.instanceMatrix.needsUpdate=true;return alive;
+  mesh.instanceMatrix.needsUpdate=true;return debrisActive.length;
 }
 
 // ------------------------------------------------------------- buildings
@@ -324,11 +324,12 @@ function runEvent(scene,e){
 // until the game has been running for a few seconds.
 let prewarm=null;
 function ensurePrewarm(scene){
-  if(prewarm!==null)return;ensureDebris(scene);
+  if(prewarm!==null)return;
   const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute([0,0,0,1,0,0,0,1,0],3));g.setAttribute("color",new THREE.Float32BufferAttribute([0,0,0,0,0,0,0,0,0],3));
   const mesh=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0x020a06,toneMapped:false,fog:false,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1}));
   const rim=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(1,0,0)]),new THREE.LineBasicMaterial({color:0x00ff9c,toneMapped:false,fog:false,transparent:true,opacity:.9}));
-  prewarm=new THREE.Group();prewarm.name="NUKE_PREWARM";prewarm.position.set(0,0,-3000);prewarm.scale.setScalar(.001);prewarm.userData.neonSkip=true;prewarm.userData.flightFireIgnore=true;for(const m of[mesh,rim]){m.frustumCulled=false;m.raycast=()=>{};}prewarm.add(mesh,rim);scene.add(prewarm);
+  const debrisWarm=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),debrisMaterial(),1);debrisWarm.setMatrixAt(0,new THREE.Matrix4().makeScale(.001,.001,.001));debrisWarm.instanceMatrix.needsUpdate=true;
+  prewarm=new THREE.Group();prewarm.name="NUKE_PREWARM";prewarm.position.set(0,0,-3000);prewarm.scale.setScalar(.001);prewarm.userData.neonSkip=true;prewarm.userData.flightFireIgnore=true;for(const m of[mesh,rim,debrisWarm]){m.frustumCulled=false;m.raycast=()=>{};}prewarm.add(mesh,rim,debrisWarm);scene.add(prewarm);
   const drop=()=>setTimeout(()=>{prewarm?.parent?.remove(prewarm);g.dispose();},4000);window.addEventListener("arondight:game-start",drop,{once:true});setTimeout(drop,60000);
 }
 function frame(now){
@@ -344,7 +345,7 @@ function frame(now){
 }
 function resetWorld(){
   clearCraters();clearChunks();events.length=0;buildingHp.clear();for(const f of flattenedProps.splice(0)){f.mesh.setMatrixAt(f.index,f.matrix);f.mesh.instanceMatrix.needsUpdate=true;}for(const f of flung){f.clone.parent?.remove(f.clone);f.root.visible=true;}flung.length=0;
-  if(debris){const zero=new THREE.Matrix4().makeScale(0,0,0);debris.items.forEach((it,i)=>{if(it.alive){it.alive=false;debris.mesh.setMatrixAt(i,zero);}});debrisFree=debris.items.map((_,i)=>DEBRIS_POOL-1-i);debris.mesh.instanceMatrix.needsUpdate=true;}
+  if(debris){const zero=new THREE.Matrix4().makeScale(0,0,0);for(const i of debrisActive){const it=debris.items[i];it.alive=false;debris.mesh.setMatrixAt(i,zero);}debrisActive.length=0;debrisFree=debris.items.map((_,i)=>DEBRIS_POOL-1-i);debris.mesh.instanceMatrix.needsUpdate=true;}
   for(const c of craters){c.mesh.parent?.remove(c.mesh);c.mesh.geometry.dispose();c.mesh.material.dispose();}craters.length=0;
   setData("nukeDebrisAlive",0);setData("nukeFlungActors",0);
 }
