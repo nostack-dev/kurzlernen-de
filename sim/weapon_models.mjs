@@ -9,7 +9,7 @@ import * as THREE from "three";
 //                        vented compensator glowing orange
 //   BOOMSTICK 40 mm   — chunky drum launcher with hazard stripes
 
-export const WEAPON_MODELS_VERSION="hero-skins-v1";
+export const WEAPON_MODELS_VERSION="hero-skins-v2-service-glock";
 const tag=(m,partKey)=>{m.frustumCulled=false;m.renderOrder=9998;m.userData.flightFireIgnore=true;m.userData.walkWeaponPart=true;if(partKey)m.userData[partKey]=true;return m;};
 const std=(color,roughness=.45,metalness=.2,extra={})=>new THREE.MeshStandardMaterial({color,roughness,metalness,...extra});
 const glow=color=>new THREE.MeshBasicMaterial({color,toneMapped:false});
@@ -73,29 +73,23 @@ export function buildVoltSmg(){
 
 export function buildGoldenHandCannon(){
   const g=new THREE.Group(),K="walkGlockPart";
-  const gold=std(0x25282b,.40,.46),goldDark=std(0x111315,.58,.28),frame=std(0x101214,.78,.04),steel=std(0x34383d,.42,.58),red=std(0xe7e9e6,.64,.04),hot=std(0x181b1e,.72,.08);
-  // matte black service-pistol slide with serrations
-  g.add(solid(profile([[-.02,.07],[.30,.07],[.31,.06],[.31,.005],[-.02,.005]],.068),gold,0,0,0,K));
-  for(let i=0;i<6;i++)g.add(box(.07,.05,.006,goldDark,0,.04,.0-.01-i*.016,K));
-  // ejection port + engraving line
-  g.add(box(.07,.012,.07,frame,0,.064,-.13,K));g.add(box(.0705,.004,.24,goldDark,0,.03,-.16,K));
-  // dark front slide extension and vent cuts
-  g.add(solid(profile([[.30,.07],[.38,.07],[.39,.06],[.39,.005],[.30,.005]],.07),steel,0,0,0,K));
-  for(let i=0;i<3;i++)g.add(box(.072,.012,.012,hot,0,.07,-.32-i*.022,K));
-  // polymer frame: dust cover, trigger guard, grip with texture bands
-  g.add(solid(profile([[.0,.006],[.29,.006],[.29,-.02],[.12,-.03],[.10,-.07],[.04,-.07],[.03,-.03],[.0,-.025]],.064),frame,0,0,0,K));
-  g.add(solid(profile([[.0,-.02],[.06,-.02],[.035,-.21],[-.04,-.21],[-.05,-.17],[-.03,-.03]],.07),frame,0,0,0,K));
-  for(let i=0;i<4;i++)g.add(box(.072,.006,.06,steel,0,-.07-i*.035,.01-i*.003,K));
-  g.add(box(.08,.02,.08,goldDark,0,-.215,.0,K));
-  // trigger
-  g.add(box(.012,.04,.012,steel,0,-.045,-.065,K));
-  // sights: glowing red night sights
-  g.add(box(.05,.02,.02,frame,0,.082,.0,K));g.add(box(.012,.024,.014,red,-.017,.088,.0,K));g.add(box(.012,.024,.014,red,.017,.088,.0,K));
-  g.add(box(.016,.026,.016,red,0,.084,-.29,K));
-  g.add(marker("WALK_GLOCK_GRIP",0,-.12,.01),marker("WALK_GLOCK_REAR_SIGHT",0,.098,.0),marker("WALK_GLOCK_FRONT_SIGHT",0,.098,-.29));
-  g.add(muzzle("WALK_GLOCK_MUZZLE_NODE",-.40,.04));
-  mergeByMaterial(g);g.scale.setScalar(1.35);g.position.set(.0,-.02,-.05);
-  return g;
+  const slide=std(0x24272a,.38,.48),cut=std(0x121416,.62,.24),frame=std(0x101315,.78,.03),barrel=std(0x080a0b,.28,.66),steel=std(0x44484b,.42,.58),white=std(0xe9ece9,.62,.02);
+  g.add(solid(profile([[-.025,.070],[.315,.070],[.325,.058],[.325,.008],[-.025,.008]],.074),slide,0,0,0,K));
+  for(let i=0;i<5;i++)g.add(box(.076,.045,.005,cut,0,.040,-.012-i*.016,K));
+  g.add(box(.076,.010,.072,barrel,0,.067,-.145,K));
+  g.add(cyl(.019,.275,barrel,0,.029,-.205,K,16));
+  g.add(cyl(.027,.016,barrel,0,.029,-.345,K,16));
+  g.add(solid(profile([[.0,.008],[.30,.008],[.30,-.030],[.13,-.040],[.105,-.078],[.035,-.078],[.020,-.035],[-.01,-.025]],.072),frame,0,0,0,K));
+  g.add(box(.074,.018,.145,frame,0,-.055,-.205,K));
+  g.add(solid(profile([[.005,-.035],[.078,-.040],[.055,-.245],[-.035,-.245],[-.058,-.190],[-.030,-.050]],.078),frame,0,0,0,K));
+  for(let i=0;i<5;i++)g.add(box(.080,.005,.050,cut,0,-.080-i*.034,.014-i*.003,K));
+  g.add(box(.086,.020,.092,cut,0,-.250,.005,K));
+  g.add(box(.011,.045,.012,steel,0,-.083,-.060,K));
+  g.add(box(.052,.020,.020,cut,0,.087,-.015,K));g.add(box(.010,.010,.006,white,-.017,.098,-.026,K));g.add(box(.010,.010,.006,white,.017,.098,-.026,K));
+  g.add(box(.018,.024,.018,cut,0,.090,-.304,K));g.add(box(.007,.008,.006,white,0,.103,-.313,K));
+  g.add(marker("WALK_GLOCK_GRIP",0,-.145,.005),marker("WALK_GLOCK_REAR_SIGHT",0,.101,-.020),marker("WALK_GLOCK_FRONT_SIGHT",0,.103,-.304));
+  g.add(muzzle("WALK_GLOCK_MUZZLE_NODE",-.362,.029));
+  mergeByMaterial(g);g.scale.setScalar(1.35);g.position.set(0,-.02,-.05);return g;
 }
 
 export function buildBoomstick(){
