@@ -20,9 +20,9 @@ function makeMaterial(){
       .replace("#include <begin_vertex>","#include <begin_vertex>\nvGroundWorld=(modelMatrix*vec4(transformed,1.0)).xyz;");
     shader.fragmentShader=shader.fragmentShader
       .replace("void main() {","varying vec3 vGroundWorld;\nvoid main() {")
-      .replace("#include <color_fragment>","#include <color_fragment>\n{\n  vec2 gp=vGroundWorld.xy/16.0;\n  vec2 fw=max(fwidth(gp),vec2(0.0005));\n  vec2 d=abs(fract(gp-.5)-.5)/fw;\n  float minor=1.0-min(min(d.x,d.y),1.0);\n  vec2 mg=vGroundWorld.xy/64.0;\n  vec2 mfw=max(fwidth(mg),vec2(0.0005));\n  vec2 md=abs(fract(mg-.5)-.5)/mfw;\n  float major=1.0-min(min(md.x,md.y),1.0);\n  float line=clamp(minor*.62+major*.48,0.0,1.0);\n  vec3 base=vec3(0.004,0.040,0.021);\n  vec3 neon=vec3(0.239,1.000,0.541);\n  diffuseColor.rgb=mix(base,neon,line);\n}");
+      .replace("#include <color_fragment>","#include <color_fragment>\n{\n  vec2 gp=vGroundWorld.xy/16.0;\n  vec2 fw=max(fwidth(gp),vec2(0.0005));\n  vec2 d=abs(fract(gp-.5)-.5)/fw;\n  float minor=1.0-min(min(d.x,d.y),1.0);\n  vec2 mg=vGroundWorld.xy/64.0;\n  vec2 mfw=max(fwidth(mg),vec2(0.0005));\n  vec2 md=abs(fract(mg-.5)-.5)/mfw;\n  float major=1.0-min(min(md.x,md.y),1.0);\n  float line=clamp(minor*.28+major*.52,0.0,1.0);\n  vec3 base=vec3(0.003,0.020,0.012);\n  vec3 neon=vec3(0.120,0.820,0.340);\n  diffuseColor.rgb=mix(base,neon,line);\n}");
   };
-  m.customProgramCacheKey=()=>"shared-neon-terrain-grid-v3";
+  m.customProgramCacheKey=()=>"shared-neon-terrain-grid-v4-readable";
   return patchShockMaterial(m);
 }
 function ensureMesh(scene){
