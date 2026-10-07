@@ -9,7 +9,7 @@ import * as THREE from "three";
 // off for the session (performance first).
 
 export const NEON_BLOOM_VERSION="quarter-res-two-level-bloom-v1";
-const DISABLE_FRAME_MS=27,DISABLE_AFTER_MS=3500,STRENGTH_NEAR=.85,STRENGTH_WIDE=.75,THRESHOLD=.55;
+const DISABLE_FRAME_MS=27,DISABLE_AFTER_MS=3500,STRENGTH_NEAR=.32,STRENGTH_WIDE=.28,THRESHOLD=.78;
 
 let installed=false,enabled=true,state=null,slowSince=0,frameAvg=16,lastFrameAt=0;
 const bridge=()=>globalThis.__arondightRealWorld||null;

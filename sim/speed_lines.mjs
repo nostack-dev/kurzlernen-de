@@ -12,7 +12,7 @@ function ensure(){
   if(canvas?.isConnected)return true;const view=document.getElementById("viewport");if(!view)return false;
   canvas=document.createElement("canvas");canvas.id="speedLines";canvas.setAttribute("aria-hidden","true");canvas.style.cssText="position:absolute;inset:0;width:100%;height:100%;z-index:6;pointer-events:none;mix-blend-mode:normal";view.appendChild(canvas);ctx=canvas.getContext("2d");return true;
 }
-function spawn(i){const a=Math.random()*Math.PI*2;return{a,r:.15+Math.random()*.5,len:.08+Math.random()*.22,v:.9+Math.random()*1.4,c:i%3===0?"255,79,216":"127,243,255"};}
+function spawn(i){const a=Math.random()*Math.PI*2;return{a,r:.15+Math.random()*.5,len:.08+Math.random()*.22,v:.9+Math.random()*1.4,c:i%3===0?"255,236,200":"255,255,255"};}
 function frame(now){
   requestAnimationFrame(frame);const dt=Math.min(.1,(now-last)/1000);last=now;const cam=bridge()?.threeCamera;if(!cam||!ensure())return;
   const p=cam.position;if(lastPos&&dt>0){const d=Math.hypot(p.x-lastPos.x,p.y-lastPos.y,p.z-lastPos.z)/dt;speed+=(Math.min(d,90)-speed)*Math.min(1,dt*4);}lastPos={x:p.x,y:p.y,z:p.z};

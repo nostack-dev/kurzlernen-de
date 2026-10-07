@@ -49,7 +49,7 @@ void main(){vUv=uv;vEdge=instanceColor;gl_Position=projectionMatrix*modelViewMat
     fragmentShader:`precision highp float;
 in vec2 vUv;in vec3 vEdge;out vec4 outColor;
 void main(){vec2 w=fwidth(vUv)*1.6;vec2 a=smoothstep(vec2(0.0),w,vUv);vec2 b=smoothstep(vec2(0.0),w,1.0-vUv);float inside=min(min(a.x,a.y),min(b.x,b.y));
-vec3 fill=vec3(0.11,0.08,0.22);outColor=vec4(mix(vEdge,fill,inside),1.0);}`});
+vec3 fill=vec3(0.62,0.58,0.52);outColor=vec4(mix(vEdge,fill,inside),1.0);}`});
 }
 function ensureDebris(scene){
   if(debris?.mesh.parent===scene)return debris;
@@ -109,7 +109,7 @@ function planBuildings(center){
 }
 // Edge colors of the debris: neon green structure, hot embers.
 // Debris edge colours (cartoon outline): dark ink, a few warm embers.
-const GREEN=new THREE.Color(0x29e6ff),EMBER=new THREE.Color(0xffb347),DIM=new THREE.Color(0xff4fd8);
+const GREEN=new THREE.Color(0x3b3f46),EMBER=new THREE.Color(0xff8a3d),DIM=new THREE.Color(0x6b5a4a);
 // Structural fracture: the removed part of a building breaks along its real
 // geometry — façade panels per outline edge and floor band, plus roof slabs —
 // instead of random cubes. Piece count adapts to size (cap per building) and
@@ -144,8 +144,8 @@ function fractureDebris(scene,b,center,offset,boost){
 // from ground zero and is carried outward by the wind behind the front,
 // then breaks apart. Pooled count, geometry freed when it breaks.
 const CHUNK_MAX=40;let chunks=[];
-const chunkFill=new THREE.MeshBasicMaterial({color:0x1d1840,toneMapped:false,fog:true,side:THREE.DoubleSide});
-const chunkLine=new THREE.LineBasicMaterial({color:0x29e6ff,toneMapped:false,fog:true,transparent:true,opacity:.9,blending:THREE.AdditiveBlending});
+const chunkFill=new THREE.MeshBasicMaterial({color:0xcdb99a,toneMapped:false,fog:true,side:THREE.DoubleSide});
+const chunkLine=new THREE.LineBasicMaterial({color:0x3b3f46,toneMapped:false,fog:true,transparent:true,opacity:.35});
 function largestRing(b){let best=null,area=-1;for(const r of b.rings){let a=0;for(let i=0;i<r.length;i++){const p=r[i],q=r[(i+1)%r.length];a+=p[0]*q[1]-q[0]*p[1];}a=Math.abs(a);if(a>area){area=a;best=r;}}return best;}
 function spawnChunk(scene,b,center){
   const ring=largestRing(b);if(!ring||ring.length<3)return false;
@@ -247,7 +247,7 @@ function spawnCrater(scene,center){
   for(let r=0;r<=rows;r++)for(let s=0;s<cols;s++){const rad=CRATER_R*(r/rows)**1.15,a=s/cols*Math.PI*2+(r%2)*.04;positions.push(Math.cos(a)*rad,Math.sin(a)*rad,0);}
   for(let r=0;r<rows;r++)for(let s=0;s<cols;s++){const a=r*cols+s,b=r*cols+(s+1)%cols,c=(r+1)*cols+s,d=(r+1)*cols+(s+1)%cols;index.push(a,c,b,b,c,d);}
   const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));geometry.setIndex(index);
-  const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:0x1a0d26,toneMapped:false,fog:true,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1}));
+  const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:0x6b5642,toneMapped:false,fog:true,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1}));
   mesh.name="NUKE_CRATER_GROUND";mesh.position.set(center.x,center.y,.02);mesh.userData.flightFireIgnore=true;mesh.userData.neonSkip=true;mesh.userData.nukeCrater=true;mesh.frustumCulled=false;mesh.renderOrder=-9000;
   contourXY??=contourBase();const linePos=new Float32Array(contourXY.length/2*3);for(let i=0,j=0;i<contourXY.length;i+=2,j+=3){linePos[j]=contourXY[i];linePos[j+1]=contourXY[i+1];linePos[j+2]=.15;}
   const lineGeo=new THREE.BufferGeometry();lineGeo.setAttribute("position",new THREE.BufferAttribute(linePos,3));
@@ -255,7 +255,7 @@ function spawnCrater(scene,center){
   scene.add(mesh);craters.push({mesh,rim,born:performance.now(),lastColor:-Infinity});setTimeout(()=>addCrater(center.x,center.y),1400);
   while(craters.length>MAX_CRATERS){const old=craters.shift();old.mesh.parent?.remove(old.mesh);old.mesh.geometry.dispose();old.mesh.material.dispose();old.rim.geometry.dispose();old.rim.material.dispose();}
 }
-const LINE_HOT=new THREE.Color(0xffd23f),LINE_NEON=new THREE.Color(0xff2bd6);
+const LINE_HOT=new THREE.Color(0xff8a3d),LINE_NEON=new THREE.Color(0x4a3a2c);
 function stepCraters(now){
   for(const c of craters){const age=(now-c.born)/1000,dig=clamp(age/1.4,0,1),ease=1-(1-dig)**3;if(dig>=1&&now-c.lastColor<400)continue;c.lastColor=now;
     const heat=Math.max(0,1-age/45);c.rim.material.color.copy(LINE_NEON).lerp(LINE_HOT,heat*heat);

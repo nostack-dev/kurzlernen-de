@@ -23,7 +23,7 @@ import {addTrauma} from "./camera_shake.mjs";
 export const SANDBOX_GAME_VERSION="sandbox-chaos-loop-v1";
 const TYPES={
   cop:  {hp:3, speed:3.6,range:24,shotMs:900, burst:1,dmg:5, acc:.62,color:0x2f6bff,stripe:0x29e6ff,score:250,scale:1},
-  swat: {hp:7, speed:2.9,range:32,shotMs:1700,burst:3,dmg:4, acc:.5, color:0x1c2030,stripe:0xff2e97,score:450,scale:1.08},
+  swat: {hp:7, speed:2.9,range:32,shotMs:1700,burst:3,dmg:4, acc:.5, color:0x1c2030,stripe:0xffd23f,score:450,scale:1.08},
   heavy:{hp:14,speed:2.1,range:48,shotMs:3600,burst:1,dmg:0, acc:.0, color:0x7a1430,stripe:0xffb347,score:900,scale:1.22},
 };
 const BUDGET=[0,2,4,6,8,10],MAX_ENEMIES=10,SPAWN_MS=2400,COMBO_MS=3200;
@@ -51,17 +51,17 @@ function ensureHud(){
   view.appendChild(hud);scoreEl=hud.querySelector(".sb-score");comboEl=hud.querySelector(".sb-flow em");flowEl=hud.querySelector(".sb-flow b");popLayer=hud.querySelector(".sb-pops");
   const style=document.createElement("style");style.dataset.sandboxHud=SANDBOX_GAME_VERSION;style.textContent=`
 #sandboxHud{position:absolute;inset:0;z-index:9;pointer-events:none;font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;font-style:italic}
-#sandboxHud .sb-score{position:absolute;right:max(16px,var(--solo-safe-right,env(safe-area-inset-right)));bottom:calc(max(14px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 168px);font-weight:900;font-size:clamp(26px,5vw,46px);letter-spacing:.04em;color:#ffe6f6;text-shadow:0 0 8px #ff2e97,0 0 22px rgba(255,46,151,.8),3px 3px 0 #29e6ff;transform:skewX(-8deg)}
-#sandboxHud .sb-flow{position:absolute;right:max(16px,var(--solo-safe-right,env(safe-area-inset-right)));bottom:calc(max(14px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 214px);display:flex;align-items:center;gap:7px;color:#29e6ff;font-weight:900;font-size:12px;letter-spacing:.12em;text-shadow:0 0 6px #29e6ff}
-#sandboxHud .sb-flow i{display:block;width:92px;height:7px;border-radius:4px;background:rgba(41,230,255,.18);overflow:hidden;box-shadow:0 0 8px rgba(41,230,255,.4)}
-#sandboxHud .sb-flow b{display:block;height:100%;width:0;background:#29e6ff;box-shadow:0 0 10px #29e6ff;transition:width .15s linear}
-#sandboxHud .sb-flow em{font-style:italic;color:#ff4fd8;text-shadow:0 0 6px #ff2e97;min-width:2.2em}
+#sandboxHud .sb-score{position:absolute;right:max(16px,var(--solo-safe-right,env(safe-area-inset-right)));bottom:calc(max(14px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 168px);font-weight:900;font-size:clamp(26px,5vw,46px);letter-spacing:.04em;color:#ffffff;text-shadow:0 3px 0 #1a2440,0 0 12px rgba(0,0,0,.25);transform:skewX(-8deg)}
+#sandboxHud .sb-flow{position:absolute;right:max(16px,var(--solo-safe-right,env(safe-area-inset-right)));bottom:calc(max(14px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 214px);display:flex;align-items:center;gap:7px;color:#ffffff;font-weight:900;font-size:12px;letter-spacing:.12em;text-shadow:0 2px 0 rgba(0,0,0,.4)}
+#sandboxHud .sb-flow i{display:block;width:92px;height:7px;border-radius:4px;background:rgba(14,26,52,.5);overflow:hidden;box-shadow:0 2px 0 rgba(0,0,0,.3)}
+#sandboxHud .sb-flow b{display:block;height:100%;width:0;background:#ffd23f;transition:width .15s linear}
+#sandboxHud .sb-flow em{font-style:italic;color:#ffd23f;text-shadow:0 2px 0 rgba(0,0,0,.4);min-width:2.2em}
 #sandboxHud .sb-pops{position:absolute;left:0;right:0;top:34%;display:flex;flex-direction:column;align-items:center;gap:4px}
 #sandboxHud .sb-pop{font-weight:900;font-size:clamp(20px,4.4vw,40px);letter-spacing:.06em;transform:skewX(-10deg);animation:sbPop 1.5s ease-out forwards;white-space:nowrap}
-#sandboxHud .sb-pop.pink{color:#ffe6f6;text-shadow:0 0 8px #ff2e97,0 0 24px rgba(255,46,151,.85),3px 3px 0 #7a0f55}
-#sandboxHud .sb-pop.cyan{color:#eaffff;text-shadow:0 0 8px #29e6ff,0 0 24px rgba(41,230,255,.85),3px 3px 0 #0b3d6b}
-#sandboxHud .sb-pop.red{color:#ffe0e0;text-shadow:0 0 8px #ff3b30,0 0 22px rgba(255,59,48,.85),3px 3px 0 #5a0d0a}
-#sandboxHud .sb-pop.gold{color:#fff6d8;text-shadow:0 0 8px #ffb347,0 0 22px rgba(255,179,71,.85),3px 3px 0 #6b3b00}
+#sandboxHud .sb-pop.pink{color:#ffffff;text-shadow:0 4px 0 #1a2440,0 0 16px rgba(0,0,0,.25)}
+#sandboxHud .sb-pop.cyan{color:#8fe0ff;text-shadow:0 4px 0 #0b2a4a,0 0 16px rgba(0,0,0,.25)}
+#sandboxHud .sb-pop.red{color:#ff5a4a;text-shadow:0 4px 0 #4a0d0a,0 0 16px rgba(0,0,0,.25)}
+#sandboxHud .sb-pop.gold{color:#ffd23f;text-shadow:0 4px 0 #6b4300,0 0 16px rgba(0,0,0,.25)}
 @keyframes sbPop{0%{opacity:0;transform:skewX(-10deg) scale(1.6)}12%{opacity:1;transform:skewX(-10deg) scale(1)}75%{opacity:1}100%{opacity:0;transform:skewX(-10deg) translateY(-18px)}}`;
   document.head.appendChild(style);return true;
 }
@@ -133,7 +133,7 @@ function shoot(e,now){
   if(e.type==="heavy"){fireRocket(e,from.clone(),to);return;}
   const dist=from.distanceTo(to),moving=Number(t.speedMps)||Number(drive()?.speedMps)||0,p=clamp(e.t.acc-dist/90-moving*.02,.08,.85),hit=Math.random()<p;
   const miss=hit?to:to.clone().add(new THREE.Vector3(rand(-2.5,2.5),rand(-2.5,2.5),rand(-.6,1.2)));
-  tracer(from,miss,e.type==="cop"?0x29e6ff:0xff2e97);sfx("shot",{gain:.45,rate:e.type==="cop"?1.35:1.05,at:from});
+  tracer(from,miss,e.type==="cop"?0xfff1a8:0xffb347);sfx("shot",{gain:.45,rate:e.type==="cop"?1.35:1.05,at:from});
   if(hit){t.model?.damage?.(e.t.dmg,`enemy:${e.type}`);addTrauma(.12);}
 }
 function killEnemy(e,how="shot"){
