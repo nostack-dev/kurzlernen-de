@@ -21,7 +21,7 @@ const MOBILE=typeof navigator!=="undefined"&&/android|iphone|ipad|mobile/i.test(
 const SHADOW_SIZE=MOBILE?1024:2048,SHADOW_RANGE_M=MOBILE?70:110,FOG_DENSITY=.00085;
 const SCAN_INTERVAL_MS=MOBILE?900:650,FRAME_BUDGET_MS=2.5;
 
-let installed=false,queue=[],lastScan=-Infinity,styledScene=null,sky=null,sun=null,hemi=null,converted=0,lastCull=-Infinity,envReady=false,actorRoots=[];
+let installed=false,queue=[],lastScan=-Infinity,styledScene=null,sky=null,sun=null,hemi=null,converted=0,lastCull=-Infinity,envReady=false,actorRoots=[],scanStack=[],scanActors=[],scanSceneRef=null;
 const processed=new WeakSet();
 const bridge=()=>globalThis.__arondightRealWorld||null;
 const viewport=()=>document.getElementById("viewport");
@@ -166,12 +166,16 @@ function styleScene(scene){
 const ACTOR_CULL_M=260,CULL_INTERVAL_MS=600,cullPos=new THREE.Vector3();
 const actorId=n=>String(n?.userData?.worldPopulationId||n?.userData?.worldLifeId||"");
 function setLayer(root,on){root.traverse(n=>{if(on)n.layers.enable(0);else n.layers.disable(0);});}
-function scanScene(scene){
-  const nextActors=[];scene.traverse(node=>{
+function beginScan(scene){scanSceneRef=scene;scanStack.length=0;scanActors.length=0;scanStack.push(scene);}
+function stepScan(deadline){
+  while(scanStack.length&&performance.now()<deadline){
+    const node=scanStack.pop();if(!node)continue;
     if((node.isDirectionalLight||node.isHemisphereLight||node.isAmbientLight)&&!node.userData.realLight&&(node.intensity>0||node.castShadow)){node.intensity=0;node.castShadow=false;}
-    const id=actorId(node);if(id&&actorId(node.parent)!==id)nextActors.push(node);
+    const id=actorId(node);if(id&&actorId(node.parent)!==id)scanActors.push(node);
     if(needsWork(node))queue.push(node);
-  });actorRoots=nextActors;
+    const children=node.children;for(let i=children.length-1;i>=0;i--)scanStack.push(children[i]);
+  }
+  if(!scanStack.length&&scanSceneRef){actorRoots=scanActors.slice();scanActors.length=0;scanSceneRef=null;return true;}return false;
 }
 function cullActors(now){
   if(now-lastCull<CULL_INTERVAL_MS)return;lastCull=now;const camera=bridge()?.threeCamera;if(!camera)return;let roots=0,culled=0;
@@ -183,12 +187,16 @@ if(typeof window!=="undefined")window.addEventListener("arondight:nuke-impact",e
 function frame(now){
   const scene=bridge()?.threeScene;
   if(scene){
+    const menuEl=document.getElementById("gameMenu"),covered=Boolean(menuEl&&!menuEl.hidden);
     styleScene(scene);skyUniforms.uTime.value=now/1000;skyUniforms.uBlastAge.value=blastAt<0?-1:Math.min(60,(now-blastAt)/1000);
-    try{bakeSky(bridge()?.threeRenderer,now,blastAt>=0&&now-blastAt<14000);}catch(e){console.warn("sky bake",e);}
-    if(!queue.length&&now-lastScan>SCAN_INTERVAL_MS){lastScan=now;scanScene(scene);}cullActors(now);
-    const menuEl=document.getElementById("gameMenu"),covered=Boolean(menuEl&&!menuEl.hidden),deadline=performance.now()+(covered?14:FRAME_BUDGET_MS);
+    // Never render the expensive off-screen procedural sky while an opaque menu
+    // covers the whole WebGL view. The first visible game frame gets the same sky.
+    if(!covered)try{bakeSky(bridge()?.threeRenderer,now,blastAt>=0&&now-blastAt<14000);}catch(e){console.warn("sky bake",e);}
+    if(!scanStack.length&&!scanSceneRef&&now-lastScan>SCAN_INTERVAL_MS){lastScan=now;beginScan(scene);}
+    const deadline=performance.now()+FRAME_BUDGET_MS;stepScan(deadline);
+    if(!covered)cullActors(now);
     while(queue.length&&performance.now()<deadline){const node=queue.pop();if(node.parent)convert(node);}
-    const view=viewport();if(view){const value=String(converted);if(view.dataset.stylizedMeshes!==value)view.dataset.stylizedMeshes=value;}
+    const view=viewport();if(view){const value=String(converted);if(view.dataset.stylizedMeshes!==value)view.dataset.stylizedMeshes=value;view.dataset.styleSceneScan="incremental-budgeted-v2";}
   }
   requestAnimationFrame(frame);
 }
