@@ -12,14 +12,18 @@ const BLAST_RADIUS_M=8;
 const BLAST_MAX_DAMAGE=100;
 const BLAST_OCCLUDED_SCALE=.18;
 const MISSILE_TTL_MS=4200;
-const GRENADE_TTL_MS=5200;
-const GRENADE_FUSE_MS=2300;
+const GRENADE_TTL_MS=5600;
+const GRENADE_FUSE_MS=2800;
 const GRENADE_COOLDOWN_MS=760;
 const GRENADE_SPEED_MPS=32;
 const GRENADE_GRAVITY_MPS2=9.81;
-const GRENADE_RESTITUTION=.43;
-const GRENADE_SURFACE_DAMPING=.78;
-const GRENADE_MAX_BOUNCES=5;
+const GRENADE_RESTITUTION=.58;
+const GRENADE_SURFACE_DAMPING=.88;
+const GRENADE_MAX_BOUNCES=7;
+const GRENADE_BASE_RADIUS_M=.039;
+const GRENADE_VISUAL_SCALE=1.15;
+const GRENADE_RADIUS_M=GRENADE_BASE_RADIUS_M*GRENADE_VISUAL_SCALE;
+const GRENADE_FLOOR_NORMAL_Z=.58;
 const GRENADE_BLAST_RADIUS_M=6;
 const GRENADE_MAX_DAMAGE=125;
 const FOOT_WEAPON_ORDER=Object.freeze(["smg","grenade"]);
@@ -27,7 +31,7 @@ const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tmp3=new THREE.Vector3(),
 const shotCamera=new THREE.PerspectiveCamera(78,16/9,.01,500),shotRaycaster=new THREE.Raycaster(),boxHits=new Box3dHitscanWorld();
 const tracerAxis=new THREE.Vector3(0,1,0),tracerVector=new THREE.Vector3(),grenadeAxis=new THREE.Vector3(0,0,-1);
 let installed=false,audioSettings=loadAudioSettings(),footWeapon=loadMode(FOOT_WEAPON_KEY,"smg",FOOT_WEAPON_ORDER),droneWeapon=loadMode(DRONE_WEAPON_KEY,"gun",["gun","missile"]),lastSmg=-Infinity,lastGrenade=-Infinity,lastMissile=-Infinity;
-let tracerScene=null,tracerPool=[],tracerCursor=0,blastScene=null,blastPool=[],blastCursor=0,activeMovePointer=null,activeMoveElement=null,tap=null,lastPedScan=-Infinity,pedestrians=[],actorCacheScene=null,actorCacheAt=-Infinity,actorCachePhysicsReady=false,actorCache=[],actorByPhysicsId=new Map();
+let tracerScene=null,tracerPool=[],tracerCursor=0,blastScene=null,blastPool=[],blastCursor=0,bounceFxScene=null,bounceFxPool=[],bounceFxCursor=0,activeMovePointer=null,activeMoveElement=null,tap=null,lastPedScan=-Infinity,pedestrians=[],actorCacheScene=null,actorCacheAt=-Infinity,actorCachePhysicsReady=false,actorCache=[],grenadeOrganicCache=[],actorByPhysicsId=new Map();
 const pedState=new WeakMap(),missiles=[],grenades=[];
 
 function viewport(){return document.getElementById("viewport");}
@@ -42,6 +46,7 @@ function effectiveVisible(node){for(let n=node;n;n=n.parent)if(n.visible===false
 function isFoot(){return walk()?.mode==="foot"&&!drive()?.active;}
 function isDrone(){return walk()?.mode!=="foot"&&!drive()?.active;}
 function audioShot(gain=.22){if(!audioSettings.soundEnabled||audioSettings.shotsVolume<=0)return;const ctx=getSharedCombatAudioContext({resume:true});if(ctx)playCombatAudio(ctx,"shot",{gain:gain*audioSettings.shotsVolume/100,minIntervalMs:28});}
+function audioGrenadeBounce(impactSpeed=8,bounceCount=0){if(!audioSettings.soundEnabled||audioSettings.fxVolume<=0)return;const ctx=getSharedCombatAudioContext({resume:true});if(ctx)playCombatAudio(ctx,"bounce",{gain:clamp(.16+impactSpeed*.018,.16,.44)*audioSettings.fxVolume/100,playbackRate:clamp(.92+bounceCount*.035+.02*Math.min(impactSpeed,10),.88,1.32),minIntervalMs:42});}
 function weaponFired(weapon,intensity,source="runtime",mode=isFoot()?"foot":isDrone()?"drone":"vehicle"){window.dispatchEvent(new CustomEvent("arondight:weapon-fired",{detail:{weapon:String(weapon),intensity:clamp(intensity,0,.8),source:String(source),mode}}));}
 
 try{if(localStorage.getItem(IMAGERY_KEY)===null)localStorage.setItem(IMAGERY_KEY,"0");}catch{}
@@ -59,7 +64,7 @@ function footRay(clientX,clientY){
   const cp=Math.cos(Number(w.pitch)||0);forward.set(Math.sin(Number(w.yaw)||0)*cp,Math.cos(Number(w.yaw)||0)*cp,Math.sin(Number(w.pitch)||0)).normalize();shotCamera.lookAt(tmp.copy(shotCamera.position).add(forward));shotCamera.updateProjectionMatrix();shotCamera.updateMatrixWorld(true);ndc.set(p.x/p.width*2-1,1-p.y/p.height*2);shotRaycaster.setFromCamera(ndc,shotCamera);return{origin:shotRaycaster.ray.origin.clone(),direction:shotRaycaster.ray.direction.clone(),point:p};
 }
 function droneRay(clientX,clientY){const camera=bridge()?.threeCamera,p=logicalPoint(clientX,clientY);if(!camera||!p)return null;ndc.set(p.x/p.width*2-1,1-p.y/p.height*2);shotRaycaster.setFromCamera(ndc,camera);return{origin:shotRaycaster.ray.origin.clone(),direction:shotRaycaster.ray.direction.clone(),point:p};}
-function refreshActorCache(scene,physicsReady,now=performance.now()){if(scene===actorCacheScene&&physicsReady===actorCachePhysicsReady&&now-actorCacheAt<180)return;actorCacheScene=scene;actorCachePhysicsReady=physicsReady;actorCacheAt=now;actorCache=[];actorByPhysicsId=new Map();scene?.traverse?.(node=>{if(!node?.isMesh)return;const u=node.userData||{},kind=String(u.worldPopulationKind||u.worldLifeKind||""),id=String(u.worldPopulationId||u.worldProceduralId||"");if(id){const existing=actorByPhysicsId.get(id);if(!existing||Number.isInteger(Number(u.policeDroneId)))actorByPhysicsId.set(id,node);}if(!effectiveVisible(node)||node.material?.visible===false||u.flightFireIgnore||u.walkWeaponPart||u.arondightAirframe||u.localHumanAvatar||u.worldPopulationClone||u.neonEdge||u.neonSkip)return;if(!kind&&!u.vsPeer&&!u.vsPlayerId)return;if(physicsReady&&(kind==="car"||kind==="bus"||kind==="police-drone"||u.gtaDrivableVehicle))return;actorCache.push(node);});const view=viewport();if(view){view.dataset.walkProjectileActorCache=String(actorCache.length);view.dataset.walkProjectileActorCacheMs="180";}}
+function refreshActorCache(scene,physicsReady,now=performance.now()){if(scene===actorCacheScene&&physicsReady===actorCachePhysicsReady&&now-actorCacheAt<180)return;actorCacheScene=scene;actorCachePhysicsReady=physicsReady;actorCacheAt=now;actorCache=[];grenadeOrganicCache=[];actorByPhysicsId=new Map();scene?.traverse?.(node=>{if(!node?.isMesh)return;const u=node.userData||{},kind=String(u.worldPopulationKind||u.worldLifeKind||""),decor=String(u.worldDecorKind||""),id=String(u.worldPopulationId||u.worldProceduralId||"");if(id){const existing=actorByPhysicsId.get(id);if(!existing||Number.isInteger(Number(u.policeDroneId)))actorByPhysicsId.set(id,node);}if(!effectiveVisible(node)||node.material?.visible===false||u.walkWeaponPart||u.arondightAirframe||u.localHumanAvatar||u.worldPopulationClone||u.neonEdge)return;if(decor==="ambient-animal"||decor.startsWith("tree-"))grenadeOrganicCache.push(node);if(u.flightFireIgnore||u.neonSkip)return;if(!kind&&!u.vsPeer&&!u.vsPlayerId)return;if(physicsReady&&(kind==="car"||kind==="bus"||kind==="police-drone"||u.gtaDrivableVehicle))return;actorCache.push(node);});const view=viewport();if(view){view.dataset.walkProjectileActorCache=String(actorCache.length);view.dataset.walkGrenadeOrganicCache=String(grenadeOrganicCache.length);view.dataset.walkProjectileActorCacheMs="180";}}
 function physicsSceneObject(id){const key=String(id||""),scene=bridge()?.threeScene;if(!key||!scene)return null;refreshActorCache(scene,Boolean(rigid()?.ready));return actorByPhysicsId.get(key)||null;}
 function actorCandidates(scene,{physicsReady=false}={}){refreshActorCache(scene,physicsReady);return actorCache;}
 function box3dProjectileHit(ray,maxDistance){
@@ -71,7 +76,9 @@ function nearestHit(ray,maxDistance=180){
   const scene=bridge()?.threeScene;if(!scene||!ray)return null;const physicsReady=Boolean(rigid()?.ready);shotRaycaster.set(ray.origin,ray.direction);shotRaycaster.near=.01;shotRaycaster.far=maxDistance;const sceneHit=shotRaycaster.intersectObjects(actorCandidates(scene,{physicsReady}),false)[0]||null,physicsHit=box3dProjectileHit(ray,maxDistance);
   return physicsHit&&(!sceneHit||physicsHit.distance<sceneHit.distance)?physicsHit:sceneHit;
 }
-function nearestGrenadeHit(ray,maxDistance){return nearestHit(ray,maxDistance);}
+function nearestGrenadeHit(ray,maxDistance){
+  const scene=bridge()?.threeScene;if(!scene||!ray)return null;const base=nearestHit(ray,maxDistance);refreshActorCache(scene,Boolean(rigid()?.ready));shotRaycaster.set(ray.origin,ray.direction);shotRaycaster.near=.005;shotRaycaster.far=maxDistance;const organic=shotRaycaster.intersectObjects(grenadeOrganicCache,false)[0]||null;return organic&&(!base||organic.distance<Number(base.distance??Infinity))?organic:base;
+}
 
 function ensureTracerPool(scene){if(tracerScene===scene&&tracerPool.length)return;if(tracerScene)for(const group of tracerPool)group.parent?.remove(group);tracerScene=scene;tracerPool=[];const coreGeo=new THREE.CylinderGeometry(.010,.010,1,6),haloGeo=new THREE.CylinderGeometry(.026,.026,1,7),coreMat=new THREE.MeshBasicMaterial({color:0xeafff4,transparent:true,opacity:1,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}),haloMat=new THREE.MeshBasicMaterial({color:0x66ff99,transparent:true,opacity:.30,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});for(let i=0;i<24;i++){const group=new THREE.Group(),halo=new THREE.Mesh(haloGeo,haloMat),core=new THREE.Mesh(coreGeo,coreMat);for(const mesh of[halo,core]){mesh.frustumCulled=false;mesh.renderOrder=14;mesh.userData.flightFireIgnore=true;mesh.userData.flightFireTracer=true;}group.add(halo,core);group.visible=false;group.userData.flightFireIgnore=true;group.userData.flightFireTracer=true;group.userData.tracerState={start:new THREE.Vector3(),direction:new THREE.Vector3(),distance:0,born:0,speed:320,tailM:1.8,holdMs:34};scene.add(group);tracerPool.push(group);}}
 function showTracer(start,end){const scene=bridge()?.threeScene;if(!scene)return;ensureTracerPool(scene);const group=tracerPool[tracerCursor++%tracerPool.length],state=group.userData.tracerState;tracerVector.copy(end).sub(start);const length=tracerVector.length();if(length<.03)return;state.start.copy(start);state.direction.copy(tracerVector).normalize();state.distance=length;state.born=performance.now();group.visible=true;group.scale.set(1,.02,1);const view=viewport();if(view)view.dataset.walkShotVisibility="moving-bullet-segment+phosphor-halo-v2";}
