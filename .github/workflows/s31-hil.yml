@@ -76,6 +76,7 @@ jobs:
           node tests/s31_digital_twin_audit_test.mjs
           node tests/p2p_link_test.mjs
           node tests/lan_vs_smoke.mjs
+          node tests/drone_runtime_perf_contract_test.mjs
       - name: Architecture and JavaScript validation
         run: |
           set -euxo pipefail
@@ -101,6 +102,13 @@ jobs:
           node --check sim/world_rigid_body_runtime.mjs
           node --check sim/wanted_system_logic.mjs
           node --check sim/wanted_police_drones.mjs
+          node --check sim/stylized_world_style.mjs
+          node --check sim/mobile_gameplay_ui.mjs
+          node --check sim/flight_first_cleanup.mjs
+          node --check sim/gameplay_final_runtime_v2.mjs
+          node --check sim/player_car_mode.mjs
+          node --check sim/player_vehicle_runtime_v2.mjs
+          node --check sim/training_test_level_v2.mjs
           node --check sim/lan_vs.mjs
           node --check tests/architecture_invariants.mjs
           node --check tests/p2p_link_test.mjs
