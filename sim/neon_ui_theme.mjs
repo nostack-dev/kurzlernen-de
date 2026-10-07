@@ -1,7 +1,7 @@
 // RUSH HUD skin matching the neon wireframe world: rounded pills, green
 // glow borders, no photos. Layout and visibility stay untouched.
 
-export const NEON_UI_THEME_VERSION="rush-neon-ui-v1";
+export const NEON_UI_THEME_VERSION="rush-neon-ui-v2-clear-hud";
 const R="html.neon-line-style:not(#ng-a):not(#ng-b):not(#ng-c)";
 const CSS=`
 ${R}{--ui-fill:rgba(4,12,10,.72);--ui-line:#3dff8a;--ui-text:#d8ffe8;--ui-accent:#3dff8a;--ui-font:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -13,9 +13,14 @@ ${R} :is(#playerModeButton,#driveModeButton,#gtaVehicleButton,#lanVsButton,#want
   font-family:var(--ui-font)!important;font-weight:700!important;letter-spacing:.08em!important;backdrop-filter:none!important}
 ${R} :is(#soloReset,#mobileGameplayReset,#gameExitButton){border-color:#c4495a!important;color:#ffb4be!important;box-shadow:0 0 10px rgba(196,73,90,.35)!important}
 ${R} :is(#droneWeaponToggle,#footWeaponToggle,#footFire){border-color:#c4a15a!important;color:#ffe3a8!important}
-${R} :is(#worldLookHud,#soloHud,#footHud,#vehicleHud,dialog,.panel,.telemetry){
-  background:rgba(2,10,8,.78)!important;background-image:none!important;border:1px solid rgba(61,255,138,.7)!important;border-radius:14px!important;color:#d8ffe8!important;
+${R} :is(#worldLookHud,#soloClearance,#soloRaceHud,#playerVitalsHud,#wantedHud,#gameplayContractHud,#gameplayContractBar,#gameplayScorePill,#mobileGameplayDock,dialog,.panel,.telemetry){
+  background:rgba(2,10,8,.72)!important;background-image:none!important;border:1px solid rgba(61,255,138,.72)!important;border-radius:14px!important;color:#d8ffe8!important;
   box-shadow:0 0 14px rgba(61,255,138,.22)!important}
+/* These are full-screen interaction/HUD containers. They must NEVER receive
+   a panel fill or border: doing that literally lays a dark veil + frame over
+   the whole game. */
+${R} :is(#soloHud,#footHud,#vehicleHud,#gtaVehicleHud,#sandboxHud){
+  background:transparent!important;background-image:none!important;border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 ${R} :is(input,select,textarea){background:#010806!important;color:#d8ffe8!important;border:1px solid #3dff8a!important;border-radius:10px!important;font-family:var(--ui-font)!important}
 `;
 const MIN_FONT_PX=9;
