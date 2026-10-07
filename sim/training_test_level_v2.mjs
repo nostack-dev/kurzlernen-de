@@ -37,6 +37,6 @@ function build(scene){
   }
   const v=viewport();if(v){v.dataset.trainingLevel=TRAINING_LEVEL_VERSION;v.dataset.trainingLevelGrounding="fixed-world-origin-v1";v.dataset.trainingLevelWater="saturated-pond+bridge-v1";v.dataset.trainingLevelCrowd="procedural-routes-v1";v.dataset.trainingLevelZLayers="ground<park<water<road<marking<buildings-v1";}
 }
-function frame(){const b=bridge(),scene=b?.threeScene;if(scene&&scene!==sceneRef){root?.parent?.remove(root);root=null;build(scene);}const realGeo=Number.isFinite(b?.originLon)&&Number.isFinite(b?.originLat);const training=Boolean(root&&document.body?.classList.contains("solo-flight")&&!realGeo);if(root)root.visible=training;requestAnimationFrame(frame);}
-export function installTrainingTestLevelV2(){if(installed)return;installed=true;requestAnimationFrame(frame);}
+function sync(){const b=bridge(),scene=b?.threeScene;if(scene&&scene!==sceneRef){root?.parent?.remove(root);root=null;build(scene);}const realGeo=Number.isFinite(b?.originLon)&&Number.isFinite(b?.originLat);const training=Boolean(root&&document.body?.classList.contains("solo-flight")&&!realGeo);if(root)root.visible=training;setTimeout(sync,250);}
+export function installTrainingTestLevelV2(){if(installed)return;installed=true;sync();}
 installTrainingTestLevelV2();
