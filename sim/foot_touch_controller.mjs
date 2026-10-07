@@ -86,7 +86,11 @@ function ensureLoop(){if(loop)return;lastLoop=performance.now();const tick=now=>
   if(!pointers.size||!active()){if(!active())releaseAll("mode-inactive");loop=0;return;}
   for(const entry of pointers.values()){
     if(entry.kind==="look"&&entry.axes.m>LOOK_EDGE){const k=(entry.axes.m-LOOK_EDGE)/(1-LOOK_EDGE),n=entry.axes.m||1;walk()?.applyTouchLookStick?.({x:entry.axes.x/n*k,y:entry.axes.y/n*k,dt,now,source:"touch-stick-edge"});}
-    else if(entry.kind==="fire"&&String(weapons()?.mode||"")==="smg"&&now-entry.lastShot>=FIRE_INTERVAL_MS){entry.lastShot=now;fire(entry.x,entry.y,"screen-touch-hold-repeat");}
+    else if(entry.kind==="fire"&&String(weapons()?.mode||"")==="smg"){
+      // Fire rate is independent of the frame rate: catch up on missed
+      // intervals (bounded) so a slow frame doesn't throttle the MP.
+      let n=0;while(now-entry.lastShot>=FIRE_INTERVAL_MS&&n<4){entry.lastShot+=FIRE_INTERVAL_MS;n++;fire(entry.x,entry.y,"screen-touch-hold-repeat");}
+      if(now-entry.lastShot>=FIRE_INTERVAL_MS)entry.lastShot=now;}
   }
   loop=requestAnimationFrame(tick);};loop=requestAnimationFrame(tick);}
 
