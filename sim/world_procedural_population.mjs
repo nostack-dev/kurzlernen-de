@@ -196,7 +196,7 @@ function updatePhysicalVehicle(record,epoch,now){
   // player runtime, our own copy of it steps aside (hidden, no physics)
   if(record.remoteDriven){record.group.visible=false;record.wheelPoses=null;if(record.physicsRegistered){rigidBodies()?.removeBody?.(record.id);record.physicsRegistered=false;}return;}
   if(!respawnAllowed(record)){record.group.visible=false;record.wheelPoses=null;if(record.physicsRegistered){rigidBodies()?.removeBody?.(record.id);record.physicsRegistered=false;}return;}
-  let physics=rigidBodies(),route=routeFor(record,now);if(!route)streamFallbackAroundFocus(record,populationFocus(),epoch);const shape=vehicleShape(record),fallback=fallbackVehicleSample(record,epoch),initial=route?samplePingPongRoute(route,epoch*record.speed+(record.motion?.phase||0)*route.length,laneWidth(route,record)):fallback;
+  let physics=rigidBodies(),route=routeFor(record,now);if(!route)streamFallbackAroundFocus(record,populationFocus(),epoch);const shape=vehicleShape(record),fallback=fallbackVehicleSample(record,epoch);let initial=route?samplePingPongRoute(route,epoch*record.speed+(record.motion?.phase||0)*route.length,laneWidth(route,record)):fallback;
   // A car the player left stays where it was parked (GTA): no route AI, handbrake on,
   // until the player is far away or the park time ran out.
   if(record.parked){const fp=populationFocus(),far=fp&&Math.hypot(record.parked.x-fp.x,record.parked.y-fp.y)>PARK_RELEASE_M;if(now>record.parked.until||far){record.parked=null;rigidBodies()?.setDrive?.(record.id,null);}}
