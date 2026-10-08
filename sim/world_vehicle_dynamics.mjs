@@ -23,7 +23,19 @@ export const VEHICLE_SPECS=Object.freeze({
     suspension:{hertz:2.8,damping:.86,lower:-.18,upper:.14},torque:{front:0,rear:4200},brake:9500,handbrake:12000,coast:260,steerLock:.44,steerTorque:6000,friction:1.15},
 });
 export function vehicleSpec(kind){return kind==="bus"?VEHICLE_SPECS.bus:kind==="car"||kind==="vehicle"?VEHICLE_SPECS.car:null;}
-export function vehicleGroundOffset(spec){return spec.radius-spec.attachZ;}
+// Static sag the suspension settles at under the vehicle's weight.
+const SAG={car:.06,bus:.08},BODY_DAMPING=.45;
+const sagOf=spec=>spec===VEHICLE_SPECS.bus?SAG.bus:SAG.car;
+// chassis centre height above the ground at rest (wheel radius + axle drop - sag)
+export function vehicleGroundOffset(spec){return spec.radius-spec.attachZ-sagOf(spec);}
+// Box3D's wheel-joint spring is a soft constraint: its hertz/damping ratio act
+// on the joint's effective mass (≈ the light wheel), not on the chassis. Pick
+// them so the spring really carries a quarter of the chassis at the target sag
+// with a well damped body motion, instead of resting on the bump stops.
+export function suspensionTuning(spec){
+  const q=spec.mass/4,m=spec.wheelMass*q/(spec.wheelMass+q),k=q*9.81/sagOf(spec),w=Math.sqrt(k/m),c=2*BODY_DAMPING*Math.sqrt(k*q);
+  return{hertz:w/(2*Math.PI),dampingRatio:c/(2*m*w)};
+}
 
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
 function rotate(q,v){const[x,y,z,w]=q,[vx,vy,vz]=v,tx=2*(y*vz-z*vy),ty=2*(z*vx-x*vz),tz=2*(x*vy-y*vx);return[vx+w*tx+(y*tz-z*ty),vy+w*ty+(z*tx-x*tz),vz+w*tz+(x*ty-y*tx)];}
@@ -51,7 +63,7 @@ export function attachWheels(physics,record,spec,{category,mask}){
     // allowFastRotation — smooth rolling, no faceted tread bumps or wobble.
     const shape=b3.b3CreateSphereShape(body,sd,{center:[0,0,0],radius:r});
     const jd=b3.b3DefaultWheelJointDef();jd.base.bodyIdA=record.body;jd.base.bodyIdB=body;jd.base.localFrameA={position:local,quaternion:[...FRAME_Q]};jd.base.localFrameB={position:[0,0,0],quaternion:[...FRAME_Q]};jd.base.collideConnected=false;
-    jd.enableSuspensionSpring=true;jd.suspensionHertz=spec.suspension.hertz;jd.suspensionDampingRatio=spec.suspension.damping;jd.enableSuspensionLimit=true;jd.lowerSuspensionLimit=spec.suspension.lower;jd.upperSuspensionLimit=spec.suspension.upper;
+    const tune=suspensionTuning(spec);jd.enableSuspensionSpring=true;jd.suspensionHertz=tune.hertz;jd.suspensionDampingRatio=tune.dampingRatio;jd.enableSuspensionLimit=true;jd.lowerSuspensionLimit=spec.suspension.lower;jd.upperSuspensionLimit=spec.suspension.upper;
     jd.enableSpinMotor=true;jd.maxSpinTorque=spec.coast;jd.spinSpeed=0;
     jd.enableSteering=Boolean(front);jd.steeringHertz=9;jd.steeringDampingRatio=.95;jd.maxSteeringTorque=spec.steerTorque;jd.targetSteeringAngle=0;jd.enableSteeringLimit=Boolean(front);jd.lowerSteeringLimit=-spec.steerLock;jd.upperSteeringLimit=spec.steerLock;
     const joint=b3.b3CreateWheelJoint(physics.world,jd);
