@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {patchShockMaterial} from "./nuke_shock_field.mjs";
-import {staticGroundHeightAt as groundHeightAt,onTerrainChange} from "./terrain_craters.mjs";
+import {staticGroundHeightAt as groundHeightAt,onTerrainChange,setRoadCorridors} from "./terrain_craters.mjs";
 import {drapeTerrainTriangle} from "./terrain_surface.mjs";
 
 // The real streets, parks and water of the map as stylized 3D ground:
@@ -72,16 +72,23 @@ function* build(b,cx,cy){
     const cls=String(f.properties?.class||"minor").toLowerCase();if(cls==="rail"||cls==="transit"||cls==="ferry"||cls==="aerialway")continue;if(f.properties?.brunnel==="tunnel")continue;
     const w=WIDTH[cls]??5;for(const line of lines(f.geometry)){const pts=line.map(p=>project(p[0],p[1]));if(pts.length<2||!pts.some(p=>near(p[0],p[1])))continue;const key=`${cls}:${Math.round(pts[0][0])},${Math.round(pts[0][1])}:${Math.round(pts.at(-1)[0])},${Math.round(pts.at(-1)[1])}`;if(seen.has(key))continue;seen.add(key);roads.push({cls,w,pts});if(roads.length>=MAX_FEATURES)break;}
   }
+  // level road corridors in the terrain (drivable, flat across); the roads are draped after the change
+  setRoadCorridors(roads.filter(r=>r.cls!=="path"&&r.cls!=="track").map(r=>({pts:r.pts,w:r.w+3.4})));
   const ribbon=(pts,w,z,color,caps=true)=>{for(let i=0;i<pts.length-1;i++){const a=pts[i],b2=pts[i+1],dx=b2[0]-a[0],dy=b2[1]-a[1],l=Math.hypot(dx,dy);if(l<.05)continue;const nx=-dy/l*w/2,ny=dx/l*w/2,k=Math.max(1,Math.ceil(l/ROAD_SEG_M));for(let s=0;s<k;s++){const t0=s/k,t1=(s+1)/k,p0x=a[0]+dx*t0,p0y=a[1]+dy*t0,p1x=a[0]+dx*t1,p1y=a[1]+dy*t1;quad([p0x+nx,p0y+ny],[p0x-nx,p0y-ny],[p1x-nx,p1y-ny],[p1x+nx,p1y+ny],z,color);}}if(caps)for(let i=0;i<pts.length;i++){const p=pts[i];if(i>0&&i<pts.length-1){const a=pts[i-1],q=pts[i+1],ax=p[0]-a[0],ay=p[1]-a[1],bx=q[0]-p[0],by=q[1]-p[1],cosT=(ax*bx+ay*by)/((Math.hypot(ax,ay)*Math.hypot(bx,by))||1);if(cosT>.966)continue;}disk(p[0],p[1],w/2,z,color,i===0||i===pts.length-1?8:6);}};
   for(const r of roads){if(r.cls==="path"||r.cls==="track"||r.cls==="service")continue;ribbon(r.pts,r.w+3.4,Z_SIDEWALK,C.sidewalk);if(++n%40===0)yield;}
-  for(const r of roads){const major=/motorway|trunk|primary|secondary/.test(r.cls);ribbon(r.pts,r.w,Z_ROAD,r.cls==="path"?0xc9b892:major?C.asphaltMajor:C.asphalt);if(++n%40===0)yield;}
+  // Layers are drawn in buffer order without depth writes (see material): a
+  // later layer always covers an earlier one where they overlap, so crossing
+  // paths, roads and junction caps never z-fight. Order: footpaths/tracks,
+  // service, minor roads, major roads, then markings.
+  const rank=r=>r.cls==="path"||r.cls==="track"?0:r.cls==="service"||r.cls==="pedestrian"?1:/motorway|trunk|primary|secondary/.test(r.cls)?3:2;
+  for(let layer=0;layer<4;layer++)for(const r of roads){if(rank(r)!==layer)continue;const major=layer===3;ribbon(r.pts,r.w,Z_ROAD,r.cls==="path"||r.cls==="track"?0xc9b892:major?C.asphaltMajor:C.asphalt);if(++n%40===0)yield;}
   for(const r of roads){if(!/motorway|trunk|primary|secondary|tertiary/.test(r.cls))continue;const color=/motorway|trunk/.test(r.cls)?C.lineYellow:C.line;
     for(let i=0;i<r.pts.length-1;i++){const a=r.pts[i],b2=r.pts[i+1],dx=b2[0]-a[0],dy=b2[1]-a[1],l=Math.hypot(dx,dy);if(l<1)continue;const ux=dx/l,uy=dy/l,nx=-uy*.09,ny=ux*.09;for(let s=1;s+3<l;s+=7){const x0=a[0]+ux*s,y0=a[1]+uy*s,x1=x0+ux*3,y1=y0+uy*3;quad([x0+nx,y0+ny],[x0-nx,y0-ny],[x1-nx,y1-ny],[x1+nx,y1+ny ],Z_MARKING,color);}}
     if(++n%40===0)yield;}
   return{buckets:[...buckets.values()],roads:roads.length};
 }
 function ensureMesh(scene){
-  if(mesh?.parent===scene)return mesh;material??=patchShockMaterial(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.93,metalness:0,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4}));mesh=new THREE.Group();
+  if(mesh?.parent===scene)return mesh;material??=patchShockMaterial(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.93,metalness:0,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4,depthWrite:false}));mesh=new THREE.Group();
   mesh.name="WORLD_CITY_ROADS";mesh.receiveShadow=true;mesh.renderOrder=-1;mesh.userData.flightFireIgnore=true;mesh.raycast=()=>{};scene.add(mesh);sceneRef=scene;center=[Infinity,Infinity];return mesh;
 }
 function frame(now){
@@ -97,5 +104,5 @@ function frame(now){
   const cam=b.threeCamera;if(!cam||now-lastTry<2500)return;lastTry=now;const moved=Math.hypot(cam.position.x-center[0],cam.position.y-center[1]),count=features(b,"transportation").length+features(b,"park").length+features(b,"landcover").length+features(b,"landuse").length;
   if(!count)return;if(moved<REBUILD_MOVE_M&&count<=builtCount*1.15+5)return;builtCount=count;center=[cam.position.x,cam.position.y];building=build(b,center[0],center[1]);
 }
-export function installCityRoads(){if(installed||typeof window==="undefined")return;installed=true;onTerrainChange(()=>{building=null;center=[Infinity,Infinity];builtCount=0;lastTry=-Infinity;if(mesh)mesh.visible=false;});requestAnimationFrame(frame);}
+export function installCityRoads(){if(installed||typeof window==="undefined")return;installed=true;onTerrainChange((_c,_r,source)=>{if(source==="roads"){center=[Infinity,Infinity];lastTry=-Infinity;return;}building=null;center=[Infinity,Infinity];builtCount=0;lastTry=-Infinity;if(mesh)mesh.visible=false;});requestAnimationFrame(frame);}
 installCityRoads();

@@ -85,7 +85,34 @@ export function setBuildingPads(footprints){if(!BUILDING_PADS_ENABLED){if(pads.s
 export function buildingGroundBase(outer){let m=Infinity;const r=(outer||[]).map(p=>Array.isArray(p)?[+p[0],+p[1]]:[+p.x,+p.y]);
   for(let i=0;i<r.length;i++){const a=r[i],b=r[(i+1)%r.length];if(!Number.isFinite(a[0])||!Number.isFinite(a[1]))continue;m=Math.min(m,staticGroundHeightAt(a[0],a[1]),staticGroundHeightAt((a[0]+b[0])/2,(a[1]+b[1])/2));}
   return Number.isFinite(m)?m:0;}
-export function terrainNodeHeightAt(x,y){const e=elevationAt(x,y);let h=padBlend(x,y,e);for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return Math.min(h,e-WATER_BED_M);return h;}
+// Road corridors: streets are level across and smooth along (drivable, like
+// real road construction). Every node within a road (+ sidewalks) takes the
+// height of the road's smoothed centre line, blending back to the natural
+// ground over a few metres. Physics, ground mesh, roads and walkers all read
+// this same height — one truth.
+const RG=24,ROAD_BLEND_M=4.5;let roadGrid=new Map(),roadHash="";
+const roadKey=(ix,iy)=>ix*73856093^iy*19349663;
+export function setRoadCorridors(roads){
+  const list=(roads||[]).filter(r=>Array.isArray(r?.pts)&&r.pts.length>1&&r.w>0);
+  let hash=String(list.length);for(const r of list){const a=r.pts[0],b=r.pts.at(-1);hash+=`|${Math.round(a[0])},${Math.round(a[1])},${Math.round(b[0])},${Math.round(b[1])},${r.w}`;}
+  if(hash===roadHash)return false;roadHash=hash;const grid=new Map();let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  for(const r of list){
+    // centre line resampled every 5 m, heights smoothed over ±15 m
+    const pts=[];for(let i=0;i<r.pts.length-1;i++){const a=r.pts[i],b=r.pts[i+1],l=Math.hypot(b[0]-a[0],b[1]-a[1]),k=Math.max(1,Math.ceil(l/5));for(let s=0;s<k;s++)pts.push([a[0]+(b[0]-a[0])*s/k,a[1]+(b[1]-a[1])*s/k]);}pts.push(r.pts.at(-1));
+    const raw=pts.map(p=>elevationAt(p[0],p[1])),hs=raw.map((_,i)=>{let sum=0,n=0;for(let k=-3;k<=3;k++){const v=raw[i+k];if(v!==undefined){const w=4-Math.abs(k);sum+=v*w;n+=w;}}return sum/n;});
+    const half=r.w/2,reach=half+ROAD_BLEND_M;
+    for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy;if(l2<1e-4)continue;const seg={ax:a[0],ay:a[1],dx,dy,l2,ha:hs[i],hb:hs[i+1],half};
+      const sx0=Math.min(a[0],b[0])-reach,sx1=Math.max(a[0],b[0])+reach,sy0=Math.min(a[1],b[1])-reach,sy1=Math.max(a[1],b[1])+reach;x0=Math.min(x0,sx0);y0=Math.min(y0,sy0);x1=Math.max(x1,sx1);y1=Math.max(y1,sy1);
+      for(let gx=Math.floor(sx0/RG);gx<=Math.floor(sx1/RG);gx++)for(let gy=Math.floor(sy0/RG);gy<=Math.floor(sy1/RG);gy++){const k=roadKey(gx,gy);let c=grid.get(k);if(!c){c=[];grid.set(k,c);}c.push(seg);}}
+  }
+  roadGrid=grid;notify(Number.isFinite(x0)?[[x0,y0,x1,y1]]:null,"roads");return true;
+}
+function roadLevel(x,y,h){
+  if(!roadGrid.size)return h;const segs=roadGrid.get(roadKey(Math.floor(x/RG),Math.floor(y/RG)));if(!segs)return h;let best=0,bh=h;
+  for(const s of segs){const t=Math.max(0,Math.min(1,((x-s.ax)*s.dx+(y-s.ay)*s.dy)/s.l2)),px=s.ax+s.dx*t,py=s.ay+s.dy*t,d=Math.hypot(x-px,y-py),w=d<=s.half?1:d>=s.half+ROAD_BLEND_M?0:1-(d-s.half)/ROAD_BLEND_M;if(w>best){best=w;bh=s.ha+(s.hb-s.ha)*t;if(w>=1)break;}}
+  const k=best*best*(3-2*best);return k>0?h+(bh-h)*k:h;
+}
+export function terrainNodeHeightAt(x,y){const e=elevationAt(x,y);let h=roadLevel(x,y,padBlend(x,y,e));for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return Math.min(h,e-WATER_BED_M);return h;}
 const terrainCellCache=new Map();
 function terrainCell(ix,iy){
   let col=terrainCellCache.get(ix);if(!col){col=new Map();terrainCellCache.set(ix,col);}

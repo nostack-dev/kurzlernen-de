@@ -301,7 +301,7 @@ export function installCityBuildings(){
   onDestruction(()=>{lastSyncAt=performance.now()-RESYNC_MS+1500;lastFeatureCount=-1;currentHash="";});
   onElevationChange(()=>{lastSyncAt=-Infinity;lastFeatureCount=-1;currentHash="";});
   // craters / shock-free deformation: buildings follow the new ground (their own pads excluded)
-  onTerrainChange((_c,regions,source)=>{if(source==="pads"||!regions)return;lastSyncAt=-Infinity;lastFeatureCount=-1;currentHash="";});
+  onTerrainChange((_c,regions,source)=>{if(source==="pads"||source==="roads"||!regions)return;lastSyncAt=-Infinity;lastFeatureCount=-1;currentHash="";});
   requestAnimationFrame(frame);
 }
 installCityBuildings();
