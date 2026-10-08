@@ -12,6 +12,7 @@ export const CHARACTER_MODEL_VERSION="articulated-soldier-v1";
 export const OUTFITS=Object.freeze({
   player:{shirt:0x4b5238,vest:0x2b3024,pants:0x3d3b33,boots:0x1a1a18,skin:0xc08a68,gloves:0x1c1e1b,helmet:0x3a4030},
   civilian:{shirt:0x5a6f86,vest:0x5a6f86,pants:0x2c3138,boots:0x24221f,skin:0xc8956f,gloves:0xc8956f,helmet:0x2a211b},
+  police:{shirt:0x24314f,vest:0x15181e,pants:0x1b2230,boots:0x0f1012,skin:0xc8956f,gloves:0x15161a,helmet:0x161c2b},
   zombie:{shirt:0x5d5a4a,vest:0x3b3428,pants:0x2f2c28,boots:0x1f1b18,skin:0x8a9a78,gloves:0x8a9a78,helmet:null},
 });
 const geoCache=new Map();

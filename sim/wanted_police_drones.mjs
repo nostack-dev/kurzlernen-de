@@ -376,6 +376,7 @@ function findDrone(hit){
 }
 
 function registerPoliceHit(hit){
+  if(globalThis.__policeGroundUnits?.hit?.(hit))return true; // officers on foot / police cars
   const drone=findDrone(hit);if(!drone?.active)return false;const now=performance.now();drone.hp=Math.max(0,drone.hp-POLICE_HIT_DAMAGE);drone.hitUntil=now+105;drone.flash.visible=true;
   const player=currentPlayerPosition(playerPosition),dx=drone.root.position.x-(player?.x??drone.root.position.x-1),dy=drone.root.position.y-(player?.y??drone.root.position.y),dz=drone.root.position.z-(player?.z??drone.root.position.z),length=Math.hypot(dx,dy,dz)||1,point=hit?.point;rigidBodies()?.applyImpulse?.(`police-drone-${drone.index}`,[dx/length*12,dy/length*12,dz/length*12+1.8],{point:point?[Number(point.x)||0,Number(point.y)||0,Number(point.z)||0]:null});
   const critical=isCriticalDamage("police-drone",drone.hp,POLICE_HP);if(critical)armPoliceCritical(drone,now,drone.critical||drone.hp===0);const killed=false;window.dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{police:true,damage:POLICE_HIT_DAMAGE,hp:drone.hp,killed,critical}}));
@@ -457,7 +458,9 @@ export function installWantedPoliceDrones(){
   addEventListener(WORLD_KILL_EVENT,onWorldKill);addEventListener("arondight:combat-hit-confirm",onCombatKill);addEventListener("arondight:world-physics-impact",onPhysicsImpact);addEventListener(AUDIO_SETTINGS_EVENT,event=>{audioSettings=normalizeAudioSettings(event.detail||loadAudioSettings());});
   const unlock=()=>{audioUnlocked=true;ensureAudio();};addEventListener("pointerdown",unlock,{capture:true,passive:true});addEventListener("keydown",unlock,{capture:true});
   document.addEventListener("click",event=>{const target=event.target instanceof Element?event.target.closest("#reset,#soloReset"):null;if(target)clearWanted("reset");},{capture:true,passive:true});
-  const api={reportCrime,clear:clearWanted,triggerEmp,get state(){return{heat,stars,phase,policeActive:drones.filter(drone=>drone.active).length,policeRetreating:drones.filter(drone=>drone.active&&drone.retreating).length,policeKills,lastContactAt,lastCrimeAt,waveNumber,nextWaveAt,playerSpeedMps,empReadyAt,empDisabled:drones.filter(drone=>drone.active&&drone.empDisabled).length};},get drones(){return drones.slice();}};globalThis.__arondightWantedSystem=api;const view=viewport();if(view)view.dataset.wantedSystem="heat+fair-physics-police-drones-v4";requestAnimationFrame(frame);return api;
+  // ground police (police_ground_units.mjs) seeing the player keeps the pursuit alive
+  const sighting=(position=null)=>{if(stars<=0)return false;const now=performance.now();phase="pursuit";lastContactAt=now;if(position&&Number.isFinite(position.x))lastKnownPosition.set(position.x,position.y,Number(position.z)||0);else{const p=currentPlayerPosition();if(p)lastKnownPosition.copy(p);}return true;};
+  const api={reportCrime,clear:clearWanted,triggerEmp,sighting,get state(){return{heat,stars,phase,policeActive:drones.filter(drone=>drone.active).length,policeRetreating:drones.filter(drone=>drone.active&&drone.retreating).length,policeKills,lastContactAt,lastCrimeAt,waveNumber,nextWaveAt,playerSpeedMps,empReadyAt,empDisabled:drones.filter(drone=>drone.active&&drone.empDisabled).length};},get drones(){return drones.slice();}};globalThis.__arondightWantedSystem=api;const view=viewport();if(view)view.dataset.wantedSystem="heat+fair-physics-police-drones-v4";requestAnimationFrame(frame);return api;
 }
 
 installWantedPoliceDrones();
