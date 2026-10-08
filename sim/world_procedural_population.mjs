@@ -255,7 +255,7 @@ function killRecord(record,{network=true}={}){
   if(!record||record.deadUntil)return false;
   stopWorldCriticalDamage(record.id);
   record.group.getWorldPosition(tmp);const physicsPose=rigidBodies()?.pose?.(record.id),position=[tmp.x,tmp.y,tmp.z],now=Date.now(),angle=range(record.seed,21,-Math.PI,Math.PI);
-  if(record.kind==="person"){record.deadUntil=now+10000;spawnWorldPersonRagdoll({position:[tmp.x,tmp.y,tmp.z+.05],yaw:record.group.rotation.z,impulse:[Math.cos(angle)*2.5,Math.sin(angle)*2.5,2.6],seed:record.id,id:record.id,colors:record.colors});}
+  if(record.kind==="person"){record.deadUntil=now+10000;spawnWorldPersonRagdoll({position:[tmp.x,tmp.y,tmp.z+.05],yaw:record.group.rotation.z-Math.PI/2,impulse:[Math.cos(angle)*2.5,Math.sin(angle)*2.5,2.6],seed:record.id,id:record.id,colors:record.colors});}
   else if(record.kind==="car"||record.kind==="bus"){record.deadUntil=now+(record.kind==="bus"?20000:16000);spawnWorldCarExplosion({position:[tmp.x,tmp.y,record.kind==="bus"?1.2:.45],yaw:record.group.rotation.z,velocity:physicsPose?.velocity||[Math.cos(record.group.rotation.z)*record.speed,Math.sin(record.group.rotation.z)*record.speed,0],color:record.color,seed:record.id,id:record.id});rigidBodies()?.removeBody?.(record.id);record.physicsRegistered=false;record.physicsPose=null;}
   else if(record.kind==="bird"){record.deadUntil=now+9000;const yaw=record.group.rotation.z,m=record.motion||{},sp=(m.omega||.25)*(m.rx||30)*.8;record.fall={t:now,last:now,x:tmp.x,y:tmp.y,z:tmp.z,vx:Math.cos(yaw)*sp,vy:Math.sin(yaw)*sp,vz:1.2,spin:range(record.seed,22,-9,9),roll:0,landed:0};playAnimal("bird");}
   else record.deadUntil=now+9000;

@@ -24,7 +24,7 @@ function announce(type,detail){window.dispatchEvent(new CustomEvent(type,{detail
 
 function setBridgePlayerHp(hp,dead){const b=bridge();if(!b)return;b.vsLocalHealth=hp;b.vsLocalDead=dead;b.updateVsCombatHud?.(true);}
 function markPlayerDeath(source="world"){
-  if(playerDead)return;playerDead=true;const pose=playerWorldPose(),side=((String(source).length+Math.round(Math.abs(pose.x+pose.y)))&1)?1:-1;spawnWorldPersonRagdoll({position:[pose.x,pose.y,pose.z],yaw:pose.yaw,impulse:[side*.55,-.35,.15],seed:`local-player-${source}`,id:"local-player"});
+  if(playerDead)return;playerDead=true;const pose=playerWorldPose(),side=((String(source).length+Math.round(Math.abs(pose.x+pose.y)))&1)?1:-1;spawnWorldPersonRagdoll({position:[pose.x,pose.y,pose.z],yaw:pose.yaw,colors:{shirt:0x4b5238,vest:0x2b3024,pants:0x3d3b33,boots:0x1a1a18,skin:0xc08a68,gloves:0x1c1e1b,helmet:0x3a4030},impulse:[side*.55,-.35,.15],seed:`local-player-${source}`,id:"local-player"});
   document.body?.classList.add("player-dead");announce("arondight:player-death",{source,position:[pose.x,pose.y,pose.z],yaw:pose.yaw,fallSide:side});const w=walk();if(w?.mode!=="foot")w?.setMode?.("foot",{persist:false,reason:"player-death"});
 }
 function revivePlayer(){const wasDead=playerDead;playerDead=false;document.body?.classList.remove("player-dead");if(wasDead)announce("arondight:player-revived",{hp:playerHp});}

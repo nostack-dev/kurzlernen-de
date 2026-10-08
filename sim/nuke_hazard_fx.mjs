@@ -97,7 +97,7 @@ function panic(scene){
     const fresh=!u.panicLast||Math.abs(p.x-u.panicLast.x)>1e-6||Math.abs(p.y-u.panicLast.y)>1e-6;const ox=u.panicOffset?.x||0,oy=u.panicOffset?.y||0;
     const bx=fresh?p.x:p.x-ox,by=fresh?p.y:p.y-oy,dx=bx+ox-zone.x,dy=by+oy-zone.y,d=Math.hypot(dx,dy);if(d>PANIC_RADIUS_M&&!u.panicOffset)continue;
     const step=RUN_MPS*dt*(d<PANIC_RADIUS_M?1:0),nx=d>1e-3?dx/d:1,ny=d>1e-3?dy/d:0;u.panicOffset={x:ox+nx*step,y:oy+ny*step};
-    p.x=bx+u.panicOffset.x;p.y=by+u.panicOffset.y;r.rotation.z=Math.atan2(-nx,ny);u.panicLast={x:p.x,y:p.y};}
+    p.x=bx+u.panicOffset.x;p.y=by+u.panicOffset.y;if(step>0)r.rotation.z=Math.atan2(ny,nx); // heading convention of the population (+x at 0)u.panicLast={x:p.x,y:p.y};}
 }
 export function installNukeHazardFx(){
   if(installed)return;installed=true;
