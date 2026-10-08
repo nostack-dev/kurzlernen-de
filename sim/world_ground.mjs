@@ -48,6 +48,18 @@ async function sampleColors(b,cx,cy){
     if(!n){r=.12;g=.16;bb=.08;n=1;}albedo(r/n,g/n,bb/n,c);const k=(j*(CELLS+1)+i)*3;colors[k]=c[0];colors[k+1]=c[1];colors[k+2]=c[2];}if((j&7)===7)await yieldMain();}
   return colors;
 }
+// Map areas (parks, woods, pitches, sand) tint the ground's vertex colours —
+// the ground already is the surface, so they cost no triangles at all.
+let areas=[],baseColors=null;
+function pip(x,y,r){let ins=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],c=r[j];if(((a[1]>y)!==(c[1]>y))&&x<(c[0]-a[0])*(y-a[1])/((c[1]-a[1])||1e-9)+a[0])ins=!ins;}return ins;}
+function paintAreas(){
+  if(!mesh||!baseColors)return;const attr=mesh.geometry.attributes.color;if(!attr)return;const out=attr.array;out.set(baseColors);const ox=mesh.position.x,oy=mesh.position.y,half=SIZE_M/2,st=SIZE_M/CELLS,tc=new THREE.Color();
+  for(const a of areas){let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;for(const p of a.outer){x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);}
+    tc.set(a.color);const i0=Math.max(0,Math.floor((x0-(ox-half))/st)),i1=Math.min(CELLS,Math.ceil((x1-(ox-half))/st)),j0=Math.max(0,Math.floor(((oy+half)-y1)/st)),j1=Math.min(CELLS,Math.ceil(((oy+half)-y0)/st));
+    for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){const x=ox-half+i*st,y=oy+half-j*st;if(!pip(x,y,a.outer)||a.holes.some(h=>pip(x,y,h)))continue;const k=(j*(CELLS+1)+i)*3;out[k]=out[k]*.45+tc.r*.55;out[k+1]=out[k+1]*.45+tc.g*.55;out[k+2]=out[k+2]*.45+tc.b*.55;}}
+  attr.needsUpdate=true;
+}
+function setAreas(list){areas=Array.isArray(list)?list:[];paintAreas();}
 function fallbackColors(cx,cy){const colors=new Float32Array((CELLS+1)*(CELLS+1)*3);for(let k=0;k<colors.length;k+=3){colors[k]=.16;colors[k+1]=.2;colors[k+2]=.1;}return colors;}
 function ensureMesh(scene){
   if(mesh?.parent===scene)return mesh;if(mesh?.parent)mesh.parent.remove(mesh);const g=new THREE.PlaneGeometry(SIZE_M,SIZE_M,CELLS,CELLS);
@@ -65,7 +77,7 @@ function applyHeights(regions=null){if(!mesh)return;const p=mesh.geometry.attrib
   for(let i=0;i<a.length;i+=3){const x=a[i]+ox,y=a[i+1]+oy;if(regions&&!regions.some(r=>x>=r[0]-5&&x<=r[2]+5&&y>=r[1]-5&&y<=r[3]+5))continue;a[i+2]=terrainNodeHeightAt(Math.round(x/5)*5,Math.round(y/5)*5);}
   p.needsUpdate=true;mesh.geometry.computeVertexNormals();mesh.geometry.computeBoundingSphere();}
 async function rebuild(b,cx,cy){
-  busy=true;try{const colors=(await sampleColors(b,cx,cy).catch(()=>null))||fallbackColors(cx,cy);ensureMesh(b.threeScene);mesh.position.set(cx,cy,0);mesh.geometry.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));applyHeights();mesh.visible=true;
+  busy=true;try{const colors=(await sampleColors(b,cx,cy).catch(()=>null))||fallbackColors(cx,cy);ensureMesh(b.threeScene);mesh.position.set(cx,cy,0);mesh.geometry.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));baseColors=Float32Array.from(colors);paintAreas();applyHeights();mesh.visible=true;
     const v=document.getElementById("viewport");if(v){v.dataset.worldGround=WORLD_GROUND_VERSION;v.dataset.worldGroundSource=colors.length&&colors[0]!==.16?"satellite-albedo":"fallback";}}
   finally{busy=false;}
 }
@@ -81,6 +93,6 @@ function frame(now){
 // The view never goes underground: chase / orbit / menu cameras on hills,
 // in craters or under a heaving shock wave are kept above the visible surface.
 function keepCameraAboveGround(scene,camera){if(!camera||globalThis.__arondightWalkMode?.mode==="foot")return;if(camera.parent&&camera.parent!==scene)return;const min=groundHeightAt(camera.position.x,camera.position.y)+.35;if(camera.position.z<min){camera.position.z=min;camera.updateMatrixWorld();}}
-export function installWorldGround(){if(installed||typeof window==="undefined")return;installed=true;onTerrainChange((_c,regions)=>applyHeights(regions??null));requestAnimationFrame(frame);
+export function installWorldGround(){if(installed||typeof window==="undefined")return;installed=true;globalThis.__worldGround={setAreas};onTerrainChange((_c,regions)=>applyHeights(regions??null));requestAnimationFrame(frame);
   const attach=()=>{const b=bridge();if(typeof b?.addPreRenderHook!=="function")return requestAnimationFrame(attach);b.addPreRenderHook(keepCameraAboveGround);};attach();}
 installWorldGround();

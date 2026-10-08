@@ -42,7 +42,10 @@ function* build(b,cx,cy){
   const push=(x,y,z,color)=>{cur.pos.push(x,y,z);c.set(color);cur.col.push(c.r,c.g,c.b);};
   // Everything is draped on the terrain: every vertex gets its own ground
   // height (+ a small layer offset), long edges are subdivided first.
-  const tri=(ax,ay,bx,by,qx,qy,z,color)=>{drapeTerrainTriangle([ax,ay],[bx,by],[qx,qy],h,z,(a,b,c)=>{cur=bucket(a[0],a[1]);for(const p of[a,b,c])push(p[0],p[1],p[2],color);});};
+  // Streets sit on level road corridors (terrain_craters.setRoadCorridors), so
+  // per-vertex draping on short segments matches the ground exactly enough;
+  // no grid-clipping (that turned the road net into 650k triangles).
+  const tri=(ax,ay,bx,by,qx,qy,z,color)=>{cur=bucket(ax,ay);push(ax,ay,h(ax,ay)+z,color);push(bx,by,h(bx,by)+z,color);push(qx,qy,h(qx,qy)+z,color);};
   const drape=(ax,ay,bx,by,qx,qy,z,color,depth=0)=>{
     const gx=(ax+bx+qx)/3,gy=(ay+by+qy)/3,rr=Math.max(Math.hypot(ax-gx,ay-gy),Math.hypot(bx-gx,by-gy),Math.hypot(qx-gx,qy-gy));if(Math.hypot(gx-cx,gy-cy)-rr>RADIUS_M+40)return;
     const ab=Math.hypot(bx-ax,by-ay),bq=Math.hypot(qx-bx,qy-by),qa=Math.hypot(ax-qx,ay-qy),m=Math.max(ab,bq,qa);
@@ -54,7 +57,8 @@ function* build(b,cx,cy){
   const disk=(x,y,r,z,color,seg=8)=>{for(let i=0;i<seg;i++){const a0=i/seg*Math.PI*2,a1=(i+1)/seg*Math.PI*2;tri(x,y,x+Math.cos(a0)*r,y+Math.sin(a0)*r,x+Math.cos(a1)*r,y+Math.sin(a1)*r,z,color);}};
   const near=(x,y)=>Math.hypot(x-cx,y-cy)<RADIUS_M;
   const h=(x,y)=>groundHeightAt(x,y);
-  // areas first (lowest): parks, woods, pitches, water
+  // areas (parks, woods, pitches, sand): painted into the ground's own colours (no extra triangles)
+  const areas=[];
   for(const layer of["park","landcover","landuse"]){
     for(const f of features(b,layer)){
       const cls=String(f.properties?.class||f.properties?.subclass||layer).toLowerCase();let color=null,z=Z_AREA;
@@ -62,10 +66,11 @@ function* build(b,cx,cy){
       if(!color)continue;
       for(const poly of polys(f.geometry)){const outer=(poly[0]||[]).map(p=>project(p[0],p[1]));if(outer.length<3||!outer.some(p=>near(p[0],p[1])))continue;const key=`${layer}:${Math.round(outer[0][0])},${Math.round(outer[0][1])}:${outer.length}`;if(seen.has(key))continue;seen.add(key);
         const v=outer.map(p=>new THREE.Vector2(p[0],p[1])),holes=poly.slice(1).map(r=>r.map(p=>{const m=project(p[0],p[1]);return new THREE.Vector2(m[0],m[1]);}));
-        try{const all=[...v,...holes.flat()];for(const t of THREE.ShapeUtils.triangulateShape(v,holes)){const a=all[t[0]],bb=all[t[1]],cc=all[t[2]];let A=a,B=bb,Cc=cc;if((B.x-A.x)*(Cc.y-A.y)-(B.y-A.y)*(Cc.x-A.x)<0)[B,Cc]=[Cc,B];drape(A.x,A.y,B.x,B.y,Cc.x,Cc.y,z,color);}}catch{}
+        areas.push({outer,holes:holes.map(r=>r.map(q=>[q.x,q.y])),color});
         if(++n%30===0)yield;}
     }
   }
+  globalThis.__worldGround?.setAreas?.(areas);
   // roads: sidewalk band, then asphalt, then markings
   const roads=[];
   for(const f of features(b,"transportation")){
