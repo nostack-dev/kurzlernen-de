@@ -251,7 +251,39 @@ function findCore(inner,innerHoles,holes,doors,centroid,axis){
 
 // ------------------------------------------------------------------ interior build
 let active=null,group=null,shellMeshes=[],propMeshes=[],doorMesh=null,leafMesh=null,sceneRef=null;
-function disposeActive(){if(glassMesh){glassMesh.geometry.dispose();glassMesh.parent?.remove(glassMesh);glassMesh=null;}for(const m of shellMeshes){m.geometry.dispose();m.parent?.remove(m);}shellMeshes=[];for(const m of propMeshes){m.parent?.remove(m);m.dispose?.();}propMeshes=[];active=null;facadeCutouts.uCutN.value=0;setData("buildingInterior","none");}
+// ------------------------------------------------------------------ swinging doors + barricades (active building)
+// Double doors swing inwards when someone comes close and fall shut behind
+// them. Every door also carries a barricade of planks on the outside: the
+// undead (zombie_nights.mjs) must smash them before they can get in; the
+// player repairs them (points). Planks state lives per building key.
+const PLANKS=6,doorState=new Map();let doorRigs=[],leafMat=null,plankMat=null;
+function plankState(key,n){let st=doorState.get(key);if(!st){st=Array.from({length:n},()=>PLANKS);doorState.set(key,st);if(doorState.size>400)doorState.delete(doorState.keys().next().value);}return st;}
+function buildDoorRigs(b){
+  leafMat??=new THREE.MeshStandardMaterial({color:0x1e2a33,roughness:.4,metalness:.35});plankMat??=new THREE.MeshStandardMaterial({color:0x6b4a2c,roughness:.85});
+  const st=plankState(b.key,b.doors.length),W=DOOR_W,H=DOOR_H,leafG=new THREE.BoxGeometry(W/2-.04,.05,H-.04),plankG=new THREE.BoxGeometry(W+.5,.06,.2);
+  doorRigs=b.doors.map((d,i)=>{const root=new THREE.Group();root.position.set(d.cx,d.cy,b.levels[0]);root.rotation.z=Math.atan2(d.dy,d.dx)+Math.PI;group.add(root);
+    const leaves=[-1,1].map(s=>{const pivot=new THREE.Group();pivot.position.set(s*W/2,0,0);const leaf=new THREE.Mesh(leafG,leafMat);leaf.position.set(-s*(W/4),0,H/2);leaf.castShadow=true;pivot.add(leaf);root.add(pivot);return{pivot,s};});
+    const planks=Array.from({length:PLANKS},(_,k)=>{const m=new THREE.Mesh(plankG,plankMat);m.position.set((k%2?.06:-.06),.22,.35+k*.36);m.rotation.y=(k%2?1:-1)*(.08+.05*(k%3));m.castShadow=true;root.add(m);return m;});
+    return{d,i,root,leaves,planks,angle:0,st};});
+  syncPlanks();
+}
+let barricadesShown=false;function syncPlanks(){for(const r of doorRigs)r.planks.forEach((m,k)=>{m.visible=barricadesShown&&k<r.st[r.i];});}
+function stepDoors(dt){
+  if(!doorRigs.length||!active)return;const p=walk()?.position,z=globalThis.__zombies;
+  for(const r of doorRigs){const near=(p&&Math.hypot(p.x-r.d.cx,p.y-r.d.cy)<2.6)||Boolean(z?.atDoor?.(r.d.cx,r.d.cy)&&r.st[r.i]===0);const target=near?1.45:0;r.angle+=Math.max(-dt*3.2,Math.min(dt*3.2,target-r.angle));
+    for(const l of r.leaves)l.pivot.rotation.z=l.s*r.angle;}
+  // barricades only exist while the undead are out (night)
+  const night=Boolean(z?.active);if(night!==barricadesShown){barricadesShown=night;syncPlanks();}
+}
+function clearDoorRigs(){for(const r of doorRigs)r.root.parent?.remove(r.root);doorRigs=[];}
+// API for the zombie mode: doors of the active building, breach / repair planks
+function doorInfo(){if(!active)return[];return doorRigs.map(r=>({i:r.i,cx:r.d.cx,cy:r.d.cy,nx:r.d.nx,ny:r.d.ny,planks:r.st[r.i],z:active.levels[0]}));}
+function damagePlank(i){const r=doorRigs[i];if(!r||r.st[r.i]<=0)return false;r.st[r.i]--;syncPlanks();return true;}
+function repairPlank(i){const r=doorRigs[i];if(!r||r.st[r.i]>=PLANKS)return false;r.st[r.i]++;syncPlanks();return true;}
+function playerInside(){const p=walk()?.position;return Boolean(active&&p&&region(active,p.x,p.y)==="in");}
+function insideActive(x,y){return Boolean(active&&region(active,x,y)!=="out");}
+let doorFrameAt=performance.now();function doorFrame(now){requestAnimationFrame(doorFrame);const dt=Math.min(.1,(now-doorFrameAt)/1000);doorFrameAt=now;stepDoors(dt);}
+function disposeActive(){clearDoorRigs();if(glassMesh){glassMesh.geometry.dispose();glassMesh.parent?.remove(glassMesh);glassMesh=null;}for(const m of shellMeshes){m.geometry.dispose();m.parent?.remove(m);}shellMeshes=[];for(const m of propMeshes){m.parent?.remove(m);m.dispose?.();}propMeshes=[];active=null;facadeCutouts.uCutN.value=0;setData("buildingInterior","none");}
 function ensureGroup(scene){if(group?.parent===scene)return group;group?.parent?.remove(group);group=new THREE.Group();group.name="BUILDING_INTERIORS";scene.add(group);sceneRef=scene;doorMesh=leafMesh=null;shellMeshes=[];propMeshes=[];return group;}
 
 function buildInterior(fp){
@@ -449,7 +481,7 @@ function activate(fp,scene){
   interiorUniforms.uWallColor.value.set(["#ece7dd","#e6e1d6","#dfe3e0","#efe9df","#e4ddd2","#e9e6e1"][hashKey(b.key)%6]);interiorUniforms.uAccent.value.set(["#7f9a8a","#b0705a","#5f7590","#c9a35e","#8a7aa0","#6f8f7a","#a6644f","#4f6a7c"][(hashKey(b.key)>>>5)%8]);
   for(const[k,g]of b.shell){const m=new THREE.Mesh(g,getShellMaterial());m.name=`BUILDING_INTERIOR_SHELL_${k}`;m.userData.level=k;m.receiveShadow=true;m.castShadow=false;m.userData.styleSkip=true;group.add(m);shellMeshes.push(m);}
   if(b.glassGeometry){glassMesh=new THREE.Mesh(b.glassGeometry,getGlassMaterial());glassMesh.name="BUILDING_INTERIOR_GLASS";glassMesh.renderOrder=2;glassMesh.raycast=()=>{};Object.assign(glassMesh.userData,{styleSkip:true,flightFireIgnore:true,neonSkip:true});group.add(glassMesh);}
-  buildPropMeshes(b);showPropLevels(0);
+  buildPropMeshes(b);showPropLevels(0);buildDoorRigs(b);
   // open doorways + roof hatch in the exterior
   let n=0;for(const d of b.doors){if(n>=MAX_FACADE_CUTOUTS)break;const t0=d.t-DOOR_W/2,t1=d.t+DOOR_W/2;facadeCutouts.uCutA.value[n].set(d.ax+d.dx*t0,d.ay+d.dy*t0,d.ax+d.dx*t1,d.ay+d.dy*t1);facadeCutouts.uCutB.value[n].set(b.base-2,b.levels[0]+DOOR_H,.85,0);n++;}
   if(b.roofAccess&&n<MAX_FACADE_CUTOUTS){const c=b.core;facadeCutouts.uCutA.value[n].set(c.ox,c.oy,c.vx,c.vy);facadeCutouts.uCutB.value[n].set(b.top-.4,b.top+.8,c.W,1+c.L);n++;}
@@ -563,7 +595,7 @@ function activateNearest(){
 export function installBuildingInteriors(){
   if(installed||typeof window==="undefined")return;installed=true;
   onElevationChange(()=>{doorCache.clear();if(active)disposeActive();lastDoors=-Infinity;});
-  globalThis.__buildingInteriors={version:BUILDING_INTERIORS_VERSION,resolveMove,feetHeightAt,placePlayer,activateNearest,get _debug(){return active;},get active(){return active?{key:active.key,levels:active.levels.length,roof:active.roofAccess,props:active.props.length,core:Boolean(active.core)}:null;}};
-  requestAnimationFrame(tick);
+  globalThis.__buildingInteriors={version:BUILDING_INTERIORS_VERSION,resolveMove,feetHeightAt,placePlayer,activateNearest,doors:doorInfo,damagePlank,repairPlank,playerInside,insideActive,PLANKS,get _debug(){return active;},get active(){return active?{key:active.key,levels:active.levels.length,roof:active.roofAccess,props:active.props.length,core:Boolean(active.core)}:null;}};
+  requestAnimationFrame(tick);requestAnimationFrame(doorFrame);
 }
 installBuildingInteriors();

@@ -89,7 +89,8 @@ try{
   // readable view of the cloud the diagnostic also drops one 450 m ahead
   // through the multiplayer entry point (exercises the remote path too).
   await step("nuke-fired",async()=>{report.nukeRemote=await page.evaluate(()=>{const c=globalThis.__arondightRealWorld?.threeCamera;if(!c)return null;const d=c.getWorldDirection(c.position.clone());d.z=0;d.normalize();const p=[c.position.x+d.x*450,c.position.y+d.y*450,0];window.dispatchEvent(new CustomEvent("arondight:remote-nuke",{detail:{position:p}}));return p;});await pause(1500);});
-  await step("nuke-3s",()=>pause(1500));
+  await cpuProfile("nuke-0-4s",4000);
+  await step("nuke-3s",()=>pause(200));
   await step("nuke-8s",()=>pause(5000));
   await step("nuke-16s",()=>pause(8000));
   await step("nuke-30s",()=>pause(14000));

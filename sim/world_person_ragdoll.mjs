@@ -135,3 +135,6 @@ export function spawnWorldPersonRagdoll({position,yaw=0,impulse=[0,0,0],seed="",
 }
 
 export function worldPersonRagdollStats(){return{active:ragdolls.filter(r=>r.active).length,pool:ragdolls.length,max:MAX_RAGDOLLS,model:"articulated-character"};}
+
+// shader prewarm: build the ragdoll pool early (hidden; compiled with everything else)
+if(typeof window!=="undefined")(globalThis.__prewarmFactories??=[]).push(()=>{ensurePool();return null;});

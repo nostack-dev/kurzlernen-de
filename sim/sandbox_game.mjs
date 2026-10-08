@@ -199,7 +199,7 @@ function frame(now){
   const v=document.getElementById("viewport");if(v){const s=String(enemies.filter(e=>e.state!=="dead").length);if(v.dataset.sandboxEnemies!==s)v.dataset.sandboxEnemies=s;}
 }
 export function installSandboxGame(){
-  if(installed||typeof window==="undefined")return;installed=true;
+  if(installed||typeof window==="undefined")return;installed=true;(globalThis.__prewarmFactories??=[]).push(()=>{const g=new THREE.Group();for(const t of Object.keys(TYPES)){try{g.add(buildEnemy(t).root);}catch{}}return g;});
   window.addEventListener("arondight:world-explosion",onExplosion);
   window.addEventListener("arondight:world-kill",onWorldKill);
   window.addEventListener("arondight:nuke-impact",e=>{if(!e?.detail?.remote)setTimeout(()=>award(2000,"MEGA BLAST!!!","gold"),900);});

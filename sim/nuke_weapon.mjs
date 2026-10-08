@@ -73,12 +73,16 @@ function fireballWire(){if(fireballWireGeometry)return fireballWireGeometry;cons
   for(let i=1;i<lat;i++){const t=i/lat*Math.PI,r=Math.sin(t),z=Math.cos(t);for(let k=0;k<seg;k++){const a=k/seg*Math.PI*2,b=(k+1)/seg*Math.PI*2;out.push(Math.cos(a)*r,Math.sin(a)*r,z,Math.cos(b)*r,Math.sin(b)*r,z);}}
   for(let k=0;k<lon;k++){const a=k/lon*Math.PI*2;for(let i=0;i<seg/2;i++){const t0=i/(seg/2)*Math.PI,t1=(i+1)/(seg/2)*Math.PI;out.push(Math.cos(a)*Math.sin(t0),Math.sin(a)*Math.sin(t0),Math.cos(t0),Math.cos(a)*Math.sin(t1),Math.sin(a)*Math.sin(t1),Math.cos(t1));}}
   fireballWireGeometry=fatLineGeometry(out);fireballWireGeometry.userData.nukeSharedGeometry=true;return fireballWireGeometry;}
-function makeImpact(scene,position,now,{remote=false}={}){const group=tag(new THREE.Group(),"impact-root");group.position.copy(position);scene.add(group);
+function impactVisuals(group){
   const flash=sphere(group,5.5,0xfff6d8,1,true,24,"flash-core"),hot=sphere(group,8.5,0xff9a3c,.7,true,24,"hot-core"),fire=tag(fatLineSegments(fireballWire(),fatLineMaterial(0xffd23f,{width:2.4,opacity:.95,additive:true})),"fireball"),fireOuter=tag(fatLineSegments(fireballWire(),fatLineMaterial(0xff6a2a,{width:1.8,opacity:.8,additive:true})),"fireball-outer");fire.scale.setScalar(12.5);fireOuter.scale.setScalar(18);fireOuter.rotation.z=.2;group.add(fire,fireOuter);
   const shock=tag(new THREE.Mesh(ringGeometry(.985,1.015,96),fxMaterial(0xffffff,{opacity:.9,additive:true,depthTest:true})),"shockwave-ring");shock.position.z=.28;group.add(shock);
   const dust=tag(new THREE.Mesh(ringGeometry(.94,.955,64),fxMaterial(0xd8c8a8,{opacity:.6,additive:false,depthTest:true})),"shockwave-dust");dust.position.z=.14;group.add(dust);
   const wall=tag(new THREE.Mesh(cylinderGeometry(1,1,8,48,2,true),fxMaterial(0xffffff,{opacity:.14,additive:true,depthTest:true,side:THREE.DoubleSide})),"shockwave-wall");wall.rotation.x=Math.PI/2;wall.position.z=4;group.add(wall);
   const scorchMaterial=fxMaterial(0x2b2420,{opacity:.9,additive:false,depthTest:true});scorchMaterial.polygonOffset=true;scorchMaterial.polygonOffsetFactor=-4;const scorch=tag(new THREE.Mesh(circleGeometry(126,64),scorchMaterial),"scorch");scorch.position.z=.04;group.add(scorch);
+  return{flash,hot,fire,fireOuter,shock,dust,wall,scorch};
+}
+function makeImpact(scene,position,now,{remote=false}={}){const group=tag(new THREE.Group(),"impact-root");group.position.copy(position);scene.add(group);
+  const{flash,hot,fire,fireOuter,shock,dust,wall,scorch}=impactVisuals(group);
   impacts.push({group,scene,position:position.clone(),flash,hot,fire,fireOuter,shock,dust,wall,scorch,born:now,until:now+MUSHROOM_LIFETIME_MS,shakeTriggered:false,damageTriggered:false,shockRadius:0});
   flashScreen();
   window.dispatchEvent(new CustomEvent("arondight:nuke-impact",{detail:{position:[position.x,position.y,position.z],radiusM:BLAST_RADIUS_M,shockwaveSpeedMps:SHOCKWAVE_SPEED_MPS,mushroomHeightM:MUSHROOM_HEIGHT_M,cameraDistanceM:cameraDistanceTo(position),remote}}));
@@ -101,7 +105,7 @@ function cycle(){return applyDisplayMode(displayMode==="gun"?"missile":displayMo
 function patchApi(){const api=globalThis.__arondightDroneWeapons;if(!api)return false;if(api===patchedApi)return true;patchedApi=api;originalToggle=api.toggle?.bind(api)||null;originalSetMode=api.setMode?.bind(api)||null;originalFireMissile=api.fireMissile?.bind(api)||null;displayMode=persistedMode()||String(api.mode||"gun");if(!["gun","missile","nuke"].includes(displayMode))displayMode="gun";api.toggle=cycle;api.setMode=mode=>applyDisplayMode(String(mode));api.fireNuke=fireNuke;api.fireMissile=args=>displayMode==="nuke"?fireNuke(args):Boolean(originalFireMissile?.(args));Object.defineProperty(api,"displayMode",{configurable:true,enumerable:true,get:()=>displayMode});applyDisplayMode(displayMode);const view=viewport();if(view)view.dataset.nukeWeapon="enabled-v3";return true;}
 function frame(now=performance.now()){patchApi();if(warheads.length)updateWarheads(now);if(impacts.length)updateImpacts(now);if(!warmedPrograms&&now-lastWarmAttempt>1000){lastWarmAttempt=now;warmedPrograms=warmNukePrograms();}requestAnimationFrame(frame);}
 
-export function installNukeWeapon(){if(installed)return;installed=true;
+export function installNukeWeapon(){if(installed)return;installed=true;(globalThis.__prewarmFactories??=[]).push(()=>{const g=tag(new THREE.Group(),"prewarm");impactVisuals(g);return g;});
   // A nuke dropped by a multiplayer peer (world_sync.mjs): same impact, here.
   window.addEventListener("arondight:remote-nuke",event=>{const p=event?.detail?.position,scene=bridge()?.threeScene;if(!Array.isArray(p)||!scene)return;makeImpact(scene,new THREE.Vector3(+p[0]||0,+p[1]||0,0),performance.now(),{remote:true});});window.addEventListener("arondight:world-reset",()=>{for(const w of warheads.splice(0)){w.scene.remove(w.group);disposeEffect(w.group);}for(const i of impacts.splice(0)){i.scene.remove(i.group);disposeEffect(i.group);}});ensureFlashOverlay();ensurePressureOverlay();requestAnimationFrame(frame);}
 installNukeWeapon();

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import {requestLight} from "./dynamic_lights.mjs";
 import {groundHeightAt,terrainRayDistance} from "./terrain_craters.mjs";
 import {addTrauma} from "./camera_shake.mjs";
 import {getSharedCombatAudioContext,playCombatAudio} from "./combat_audio_bank.mjs";
@@ -45,7 +46,7 @@ function jetModel(){
   for(const s of[-1,1])add(new THREE.CylinderGeometry(.42,.48,1.2,10),dark,s*.45,-5.6,-.05);
   const flame=new THREE.Mesh(new THREE.ConeGeometry(.42,3.2,10,1,true),new THREE.MeshBasicMaterial({color:0xffa047,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false}));
   flame.rotation.x=Math.PI;flame.position.set(0,-7.6,-.05);flame.userData.flightFireIgnore=true;g.add(flame);g.userData.flame=flame;
-  const glow=new THREE.PointLight(0xff8a3a,0,40,2);glow.position.set(0,-7,0);g.add(glow);g.userData.glow=glow;
+  g.userData.glow={intensity:0};/* afterburner light via the constant light pool */
   g.traverse(n=>{n.raycast=()=>{};});return g;
 }
 
@@ -86,7 +87,7 @@ function launch(cx,cy,{strike=null,offset=0,alt=null,at=performance.now(),remote
 function bomb(from,target,now){const b=new THREE.Mesh(new THREE.CapsuleGeometry(.22,1.1,3,8),new THREE.MeshStandardMaterial({color:0x3b4135,roughness:.6,metalness:.3}));b.rotation.x=Math.PI/2;b.userData.flightFireIgnore=true;b.raycast=()=>{};root.add(b);bombs.push({mesh:b,from:from.clone(),to:target.clone(),t0:now,dur:1500+Math.random()*250});}
 function updateJets(now,dt){
   for(let i=jets.length-1;i>=0;i--){const j=jets[i];jetPosAt(j,now,tmp);j.model.position.copy(tmp);j.model.rotation.set(0,0,0);
-    const fl=j.model.userData.flame;fl.scale.set(1,.8+Math.random()*.5,1);fl.material.opacity=.6+Math.random()*.35;j.model.userData.glow.intensity=6+Math.random()*4;
+    const fl=j.model.userData.flame;fl.scale.set(1,.8+Math.random()*.5,1);fl.material.opacity=.6+Math.random()*.35;requestLight(tmp,{color:0xff8a3a,intensity:6+Math.random()*4,distance:40});
     if(!j.voice)startJetVoice(j);updateJetAudio(j,now);
     // close pass: camera trauma + wake on the drone
     const L=listenerPos();if(L){const d=tmp.distanceTo(L);if(d<160&&!j.shook&&j.heardD<170){j.shook=true;addTrauma?.(Math.min(.85,.35+60/d));}}
@@ -101,13 +102,13 @@ function updateJets(now,dt){
 // ------------------------------------------------------------ blasts
 function explode(p,now){
   const blast={group:new THREE.Group(),born:now};const core=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),new THREE.MeshBasicMaterial({color:0xffc070,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false}));
-  const smoke=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),new THREE.MeshStandardMaterial({color:0x2c2724,roughness:1,transparent:true,opacity:.85,depthWrite:false}));const light=new THREE.PointLight(0xffa050,40,90,2);
-  blast.group.add(core,smoke,light);blast.core=core;blast.smoke=smoke;blast.light=light;blast.group.position.copy(p);blast.group.traverse(n=>{n.userData.flightFireIgnore=true;n.raycast=()=>{};});root.add(blast.group);blasts.push(blast);
+  const smoke=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),new THREE.MeshStandardMaterial({color:0x2c2724,roughness:1,transparent:true,opacity:.85,depthWrite:false}));const light={intensity:40};
+  blast.group.add(core,smoke);blast.core=core;blast.smoke=smoke;blast.light=light;blast.group.position.copy(p);blast.group.traverse(n=>{n.userData.flightFireIgnore=true;n.raycast=()=>{};});root.add(blast.group);blasts.push(blast);
   window.dispatchEvent(new CustomEvent("arondight:world-explosion",{detail:{position:[p.x,p.y,p.z+.4],radiusM:BOMB_RADIUS,maxDamage:BOMB_DAMAGE,kind:"airstrike",id:`airstrike-${now}`}}));
   try{const c=ensureAudio(),L=listenerPos(),d=L?L.distanceTo(p):100;if(c)setTimeout(()=>playCombatAudio(c,"explosion",{destination:master,gain:Math.min(1.6,40/(10+d)),playbackRate:.7+Math.random()*.15}),d/SOUND*1000);}catch{}
 }
 function updateBlasts(now){for(let i=blasts.length-1;i>=0;i--){const b=blasts[i],t=(now-b.born)/1000;if(t>6){b.group.parent?.remove(b.group);blasts.splice(i,1);continue;}
-  const e=1-Math.exp(-t*7);b.core.scale.setScalar(2+11*e);b.core.material.opacity=Math.max(0,1-t*1.6);b.light.intensity=Math.max(0,40*(1-t*2));
+  const e=1-Math.exp(-t*7);b.core.scale.setScalar(2+11*e);b.core.material.opacity=Math.max(0,1-t*1.6);b.light.intensity=Math.max(0,40*(1-t*2));if(b.light.intensity>0)requestLight(b.group.position,{color:0xffa050,intensity:b.light.intensity,distance:90});
   b.smoke.scale.setScalar(3+12*Math.min(1,t*.8));b.smoke.position.z=t*2.2;b.smoke.material.opacity=.85*Math.max(0,1-t/6);}}
 
 // ------------------------------------------------------------ air strike (player power)
@@ -118,8 +119,8 @@ function aimPoint(){
   const tr=terrainRayDistance?.(o,d,1500);if(Number.isFinite(tr)&&(!best||tr<o.distanceTo(best)))best=o.clone().addScaledVector(d,tr);
   if(!best)best=o.clone().addScaledVector(d,180);best.z=groundHeightAt(best.x,best.y);return best;
 }
-function flare(p,now){const m=new THREE.Mesh(new THREE.SphereGeometry(.35,10,8),new THREE.MeshBasicMaterial({color:0xff2a1a}));const smoke=new THREE.Mesh(new THREE.CylinderGeometry(.6,2.4,26,10,1,true),new THREE.MeshBasicMaterial({color:0xff3a2a,transparent:true,opacity:.35,depthWrite:false,blending:THREE.AdditiveBlending}));smoke.rotation.x=Math.PI/2;smoke.position.z=13;const l=new THREE.PointLight(0xff2a1a,8,30,2);l.position.z=1;const g=new THREE.Group();g.add(m,smoke,l);g.position.copy(p);g.traverse(n=>{n.userData.flightFireIgnore=true;n.raycast=()=>{};});root.add(g);flares.push({g,until:now+9000,l});}
-function updateFlares(now){for(let i=flares.length-1;i>=0;i--){const f=flares[i];if(now>f.until){f.g.parent?.remove(f.g);flares.splice(i,1);continue;}f.l.intensity=6+Math.sin(now*.05)*3;}}
+function flare(p,now){const m=new THREE.Mesh(new THREE.SphereGeometry(.35,10,8),new THREE.MeshBasicMaterial({color:0xff2a1a}));const smoke=new THREE.Mesh(new THREE.CylinderGeometry(.6,2.4,26,10,1,true),new THREE.MeshBasicMaterial({color:0xff3a2a,transparent:true,opacity:.35,depthWrite:false,blending:THREE.AdditiveBlending}));smoke.rotation.x=Math.PI/2;smoke.position.z=13;const l={intensity:8};const g=new THREE.Group();g.add(m,smoke);g.position.copy(p);g.traverse(n=>{n.userData.flightFireIgnore=true;n.raycast=()=>{};});root.add(g);flares.push({g,until:now+9000,l});}
+function updateFlares(now){for(let i=flares.length-1;i>=0;i--){const f=flares[i];if(now>f.until){f.g.parent?.remove(f.g);flares.splice(i,1);continue;}f.l.intensity=6+Math.sin(now*.05)*3;requestLight(f.g.position,{color:0xff2a1a,intensity:f.l.intensity,distance:30});}}
 export function callAirStrike(target=null){
   const now=performance.now();if(now-lastStrike<STRIKE_COOLDOWN_MS||!ensureScene())return false;const p=target||aimPoint();if(!p)return false;lastStrike=now;
   flare(p,now);const arrive=now+3500;launch(p.x,p.y,{strike:{x:p.x,y:p.y},offset:0,alt:70,at:arrive-SPAN/SPEED*1000+380/SPEED*1000});
@@ -154,6 +155,6 @@ function frame(now=performance.now()){
   if(jets.length||bombs.length)updateJets(now,dt);if(blasts.length)updateBlasts(now);if(flares.length)updateFlares(now);
   const v=viewport();if(v)v.dataset.fighterJets=`${jets.length}j/${bombs.length}b`;
 }
-export function installFighterJets(){if(globalThis.__fighterJets||typeof window==="undefined")return globalThis.__fighterJets;addEventListener(VS_FX_EVENT,onFx);addEventListener("pointerdown",()=>ensureAudio(),{capture:true,passive:true});
+export function installFighterJets(){if(globalThis.__fighterJets||typeof window==="undefined")return globalThis.__fighterJets;(globalThis.__prewarmFactories??=[]).push(()=>{const g=jetModel();const b=new THREE.Mesh(new THREE.CapsuleGeometry(.22,1.1,3,8),new THREE.MeshStandardMaterial({color:0x3b4135,roughness:.6,metalness:.3}));g.add(b);g.add(new THREE.Mesh(new THREE.SphereGeometry(1,8,6),new THREE.MeshBasicMaterial({color:0xffc070,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})),new THREE.Mesh(new THREE.SphereGeometry(1,8,6),new THREE.MeshStandardMaterial({color:0x2c2724,roughness:1,transparent:true,opacity:.85,depthWrite:false})),new THREE.Mesh(new THREE.CylinderGeometry(.6,2.4,4,8,1,true),new THREE.MeshBasicMaterial({color:0xff3a2a,transparent:true,opacity:.35,depthWrite:false,blending:THREE.AdditiveBlending})));return g;});addEventListener(VS_FX_EVENT,onFx);addEventListener("pointerdown",()=>ensureAudio(),{capture:true,passive:true});
   globalThis.__fighterJets={flyover(){const L=listenerPos();return L?launch(L.x,L.y,{offset:(Math.random()-.5)*100}):null;},strike:callAirStrike,get jets(){return jets;},version:FIGHTER_JETS_VERSION};requestAnimationFrame(frame);return globalThis.__fighterJets;}
 installFighterJets();

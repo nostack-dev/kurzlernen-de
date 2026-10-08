@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import {requestLight} from "./dynamic_lights.mjs";
 import {vehicleGeometry,vehicleMaterial,wheelGeometry} from "./vehicle_models.mjs";
 import {createCrowd} from "./crowd_characters.mjs";
 import {wantedLineBlockedByPrisms,wantedPointInRing,wantedPoliceDamage,wantedPoliceHitChance} from "./wanted_system_logic.mjs";
@@ -79,12 +80,13 @@ function buildCruiser(){
   const bar=new THREE.Group();bar.position.set(-.15,0,carTop+.06);g.add(bar);
   const base=new THREE.Mesh(new THREE.BoxGeometry(.32,1.05,.08),new THREE.MeshStandardMaterial({color:0x1a1c20,roughness:.5}));bar.add(base);
   const red=new THREE.Mesh(new THREE.BoxGeometry(.26,.44,.1),new THREE.MeshBasicMaterial({color:0x330608}));red.position.set(0,.25,.05);const blue=new THREE.Mesh(new THREE.BoxGeometry(.26,.44,.1),new THREE.MeshBasicMaterial({color:0x06102e}));blue.position.set(0,-.25,.05);bar.add(red,blue);
-  const light=new THREE.PointLight(0xff2030,0,18,2);light.position.set(0,0,.4);bar.add(light);
+  const light={intensity:0,color:new THREE.Color()};/* lit through the constant light pool */
   const wheels=[];const wg=wheelGeometry();for(const[x,y]of[[1.2,.78],[1.2,-.78],[-1.15,.78],[-1.15,-.78]]){const w=new THREE.Mesh(wg,vehicleMaterial);w.castShadow=true;w.position.set(x,y,.34);g.add(w);wheels.push(w);}
   g.traverse(n=>{n.userData.flightFireIgnore=n!==body&&n.isMesh;});
   return{group:g,body,red,blue,light,wheels};
 }
-function flashLights(c,now,on){const slot=Math.floor(now/110)%6,r=on&&(slot===0||slot===2),b=on&&(slot===3||slot===5);c.red.material.color.setHex(r?0xff1a2a:0x330608);c.blue.material.color.setHex(b?0x2a6bff:0x06102e);c.light.intensity=r||b?14:0;c.light.color.setHex(r?0xff2030:0x2a6bff);}
+function flashLights(c,now,on){const slot=Math.floor(now/110)%6,r=on&&(slot===0||slot===2),b=on&&(slot===3||slot===5);c.red.material.color.setHex(r?0xff1a2a:0x330608);c.blue.material.color.setHex(b?0x2a6bff:0x06102e);if(r||b){c.group.getWorldPosition(lightPos);lightPos.z+=2;requestLight(lightPos,{color:r?0xff2030:0x2a6bff,intensity:14,distance:18});}}
+const lightPos=new THREE.Vector3();
 function makeProxy(){proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.27,1.2,3,8);g.rotateX(Math.PI/2);g.translate(0,0,.86);return g;})();proxyMat??=Object.assign(new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),{colorWrite:false,visible:false});
   const m=new THREE.Mesh(proxyGeo,proxyMat);m.name="POLICE_OFFICER_HIT_PROXY";m.userData.worldPopulationKind="enemy";m.userData.styleSkip=true;m.visible=false;root.add(m);return m;}
 
@@ -261,7 +263,7 @@ function frame(now=performance.now()){
   const v=viewport();if(v){const cops=units.reduce((n,u)=>n+u.cops.filter(c=>c.state==="out").length,0);v.dataset.policeGround=`${units.length}c/${cops}o`;}
 }
 export function installPoliceGroundUnits(){
-  if(globalThis.__policeGroundUnits||typeof window==="undefined")return globalThis.__policeGroundUnits;
+  if(globalThis.__policeGroundUnits||typeof window==="undefined")return globalThis.__policeGroundUnits;(globalThis.__prewarmFactories??=[]).push(()=>{const c=buildCruiser();const m=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,1,5,1,true),new THREE.MeshBasicMaterial({color:0xffd27a,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false}));c.group.add(m);return c.group;});
   addEventListener("arondight:world-explosion",onExplosion);addEventListener(VS_FX_EVENT,onFx);
   addEventListener("arondight:world-reset",()=>{for(const u of units)removeUnit(u);units=[];});
   globalThis.__policeGroundUnits={hit,get units(){return units;},version:POLICE_GROUND_VERSION};requestAnimationFrame(frame);return globalThis.__policeGroundUnits;
