@@ -125,17 +125,21 @@ function ensureLights(scene,renderer){
   scene.traverse(o=>{if((o.isDirectionalLight||o.isHemisphereLight||o.isAmbientLight)&&!o.userData.realLight){o.userData.prevIntensity=o.intensity;o.intensity=0;o.castShadow=false;}});
   hemi=new THREE.HemisphereLight(0xc4dcff,0x6b5e48,.85);hemi.userData.realLight=true;scene.add(hemi);
   sun=new THREE.DirectionalLight(0xfff0dc,2.8);sun.userData.realLight=true;sun.castShadow=true;
-  const sc=sun.shadow.camera;sc.left=-SHADOW_RANGE_M;sc.right=SHADOW_RANGE_M;sc.top=SHADOW_RANGE_M;sc.bottom=-SHADOW_RANGE_M;sc.near=1;sc.far=900;sun.shadow.mapSize.set(SHADOW_SIZE,SHADOW_SIZE);sun.shadow.bias=-.0004;sun.shadow.normalBias=.04;sun.shadow.radius=2;
+  const sc=sun.shadow.camera;sc.up.set(0,0,1);sc.left=-SHADOW_RANGE_M;sc.right=SHADOW_RANGE_M;sc.top=SHADOW_RANGE_M;sc.bottom=-SHADOW_RANGE_M;sc.near=1;sc.far=900;sun.shadow.mapSize.set(SHADOW_SIZE,SHADOW_SIZE);sun.shadow.bias=-.0002;sun.shadow.normalBias=SHADOW_RANGE_M*2/SHADOW_SIZE*.9; // ≈ one shadow texel: no acne on flat ground/roofs at low sunsun.shadow.radius=2;
   scene.add(sun,sun.target);
   if(renderer){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;renderer.toneMapping=THREE.CustomToneMapping;renderer.toneMappingExposure=1.0;renderer.outputColorSpace=THREE.SRGBColorSpace;}
 }
 const texel=new THREE.Vector3(),sunForward=new THREE.Vector3();
+const lightRight=new THREE.Vector3(),lightUp=new THREE.Vector3(),UP_Z=new THREE.Vector3(0,0,1);
 function followSun(){
   const c=bridge()?.threeCamera;if(!sun||!c)return;
   // centre the shadow frustum ahead of the camera and snap it to shadow
   // texels so shadows don't shimmer while moving
   const fwd=sunForward;c.getWorldDirection(fwd);fwd.z=0;if(fwd.lengthSq()>1e-6)fwd.normalize();
-  const centre=texel.copy(c.position).addScaledVector(fwd,SHADOW_RANGE_M*.45);centre.z=0;const step=SHADOW_RANGE_M*2/SHADOW_SIZE;centre.x=Math.round(centre.x/step)*step;centre.y=Math.round(centre.y/step)*step;
+  const centre=texel.copy(c.position).addScaledVector(fwd,SHADOW_RANGE_M*.45);centre.z=0;const step=SHADOW_RANGE_M*2/SHADOW_SIZE;
+  // snap in light space (the shadow map's own texel grid), not world x/y
+  lightRight.crossVectors(UP_Z,SUN_DIR);if(lightRight.lengthSq()<1e-6)lightRight.set(1,0,0);lightRight.normalize();lightUp.crossVectors(SUN_DIR,lightRight).normalize();
+  const r=Math.round(centre.dot(lightRight)/step)*step,u=Math.round(centre.dot(lightUp)/step)*step,d=centre.dot(SUN_DIR);centre.copy(lightRight).multiplyScalar(r).addScaledVector(lightUp,u).addScaledVector(SUN_DIR,d);
   sun.target.position.copy(centre);sun.position.copy(centre).addScaledVector(SUN_DIR,400);sun.target.updateMatrixWorld();
 }
 // ---------------------------------------------------------------- day / night
@@ -159,7 +163,7 @@ function updateDayNight(now,scene,renderer){
   const h=sunV.z,sunUp=smooth(-.06,.10,h),night=1-smooth(-.16,.04,h);
   skyUniforms.uNight.value=night;skyUniforms.uSunUp.value=sunUp;
   // key light: sun while it is up, then the moon
-  const key=sunUp>.02?sunV:moonDir;SUN_DIR.copy(key);
+  const key=sunUp>.02?sunV:moonDir;if(SUN_DIR.dot(key)<.99996)SUN_DIR.copy(key); // move the shadow-casting light in 0.5° steps: no texel crawl / flicker between steps
   if(sun){const low=1-smooth(.05,.45,h);if(sunUp>.02){tmpC.copy(C_SUN_NOON).lerp(C_SUN_LOW,low);sun.color.copy(tmpC);sun.intensity=2.8*sunUp*(1-.35*low);}else{sun.color.copy(C_MOON);sun.intensity=.62*night;}}
   if(hemi){hemi.color.copy(C_HEMI_DAY).lerp(C_HEMI_NIGHT,night);hemi.groundColor.copy(C_GND_DAY).lerp(C_GND_NIGHT,night);hemi.intensity=.85-.45*night;}
   if(scene){const dusk=Math.max(0,1-Math.abs(h)*4)*(1-night*.6);if(scene.fog){scene.fog.color.copy(C_FOG_DAY).lerp(C_FOG_DUSK,dusk*.7).lerp(C_FOG_NIGHT,night);scene.fog.density=FOG_DENSITY*(1+.6*night);}

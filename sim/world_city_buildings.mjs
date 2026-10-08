@@ -72,6 +72,19 @@ bool facadeCutout(vec3 P,bool roofHoles){
   return false;}`;
 // Per-building facade parameters (seed for the window style, storey height):
 // the interior generator uses the same values so floors line up with windows.
+// CPU twin of FACADE_GLSL's glass mask (same formulas, aa=1): is the facade
+// point (u along the wall, wall length, height above base, building height)
+// a window pane? Used for bullet cracks and glass chips.
+const fhc=n=>{const v=Math.sin(n*127.1)*43758.5453;return v-Math.floor(v);},frc=v=>v-Math.floor(v),mixc=(a,b,t)=>a+(b-a)*t;
+export function facadeGlassAt(u,len,z,H,seed,floorH){
+  if(!(u>=0)||!(len>0))return false;
+  if(z<4&&len>3){const sp=4.4,ns=Math.max(1,Math.floor(len/sp)),sm=(len-ns*sp)*.5,su=frc((u-sm)/sp),inS=u-sm>=0&&u-sm<=ns*sp;return inS&&su>=.08&&su<=.92&&z>=.35&&z<=3;}
+  const fz=frc((z-4)/floorH);
+  if(H>=26){const pil=!(u>=.38&&u<=len-.38),mull=frc(u/1.6)>=.95,spandrel=fz>=.8;return !spandrel&&!mull&&!pil;}
+  const pitch=mixc(2.7,3.7,fhc(seed*7)),nWin=Math.max(1,Math.floor((len-.8)/pitch)),margin=(len-nWin*pitch)*.5,lu=(u-margin)/pitch,fu=frc(lu),inRow=lu>=0&&lu<=nWin;
+  const ww=mixc(.38,.6,fhc(seed*5)),wh=mixc(.42,.6,fhc(seed*9));
+  return inRow&&z<=H-1.2&&fu>=.5-ww*.5&&fu<=.5+ww*.5&&fz>=.3&&fz<=.3+wh;
+}
 export function facadeParams(key){const h=hash(key);return{seed:(h%997)/997,floorH:3.1+.5*(((h>>>12)%1000)/1000),wallIndex:h%WALLS.length};}
 function realFacades(material){
   const previous=material.onBeforeCompile;
@@ -85,9 +98,10 @@ function realFacades(material){
       // glass always mirrors some sky (Fresnel), even where the env map is dim
       .replace("#include <emissivemap_fragment>","#include <emissivemap_fragment>\n{float fr=pow(1.0-abs(dot(normalize(vViewPosition),normal)),3.0);totalEmissiveRadiance+=facGlass*mix(vec3(0.05,0.07,0.09),vec3(0.32,0.4,0.5),fr);}");
   };
-  const key=material.customProgramCacheKey?.bind(material);material.customProgramCacheKey=()=>`${key?key():""}|real-facades-v5-floors-cutouts`;return material;
+  const key=material.customProgramCacheKey?.bind(material);material.customProgramCacheKey=()=>`${key?key():""}|real-facades-v6-stable-seed`;return material;
 }
 export const FACADE_GLSL=`{
+  float sdq=floor(vSeed*997.0+0.5)/997.0; // per-building seed, snapped: interpolation noise must not change the hash (speckle/flicker)
   vec3 wn=normalize(cross(dFdx(vWinPos),dFdy(vWinPos)));
   vec3 base=diffuseColor.rgb;
   float u=vWall.x,len=vWall.y,z=vWall.z,H=vWall.w;
@@ -96,7 +110,7 @@ export const FACADE_GLSL=`{
     float aa=clamp(1.6-fwidth(u)*1.2,0.0,1.0);
     float pil=1.0-step(0.38,u)*step(u,len-0.38);
     float tower=step(26.0,H);
-    float pitch=mix(2.7,3.7,fh(vSeed*7.0)),floorH=vFloorH;
+    float pitch=mix(2.7,3.7,fh(sdq*7.0)),floorH=vFloorH;
     float nWin=max(1.0,floor((len-0.8)/pitch)),margin=(len-nWin*pitch)*0.5;
     float lu=(u-margin)/pitch,fu=fract(lu),inRow=step(0.0,lu)*step(lu,nWin);
     float gl=0.0,trimM=0.0;
@@ -105,7 +119,7 @@ export const FACADE_GLSL=`{
       float win=inS*step(.08,su)*step(su,.92)*step(.35,z)*step(z,3.0);
       float frame=inS*step(.05,su)*step(su,.95)*step(.25,z)*step(z,3.1)-win;
       base=mix(base*0.9,vec3(0.12,0.12,0.13),frame*aa);trimM=frame;gl=win*aa;
-      float k=fh(vSeed*11.0);vec3 awn=k<.25?vec3(0.45,0.09,0.07):k<.5?vec3(0.08,0.24,0.15):k<.75?vec3(0.08,0.15,0.32):vec3(0.5,0.36,0.08);
+      float k=fh(sdq*11.0);vec3 awn=k<.25?vec3(0.45,0.09,0.07):k<.5?vec3(0.08,0.24,0.15):k<.75?vec3(0.08,0.15,0.32):vec3(0.5,0.36,0.08);
       float aw=step(3.15,z)*step(z,3.75)*aa;base=mix(base,awn*mix(1.0,1.15,step(0.5,fract(u*1.4))),aw);
       base=mix(base,base*0.78,step(3.75,z)*step(z,4.0));
     }else if(tower>0.5){
@@ -113,11 +127,11 @@ export const FACADE_GLSL=`{
       gl=(1.0-spandrel)*(1.0-mull)*aa*(1.0-pil);base=mix(base,base*0.85,spandrel*aa);trimM=mull;
     }else{
       float fz=fract((z-4.0)/floorH);
-      float ww=mix(.38,.6,fh(vSeed*5.0)),wh=mix(.42,.6,fh(vSeed*9.0)),inTop=step(z,H-1.2);
+      float ww=mix(.38,.6,fh(sdq*5.0)),wh=mix(.42,.6,fh(sdq*9.0)),inTop=step(z,H-1.2);
       float win=inRow*inTop*step(.5-ww*.5,fu)*step(fu,.5+ww*.5)*step(.3,fz)*step(fz,.3+wh);
       float frame=inRow*inTop*step(.5-ww*.5-.05,fu)*step(fu,.5+ww*.5+.05)*step(.25,fz)*step(fz,.35+wh)-win;
       float sill=inRow*inTop*step(.5-ww*.5-.09,fu)*step(fu,.5+ww*.5+.09)*step(.2,fz)*step(fz,.25);
-      vec3 frameC=fh(vSeed*17.0)<.5?vec3(0.85,0.84,0.8):vec3(0.14,0.14,0.15);
+      vec3 frameC=fh(sdq*17.0)<.5?vec3(0.85,0.84,0.8):vec3(0.14,0.14,0.15);
       base=mix(base,frameC,frame*aa);base=mix(base,base*1.12+0.04,sill*aa);trimM=frame+sill;gl=win*aa;
       base*=1.0-0.08*step(.965,fz)*aa;
     }

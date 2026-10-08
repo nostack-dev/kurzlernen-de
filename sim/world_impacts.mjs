@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import {groundHeightAt,staticGroundHeightAt,terrainNormalAt,onTerrainChange,waterAt,WATER_LEVEL_M} from "./terrain_craters.mjs";
 import {patchShockMaterial} from "./nuke_shock_field.mjs";
+import {glassAt,addGlassCrack,addWallSoot} from "./facade_marks.mjs";
 
 // Every action of the player leaves a mark — nothing is silently ignored.
 //  * Bullet impacts: a hole decal on walls, ground, cars and trees, plus a
@@ -19,7 +20,7 @@ let installed=false,sceneRef=null,decals=null,decalCursor=0,chips=null,chipItems
 const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),p=new THREE.Vector3(),s=new THREE.Vector3(),n=new THREE.Vector3(),Z=new THREE.Vector3(0,0,1),col=new THREE.Color(),ZERO=new THREE.Matrix4().makeScale(0,0,0);
 const bridge=()=>globalThis.__arondightRealWorld||null;
 const rand=(a,b)=>a+Math.random()*(b-a);
-const COLORS={building:[0xcfc6b4,0xa89f90],ground:[0x6b5a44,0x7a9a52],tree:[0x4f9a3a,0x6b4a32],vehicle:[0xffd27a,0xfff2c4],actor:[0x8a1a1a,0x5a1010],water:[0x9fd0ff,0xffffff]};
+const COLORS={building:[0xcfc6b4,0xa89f90],ground:[0x6b5a44,0x7a9a52],tree:[0x4f9a3a,0x6b4a32],vehicle:[0xffd27a,0xfff2c4],glass:[0xe4f0f6,0xa9c6d6],actor:[0x8a1a1a,0x5a1010],water:[0x9fd0ff,0xffffff]};
 
 function ensure(){
   const scene=bridge()?.threeScene;if(!scene)return false;if(scene===sceneRef&&decals?.parent===scene)return true;sceneRef=scene;
@@ -71,7 +72,7 @@ export function addDecal(point,normal,{size=.1,color=0x2a2622,ground=false}={}){
   p.copy(point).addScaledVector(n,.012);s.set(size,size,size);m4.compose(p,q,s);const i=decalCursor++%DECALS;groundDecals.delete(i);decals.setMatrixAt(i,m4);decals.setColorAt(i,col.set(color));decals.instanceMatrix.needsUpdate=true;decals.instanceColor.needsUpdate=true;
 }
 export function chipBurst(point,normal,surface="building",count=6,speed=4){
-  if(!ensure()||!point)return;const palette=COLORS[surface]||COLORS.building;n.copy(normal||Z).normalize();
+  if(!ensure()||!point)return;if(surface==="building"&&glassAt(point)?.glass){surface="glass";count=Math.min(count,5);}const palette=COLORS[surface]||COLORS.building;n.copy(normal||Z).normalize();
   for(let k=0;k<count;k++){const i=chipCursor++%CHIPS,c=chipItems[i];c.life=rand(.5,1.1);c.p.copy(point).addScaledVector(n,.05);c.v.set(n.x+rand(-.7,.7),n.y+rand(-.7,.7),n.z+rand(-.2,.9)).normalize().multiplyScalar(speed*rand(.5,1.2));c.size=rand(.04,.11)*(surface==="tree"?1.4:1);c.spin=rand(-14,14);c.axis.set(rand(-1,1),rand(-1,1),rand(-1,1)).normalize();c.angle=0;chips.setColorAt(i,col.set(palette[k%palette.length]));}
   chips.instanceColor.needsUpdate=true;
 }
@@ -153,6 +154,7 @@ export function bulletImpact(ray,hit,{routed=false,maxDistance=180}={}){
   if(surface==="tree"&&hit?.instanceId!=null){hitTree(hit.instanceId,point,from.x,from.y);addDecal(point,normal,{size:.07,color:0x3a2a1c});return true;}
   if(surface==="animal"){if(hit?.instanceId!=null)globalThis.__ambientAnimals?.kill?.(hit.instanceId);chipBurst(point,normal,"actor",5,2.5);return true;}
   if(surface==="actor"){chipBurst(point,normal,"actor",3,2);return true;}
+  if(surface==="building"){const g=glassAt(point);if(g?.glass){addGlassCrack(g,point);chipBurst(point,normal,"glass",5,2.6);return true;}}
   addDecal(point,normal,{size:surface==="vehicle"?.06:.085,color:surface==="ground"?0x2e2a22:surface==="vehicle"?0x1c1c1c:0x34302a,ground:surface==="ground"});
   chipBurst(point,normal,surface,surface==="vehicle"?5:6,surface==="vehicle"?5:3.5);
   return true;
@@ -164,9 +166,8 @@ function onExplosion(event){
   if(!nuke){ // scorch on the ground (if the blast is low enough) and chips
     if((Number.isFinite(z)?z:g)-g<r*.6)addScorch(x,y,Math.min(5.5,r*.5));
     chipBurst(new THREE.Vector3(x,y,(Number.isFinite(z)?z:g)+.2),Z,"ground",Math.min(26,8+r*2),6+r*.6);
-    // walls within reach get scorched too
-    const prisms=bridge()?.buildingCollisionSnapshot?.prisms||[];let walls=0;
-    for(const pr of prisms){if(walls>=2)break;const pts=pr.points||[];for(let i=0;i<pts.length&&walls<2;i++){const a=pts[i],b=pts[(i+1)%pts.length],ex=b[0]-a[0],ey=b[1]-a[1],len=Math.hypot(ex,ey);if(len<.5)continue;const t=Math.max(0,Math.min(1,((x-a[0])*ex+(y-a[1])*ey)/(len*len))),px=a[0]+ex*t,py=a[1]+ey*t,dist=Math.hypot(x-px,y-py);if(dist<r*.5){const nx=-ey/len,ny=ex/len,sgn=Math.sign((x-px)*nx+(y-py)*ny)||1;addDecal(new THREE.Vector3(px,py,Math.max(staticGroundHeightAt(px,py)+.8,Math.min((Number.isFinite(z)?z:g)+.5,(+pr.top||8)-.3))),new THREE.Vector3(nx*sgn,ny*sgn,0),{size:Math.min(3,r*.35),color:0x1d1814});walls++;}}}
+    // walls within reach get soot, clipped to the rendered wall (never hanging in the air)
+    addWallSoot(x,y,Number.isFinite(z)?z:g,r);
   }
   // animals in reach die
   for(const bd of globalThis.__ambientBirds?.poses?.()||[]){if(Math.hypot(bd.x-x,bd.y-y,(bd.z-(Number(event?.detail?.position?.[2])||0))*.6)<(nuke?r*2.2:r*1.1)){globalThis.__ambientBirds.kill(bd.id);chipBurst(new THREE.Vector3(bd.x,bd.y,bd.z),Z,"actor",6,3);}}

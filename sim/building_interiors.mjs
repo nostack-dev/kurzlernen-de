@@ -27,7 +27,7 @@ import {onElevationChange} from "./terrain_elevation.mjs";
 export const BUILDING_INTERIORS_VERSION="walkable-interiors-v1";
 const ACTIVATE_M=30,DOORS_RADIUS_M=95,MAX_CLOSED_DOORS=24,DOOR_W=1.8,DOOR_H=2.55,WALL_IN=.3,R_PLAYER=.3,STEP_MAX=.55;
 const LANE=1.2,CORE_W=2*LANE+.2,LAND=1.3,RUN=3.6,CORE_L=2*LAND+RUN,GROUND_STOREY=4,SLAB=.25,MAX_LEVELS=12,ROOF_HOUSE=2.7;
-const K={wall:0,wood:1,tile:2,ceil:3,stone:4,metal:5,lamp:6,plain:7,concrete:8,carpet:9,accent:10,woodTrim:11,stairWall:12,riser:13};
+const K={reveal:-1,wall:0,wood:1,tile:2,ceil:3,stone:4,metal:5,lamp:6,plain:7,concrete:8,carpet:9,accent:10,woodTrim:11,stairWall:12,riser:13};
 const bridge=()=>globalThis.__arondightRealWorld||null;
 const walk=()=>globalThis.__arondightWalkMode||null;
 const viewport=()=>document.getElementById("viewport");
@@ -93,6 +93,7 @@ void main() {float iRough=0.85,iMetal=0.0;vec3 iEmit=vec3(0.0);`)
   float kd=vKind;vec3 P=vWinPos;vec2 q=vec2(dot(P.xy,uAxis),dot(P.xy,vec2(-uAxis.y,uAxis.x)));
   if(kd<0.5){
     if(facadeCutout(P,false))discard;
+    if(kd<-0.5&&!gl_FrontFacing)discard; // reveal: only seen from inside, never z-fights the facade
     float facGlass=0.0,facRough=0.88;
     ${FACADE_GLSL.replace("float aa=clamp(1.6-fwidth(u)*1.2,0.0,1.0);","float aa=1.0;")}
     if(facGlass>0.5)discard;
@@ -147,10 +148,36 @@ void main() {float iRough=0.85,iMetal=0.0;vec3 iEmit=vec3(0.0);`)
       .replace("#include <lights_fragment_end>","#include <lights_fragment_end>\nreflectedLight.indirectDiffuse*=vec3(0.66,0.56,0.45);reflectedLight.indirectSpecular*=0.5;");
   };
   m.envMapIntensity=.35;
-  m.customProgramCacheKey=()=>"building-interior-shell-v4";
+  m.customProgramCacheKey=()=>"building-interior-shell-v5-reveal";
   shellMaterial=m;return m;
 }
 
+// Window glass from inside: clear, slightly tinted, Fresnel sky reflection —
+// one transparent draw call for the active building only.
+let glassMaterial=null;
+function getGlassMaterial(){
+  if(glassMaterial)return glassMaterial;
+  const m=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.05,metalness:0,transparent:true,depthWrite:false,side:THREE.FrontSide,envMapIntensity:1});
+  m.onBeforeCompile=shader=>{Object.assign(shader.uniforms,facadeCutouts,interiorUniforms);
+    shader.vertexShader=shader.vertexShader.replace("void main() {","attribute vec4 aWall;varying vec3 vWinPos;varying vec4 vWall;\nvoid main() {vWall=aWall;")
+      .replace("#include <begin_vertex>","#include <begin_vertex>\nvWinPos=(modelMatrix*vec4(transformed,1.0)).xyz;");
+    shader.fragmentShader=shader.fragmentShader.replace("void main() {",`varying vec3 vWinPos;varying vec4 vWall;uniform float vSeed;uniform float vFloorH;
+float fh(float n){return fract(sin(n*127.1)*43758.5453);}
+${CUTOUT_GLSL}
+void main() {float gFr=0.0;`)
+      .replace("#include <color_fragment>",`#include <color_fragment>
+{ vec3 P=vWinPos;if(facadeCutout(P,false))discard;float facGlass=0.0,facRough=0.88;
+  ${FACADE_GLSL.replace("float aa=clamp(1.6-fwidth(u)*1.2,0.0,1.0);","float aa=1.0;")}
+  if(facGlass<0.5)discard;
+  gFr=pow(1.0-abs(dot(normalize(vViewPosition),normalize(vNormal))),3.0);
+  diffuseColor=vec4(vec3(0.62,0.70,0.74),0.10+0.45*gFr);
+}`)
+      .replace("#include <emissivemap_fragment>","#include <emissivemap_fragment>\ntotalEmissiveRadiance+=mix(vec3(0.015,0.02,0.025),vec3(0.16,0.2,0.25),gFr);");
+  };
+  m.customProgramCacheKey=()=>"building-interior-glass-v1";
+  glassMaterial=m;return m;
+}
+let glassMesh=null;
 // ------------------------------------------------------------------ props (instanced furniture)
 function propGeometry(parts){
   const pos=[],nrm=[],col=[],c=new THREE.Color();
@@ -224,7 +251,7 @@ function findCore(inner,innerHoles,holes,doors,centroid,axis){
 
 // ------------------------------------------------------------------ interior build
 let active=null,group=null,shellMeshes=[],propMeshes=[],doorMesh=null,leafMesh=null,sceneRef=null;
-function disposeActive(){for(const m of shellMeshes){m.geometry.dispose();m.parent?.remove(m);}shellMeshes=[];for(const m of propMeshes){m.parent?.remove(m);m.dispose?.();}propMeshes=[];active=null;facadeCutouts.uCutN.value=0;setData("buildingInterior","none");}
+function disposeActive(){if(glassMesh){glassMesh.geometry.dispose();glassMesh.parent?.remove(glassMesh);glassMesh=null;}for(const m of shellMeshes){m.geometry.dispose();m.parent?.remove(m);}shellMeshes=[];for(const m of propMeshes){m.parent?.remove(m);m.dispose?.();}propMeshes=[];active=null;facadeCutouts.uCutN.value=0;setData("buildingInterior","none");}
 function ensureGroup(scene){if(group?.parent===scene)return group;group?.parent?.remove(group);group=new THREE.Group();group.name="BUILDING_INTERIORS";scene.add(group);sceneRef=scene;doorMesh=leafMesh=null;shellMeshes=[];propMeshes=[];return group;}
 
 function buildInterior(fp){
@@ -259,9 +286,17 @@ function buildShell(b){
   const holeEdge=(h,i)=>{const r=holes[h],a=r[i],c=r[(i+1)%r.length],l=Math.hypot(c[0]-a[0],c[1]-a[1])||1;return{a,l,dx:(c[0]-a[0])/l,dy:(c[1]-a[1])/l};};
   const coreHole=core?[...core.rect].reverse():null;
   // walls (inner faces, facade window openings via the shared shader)
-  const wallRing=(ring,edgeOf)=>{for(let i=0;i<ring.length;i++){const A=ring[i],B=ring[(i+1)%ring.length],e=edgeOf(i),uA=Math.max(.001,Math.min(e.l-.001,(A[0]-e.a[0])*e.dx+(A[1]-e.a[1])*e.dy)),uB=Math.max(.001,Math.min(e.l-.001,(B[0]-e.a[0])*e.dx+(B[1]-e.a[1])*e.dy));
-    for(let k=0;k<F;k++){const z0=k===0?base:levels[k],z1=b.ceilOf(k)+.02;S.at(k).quad([B[0],B[1],z0],[A[0],A[1],z0],[A[0],A[1],z1],[B[0],B[1],z1],K.wall,{wall:[[uB,e.l,z0-base,H],[uA,e.l,z0-base,H],[uA,e.l,z1-base,H],[uB,e.l,z1-base,H]],local:[z0-levels[k],z0-levels[k],z1-levels[k],z1-levels[k]]});}}};
+  const wallRing=(ring,edgeOf,kind=K.wall)=>{for(let i=0;i<ring.length;i++){const A=ring[i],B=ring[(i+1)%ring.length],e=edgeOf(i),uA=Math.max(.001,Math.min(e.l-.001,(A[0]-e.a[0])*e.dx+(A[1]-e.a[1])*e.dy)),uB=Math.max(.001,Math.min(e.l-.001,(B[0]-e.a[0])*e.dx+(B[1]-e.a[1])*e.dy));
+    for(let k=0;k<F;k++){const z0=k===0?base:levels[k],z1=b.ceilOf(k)+.02;S.at(k).quad([B[0],B[1],z0],[A[0],A[1],z0],[A[0],A[1],z1],[B[0],B[1],z1],kind,{wall:[[uB,e.l,z0-base,H],[uA,e.l,z0-base,H],[uA,e.l,z1-base,H],[uB,e.l,z1-base,H]],local:[z0-levels[k],z0-levels[k],z1-levels[k],z1-levels[k]]});}}};
   wallRing(inner,i=>exteriorEdge(i));innerHoles.forEach((r,h)=>wallRing(r,i=>holeEdge(h,i)));
+  // reveal: the inside face of the outer wall (2 cm in), same window holes —
+  // closes the wall cavity so no sliver of the outside shows at window edges
+  wallRing(offsetRing(outer,.02),i=>exteriorEdge(i),K.reveal);holes.forEach((r,h)=>wallRing(offsetRing(r,.02),i=>holeEdge(h,i),K.reveal));
+  // window glass seen from inside: one quad per wall at the pane plane; the
+  // glass shader keeps only the panes (same facade mask as outside)
+  const G=new Shell(b),glassRing=(ring,edgeOf)=>{for(let i=0;i<ring.length;i++){const A=ring[i],B=ring[(i+1)%ring.length],e=edgeOf(i),uA=Math.max(.001,Math.min(e.l-.001,(A[0]-e.a[0])*e.dx+(A[1]-e.a[1])*e.dy)),uB=Math.max(.001,Math.min(e.l-.001,(B[0]-e.a[0])*e.dx+(B[1]-e.a[1])*e.dy));
+    G.quad([B[0],B[1],base],[A[0],A[1],base],[A[0],A[1],top],[B[0],B[1],top],K.wall,{wall:[[uB,e.l,0,H],[uA,e.l,0,H],[uA,e.l,H,H],[uB,e.l,H,H]]});}};
+  glassRing(offsetRing(outer,.035),i=>exteriorEdge(i));holes.forEach((r,h)=>glassRing(offsetRing(r,.035),i=>holeEdge(h,i)));b.glassGeometry=G.geometry();
   // floors and ceilings
   for(let k=0;k<F;k++){const floorKind=k===0?K.tile:((b.params.seed*7+k)%2<1?K.wood:K.carpet);
     const hs=[...innerHoles];if(core&&k>0)hs.push(coreHole);S.at(k).slab(inner,hs,levels[k],floorKind,true);
@@ -413,6 +448,7 @@ function activate(fp,scene){
   interiorUniforms.vSeed.value=b.params.seed;interiorUniforms.vFloorH.value=b.params.floorH;interiorUniforms.uAxis.value.set(b.axis[0],b.axis[1]);
   interiorUniforms.uWallColor.value.set(["#ece7dd","#e6e1d6","#dfe3e0","#efe9df","#e4ddd2","#e9e6e1"][hashKey(b.key)%6]);interiorUniforms.uAccent.value.set(["#7f9a8a","#b0705a","#5f7590","#c9a35e","#8a7aa0","#6f8f7a","#a6644f","#4f6a7c"][(hashKey(b.key)>>>5)%8]);
   for(const[k,g]of b.shell){const m=new THREE.Mesh(g,getShellMaterial());m.name=`BUILDING_INTERIOR_SHELL_${k}`;m.userData.level=k;m.receiveShadow=true;m.castShadow=false;m.userData.styleSkip=true;group.add(m);shellMeshes.push(m);}
+  if(b.glassGeometry){glassMesh=new THREE.Mesh(b.glassGeometry,getGlassMaterial());glassMesh.name="BUILDING_INTERIOR_GLASS";glassMesh.renderOrder=2;glassMesh.raycast=()=>{};Object.assign(glassMesh.userData,{styleSkip:true,flightFireIgnore:true,neonSkip:true});group.add(glassMesh);}
   buildPropMeshes(b);showPropLevels(0);
   // open doorways + roof hatch in the exterior
   let n=0;for(const d of b.doors){if(n>=MAX_FACADE_CUTOUTS)break;const t0=d.t-DOOR_W/2,t1=d.t+DOOR_W/2;facadeCutouts.uCutA.value[n].set(d.ax+d.dx*t0,d.ay+d.dy*t0,d.ax+d.dx*t1,d.ay+d.dy*t1);facadeCutouts.uCutB.value[n].set(b.base-2,b.levels[0]+DOOR_H,.85,0);n++;}
