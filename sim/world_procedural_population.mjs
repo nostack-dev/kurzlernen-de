@@ -80,7 +80,7 @@ function updateCrowd(){if(!crowd)return;const now=performance.now(),dt=Math.min(
     crowd.set(i,{x:crowdPos.x,y:crowdPos.y,z:groundHeightAt(crowdPos.x,crowdPos.y),yaw:r.group.rotation.z-Math.PI/2,state:speed>3.2?"run":speed>.25?"walk":"idle",speed,dt});}
   crowd.commit();}
 function makePerson(index){ensureShared();const s=hashText(`person:${index}`),group=new THREE.Group(),colors=civilianColors(s),r=baseRecord("person",index,group,colors.shirt);r.colors=colors;r.legs=[];r.arms=[];
-  proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.26,1.2,3,8);g.rotateX(Math.PI/2);g.translate(0,0,.86);return g;})();proxyMat??=Object.assign(new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),{colorWrite:false});
+  proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.26,1.2,3,8);g.rotateX(Math.PI/2);g.translate(0,0,.86);return g;})();proxyMat??=Object.assign(new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),{colorWrite:false,visible:false});
   const proxy=new THREE.Mesh(proxyGeo,proxyMat);proxy.name="PERSON_HIT_PROXY";proxy.userData.styleSkip=true;group.add(proxy);return r;}
 function makeBird(index){ensureShared();const s=hashText(`bird:${index}`),group=new THREE.Group(),mesh=new THREE.Mesh(shared.bird,shared.birds[s%shared.birds.length]),r=baseRecord("bird",index,group,mesh.material.color.getHex());mesh.scale.setScalar(.85+(s%14)/60);group.add(mesh);return r;}
 

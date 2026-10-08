@@ -22,7 +22,7 @@ function mat(color,rough=.8,metal=0){const k=`${color}|${rough}|${metal}`;let m=
 function part(parent,g,m,x=0,y=0,z=0){const mesh=new THREE.Mesh(g,m);mesh.position.set(x,y,z);mesh.castShadow=true;parent.add(mesh);return mesh;}
 function joint(parent,x,y,z,name){const j=new THREE.Group();j.name=name;j.position.set(x,y,z);parent.add(j);return j;}
 // a limb segment hanging down from its joint (-z), rounded
-const limb=(r,len)=>geo(`limb${r}|${len}`,()=>{const g=new THREE.CapsuleGeometry(r,Math.max(.01,len-2*r),4,8);g.rotateX(Math.PI/2);g.translate(0,0,-len/2);return g;});
+const limb=(r,len)=>geo(`limb${r}|${len}`,()=>{const g=new THREE.CapsuleGeometry(r,Math.max(.01,len-2*r),2,7);g.rotateX(Math.PI/2);g.translate(0,0,-len/2);return g;});
 const boxG=(w,d,h)=>geo(`box${w}|${d}|${h}`,()=>new THREE.BoxGeometry(w,d,h));
 
 export function shirtColorFor(id){let h=2166136261;for(const c of String(id||""))h=Math.imul(h^c.charCodeAt(0),16777619);const p=[0x4b5238,0x55524a,0x3f4a52,0x5a4a3a,0x474c3e,0x3c4436];return p[(h>>>0)%p.length];}
@@ -34,14 +34,14 @@ export function buildCharacter({outfit="player",shirt=null,id=""}={}){
   const pelvis=joint(root,0,0,.96,"pelvis");
   part(pelvis,boxG(.34,.2,.18),M.pants,0,0,.02);
   const spine=joint(pelvis,0,0,.1,"spine");
-  part(spine,geo("torso",()=>{const g=new THREE.CapsuleGeometry(.17,.26,4,10);g.rotateX(Math.PI/2);g.scale(1.12,.72,1);return g;}),M.shirt,0,0,.25);
+  part(spine,geo("torso",()=>{const g=new THREE.CapsuleGeometry(.17,.26,3,8);g.rotateX(Math.PI/2);g.scale(1.12,.72,1);return g;}),M.shirt,0,0,.25);
   part(spine,boxG(.38,.28,.34),M.vest,0,.004,.27);                         // plate carrier
   part(spine,boxG(.3,.07,.16),M.vest,0,.16,.22);                          // mag pouches
   const neck=joint(spine,0,0,.5,"neck");
   part(neck,limb(.055,.1),M.skin,0,0,.08);
   const head=joint(neck,0,0,.1,"head");
-  part(head,geo("head",()=>{const g=new THREE.SphereGeometry(.115,14,10);g.scale(.92,1,1.12);return g;}),M.skin,0,.01,.1);
-  if(M.helmet)part(head,geo("helmet",()=>{const g=new THREE.SphereGeometry(.13,14,8,0,Math.PI*2,0,Math.PI*.55);g.rotateX(Math.PI/2);return g;}),M.helmet,0,0,.13);
+  part(head,geo("head",()=>{const g=new THREE.SphereGeometry(.115,10,8);g.scale(.92,1,1.12);return g;}),M.skin,0,.01,.1);
+  if(M.helmet)part(head,geo("helmet",()=>{const g=new THREE.SphereGeometry(.13,10,5,0,Math.PI*2,0,Math.PI*.55);g.rotateX(Math.PI/2);return g;}),M.helmet,0,0,.13);
   const visor=part(head,boxG(.2,.09,.07),M.dark,0,.1,.11);visor.visible=false; // VR headset
   // arms
   const arms={};for(const s of[-1,1]){const sh=joint(spine,s*.225,0,.44,s<0?"shoulderL":"shoulderR");part(sh,limb(.058,.3),M.shirt);const el=joint(sh,0,0,-.3,s<0?"elbowL":"elbowR");part(el,limb(.05,.27),M.shirt);const wr=joint(el,0,0,-.27,s<0?"wristL":"wristR");part(wr,boxG(.075,.09,.11),M.gloves,0,.01,-.05);arms[s<0?"L":"R"]={sh,el,wr};}
