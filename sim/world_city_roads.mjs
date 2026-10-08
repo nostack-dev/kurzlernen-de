@@ -79,6 +79,7 @@ function* build(b,cx,cy){
   }
   // level road corridors in the terrain (drivable, flat across); the roads are draped after the change
   setRoadCorridors(roads.filter(r=>r.cls!=="path"&&r.cls!=="track").map(r=>({pts:r.pts,w:r.w+3.4})));
+  globalThis.__streetLamps?.setRoads?.(roads,cx,cy);
   const ribbon=(pts,w,z,color,caps=true)=>{for(let i=0;i<pts.length-1;i++){const a=pts[i],b2=pts[i+1],dx=b2[0]-a[0],dy=b2[1]-a[1],l=Math.hypot(dx,dy);if(l<.05)continue;const nx=-dy/l*w/2,ny=dx/l*w/2,k=Math.max(1,Math.ceil(l/ROAD_SEG_M));for(let s=0;s<k;s++){const t0=s/k,t1=(s+1)/k,p0x=a[0]+dx*t0,p0y=a[1]+dy*t0,p1x=a[0]+dx*t1,p1y=a[1]+dy*t1;quad([p0x+nx,p0y+ny],[p0x-nx,p0y-ny],[p1x-nx,p1y-ny],[p1x+nx,p1y+ny],z,color);}}if(caps)for(let i=0;i<pts.length;i++){const p=pts[i];if(i>0&&i<pts.length-1){const a=pts[i-1],q=pts[i+1],ax=p[0]-a[0],ay=p[1]-a[1],bx=q[0]-p[0],by=q[1]-p[1],cosT=(ax*bx+ay*by)/((Math.hypot(ax,ay)*Math.hypot(bx,by))||1);if(cosT>.966)continue;}disk(p[0],p[1],w/2,z,color,i===0||i===pts.length-1?8:6);}};
   for(const r of roads){if(r.cls==="path"||r.cls==="track"||r.cls==="service")continue;ribbon(r.pts,r.w+3.4,Z_SIDEWALK,C.sidewalk);if(++n%40===0)yield;}
   // Layers are drawn in buffer order without depth writes (see material): a
