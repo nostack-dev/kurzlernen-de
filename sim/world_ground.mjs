@@ -15,7 +15,7 @@ import {staticGroundHeightAt,terrainNodeHeightAt,groundHeightAt,onTerrainChange}
 // height-field tiles (terrain_tiles.mjs) with the same triangle diagonal,
 // so what you see is exactly what you stand, drive and collide on.
 
-export const WORLD_GROUND_VERSION="satellite-albedo-ground-v4-chunked-culled";
+export const WORLD_GROUND_VERSION="satellite-albedo-ground-v4-mesh-is-collision-chunked";
 // 8×8 chunks (200 m each): only the chunks in view are drawn; normals come
 // from the shared height grid so chunk seams are invisible.
 const CH=8;

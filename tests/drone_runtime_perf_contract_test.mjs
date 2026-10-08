@@ -150,7 +150,7 @@ assert.ok(simulator.includes('if(gameMenu&&!gameMenu.hidden){lastPresentationDra
 const terrain=files["sim/terrain_craters.mjs"],ground=files["sim/world_ground.mjs"];
 assert.ok(terrain.includes("terrainCellCache")&&terrain.includes("terrainNodeHeightAt"),"terrain hot queries must share cached physical grid nodes");
 assert.ok(ground.includes("function applyHeights(regions=null)")&&ground.includes("terrainNodeHeightAt(Math.round(x/5)*5,Math.round(y/5)*5)")&&ground.includes("idx.push(a,b,d,a,d,c)"),"visible ground vertices must be the exact Box3D collision nodes and diagonal");
-assert.ok(ground.includes('WORLD_GROUND_VERSION="satellite-albedo-ground-v3-mesh-is-collision"'),"WORLD ground: satellite albedo on the collision mesh");
+assert.ok(ground.includes('WORLD_GROUND_VERSION="satellite-albedo-ground-v4-mesh-is-collision-chunked"')&&ground.includes("frustumCulled=true"),"WORLD ground: satellite albedo on the collision mesh");
 assert.ok(ground.includes("await yieldMain()"),"satellite albedo sampling must be time-sliced");
 
 const action=files["sim/world_action_feedback.mjs"];
