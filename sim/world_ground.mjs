@@ -71,7 +71,7 @@ function ensureMesh(scene){
     shader.fragmentShader=shader.fragmentShader.replace("void main() {","varying vec3 vGW;\nfloat gh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.55);}\nfloat gn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(gh(i),gh(i+vec2(1,0)),f.x),mix(gh(i+vec2(0,1)),gh(i+vec2(1,1)),f.x),f.y);}\nvoid main() {")
       .replace("#include <color_fragment>","#include <color_fragment>\n{float n=gn(vGW.xy*.35)*.5+gn(vGW.xy*1.7)*.3+gn(vGW.xy*7.0)*.2;diffuseColor.rgb*=0.86+0.28*n;}");};
   m.customProgramCacheKey=()=>"world-ground-v2-real";patchShockMaterial(m);
-  mesh=new THREE.Group();mesh.name="WORLD_GROUND";mesh.userData.flightFireIgnore=true;mesh.userData.styleSkip=true;mesh.visible=false;
+  mesh=new THREE.Group();mesh.name="WORLD_GROUND";mesh.renderOrder=1;mesh.userData.flightFireIgnore=true;mesh.userData.styleSkip=true;mesh.visible=false;
   const CC=CELLS/CH,st=SIZE_M/CELLS,half=SIZE_M/2,X1=CC+1;
   // Match staticGroundHeightAt / Box3D: triangles (a,b,d),(a,d,c) share the u>=v diagonal.
   const idx=[];for(let iy=0;iy<CC;iy++)for(let ix=0;ix<CC;ix++){const c=ix+X1*iy,a=ix+X1*(iy+1),d=(ix+1)+X1*iy,b=(ix+1)+X1*(iy+1);idx.push(a,b,d,a,d,c);}

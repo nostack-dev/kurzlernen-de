@@ -95,7 +95,7 @@ function* build(b,cx,cy){
 }
 function ensureMesh(scene){
   if(mesh?.parent===scene)return mesh;material??=patchShockMaterial(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.93,metalness:0,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4,depthWrite:false}));mesh=new THREE.Group();
-  mesh.name="WORLD_CITY_ROADS";mesh.receiveShadow=true;mesh.renderOrder=-1;mesh.userData.flightFireIgnore=true;mesh.raycast=()=>{};scene.add(mesh);sceneRef=scene;center=[Infinity,Infinity];return mesh;
+  mesh.name="WORLD_CITY_ROADS";mesh.receiveShadow=true;mesh.renderOrder=2;/* group order: after the ground (1) — roads do not write depth */mesh.userData.flightFireIgnore=true;mesh.raycast=()=>{};scene.add(mesh);sceneRef=scene;center=[Infinity,Infinity];return mesh;
 }
 function frame(now){
   requestAnimationFrame(frame);const b=bridge();if(!b?.active||!b.threeScene||!b.map||!b.buildingSourceId||typeof b.projectLngLat!=="function"){if(mesh)mesh.visible=Boolean(b?.active);return;}

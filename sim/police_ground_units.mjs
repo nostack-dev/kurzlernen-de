@@ -88,7 +88,7 @@ function buildCruiser(){
 function flashLights(c,now,on){const slot=Math.floor(now/110)%6,r=on&&(slot===0||slot===2),b=on&&(slot===3||slot===5);c.red.material.color.setHex(r?0xff1a2a:0x330608);c.blue.material.color.setHex(b?0x2a6bff:0x06102e);if(r||b){c.group.getWorldPosition(lightPos);lightPos.z+=2;requestLight(lightPos,{color:r?0xff2030:0x2a6bff,intensity:14,distance:18});}}
 const lightPos=new THREE.Vector3();
 function makeProxy(){proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.27,1.2,3,8);g.rotateX(Math.PI/2);g.translate(0,0,.86);return g;})();proxyMat??=Object.assign(new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),{colorWrite:false,visible:false});
-  const m=new THREE.Mesh(proxyGeo,proxyMat);m.name="POLICE_OFFICER_HIT_PROXY";m.userData.worldPopulationKind="enemy";m.userData.styleSkip=true;m.visible=false;root.add(m);return m;}
+  const m=new THREE.Mesh(proxyGeo,proxyMat);m.name="POLICE_OFFICER_HIT_PROXY";m.userData.hitProxy=true;m.userData.worldPopulationKind="enemy";m.userData.styleSkip=true;m.visible=false;root.add(m);return m;}
 
 // ------------------------------------------------------------ audio / shots
 function playShot(x,y,z){try{const ctx=getSharedCombatAudioContext();if(!ctx||ctx.state!=="running")return;const pl=playerTarget()?.position,d=pl?Math.hypot(pl.x-x,pl.y-y,(pl.z||0)-z):30;playCombatAudio(ctx,"pistol",{gain:clamp(.55/(1+d*.06),.04,.5),minIntervalMs:25});}catch{}}

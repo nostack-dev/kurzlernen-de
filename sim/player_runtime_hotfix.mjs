@@ -44,7 +44,7 @@ function indexNode(node,target){
   if(node.children?.length&&((life==="car"||life==="bus")||(populationKind==="car"&&!u.worldLifeId)))target.vehicles.push(node);
   if(node.isMesh&&populationKind&&!u.worldPopulationClone)target.population.push(node);
   if((node.isMesh||node.isInstancedMesh)&&!u.flightFireDecal&&!u.flightFireTracer&&!u.worldActionFeedbackFx&&(populationKind||life||WORLD_DECOR_RE.test(ancestorNames(node))))target.decor.push(node);
-  if(node.isMesh&&!u.arondightAirframe&&!u.flightFireDecal&&!u.flightFireIgnore&&(node.material?.visible!==false||/HIT_PROXY$/.test(node.name)))pushFire(target,node);
+  if(node.isMesh&&!u.arondightAirframe&&!u.flightFireDecal&&!u.flightFireIgnore&&(node.material?.visible!==false||node.userData?.hitProxy))pushFire(target,node);
 }
 function idleSchedule(fn){if(typeof requestIdleCallback==="function")return requestIdleCallback(fn,{timeout:48});return setTimeout(()=>fn({timeRemaining:()=>2,didTimeout:true}),0);}
 function startIndex(scene,force=false){

@@ -55,7 +55,7 @@ export function screenRay(clientX,clientY){
   return{origin:raycaster.ray.origin.clone(),direction:raycaster.ray.direction.clone().normalize(),point:p};
 }
 function effectiveVisible(node){for(let n=node;n;n=n.parent)if(n.visible===false)return false;return true;}
-function sceneCandidates(scene){const list=[];scene?.traverse?.(node=>{if(!node?.isMesh||!effectiveVisible(node)||node.material?.visible===false)return;const u=node.userData||{};if(u.flightFireIgnore||u.walkWeaponPart||u.arondightAirframe||u.localHumanAvatar||u.worldPopulationClone||u.neonEdge)return;list.push(node);});return list;}
+function sceneCandidates(scene){const list=[];scene?.traverse?.(node=>{if(!node?.isMesh||!effectiveVisible(node)||(node.material?.visible===false&&!node.userData?.hitProxy))return;const u=node.userData||{};if(u.flightFireIgnore||u.walkWeaponPart||u.arondightAirframe||u.localHumanAvatar||u.worldPopulationClone||u.neonEdge)return;list.push(node);});return list;}
 function staticDistance(ray,max){const b=bridge();let best=max;try{if(b?.active){const hit=boxHits.cast([ray.origin.x,ray.origin.y,ray.origin.z],[ray.direction.x,ray.direction.y,ray.direction.z],max,b.buildingCollisionSnapshot);if(hit)best=Math.min(best,hit.distanceM);}}catch{}const t=terrainRayDistance(ray.origin,ray.direction,best);if(t!==null&&t>.2)best=Math.min(best,t);return best;}
 function resolveDistance(ray,{full=false}={}){let distance=staticDistance(ray,MAX_RAY_M);if(full){const scene=bridge()?.threeScene;if(scene){raycaster.set(ray.origin,ray.direction);raycaster.near=.05;raycaster.far=distance;const hit=raycaster.intersectObjects(sceneCandidates(scene),false)[0];if(hit)distance=Math.min(distance,hit.distance);}}return clamp(distance,1.2,MAX_RAY_M);}
 

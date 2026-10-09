@@ -81,7 +81,7 @@ function updateCrowd(){if(!crowd)return;const now=performance.now(),dt=Math.min(
   crowd.commit();}
 function makePerson(index){ensureShared();const s=hashText(`person:${index}`),group=new THREE.Group(),colors=civilianColors(s),r=baseRecord("person",index,group,colors.shirt);r.colors=colors;r.legs=[];r.arms=[];
   proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.26,1.2,3,8);g.rotateX(Math.PI/2);g.translate(0,0,.86);return g;})();proxyMat??=Object.assign(new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),{colorWrite:false,visible:false});
-  const proxy=new THREE.Mesh(proxyGeo,proxyMat);proxy.name="PERSON_HIT_PROXY";proxy.userData.styleSkip=true;group.add(proxy);return r;}
+  const proxy=new THREE.Mesh(proxyGeo,proxyMat);proxy.name="PERSON_HIT_PROXY";proxy.userData.hitProxy=true;proxy.userData.styleSkip=true;group.add(proxy);return r;}
 function makeBird(index){ensureShared();const s=hashText(`bird:${index}`),group=new THREE.Group(),mesh=new THREE.Mesh(shared.bird,shared.birds[s%shared.birds.length]),r=baseRecord("bird",index,group,mesh.material.color.getHex());mesh.scale.setScalar(.85+(s%14)/60);group.add(mesh);return r;}
 
 function mergeParts(list){let n=0;const geos=list.map(([g,x=0,y=0,z=0,rx=0,ry=0,rz=0])=>{const q=g.index?g.toNonIndexed():g;q.rotateX(rx);q.rotateY(ry);q.rotateZ(rz);q.translate(x,y,z);n+=q.attributes.position.count;return q;});const pos=new Float32Array(n*3);let o=0;for(const q of geos){pos.set(q.attributes.position.array,o*3);o+=q.attributes.position.count;q.dispose();}const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.BufferAttribute(pos,3));g.computeVertexNormals();return g;}

@@ -99,7 +99,8 @@ export function setRoadCorridors(roads){
   for(const r of list){
     // centre line resampled every 5 m, heights smoothed over ±15 m
     const pts=[];for(let i=0;i<r.pts.length-1;i++){const a=r.pts[i],b=r.pts[i+1],l=Math.hypot(b[0]-a[0],b[1]-a[1]),k=Math.max(1,Math.ceil(l/5));for(let s=0;s<k;s++)pts.push([a[0]+(b[0]-a[0])*s/k,a[1]+(b[1]-a[1])*s/k]);}pts.push(r.pts.at(-1));
-    const raw=pts.map(p=>elevationAt(p[0],p[1])),hs=raw.map((_,i)=>{let sum=0,n=0;for(let k=-3;k<=3;k++){const v=raw[i+k];if(v!==undefined){const w=4-Math.abs(k);sum+=v*w;n+=w;}}return sum/n;});
+    // heights from one shared smooth field: crossing roads agree at their junction
+    const hs=pts.map(p=>roadField(p[0],p[1]));
     const half=r.w/2,reach=half+ROAD_BLEND_M;
     for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy;if(l2<1e-4)continue;const seg={ax:a[0],ay:a[1],dx,dy,l2,ha:hs[i],hb:hs[i+1],half};
       const sx0=Math.min(a[0],b[0])-reach,sx1=Math.max(a[0],b[0])+reach,sy0=Math.min(a[1],b[1])-reach,sy1=Math.max(a[1],b[1])+reach;x0=Math.min(x0,sx0);y0=Math.min(y0,sy0);x1=Math.max(x1,sx1);y1=Math.max(y1,sy1);
@@ -107,10 +108,13 @@ export function setRoadCorridors(roads){
   }
   roadGrid=grid;notify(Number.isFinite(x0)?[[x0,y0,x1,y1]]:null,"roads");return true;
 }
+// ground smoothed over ~36 m (tent kernel): the longitudinal road profile
+function roadField(x,y){let sum=0,wsum=0;for(let j=-2;j<=2;j++)for(let i=-2;i<=2;i++){const w=(3-Math.abs(i))*(3-Math.abs(j));sum+=elevationAt(x+i*9,y+j*9)*w;wsum+=w;}return sum/wsum;}
 function roadLevel(x,y,h){
-  if(!roadGrid.size)return h;const segs=roadGrid.get(roadKey(Math.floor(x/RG),Math.floor(y/RG)));if(!segs)return h;let best=0,bh=h;
-  for(const s of segs){const t=Math.max(0,Math.min(1,((x-s.ax)*s.dx+(y-s.ay)*s.dy)/s.l2)),px=s.ax+s.dx*t,py=s.ay+s.dy*t,d=Math.hypot(x-px,y-py),w=d<=s.half?1:d>=s.half+ROAD_BLEND_M?0:1-(d-s.half)/ROAD_BLEND_M;if(w>best){best=w;bh=s.ha+(s.hb-s.ha)*t;if(w>=1)break;}}
-  const k=best*best*(3-2*best);return k>0?h+(bh-h)*k:h;
+  if(!roadGrid.size)return h;const segs=roadGrid.get(roadKey(Math.floor(x/RG),Math.floor(y/RG)));if(!segs)return h;let best=0,sw=0,sh=0;
+  // every corridor covering the point contributes (weighted): junctions blend smoothly, no steps
+  for(const s of segs){const t=Math.max(0,Math.min(1,((x-s.ax)*s.dx+(y-s.ay)*s.dy)/s.l2)),px=s.ax+s.dx*t,py=s.ay+s.dy*t,d=Math.hypot(x-px,y-py),w=d<=s.half?1:d>=s.half+ROAD_BLEND_M?0:1-(d-s.half)/ROAD_BLEND_M;if(w<=0)continue;const ws=w*w*(3-2*w);sw+=ws;sh+=ws*(s.ha+(s.hb-s.ha)*t);if(w>best)best=w;}
+  if(!sw)return h;const k=best*best*(3-2*best);return h+(sh/sw-h)*k;
 }
 export function terrainNodeHeightAt(x,y){const e=elevationAt(x,y);let h=roadLevel(x,y,padBlend(x,y,e));for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return Math.min(h,e-WATER_BED_M);return h;}
 const terrainCellCache=new Map();

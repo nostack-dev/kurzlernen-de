@@ -34,7 +34,7 @@ function isNight(){return Boolean(globalThis.__dayNight?.state?.isNight);}
 // ------------------------------------------------------------ scene
 function ensureScene(){const scene=bridge()?.threeScene;if(!scene)return false;if(scene===sceneRef&&root?.parent===scene)return true;root?.parent?.remove(root);crowd?.dispose?.();remoteCrowd?.dispose?.();sceneRef=scene;root=new THREE.Group();root.name="ZOMBIE_NIGHTS";scene.add(root);
   crowd=createCrowd(scene,{capacity:CAP,outfit:"zombie",name:"ZOMBIES"});remoteCrowd=createCrowd(scene,{capacity:REMOTE_CAP,outfit:"zombie",name:"ZOMBIES_REMOTE"});for(let i=0;i<CAP;i++)crowd.setColors(i,ZCOL[i%4]);for(let i=0;i<REMOTE_CAP;i++)remoteCrowd.setColors(i,ZCOL[i%4]);zombies=[];return true;}
-function proxy(){proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.28,1.2,3,8);g.rotateX(Math.PI/2);g.translate(0,0,.86);return g;})();proxyMat??=Object.assign(new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),{colorWrite:false,visible:false});const m=new THREE.Mesh(proxyGeo,proxyMat);m.name="ZOMBIE_HIT_PROXY";m.userData.worldPopulationKind="enemy";m.userData.styleSkip=true;root.add(m);return m;}
+function proxy(){proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.28,1.2,3,8);g.rotateX(Math.PI/2);g.translate(0,0,.86);return g;})();proxyMat??=Object.assign(new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),{colorWrite:false,visible:false});const m=new THREE.Mesh(proxyGeo,proxyMat);m.name="ZOMBIE_HIT_PROXY";m.userData.hitProxy=true;m.userData.worldPopulationKind="enemy";m.userData.styleSkip=true;root.add(m);return m;}
 
 // ------------------------------------------------------------ HUD
 function hud(){

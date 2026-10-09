@@ -20,7 +20,7 @@ function tag(node,id){node.userData.worldPopulationKind="person";node.userData.w
 let proxyGeo=null,proxyMat=null,crowd=null,crowdHooked=null,crowdLast=performance.now();
 function makeExtra(index){
   const id=`crowd-extra-${index}`,group=new THREE.Group();proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.26,1.2,3,8);g.rotateX(Math.PI/2);g.translate(0,0,.86);return g;})();proxyMat??=Object.assign(new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),{colorWrite:false,visible:false});
-  const proxy=new THREE.Mesh(proxyGeo,proxyMat);proxy.name="PERSON_HIT_PROXY";proxy.userData.styleSkip=true;tag(proxy,id);tag(group,id);group.visible=false;group.add(proxy);
+  const proxy=new THREE.Mesh(proxyGeo,proxyMat);proxy.name="PERSON_HIT_PROXY";proxy.userData.styleSkip=true;tag(proxy,id);proxy.userData.hitProxy=true;tag(group,id);group.visible=false;group.add(proxy);
   return{id,index,group,colors:civilianColors(index*7919+13),legL:{rotation:{}},legR:{rotation:{}},armL:{rotation:{}},armR:{rotation:{}},deadUntil:0,everVisible:false,prev:null,speed:1.3};
 }
 function updateCrowdExtras(){if(!crowd)return;const now=performance.now(),dt=Math.min(.1,Math.max(.001,(now-crowdLast)/1000));crowdLast=now;
