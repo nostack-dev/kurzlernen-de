@@ -1,6 +1,7 @@
 import {TerrainTiles} from "./terrain_tiles.mjs";
 import {createTerrainBody,waterAt,waterFlowAt,waterLevelAt,groundHeightAt,terrainRescueZ} from "./terrain_craters.mjs";
 import {vehicleSpec,vehicleGroundOffset,attachWheels,detachWheels,placeWheels,driveWheeled,wheelPoses} from "./world_vehicle_dynamics.mjs";
+import {createBox3dHuman,destroyBox3dHuman} from "./box3d_human.mjs";
 import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,normalizeBuildingCollisionSnapshot} from "./world_building_collision_physics.mjs";
 
 export const WORLD_PHYSICS_CATEGORIES=Object.freeze({terrain:1n,vehicle:2n,drone:4n,projectileQuery:8n});
@@ -65,6 +66,13 @@ export class WorldRigidBodyPhysics{
   // fixed physics step with the body's live state, so the model never sees a stale pose.
   // surface grip of a body (e.g. an animal: paws give traction while it walks, a carcass grinds to a stop)
   setFriction(id,friction){const record=this.records.get(String(id||""));if(!record||!Number.isFinite(friction)||typeof this.b3.b3Shape_SetFriction!=="function")return false;for(const sh of[record.shape,...(record.extraShapes||[])])this.b3.b3Shape_SetFriction(sh,friction);return true;}
+  // Box3D ragdoll humans (box3d_human.mjs): jointed bodies that collide with terrain, buildings and vehicles
+  createHuman(id,opts={}){const key=String(id||"");if(!key||!this.world)return null;this.removeHuman(key);this.humans??=new Map();this.humanGroup=(this.humanGroup||0)%30000+1;
+    const h=createBox3dHuman(this.b3,this.world,{...opts,groupIndex:this.humanGroup,categoryBits:WORLD_PHYSICS_CATEGORIES.vehicle,maskBits:WORLD_PHYSICS_CATEGORIES.terrain|ALL_DYNAMIC|WORLD_PHYSICS_CATEGORIES.projectileQuery});this.humans.set(key,h);return h;}
+  human(id){return this.humans?.get(String(id||""))||null;}
+  removeHuman(id){const h=this.humans?.get(String(id||""));if(!h)return false;destroyBox3dHuman(this.b3,h);this.humans.delete(String(id));return true;}
+  // a blast / hit: the same velocity change for every bone (spread over its mass), plus spin
+  pushHuman(id,dv=[0,0,0],spin=0){const h=this.human(id);if(!h||!finiteVector(dv))return false;for(const b of h.bodies){if(!this.b3.b3Body_IsValid(b))continue;const v=this.b3.b3Body_GetLinearVelocity([0,0,0],b);this.b3.b3Body_SetLinearVelocity(b,[v[0]+dv[0],v[1]+dv[1],v[2]+dv[2]]);this.b3.b3Body_SetAwake?.(b,true);}if(spin&&h.bodies[1])this.b3.b3Body_ApplyAngularImpulse(h.bodies[1],[(Math.random()-.5)*spin,(Math.random()-.5)*spin,(Math.random()-.5)*spin],true);return true;}
   setController(id,fn){const record=this.records.get(String(id||""));if(!record)return false;record.controller=typeof fn==="function"?fn:null;return true;}
   setForces(id,{force=null,torque=null}={}){const record=this.records.get(String(id||""));if(!record)return false;record.extForce=finiteVector(force)?[...force]:null;record.extTorque=finiteVector(torque)?[...torque]:null;if(this.b3.b3Body_IsValid(record.body))this.b3.b3Body_SetAwake?.(record.body,true);return true;}
   applyImpulse(id,impulse,{point=null}={}){const record=this.records.get(String(id||""));if(!record||!finiteVector(impulse))return false;const bounded=limitedVector(impulse,record.massKg*60);/* at most a 60 m/s kick in one go (a nuke front): blasts must be able to throw light bodies */for(let index=0;index<3;index++)record.pendingImpulse[index]+=bounded[index];record.impulsePoint=finiteVector(point)?[...point]:null;return true;}

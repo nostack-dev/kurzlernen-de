@@ -1,6 +1,16 @@
 import * as THREE from "three";
 import {groundHeightAt} from "./terrain_craters.mjs";
 import {buildCharacter} from "./character_model.mjs";
+import {humanPoint,HUMAN_BONE_INDEX as HB} from "./box3d_human.mjs";
+// Box3D ragdoll (Erin Catto's human: capsules, limited joints, joint friction, sleeping); the old Verlet
+// skeleton only runs while the physics world is not up yet.
+const rigid=()=>globalThis.__arondightWorldRigidBodies||null;
+const POINT_BONES={pelvis:[HB.pelvis,[0,0,0]],chest:[HB.neck_01,[0,0,0]],head:[HB.neck_01,[0,-.15,0]],lShoulder:[HB.upperarm_l,[0,0,0]],rShoulder:[HB.upperarm_r,[0,0,0]],lElbow:[HB.lowerarm_l,[0,0,0]],rElbow:[HB.lowerarm_r,[0,0,0]],lHand:[HB.lowerarm_l,[.37,0,0]],rHand:[HB.lowerarm_r,[-.37,0,0]],lHip:[HB.thigh_l,[0,0,0]],rHip:[HB.thigh_r,[0,0,0]],lKnee:[HB.calf_l,[0,0,0]],rKnee:[HB.calf_r,[0,0,0]],lFoot:[HB.calf_l,[-.445,0,0]],rFoot:[HB.calf_r,[.445,0,0]]};
+const PT=[0,0,0];
+function releaseBox3d(r){if(r.box3d){rigid()?.removeHuman?.(r.box3d);r.box3d=null;}}
+// the skeleton points follow the Box3D bones; settled = every bone asleep or still
+function readBox3d(r){const h=rigid()?.human?.(r.box3d),b3=rigid()?.engine?.b3;if(!h||!b3){r.box3d=null;return false;}for(const n of POINT_NAMES){const[bi,l]=POINT_BONES[n];if(!humanPoint(b3,h,bi,l,PT))continue;r.points[n].p.set(PT[0],PT[1],PT[2]);r.points[n].prev.copy(r.points[n].p);}
+  let vmax=0;for(const b of h.bodies){if(b3.b3Body_IsAwake&&!b3.b3Body_IsAwake(b))continue;const v=b3.b3Body_GetLinearVelocity([0,0,0],b);vmax=Math.max(vmax,Math.hypot(v[0],v[1],v[2]));}r.settledMs=vmax<.06?r.settledMs+16:0;return true;}
 
 const MOBILE_RE=/(?:android|iphone|ipad|ipod|macintosh.*mobile)/i;
 const MOBILE=MOBILE_RE.test(globalThis.navigator?.userAgent||"");
@@ -66,7 +76,7 @@ function makeRagdoll(index){
 }
 
 function ensurePool(){const scene=bridge()?.threeScene;if(!scene)return false;while(ragdolls.length<MAX_RAGDOLLS){const item=makeRagdoll(ragdolls.length);if(!item)break;ragdolls.push(item);}const view=viewport();if(view){view.dataset.worldRagdollPool=String(ragdolls.length);view.dataset.worldRagdollMax=String(MAX_RAGDOLLS);}return ragdolls.length>0;}
-function chooseRagdoll(){if(!ensurePool())return null;const free=ragdolls.find(r=>!r.active);if(free)return free;const r=ragdolls.reduce((a,b)=>a.born<=b.born?a:b);
+function chooseRagdoll(){if(!ensurePool())return null;const free=ragdolls.find(r=>!r.active);if(free)return free;const r=ragdolls.reduce((a,b)=>a.born<=b.born?a:b);releaseBox3d(r);
   // a body that was going to get up is reused: that person gets up right now (never left hidden)
   if(r.recover){const rec=r.recover,p=r.points.pelvis.p;r.recover=null;r.getup=null;try{rec.onUp?.({x:p.x,y:p.y,yaw:0});}catch{}}return r;}
 
@@ -111,7 +121,7 @@ function integrateRagdoll(r,dt){
   for(const name of POINT_NAMES){const point=r.points[name],p=point.p,prev=point.prev,vx=(p.x-prev.x)*DAMPING,vy=(p.y-prev.y)*DAMPING,vz=(p.z-prev.z)*DAMPING;prev.copy(p);p.x+=vx;p.y+=vy;p.z+=vz-GRAVITY*dt2;kinetic+=vx*vx+vy*vy+vz*vz;floorPoint(point,FLOOR[name]);}
   solveConstraints(r);r.settledMs=kinetic<.00008?r.settledMs+dt*1000:0;
 }
-function physicsStep(dt){for(const r of ragdolls)if(r.active&&!r.getup)integrateRagdoll(r,dt);}
+function physicsStep(dt){for(const r of ragdolls)if(r.active&&!r.getup&&!r.box3d)integrateRagdoll(r,dt);}
 
 // "Reverse ragdoll": a person who still has life gets up again. Once the body
 // has settled (or after a short while) the joints blend from where the ragdoll
@@ -119,7 +129,7 @@ function physicsStep(dt){for(const r of ragdolls)if(r.active&&!r.getup)integrate
 // lay — and the person walks on from exactly there.
 const GETUP_MS=1150;
 function smooth(t){t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);}
-function beginGetup(r,now){const P=n=>r.points[n].p,px=P("pelvis").x,py=P("pelvis").y;
+function beginGetup(r,now){releaseBox3d(r);const P=n=>r.points[n].p,px=P("pelvis").x,py=P("pelvis").y;
   // facing: across the hips (right = rHip-lHip), or along pelvis→head when they lie on the side
   const hx=P("rHip").x-P("lHip").x,hy=P("rHip").y-P("lHip").y;let yaw=Math.atan2(hy,hx);if(!Number.isFinite(yaw))yaw=0;
   const from=Object.fromEntries(POINT_NAMES.map(n=>[n,P(n).clone()])),kneel={},stand={},g=groundHeightAt(px,py);
@@ -141,11 +151,11 @@ function liftOutOfGround(r){let deficit=0;r.group.updateMatrixWorld(true);r.grou
 function update(now=performance.now()){
   raf=requestAnimationFrame(update);let frameDt=Math.min(.08,Math.max(0,(now-lastNow)/1000));lastNow=now;accumulator+=frameDt;let steps=0;while(accumulator>=FIXED_STEP&&steps<MAX_STEPS){physicsStep(FIXED_STEP);accumulator-=FIXED_STEP;steps++;}if(steps===MAX_STEPS)accumulator=Math.min(accumulator,FIXED_STEP);
   let active=0;
-  for(const r of ragdolls){if(!r.active)continue;if(now>=r.expires&&!r.recover){r.active=false;r.group.visible=false;continue;}active++;
+  for(const r of ragdolls){if(!r.active)continue;if(now>=r.expires&&!r.recover){releaseBox3d(r);r.active=false;r.group.visible=false;continue;}active++;if(r.box3d&&!r.getup)readBox3d(r);
     if(r.recover&&!r.getup&&(r.settledMs>350||now-r.born>(r.recover.afterMs||2600)))beginGetup(r,now);
     if(r.getup){stepGetup(r,now);if(!r.active)continue;setOpacity(r,1);renderRagdoll(r);continue;}
-    const remaining=r.expires-now,opacity=r.recover?1:remaining<FADE_MS?Math.max(0,remaining/FADE_MS):1;setOpacity(r,opacity);renderRagdoll(r);if(now-r.born<6000&&liftOutOfGround(r))renderRagdoll(r);}
-  const view=viewport();if(view){view.dataset.worldRagdolls=String(active);view.dataset.worldRagdollModel="articulated-character";}
+    const remaining=r.expires-now,opacity=r.recover?1:remaining<FADE_MS?Math.max(0,remaining/FADE_MS):1;setOpacity(r,opacity);renderRagdoll(r);if(!r.box3d&&now-r.born<6000&&liftOutOfGround(r))renderRagdoll(r);}
+  const view=viewport();if(view){view.dataset.worldRagdolls=String(active);view.dataset.worldRagdollModel=ragdolls.some(r=>r.box3d)?"box3d-human-capsules-joint-friction":"articulated-character";}
 }
 
 function startLoop(){if(raf)return;lastNow=performance.now();raf=requestAnimationFrame(update);}
@@ -161,6 +171,8 @@ export function spawnWorldPersonRagdoll({position,yaw=0,impulse=[0,0,0],seed="",
     const name=POINT_NAMES[i],rest=REST[name],[rx,ry]=rotateYaw(rest[0],rest[1],yaw),p=r.points[name].p,prev=r.points[name].prev,limbBoost=(name==="chest"||name==="head")?1.15:(name.includes("Hand")||name.includes("Foot"))?1.28:1,noise=.65;
     p.set(ox+rx,oy+ry,Math.max(oz,groundHeightAt(ox+rx,oy+ry))+rest[2]);const vx=(ix*limbBoost+seededNoise(seedNumber,i*3)*noise),vy=(iy*limbBoost+seededNoise(seedNumber,i*3+1)*noise),vz=(iz*limbBoost+1.1+Math.abs(seededNoise(seedNumber,i*3+2))*.9);prev.set(p.x-vx*FIXED_STEP,p.y-vy*FIXED_STEP,p.z-vz*FIXED_STEP);
   }
+  // Box3D human when the physics world is up: same pose (yaw), same throw
+  releaseBox3d(r);{const R=rigid();if(R?.ready&&R.createHuman){const rid=`ragdoll-${r.index}-${(++serial).toString(36)}`,g=Math.max(oz,groundHeightAt(ox,oy));if(R.createHuman(rid,{position:[ox,oy,g+.02],yaw,velocity:[ix,iy,iz+1.1],frictionTorque:8,hertz:0})){r.box3d=rid;R.pushHuman?.(rid,[0,0,0],6+Math.abs(seededNoise(seedNumber,99))*10);}}}
   r.active=true;r.born=performance.now();r.expires=r.born+LIFE_MS;r.seed=seedNumber;r.id=String(id||"");r.settledMs=0;r.recover=typeof recover?.onUp==="function"?recover:null;r.getup=null;if(r.recover)r.expires=r.born+60000;r.group.visible=true;r.group.userData.worldRagdollId=r.id;renderRagdoll(r);const view=viewport();if(view){view.dataset.worldRagdollSpawns=String((Number(view.dataset.worldRagdollSpawns)||0)+1);view.dataset.worldRagdollLastId=r.id;}return true;
 }
 
