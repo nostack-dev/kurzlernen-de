@@ -1,9 +1,10 @@
 // Touch: what you use while playing sits within reach of the thumbs. Phones are held at the
 // lower corners; the right thumb sweeps an arc around the look stick, the left one around the
-// move stick. So the weapon switch is a round button just left of the look / right stick, and
+// move stick. Buttons sit LOW on that arc (nothing in the upper screen where you aim and shoot):
+// the weapon switch just below-left of the look / right stick, JUMP left of it, and
 // "get in" (car, jet) sits above JUMP at the right edge — no reaching into the middle or the
 // top of the screen mid-fight. Positions follow the sticks (layout, safe areas, rotation).
-export const THUMB_LAYOUT_VERSION="thumb-reach-v2";
+export const THUMB_LAYOUT_VERSION="thumb-reach-v3-low";
 const STICK_PX=176,CATCH_PX=38;
 let btn=null,lastKey="",installed=false;
 const $=id=>document.getElementById(id);
@@ -31,13 +32,15 @@ function place(el,left,top){const l=`${Math.round(left)}px`,t=`${Math.round(top)
 function sync(){
   const b=ensure();if(!b)return;const on=touchPlay(),stick=visibleRect($("footLook"))||visibleRect($("soloRight"));
   if(!on||!stick){b.classList.remove("show");return;}
-  // weapon: left of the right stick, at its centre height (where the thumb rolls to naturally)
-  place(b,stick.left-60-14,stick.top+stick.height/2-30+8);b.classList.add("show");
+  // low on the screen, out of the shooting area: weapon just below-left of the right stick (the thumb
+  // rolls down-left onto it), JUMP left of the stick slightly above its centre line
+  const scx=stick.left+stick.width/2,scy=stick.top+stick.height/2,wa=206*Math.PI/180,wr=stick.width/2+12+30;
+  place(b,scx+Math.cos(wa)*wr-30,scy-Math.sin(wa)*wr-30);b.classList.add("show");
   const label=String($("mobileGameplayWeapon")?.textContent||"").replace(/^WEAPON\s*·\s*/i,"").trim();if(label!==lastKey){lastKey=label;b.querySelector("small").textContent=label;}
   // drone: the altitude pad sits right of the (bigger) left stick, never on it
   const ls=visibleRect($("soloLeft")),clr=$("soloClearance"),cr=visibleRect(clr);if(ls&&cr&&cr.left<ls.right+10){clr.style.setProperty("right","auto","important");clr.style.setProperty("transform","none","important");const v=$("viewport"),off=cr.left-(clr.offsetLeft||0);clr.style.setProperty("left",`${Math.round(ls.right+10-off)}px`,"important");}
   // JUMP: on the arc just up-left of the look stick, where the right thumb rolls off it
-  const jumpEl=$("footJump"),jr=visibleRect(jumpEl);if(jumpEl&&jr){const cx=stick.left+stick.width/2,cy=stick.top+stick.height/2,r=stick.width/2+12+jr.width/2,a=125*Math.PI/180;
+  const jumpEl=$("footJump"),jr=visibleRect(jumpEl);if(jumpEl&&jr){const cx=stick.left+stick.width/2,cy=stick.top+stick.height/2,r=stick.width/2+16+jr.width/2,a=172*Math.PI/180;
     jumpEl.style.setProperty("transform","none","important");jumpEl.style.setProperty("right","auto","important");jumpEl.style.setProperty("bottom","auto","important");place(jumpEl,cx+Math.cos(a)*r-jr.width/2,cy-Math.sin(a)*r-jr.height/2);}
   // get in (car / jet): above JUMP at the right edge
   const jump=visibleRect($("footJump"));for(const id of["enterCarButton","enterJetButton"]){const el=$(id),r=visibleRect(el);if(!el||!r)continue;const right=stick.right,top=(jump?jump.top:stick.top)-r.height-10;
