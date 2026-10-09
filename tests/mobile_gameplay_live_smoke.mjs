@@ -22,7 +22,7 @@ try{
   if(!(upMove[1]<-.45&&Math.abs(upMove[0])<.22))throw new Error(`visual UP must be FPV forward: ${JSON.stringify({up,upMove})}`);
   if(!(rightMove[0]>.45&&Math.abs(rightMove[1])<.22))throw new Error(`visual RIGHT must be FPV strafe-right: ${JSON.stringify({right,rightMove})}`);
   if(up.semantics!=="drone-normalizedPointer-v1"||right.semantics!=="drone-normalizedPointer-v1")throw new Error(`FPV left stick is not using drone pointer semantics: ${JSON.stringify({up,right})}`);
-  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.walkCollision==="box3d-capsule-mover-v1"&&v.dataset.walkCollisionShape==="capsule";},{timeout:5000});
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.walkCollision==="box3d-capsule-mover-v2"&&v.dataset.walkCollisionShape==="capsule";},{timeout:5000});
 
   await page.evaluate(()=>globalThis.__arondightWalkMode.setPose({yaw:0,pitch:0}));
   const look=await drag("#footLook","right",.72,260);
@@ -55,7 +55,7 @@ try{
   if(fpvUi.fire!=="none"||fpvUi.fireContract!=="screen-touch-only-hidden-v1"||fpvUi.lookZone!=="none"||fpvUi.contractVisibility!=="hidden"||Number(fpvUi.contractOpacity)!==0||fpvUi.score!=="none")throw new Error(`flight-first FPV overlays still visible: ${JSON.stringify(fpvUi)}`);
   if(fpvUi.dock.length!==3||!fpvUi.dock.includes("SETTINGS")||fpvUi.dock.some(x=>x==="MENU"||x==="START"))throw new Error(`mobile dock is not mode/weapon/settings only: ${JSON.stringify(fpvUi.dock)}`);
   if(fpvUi.spawnGuard!=="joint-player-cones-v1")throw new Error(`spawn visibility guard is not active: ${JSON.stringify(fpvUi)}`);
-  if(!(fpvUi.collision==="box3d-capsule-mover-v1"&&fpvUi.collisionShape==="capsule"&&fpvUi.collisionMask==="terrain-walls-only"&&fpvUi.collisionShots==="pass-through"&&Number(fpvUi.collisionRadius)>=.27&&Number(fpvUi.collisionHeight)>=1.7))throw new Error(`player is not using terrain-only Box3D capsule collision: ${JSON.stringify(fpvUi)}`);
+  if(!(fpvUi.collision==="box3d-capsule-mover-v2"&&fpvUi.collisionShape==="capsule"&&fpvUi.collisionMask==="terrain-walls-only"&&fpvUi.collisionShots==="pass-through"&&Number(fpvUi.collisionRadius)>=.27&&Number(fpvUi.collisionHeight)>=1.7))throw new Error(`player is not using terrain-only Box3D capsule collision: ${JSON.stringify(fpvUi)}`);
   if(fpvUi.buttonLayout.some(b=>b.display!=="flex"||b.align!=="center"||b.justify!=="center"||b.padTop!==b.padBottom))throw new Error(`mobile button typography is not vertically centered: ${JSON.stringify(fpvUi.buttonLayout)}`);
 
   await page.click("#mobileGameplaySettings");await page.waitForFunction(()=>document.querySelector("dialog.phone-settings-dialog[open]"),{timeout:3000});

@@ -33,7 +33,8 @@ function setData(key,value){const v=viewport();if(v){const s=String(value);if(v.
 // in portrait (css-landscape), so "up" on screen is always forward.
 function stickAxes(entry,event){const a=normalizedPointer(entry.el,event),m=Math.min(1,Math.hypot(a.x,a.y));return{x:a.x,y:a.y,m};}
 function paintKnob(entry,axes){const knob=entry.knob;if(!knob)return;knob.style.left=`${50+axes.x*31}%`;knob.style.top=`${50+axes.y*31}%`;}
-function fire(x,y,source,hand=0){window.dispatchEvent(new CustomEvent("arondight:foot-screen-fire-anchor",{detail:{clientX:x,clientY:y,source,hand}}));return Boolean(weapons()?.fireAt?.({clientX:x,clientY:y,source,hand}));}
+// at: the round's due time (hold cadence) so a long frame fires the rounds that fell due in it
+function fire(x,y,source,hand=0,at=null){window.dispatchEvent(new CustomEvent("arondight:foot-screen-fire-anchor",{detail:{clientX:x,clientY:y,source,hand}}));return Boolean(weapons()?.fireAt?.({clientX:x,clientY:y,source,hand,at}));}
 function fireHands(){return[...pointers.values()].filter(e=>e.kind==="fire").map(e=>e.hand);}
 // Dual Glocks: the left half of the screen is the left pistol, the right half
 // the right pistol — each finger aims and fires its own gun, alone,
@@ -96,7 +97,7 @@ function ensureLoop(){if(loop)return;lastLoop=performance.now();const tick=now=>
     else if(entry.kind==="fire"&&String(weapons()?.mode||"")==="smg"){
       // Fire rate is independent of the frame rate: catch up on missed
       // intervals (bounded) so a slow frame doesn't throttle the MP.
-      let n=0;while(now-entry.lastShot>=FIRE_INTERVAL_MS&&n<4){entry.lastShot+=FIRE_INTERVAL_MS;n++;fire(entry.x,entry.y,"screen-touch-hold-repeat",entry.hand);}
+      let n=0;while(now-entry.lastShot>=FIRE_INTERVAL_MS&&n<4){entry.lastShot+=FIRE_INTERVAL_MS;n++;fire(entry.x,entry.y,"screen-touch-hold-repeat",entry.hand,entry.lastShot);}
       if(now-entry.lastShot>=FIRE_INTERVAL_MS)entry.lastShot=now;}
     else if(entry.kind==="fire"&&String(weapons()?.mode||"")==="glock"&&now-entry.lastShot>=GLOCK_HOLD_MS){entry.lastShot=now;fire(entry.x,entry.y,"screen-touch-hold-repeat",entry.hand);}
   }

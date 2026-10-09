@@ -571,6 +571,9 @@ const scene=new THREE.Scene();scene.background=daylightSky();scene.fog=new THREE
 const camera=new THREE.PerspectiveCamera(52,1,.01,1500);camera.up.set(0,0,1);camera.position.set(1.65,0,.8);
 const initialRenderProfile=renderPlatformProfile({userAgent:navigator.userAgent,devicePixelRatio});
 const renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:initialRenderProfile.stableBackbuffer?"default":"high-performance",desynchronized:false,preserveDrawingBuffer:false});
+// production: no synchronous shader error checks (each compile would block on
+// getProgramInfoLog and lose the driver's parallel compile); ?debug keeps them
+renderer.debug.checkShaderErrors=/[?&]debug/.test(globalThis.location?.search||"");
 installStereo(renderer);
 const presentationGl=renderer.getContext(),presentationRendererInfo=presentationGl.getExtension("WEBGL_debug_renderer_info"),presentationRendererName=String(presentationGl.getParameter(presentationRendererInfo?.UNMASKED_RENDERER_WEBGL||presentationGl.RENDERER)||"");
 const presentationRenderProfile=renderPlatformProfile({userAgent:navigator.userAgent,devicePixelRatio,rendererName:presentationRendererName}),presentationSoftwareRaster=presentationRenderProfile.software,presentationStableBackbuffer=presentationRenderProfile.stableBackbuffer,presentationNativePixelRatio=Math.min(presentationRenderProfile.pixelRatioCeiling,PRESENTATION_PIXEL_RATIO_MAX),presentationQualityCeiling=presentationSoftwareRaster?Math.min(presentationNativePixelRatio,PRESENTATION_SOFTWARE_PIXEL_RATIO):presentationNativePixelRatio;

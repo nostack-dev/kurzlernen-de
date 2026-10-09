@@ -33,13 +33,17 @@ function touchDevice(){return (navigator.maxTouchPoints||0)>0;}
 function interactive(target){return Boolean(target?.closest?.("#worldLookHud,button,input,select,textarea,a,label,dialog,#soloTopbar,.phone-settings-dialog,#footWeaponToggle"));}
 function paintLook(entry,axes){const knob=entry.element.querySelector(".knob");if(knob){knob.style.left=`${50+axes.x*42}%`;knob.style.top=`${50+axes.y*42}%`;}}
 function resetLook(entry){paintLook(entry,{x:0,y:0});walk()?.endTouchLook?.("right-stick");entry.axes={x:0,y:0};}
-function fireScreenAt(clientX,clientY,source="screen-touch"){
-  const api=footWeapons();window.dispatchEvent(new CustomEvent("arondight:foot-screen-fire-anchor",{detail:{clientX,clientY,source}}));const fired=Boolean(api?.fireAt?.({clientX,clientY,source}));const view=viewport();if(view){view.dataset.walkTouchContract="drone-normalized-pointer-origin-v2";view.dataset.walkScreenTouch="fire-only-v1";view.dataset.walkWeaponTouchVector="screen-ray+hand-anchor-v1";view.dataset.walkWeaponGripTouchVector="screen-ray+grip-anchor-v2";view.dataset.walkMultiTouchMoveIsolation="pointer-id-owned-v1";view.dataset.walkHoldFire="screen-pointer-owned-smg-v1";}return fired;
+function fireScreenAt(clientX,clientY,source="screen-touch",at=null){
+  const api=footWeapons();window.dispatchEvent(new CustomEvent("arondight:foot-screen-fire-anchor",{detail:{clientX,clientY,source}}));const fired=Boolean(api?.fireAt?.({clientX,clientY,source,at}));const view=viewport();if(view){view.dataset.walkTouchContract="drone-normalized-pointer-origin-v2";view.dataset.walkScreenTouch="fire-only-v1";view.dataset.walkWeaponTouchVector="screen-ray+hand-anchor-v1";view.dataset.walkWeaponGripTouchVector="screen-ray+grip-anchor-v2";view.dataset.walkMultiTouchMoveIsolation="pointer-id-owned-v1";view.dataset.walkHoldFire="screen-pointer-owned-smg-v1";}return fired;
 }
 function beginFire(event){const entry={kind:"fire",x:event.clientX,y:event.clientY,lastShotAt:performance.now()};active.set(event.pointerId,entry);fireScreenAt(entry.x,entry.y,"screen-touch-hold-start");ensureInputLoop();const view=viewport();if(view){view.dataset.walkFirePointerId=String(event.pointerId);view.dataset.walkFirePointerActive="1";}}
 function ensureInputLoop(){if(inputLoop)return;const frame=now=>{inputLoop=requestAnimationFrame(frame);const dt=Math.max(1/240,Math.min(.05,(now-lastInputFrame)/1000));lastInputFrame=now;for(const entry of active.values()){
     if(entry.kind==="look")walk()?.applyTouchLookStick?.({x:entry.axes.x,y:entry.axes.y,dt,now,source:"right-stick"});
-    else if(entry.kind==="fire"&&String(footWeapons()?.mode||"")==="smg"&&now-entry.lastShotAt>=FIRE_INTERVAL_MS){entry.lastShotAt=now;fireScreenAt(entry.x,entry.y,"screen-touch-hold-repeat");}
+    else if(entry.kind==="fire"&&String(footWeapons()?.mode||"")==="smg"){
+      // the SMG's own cadence, not the frame rate: a long frame fires the rounds
+      // that fell due during it (at most 4 at once, no backlog storm)
+      if(now-entry.lastShotAt>FIRE_INTERVAL_MS*4)entry.lastShotAt=now-FIRE_INTERVAL_MS*4;
+      for(let k=0;k<4&&now-entry.lastShotAt>=FIRE_INTERVAL_MS;k++){entry.lastShotAt+=FIRE_INTERVAL_MS;fireScreenAt(entry.x,entry.y,"screen-touch-hold-repeat",entry.lastShotAt);}}
   }};lastInputFrame=performance.now();inputLoop=requestAnimationFrame(frame);}
 function releaseActivePointer(pointerId,reason="lifecycle"){const entry=active.get(pointerId);if(!entry)return false;active.delete(pointerId);if(entry.kind==="look"){endPointerDrag(entry.element,pointerId);resetLook(entry);}else if(entry.kind==="fire"){const view=viewport();if(view){view.dataset.walkFirePointerActive="0";view.dataset.walkFirePointerRelease=reason;}}const view=viewport();if(view){view.dataset.walkTouchLifecycleRelease=reason;view.dataset.walkTouchLifecycleReleases=String((Number(view.dataset.walkTouchLifecycleReleases)||0)+1);}return true;}function releaseAllActive(reason="lifecycle"){for(const id of [...active.keys()])releaseActivePointer(id,reason);}function releaseCapturedPointer(event){releaseActivePointer(event.pointerId,"lostpointercapture");}
 

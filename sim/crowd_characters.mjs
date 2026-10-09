@@ -10,16 +10,20 @@ import {buildCharacter,animateCharacter,saveRigState,loadRigState} from "./chara
 // instances. Colours are per person (shirt, trousers, skin, hair, shoes).
 
 export const CROWD_CHARACTERS_VERSION="instanced-articulated-crowd-v2-packed";
-const ZERO=new THREE.Matrix4().makeScale(0,0,0),col=new THREE.Color(),FAR_M=95;
+// three bands: < NEAR_M full figure, NEAR_M..FAR_M the same jointed figure with
+// coarser capsules/spheres (~40 % of the triangles, same animation), > FAR_M one block
+const ZERO=new THREE.Matrix4().makeScale(0,0,0),col=new THREE.Color(),FAR_M=95,NEAR_M=18,MID_DETAIL=.5;
 
 export function createCrowd(scene,{capacity=64,outfit="civilian",name="CROWD"}={}){
   const tpl=buildCharacter({outfit});tpl.root.updateMatrixWorld(true);
   const parts=[];tpl.root.traverse(n=>{if(n.isMesh)parts.push(n);});
   const group=new THREE.Group();group.name=`${name}_CHARACTERS`;group.userData.flightFireIgnore=true;group.userData.crowdInstanced=true;
   const base=parts.map(p=>p.material.color.getHex());
-  const meshes=parts.map(p=>{const m=new THREE.InstancedMesh(p.geometry,new THREE.MeshStandardMaterial({color:0xffffff,roughness:p.material.roughness??.8,metalness:p.material.metalness??0}),capacity);
-    m.name=`${name}_${p.userData.cat}`;m.userData.cat=p.userData.cat;m.userData.flightFireIgnore=true;m.castShadow=true;m.receiveShadow=false;m.frustumCulled=false;m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);m.raycast=()=>{};
+  const tplMid=buildCharacter({outfit,detail:MID_DETAIL}),partsMid=[];tplMid.root.traverse(n=>{if(n.isMesh)partsMid.push(n);});
+  const makeMeshes=(src,suffix)=>src.map((p,idx)=>{const m=new THREE.InstancedMesh(p.geometry,new THREE.MeshStandardMaterial({color:0xffffff,roughness:p.material.roughness??.8,metalness:p.material.metalness??0}),capacity);
+    m.name=`${name}_${p.userData.cat}${suffix}`;m.userData.cat=p.userData.cat;m.userData.flightFireIgnore=true;m.castShadow=true;m.receiveShadow=false;m.frustumCulled=false;m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);m.raycast=()=>{};
     for(let i=0;i<capacity;i++){m.setMatrixAt(i,ZERO);m.setColorAt(i,col.set(p.material.color));}m.instanceColor.setUsage(THREE.DynamicDrawUsage);m.count=0;group.add(m);return m;});
+  const meshes=makeMeshes(parts,""),meshesMid=partsMid.length===parts.length?makeMeshes(partsMid,"_MID"):null;
   // Far people (beyond FAR_M from the camera) are drawn as one simple body
   // block each (one draw call for all) — they keep walking exactly as before
   // (positions still come from their own simulation every frame), only the
@@ -34,10 +38,10 @@ export function createCrowd(scene,{capacity=64,outfit="civilian",name="CROWD"}={
   // capacity costs nothing on the GPU. Each person keeps its own joints and
   // colours; a slot gets the person's colours when the owner changes.
   const people=Array.from({length:capacity},()=>({joints:[],colors:null}));
-  const slotOwner=new Int32Array(capacity).fill(-1);let cursor=0,colorDirty=false;
+  const slotOwner=new Int32Array(capacity).fill(-1),midOwner=new Int32Array(capacity).fill(-1);let cursor=0,midCursor=0,colorDirty=false,midColorDirty=false;
   const crowd={group,capacity,meshes,tpl,
     // colors: {shirt,vest,pants,boots,skin,gloves,helmet(hair),dark}
-    setColors(i,colors){const p=people[i];if(!p)return;p.colors=colors;for(let s=0;s<capacity;s++){if(slotOwner[s]===i)slotOwner[s]=-1;if(farOwner[s]===i)farOwner[s]=-1;}},
+    setColors(i,colors){const p=people[i];if(!p)return;p.colors=colors;for(let s=0;s<capacity;s++){if(slotOwner[s]===i)slotOwner[s]=-1;if(midOwner[s]===i)midOwner[s]=-1;if(farOwner[s]===i)farOwner[s]=-1;}},
     hide(){},
     // pose & place one person this frame: x,y,z (feet on the ground), yaw,
     // state/speed/weapon like animateCharacter
@@ -45,13 +49,15 @@ export function createCrowd(scene,{capacity=64,outfit="civilian",name="CROWD"}={
       const cam=globalThis.__arondightRealWorld?.threeCamera?.position;
       if(cam&&(x-cam.x)**2+(y-cam.y)**2+(z-cam.z)**2>FAR_M*FAR_M){if(farCursor>=capacity)return;const slot=farCursor++;fq.setFromAxisAngle(Z,yaw);fm.compose(fp.set(x,y,z),fq,fs);far.setMatrixAt(slot,fm);
         if(farOwner[slot]!==i){farOwner[slot]=i;far.setColorAt(slot,col.set(p.colors?.shirt??0x777777));farColorDirty=true;}return;}
-      if(cursor>=capacity)return;const slot=cursor++;
+      const mid=meshesMid&&cam&&(x-cam.x)**2+(y-cam.y)**2+(z-cam.z)**2>NEAR_M*NEAR_M,set=mid?meshesMid:meshes,owner=mid?midOwner:slotOwner;
+      if((mid?midCursor:cursor)>=capacity)return;const slot=mid?midCursor++:cursor++;
       loadRigState(tpl,p.joints);animateCharacter(tpl,{state,speed,weapon,dt});saveRigState(tpl,p.joints);
       tpl.root.position.set(x,y,z);tpl.root.rotation.set(lean,0,yaw);tpl.root.updateMatrixWorld(true);
-      for(let k=0;k<parts.length;k++)meshes[k].setMatrixAt(slot,parts[k].visible&&visibleChain(parts[k])?parts[k].matrixWorld:ZERO);
-      if(slotOwner[slot]!==i){slotOwner[slot]=i;const c=p.colors;for(let k=0;k<meshes.length;k++){const v=c?.[meshes[k].userData.cat];meshes[k].setColorAt(slot,col.set(v??base[k]));}colorDirty=true;}},
-    commit(){for(const m of meshes){m.count=cursor;if(cursor)m.instanceMatrix.needsUpdate=true;if(colorDirty&&m.instanceColor)m.instanceColor.needsUpdate=true;}colorDirty=false;cursor=0;far.count=farCursor;if(farCursor)far.instanceMatrix.needsUpdate=true;if(farColorDirty)far.instanceColor.needsUpdate=true;farColorDirty=false;farCursor=0;},
-    dispose(){group.parent?.remove(group);for(const m of meshes){m.material.dispose();m.dispose?.();}},
+      for(let k=0;k<parts.length;k++)set[k].setMatrixAt(slot,parts[k].visible&&visibleChain(parts[k])?parts[k].matrixWorld:ZERO);
+      if(owner[slot]!==i){owner[slot]=i;const c=p.colors;for(let k=0;k<set.length;k++){const v=c?.[set[k].userData.cat];set[k].setColorAt(slot,col.set(v??base[k]));}if(mid)midColorDirty=true;else colorDirty=true;}},
+    commit(){for(const m of meshes){m.count=cursor;if(cursor)m.instanceMatrix.needsUpdate=true;if(colorDirty&&m.instanceColor)m.instanceColor.needsUpdate=true;}colorDirty=false;cursor=0;
+      if(meshesMid){for(const m of meshesMid){m.count=midCursor;if(midCursor)m.instanceMatrix.needsUpdate=true;if(midColorDirty&&m.instanceColor)m.instanceColor.needsUpdate=true;}}midColorDirty=false;midCursor=0;far.count=farCursor;if(farCursor)far.instanceMatrix.needsUpdate=true;if(farColorDirty)far.instanceColor.needsUpdate=true;farColorDirty=false;farCursor=0;},
+    dispose(){group.parent?.remove(group);for(const m of[...meshes,...(meshesMid||[])]){m.material.dispose();m.dispose?.();}},
   };
   return crowd;
 }

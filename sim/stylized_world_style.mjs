@@ -122,7 +122,9 @@ if(!THREE.ShaderChunk.tonemapping_pars_fragment.includes("ACESFilmicToneMapping(
 // ---------------------------------------------------------------- light
 function ensureLights(scene,renderer){
   if(sun?.parent===scene)return;
-  scene.traverse(o=>{if((o.isDirectionalLight||o.isHemisphereLight||o.isAmbientLight)&&!o.userData.realLight){o.userData.prevIntensity=o.intensity;o.intensity=0;o.castShadow=false;}});
+  // replaced lights are switched OFF, not just darkened: a light at intensity 0
+  // still costs every lit pixel of every material its full lighting loop
+  scene.traverse(o=>{if((o.isDirectionalLight||o.isHemisphereLight||o.isAmbientLight)&&!o.userData.realLight){o.userData.prevIntensity=o.intensity;o.intensity=0;o.castShadow=false;o.visible=false;}});
   hemi=new THREE.HemisphereLight(0xc4dcff,0x6b5e48,.85);hemi.userData.realLight=true;scene.add(hemi);
   sun=new THREE.DirectionalLight(0xfff0dc,2.8);sun.userData.realLight=true;sun.castShadow=true;
   const sc=sun.shadow.camera;sc.up.set(0,0,1);sc.left=-SHADOW_RANGE_M;sc.right=SHADOW_RANGE_M;sc.top=SHADOW_RANGE_M;sc.bottom=-SHADOW_RANGE_M;sc.near=1;sc.far=900;sun.shadow.mapSize.set(SHADOW_SIZE,SHADOW_SIZE);sun.shadow.bias=-.0002;sun.shadow.normalBias=SHADOW_RANGE_M*2/SHADOW_SIZE*.9; // ≈ one shadow texel: no acne on flat ground/roofs at low sunsun.shadow.radius=2;
@@ -216,7 +218,7 @@ function beginScan(scene){scanSceneRef=scene;scanStack.length=0;scanActors.lengt
 function stepScan(deadline){
   while(scanStack.length&&performance.now()<deadline){
     const node=scanStack.pop();if(!node)continue;
-    if((node.isDirectionalLight||node.isHemisphereLight||node.isAmbientLight)&&!node.userData.realLight&&(node.intensity>0||node.castShadow)){node.intensity=0;node.castShadow=false;}
+    if((node.isDirectionalLight||node.isHemisphereLight||node.isAmbientLight)&&!node.userData.realLight&&(node.intensity>0||node.castShadow||node.visible)){node.intensity=0;node.castShadow=false;node.visible=false;}
     const id=actorId(node);if(id&&actorId(node.parent)!==id)scanActors.push(node);
     if(needsWork(node))queue.push(node);
     const children=node.children;for(let i=children.length-1;i>=0;i--)scanStack.push(children[i]);

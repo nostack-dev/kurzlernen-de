@@ -205,7 +205,7 @@ function updateFootGrenades(now,dt){
 function footShotAt(clientX,clientY,now=performance.now(),hand=0){
   if(footWeapon==="grenade")return launchFootGrenade(clientX,clientY,now,"foot-screen");
   if(footWeapon==="glock")return glockShotAt(clientX,clientY,now,hand);
-  if(!isFoot()||walk()?.dead||now-lastSmg<SMG_INTERVAL_MS)return false;lastSmg=now-lastSmg<SMG_INTERVAL_MS*5?lastSmg+SMG_INTERVAL_MS:now; // fixed cadence: a slow frame may catch up missed rounds
+  if(!isFoot()||walk()?.dead||now-lastSmg<SMG_INTERVAL_MS-.5)return false;lastSmg=now; // `now` = the round's due time (the hold loop keeps the cadence)
   const ray=footRay(clientX,clientY);if(!ray)return false;const hit=nearestGrenadeHit(ray,180),end=hit?.point?.clone?.()||tmp.copy(ray.origin).addScaledVector(ray.direction,130).clone(),start=footMuzzle(tmp2,ray).clone();showTracer(start,end);{const routed=hit?routeHit(hit):false;if(globalThis.__worldImpacts)globalThis.__worldImpacts.bullet(ray,hit,{routed});else if(hit&&!routed)addFallbackDecal(hit);}flashWeapon(34);audioShot(.18);weaponFired("smg",.14,"foot-screen","foot");
   const view=viewport();if(view){view.dataset.walkWeapon="smg";view.dataset.walkTouchFire="screen-point-raycast-v2";view.dataset.walkPistolTracer="world-ray-muzzle-origin-v2";view.dataset.walkSmgAutoFire="always-on-hold-v1";view.dataset.walkEnhancedShots=String((Number(view.dataset.walkEnhancedShots)||0)+1);view.dataset.walkTouchAimX=ray.point.x.toFixed(1);view.dataset.walkTouchAimY=ray.point.y.toFixed(1);}return true;
 }
@@ -298,7 +298,7 @@ function installStyle(){if(document.querySelector("style[data-gameplay-final-run
 `;document.head.appendChild(style);}
 
 function installApis(){
-  globalThis.__arondightFootWeapons={get mode(){return footWeapon;},get automatic(){return footWeapon==="smg";},toggle:toggleFootWeapon,setMode:setFootWeapon,fireAt({clientX,clientY,source="external",hand=0}={}){return footWeapon==="grenade"?launchFootGrenade(clientX,clientY,performance.now(),source):footShotAt(clientX,clientY,performance.now(),hand);}};
+  globalThis.__arondightFootWeapons={get mode(){return footWeapon;},get automatic(){return footWeapon==="smg";},toggle:toggleFootWeapon,setMode:setFootWeapon,fireAt({clientX,clientY,source="external",hand=0,at=null}={}){const t=Number.isFinite(at)?at:performance.now();return footWeapon==="grenade"?launchFootGrenade(clientX,clientY,t,source):footShotAt(clientX,clientY,t,hand);}};
   globalThis.__arondightDroneWeapons={get mode(){return droneWeapon;},toggle:toggleDroneWeapon,setMode(mode){if(mode!==droneWeapon&&["gun","missile"].includes(mode))toggleDroneWeapon();return droneWeapon;},fireMissile({clientX,clientY,source="external"}={}){return launchMissile(clientX,clientY,performance.now(),source);}};
 }
 let lastFrame=performance.now(),lastHousekeeping=-Infinity;
@@ -309,3 +309,6 @@ export function installGameplayFinalRuntime(){
 }
 
 installGameplayFinalRuntime();
+// the shot / blast effect pools exist (hidden) before the shader prewarm runs,
+// so the first shot does not compile their programs mid-action
+if(typeof window!=="undefined")(globalThis.__prewarmFactories??=[]).push(()=>{const sc=bridge()?.threeScene;if(sc){try{ensureTracerPool(sc);}catch{}try{ensureBlastPool(sc);}catch{}try{ensureGrenadeBounceFxPool(sc);}catch{}}return null;});

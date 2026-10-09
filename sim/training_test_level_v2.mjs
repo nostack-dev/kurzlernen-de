@@ -5,7 +5,8 @@ let installed=false,sceneRef=null,root=null;
 
 function bridge(){return globalThis.__arondightRealWorld||null;}
 function viewport(){return document.getElementById("viewport");}
-function mat(color,{roughness=.9,metalness=0,transparent=false,opacity=1}={}){return new THREE.MeshStandardMaterial({color,roughness,metalness,transparent,opacity,depthWrite:true,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2});}
+// matte surfaces: Lambert (PBR only where it shows — the pond's sheen)
+function mat(color,{roughness=.9,metalness=0,transparent=false,opacity=1}={}){return roughness>=.6&&!metalness?new THREE.MeshLambertMaterial({color,transparent,opacity,depthWrite:true,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2}):new THREE.MeshStandardMaterial({color,roughness,metalness,transparent,opacity,depthWrite:true,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2});}
 function tag(node,kind){node.userData.trainingLevel=true;node.userData.trainingLevelKind=kind;node.userData.styleSkip=true;node.userData.flightFireIgnore=kind==="water"||kind==="road"||kind==="marking";return node;}
 function plane(w,h,material,x,y,z,kind){const mesh=tag(new THREE.Mesh(new THREE.PlaneGeometry(w,h),material),kind);mesh.position.set(x,y,z);mesh.receiveShadow=true;root.add(mesh);return mesh;}
 function box(w,d,h,material,x,y,z,kind="building"){const mesh=tag(new THREE.Mesh(new THREE.BoxGeometry(w,d,h),material),kind);mesh.position.set(x,y,z+h/2);mesh.castShadow=true;mesh.receiveShadow=true;root.add(mesh);return mesh;}

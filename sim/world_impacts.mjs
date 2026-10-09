@@ -29,6 +29,8 @@ function ensure(){
   const cm=new THREE.MeshLambertMaterial({color:0xffffff});chips=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),cm,CHIPS);chips.name="WORLD_IMPACT_CHIPS";
   for(const mesh of[decals,chips]){mesh.frustumCulled=false;mesh.userData.flightFireIgnore=true;mesh.userData.neonSkip=true;mesh.raycast=()=>{};mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);for(let i=0;i<mesh.count;i++){mesh.setMatrixAt(i,ZERO);mesh.setColorAt(i,col.set(0x222222));}mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;scene.add(mesh);}
   chipItems=Array.from({length:CHIPS},()=>({life:0,p:new THREE.Vector3(),v:new THREE.Vector3(),size:.1,spin:0,axis:new THREE.Vector3(1,0,0),angle:0}));
+  // pools draw only the slots used so far (empty capacity costs no triangles)
+  decals.count=Math.min(DECALS,decalCursor);chips.count=Math.min(CHIPS,chipCursor);
   return true;
 }
 // Ground marks live *on* the terrain: bullet holes take the surface normal of
@@ -54,26 +56,26 @@ function ensureScorch(scene){
   for(let s0=0;s0<SCORCHES;s0++){const o=s0*SV;for(let j=0;j<SG;j++)for(let i=0;i<SG;i++){const a=o+j*(SG+1)+i,b=a+1,c=a+SG+1,d=c+1;idx.push(a,b,d,a,d,c);}}
   const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.BufferAttribute(pos,3).setUsage(THREE.DynamicDrawUsage));g.setAttribute("aInfo",new THREE.BufferAttribute(info,3).setUsage(THREE.DynamicDrawUsage));g.setIndex(idx);g.boundingSphere=new THREE.Sphere(new THREE.Vector3(),1e7);
   const m=new THREE.ShaderMaterial({uniforms:{},vertexShader:SCORCH_VS,fragmentShader:SCORCH_FS,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6});
-  scorch=new THREE.Mesh(g,patchShockMaterial(m));scorch.name="WORLD_SCORCH_MARKS";scorch.frustumCulled=false;scorch.renderOrder=3;scorch.userData.neonSkip=true;scorch.userData.flightFireIgnore=true;scorch.raycast=()=>{};scene.add(scorch);return scorch;
+  g.setDrawRange(0,0);/* grows with the scorches laid */scorch=new THREE.Mesh(g,patchShockMaterial(m));scorch.name="WORLD_SCORCH_MARKS";scorch.frustumCulled=false;scorch.renderOrder=3;scorch.userData.neonSkip=true;scorch.userData.flightFireIgnore=true;scorch.raycast=()=>{};scene.add(scorch);return scorch;
 }
 function layScorch(k){const it=scorchItems[k];if(!scorch||!it)return;const pos=scorch.geometry.attributes.position.array,info=scorch.geometry.attributes.aInfo.array,o=k*SV;
   for(let j=0;j<=SG;j++)for(let i=0;i<=SG;i++){const u=i/SG*2-1,v=j/SG*2-1,x=it.x+u*it.r,y=it.y+v*it.r,q=(o+j*(SG+1)+i)*3;pos[q]=x;pos[q+1]=y;pos[q+2]=staticGroundHeightAt(x,y)+.035;info[q]=u;info[q+1]=v;info[q+2]=it.seed;}
   scorch.geometry.attributes.position.needsUpdate=true;scorch.geometry.attributes.aInfo.needsUpdate=true;}
 export function addScorch(x,y,radius){
   const scene=bridge()?.threeScene;if(!scene||!Number.isFinite(x)||!Number.isFinite(y))return;ensureScorch(scene);
-  const k=scorchCursor++%SCORCHES;scorchItems[k]={x,y,r:Math.max(.6,Math.min(6,radius)),seed:Math.random()*10};layScorch(k);
+  const k=scorchCursor++%SCORCHES;scorchItems[k]={x,y,r:Math.max(.6,Math.min(6,radius)),seed:Math.random()*10};scorch.geometry.setDrawRange(0,Math.min(SCORCHES,scorchCursor)*SG*SG*6);layScorch(k);
 }
 function layGroundDecal(i,d){q.setFromUnitVectors(Z,n.fromArray(terrainNormalAt(d.x,d.y)));q.multiply(new THREE.Quaternion().setFromAxisAngle(Z,d.spin));p.set(d.x,d.y,staticGroundHeightAt(d.x,d.y)+.03);s.set(d.size,d.size,d.size);m4.compose(p,q,s);decals.setMatrixAt(i,m4);}
 function relayGround(){if(decals){for(const[i,d]of groundDecals)layGroundDecal(i,d);decals.instanceMatrix.needsUpdate=true;}for(let k=0;k<SCORCHES;k++)if(scorchItems[k])layScorch(k);}
 export function addDecal(point,normal,{size=.1,color=0x2a2622,ground=false}={}){
-  if(ground&&ensure()&&point){const i=decalCursor++%DECALS,d={x:point.x,y:point.y,size,spin:Math.random()*6.28};groundDecals.set(i,d);layGroundDecal(i,d);decals.setColorAt(i,col.set(color));decals.instanceMatrix.needsUpdate=true;decals.instanceColor.needsUpdate=true;return;}
+  if(ground&&ensure()&&point){const i=decalCursor++%DECALS,d={x:point.x,y:point.y,size,spin:Math.random()*6.28};decals.count=Math.min(DECALS,decalCursor);groundDecals.set(i,d);layGroundDecal(i,d);decals.setColorAt(i,col.set(color));decals.instanceMatrix.needsUpdate=true;decals.instanceColor.needsUpdate=true;return;}
   if(!ensure()||!point)return;n.copy(normal||Z);if(n.lengthSq()<1e-6)n.copy(Z);n.normalize();
   q.setFromUnitVectors(Z,n);const spin=new THREE.Quaternion().setFromAxisAngle(Z,Math.random()*6.28);q.multiply(spin);
-  p.copy(point).addScaledVector(n,.012);s.set(size,size,size);m4.compose(p,q,s);const i=decalCursor++%DECALS;groundDecals.delete(i);decals.setMatrixAt(i,m4);decals.setColorAt(i,col.set(color));decals.instanceMatrix.needsUpdate=true;decals.instanceColor.needsUpdate=true;
+  p.copy(point).addScaledVector(n,.012);s.set(size,size,size);m4.compose(p,q,s);const i=decalCursor++%DECALS;decals.count=Math.min(DECALS,decalCursor);groundDecals.delete(i);decals.setMatrixAt(i,m4);decals.setColorAt(i,col.set(color));decals.instanceMatrix.needsUpdate=true;decals.instanceColor.needsUpdate=true;
 }
 export function chipBurst(point,normal,surface="building",count=6,speed=4){
   if(!ensure()||!point)return;if(surface==="building"&&glassAt(point)?.glass){surface="glass";count=Math.min(count,5);}const palette=COLORS[surface]||COLORS.building;n.copy(normal||Z).normalize();
-  for(let k=0;k<count;k++){const i=chipCursor++%CHIPS,c=chipItems[i];c.life=rand(.5,1.1);c.p.copy(point).addScaledVector(n,.05);c.v.set(n.x+rand(-.7,.7),n.y+rand(-.7,.7),n.z+rand(-.2,.9)).normalize().multiplyScalar(speed*rand(.5,1.2));c.size=rand(.04,.11)*(surface==="tree"?1.4:1);c.spin=rand(-14,14);c.axis.set(rand(-1,1),rand(-1,1),rand(-1,1)).normalize();c.angle=0;chips.setColorAt(i,col.set(palette[k%palette.length]));}
+  for(let k=0;k<count;k++){const i=chipCursor++%CHIPS,c=chipItems[i];chips.count=Math.min(CHIPS,chipCursor);c.life=rand(.5,1.1);c.p.copy(point).addScaledVector(n,.05);c.v.set(n.x+rand(-.7,.7),n.y+rand(-.7,.7),n.z+rand(-.2,.9)).normalize().multiplyScalar(speed*rand(.5,1.2));c.size=rand(.04,.11)*(surface==="tree"?1.4:1);c.spin=rand(-14,14);c.axis.set(rand(-1,1),rand(-1,1),rand(-1,1)).normalize();c.angle=0;chips.setColorAt(i,col.set(palette[k%palette.length]));}
   chips.instanceColor.needsUpdate=true;
 }
 function stepChips(dt){

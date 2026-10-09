@@ -1,4 +1,6 @@
-import * as THREE from "three";
+// no three.js import: the field is also read headless by the terrain physics;
+// the uniform only needs x,y,z,w (three uploads any {x,y,z,w} as a vec4)
+class Vec4{constructor(x=0,y=0,z=0,w=0){this.x=x;this.y=y;this.z=z;this.w=w;this.isVector4=true;}set(x,y,z,w){this.x=x;this.y=y;this.z=z;this.w=w;return this;}}
 
 // The nuke's pressure wave as a field the whole world reacts to. One set of
 // uniforms (centre, front radius, heave height, glow) drives a vertex
@@ -15,7 +17,7 @@ export const SHOCK_SPEED_MPS=343;
 const MAX_RADIUS_M=1560,HEAVE_M=7.5,FRONT_WIDTH_M=22;
 
 export const shockUniforms={
-  uShock:{value:new THREE.Vector4(0,0,-1e6,0)},   // x,y centre · z front radius · w heave (m)
+  uShock:{value:new Vec4(0,0,-1e6,0)},   // x,y centre · z front radius · w heave (m)
   uShockGlow:{value:0},
 };
 let active=null,installed=false;
