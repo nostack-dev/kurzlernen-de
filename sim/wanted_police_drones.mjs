@@ -309,7 +309,9 @@ function safeAltitude(x,y,z){const top=buildingTopAt(x,y);return Math.max(.85,Nu
 
 function spawnDrone(drone,player,now){
   const walk=globalThis.__arondightWalkMode,playerForwardAngle=walk?.mode==="foot"?Math.PI/2-(Number(walk.yaw)||0):now*.00017,angle=playerForwardAngle+Math.PI+(drone.index-(MAX_POLICE_DRONES-1)/2)*.34,radius=wantedPoliceSpawnRadiusM(drone.index),x=player.x+Math.cos(angle)*radius,y=player.y+Math.sin(angle)*radius,z=safeAltitude(x,y,player.z+wantedPoliceAltitudeOffsetM(drone.index,"pursuit")),id=`police-drone-${drone.index}`;
-  stopWorldCriticalDamage(id);drone.root.position.set(x,y,z);drone.root.rotation.set(0,0,angle+Math.PI);drone.root.scale.setScalar(1);drone.velocity.set(-Math.sin(angle)*1.2,Math.cos(angle)*1.2,0);drone.hp=POLICE_HP;drone.critical=false;drone.criticalExpiresAt=Infinity;drone.lastCollisionDamageAt=-Infinity;drone.empDisabled=false;drone.empDisabledAt=-Infinity;drone.empImpactAt=-Infinity;drone.retreating=false;drone.retreatUntil=-Infinity;drone.targetKind="";drone.targetSpeedMps=0;drone.targetPosition.copy(player);drone.active=true;drone.root.visible=true;drone.hitbox.visible=true;drone.flash.visible=false;drone.hitUntil=0;drone.spawnSerial++;drone.shotSerial=0;drone.spawnedAt=now;drone.engageAt=now+wantedPoliceEngageDelayMs(stars);drone.nextShotAt=drone.engageAt+drone.index*160;drone.nextSensorAt=now+drone.index*24;drone.nextGoalRoofAt=0;drone.nextCollisionAt=0;drone.goalRoof=0;drone.collisionRoof=0;drone.seesPlayer=false;drone.distance=drone.root.position.distanceTo(player);drone.tracer.visible=false;rigidBodies()?.upsertBody?.({id,kind:"police-drone",position:[x,y,z],yaw:angle+Math.PI,halfExtents:[.79,.79,.34],massKg:18,gravityScale:0,linearDamping:.38,angularDamping:1.1});const view=viewport();if(view){view.dataset.wantedPoliceSpawnDistanceM=radius.toFixed(1);view.dataset.wantedPoliceInboundMs=String(Math.round(drone.engageAt-now));}
+  stopWorldCriticalDamage(id);drone.root.position.set(x,y,z);drone.root.userData.wantedOwnerId=String(bridge()?.vsSession?.getSelfId?.()||"local");
+  drone.root.userData.wantedTargetId=drone.root.userData.wantedOwnerId;
+  drone.root.rotation.set(0,0,angle+Math.PI);drone.root.scale.setScalar(1);drone.velocity.set(-Math.sin(angle)*1.2,Math.cos(angle)*1.2,0);drone.hp=POLICE_HP;drone.critical=false;drone.criticalExpiresAt=Infinity;drone.lastCollisionDamageAt=-Infinity;drone.empDisabled=false;drone.empDisabledAt=-Infinity;drone.empImpactAt=-Infinity;drone.retreating=false;drone.retreatUntil=-Infinity;drone.targetKind="";drone.targetSpeedMps=0;drone.targetPosition.copy(player);drone.active=true;drone.root.visible=true;drone.hitbox.visible=true;drone.flash.visible=false;drone.hitUntil=0;drone.spawnSerial++;drone.shotSerial=0;drone.spawnedAt=now;drone.engageAt=now+wantedPoliceEngageDelayMs(stars);drone.nextShotAt=drone.engageAt+drone.index*160;drone.nextSensorAt=now+drone.index*24;drone.nextGoalRoofAt=0;drone.nextCollisionAt=0;drone.goalRoof=0;drone.collisionRoof=0;drone.seesPlayer=false;drone.distance=drone.root.position.distanceTo(player);drone.tracer.visible=false;rigidBodies()?.upsertBody?.({id,kind:"police-drone",position:[x,y,z],yaw:angle+Math.PI,halfExtents:[.79,.79,.34],massKg:18,gravityScale:0,linearDamping:.38,angularDamping:1.1});const view=viewport();if(view){view.dataset.wantedPoliceSpawnDistanceM=radius.toFixed(1);view.dataset.wantedPoliceInboundMs=String(Math.round(drone.engageAt-now));}
 }
 
 function deactivateDrone(drone){const id=`police-drone-${drone.index}`;stopWorldCriticalDamage(id);drone.active=false;drone.critical=false;drone.criticalExpiresAt=Infinity;drone.empDisabled=false;drone.empDisabledAt=-Infinity;drone.empImpactAt=-Infinity;drone.retreating=false;drone.retreatUntil=-Infinity;drone.targetKind="";drone.targetSpeedMps=0;drone.root.visible=false;drone.hitbox.visible=false;drone.tracer.visible=false;drone.seesPlayer=false;drone.distance=Infinity;drone.emergencyLight.intensity=0;rigidBodies()?.removeBody?.(id);}
@@ -357,7 +359,11 @@ function triggerEmp(now=performance.now()){
 }
 
 function reportCrime(detail={}){
-  const kind=String(detail.kind||""),explicit=Number(detail.severity),severity=Number.isFinite(explicit)?Math.max(0,Math.min(5,Math.floor(explicit))):wantedCrimeSeverity(kind);
+  const kind=String(detail.kind||""),owner=String(detail.playerId||detail.ownerId||detail.shooterId||"");
+  const local=String(bridge()?.vsSession?.getSelfId?.()||"");
+  // A crime explicitly owned by another participant is never charged to this client.
+  if(owner&&(!local||owner!==local)||detail.remote===true||detail.network===false)return false;
+  const explicit=detail.severity, severity=typeof explicit==="number"&&Number.isFinite(explicit)?Math.max(0,Math.min(5,Math.floor(explicit))):wantedCrimeSeverity(kind);
   const now=performance.now();if(severity<=0||!rememberCrime(detail.id,now))return false;
   heat=Math.min(99,heat+severity);const previousStars=stars;stars=wantedStarsForHeat(heat);lastCrimeAt=now;clearReason="";
   if(stars>0){const revealPlayer=detail.revealPlayer!==false;if(revealPlayer){phase="pursuit";lastContactAt=now;const player=currentPlayerPosition();if(player)lastKnownPosition.copy(player);}for(const drone of drones)if(drone.active&&drone.retreating){drone.retreating=false;drone.retreatUntil=-Infinity;drone.hitbox.visible=true;drone.engageAt=now+wantedPoliceEngageDelayMs(stars);drone.nextShotAt=drone.engageAt+drone.index*160;}if(stars>previousStars)playTone({frequency:520+stars*90,endFrequency:760+stars*100,duration:.16,gain:.022,type:"square"});}
@@ -448,8 +454,16 @@ function updateWanted(now,dt){
   for(const drone of drones)if(drone.active){updateDroneMotion(drone,now,dt);updateDroneAttack(drone,now);}updateSiren(now);renderHud(search.remainingMs);
 }
 
-function onWorldKill(event){const detail=event?.detail||{};if(detail.remote||detail.network===false)return;reportCrime(detail);}
-function onCombatKill(event){const detail=event?.detail||{};if(!detail.killed||detail.self||detail.world||detail.police)return;reportCrime({id:`player-${Date.now().toString(36)}-${Math.floor(performance.now()).toString(36)}`,kind:"player"});}
+function onWorldKill(event){const detail=event?.detail||{};
+  // AI-vs-AI collisions and replicated deaths are not evidence of a LOCAL player's crime.
+  if(detail.playerAction!==true||detail.remote||detail.network===false)return;
+  reportCrime(detail);
+}
+function onCombatKill(event){const detail=event?.detail||{};
+  // Generic hit-confirm FX are shared by NPCs, cars and cops. They do NOT imply a PvP kill.
+  if(!detail.killed||!detail.playerAction||!detail.vsPlayerId||detail.self||detail.world||detail.police)return;
+  reportCrime({id:`player-${detail.vsPlayerId}-${Date.now().toString(36)}`,kind:"player"});
+}
 function onPhysicsImpact(event){const detail=event?.detail||{},id=String(detail.id||""),match=id.match(/^police-drone-(\d+)$/),drone=match?drones[Number(match[1])]:null;if(!drone?.active)return;const now=performance.now(),impact=Number(detail.deltaVelocityMps)||0;drone.hitUntil=Math.max(drone.hitUntil,now+90);drone.flash.visible=true;if(drone.empDisabled&&impact>=1.4&&now-drone.empImpactAt>420){drone.empImpactAt=now;drone.hp=0;armPoliceCritical(drone,now,true);}else if(impact>=3.8&&now-drone.lastCollisionDamageAt>520){drone.lastCollisionDamageAt=now;const damage=clamp(Math.round((impact-3.2)*5),3,18);drone.hp=Math.max(0,drone.hp-damage);if(isCriticalDamage("police-drone",drone.hp,POLICE_HP))armPoliceCritical(drone,now,drone.critical||drone.hp===0);}const view=viewport();if(view){view.dataset.wantedPolicePhysicalImpacts=String((Number(view.dataset.wantedPolicePhysicalImpacts)||0)+1);view.dataset.wantedPoliceLastImpactMps=impact.toFixed(2);view.dataset.wantedPoliceLastHp=String(drone.hp);if(drone.empDisabled)view.dataset.wantedEmpCrashImpacts=String((Number(view.dataset.wantedEmpCrashImpacts)||0)+1);}}
 
 function frame(now=performance.now()){
