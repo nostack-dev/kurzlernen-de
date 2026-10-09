@@ -2,6 +2,8 @@ import puppeteer from "puppeteer-core";
 import {mkdir} from "node:fs/promises";
 
 const input=process.argv[2]||"https://kurzlernen.de/drone_simulator.html",base=new URL(input),executablePath=process.env.CHROME_BIN;
+// This smoke covers the drone start; the game itself starts on foot by default.
+if(!base.searchParams.has("start"))base.searchParams.set("start","drone");
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 const launchArgs=["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader","--autoplay-policy=no-user-gesture-required"];
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));

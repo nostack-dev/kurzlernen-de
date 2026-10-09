@@ -47,7 +47,7 @@ async function playIntroAudio(){
 window.addEventListener("arondight45-audio-settings-change",()=>{if(!introSoundEnabled())stopIntroAudio();});
 document.addEventListener("visibilitychange",()=>{if(document.hidden)stopIntroAudio();});
 
-async function waitForBridge(timeoutMs=30000){
+async function waitForBridge(timeoutMs=120000){
   const started=performance.now();
   while(performance.now()-started<timeoutMs){
     const bridge=globalThis.__arondightRealWorld,status=$("status")?.textContent||"";

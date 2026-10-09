@@ -31,6 +31,10 @@ function inGame(){const menu=document.getElementById("gameMenu");return document
 function gameplayTarget(target){const v=viewport();return target instanceof Element&&Boolean(v?.contains(target))&&!target.closest(UI_SELECTOR);}
 function consume(event){event.preventDefault();event.stopImmediatePropagation();}
 
+// Phones and tablets (primary pointer coarse) stay in touch layout even if a mouse event
+// arrives (emulated clicks, a paired mouse); laptops with touch screens have a fine primary
+// pointer and switch whichever device the player uses last.
+function mouseMeansDesktop(){try{return!globalThis.matchMedia?.("(pointer: coarse)")?.matches;}catch{return true;}}
 function setDesktop(next){
   next=Boolean(next);if(next===desktop)return;desktop=next;document.body.classList.toggle("desktop-input",desktop);
   if(!desktop){if(locked())document.exitPointerLock?.();releaseAll();}
@@ -67,7 +71,11 @@ function droneFire(pressed){
 
 function onPointerDown(event){
   if(event.pointerType==="touch"||event.pointerType==="pen"){setDesktop(false);return;}
-  if(event.pointerType!=="mouse")return;setDesktop(true);
+  if(event.pointerType!=="mouse"||!mouseMeansDesktop())return;
+  // A click on a touch UI button (dock, HUD) must land first: switching now would hide the
+  // button under the cursor and the click would hit the view instead. Switch right after it.
+  if(!desktop&&event.target instanceof Element&&event.target.closest(UI_SELECTOR)){addEventListener("click",()=>setTimeout(()=>setDesktop(true),0),{once:true,capture:true});return;}
+  setDesktop(true);
   if(!locked()){
     if(!inGame()||!gameplayTarget(event.target)||event.button!==0)return;
     requestLock();consume(event);return; // the capturing click never fires
@@ -85,7 +93,7 @@ function onPointerUp(event){
   if(locked()&&gameMode()!=="foot")consume(event);
 }
 function onPointerMove(event){
-  if(event.pointerType==="mouse"&&(event.movementX||event.movementY)&&!locked())setDesktop(true);
+  if(event.pointerType==="mouse"&&(event.movementX||event.movementY)&&!locked()&&!desktop&&mouseMeansDesktop()&&!(event.target instanceof Element&&event.target.closest(UI_SELECTOR)))setDesktop(true);
   if(!locked()||event.pointerType!=="mouse")return;
   let dx=Number(event.movementX)||0,dy=Number(event.movementY)||0;
   if(Math.abs(dx)>MAX_EVENT_PX||Math.abs(dy)>MAX_EVENT_PX){consume(event);return;} // pointer-lock entry spikes
