@@ -154,6 +154,7 @@ textarea{width:100%;box-sizing:border-box;height:110px;font:11px var(--mono);bac
             <button id="bRun" class="primary">Pause</button>
             <button id="bRestart">Von vorn</button>
             <button id="bTurbo" title="Ohne Vorschau, alle Kerne">Schnell rechnen</button>
+            <button id="bNormal" title="Box3D mit fester Schrittweite: 1 Simulationssekunde pro Sekunde">1× Echtzeit</button>
           </div>
           <canvas id="chart"></canvas>
         </div>
@@ -2049,8 +2050,10 @@ function rebuildLive(keepGhost){
   liveDirty=false; updateHud();
 }
 function stepLive(dt){
-  liveAcc+=dt*opt.speed; let n=0;
-  while(liveAcc>=H && n<60){ liveAcc-=H; n++; liveT+=H;
+  // Box3D always receives the original fixed timestep; speed scales wall-clock playback, never physics forces.
+  liveAcc=Math.min(liveAcc+dt*opt.speed,.25); let n=0;
+  const budget=Math.max(60,Math.ceil(dt*opt.speed/H)+3);
+  while(liveAcc>=H && n<budget){ liveAcc-=H; n++; liveT+=H;
     if(grab){ const p=core.pt(grab.b,grab.l[0],grab.l[1],0); const v=grab.prev?[(p[0]-grab.prev[0])/H,(p[1]-grab.prev[1])/H]:[0,0]; grab.prev=p;
       const K=grab.k; E.force(grab.b, K*(grab.t[0]-p[0])-0.25*K*v[0], K*(grab.t[1]-p[1])-0.25*K*v[1], 0, p[0],p[1],0); }
     core.stepMachine(live,H);
@@ -2443,7 +2446,9 @@ $('cPhys').onchange=e=>{ opt.autoPhys=e.target.checked; done=false; send({resume
 $('kArms').oninput=e=>{ opt.maxArms=+e.target.value; $('oArms').textContent=opt.maxArms; done=false; later(()=>send({resume:true})); updateHud(); };
 $('kFly').oninput=e=>{ opt.fly=+e.target.value; $('oFly').textContent=opt.fly+'×'; later(physChanged); };
 $('kTq').oninput=e=>{ opt.torque=+e.target.value; $('oTq').textContent=opt.torque; later(physChanged); };
-$('kSpd').oninput=e=>{ opt.speed=e.target.value/100; $('oSpd').textContent=opt.speed.toFixed(1).replace('.',',')+'×'; };
+function setPlaybackSpeed(v){opt.speed=Math.max(.1,Math.min(4,v));$('kSpd').value=Math.round(opt.speed*100);$('oSpd').textContent=opt.speed.toFixed(1).replace('.',',')+'×';$('bNormal').setAttribute('aria-pressed',String(opt.speed===1));liveAcc=0;}
+$('kSpd').oninput=e=>setPlaybackSpeed(Number(e.target.value)/100);
+$('bNormal').onclick=()=>setPlaybackSpeed(1);setPlaybackSpeed(opt.speed);
 $('cGrav').onchange=e=>{ opt.grav=e.target.checked; physChanged(); };
 $('cMotor').onchange=e=>{ opt.motor=e.target.checked; if(live) E.revMotor(live.drive,opt.motor?1:0); };
 $('cSolid').onchange=e=>{ opt.solid=e.target.checked; liveDirty=true; liveT=TSIM; };
