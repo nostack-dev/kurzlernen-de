@@ -131,6 +131,20 @@ function stepAim(h,dt,now,rest){
   if(!h.valid){h.aim.copy(h.desired);h.valid=true;}else h.aim.lerp(h.desired,1-Math.exp(-TARGET_SMOOTH_HZ*dt));
 }
 function kick(obj,h,now){const age=now-h.kickAt;if(age>=0&&age<KICK_MS){const k=Math.sin(Math.PI*age/KICK_MS);obj.rotateX(KICK_RAD*k);obj.translateZ(KICK_BACK_M*k);}}
+// Aim down sights (CoD): right mouse button / LT. The gun comes up until the rear sight sits on
+// the screen centre and rear + front sight line up on it (Kimme und Korn), the view zooms in
+// (walk camera) and look speed scales with the zoom. Not on touch: no second button there.
+const ADS_TAU_S=.075,ADS_EYE_M=.46,ADS_ZOOM=1.45;let adsT=0;const adsEye=new THREE.Vector3(),adsDir=new THREE.Vector3(),adsRear=new THREE.Vector3(),adsGoal=new THREE.Vector3(),adsFront=new THREE.Vector3(),adsQ=new THREE.Quaternion(),adsQ0=new THREE.Quaternion(),adsLocal=new THREE.Vector3();
+function adsWanted(){if(!isFoot()||walk()?.dead)return false;const d=globalThis.__arondightDesktopInput;if(d?.active&&d.locked&&d.rmb)return true;if(globalThis.__arondightPadBlocked?.())return false;for(const p of navigator.getGamepads?.()||[]){if(p?.connected&&p.mapping==="standard"){const b=p.buttons?.[6];return Number(typeof b==="number"?b:b?.value)>.35;}}return false;}
+function stepAds(dt){const goal=adsWanted()?1:0;adsT+=(goal-adsT)*(1-Math.exp(-dt/ADS_TAU_S));if(Math.abs(adsT-goal)<.002)adsT=goal;globalThis.__arondightAds={t:adsT,zoom:1+(ADS_ZOOM-1)*adsT};document.body.classList.toggle("ads-active",adsT>.6);return adsT;}
+function adsPose(gun,parts,camera,t){const{rear,front}=parts;if(!rear||!front||!camera||t<=.001)return;
+  camera.getWorldPosition(adsEye);camera.getWorldDirection(adsDir);rear.getWorldPosition(adsRear);
+  adsGoal.copy(adsEye).addScaledVector(adsDir,ADS_EYE_M).sub(adsRear).multiplyScalar(t);
+  if(gun.parent){adsLocal.copy(gun.position);gun.parent.localToWorld(adsLocal);adsLocal.add(adsGoal);gun.parent.worldToLocal(adsLocal);gun.position.copy(adsLocal);}else gun.position.add(adsGoal);
+  gun.updateWorldMatrix(true,true);rear.getWorldPosition(adsRear);front.getWorldPosition(adsFront);
+  // turn about the rear sight so the sight line runs along the view axis
+  adsQ.setFromUnitVectors(adsFront.sub(adsRear).normalize(),adsDir);adsQ0.identity().slerp(adsQ,t);gun.quaternion.premultiply(adsQ0);gun.updateWorldMatrix(true,true);
+  front.getWorldPosition(adsFront);rear.getWorldPosition(adsGoal);adsGoal.sub(adsRear);if(gun.parent){adsLocal.copy(gun.position);gun.parent.localToWorld(adsLocal);adsLocal.sub(adsGoal);gun.parent.worldToLocal(adsLocal);gun.position.copy(adsLocal);}else gun.position.sub(adsGoal);gun.updateWorldMatrix(true,true);}
 function centerRay(){const view=viewport(),r=view?.getBoundingClientRect();return r?screenRay(r.left+r.width/2,r.top+r.height/2):null;}
 
 // Pre-render hook: the walk camera provider has just placed the gun at its
@@ -149,7 +163,7 @@ function beforeRender(scene,camera,now=performance.now()){
   // the left pistol takes its rest pose from the right one *before* aiming
   // one Glock (in the right hand) — the left-hand mirror pistol is retired
   const left=null;if(leftRoot)leftRoot.visible=false;void placeLeftPistol;
-  stepAim(hands[0],dt,now,rest);const result=alignSights(gun,hands[0].aim);if(!result)return;kick(gun,hands[0],now);
+  stepAim(hands[0],dt,now,rest);const result=alignSights(gun,hands[0].aim);if(!result)return;const ads=stepAds(dt);if(ads>.001)adsPose(gun,gunParts(gun),camera,ads);kick(gun,hands[0],now);
   if(left){stepAim(hands[1],dt,now,rest);alignSights(left,hands[1].aim,leftParts(left));kick(left,hands[1],now);}
   const h=hands[0];
   setData("walkWeaponController",FIRST_PERSON_CONTROLLER_VERSION);setData("walkWeaponAimMode",h.pointer?"touch-drag":now-h.releasedAt<=RELEASE_HOLD_MS?"shot-hold":"crosshair-rest");

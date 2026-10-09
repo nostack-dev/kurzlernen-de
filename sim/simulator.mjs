@@ -867,7 +867,9 @@ document.addEventListener("visibilitychange",()=>{if(!document.hidden&&soloMode)
 // heightAxis = climb/sink); it drives the same assisted flight path.
 let desktopDronePrevious=null;
 function pollDesktopDrone(){
-  const d=globalThis.__arondightDesktopDroneInput,body=document.body,active=Boolean(d?.active)&&soloMode&&!xboxGamepadActive&&globalThis.__arondightOnFootMode!==true&&!body.classList.contains("player-driving")&&!body.classList.contains("jet-mode");
+  const d=globalThis.__arondightDesktopDroneInput,body=document.body;let active=Boolean(d?.active)&&soloMode&&globalThis.__arondightOnFootMode!==true&&!body.classList.contains("player-driving")&&!body.classList.contains("jet-mode");
+  // pad and mouse/keyboard are both live: while the pad flies, an idle keyboard/mouse does not overwrite it
+  if(active&&xboxGamepadActive&&!d.fire&&!d.arm&&!d.camera&&!d.heightAxis&&!d.left.x&&!d.left.y&&Math.abs(d.right.x)<.02&&Math.abs(d.right.y)<.02){if(desktopDronePrevious){flightFireFx?.setGamepadFire(false);desktopDronePrevious=null;}return;}
   if(!active){if(desktopDronePrevious){neutralizeSoloMotion();flightFireFx?.setGamepadFire(false);flightFireFx?.setGamepadAim(false);desktopDronePrevious=null;}return;}
   applyGameStick(soloControls,"left",d.left,phoneSettings);applyGameStick(soloControls,"right",d.right,phoneSettings);soloHeightAxis=clamp(Number(d.heightAxis)||0,-1,1);
   flightFireFx?.setGamepadAim(true);if(d.fire||desktopDronePrevious?.fire)flightFireFx?.setGamepadFire(Boolean(d.fire));

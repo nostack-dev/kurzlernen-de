@@ -73,7 +73,12 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
 // Before reloading, the service worker is told to update, every Cache Storage entry is dropped,
 // and the reload URL carries the new SHA so nothing on the way can serve the old page.
 (function(){
-  var first=document.firstChild,m=first&&first.nodeType===8&&/BUILD_SHA:([0-9a-f]{7,40})/.exec(first.nodeValue||""),mine=m&&m[1];if(!mine)return;
+  var first=document.firstChild,m=first&&first.nodeType===8&&/BUILD_SHA:([0-9a-f]{7,40})/.exec(first.nodeValue||""),mine=m&&m[1];
+  // bottom right: this build vs the online build, green when equal
+  var tag=document.createElement("div");tag.id="buildTag";tag.style.cssText="position:fixed;z-index:2147482000;right:max(6px,env(safe-area-inset-right));bottom:max(4px,env(safe-area-inset-bottom));padding:2px 6px;border-radius:4px;background:#000a;color:#9fb3c8;font:600 10px/1.3 ui-monospace,Menlo,monospace;pointer-events:none;letter-spacing:.02em";
+  function showTag(online){if(!tag.isConnected&&document.body)document.body.appendChild(tag);var a=mine?mine.slice(0,7):"dev",b=online?online.slice(0,7):"…";tag.textContent="v "+a+" · online "+b;tag.style.color=online&&mine&&online===mine?"#7ff0c5":online?"#ffcf6a":"#9fb3c8";}
+  if(document.body)showTag(null);else document.addEventListener("DOMContentLoaded",function(){showTag(null);});
+  if(!mine){fetch("./build.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null;}).then(function(j){showTag(j&&j.sha||null);}).catch(function(){});return;}
   var pending=null,reloading=false,lastCheck=0,pill=null;
   function menu(){return document.getElementById("gameMenu");}
   function inMenu(){var el=menu();return !el||!el.hidden;}
@@ -88,7 +93,7 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   function showPill(){if(pill||!document.body)return;pill=document.createElement("button");pill.type="button";pill.id="appUpdatePill";pill.textContent="NEW VERSION · TAP TO UPDATE";
     pill.style.cssText="position:fixed;z-index:2147483000;left:50%;top:max(8px,env(safe-area-inset-top));transform:translateX(-50%);padding:9px 16px;border-radius:20px;border:2px solid #7ff0c5;background:#0d1118e6;color:#eafff7;font:800 12px/1 system-ui,sans-serif;letter-spacing:.08em;cursor:pointer";
     pill.addEventListener("pointerdown",function(e){e.stopPropagation();},true);pill.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();if(!pending)return;try{sessionStorage.removeItem("rushUpdateTries:"+pending);}catch(_){}fresh(pending);});document.body.appendChild(pill);}
-  function seen(sha,reason){if(!sha||sha===mine)return;pending=sha;if(inMenu()||reason==="resume"||reason==="load")fresh(sha);else showPill();}
+  function seen(sha,reason){if(sha)showTag(sha);if(!sha||sha===mine)return;pending=sha;if(inMenu()||reason==="resume"||reason==="load")fresh(sha);else showPill();}
   function viaPage(reason){return fetch(location.pathname+"?vcheck="+Date.now(),{cache:"no-store",credentials:"same-origin"}).then(function(r){return r.ok?r.text():"";}).then(function(t){var n=/BUILD_SHA:([0-9a-f]{7,40})/.exec(t.slice(0,300));if(n)seen(n[1],reason);});}
   function check(reason){var now=Date.now();if(reason!=="load"&&reason!=="resume"&&now-lastCheck<10000)return;lastCheck=now;
     fetch("./build.json?t="+now,{cache:"no-store",credentials:"same-origin"}).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(j){seen(String(j&&j.sha||""),reason);}).catch(function(){viaPage(reason).catch(function(){});});}

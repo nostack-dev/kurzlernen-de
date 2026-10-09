@@ -83,7 +83,7 @@ function onPointerDown(event){if(event.pointerType==="mouse")document.body.class
     requestLock();consume(event);return; // the capturing click never fires
   }
   const mode=gameMode();
-  if(mode==="foot"){if(event.button===0)return; /* walk fires from the crosshair */ consume(event);return;}
+  if(mode==="foot"){if(event.button===0)return; /* walk fires from the crosshair */ if(event.button===2)rmb=true; /* aim down sights */ consume(event);return;}
   if(event.button===0){lmb=true;if(mode==="drone")droneFire(true);}
   else if(event.button===2){rmb=true;}
   consume(event);
@@ -181,7 +181,9 @@ function ensureEls(){
 }
 const WEAPON_NAMES={smg:"SMG",glock:"PISTOL",grenade:"GRENADE LAUNCHER",gun:"GUN",missile:"MISSILE",nuke:"NUKE"};
 function renderHints(){if(!ensureEls())return;if(desktop&&playerDown()){const t="DOWN · R / ENTER = RESPAWN";if(t!==lastHint){hintEl.textContent=t;lastHint=t;}return;}const mode=gameMode(),api=mode==="foot"?globalThis.__arondightFootWeapons:mode==="drone"?globalThis.__arondightDroneWeapons:null,w=api?WEAPON_NAMES[String(api.displayMode||api.mode)]||"":"",text=desktop?(w?`[ ${w} ]  `:"")+(HINTS[mode]||""):"";if(text!==lastHint){hintEl.textContent=text;lastHint=text;}}
-function syncOverlay(){if(!ensureEls())return;renderHints();playEl.classList.toggle("show",desktop&&inGame()&&!locked());const v=viewport();if(v)v.dataset.pointerLock=locked()?"1":"0";}
+// No "CLICK TO PLAY" wall: START and RESUME capture the mouse in the same click, losing it (ESC,
+// alt-tab) opens the pause menu, and a stray click into the game captures it again.
+function syncOverlay(){if(!ensureEls())return;renderHints();playEl.classList.remove("show");const v=viewport();if(v)v.dataset.pointerLock=locked()?"1":"0";}
 
 export function installDesktopControls(){
   if(installed||typeof window==="undefined")return;installed=true;
@@ -197,6 +199,7 @@ export function installDesktopControls(){
   // "press ESC, then hunt for a button" dance. Closing the menu with a click captures the
   // mouse again right away.
   document.addEventListener("pointerlockchange",()=>{if(!locked()){lmb=false;rmb=false;droneFire(false);endLook();keys.clear();if(desktop&&inGame()&&!playerDown()&&!wantMenu)setTimeout(()=>{if(!locked()&&inGame()&&!playerDown())openMenu();},0);}wantMenu=false;syncOverlay();});
+  document.addEventListener("click",e=>{if(desktop&&e.target?.closest?.("#gameMenuStart"))requestLock();},true);
   document.addEventListener("close",e=>{if(desktop&&e.target?.matches?.("dialog.phone-settings-dialog")&&inGame())requestLock();},true);
   window.addEventListener("blur",releaseAll);
   window.addEventListener("arondight:player-death",()=>{if(locked())document.exitPointerLock?.();});
