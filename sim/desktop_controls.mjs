@@ -152,7 +152,7 @@ function tick(){
 
 let hintEl=null,playEl=null,lastHint="";
 const HINTS={
-  foot:"WASD move · SHIFT sprint · SPACE jump (2× jetpack) · LMB fire · RMB aim / scope · 1 MP 2 Glock 3 Sniper 5 Raketen 6 Fäuste / Q / WHEEL · F vehicle · V drone · 4 strike · G EMP · P multiplayer · ESC menu",
+  foot:"WASD move · SHIFT sprint · SPACE jump (2× jetpack) · LMB fire · RMB aim / scope · 1 MP 2 Glock 3 Sniper 5 Granatwerfer 6 Fäuste / Q / WHEEL · F vehicle · V drone · 4 strike · G EMP · P multiplayer · ESC menu",
   drone:"WASD fly · SPACE / SHIFT up / down · MOUSE turn · RMB look · LMB fire · R arm · C camera · 1-3 / Q weapon · V on foot · ESC menu",
   car:"W / S gas / brake · A / D steer · SPACE handbrake · MOUSE look · C camera · F exit · ESC menu",
   jet:"W / S throttle · A / D rudder · MOUSE pitch / roll · LMB / SPACE gun · R rocket · B bomb · V hover / flight · C camera · F exit / eject · ESC menu",

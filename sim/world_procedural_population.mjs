@@ -13,6 +13,7 @@ import {syncWorldBuildingDepthOcclusion} from "./world_building_depth_occlusion.
 import {createPedestrianNetwork,seedRouteAgents,stepAgent,routePointInto,projectOnRoute,agentRandom,shiftAgent,frighten,provoke,punchPose} from "./pedestrian_agents.mjs";
 import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 import {projectileMomentumNs} from "./ballistics.mjs";
+import {honk,shout} from "./street_voices.mjs";
 
 const MOBILE=/(?:android|iphone|ipad|ipod|macintosh.*mobile)/i.test(globalThis.navigator?.userAgent||"");
 const CAR_COUNT=MOBILE?28:42;
@@ -111,9 +112,19 @@ let seenWalkShots=-1;const roadPeople=[],knockLog=[];// roadPeople: the drawn, s
 // car is cutting); people walking outside the car's corridor do not slow it down
 function yieldsToPedestrian(record,pose,now){if(now<(record.yieldCheckAt||0))return record.yielding;record.yieldCheckAt=now+120;record.yielding=false;if(!roadPeople.length)return false;
   const q=pose.rotation,yaw=Number.isFinite(pose.yaw)?pose.yaw:Math.atan2(2*(q[3]*q[2]+q[0]*q[1]),1-2*(q[1]*q[1]+q[2]*q[2])),c=Math.cos(yaw),sn=Math.sin(yaw),v=pose.velocity||[0,0,0],sp=Math.hypot(v[0],v[1]),reach=(record.kind==="bus"?9:6)+sp*.5+sp*sp/9,half=record.kind==="bus"?1.95:1.6;/* stopping distance at ~4.5 m/s2; corridor = half the body + a person + margin */
-  for(const a of roadPeople){const dx=a.x-pose.position[0],dy=a.y-pose.position[1],along=dx*c+dy*sn;if(along<-.5||along>reach)continue;if(Math.abs(-dx*sn+dy*c)<half){record.yielding=true;break;}}return record.yielding;}
+  record.yieldFor=null;for(const a of roadPeople){const dx=a.x-pose.position[0],dy=a.y-pose.position[1],along=dx*c+dy*sn;if(along<-.5||along>reach)continue;if(Math.abs(-dx*sn+dy*c)<half){record.yielding=true;record.yieldFor=a;break;}}
+  // the player on foot standing in the lane counts too (drivers brake — and honk)
+  if(!record.yielding){const W=globalThis.__arondightWalkMode;if(W?.mode==="foot"&&!W.dead&&W.position){const dx=W.position.x-pose.position[0],dy=W.position.y-pose.position[1],along=dx*c+dy*sn;if(along>=-.5&&along<=reach&&Math.abs(-dx*sn+dy*c)<half){record.yielding=true;record.yieldFor="player";}}}
+  return record.yielding;}
+// Honking, only with a reason: someone stands in the lane and does not move (the player sooner,
+// a pedestrian after a few seconds); a rare person who is honked at answers back.
+function honkCheck(record,pose,now,yielding){if(!yielding){record.blockedSince=0;return;}record.blockedSince||=now;const who=record.yieldFor,wait=now-record.blockedSince,need=who==="player"?900:4500;
+  if(wait<need||now<(record.nextHonkAt||0))return;const style=wait>6000?"long":who==="player"?"double":"toot";if(honk([pose.position[0],pose.position[1],pose.position[2]+.4],{kind:record.kind,style,source:record.id})){record.nextHonkAt=now+4500+Math.random()*4000;if(who&&who!=="player"&&Math.random()<.35)setTimeout(()=>say(who,"honked"),600);}}
 // gunshots and blasts frighten the people around: they run, then find their way again
-function frightenAround(x,y,radius,now,strength=1){for(const a of people){if(!a.alive||a.knocked)continue;const d=Math.hypot(a.x-x,a.y-y);if(d<radius)frighten(a,x,y,now,{strength:strength*(1-d/radius*.5)});}}
+function frightenAround(x,y,radius,now,strength=1){let nearest=null,nd=Infinity;for(const a of people){if(!a.alive||a.knocked)continue;const d=Math.hypot(a.x-x,a.y-y);if(d<radius){frighten(a,x,y,now,{strength:strength*(1-d/radius*.5)});if(a.slot&&d<nd){nd=d;nearest=a;}}}if(nearest)say(nearest,"scared");}
+// a person speaks (street_voices.mjs: rate-limited, spoken + bubble)
+function say(a,mood){if(!a?.alive||a.knocked)return false;return shout([a.x,a.y,Number(a.z)||groundHeightAt(a.x,a.y)],{mood,seed:a.id});}
+function moodFor(result){return result==="fight"?"angry":result==="flee"?"scared":"bump";}
 function noticeShots(now){const v=viewport(),shots=Number(v?.dataset.walkShots)||0;if(seenWalkShots<0||shots<seenWalkShots){seenWalkShots=shots;return;}if(shots===seenWalkShots)return;seenWalkShots=shots;const pos=String(v.dataset.walkPosition||"").split(",").map(Number);if(pos.length>=2&&pos.every(Number.isFinite))frightenAround(pos[0],pos[1],32,now);}
 if(typeof window!=="undefined")addEventListener("arondight:world-explosion",e=>{const pos=e?.detail?.position,x=Array.isArray(pos)?+pos[0]:+pos?.x,y=Array.isArray(pos)?+pos[1]:+pos?.y;if(Number.isFinite(x)&&Number.isFinite(y))frightenAround(x,y,Math.min(90,Math.max(20,(Number(e.detail.radiusM)||6)*5)),performance.now(),1.3);});
 function personRecordFor(a){a.kind="person";a.hp=100;a.gen=0;a.baseId=a.id;a.colors=civilianColors(a.seed);a.slot=null;a.z=0;a.simAt=performance.now();a.deadAt=0;return a;}
@@ -135,15 +146,17 @@ function peopleNetwork(now,focus){if(now-lastPeopleNet<PEOPLE_NET_MS)return;last
 // how much way is left to the destination: along the streets, plus the walk to the next sidewalk
 function remainingWay(a){if(a.state!=="walk")return 0;let way=0;for(let k=a.li;k<a.legs.length;k++){const leg=a.legs[k];way+=Math.abs(leg.toS-(k===a.li?a.s:leg.fromS));}const leg=a.legs[a.li],route=leg&&pedNet.get(leg.route);if(route){const p=routePointInto(route,a.s,(leg.side||a.side)*a.off,{});way+=Math.hypot(p.x-a.x,p.y-a.y);}return way;}
 function personDistance(a,focus){return focus?Math.hypot(a.x-focus.x,a.y-focus.y):0;}
+// the player's car flying past within a stride: they jump back and let him have it
+function nearMissCheck(a,now){const D=globalThis.__arondightVehicleDrive;if(!D?.active||now-(a.nearMissAt||0)<5000)return;const p=D.pose?.position,v=D.pose?.velocity;if(!p||!v)return;const sp=Math.hypot(v[0],v[1]);if(sp<7)return;const d=Math.hypot(a.x-p[0],a.y-p[1]);if(d>3.2||d<1.2)return;a.nearMissAt=now;frighten(a,p[0],p[1],now,{ms:2600,strength:1.4});say(a,"nearmiss");}
 // walking into someone (on foot, at more than a stroll) annoys them (pedestrian_agents.mjs provoke)
-function bumpCheck(a,now){const W=globalThis.__arondightWalkMode,J=globalThis.__arondightWalkJump;if(W?.mode!=="foot"||W.dead||!W.position||!J)return;const dx=a.x-W.position.x,dy=a.y-W.position.y,d=Math.hypot(dx,dy);if(d>.75||now-(a.bumpAt||0)<1300)return;const sp=Math.hypot(J.vx||0,J.vy||0);if(sp<1.1)return;const toward=((J.vx||0)*dx+(J.vy||0)*dy)/(d*sp||1);if(toward<.3)return;a.bumpAt=now;const r=provoke(a,now);const v=viewport();if(v)v.dataset.pedestrianBump=r;}
+function bumpCheck(a,now){const W=globalThis.__arondightWalkMode,J=globalThis.__arondightWalkJump;if(W?.mode!=="foot"||W.dead||!W.position||!J)return;const dx=a.x-W.position.x,dy=a.y-W.position.y,d=Math.hypot(dx,dy);if(d>.75||now-(a.bumpAt||0)<1300)return;const sp=Math.hypot(J.vx||0,J.vy||0);if(sp<1.1)return;const toward=((J.vx||0)*dx+(J.vy||0)*dy)/(d*sp||1);if(toward<.3)return;a.bumpAt=now;const r=provoke(a,now);say(a,moodFor(r));const v=viewport();if(v)v.dataset.pedestrianBump=r;}
 function updatePeople(now,focus){
   if(!opts.people){if(people.length)clearPeople();return;}
   peopleNetwork(now,focus);noticeShots(now);
   const dtNear=Math.min(.1,Math.max(0,(now-peopleStepAt)/1000));peopleStepAt=now;
   // walk: near / shown people every tick, far unseen people a few times a second (same legs, bigger steps)
   for(const a of people){if(!a.alive||a.knocked)continue;const near=a.slot||personDistance(a,focus)<PEOPLE_FAR_SIM_M;
-    if(near){stepAgent(a,dtNear,now,pedNet);a.simAt=now;if(a.slot)bumpCheck(a,now);}else if(now-a.simAt>=PEOPLE_FAR_SIM_MS){stepAgent(a,Math.min(1,(now-a.simAt)/1000),now,pedNet);a.simAt=now;}}
+    if(near){stepAgent(a,dtNear,now,pedNet);a.simAt=now;if(a.slot){bumpCheck(a,now);nearMissCheck(a,now);}}else if(now-a.simAt>=PEOPLE_FAR_SIM_MS){stepAgent(a,Math.min(1,(now-a.simAt)/1000),now,pedNet);a.simAt=now;}}
   if(now-lastPeopleGate>=PEOPLE_GATE_MS){lastPeopleGate=now;gatePeople(now,focus);}
   if(now-lastPeopleSlow>=1000){lastPeopleSlow=now;peopleLifecycle(now,focus);}
   roadPeople.length=0;for(const slot of personSlots){const a=slot.agent;if(a&&a.alive&&!a.knocked)roadPeople.push(a);}
@@ -470,7 +483,7 @@ function updatePhysicalVehicle(record,epoch,now){
   else if(!driven&&pose&&record.parked){physics?.clearTarget?.(record.id);physics?.setDrive?.(record.id,{pedal:0,steer:0,handbrake:true});}
   else if(!driven&&pose){const current=pose.position;let targetPoint;
     if(route){const nearest=nearestRouteDistance(route,current[0],current[1]);if(nearest.distance>route.length-2.5)record.routeDirection=-1;else if(nearest.distance<2.5)record.routeDirection=1;const lookahead=Math.max(7,record.speed*1.3),targetDistance=clamp(nearest.distance+record.routeDirection*lookahead,0,route.length),offset=laneWidth(route,record)*record.routeDirection;targetPoint=sampleRoadRoute(route,targetDistance,offset,record.routeDirection);}
-    if(targetPoint)physics?.setTarget?.(record.id,{position:[targetPoint.x,targetPoint.y,0],yaw:targetPoint.yaw,speedMps:yieldsToPedestrian(record,pose,now)?0:record.speed});else{physics?.clearTarget?.(record.id);physics?.setDrive?.(record.id,{pedal:0,steer:0,handbrake:true});}pose=physics?.pose?.(record.id,pose)||pose;}
+    const yielding=yieldsToPedestrian(record,pose,now);honkCheck(record,pose,now,yielding);if(targetPoint)physics?.setTarget?.(record.id,{position:[targetPoint.x,targetPoint.y,0],yaw:targetPoint.yaw,speedMps:yielding?0:record.speed});else{physics?.clearTarget?.(record.id);physics?.setDrive?.(record.id,{pedal:0,steer:0,handbrake:true});}pose=physics?.pose?.(record.id,pose)||pose;}
   record.physicsPose=pose;
   if(pose){const q=pose.rotation,off=Number(pose.groundOffset)||shape.half[2];record.group.quaternion.set(q[0],q[1],q[2],q[3]);wheelUp.set(0,0,1).applyQuaternion(record.group.quaternion);record.group.position.set(pose.position[0]-wheelUp.x*off,pose.position[1]-wheelUp.y*off,pose.position[2]-wheelUp.z*off);record.wheelPoses=pose.wheels||null;}
   else{record.group.position.set(initial.x,initial.y,groundHeightAt(initial.x,initial.y));record.group.rotation.set(0,0,initial.yaw);record.wheelPoses=null;}
@@ -554,7 +567,7 @@ export function installWorldProceduralPopulation(){if(installed)return;installed
     // a fist (player melee): hurts, angers, and three or four of them put a person down (ragdoll)
     punch(id,{dir=[0,0,0],damage=22}={}){const a=byId.get(String(id||""));if(a?.kind!=="person"||!a.alive||a.knocked)return null;a.hp=(Number.isFinite(a.hp)?a.hp:100)-damage;const now=performance.now();
       if(a.hp<=0){killPerson(a,{network:true,impulse:[dir[0]*1.6,dir[1]*1.6,.8]});return"dead";}
-      if(a.hp<=35){knockPerson(a,{impulse:[dir[0]*1.8,dir[1]*1.8,.9],damage:0});return"down";}provoke(a,now,{punched:true});return"hit";},
+      if(a.hp<=35){knockPerson(a,{impulse:[dir[0]*1.8,dir[1]*1.8,.9],damage:0});return"down";}provoke(a,now,{punched:true});say(a,"angry");return"hit";},
     // every pedestrian with its destination (diagnostics / tests)
     agents(){return people.filter(a=>a.alive).map(a=>({id:a.id,x:a.x,y:a.y,yaw:a.yaw,state:a.state,trip:a.trip,dest:a.dest?{x:a.dest.x,y:a.dest.y}:null,remaining:remainingWay(a.leader||a),route:a.route,home:a.home,shown:Boolean(a.slot?.group.visible),bound:Boolean(a.slot),knocked:Boolean(a.knocked),held:Boolean(a.slot?.group.userData.spawnHeld),companion:Boolean(a.leader),speed:a.v}));},
     // the drawn object of a record (shots resolve a Box3D body id to what the player sees)
