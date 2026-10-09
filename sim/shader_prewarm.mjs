@@ -1,3 +1,4 @@
+import * as THREE from "three";
 // Shader prewarm: no first-use shader stalls in the middle of the action.
 //
 // WebGL compiles a material's program the first time it is drawn — a nuke,
@@ -13,7 +14,7 @@
 //      samples. Nothing is drawn in between, so nothing flickers.
 // Modules register with:  (globalThis.__prewarmFactories??=[]).push(() => object3D)
 
-export const SHADER_PREWARM_VERSION="force-visible-compileAsync-v2-screen+bloom-target";
+export const SHADER_PREWARM_VERSION="force-visible-compileAsync-v3-screen+bloom+side/fog-variants";
 const bridge=()=>globalThis.__arondightRealWorld||null;
 let runs=0,busy=false;
 
@@ -23,6 +24,11 @@ async function prewarm(reason){
   try{
     // 1. samples from the effect modules
     const objs=[];for(const f of globalThis.__prewarmFactories||[]){try{const o=f();if(o)objs.push(o);}catch(e){console.warn("prewarm factory",e);}}
+    // effects flip material.side (camera inside a shock sphere) and fog at run time: compile those variants too
+    const variants=new THREE.Group();variants.name="PREWARM_VARIANTS";const seen=new Set();let nv=0;
+    for(const o of objs)o.traverse?.(n=>{const mats=Array.isArray(n.material)?n.material:n.material?[n.material]:[];if(!(n.isMesh||n.isSprite||n.isPoints||n.isLine||n.isLineSegments))return;for(const m of mats){if(!m||seen.has(m.uuid)||nv>240)continue;seen.add(m.uuid);
+      for(const side of[THREE.FrontSide,THREE.BackSide,THREE.DoubleSide])for(const fog of[true,false]){if(side===m.side&&fog===m.fog)continue;if(n.isSprite&&side!==m.side)continue;let c;try{c=m.clone();}catch{continue;}c.side=side;c.fog=fog;let v;try{v=n.isSprite?new THREE.Sprite(c):new n.constructor(n.geometry,c);}catch{continue;}v.frustumCulled=false;variants.add(v);nv++;}}});
+    if(nv)objs.push(variants);
     const added=[];for(const o of objs){o.position.z-=4000;o.scale?.multiplyScalar?.(.01);o.traverse?.(n=>{n.frustumCulled=false;});scene.add(o);added.push(o);samples++;}
     // 2. hidden pooled objects visible for the compile
     // (lights keep their real on/off state: the light count is part of every program)
