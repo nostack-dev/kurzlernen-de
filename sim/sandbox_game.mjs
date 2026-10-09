@@ -27,7 +27,8 @@ const TYPES={
   swat: {hp:7, speed:2.9,range:32,shotMs:1700,burst:3,dmg:4, acc:.5, color:0x1c2030,stripe:0xffd23f,score:450,scale:1.08},
   heavy:{hp:14,speed:2.1,range:48,shotMs:3600,burst:1,dmg:0, acc:.0, color:0x7a1430,stripe:0xffb347,score:900,scale:1.22},
 };
-const BUDGET=[0,2,4,6,8,10],MAX_ENEMIES=10,SPAWN_MS=2400,COMBO_MS=3200;
+// relaxed: fewer foot enemies per star and a real gap between arrivals (was 2..10 every 2.4 s)
+const BUDGET=[0,1,2,4,6,8],MAX_ENEMIES=8,SPAWN_MS=6000,COMBO_MS=3200;
 let installed=false,enemies=[],serial=0,lastSpawn=0,score=0,combo=1,comboUntil=0,flow=0,lastFrame=performance.now(),noWantedSince=0,lastStars=0,lastPoliceKills=0,lastDestructHits=0;
 let settings=normalizeAudioSettings(loadAudioSettings()),hud=null,scoreEl=null,comboEl=null,flowEl=null,popLayer=null,sceneRef=null,tracers=null,tracerSlot=0,driftScore=0;
 const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3();

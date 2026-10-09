@@ -3,7 +3,7 @@ const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 export const SETTINGS_GAMEPAD_BUTTON=Object.freeze({A:0,B:1,Y:3,VIEW:8,MENU:9,DPAD_UP:12,DPAD_DOWN:13,DPAD_LEFT:14,DPAD_RIGHT:15});
 
 function buttonPressed(gamepad,index){const button=gamepad?.buttons?.[index];return Boolean(typeof button==="number"?button>.5:button?.pressed||Number(button?.value)>.5);}
-function focusable(dialog){return Array.from(dialog?.querySelectorAll?.('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"]):not([disabled])')||[]).filter(element=>element.offsetParent!==null&&!element.closest('[hidden]'));}
+function focusable(dialog){return Array.from(dialog?.querySelectorAll?.('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"]):not([disabled])')||[]).filter(element=>element.offsetParent!==null&&!element.closest('[hidden]')&&!element.matches('[data-close-top]'));} /* × is B on the pad */
 function dispatchInput(element){element.dispatchEvent(new Event("input",{bubbles:true}));element.dispatchEvent(new Event("change",{bubbles:true}));}
 function adjustRange(input,direction){const min=Number(input.min),max=Number(input.max),step=Number(input.step)||1,current=Number(input.value)||0,next=clamp(current+direction*step,Number.isFinite(min)?min:-Infinity,Number.isFinite(max)?max:Infinity);if(next===current)return false;input.value=String(next);dispatchInput(input);return true;}
 function adjustSelect(select,direction){const options=Array.from(select.options||[]).filter(option=>!option.disabled);if(options.length<2)return false;const current=Math.max(0,options.indexOf(select.selectedOptions?.[0])),next=(current+direction+options.length)%options.length;if(next===current)return false;select.value=options[next].value;dispatchInput(select);return true;}
@@ -31,7 +31,11 @@ export function createSettingsGamepadNavigator({dialog,openDialog,closeDialog,ge
         const navX=edge(SETTINGS_GAMEPAD_BUTTON.DPAD_RIGHT)?1:edge(SETTINGS_GAMEPAD_BUTTON.DPAD_LEFT)?-1:Math.abs(axisX)>.72&&stickLatchX===0?Math.sign(axisX):0;
         if(Math.abs(axisY)<.35)stickLatchY=0;else if(navY)stickLatchY=Math.sign(axisY)||navY;
         if(Math.abs(axisX)<.35)stickLatchX=0;else if(navX)stickLatchX=Math.sign(axisX)||navX;
-        if(navY)setFocus(navY);else if(navX)horizontal(navX);else if(edge(SETTINGS_GAMEPAD_BUTTON.A))activate();
+        // LB / RB: previous / next section header (opens it)
+        const lb=edge(4),rb=edge(5);
+        if(lb||rb){const heads=[...dialog.querySelectorAll(".sec-head")].filter(h=>h.offsetParent!==null);if(heads.length){const cur=heads.findIndex(h=>h===document.activeElement||h.parentElement?.contains(document.activeElement));const next=heads[cur<0?(rb?0:heads.length-1):(cur+(rb?1:-1)+heads.length)%heads.length];next.click();next.focus({preventScroll:true});}}
+        else if(navY)setFocus(navY);else if(navX)horizontal(navX);else if(edge(SETTINGS_GAMEPAD_BUTTON.A))activate();
+        else if(menuEdge){latchFlightRelease();closeDialog?.("gamepad");}
       }
     }
     previous=pressed;requestAnimationFrame(frame);

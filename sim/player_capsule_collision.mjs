@@ -36,7 +36,9 @@ function moverOptions(options){
   const radius=clamp(options.radiusM??PLAYER_CAPSULE_RADIUS_M,.18,.45),height=Math.max(radius*2+.20,Number(options.heightM)||PLAYER_CAPSULE_HEIGHT_M);
   return {center1:[0,0,radius],center2:[0,0,height-radius],radius};
 }
-function feetAt(p,options){return (options.groundHeightAt||staticGroundHeightAt)(p.x,p.y)+.02;}
+// feetZ: the player's real feet height (jumping, jetpack, on a roof) - the capsule is swept there, so
+// walls stop you at any height and a roof top is open floor
+function feetAt(p,options){const g=(options.groundHeightAt||staticGroundHeightAt)(p.x,p.y)+.02,f=Number(options.feetZ);return Number.isFinite(f)?Math.max(g,f+.02):g;}
 function moveOnPlanes(b3,world,from,to,options){
   const capsule=moverOptions(options),filter=b3.b3DefaultQueryFilter();filter.categoryBits=PLAYER_CAPSULE_QUERY_CATEGORY;filter.maskBits=PLAYER_CAPSULE_TERRAIN_CATEGORY;
   let p=[Number(from.x),Number(from.y),feetAt(from,options)],target=[Number(to.x),Number(to.y),feetAt(to,options)],fraction=1;

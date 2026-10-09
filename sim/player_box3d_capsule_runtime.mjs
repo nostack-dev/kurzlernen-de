@@ -7,8 +7,8 @@ function install(){
   const runtime=globalThis.__arondightPlayerVehicleRuntime;if(!runtime||typeof runtime.resolveWalkMove!=="function")return false;
   if(runtime.resolveWalkMove.__box3dPlayerCapsule===true){publishContract(viewport());return true;}
   const base=runtime.resolveWalkMove.bind(runtime);lastBase=base;
-  const wrapped=function(from,to){
-    const engine=globalThis.__arondightWorldRigidBodies?.engine||null,result=resolvePlayerCapsuleMove(engine,from,to);
+  const wrapped=function(from,to,feet){
+    const engine=globalThis.__arondightWorldRigidBodies?.engine||null,result=resolvePlayerCapsuleMove(engine,from,to,Number.isFinite(Number(feet))?{feetZ:Number(feet)}:{});
     const v=viewport();if(result){const now=performance.now();if(v&&now-lastTelemetryAt>=250){lastTelemetryAt=now;publishContract(v);v.dataset.walkCollisionFraction=Number(result.fraction??1).toFixed(4);v.dataset.walkCollisionBlocked=result.blocked?"1":"0";}return{x:result.x,y:result.y};}
     if(v&&performance.now()-lastTelemetryAt>=250){lastTelemetryAt=performance.now();v.dataset.walkCollision="legacy-fallback";v.dataset.walkCollisionShape="capsule-waiting-box3d";}return base(from,to);
   };

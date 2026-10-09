@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import {groundHeightAt,waterAt,waterLevelAt} from "./terrain_craters.mjs";
+import {groundHeightAt,waterAt,waterLevelAt,buildingGroundBase} from "./terrain_craters.mjs";
 // In rivers and lakes the pilot swims: head stays above the surface.
 function standHeightAt(x,y){const g=groundHeightAt(x,y);return waterAt(x,y)?Math.max(g+EYE_Z,waterLevelAt(x,y)+.42):g+EYE_Z;}
 import {FPS_CONTROL_PROFILE,FPS_DISPLAY_PITCH_LIMIT_RAD,FPS_PITCH_LIMIT_RAD,addFpsShotImpulse,createFpsCameraMotionState,fpsAimAssist,fpsStickVelocity,fpsTouchLookDelta,fpsVerticalFovDegForAspect,integrateFpsLookVelocity,resetFpsCameraMotion,shapeFpsStick,stepFpsCameraMotion,wrapFpsAngleRad} from "./fps_control_math.mjs";
@@ -22,7 +22,16 @@ const JUMP_V=3.6,JUMP_G=9.81,JUMP_BUFFER_MS=140,AIR_ACCEL=5,LEDGE_DROP_M=.45,FAL
 // z = feet height above the ground below (replicated as `jz`), feet = absolute feet height
 const jump={z:0,vz:0,feet:NaN,vx:0,vy:0,queuedAt:-Infinity,airborne:false,snap:true};globalThis.__arondightWalkJump=jump;
 // a press on the ground always jumps on the next step (even after a long frame); a press in the air is buffered for landing
-function requestJump(){jump.queuedAt=performance.now();jump.pending=!jump.airborne;}
+// Jetpack (main menu WORLD option): jump again in the air = a thrust burst (≈2.1 g up, strong air
+// control) to get over houses; fuel recharges on the ground. Roofs are floor. Falling fast with
+// fuel left, the pack fires by itself just before touchdown (no splat after a jetpack hop).
+const JET_ACC=21,JET_BURST_S=.85,JET_FUEL_PER_S=.55,JET_RECHARGE_S=5.5,JET_AIR_ACCEL=14,JET_CUSHION_FUEL=.08;
+const jet={fuel:1,burstLeft:0,used:false,groundSince:0,thrusting:false,el:null};
+function jetpackOn(){return globalThis.__arondightWorldOptions?.get?.("jetpack")!==false;}
+function startJet(now){if(!jetpackOn()||jet.fuel<.06||isPlayerDead())return false;jet.burstLeft=JET_BURST_S;jet.used=true;if(jump.vz<0)jump.vz*=.35;window.dispatchEvent(new CustomEvent("arondight:player-jetpack",{detail:{fuel:jet.fuel}}));return true;}
+function jetHud(){if(!jet.el){const v=viewport();if(!v)return;jet.el=document.createElement("div");jet.el.id="jetpackFuel";jet.el.innerHTML="<i></i>";v.appendChild(jet.el);const st=document.createElement("style");st.textContent="#jetpackFuel{position:absolute;left:50%;bottom:calc(max(64px,env(safe-area-inset-bottom) + 56px));transform:translateX(-50%);width:120px;height:6px;border-radius:3px;background:#0008;border:1px solid #ffffff44;z-index:24;pointer-events:none;opacity:0;transition:opacity .25s}#jetpackFuel.show{opacity:1}#jetpackFuel i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#ff8a3a,#ffd46a);width:100%}#jetpackFuel.thrust i{background:linear-gradient(90deg,#ff5a2a,#fff0a0)}";document.head.appendChild(st);}
+  const show=mode==="foot"&&jetpackOn()&&(jet.fuel<.999||jet.thrusting);jet.el.classList.toggle("show",show);jet.el.classList.toggle("thrust",jet.thrusting);jet.el.firstChild.style.width=`${Math.round(jet.fuel*100)}%`;}
+function requestJump(){const now=performance.now();if(jump.airborne&&startJet(now))return;jump.queuedAt=now;jump.pending=!jump.airborne;}
 const FIRE_INTERVAL_MS=165;
 const AIM_SCAN_INTERVAL_MS=115;
 const DECAL_POOL_SIZE=16;
@@ -46,21 +55,45 @@ function bridge(){return globalThis.__arondightRealWorld||null;}
 function vehicleRuntime(){return globalThis.__arondightPlayerVehicleRuntime||null;}
 // One walking resolver chain: building interior, then the Box3D capsule mover
 // (walls), then free movement.
-function resolveWalk(from,to,feet){return globalThis.__buildingInteriors?.resolveMove?.(from,to,feet)||vehicleRuntime()?.resolveWalkMove?.(from,to)||to;}
+function resolveWalk(from,to,feet){return globalThis.__buildingInteriors?.resolveMove?.(from,to,feet)||vehicleRuntime()?.resolveWalkMove?.(from,to,feet)||to;}
 // Stuck watchdog: pushing against a wall is fine (some direction still moves);
 // being pinned so that *no* direction moves for 0.6 s is a trap, and the
 // player is put on the nearest free spot outside any building footprint.
 let stuckFor=0,unstuckCount=0;
-function inFootprint(x,y){for(const fp of globalThis.__arondightCityBuildings?.footprints?.()||[]){const r=fp.outer;if(!r||r.length<3)continue;let bb=fp.__bb;if(!bb){bb=fp.__bb=[Infinity,Infinity,-Infinity,-Infinity];for(const p of r){bb[0]=Math.min(bb[0],p[0]);bb[1]=Math.min(bb[1],p[1]);bb[2]=Math.max(bb[2],p[0]);bb[3]=Math.max(bb[3],p[1]);}}if(x<bb[0]||x>bb[2]||y<bb[1]||y>bb[3])continue;let inside=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],c=r[j];if((a[1]>y)!==(c[1]>y)&&x<(c[0]-a[0])*(y-a[1])/(c[1]-a[1])+a[0])inside=!inside;}if(inside)return true;}return false;}
+// Roof of the solid building under (x,y) (highest, ground-standing parts only), or null.
+function roofAt(x,y){let best=null;for(const fp of globalThis.__arondightCityBuildings?.footprints?.()||[]){const r=fp.outer;if(!r||r.length<3||(Number(fp.base)||0)>1.9)continue;let bb=fp.__bb;if(!bb){bb=fp.__bb=[Infinity,Infinity,-Infinity,-Infinity];for(const p of r){bb[0]=Math.min(bb[0],p[0]);bb[1]=Math.min(bb[1],p[1]);bb[2]=Math.max(bb[2],p[0]);bb[3]=Math.max(bb[3],p[1]);}}if(x<bb[0]||x>bb[2]||y<bb[1]||y>bb[3])continue;let inside=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],c=r[j];if((a[1]>y)!==(c[1]>y)&&x<(c[0]-a[0])*(y-a[1])/(c[1]-a[1])+a[0])inside=!inside;}if(!inside)continue;
+  if(fp.__roof===undefined)fp.__roof=buildingGroundBase(r)+(Number(fp.top)||8);if(best===null||fp.__roof>best)best=fp.__roof;}return best;}
+// inside solid building mass at these feet (standing on the roof is not inside)
+function inFootprint(x,y,feet){const roof=roofAt(x,y);return roof!==null&&!(Number.isFinite(feet)&&feet>=roof-.3);}
 function canMoveFrom(p,feet){for(let k=0;k<8;k++){const a=k*Math.PI/4,to={x:p.x+Math.cos(a)*.3,y:p.y+Math.sin(a)*.3},r=resolveWalk(p,to,feet);if(Math.hypot(r.x-p.x,r.y-p.y)>.08)return true;}return false;}
+// Never stuck, three layers (what character controllers in shipped games do):
+//  1. Depenetration: standing inside a solid building footprint (spawned, set down, a building
+//     streamed in around you, a wall rebuilt) pushes you to the nearest free spot at once.
+//  2. Wedged: pushing for 0.6 s without moving although no direction is free → nearest open spot.
+//  3. Pocket: you tried several directions for 2.5 s and stayed inside a 1.2 m patch (a gap
+//     between a wall and a car, a sealed courtyard corner) → nearest open spot.
+// "Open" = outside every footprint and free to walk in most directions; the last open spots
+// are remembered as a final fallback, so there is always somewhere to go.
+const OPEN_HISTORY=12,openSpots=[];let lastOpenAt=-Infinity,insideFor=0,pocket={t:0,x:0,y:0,dirs:0,max:0};
+function openAt(c,feet){if(!globalThis.__buildingInteriors?.active&&inFootprint(c.x,c.y,feet))return false;let free=0;for(let k=0;k<8;k++){const a=k*Math.PI/4,to={x:c.x+Math.cos(a)*.35,y:c.y+Math.sin(a)*.35},r=resolveWalk(c,to,feet);if(Math.hypot(r.x-c.x,r.y-c.y)>.2)free++;}return free>=5;}
+function nearestOpen(from,feet,maxR=40){for(let rad=.35;rad<=maxR;rad+=rad<4?.35:1)for(let k=0;k<24;k++){const a=k*Math.PI/12+rad*.37,c={x:from.x+Math.cos(a)*rad,y:from.y+Math.sin(a)*rad};if(openAt(c,feet))return c;}
+  for(let i=openSpots.length-1;i>=0;i--)if(openAt(openSpots[i],feet))return{...openSpots[i]};return null;}
+function relocate(from,feet,why){const c=nearestOpen(from,feet);if(!c)return null;unstuckCount++;pocket={t:0,x:c.x,y:c.y,dirs:0,max:0};insideFor=0;const v=viewport();if(v){v.dataset.walkUnstuck=String(unstuckCount);v.dataset.walkUnstuckReason=why;}return c;}
 function unstuckMove(from,to,feet,dt){
-  const r=resolveWalk(from,to,feet),want=Math.hypot(to.x-from.x,to.y-from.y),got=Math.hypot(r.x-from.x,r.y-from.y);
+  const r=resolveWalk(from,to,feet),want=Math.hypot(to.x-from.x,to.y-from.y),got=Math.hypot(r.x-from.x,r.y-from.y),now=performance.now(),interior=Boolean(globalThis.__buildingInteriors?.active);
+  // 1. inside a solid footprint
+  if(!interior&&inFootprint(from.x,from.y,feet)){insideFor+=dt;if(insideFor>.12){const c=relocate(from,feet,"depenetrate");if(c)return c;}}else insideFor=0;
+  // remember open ground (cheap: every 0.5 s)
+  if(now-lastOpenAt>500&&got>want*.5&&want>1e-4){lastOpenAt=now;if(openAt(from,feet)){openSpots.push({x:from.x,y:from.y});if(openSpots.length>OPEN_HISTORY)openSpots.shift();}}
+  // 3. pocket: many directions tried, no way out of a small patch
+  if(want>1e-4){const dir=Math.atan2(to.y-from.y,to.x-from.x),bit=1<<(((Math.round(dir/(Math.PI/2))%4)+4)%4);pocket.dirs|=bit;pocket.t+=dt;pocket.max=Math.max(pocket.max,Math.hypot(r.x-pocket.x,r.y-pocket.y));
+    if(pocket.max>1.2||pocket.t>4){pocket={t:0,x:r.x,y:r.y,dirs:0,max:0};}
+    else if(pocket.t>2.5&&(pocket.dirs&5)&&(pocket.dirs&10)&&[1,2,4,8].filter(b=>pocket.dirs&b).length>=3){const c=relocate(from,feet,"pocket");if(c)return c;}}
+  // 2. wedged
   if(want<1e-4||got>want*.1){stuckFor=0;return r;}
   stuckFor+=dt;if(stuckFor<.6)return r;stuckFor=0;
   if(canMoveFrom(from,feet))return r;
-  const interiorActive=Boolean(globalThis.__buildingInteriors?.active);
-  for(let rad=.6;rad<=14;rad+=.6)for(let k=0;k<16;k++){const a=k*Math.PI/8+rad,c={x:from.x+Math.cos(a)*rad,y:from.y+Math.sin(a)*rad};if(!interiorActive&&inFootprint(c.x,c.y))continue;if(canMoveFrom(c,feet)){unstuckCount++;const v=viewport();if(v)v.dataset.walkUnstuck=String(unstuckCount);return c;}}
-  return r;
+  return relocate(from,feet,"wedged")||r;
 }
 function playerVitals(){return globalThis.__arondightPlayerDamageModel||null;}
 function droneVitals(){return globalThis.__arondightDroneDamageModel||null;}
@@ -219,15 +252,19 @@ function update(now,dt,lookDt=dt){
   if(mode!=="foot")return;initialize();if(syncDeathState(now)){stepFpsCameraMotion(cameraMotion,{dt,speedMps:0,sprinting:false});const view=viewport();if(view){view.dataset.walkMove="0.000,0.000";view.dataset.walkDeadInputLock="movement+look+fire-v1";}return;}let forward=-state.move.y+(state.keys.has("KeyW")?1:0)-(state.keys.has("KeyS")?1:0),strafe=state.move.x+(state.keys.has("KeyD")?1:0)-(state.keys.has("KeyA")?1:0),sprint=state.keys.has("ShiftLeft")||state.keys.has("ShiftRight")||state.touchSprint===true;const pad=document.body.classList.contains("jet-mode")||document.body.classList.contains("player-driving")||globalThis.__arondightPadBlocked?.()?null:gamepad();
   if(pad){const move=shapeFirstPersonMove(axis(pad.axes?.[0]),axis(pad.axes?.[1]),firstPersonSettings);forward+=-move.y;strafe+=move.x;sprint=sprint||button(pad,10)>.5;const trigger=button(pad,7)>.5,weaponMode=String(globalThis.__arondightFootWeapons?.mode||"smg");if(trigger&&(weaponMode==="smg"||!state.xboxFire))selectedWeaponFire(now,weaponMode==="smg"?"xbox-auto":"xbox-press");state.xboxFire=trigger;const aBtn=button(pad,0)>.5;if(aBtn&&!state.xboxA)requestJump();state.xboxA=aBtn;/* Y (weapon), X (vehicle), D-pad ↓ (drone) and the rest: shared pad actions */}else{state.xboxFire=false;}if(state.fireHeld&&String(globalThis.__arondightFootWeapons?.mode||"smg")==="smg")selectedWeaponFire(now,"held-auto");applyControllerLook(pad,now,lookDt);
   const magnitude=Math.hypot(forward,strafe);if(magnitude>1){forward/=magnitude;strafe/=magnitude;}const speed=sprint?SPRINT_MPS:WALK_MPS;let dx=(Math.sin(state.yaw)*forward+Math.cos(state.yaw)*strafe)*speed*dt,dy=(Math.cos(state.yaw)*forward-Math.sin(state.yaw)*strafe)*speed*dt;
-  if(jump.airborne&&dt>1e-5){const wx=dx/dt-jump.vx,wy=dy/dt-jump.vy,wl=Math.hypot(wx,wy),k=wl>AIR_ACCEL*dt?AIR_ACCEL*dt/wl:1;jump.vx+=wx*k;jump.vy+=wy*k;dx=jump.vx*dt;dy=jump.vy*dt;}
+  if(jump.airborne&&dt>1e-5){const airAcc=jet.thrusting?JET_AIR_ACCEL:AIR_ACCEL,wx=dx/dt-jump.vx,wy=dy/dt-jump.vy,wl=Math.hypot(wx,wy),k=wl>airAcc*dt?airAcc*dt/wl:1;jump.vx+=wx*k;jump.vy+=wy*k;dx=jump.vx*dt;dy=jump.vy*dt;}
   const from={x:state.position.x,y:state.position.y},to={x:from.x+dx,y:from.y+dy},interiors=globalThis.__buildingInteriors,prevFeet=Number.isFinite(jump.feet)&&!jump.snap?jump.feet:state.position.z-EYE_Z,resolved=unstuckMove(from,to,prevFeet,dt);previousWalkPosition.copy(state.position);state.position.x=Number(resolved.x)||0;state.position.y=Number(resolved.y)||0;
   if(dt>1e-5&&!jump.airborne){jump.vx=(state.position.x-from.x)/dt;jump.vy=(state.position.y-from.y)/dt;}else if(dt>1e-5){if(Math.abs(state.position.x-to.x)>1e-3)jump.vx=(state.position.x-from.x)/dt;if(Math.abs(state.position.y-to.y)>1e-3)jump.vy=(state.position.y-from.y)/dt;}
-  const inside=interiors?.feetHeightAt?.(state.position.x,state.position.y,prevFeet),ground=Number.isFinite(inside)?inside:standHeightAt(state.position.x,state.position.y)-EYE_Z;
+  const inside=interiors?.feetHeightAt?.(state.position.x,state.position.y,prevFeet),roof=Number.isFinite(inside)?null:roofAt(state.position.x,state.position.y),terrainFeet=standHeightAt(state.position.x,state.position.y)-EYE_Z,ground=Number.isFinite(inside)?inside:roof!==null&&prevFeet>=roof-.3?Math.max(terrainFeet,roof):terrainFeet;
   if(jump.snap||!Number.isFinite(jump.feet)){jump.feet=ground;jump.vz=0;jump.airborne=false;jump.snap=false;}
   else{
     if(!jump.airborne){if(prevFeet-ground>LEDGE_DROP_M){jump.airborne=true;jump.vz=0;}else jump.feet=ground;}
     if(!jump.airborne&&(jump.pending||now-jump.queuedAt<JUMP_BUFFER_MS)){jump.airborne=true;jump.vz=JUMP_V;jump.feet=ground;jump.queuedAt=-Infinity;jump.pending=false;window.dispatchEvent(new CustomEvent("arondight:player-jump"));}
-    if(jump.airborne){const vz0=jump.vz;jump.feet+=vz0*dt-.5*JUMP_G*dt*dt;jump.vz=vz0-JUMP_G*dt;
+    // jetpack thrust (burst, or the automatic landing cushion)
+    if(!jump.airborne){jet.used=false;jet.burstLeft=0;if(!jet.groundSince)jet.groundSince=now;if(now-jet.groundSince>700)jet.fuel=Math.min(1,jet.fuel+dt/JET_RECHARGE_S);}else jet.groundSince=0;
+    jet.thrusting=false;if(jump.airborne&&jetpackOn()&&jet.fuel>0){const burst=jet.burstLeft>0,stopDist=jump.vz<0?jump.vz*jump.vz/(2*(JET_ACC-JUMP_G)):0,cushion=jump.vz<-FALL_SAFE_MPS*.8&&jet.fuel>JET_CUSHION_FUEL&&jump.feet-ground<stopDist+.6;if(burst||cushion){jet.thrusting=true;jet.fuel=Math.max(0,jet.fuel-JET_FUEL_PER_S*dt);if(burst)jet.burstLeft-=dt;}}
+    const thrust=jet.thrusting?JET_ACC:0;jetHud();
+    if(jump.airborne){const vz0=jump.vz,acc=thrust-JUMP_G;jump.feet+=vz0*dt+.5*acc*dt*dt;jump.vz=vz0+acc*dt;
       if(jump.feet<=ground&&jump.vz<=0){const impact=Math.sqrt(Math.max(0,vz0*vz0+2*JUMP_G*Math.max(0,prevFeet-ground)));jump.feet=ground;jump.vz=0;jump.airborne=false;cameraMotion.shakeEnergy=Math.min(1,(cameraMotion.shakeEnergy||0)+.12+.05*impact);window.dispatchEvent(new CustomEvent("arondight:player-land",{detail:{impactMps:impact}}));
         if(impact>FALL_SAFE_MPS)playerVitals()?.damage?.(Math.round(100*Math.min(1,(impact-FALL_SAFE_MPS)/(FALL_LETHAL_MPS-FALL_SAFE_MPS))),"fall");}
       else if(jump.feet<ground){jump.feet=ground;}}

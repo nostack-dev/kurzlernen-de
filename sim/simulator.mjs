@@ -835,7 +835,13 @@ function neutralizeSoloMotion(){const keepArm=soloControls.arm;soloControls=neut
 // recovers whatever blocks it and arms as soon as the FC reports DISARMED.
 let pendingArmUntil=0;
 function soloArmReady(){return Boolean(latest.state&STATE_NAVIGATION_VALID)&&sharedArmReady(currentFcStateText(),soloControls,true,phoneSettings);}
-function toggleSoloArm(){if(soloControls.arm||pendingArmUntil>performance.now()){soloControls.arm=false;pendingArmUntil=0;return;}if(soloArmReady()){soloControls.arm=true;return;}
+// A crashed drone must always be launchable again: lying on its back / side (the FC refuses to
+// arm past its tilt limit) or with a latched FC fault, ARM sets it back on its skids where it
+// lies (on the ground under it) and restarts the flight controller - like picking it up.
+function recoverCrashedDrone(){if(!physics?.body)return false;const st=physics.state(),att=st.attitude||[0,0,0],tilted=Math.abs(att[0])>28||Math.abs(att[1])>28,fault=Boolean(latest.state&STATE_FAULT),stuck=Number.isFinite(st.z)&&st.z<staticGroundHeightAt(st.x,st.y)-.05;if(!tilted&&!fault&&!stuck)return false;
+  physics.reset(physics.p,{x:st.x,y:st.y,z:0,roll_deg:0,pitch_deg:0,yaw_deg:att[2]||0});navigationSensors.reset();sbusReceiver.reset();resetFlag=true;latest={...latest,state:0};try{backend?.reset?.();}catch{}
+  const v=$("viewport");if(v)v.dataset.droneCrashRecovery=String((Number(v.dataset.droneCrashRecovery)||0)+1);return true;}
+function toggleSoloArm(){if(soloControls.arm||pendingArmUntil>performance.now()){soloControls.arm=false;pendingArmUntil=0;return;}if(soloArmReady()){soloControls.arm=true;return;}recoverCrashedDrone();
   pendingArmUntil=performance.now()+6000;if(mode==="sim"&&backend&&!running){userPausedRun=false;startRun();}
   if(latest.state&STATE_FAULT){try{backend?.reset?.();}catch{}}const v=$("viewport");if(v)v.dataset.armRecovery=String((Number(v.dataset.armRecovery)||0)+1);}
 function killSolo(){pendingDisarmReason="KILL_SWITCH";setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();arm=false;throttle=0;}

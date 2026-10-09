@@ -1,5 +1,7 @@
 export const WANTED_MAX_STARS=5;
-export const WANTED_HEAT_THRESHOLDS=Object.freeze([2,4,7,11,16]);
+// Relaxed pursuit (the police came too fast and too often to keep playing): one stray kill is
+// not a manhunt yet, units take a while to arrive, give you breathing room and shoot less.
+export const WANTED_HEAT_THRESHOLDS=Object.freeze([3,7,12,18,26]);
 export const WANTED_EMP_RANGE_M=30;
 export const WANTED_EMP_COOLDOWN_MS=18000;
 export const WANTED_POLICE_MAX_FIRE_RANGE_M=35;
@@ -29,7 +31,7 @@ export function wantedStarsForHeat(heat){
 
 export function wantedPoliceCount(stars){
   const level=Math.max(0,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||0)));
-  return level?Math.min(WANTED_MAX_STARS,level+1):0;
+  return level?Math.min(4,level):0;
 }
 
 export function wantedDetectionRadiusM(stars){
@@ -39,12 +41,12 @@ export function wantedDetectionRadiusM(stars){
 
 export function wantedEscapeDurationMs(stars){
   const level=Math.max(0,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||0)));
-  return level?6000+level*900:0;
+  return level?4500+level*700:0;
 }
 
 export function wantedPoliceDamage(stars){
   const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
-  return Math.min(6,4+Math.floor((level-1)/2));
+  return Math.min(5,3+Math.floor((level-1)/2));
 }
 
 export function wantedPoliceSpawnRadiusM(index=0){
@@ -53,17 +55,17 @@ export function wantedPoliceSpawnRadiusM(index=0){
 
 export function wantedPoliceArrivalDelayMs(stars){
   const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
-  return Math.max(1800,2500-level*140);
+  return Math.max(6000,12000-level*1200);
 }
 
 export function wantedPoliceEngageDelayMs(stars){
   const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
-  return Math.max(1500,2100-level*120);
+  return Math.max(3000,5200-level*400);
 }
 
 export function wantedPoliceWaveBreakMs(stars){
   const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
-  return 5600-level*240;
+  return 9500-level*450;
 }
 
 export function wantedPoliceFireRangeM(stars){
@@ -73,12 +75,12 @@ export function wantedPoliceFireRangeM(stars){
 
 export function wantedPoliceShotIntervalMs(stars){
   const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
-  return Math.max(1750,2450-level*120);
+  return Math.max(2600,3500-level*160);
 }
 
 export function wantedPoliceHitChance({stars=1,distanceM=0,playerSpeedMps=0}={}){
   const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1))),distance=Math.max(0,Number(distanceM)||0),speed=Math.max(0,Number(playerSpeedMps)||0),distancePenalty=Math.min(1,Math.max(0,(distance-7)/38))*.22,movementPenalty=Math.min(1,speed/7.2)*.24;
-  return Math.max(.20,Math.min(.68,.52+level*.025-distancePenalty-movementPenalty));
+  return Math.max(.15,Math.min(.5,.38+level*.025-distancePenalty-movementPenalty));
 }
 
 export function wantedEmpImpulseNs(distanceM){

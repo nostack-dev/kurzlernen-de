@@ -82,8 +82,20 @@ const GAME_ACTIONS=[
   ["logbook","LOGBOOK",d=>{d.close();document.getElementById("soloLogbook")?.click();}],
   ["exit","EXIT TO TITLE",d=>{d.close();document.getElementById("soloExit")?.click();}],
 ];
-function gameSection(dialog){let s=dialog.querySelector(":scope > section.game-actions-section");if(s)return s;s=document.createElement("section");s.className="game-actions-section";s.innerHTML=`<div class="game-actions-grid">${GAME_ACTIONS.map(([k,l])=>`<button type="button" data-game-action="${k}">${l}</button>`).join("")}</div>`;
+function gameSection(dialog){let s=dialog.querySelector(":scope > section.game-actions-section");if(s)return s;s=document.createElement("section");s.className="game-actions-section";s.innerHTML=`<div class="game-actions-grid">${GAME_ACTIONS.map(([k,l])=>`<button type="button" data-game-action="${k}"${k==="resume"?" autofocus":""}>${l}</button>`).join("")}</div>`;
   s.addEventListener("click",e=>{const b=e.target.closest?.("[data-game-action]");if(!b)return;e.preventDefault();GAME_ACTIONS.find(a=>a[0]===b.dataset.gameAction)?.[2](dialog);});return s;}
+// WORLD options also in the pause menu (same store as the title screen's WORLD panel)
+function worldSection(dialog){let s=dialog.querySelector(":scope > section.world-options-section");if(s)return s;const api=globalThis.__arondightWorldOptions;if(!api)return null;
+  s=document.createElement("section");s.className="player-control-section world-options-section";s.innerHTML=`<h4>WORLD</h4>${api.list.map(o=>`<label class="phone-settings-toggle"><span>${o.label}</span><input type="checkbox" data-world-option="${o.key}"></label><small class="setting-help" data-help-key="wo:${o.key}">${o.help}</small>`).join("")}`;
+  const sync=()=>{for(const i of s.querySelectorAll("[data-world-option]"))i.checked=api.get(i.dataset.worldOption);};
+  s.addEventListener("change",e=>{const i=e.target.closest?.("[data-world-option]");if(i)api.set(i.dataset.worldOption,i.checked);});addEventListener(api.event,sync);dialog.addEventListener("close",sync);sync();return s;}
+// Accordion: every settings section is closed to its header; the menu is a short list
+// (game actions + section names). Click / A opens one section and closes the others. With a
+// pad, ↑↓ walks headers and the items of the open section, LB / RB jump between sections.
+function collapsible(dialog){const secs=[...dialog.querySelectorAll("section")].filter(s=>!s.classList.contains("game-actions-section")&&s.querySelector(":scope > h4"));
+  for(const sec of secs){if(sec.dataset.accordion)continue;sec.dataset.accordion="1";sec.classList.add("collapsible");const h=sec.querySelector(":scope > h4");h.classList.add("sec-head");h.tabIndex=0;h.setAttribute("role","button");h.setAttribute("aria-expanded","false");
+    const toggle=()=>{const open=!sec.classList.contains("open");for(const o of dialog.querySelectorAll("section.collapsible.open"))if(o!==sec){o.classList.remove("open");o.querySelector(":scope > .sec-head")?.setAttribute("aria-expanded","false");}sec.classList.toggle("open",open);h.setAttribute("aria-expanded",String(open));if(open)h.scrollIntoView({block:"start",behavior:"smooth"});};
+    h.addEventListener("click",toggle);h.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});}}
 function tidy(dialog){
   if(!dialog.classList.contains("settings-tidy"))dialog.classList.add("settings-tidy");
   const title=dialog.querySelector(".phone-settings-titlebar h3");if(title&&title.textContent!=="MENU")title.textContent="MENU";
@@ -95,6 +107,7 @@ function tidy(dialog){
   if(sbs){view=section(dialog,"player-control-section display-settings-section","3D VIEW");const row=rowOf(sbs);if(row.parentElement!==view){const h=moveHelpWith(row);view.appendChild(row);if(h)view.appendChild(h);}}
   if(modes&&game.nextElementSibling!==modes)game.after(modes);
   let cursor=placeAfter(modes,view)||modes;
+  cursor=placeAfter(cursor,worldSection(dialog))||cursor;
   const profiles=dialog.querySelector(":scope > [data-stacked-control-profiles]");cursor=placeAfter(cursor,profiles);
   const hardware=dialog.querySelector(":scope > section.player-control-hardware");cursor=placeAfter(cursor,hardware);
   const xbox=dialog.querySelector(":scope > section.xbox-control-mode-settings");cursor=placeAfter(cursor,xbox);
@@ -108,6 +121,7 @@ function tidy(dialog){
   if(debugInputs.length){let det=dialog.querySelector(":scope > details.debug-settings-section");if(!det){det=document.createElement("details");det.className="debug-settings-section";det.innerHTML=`<summary tabindex="0">DEBUG</summary>`;}
     for(const input of debugInputs){const row=rowOf(input);if(row.parentElement!==det){const h=moveHelpWith(row);det.appendChild(row);if(h)det.appendChild(h);}}
     const actions=dialog.querySelector(":scope > .phone-settings-actions");if(actions&&actions.previousElementSibling!==det)actions.before(det);else if(!actions&&det.parentElement!==dialog)dialog.appendChild(det);}
+  collapsible(dialog);
   // Help lines.
   const grid=dialog.querySelector(".player-mode-grid");if(grid)addHelp(grid,"mode-grid");
   const worldActions=dialog.querySelector(".world-settings-actions");if(worldActions)addHelp(worldActions,"world-actions");
@@ -129,6 +143,12 @@ html body dialog.settings-tidy .game-actions-grid button{min-height:40px;border-
 html body dialog.settings-tidy .game-actions-grid button[data-game-action="resume"]{background:#1d5a43;border-color:#7ff0c5aa}
 html body dialog.settings-tidy .game-actions-grid button[data-game-action="exit"]{background:#4c1f25;border-color:#ff8b9588}
 html body dialog.settings-tidy .game-actions-grid button:focus-visible{outline:3px solid #ffd76a;outline-offset:1px}
+html body dialog.settings-tidy section.collapsible:not(.open) > :not(.sec-head){display:none!important}
+html body dialog.settings-tidy section.collapsible{padding-bottom:2px}
+html body dialog.settings-tidy .sec-head{cursor:pointer;display:flex!important;align-items:center;justify-content:space-between;margin:6px 0!important;padding:8px 2px;border-radius:6px}
+html body dialog.settings-tidy .sec-head::after{content:"▸";font-size:14px;opacity:.8;transition:transform .15s}
+html body dialog.settings-tidy section.open > .sec-head::after{transform:rotate(90deg)}
+html body dialog.settings-tidy .sec-head:hover{background:#ffffff0d}
 /* Top bar: only what the current mode can use. */
 html body:is(.on-foot-mode,.player-driving,.jet-mode) #soloTopbar :is(#soloArmToolbar,#soloLogbook,#soloCamera,#droneWeaponToggle,#desktopDroneWeaponSwitch,#soloAlt,#soloRangeStatus,#soloState){display:none!important}
 html body.desktop-input:not(:has(#viewport[data-gamepad-connected="1"])) #soloTopbar #soloGamepadStatus{display:none!important}

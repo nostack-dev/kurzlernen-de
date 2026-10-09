@@ -37,13 +37,21 @@ function camera(){const m=mode();if(m==="drone")document.getElementById("soloCam
 function strike(){const j=globalThis.__fighterJets;if(!j)return;if(j.targeting)j.confirm?.();else j.target?.(true);}
 function respawn(){const hud=document.getElementById("vsRespawnHud");if(hud&&!hud.hidden){hud.querySelector("button")?.click();return;}globalThis.__arondightRequestReset?.();}
 function enablePadPlay(){if(autoEnabled)return;autoEnabled=true;const box=document.querySelector("[data-xbox-controller]");if(box&&!box.checked){box.click();}}
+// title screen: D-pad / stick moves between START, WORLD and the world switches, A presses, B backs out
+function titleNav(edge){const panel=document.getElementById("worldOptionsPanel"),inPanel=panel&&!panel.hidden,scope=inPanel?panel:document.getElementById("gameMenu");
+  const items=[...(scope?.querySelectorAll("button:not([disabled])")||[])].filter(b=>b.offsetParent!==null&&(inPanel||b.id==="gameMenuStart"||b.id==="gameMenuWorld"));
+  const cur=items.indexOf(document.activeElement);
+  if(edge(BTN.DOWN)||edge(BTN.UP)){const n=items.length;if(!n)return;const i=cur<0?0:(cur+(edge(BTN.DOWN)?1:-1)+n)%n;items[i].focus({preventScroll:false});return;}
+  if(edge(BTN.B)&&inPanel){globalThis.__arondightWorldOptionsMenu?.close?.();return;}
+  if(edge(BTN.A)){if(cur>=0)items[cur].click();else if(!inPanel)document.getElementById("gameMenuStart")?.click();return;}
+  if(edge(BTN.MENU)&&!inPanel)document.getElementById("gameMenuStart")?.click();}
 function frame(){
   requestAnimationFrame(frame);const p=padNow();document.body.classList.toggle("pad-connected",Boolean(p));if(!p){prev.length=0;return;}
   const now=[];for(let i=0;i<17;i++)now[i]=pressed(p,i);const edge=i=>now[i]&&!prev[i];
   if(now.some(Boolean)){enablePadPlay();if(!document.body.classList.contains("pad-input"))document.body.classList.add("pad-input");}
   try{
     if(menuOpen()){focusMenu();return;}           // the settings navigator owns the pad; make sure something is focused
-    if(startScreen()){if(edge(BTN.A)||edge(BTN.MENU))document.getElementById("gameMenuStart")?.click();return;}
+    if(startScreen()){titleNav(edge);return;}
     if(dead()){if(edge(BTN.A)||edge(BTN.Y))respawn();return;}
     const j=globalThis.__fighterJets;
     if(j?.targeting){if(edge(BTN.A)||edge(BTN.RT)||edge(BTN.UP))j.confirm?.();else if(edge(BTN.B))j.target?.(false);return;}
@@ -68,7 +76,7 @@ html body.pad-input dialog input[type=range]:focus{outline-offset:6px!important}
 html body.pad-connected #gameMenuStart::after{content:"Ⓐ";display:inline-block;margin-left:10px;padding:0 7px;border-radius:50%;background:#3fbf5a;color:#fff;font-weight:900}
 html body.pad-connected #gameMenu::after{content:"Ⓐ START  ·  ☰ MENU";position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);padding:6px 14px;border-radius:16px;background:#000a;color:#eafff7;font:800 13px/1 system-ui,sans-serif;letter-spacing:.1em;pointer-events:none;animation:padHintPulse 1.6s ease-in-out infinite}
 @keyframes padHintPulse{50%{opacity:.55}}`;
-function focusMenu(){const d=document.querySelector("dialog.phone-settings-dialog[open]");if(!d||d.contains(document.activeElement))return;(d.querySelector('[data-game-action="resume"]')||d.querySelector("button"))?.focus({preventScroll:true});}
+function focusMenu(){const d=document.querySelector("dialog.phone-settings-dialog[open]");const a=document.activeElement;if(!d||(d.contains(a)&&!a.matches?.("[data-close-top]")))return;(d.querySelector('[data-game-action="resume"]')||d.querySelector("button"))?.focus({preventScroll:true});}
 export function installPadActions(){
   if(installed||typeof window==="undefined")return;installed=true;
   addEventListener("keydown",onKey);requestAnimationFrame(frame);const st=document.createElement("style");st.dataset.padActions=PAD_ACTIONS_VERSION;st.textContent=PAD_CSS;document.head.appendChild(st);
