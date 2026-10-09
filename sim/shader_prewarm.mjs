@@ -18,12 +18,24 @@ export const SHADER_PREWARM_VERSION="force-visible-compileAsync-v3-screen+bloom+
 const bridge=()=>globalThis.__arondightRealWorld||null;
 let runs=0,busy=false;
 
+let tex=null,pg=null;
+function basicFamilies(){
+  const g=new THREE.Group();g.name="PREWARM_FAMILIES";
+  if(!tex){tex=new THREE.DataTexture(new Uint8Array([255,255,255,255]),1,1);tex.needsUpdate=true;}
+  if(!pg){pg=new THREE.BufferGeometry();pg.setAttribute("position",new THREE.Float32BufferAttribute([0,0,0],3));pg.setAttribute("color",new THREE.Float32BufferAttribute([1,1,1],3));}
+  for(const fog of[true,false])for(const toneMapped of[true,false]){
+    for(const map of[null,tex])g.add(new THREE.Sprite(new THREE.SpriteMaterial({map,transparent:true,depthWrite:false,fog,toneMapped})));
+    for(const vertexColors of[false,true])for(const sizeAttenuation of[true,false])g.add(new THREE.Points(pg,new THREE.PointsMaterial({size:.1,vertexColors,sizeAttenuation,transparent:true,depthWrite:false,fog,toneMapped})));}
+  g.traverse(n=>{n.frustumCulled=false;});return g;}
 async function prewarm(reason){
   const b=bridge(),renderer=b?.threeRenderer,scene=b?.threeScene,camera=b?.threeCamera;if(!renderer||!scene||!camera||busy)return false;busy=true;const t0=performance.now();
   let samples=0;
   try{
     // 1. samples from the effect modules
     const objs=[];for(const f of globalThis.__prewarmFactories||[]){try{const o=f();if(o)objs.push(o);}catch(e){console.warn("prewarm factory",e);}}
+    // sprite / point pools (smoke puffs, sparks, blood) are created lazily on
+    // their first use: compile their program families up front
+    objs.push(basicFamilies());
     // effects flip material.side (camera inside a shock sphere) and fog at run time: compile those variants too
     const variants=new THREE.Group();variants.name="PREWARM_VARIANTS";const seen=new Set();let nv=0;
     for(const o of objs)o.traverse?.(n=>{const mats=Array.isArray(n.material)?n.material:n.material?[n.material]:[];if(!(n.isMesh||n.isSprite||n.isPoints||n.isLine||n.isLineSegments))return;for(const m of mats){if(!m||seen.has(m.uuid)||nv>240)continue;seen.add(m.uuid);
