@@ -2089,17 +2089,39 @@ function drawCrank(map,sc){ if(!live||!live.chains[0].crank) return; const s=cor
 // gear machine: main gear on the motor shaft, a pulley at every hinge turning with its arm, belts along the arms
 function gearPath(x,y,ro,ri,n,ang){ ctx.beginPath(); for(let i=0;i<n*4;i++){ const a=ang+i*Math.PI*2/(n*4), r=(i%4<2)?ro:ri; const px=x+r*Math.cos(a), py=y+r*Math.sin(a); i?ctx.lineTo(px,py):ctx.moveTo(px,py); } ctx.closePath(); }
 function drawGears(map,sc){
-  const arms=live.chains[0].arms, st=arms.map(a=>core.state(a.b));
-  const rp=a=>Math.max(2.2*dpr,Math.min(0.13*sc,a.len*sc*0.22));
-  ctx.lineWidth=1*dpr; ctx.strokeStyle=C.muted; ctx.globalAlpha=.55;
-  for(let i=0;i<arms.length-1;i++){ const [x1,y1]=map(st[i].p), [x2,y2]=map(st[i+1].p), r1=rp(arms[i]), r2=rp(arms[i+1]), dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L;
-    ctx.beginPath(); ctx.moveTo(x1+nx*r1,y1+ny*r1); ctx.lineTo(x2+nx*r2,y2+ny*r2); ctx.moveTo(x1-nx*r1,y1-ny*r1); ctx.lineTo(x2-nx*r2,y2-ny*r2); ctx.stroke(); }
-  ctx.globalAlpha=1;
-  arms.forEach((a,i)=>{ const [x,y]=map(st[i].p), r=rp(a); gearPath(x,y,r*1.12,r*.88,8,st[i].ang); ctx.strokeStyle=C.fg; ctx.lineWidth=1*dpr; ctx.stroke(); });
-  const s=core.state(live.master), [x,y]=map(s.p), R=0.42*sc; gearPath(x,y,R,R*0.86,18,s.ang); ctx.strokeStyle=C.fg; ctx.lineWidth=1.4*dpr; ctx.stroke();
-  ctx.fillStyle=C.muted; ctx.font=(10.5*dpr)+'px '+C.mono; ctx.fillText('Motor',x+R+5*dpr,y+R+4*dpr);
-  if(sc*0.5>12*dpr){ ctx.font=(9.5*dpr)+'px '+C.mono; arms.forEach((a,i)=>{ if(a.len*sc<14*dpr) return; const [px,py]=map(st[i].p); ctx.fillText('×'+a.k,px+4*dpr,py-5*dpr); }); }
+  // 2D uses the same tooth counts and pitch diameters as the 3D gear bodies/parts list.
+  // Output wheels take their orientation from actual Box3D arm bodies.
+  gears2.length=0;
+  const arms=live.chains[0].arms, motor=core.state(live.master), mod=core.PART.mod/core.gearMM();
+  for(let i=0;i<arms.length;i++){
+    const a=arms[i],pose=core.state(a.b),[cx,cy]=map(pose.p),gear=core.gearbox(a.k);
+    const stages=gear.stages,step=stages.length?stages[stages.length-1]:[24,24];
+    const [z1,z2]=step,r1=gearRadius(z1)*sc,r2=gearRadius(z2)*sc;
+    const outR=Math.max(1.5,mod*sc),inR=Math.max(1.5,mod*sc);
+    const label='Arm '+(i+1)+' · '+(a.k>0?'+':'')+a.k+':1 Umdrehungen\n'+
+      (stages.length?stages.map(([x,y])=>x+' Z → '+y+' Z').join(' · '):'Direktantrieb 1:1')+
+      (gear.idler?' · Zwischenrad':'')+'\nBox3D Körper '+a.b+' · Zahnradgelenk '+a.g;
+    const wheel=(x,y,r,teeth,ang,fill)=>{
+      ctx.save();ctx.fillStyle=fill;ctx.strokeStyle=C.fg;ctx.lineWidth=Math.max(.8*dpr,mod*sc*.2);
+      gearPath(x,y,r+outR*.45,Math.max(1,r-outR*.55),Math.max(8,teeth),ang);
+      ctx.globalAlpha=.86;ctx.fill();ctx.globalAlpha=1;ctx.stroke();ctx.beginPath();
+      ctx.arc(x,y,Math.min(2.4*dpr,Math.max(1.2*dpr,r*.22)),0,2*Math.PI);ctx.fillStyle=C.stage;ctx.fill();ctx.restore();
+    };
+    if(stages.length){
+      const dx=r1+r2;
+      wheel(cx+dx,cy,r1,z1,motor.ang,C.muted);
+      gears2.push({x:(cx+dx)/dpr,y:cy/dpr,description:label+'\nAntriebsrad: '+z1+' Z'});
+    }
+    wheel(cx,cy,r2,z2,pose.ang,C.accent);
+    gears2.push({x:cx/dpr,y:cy/dpr,description:label+'\nAbtriebsrad: '+z2+' Z'});
+    ctx.font=(10*dpr)+'px '+C.mono;ctx.textAlign='left';ctx.fillStyle=C.fg;
+    ctx.fillText('×'+a.k,cx+Math.max(r2,3*dpr)+4*dpr,cy-3*dpr);
+  }
+  const [x,y]=map(motor.p),R=.35*sc;gearPath(x,y,R*1.12,R*.9,24,motor.ang);
+  ctx.strokeStyle=C.fg;ctx.lineWidth=1.3*dpr;ctx.stroke();
+  gears2.push({x:x/dpr,y:y/dpr,description:'Motor · Box3D Körper '+live.master+'\n1 Umdrehung pro Zeichnung · Antriebswelle'});
 }
+
 function draw2D(){
   const map=p=>W2S(p[0],p[1]);
   line(tDraw,map,true); ctx.fillStyle=C.shape; ctx.fill(); if(opt.solid){ctx.strokeStyle=C.muted;ctx.lineWidth=1.5*dpr;ctx.stroke();}
@@ -2420,13 +2442,15 @@ cv.addEventListener('pointerdown',e=>{
 });
 cv.addEventListener('pointermove',e=>{
   if(drag3){ yaw=drag3.yaw+(e.offsetX-drag3.x)*0.01; pitch=Math.max(-1.3,Math.min(1.3,drag3.pitch+(e.offsetY-drag3.y)*0.01)); return; }
+  if(opt.gear&&opt.dim==='2d'){let hit=null,dist=24;for(const item of gears2){const d=Math.hypot(item.x-e.offsetX,item.y-e.offsetY);if(d<dist){hit=item;dist=d;}}gearTooltip(hit,e.offsetX,e.offsetY);}
+  else gearTip.hidden=true;
   const[x,y]=S2W(e.offsetX,e.offsetY);
   if(grab) grab.t=[x,y];
   if(opt.tool==='draw'&&stroke.length){ const l=stroke[stroke.length-1]; if(Math.hypot(x-l[0],y-l[1])>0.05) stroke.push([x,y]); } });
 function up(){ if(drag3){ drag3=null; autoRot=false; cv.style.cursor='grab'; } grab=null;
   if(opt.tool==='draw'&&stroke.length){ const s=stroke; stroke=[];
     if(s.length>15){ press(null); $('inNote').textContent='Gezeichnete Form übernommen.'; load2D(s); setTool('drag'); } } }
-cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
+cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);cv.addEventListener('pointerleave',()=>gearTip.hidden=true);
 gl.addEventListener('pointerdown',e=>{ gl.setPointerCapture(e.pointerId); drag3={x:e.clientX,y:e.clientY,yaw,pitch}; gl.style.cursor='grabbing'; });
 gl.addEventListener('pointermove',e=>{if(!drag3){hoverGear3D(e.offsetX,e.offsetY);return;}gearTip.hidden=true;yaw=drag3.yaw-(e.clientX-drag3.x)*0.008; pitch=Math.max(-1.2,Math.min(1.35,drag3.pitch+(e.clientY-drag3.y)*0.008)); });
 gl.addEventListener('pointerleave',()=>{gearTip.hidden=true;});
