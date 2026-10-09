@@ -5,7 +5,7 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
 const shotCamera=new THREE.PerspectiveCamera(78,16/9,.01,500),raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2(),forward=new THREE.Vector3(),target=new THREE.Vector3();
 const localBarrelForward=new THREE.Vector3(0,0,-1),currentBarrelForward=new THREE.Vector3(),shotDirection=new THREE.Vector3(0,1,0),fullAdjust=new THREE.Quaternion(),weightedAdjust=new THREE.Quaternion(),identityQuat=new THREE.Quaternion(),lastAppliedAdjust=new THREE.Quaternion();
 const PISTOL_PARTS=new Set(["WALK_VM_FRAME","WALK_VM_RAIL","WALK_VM_SLIDE","WALK_VM_SLIDE_TOP","WALK_VM_BARREL","WALK_VM_MUZZLE","WALK_VM_EJECTION_PORT","WALK_VM_GRIP","WALK_VM_MAG_BASE","WALK_VM_TRIGGER_GUARD","WALK_VM_TRIGGER","WALK_VM_REAR_SIGHT","WALK_VM_FRONT_SIGHT","WALK_VM_FRONT_DOT"]);
-const WEAPON_NAMES={smg:"MP",glock:"GLOCK",sniper:"SNIPER",gravity:"GRAVITY",grenade:"WERFER",nuke:"NUKE"},WEAPON_ORDER=["smg","glock","sniper","gravity","grenade","nuke"];
+const WEAPON_NAMES={smg:"MP",glock:"GLOCK",sniper:"SNIPER",gravity:"GRAVITY",grenade:"RAKETEN",nuke:"NUKE"},WEAPON_ORDER=["smg","glock","sniper","gravity","grenade"];
 let installed=false,lastScreenShotAt=-Infinity,lastSwitchAt=-Infinity,lastMode="",lastGun=null,hasAppliedAdjust=false,lastShotClientX=NaN,lastShotClientY=NaN,weaponButton=null,lastButtonMode="";
 
 function viewport(){return document.getElementById("viewport");}

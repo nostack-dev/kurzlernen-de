@@ -61,8 +61,8 @@ function endLook(){const b=bridge();if(lookOwned&&b&&!b.keepLookOrientation)b.lo
 function quietUnlock(){return Boolean(document.getElementById("resetVoteDialog")||document.getElementById("quitConfirmDialog"))||performance.now()<(Number(globalThis.__arondightQuietUnlockUntil)||0);}
 function weaponApi(){return gameMode()==="foot"?globalThis.__arondightFootWeapons:globalThis.__arondightDroneWeapons;}
 function selectWeapon(index){
-  const mode=gameMode();if(mode==="foot"){const order=["smg","glock","sniper","nuke","grenade","gravity"];if(order[index])globalThis.__arondightFootWeapons?.setMode?.(order[index]);return true;}
-  if(mode==="drone"){const order=["gun","missile","nuke"],api=globalThis.__arondightDroneWeapons;if(order[index])api?.setMode?.(order[index]);return true;}
+  const mode=gameMode();if(mode==="foot"){const order=["smg","glock","sniper","grenade","grenade","gravity"];if(order[index])globalThis.__arondightFootWeapons?.setMode?.(order[index]);return true;}
+  if(mode==="drone"){const order=["gun","missile"],api=globalThis.__arondightDroneWeapons;if(order[index])api?.setMode?.(order[index]);return true;}
   return false;
 }
 
@@ -112,7 +112,7 @@ function onPointerMove(event){
 function onWheel(event){
   if(!locked())return;const mode=gameMode();if(mode!=="foot"&&mode!=="drone")return;
   const api=weaponApi();if(typeof api?.toggle!=="function")return;
-  if(mode==="foot"){const order=["smg","glock","sniper","gravity","grenade","nuke"],i=order.indexOf(String(api.mode)),n=(i+(event.deltaY>0?1:-1)+order.length)%order.length;api.setMode?.(order[n]);}else api.toggle();
+  if(mode==="foot"){const order=["smg","glock","sniper","gravity","grenade"],i=order.indexOf(String(api.mode)),n=(i+(event.deltaY>0?1:-1)+order.length)%order.length;api.setMode?.(order[n]);}else api.toggle();
   event.preventDefault();
 }
 
@@ -128,7 +128,7 @@ function onKeyDown(event){
   if((event.code==="KeyR"||event.code==="Enter")&&!event.repeat&&playerDown()){event.preventDefault();event.stopImmediatePropagation();if(globalThis.__arondightRespawnReady&&!globalThis.__arondightRespawnReady())return;const hud=document.getElementById("vsRespawnHud");if(hud&&!hud.hidden)hud.querySelector("button")?.click();else globalThis.__arondightRequestReset?.();event.preventDefault();event.stopImmediatePropagation();return;}
   if(!inGame())return;const mode=gameMode();
   if(/^Digit[1-3]$/.test(event.code)&&(mode==="foot"||mode==="drone")){selectWeapon(Number(event.code.slice(5))-1);event.preventDefault();return;}
-  if(event.code==="Digit5"&&mode==="foot"){selectWeapon(3);event.preventDefault();return;} /* 5 = NUKE (4 is the air strike) */
+  if(event.code==="Digit5"&&mode==="foot"){selectWeapon(3);event.preventDefault();return;} /* 5 = rocket launcher (4 is the air strike) */
   if(event.code==="Digit6"&&mode==="foot"){selectWeapon(4);event.preventDefault();return;} /* 6 = grenade launcher */
   if(event.code==="Digit7"&&mode==="foot"){selectWeapon(5);event.preventDefault();return;} /* 7 = gravity gun */
   if(mode!=="drone")return;
@@ -153,7 +153,7 @@ function tick(){
 
 let hintEl=null,playEl=null,lastHint="";
 const HINTS={
-  foot:"WASD move · SHIFT sprint · SPACE jump (2× jetpack) · LMB fire · RMB aim / scope · 1 MP 2 Glock 3 Sniper 5 Nuke 6 Werfer 7 Gravity / Q / WHEEL · F vehicle · V drone · 4 strike · G EMP · P multiplayer · ESC menu",
+  foot:"WASD move · SHIFT sprint · SPACE jump (2× jetpack) · LMB fire · RMB aim / scope · 1 MP 2 Glock 3 Sniper 5/6 Raketen 7 Gravity / Q / WHEEL · F vehicle · V drone · 4 strike · G EMP · P multiplayer · ESC menu",
   drone:"WASD fly · SPACE / SHIFT up / down · MOUSE turn · RMB look · LMB fire · R arm · C camera · 1-3 / Q weapon · V on foot · ESC menu",
   car:"W / S gas / brake · A / D steer · SPACE handbrake · MOUSE look · C camera · F exit · ESC menu",
   jet:"W / S throttle · A / D rudder · MOUSE pitch / roll · LMB / SPACE gun · R rocket · B bomb · V hover / flight · C camera · F exit / eject · ESC menu",

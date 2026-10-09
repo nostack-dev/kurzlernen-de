@@ -16,7 +16,7 @@ const MISSILE_TTL_MS=4200;
 const GRENADE_TTL_MS=5600;
 const GRENADE_FUSE_MS=2800;
 const GRENADE_COOLDOWN_MS=760;
-const GRENADE_SPEED_MPS=32;
+const GRENADE_SPEED_MPS=58; // a rocket now: flat and fast, it goes off on whatever it hits
 const GRENADE_GRAVITY_MPS2=9.81;
 const GRENADE_RESTITUTION=.58;
 const GRENADE_SURFACE_DAMPING=.88;
@@ -25,9 +25,9 @@ const GRENADE_BASE_RADIUS_M=.039;
 const GRENADE_VISUAL_SCALE=1.35;
 const GRENADE_RADIUS_M=GRENADE_BASE_RADIUS_M*GRENADE_VISUAL_SCALE;
 const GRENADE_FLOOR_NORMAL_Z=.58;
-const GRENADE_BLAST_RADIUS_M=8.5;
-const GRENADE_MAX_DAMAGE=125;
-const FOOT_WEAPON_ORDER=Object.freeze(["smg","glock","sniper","gravity","grenade","nuke"]);
+const GRENADE_BLAST_RADIUS_M=9.5;
+const GRENADE_MAX_DAMAGE=160;
+const FOOT_WEAPON_ORDER=Object.freeze(["smg","glock","sniper","gravity","grenade"]);
 const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tmp3=new THREE.Vector3(),right=new THREE.Vector3(),forward=new THREE.Vector3(),ndc=new THREE.Vector2();
 const shotCamera=new THREE.PerspectiveCamera(78,16/9,.01,500),shotRaycaster=new THREE.Raycaster(),boxHits=new Box3dHitscanWorld();
 const tracerAxis=new THREE.Vector3(0,1,0),tracerVector=new THREE.Vector3(),grenadeAxis=new THREE.Vector3(0,0,-1),bounceFxAxis=new THREE.Vector3(0,0,1);
@@ -222,8 +222,8 @@ function updateFootGrenades(now,dt){
   for(let i=grenades.length-1;i>=0;i--){const g=grenades[i];if(now>=g.fuseAt||now-g.born>GRENADE_TTL_MS){detonateFootGrenade(i,g.group.position.clone(),"fuse");continue;}let removed=false;const substeps=Math.max(1,Math.min(4,Math.ceil(dt/.014))),stepDt=dt/substeps;
     for(let step=0;step<substeps;step++){if(g.resting){const ground=groundHeightAt(g.group.position.x,g.group.position.y)+GRENADE_RADIUS_M;g.group.position.z=ground;break;}g.velocity.z-=GRENADE_GRAVITY_MPS2*stepDt;let speed=g.velocity.length();if(speed<.05){const ground=groundHeightAt(g.group.position.x,g.group.position.y);if(g.group.position.z>ground+GRENADE_RADIUS_M+.08)g.velocity.z=-1.15;else{g.group.position.z=ground+GRENADE_RADIUS_M;g.velocity.set(0,0,0);g.resting=true;break;}speed=g.velocity.length();}
       const direction=tmp3.copy(g.velocity).multiplyScalar(1/Math.max(.001,speed)),travel=Math.max(.001,speed*stepDt);let hit=null;if(now>=g.nextCollisionAt)hit=nearestGrenadeHit({origin:g.group.position,direction},travel+GRENADE_RADIUS_M+.035);
-      if(hit&&Number(hit.distance)<=travel+GRENADE_RADIUS_M+.018){const point=hit.point?.clone?.()||g.group.position.clone().addScaledVector(direction,Math.max(.01,Number(hit.distance)||.01)),normal=grenadeHitNormal(hit,tmp),mode=grenadeImpactMode(hit,normal);if(mode!=="floor"){detonateFootGrenade(i,point,mode);removed=true;break;}bounceFootGrenade(g,point,normal,now);continue;}
-      tmp2.copy(g.group.position).addScaledVector(direction,travel);const ground=groundHeightAt(tmp2.x,tmp2.y),floorZ=ground+GRENADE_RADIUS_M;if(tmp2.z<=floorZ){tmp2.z=floorZ;const horizontal=Math.hypot(g.velocity.x,g.velocity.y),down=Math.abs(g.velocity.z);if(g.bounces>=3&&down<1.15&&horizontal<1.35){g.group.position.copy(tmp2);g.velocity.set(0,0,0);g.resting=true;break;}bounceFootGrenade(g,tmp2,tmp.set(0,0,1),now);continue;}g.group.position.copy(tmp2);g.group.quaternion.setFromUnitVectors(grenadeAxis,direction);g.group.rotation.z+=stepDt*11;}
+      if(hit&&Number(hit.distance)<=travel+GRENADE_RADIUS_M+.018){const point=hit.point?.clone?.()||g.group.position.clone().addScaledVector(direction,Math.max(.01,Number(hit.distance)||.01)),normal=grenadeHitNormal(hit,tmp),mode=grenadeImpactMode(hit,normal);detonateFootGrenade(i,point,mode);removed=true;break;}
+      tmp2.copy(g.group.position).addScaledVector(direction,travel);const ground=groundHeightAt(tmp2.x,tmp2.y),floorZ=ground+GRENADE_RADIUS_M;if(tmp2.z<=floorZ){tmp2.z=floorZ;detonateFootGrenade(i,tmp2.clone(),"floor");removed=true;break;}g.group.position.copy(tmp2);g.group.quaternion.setFromUnitVectors(grenadeAxis,direction);g.group.rotation.z+=stepDt*11;}
     if(removed)continue;const groundNow=groundHeightAt(g.group.position.x,g.group.position.y);if(!g.resting&&g.group.position.z>groundNow+GRENADE_RADIUS_M+.12&&g.velocity.length()<.6)g.velocity.z=Math.min(g.velocity.z,-1.15);
   }
   const view=viewport();if(view){view.dataset.walkGrenadesActive=String(grenades.length);view.dataset.walkGrenadeAirStallRecovery="gravity+filtered-colliders+separation-v1";view.dataset.walkGrenadeImpactFuse="organic+wall+dynamic-target-v1";view.dataset.walkGrenadeFloorRule="upward-normal-bounces-v1";}
@@ -286,15 +286,19 @@ function updateBlasts(now){for(const item of blastPool){if(!item.group.visible)c
 function dispatchExplosion(position,detail={}){visualBlast(position,1);window.dispatchEvent(new CustomEvent("arondight:world-explosion",{detail:{position:[position.x,position.y,position.z],radiusM:BLAST_RADIUS_M,maxDamage:BLAST_MAX_DAMAGE,kind:"missile",...detail}}));}
 
 function missileTarget(ray){const hit=nearestHit(ray,220);return{hit,target:hit?.point?.clone?.()||tmp.copy(ray.origin).addScaledVector(ray.direction,105).clone(),object:hit&&!hit.box3d?hit.object:null};}
+// Drone rockets: a press looses a salvo of four small rockets, 90 ms apart, each homing on the point
+// you picked with a little spread; they hit hard but small (5 m blast).
+const ROCKET_SALVO=4,ROCKET_GAP_MS=90,ROCKET_COOLDOWN_MS=520,ROCKET_BLAST_M=5,ROCKET_DAMAGE=70;
 function launchMissile(clientX,clientY,now=performance.now(),source="pointer"){
-  if(!isDrone()||globalThis.__arondightDroneDamageModel?.destroyed||now-lastMissile<950)return false;const view=viewport();if(view?.dataset.fireArmed!=="1")return false;const ray=droneRay(clientX,clientY),scene=bridge()?.threeScene;if(!ray||!scene)return false;
-  lastMissile=now;const goal=missileTarget(ray),group=new THREE.Group(),body=new THREE.Mesh(new THREE.CylinderGeometry(.025,.032,.26,8),new THREE.MeshStandardMaterial({color:0xcfd7db,roughness:.35,metalness:.45})),tip=new THREE.Mesh(new THREE.ConeGeometry(.034,.09,8),new THREE.MeshBasicMaterial({color:0xffaa4a}));body.rotation.x=Math.PI/2;tip.rotation.x=Math.PI/2;tip.position.z=-.17;group.add(body,tip);group.position.copy(ray.origin).addScaledVector(ray.direction,.28);group.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1),ray.direction);for(const m of[body,tip])m.userData.flightFireIgnore=true;scene.add(group);missiles.push({group,velocity:ray.direction.clone().multiplyScalar(26),target:goal.target,object:goal.object,born:now,scene,source});audioShot(.34);
+  if(!isDrone()||globalThis.__arondightDroneDamageModel?.destroyed||now-lastMissile<ROCKET_COOLDOWN_MS)return false;lastMissile=now;for(let k=1;k<ROCKET_SALVO;k++)setTimeout(()=>launchRocket(clientX,clientY,performance.now(),source,k),k*ROCKET_GAP_MS);return launchRocket(clientX,clientY,now,source,0);}
+function launchRocket(clientX,clientY,now,source,k){if(!isDrone()||globalThis.__arondightDroneDamageModel?.destroyed)return false;const view=viewport();if(view?.dataset.fireArmed!=="1")return false;const ray=droneRay(clientX,clientY),scene=bridge()?.threeScene;if(!ray||!scene)return false;
+  const goal=missileTarget(ray);if(k){const s=1.2+goal.target.distanceTo(ray.origin)*.02;goal.target.x+=(Math.random()-.5)*s;goal.target.y+=(Math.random()-.5)*s;}const group=new THREE.Group(),body=new THREE.Mesh(new THREE.CylinderGeometry(.025,.032,.26,8),new THREE.MeshStandardMaterial({color:0xcfd7db,roughness:.35,metalness:.45})),tip=new THREE.Mesh(new THREE.ConeGeometry(.034,.09,8),new THREE.MeshBasicMaterial({color:0xffaa4a}));body.rotation.x=Math.PI/2;tip.rotation.x=Math.PI/2;tip.position.z=-.17;group.add(body,tip);group.position.copy(ray.origin).addScaledVector(ray.direction,.28);group.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1),ray.direction);for(const m of[body,tip])m.userData.flightFireIgnore=true;scene.add(group);missiles.push({group,velocity:ray.direction.clone().multiplyScalar(34),target:goal.target,object:goal.object,born:now,scene,source});audioShot(.34);
   weaponFired("missile",.42,source,"drone");if(view){view.dataset.droneWeapon="missile";view.dataset.droneMissiles=String((Number(view.dataset.droneMissiles)||0)+1);view.dataset.droneMissileGuidance="screen-target-homing+path-collision-v2";view.dataset.droneMissileInput=source;}return true;
 }
-function detonateMissile(index,position,targeted=false){const m=missiles[index];if(!m)return;m.scene.remove(m.group);missiles.splice(index,1);dispatchExplosion(position,{targeted,source:m.source||"missile"});}
+function detonateMissile(index,position,targeted=false){const m=missiles[index];if(!m)return;m.scene.remove(m.group);missiles.splice(index,1);dispatchExplosion(position,{targeted,source:m.source||"missile",radiusM:ROCKET_BLAST_M,maxDamage:ROCKET_DAMAGE});}
 function updateMissiles(now,dt){
   for(let i=missiles.length-1;i>=0;i--){const m=missiles[i];if(m.object?.parent&&effectiveVisible(m.object))m.object.getWorldPosition?.(m.target);tmp.copy(m.target).sub(m.group.position);const distance=tmp.length();if(distance<1.05||now-m.born>MISSILE_TTL_MS){detonateMissile(i,m.group.position.clone(),Boolean(m.object));continue;}
-    const desired=tmp.normalize().multiplyScalar(31),blend=1-Math.exp(-5.8*dt);m.velocity.lerp(desired,blend);const speed=m.velocity.length(),step=Math.max(.01,speed*dt),pathDir=tmp2.copy(m.velocity).normalize(),pathHit=nearestHit({origin:m.group.position,direction:pathDir},step+.14);if(pathHit&&Number(pathHit.distance)<=step+.10){detonateMissile(i,pathHit.point?.clone?.()||m.group.position.clone(),Boolean(m.object));continue;}m.group.position.addScaledVector(m.velocity,dt);m.group.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1),pathDir);}
+    const desired=tmp.normalize().multiplyScalar(44),blend=1-Math.exp(-5.8*dt);m.velocity.lerp(desired,blend);const speed=m.velocity.length(),step=Math.max(.01,speed*dt),pathDir=tmp2.copy(m.velocity).normalize(),pathHit=nearestHit({origin:m.group.position,direction:pathDir},step+.14);if(pathHit&&Number(pathHit.distance)<=step+.10){detonateMissile(i,pathHit.point?.clone?.()||m.group.position.clone(),Boolean(m.object));continue;}m.group.position.addScaledVector(m.velocity,dt);m.group.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1),pathDir);}
 }
 
 function blastFalloff(distance,radius){const x=clamp(1-distance/Math.max(.1,radius),0,1);return x*x*(3-2*x);}
