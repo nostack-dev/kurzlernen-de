@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import {groundHeightAt,staticGroundHeightAt,terrainNormalAt,onTerrainChange,waterAt,WATER_LEVEL_M} from "./terrain_craters.mjs";
 import {patchShockMaterial} from "./nuke_shock_field.mjs";
-import {glassAt,addGlassCrack,addWallSoot} from "./facade_marks.mjs";
+import {glassAt,addGlassCrack,addWallSoot,addWallBreach} from "./facade_marks.mjs";
 
 // Every action of the player leaves a mark — nothing is silently ignored.
 //  * Bullet impacts: a hole decal on walls, ground, cars and trees, plus a
@@ -177,6 +177,8 @@ function onExplosion(event){
     chipBurst(new THREE.Vector3(x,y,(Number.isFinite(z)?z:g)+.2),Z,"ground",Math.min(26,8+r*2),6+r*.6);
     // walls within reach get soot, clipped to the rendered wall (never hanging in the air)
     addWallSoot(x,y,Number.isFinite(z)?z:g,r);
+    // and the wall itself breaks: a breach that opens further with every blast, chunks flying out
+    addWallBreach(x,y,Number.isFinite(z)?z:g,r,Math.min(1.4,(Number(d.maxDamage)||60)/110));
   }
   // animals in reach die
   for(const bd of globalThis.__ambientBirds?.poses?.()||[]){if(Math.hypot(bd.x-x,bd.y-y,(bd.z-(Number(event?.detail?.position?.[2])||0))*.6)<(nuke?r*2.2:r*1.1)){globalThis.__ambientBirds.kill(bd.id);chipBurst(new THREE.Vector3(bd.x,bd.y,bd.z),Z,"actor",6,3);}}
