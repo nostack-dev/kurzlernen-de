@@ -1,26 +1,16 @@
-file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45
-            this.#timeoutError = new TimeoutError(`Waiting failed: ${options.timeout}ms exceeded`);
-                                 ^
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:51
+  if(!(after.shots>before.shots&&after.screen==="fire-only-v1"&&after.fireVector==="touch-screen-ray-v5"&&after.aimSource==="screen-touch"&&after.touchVector==="screen-ray+hand-anchor-v1"))throw new Error(`screen touch did not use the authoritative shot/vector path: ${JSON.stringify({before,after})}`);
+                                                                                                                                                                                                   ^
 
-TimeoutError: Waiting failed: 5000ms exceeded
-    at new WaitTask (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45:34)
-    at IsolatedWorld.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Realm.js:22:26)
-    at CdpFrame.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Frame.js:584:43)
-    at CdpFrame.<anonymous> (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/decorators.js:101:27)
-    at CdpPage.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Page.js:1439:37)
-    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:25:14
+Error: screen touch did not use the authoritative shot/vector path: {"before":{"yaw":0.7998,"pitch":-0.0009,"shots":9},"after":{"yaw":0.7998,"pitch":-0.0009,"shots":12,"screen":"akimbo-independent-fire-v3","fireVector":"touch-screen-ray-v5","aimSource":"screen-touch","touchVector":"screen-ray+hand-anchor-v1","alignment":"exact-screen-ray-from-hand-anchor-v5","aimWeight":1,"aimErrorDeg":0,"handAnchor":"position-fixed-rotation-only-v1"}}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:51:196
 
 Node.js v22.23.3
-file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45
-            this.#timeoutError = new TimeoutError(`Waiting failed: ${options.timeout}ms exceeded`);
-                                 ^
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:51
+  if(!(after.shots>before.shots&&after.screen==="fire-only-v1"&&after.fireVector==="touch-screen-ray-v5"&&after.aimSource==="screen-touch"&&after.touchVector==="screen-ray+hand-anchor-v1"))throw new Error(`screen touch did not use the authoritative shot/vector path: ${JSON.stringify({before,after})}`);
+                                                                                                                                                                                                   ^
 
-TimeoutError: Waiting failed: 5000ms exceeded
-    at new WaitTask (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45:34)
-    at IsolatedWorld.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Realm.js:22:26)
-    at CdpFrame.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Frame.js:584:43)
-    at CdpFrame.<anonymous> (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/decorators.js:101:27)
-    at CdpPage.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Page.js:1439:37)
-    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:25:14
+Error: screen touch did not use the authoritative shot/vector path: {"before":{"yaw":0.6816,"pitch":-0.0008,"shots":6},"after":{"yaw":0.6816,"pitch":-0.0008,"shots":18,"screen":"akimbo-independent-fire-v3","fireVector":"touch-screen-ray-v5","aimSource":"screen-touch","touchVector":"screen-ray+hand-anchor-v1","alignment":"exact-screen-ray-from-hand-anchor-v5","aimWeight":1,"aimErrorDeg":0,"handAnchor":"position-fixed-rotation-only-v1"}}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:51:196
 
 Node.js v22.23.3
