@@ -1,0 +1,8 @@
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/desktop_controls_live_smoke.mjs:14
+  if(initial.groupDisplay==="none"||initial.groupWidth<150||initial.buttons.map(b=>b.text).join(",")!=="GUN,MISSILE,NUKE")throw new Error(`desktop weapon selector is not visibly exposed: ${JSON.stringify(initial)}`);
+                                                                                                                                ^
+
+Error: desktop weapon selector is not visibly exposed: {"groupDisplay":"none","groupWidth":0,"buttons":[{"text":"GUN","pressed":"true","display":"inline-flex"},{"text":"MISSILE","pressed":"false","display":"inline-flex"},{"text":"NUKE","pressed":"false","display":"inline-flex"}],"stop":{"text":"STOP","display":"flex","align":"center","justify":"center","textAlign":"center"}}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/desktop_controls_live_smoke.mjs:14:129
+
+Node.js v22.23.3
