@@ -13,7 +13,7 @@ import {clearDestruction} from "./world_destruction_state.mjs";
 // Only real user clicks are handled; programmatic .click() calls from other
 // modules (death respawn, mobile dock forwarding) pass straight through.
 
-export const GAME_RESET_VERSION="mp-vote-full-reset-v2";
+export const GAME_RESET_VERSION="mp-vote-full-reset-v3-start-point";
 import {VS_FX_EVENT} from "./lan_vs.mjs";
 const VOTE_MS=15000,SLOT_R=7;let vote=null,serial=0;
 const SP_COOLDOWN_MS=1200,MP_COOLDOWN_MS=6000,SELECTOR="#soloReset,#mobileGameplayReset";
@@ -28,10 +28,29 @@ function multiplayer(){return peers().length>0;}
 function send(extra){const s=session();if(!s?.sendFx)return false;try{return s.sendFx({type:"impact",objectId:"reset-vote",p:[0,0,0],id:`rv-${Date.now().toString(36)}-${(serial++).toString(36)}`,playerId:selfId()||undefined,...extra});}catch{return false;}}
 function fullLocalReset(){clearDestruction();window.dispatchEvent(new CustomEvent("arondight:world-reset"));window.dispatchEvent(new CustomEvent("arondight:game-reset",{detail:{multiplayer:false}}));}
 // everybody resets the world, then respawns in its slot around the meeting point
+// Back to the start: the start mode (on foot, pistol) at this player's start
+// point. Alone, the world origin itself goes back to the start (GPS / chosen
+// place), so that is local (0,0). In a shared session the frame is the shared
+// origin: the start point is placed inside it, each player in its own ring
+// slot so nobody stands on anybody; the first free spot outside buildings.
+// Place the player (on foot, start mode) at local (x,y) — the first free spot
+// near it — and park the drone with it. Runs after the reset chain (sim reset,
+// vitals, walker re-anchoring) has finished.
+function spawnAt(bx,by,{slot=0,n=1,startMode=true}={}){
+  let frames=0;const run=()=>{if(++frames<4){requestAnimationFrame(run);return;}
+    const w=globalThis.__arondightWalkMode;if(startMode&&typeof globalThis.__arondightApplyStartMode==="function")globalThis.__arondightApplyStartMode();else if(w?.mode!=="foot")w?.setMode?.("foot",{persist:false,reason:"respawn"});
+    if(w?.mode!=="foot"||!w.setPose)return;const a=slot/Math.max(1,n)*Math.PI*2+.4,r=slot===0?0:SLOT_R+(slot>5?SLOT_R:0),cx=bx+Math.cos(a)*r,cy=by+Math.sin(a)*r;let x=cx,y=cy;
+    for(let k=0;k<48&&w.canWalkTo&&!w.canWalkTo(x,y);k++){const aa=k*2.399,rr=1.5+k*.9;x=cx+Math.cos(aa)*rr;y=cy+Math.sin(aa)*rr;}
+    w.setPose({x,y,yaw:Number(w.yaw)||0,pitch:0});globalThis.__arondightPlayerVehicleRuntime?.teleportDrone?.({x,y,yaw:Number(w.yaw)||0});
+    setData("gameResetSpawn",`${x.toFixed(1)},${y.toFixed(1)}`);};
+  requestAnimationFrame(run);
+}
+globalThis.__arondightSpawnAt=spawnAt;
+function spawnAtStart(slot=0,n=1){const base=bridge()?.startPointLocal?.()||[0,0];spawnAt(base[0],base[1],{slot,n});}
 function commitReset(meet,order){
-  fullLocalReset();const ids=(order||[]).map(String),me=selfId(),slot=Math.max(0,ids.indexOf(me)),n=Math.max(1,ids.length),a=slot/n*Math.PI*2+.4,r=slot===0?0:SLOT_R+(slot>5?SLOT_R:0);
-  const ok=Array.isArray(meet)&&globalThis.__arondightVsRespawnAtGeo?.(+meet[0],+meet[1],Math.cos(a)*r,Math.sin(a)*r);if(!ok)document.getElementById("soloReset")?.click();
-  setTimeout(()=>globalThis.__arondightWalkMode?.setMode?.("drone",{persist:true,reason:"mp-reset"}),80);setData("gameResetMode","multiplayer-full-vote");setData("gameResetSlot",`${slot}/${n}`);
+  void meet;const ids=(order||[]).map(String),me=selfId(),slot=Math.max(0,ids.indexOf(me)),n=Math.max(1,ids.length);
+  fullLocalReset();globalThis.__arondightVsMultiplayer?.resetLevelHealth?.(ids);document.getElementById("soloReset")?.click();spawnAtStart(slot,n);
+  setData("gameResetMode","multiplayer-full-vote");setData("gameResetSlot",`${slot}/${n}`);
 }
 function prompt(from,vid){
   document.getElementById("resetVoteDialog")?.remove();const d=document.createElement("div");d.id="resetVoteDialog";
@@ -59,8 +78,8 @@ function onClick(event){
   if(now-lastResetAt<cooldown){event.preventDefault();event.stopImmediatePropagation();flash(button,`WAIT ${Math.ceil((cooldown-(now-lastResetAt))/1000)}s`);setData("gameResetBlocked","cooldown");return;}
   lastResetAt=now;setData("gameReset",GAME_RESET_VERSION);setData("gameResetMode",mp?"multiplayer-respawn":"single-full");setData("gameResets",(Number(viewport()?.dataset.gameResets)||0)+1);
   if(mp){event.preventDefault();event.stopImmediatePropagation();startVote(button);return;}
-  // Alone (single player or alone in a session): let the normal reset chain run, then rebuild the world.
-  fullLocalReset();
+  // Alone (single player or alone in a session): back to the start origin, let the normal reset chain run, rebuild the world, respawn at the start.
+  bridge()?.restoreStartOrigin?.();fullLocalReset();spawnAtStart(0,1);
 }
 export function installGameReset(){if(installed)return;installed=true;window.addEventListener("click",onClick,{capture:true});window.addEventListener(VS_FX_EVENT,onFx);setData("gameReset",GAME_RESET_VERSION);}
 installGameReset();

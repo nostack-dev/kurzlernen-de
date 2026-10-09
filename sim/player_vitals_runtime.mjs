@@ -34,7 +34,10 @@ function damagePlayer(amount=25,source="world"){
   // damage source (blast, burn, radiation, debris, secondary explosions,
   // falls) is absorbed.
   if(globalThis.__arondightNukeShake?.droneProtected?.()&&globalThis.__arondightPlayerShield?.nukeImmune?.()){const view=viewport();if(view){view.dataset.playerDamageAbsorbed=String((Number(view.dataset.playerDamageAbsorbed)||0)+1);view.dataset.playerLastDamage=`${source}:absorbed-nuke-window`;}return playerHp;}
-  const before=currentPlayerHp();if(before<=0)return 0;playerHp=healthAfterDamage(before,amount,PLAYER_MAX_HP);setBridgePlayerHp(playerHp,playerHp<=0);const view=viewport();if(view){view.dataset.selfHp=String(playerHp);view.dataset.playerHp=String(playerHp);view.dataset.playerDead=playerHp<=0?"1":"0";view.dataset.playerLastDamage=String(source);}if(playerHp<=0)markPlayerDeath(source);return playerHp;
+  const before=currentPlayerHp();if(before<=0)return 0;
+  // in multiplayer the authority owns HP: report it there, the canonical state comes back
+  const mp=globalThis.__arondightVsMultiplayer;if(mp?.connected&&mp.reportLocalDamage(amount,source)){const view=viewport();if(view){view.dataset.playerLastDamage=String(source);view.dataset.playerDamageRoute="mp-authority";}return before;}
+  playerHp=healthAfterDamage(before,amount,PLAYER_MAX_HP);setBridgePlayerHp(playerHp,playerHp<=0);const view=viewport();if(view){view.dataset.selfHp=String(playerHp);view.dataset.playerHp=String(playerHp);view.dataset.playerDead=playerHp<=0?"1":"0";view.dataset.playerLastDamage=String(source);}if(playerHp<=0)markPlayerDeath(source);return playerHp;
 }
 function resetPlayer(){playerHp=PLAYER_MAX_HP;setBridgePlayerHp(playerHp,false);revivePlayer();const view=viewport();if(view){view.dataset.selfHp=String(playerHp);view.dataset.playerHp=String(playerHp);view.dataset.playerDead="0";}return playerHp;}
 

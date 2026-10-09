@@ -94,6 +94,8 @@ function applyStartupPlayerMode(){
   if(viewport){viewport.dataset.autoStartupPlayerMode=String(mode||walk?.mode||STARTUP_MODE);viewport.dataset.autoStartupFootWeapon=String(weapons?.mode||"");}
 }
 
+// RESET returns to this start state too (game_reset.mjs, mobile dock)
+globalThis.__arondightApplyStartMode=applyStartupPlayerMode;
 function launchDefaultFlight(){
   normalizeStartupPlayerState();
   $("camFpv")?.click();

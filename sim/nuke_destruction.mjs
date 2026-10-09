@@ -202,7 +202,7 @@ function planActors(scene,center){
   const vitals=globalThis.__arondightPlayerVitals;for(const target of vitals?.damageTargets?.()||[]){const p=target.position;if(!p)continue;const d=Math.hypot(p.x-center.x,p.y-center.y);events.push({at:performance.now()+d/SHOCK_MPS*1000,type:"local",target,distance:d,center:center.clone()});}
   const rigid=globalThis.__arondightWorldRigidBodies;if(rigid?.engine?.records)for(const record of rigid.engine.records.values()){const q=rigid.pose?.(record.id)?.position;if(!q)continue;const d=Math.hypot(q[0]-center.x,q[1]-center.y);if(d<MAX_EFFECT_M)events.push({at:performance.now()+d/SHOCK_MPS*1000,type:"rigid",record,distance:d,center:center.clone()});}
   for(const drone of globalThis.__arondightWantedSystem?.drones||[]){if(!drone?.active||!drone.root)continue;drone.root.getWorldPosition(tmp);const d=tmp.distanceTo(center);if(d<MAX_EFFECT_M)events.push({at:performance.now()+d/SHOCK_MPS*1000,type:"police",drone,distance:d});}
-  const peer=bridge()?.vsPeerMesh;if(peer&&peer.visible!==false){peer.getWorldPosition(tmp);const d=tmp.distanceTo(center);if(d<MAX_EFFECT_M)events.push({at:performance.now()+d/SHOCK_MPS*1000,type:"peer",peer,distance:d});}
+  /* other players: every client runs the nuke (remote nukes are replayed) and damages only its own player, so nobody is hit twice */
   return n;
 }
 function hitActor(scene,e){

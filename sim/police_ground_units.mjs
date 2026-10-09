@@ -267,11 +267,11 @@ function broadcast(now){
 }
 function onFx(event){const pk=event?.detail?.packet,peer=String(event?.detail?.peerId||pk?.playerId||"");if(!pk||pk.objectId!=="police-ground")return;
   if(pk.kind==="police-car-hit"){if(pk.to&&pk.to!==selfId())return;const u=units.find(x=>x.id===pk.unit);if(u)damageCar(u,Math.min(200,Number(pk.dmg)||CAR_HIT));return;}
-  if(pk.kind==="police-wreck"){for(const r of remote.values()){const ru=r.units.get(String(pk.unit||""));if(ru&&!ru.wreck){ru.wreck=true;rcharCar(u.car);}}return;}
+  if(pk.kind==="police-wreck"){for(const r of remote.values()){const ru=r.units.get(String(pk.unit||""));if(ru&&!ru.wreck){ru.wreck=true;charCar(ru.car);}}return;}
   if(pk.kind==="police-hit"){if(pk.to&&pk.to!==selfId())return;const u=units.find(x=>x.id===pk.unit),c=u?.cops.find(x=>x.slot===pk.slot);if(c&&c.state==="out"){c.hp-=Number(pk.dmg)||HIT_DAMAGE;if(c.hp<=0)killCop(c,u,null);}return;}
   if(pk.kind!=="police-sync"||!Array.isArray(pk.units)||!peer)return;ensureScene();let r=remote.get(peer);if(!r){r={units:new Map(),seen:0};remote.set(peer,r);}r.seen=performance.now();const live=new Set();
   for(const e of pk.units.slice(0,MAX_UNITS)){const[id,cx,cy,cz,cyaw,lights,cops,wreck]=e;if(typeof id!=="string")continue;live.add(id);let ru=r.units.get(id);if(!ru){const car=buildCruiser();car.group.userData.policeCruiser=id;root.add(car.group);ru={id,car,cops:[],x:0,y:0,z:0,yaw:0,init:false};r.units.set(id,ru);}
-    const[lx,ly]=toLocal(+cx||0,+cy||0);Object.assign(ru,{tx:lx,ty:ly,tz:+cz||0,tyaw:+cyaw||0,lights:Boolean(lights)});if(wreck&&!ru.wreck){ru.wreck=true;rcharCar(u.car);}if(!ru.init){ru.x=lx;ru.y=ly;ru.z=ru.tz;ru.yaw=ru.tyaw;ru.init=true;}
+    const[lx,ly]=toLocal(+cx||0,+cy||0);Object.assign(ru,{tx:lx,ty:ly,tz:+cz||0,tyaw:+cyaw||0,lights:Boolean(lights)});if(wreck&&!ru.wreck){ru.wreck=true;charCar(ru.car);}if(!ru.init){ru.x=lx;ru.y=ly;ru.z=ru.tz;ru.yaw=ru.tyaw;ru.init=true;}
     const keep=new Map(ru.cops.map(c=>[c.slot,c]));ru.cops=(Array.isArray(cops)?cops:[]).slice(0,COPS_PER_UNIT).map(ce=>{const[slot,x,y,z,yaw,anim,shots,aim]=ce;const[ax,ay]=toLocal(+x||0,+y||0);let c=keep.get(slot);if(!c){c={slot,x:ax,y:ay,z:+z||0,yaw:+yaw||0,shots:+shots||0,proxy:makeProxy(),idx:-1};}keep.delete(slot);
       if((+shots||0)>c.shots&&Array.isArray(aim)){const[tx,ty]=toLocal(+aim[0]||0,+aim[1]||0);const from=new THREE.Vector3(c.x+Math.cos(c.yaw)*.45,c.y+Math.sin(c.yaw)*.45,(+z||0)+1.38);tracer(from,new THREE.Vector3(tx,ty,+aim[2]||1));playShot(from.x,from.y,from.z);}
       Object.assign(c,{tx:ax,ty:ay,tz:+z||0,tyaw:+yaw||0,anim:+anim||0,shots:+shots||0});return c;});for(const c of keep.values())c.proxy.parent?.remove(c.proxy);}

@@ -40,7 +40,8 @@ function check(){
       try{R.applyImpulse(v.id,[-vx*PERSON_KG*.55,-vy*PERSON_KG*.55,0]);}catch{}
       thump(Math.min(.9,.25+v.sp*.04));if(v.id===mine)addTrauma?.(.18);
       if(v.id===mine){try{globalThis.__arondightWantedSystem?.reportCrime?.({id:`hit-${person.id}-${Date.now().toString(36)}`,kind:result==="dead"?"person":"person-hit",position:[person.x,person.y,0]});}catch{}if(result==="dead")window.dispatchEvent(new CustomEvent("arondight:world-kill",{detail:{id:person.id,kind:"person",position:[person.x,person.y,0],network:false,vehicle:true}}));}
-      send({kind:"knock",src:person.src,pid:person.id,imp:impulse,dmg:+damage.toFixed(1)});
+      // only the car this player drives is news for the others; the traffic itself runs on every client
+      if(v.id===mine)send({kind:"knock",src:person.src,pid:person.id,imp:impulse,dmg:+damage.toFixed(1)});
       const view=viewport();if(view){view.dataset.peopleImpacts=String((Number(view.dataset.peopleImpacts)||0)+1);view.dataset.peopleImpactLast=`${result}@${(v.sp*3.6).toFixed(0)}kmh`;}}}
 }
 function send(extra){const s=bridge()?.vsSession;if(!s?.sendFx)return;const id=`pi-${Date.now().toString(36)}-${(serial++).toString(36)}`;seenFx.add(id);try{s.sendFx({type:"impact",objectId:"people-impacts",id,p:[0,0,0],...extra});}catch{}}

@@ -184,7 +184,7 @@ function stepPara(dt){const c=para,inp=readInputs(dt)||{pitchIn:0,rollIn:0},age=
 function airframesFrame(now){for(const A of[...airframes.values()]){syncAirframe(A);
   if(A.state==="ghost"&&A.af.contacts>=2&&A.v.length()<1)park(A);
   if(A.state==="wreck"&&now-A.wreckAt>WRECK_MS)removeAirframe(A);}}
-function rebase(dx,dy){const b=bridge();if(!b?.active||!Number.isFinite(b.originLon)||!Number.isFinite(b.originLat))return;const[lon,lat]=metersToLngLat(b.originLon,b.originLat,dx,dy);
+function rebase(dx,dy){const b=bridge();if(!b?.active||!Number.isFinite(b.originLon)||!Number.isFinite(b.originLat))return;if(b.vsSession)return;/* a shared multiplayer frame never moves (everybody's positions are in it) */const[lon,lat]=metersToLngLat(b.originLon,b.originLat,dx,dy);
   b.originLon=lon;b.originLat=lat;b.lastMapSyncMs=-Infinity;b.lastMapView=null;b.lastViewportSize="";b.minimapLastQueryMs=-Infinity;b.minimapLastDrawMs=-Infinity;b.buildingCollisionDirty=true;b.clearBuildingCollisions?.();try{b.map?.jumpTo?.({center:[lon,lat]});}catch{}
   for(const A of airframes.values()){const p=physics()?.pose?.(A.id);if(p)physics()?.setPose?.(A.id,{position:[p.position[0]-dx,p.position[1]-dy,p.position[2]],velocity:[...p.velocity],angularVelocity:[...(p.angularVelocity||[0,0,0])]});A.p.x-=dx;A.p.y-=dy;}
   const shift=o=>{if(o){o.x-=dx;o.y-=dy;}};shift(para?.p);for(const bb of bombs)shift(bb.p);for(const r of rockets)shift(r.p);if(spawnPad){spawnPad.x-=dx;spawnPad.y-=dy;}farGround.invalidate();
