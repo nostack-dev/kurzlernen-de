@@ -496,9 +496,8 @@ function remotePolicePacket(event){
     y=(p.g[1]-b.originLat)*Math.PI/180*R;
   }
   const meta=remoteWanted.get(owner);
-  if(meta&&Number.isFinite(seq)&&seq<meta.seq)return;
-  remoteWanted.set(owner,{stars:Math.max(0,Math.min(5,Number(p.stars)||0)),phase:String(p.phase||"clear"),lastAt:now,seq:Number.isFinite(seq)?seq:0});
-  if(unit===-1){for(const state of remotePolice.values())if(state.owner===owner)state.root.visible=false;return;}
+  if(!meta||!Number.isFinite(seq)||seq>=meta.seq)remoteWanted.set(owner,{stars:Math.max(0,Math.min(5,Number(p.stars)||0)),phase:String(p.phase||"clear"),lastAt:now,seq:Number.isFinite(seq)?seq:0});
+  if(unit===-1){if(!meta||!Number.isFinite(seq)||seq>=meta.seq)for(const state of remotePolice.values())if(state.owner===owner)state.root.visible=false;return;}
   const state=remotePoliceMesh(owner,unit);if(!state||Number.isFinite(seq)&&seq<state.seq)return;
   state.seq=Number.isFinite(seq)?seq:state.seq+1;state.lastAt=now;
   state.target.set(x,y,z);if(!state.root.visible)state.root.position.copy(state.target);
@@ -508,7 +507,7 @@ function remotePolicePacket(event){
 function replicatePolice(now,dt){
   const s=bridge()?.vsSession,b=bridge(),id=String(s?.getSelfId?.()||""),peers=s?.getPeerIds?.()||[];
   if(s?.sendFx&&id&&peers.length&&now-lastWantedReplicate>=350){
-    lastWantedReplicate=now;const list=drones.filter(d=>d.active),point=currentPlayerPosition(),sender=list.length?list:[{index:-1,root:{position:point||new THREE.Vector3(),rotation:{z:0}},active:false}]];
+    lastWantedReplicate=now;const list=drones.filter(d=>d.active),point=currentPlayerPosition(),sender=list.length?list:[{index:-1,root:{position:point||new THREE.Vector3(),rotation:{z:0}},active:false}];
     for(const d of sender){
       const p=d.root.position,packet={type:"impact",objectId:"wanted-cop-state",kind:"wanted-cop-state",id:`wc-${++wantedPacketSeq}`,ownerId:id,targetId:id,unit:d.index,seq:wantedPacketSeq,stars,phase,active:!!d.active,p:[p.x,p.y,p.z],yaw:d.root.rotation.z};
       if(b?.active&&Number.isFinite(b.originLon)&&Number.isFinite(b.originLat)){
