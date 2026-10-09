@@ -1,9 +1,9 @@
 {
- "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94",
+ "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b",
  "steps": [
   {
    "name": "boot-5s",
-   "ms": 10730,
+   "ms": 12821,
    "draws": [
     [
      "Group",
@@ -74,11 +74,11 @@
      "25dc/0tri/0shadowTri"
     ]
    ],
-   "fps": 1.5,
+   "fps": 0.4,
    "drawCalls": 1,
    "triangles": 12,
    "lines": 0,
-   "programs": 38,
+   "programs": 51,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -97,6 +97,12 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -115,6 +121,13 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1"
@@ -132,7 +145,7 @@
   },
   {
    "name": "menu",
-   "ms": 3364,
+   "ms": 3325,
    "draws": [
     [
      "Group",
@@ -203,11 +216,11 @@
      "25dc/0tri/0shadowTri"
     ]
    ],
-   "fps": 5.4,
+   "fps": 5.6,
    "drawCalls": 1,
    "triangles": 12,
    "lines": 0,
-   "programs": 38,
+   "programs": 51,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -226,6 +239,12 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -244,6 +263,13 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1"
@@ -261,7 +287,7 @@
   },
   {
    "name": "started",
-   "ms": 27149,
+   "ms": 24647,
    "draws": [
     [
      "WORLD_GROUND",
@@ -289,7 +315,7 @@
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
-     "36dc/5968tri/5920shadowTri"
+     "38dc/6648tri/6600shadowTri"
     ],
     [
      "WORLD_IMPACT_DECALS[inst]",
@@ -324,16 +350,16 @@
      "2dc/360tri/0shadowTri"
     ],
     [
-     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
-     "25dc/336tri/336shadowTri"
-    ],
-    [
      "WORLD_GLASS_CRACKS[inst]",
      "1dc/320tri/0shadowTri"
     ],
     [
+     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
+     "25dc/312tri/312shadowTri"
+    ],
+    [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "25dc/240tri/240shadowTri"
+     "25dc/192tri/192shadowTri"
     ],
     [
      "WORLD_WALL_SOOT[inst]",
@@ -352,11 +378,11 @@
      "25dc/0tri/0shadowTri"
     ]
    ],
-   "fps": 3.9,
+   "fps": 3.8,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 452,
+   "programs": 464,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -375,6 +401,12 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -393,6 +425,13 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
@@ -415,7 +454,6 @@
     "?#6,7,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
@@ -828,7 +866,7 @@
   },
   {
    "name": "city-drone",
-   "ms": 5651,
+   "ms": 5852,
    "draws": [
     [
      "WORLD_GROUND",
@@ -860,7 +898,7 @@
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
-     "36dc/5968tri/5920shadowTri"
+     "38dc/6648tri/6600shadowTri"
     ],
     [
      "WORLD_IMPACT_DECALS[inst]",
@@ -896,7 +934,7 @@
     ],
     [
      "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
-     "25dc/336tri/336shadowTri"
+     "25dc/324tri/324shadowTri"
     ],
     [
      "WORLD_GLASS_CRACKS[inst]",
@@ -904,7 +942,7 @@
     ],
     [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "25dc/240tri/240shadowTri"
+     "25dc/204tri/204shadowTri"
     ],
     [
      "WORLD_WALL_SOOT[inst]",
@@ -919,11 +957,11 @@
      "25dc/0tri/0shadowTri"
     ]
    ],
-   "fps": 2.8,
-   "drawCalls": 85,
-   "triangles": 258924,
+   "fps": 3.7,
+   "drawCalls": 83,
+   "triangles": 259207,
    "lines": 0,
-   "programs": 454,
+   "programs": 466,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -942,6 +980,12 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -960,6 +1004,13 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
@@ -982,7 +1033,6 @@
     "?#6,7,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
@@ -1398,7 +1448,7 @@
   },
   {
    "name": "minimap-expanded",
-   "ms": 4385,
+   "ms": 4258,
    "draws": [
     [
      "WORLD_GROUND",
@@ -1478,7 +1528,7 @@
     ],
     [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "25dc/240tri/240shadowTri"
+     "25dc/216tri/216shadowTri"
     ],
     [
      "WORLD_WALL_SOOT[inst]",
@@ -1489,11 +1539,11 @@
      "1dc/12tri/0shadowTri"
     ]
    ],
-   "fps": 4.1,
-   "drawCalls": 149,
-   "triangles": 328407,
+   "fps": 4.4,
+   "drawCalls": 145,
+   "triangles": 328186,
    "lines": 0,
-   "programs": 459,
+   "programs": 469,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -1512,6 +1562,12 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -1530,6 +1586,13 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
@@ -1552,7 +1615,6 @@
     "?#6,7,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
@@ -1951,9 +2013,7 @@
     "?#physical,STANDARD,,highp",
     "?#depth,highp,srgb-linear,",
     "?#depth,highp,srgb-linear,",
-    "?#depth,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp"
+    "?#depth,highp,srgb-linear,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
@@ -1973,7 +2033,7 @@
   },
   {
    "name": "on-foot",
-   "ms": 7101,
+   "ms": 6566,
    "draws": [
     [
      "WORLD_GROUND",
@@ -2053,7 +2113,7 @@
     ],
     [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "25dc/240tri/240shadowTri"
+     "25dc/228tri/228shadowTri"
     ],
     [
      "WORLD_WALL_SOOT[inst]",
@@ -2064,11 +2124,11 @@
      "1dc/12tri/0shadowTri"
     ]
    ],
-   "fps": 3.4,
-   "drawCalls": 147,
-   "triangles": 307642,
+   "fps": 4,
+   "drawCalls": 145,
+   "triangles": 308235,
    "lines": 0,
-   "programs": 466,
+   "programs": 478,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -2087,6 +2147,12 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -2105,6 +2171,13 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
@@ -2127,7 +2200,6 @@
     "?#6,7,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
@@ -2530,12 +2602,12 @@
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp"
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
@@ -2555,7 +2627,7 @@
   },
   {
    "name": "foot-touch-move",
-   "ms": 13493,
+   "ms": 13415,
    "draws": [
     [
      "WORLD_GROUND",
@@ -2646,11 +2718,11 @@
      "1dc/12tri/0shadowTri"
     ]
    ],
-   "fps": 3.3,
-   "drawCalls": 143,
-   "triangles": 307967,
+   "fps": 3.2,
+   "drawCalls": 145,
+   "triangles": 307973,
    "lines": 0,
-   "programs": 466,
+   "programs": 478,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -2669,6 +2741,12 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -2687,6 +2765,13 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
@@ -2709,7 +2794,6 @@
     "?#6,7,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
@@ -3112,12 +3196,12 @@
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp"
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
@@ -3137,7 +3221,7 @@
   },
   {
    "name": "interior-door",
-   "ms": 6654,
+   "ms": 6199,
    "draws": [
     [
      "WORLD_GROUND",
@@ -3164,28 +3248,28 @@
      "1dc/27136tri/27136shadowTri"
     ],
     [
-     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
-     "25dc/19104tri/19104shadowTri"
-    ],
-    [
      "WORLD_WATER",
      "1dc/16090tri/0shadowTri"
     ],
     [
+     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
+     "25dc/12480tri/12480shadowTri"
+    ],
+    [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "25dc/13488tri/13488shadowTri"
+     "25dc/12384tri/12384shadowTri"
     ],
     [
      "WORLD_SCORCH_MARKS",
      "1dc/8000tri/0shadowTri"
     ],
     [
-     "WORLD_IMPACT_DECALS[inst]",
-     "1dc/5880tri/0shadowTri"
+     "WORLD_PROCEDURAL_POPULATION",
+     "37dc/6484tri/6436shadowTri"
     ],
     [
-     "WORLD_PROCEDURAL_POPULATION",
-     "35dc/5804tri/5756shadowTri"
+     "WORLD_IMPACT_DECALS[inst]",
+     "1dc/5880tri/0shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
@@ -3228,11 +3312,11 @@
      "1dc/12tri/0shadowTri"
     ]
    ],
-   "fps": 1.6,
-   "drawCalls": 245,
-   "triangles": 463922,
+   "fps": 1.7,
+   "drawCalls": 243,
+   "triangles": 447021,
    "lines": 0,
-   "programs": 466,
+   "programs": 478,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -3251,6 +3335,12 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -3269,6 +3359,13 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
@@ -3291,7 +3388,6 @@
     "?#6,7,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
@@ -3694,12 +3790,12 @@
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp"
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
@@ -3719,7 +3815,601 @@
   },
   {
    "name": "interior-inside",
-   "ms": 6371,
+   "ms": 5821,
+   "draws": [
+    [
+     "WORLD_GROUND",
+     "64dc/204800tri/0shadowTri"
+    ],
+    [
+     "WORLD_CITY_ROADS",
+     "15dc/52656tri/0shadowTri"
+    ],
+    [
+     "STREET_LAMPS[inst]",
+     "2dc/46800tri/36000shadowTri"
+    ],
+    [
+     "WORLD_CITY_BUILDINGS",
+     "20dc/43397tri/43391shadowTri"
+    ],
+    [
+     "BUILDING_INTERIORS[inst]",
+     "13dc/37850tri/0shadowTri"
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION[inst]",
+     "1dc/27136tri/27136shadowTri"
+    ],
+    [
+     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
+     "25dc/22404tri/22404shadowTri"
+    ],
+    [
+     "WORLD_PEOPLE_CHARACTERS[inst]",
+     "25dc/19008tri/19008shadowTri"
+    ],
+    [
+     "WORLD_WATER",
+     "1dc/16090tri/0shadowTri"
+    ],
+    [
+     "WORLD_SCORCH_MARKS",
+     "1dc/8000tri/0shadowTri"
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     "37dc/6484tri/6436shadowTri"
+    ],
+    [
+     "WORLD_IMPACT_DECALS[inst]",
+     "1dc/5880tri/0shadowTri"
+    ],
+    [
+     "WORLD_PROCEDURAL_DECOR[inst]",
+     "6dc/4016tri/0shadowTri"
+    ],
+    [
+     "WORLD_IMPACT_CHIPS[inst]",
+     "1dc/2640tri/0shadowTri"
+    ],
+    [
+     "WALK_PISTOL_3D",
+     "22dc/1964tri/0shadowTri"
+    ],
+    [
+     "BUILDING_INTERIORS",
+     "7dc/1172tri/48shadowTri"
+    ],
+    [
+     "CHARACTER_civilian",
+     "19dc/1056tri/1056shadowTri"
+    ],
+    [
+     "REAL_SKY",
+     "1dc/960tri/0shadowTri"
+    ],
+    [
+     "Group",
+     "44dc/696tri/660shadowTri"
+    ],
+    [
+     "PLAYER_JETS",
+     "18dc/606tri/596shadowTri"
+    ],
+    [
+     "WORLD_GLASS_CRACKS[inst]",
+     "1dc/320tri/0shadowTri"
+    ],
+    [
+     "WORLD_WALL_SOOT[inst]",
+     "1dc/96tri/0shadowTri"
+    ]
+   ],
+   "fps": 2.5,
+   "drawCalls": 231,
+   "triangles": 479549,
+   "lines": 0,
+   "programs": 478,
+   "programNames": [
+    "?#basic,highp,srgb-linear,",
+    "?#0,1,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#4,5,highp,srgb-linear,fa",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,highp,srgb,false,,fa",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#4,5,highp,srgb-linear,fa",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#10,11,highp,srgb-linear,",
+    "?#10,12,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#13,14,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#sprite,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,highp,srgb,false,,fa",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#10,11,highp,srgb,false,,",
+    "?#10,12,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#13,14,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#15,16,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#15,16,highp,srgb,false,,",
+    "?#17,18,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#4,5,highp,srgb-linear,fa",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#13,14,highp,srgb-linear,",
+    "?#10,12,highp,srgb-linear,",
+    "?#10,11,highp,srgb-linear,",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#lambert,highp,srgb-linea",
+    "?#17,19,highp,srgb-linear,",
+    "?#17,20,highp,srgb-linear,",
+    "?#17,21,highp,srgb-linear,",
+    "?#17,22,highp,srgb,false,,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#points,highp,srgb-linear",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#15,16,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#sprite,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,highp,srgb,false,,fa",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#physical,STANDARD,,highp",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#10,11,highp,srgb,false,,",
+    "?#10,12,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#13,14,highp,srgb,false,,",
+    "?#15,16,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#depth,highp,srgb-linear,",
+    "?#depth,highp,srgb-linear,",
+    "?#depth,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,"
+   ],
+   "status": "SIM ready: shared production runtime active.",
+   "worldMode": "real",
+   "mapSync": "data-only-topdown-v1",
+   "cityBuildings": "612",
+   "water": "8045/182/222",
+   "ground": "satellite-albedo",
+   "roads": "990",
+   "bloom": "off-slow-device",
+   "style": "realistic-pbr-sun-ibl-v4",
+   "collisionPrisms": "900",
+   "terrainShapes": "479",
+   "droneHp": "100",
+   "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
+   "walkMode": "foot",
+   "menuHidden": true
+  },
+  {
+   "name": "interior-stairs",
+   "ms": 6091,
    "draws": [
     [
      "WORLD_GROUND",
@@ -3739,15 +4429,11 @@
     ],
     [
      "BUILDING_INTERIORS[inst]",
-     "13dc/37850tri/0shadowTri"
+     "13dc/37586tri/0shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_POPULATION[inst]",
      "1dc/27136tri/27136shadowTri"
-    ],
-    [
-     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
-     "25dc/16860tri/16860shadowTri"
     ],
     [
      "WORLD_WATER",
@@ -3755,27 +4441,1219 @@
     ],
     [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "25dc/12360tri/12360shadowTri"
+     "25dc/11268tri/11268shadowTri"
+    ],
+    [
+     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
+     "25dc/10272tri/10272shadowTri"
     ],
     [
      "WORLD_SCORCH_MARKS",
      "1dc/8000tri/0shadowTri"
     ],
     [
+     "WORLD_PROCEDURAL_POPULATION",
+     "37dc/6484tri/6436shadowTri"
+    ],
+    [
      "WORLD_IMPACT_DECALS[inst]",
      "1dc/5880tri/0shadowTri"
     ],
     [
-     "WORLD_PROCEDURAL_POPULATION",
-     "34dc/5288tri/5240shadowTri"
+     "WORLD_PROCEDURAL_DECOR[inst]",
+     "6dc/4016tri/0shadowTri"
+    ],
+    [
+     "WORLD_IMPACT_CHIPS[inst]",
+     "1dc/2640tri/0shadowTri"
+    ],
+    [
+     "WALK_PISTOL_3D",
+     "22dc/1964tri/0shadowTri"
+    ],
+    [
+     "BUILDING_INTERIORS",
+     "7dc/1172tri/48shadowTri"
     ],
     [
      "CHARACTER_civilian",
-     "95dc/5280tri/5280shadowTri"
+     "19dc/1056tri/1056shadowTri"
+    ],
+    [
+     "REAL_SKY",
+     "1dc/960tri/0shadowTri"
+    ],
+    [
+     "Group",
+     "44dc/696tri/660shadowTri"
+    ],
+    [
+     "PLAYER_JETS",
+     "18dc/606tri/596shadowTri"
+    ],
+    [
+     "WORLD_GLASS_CRACKS[inst]",
+     "1dc/320tri/0shadowTri"
+    ],
+    [
+     "WORLD_WALL_SOOT[inst]",
+     "1dc/96tri/0shadowTri"
+    ]
+   ],
+   "fps": 2.3,
+   "drawCalls": 253,
+   "triangles": 435332,
+   "lines": 0,
+   "programs": 478,
+   "programNames": [
+    "?#basic,highp,srgb-linear,",
+    "?#0,1,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#4,5,highp,srgb-linear,fa",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,highp,srgb,false,,fa",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#4,5,highp,srgb-linear,fa",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#10,11,highp,srgb-linear,",
+    "?#10,12,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#13,14,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#sprite,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,highp,srgb,false,,fa",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#10,11,highp,srgb,false,,",
+    "?#10,12,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#13,14,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#15,16,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#15,16,highp,srgb,false,,",
+    "?#17,18,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#4,5,highp,srgb-linear,fa",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#13,14,highp,srgb-linear,",
+    "?#10,12,highp,srgb-linear,",
+    "?#10,11,highp,srgb-linear,",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#lambert,highp,srgb-linea",
+    "?#17,19,highp,srgb-linear,",
+    "?#17,20,highp,srgb-linear,",
+    "?#17,21,highp,srgb-linear,",
+    "?#17,22,highp,srgb,false,,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#points,highp,srgb-linear",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#15,16,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#sprite,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,highp,srgb,false,,fa",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#physical,STANDARD,,highp",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#10,11,highp,srgb,false,,",
+    "?#10,12,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#13,14,highp,srgb,false,,",
+    "?#15,16,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#depth,highp,srgb-linear,",
+    "?#depth,highp,srgb-linear,",
+    "?#depth,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,"
+   ],
+   "status": "SIM ready: shared production runtime active.",
+   "worldMode": "real",
+   "mapSync": "data-only-topdown-v1",
+   "cityBuildings": "1182",
+   "water": "8045/182/222",
+   "ground": "satellite-albedo",
+   "roads": "990",
+   "bloom": "off-slow-device",
+   "style": "realistic-pbr-sun-ibl-v4",
+   "collisionPrisms": "900",
+   "terrainShapes": "479",
+   "droneHp": "100",
+   "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
+   "walkMode": "foot",
+   "menuHidden": true
+  },
+  {
+   "name": "interior-upper",
+   "ms": 6482,
+   "draws": [
+    [
+     "WORLD_GROUND",
+     "64dc/204800tri/0shadowTri"
+    ],
+    [
+     "WORLD_CITY_BUILDINGS",
+     "26dc/89165tri/89159shadowTri"
+    ],
+    [
+     "BUILDING_INTERIORS[inst]",
+     "13dc/62576tri/0shadowTri"
+    ],
+    [
+     "WORLD_CITY_ROADS",
+     "15dc/52656tri/0shadowTri"
+    ],
+    [
+     "STREET_LAMPS[inst]",
+     "2dc/46800tri/36000shadowTri"
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION[inst]",
+     "1dc/27984tri/27984shadowTri"
+    ],
+    [
+     "WORLD_WATER",
+     "1dc/16090tri/0shadowTri"
+    ],
+    [
+     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
+     "25dc/14676tri/14676shadowTri"
+    ],
+    [
+     "WORLD_PEOPLE_CHARACTERS[inst]",
+     "25dc/9048tri/9048shadowTri"
+    ],
+    [
+     "WORLD_SCORCH_MARKS",
+     "1dc/8000tri/0shadowTri"
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     "38dc/6648tri/6600shadowTri"
+    ],
+    [
+     "WORLD_IMPACT_DECALS[inst]",
+     "1dc/5880tri/0shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
      "6dc/4016tri/0shadowTri"
+    ],
+    [
+     "CHARACTER_civilian",
+     "57dc/3168tri/3168shadowTri"
+    ],
+    [
+     "WORLD_IMPACT_CHIPS[inst]",
+     "1dc/2640tri/0shadowTri"
+    ],
+    [
+     "BUILDING_INTERIORS",
+     "8dc/2202tri/48shadowTri"
+    ],
+    [
+     "WALK_PISTOL_3D",
+     "22dc/1964tri/0shadowTri"
+    ],
+    [
+     "REAL_SKY",
+     "1dc/960tri/0shadowTri"
+    ],
+    [
+     "Group",
+     "44dc/696tri/660shadowTri"
+    ],
+    [
+     "PLAYER_JETS",
+     "18dc/606tri/596shadowTri"
+    ],
+    [
+     "WORLD_GLASS_CRACKS[inst]",
+     "1dc/320tri/0shadowTri"
+    ],
+    [
+     "WORLD_WALL_SOOT[inst]",
+     "1dc/96tri/0shadowTri"
+    ]
+   ],
+   "fps": 2.3,
+   "drawCalls": 232,
+   "triangles": 456393,
+   "lines": 0,
+   "programs": 478,
+   "programNames": [
+    "?#basic,highp,srgb-linear,",
+    "?#0,1,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#4,5,highp,srgb-linear,fa",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,highp,srgb,false,,fa",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#4,5,highp,srgb-linear,fa",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#10,11,highp,srgb-linear,",
+    "?#10,12,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#13,14,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#sprite,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,highp,srgb,false,,fa",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#10,11,highp,srgb,false,,",
+    "?#10,12,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#13,14,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#15,16,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#15,16,highp,srgb,false,,",
+    "?#17,18,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#4,5,highp,srgb-linear,fa",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#13,14,highp,srgb-linear,",
+    "?#10,12,highp,srgb-linear,",
+    "?#10,11,highp,srgb-linear,",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#lambert,highp,srgb-linea",
+    "?#17,19,highp,srgb-linear,",
+    "?#17,20,highp,srgb-linear,",
+    "?#17,21,highp,srgb-linear,",
+    "?#17,22,highp,srgb,false,,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#points,highp,srgb-linear",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#15,16,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#sprite,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#points,highp,srgb-linear",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#4,5,highp,srgb,false,,fa",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#physical,STANDARD,,highp",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#10,11,highp,srgb,false,,",
+    "?#10,12,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#13,14,highp,srgb,false,,",
+    "?#15,16,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#sprite,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#points,highp,srgb,false,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#depth,highp,srgb-linear,",
+    "?#depth,highp,srgb-linear,",
+    "?#depth,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,"
+   ],
+   "status": "SIM ready: shared production runtime active.",
+   "worldMode": "real",
+   "mapSync": "data-only-topdown-v1",
+   "cityBuildings": "1182",
+   "water": "8045/182/222",
+   "ground": "satellite-albedo",
+   "roads": "990",
+   "bloom": "off-slow-device",
+   "style": "realistic-pbr-sun-ibl-v4",
+   "collisionPrisms": "900",
+   "terrainShapes": "479",
+   "droneHp": "100",
+   "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
+   "walkMode": "foot",
+   "menuHidden": true
+  },
+  {
+   "name": "interior-roof",
+   "ms": 5879,
+   "draws": [
+    [
+     "WORLD_GROUND",
+     "64dc/204800tri/0shadowTri"
+    ],
+    [
+     "WORLD_CITY_BUILDINGS",
+     "26dc/89165tri/89159shadowTri"
+    ],
+    [
+     "WORLD_CITY_ROADS",
+     "22dc/79380tri/0shadowTri"
+    ],
+    [
+     "STREET_LAMPS[inst]",
+     "2dc/46800tri/36000shadowTri"
+    ],
+    [
+     "BUILDING_INTERIORS[inst]",
+     "13dc/37586tri/0shadowTri"
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION[inst]",
+     "1dc/27984tri/27984shadowTri"
+    ],
+    [
+     "WORLD_WATER",
+     "1dc/16090tri/0shadowTri"
+    ],
+    [
+     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
+     "25dc/15780tri/15780shadowTri"
+    ],
+    [
+     "WORLD_PEOPLE_CHARACTERS[inst]",
+     "25dc/9036tri/9036shadowTri"
+    ],
+    [
+     "WORLD_SCORCH_MARKS",
+     "1dc/8000tri/0shadowTri"
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     "38dc/6648tri/6600shadowTri"
+    ],
+    [
+     "WORLD_IMPACT_DECALS[inst]",
+     "1dc/5880tri/0shadowTri"
+    ],
+    [
+     "WORLD_PROCEDURAL_DECOR[inst]",
+     "6dc/4016tri/0shadowTri"
+    ],
+    [
+     "CHARACTER_civilian",
+     "57dc/3168tri/3168shadowTri"
     ],
     [
      "WORLD_IMPACT_CHIPS[inst]",
@@ -3810,11 +5688,11 @@
      "1dc/96tri/0shadowTri"
     ]
    ],
-   "fps": 2.4,
-   "drawCalls": 230,
-   "triangles": 464363,
+   "fps": 2.5,
+   "drawCalls": 283,
+   "triangles": 462076,
    "lines": 0,
-   "programs": 466,
+   "programs": 478,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -3833,6 +5711,12 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -3851,6 +5735,13 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
@@ -3873,7 +5764,6 @@
     "?#6,7,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
@@ -4276,1761 +6166,12 @@
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp"
-   ],
-   "status": "SIM ready: shared production runtime active.",
-   "worldMode": "real",
-   "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1182",
-   "water": "8045/182/222",
-   "ground": "satellite-albedo",
-   "roads": "990",
-   "bloom": "off-slow-device",
-   "style": "realistic-pbr-sun-ibl-v4",
-   "collisionPrisms": "900",
-   "terrainShapes": "479",
-   "droneHp": "100",
-   "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
-   "walkMode": "foot",
-   "menuHidden": true
-  },
-  {
-   "name": "interior-stairs",
-   "ms": 6486,
-   "draws": [
-    [
-     "WORLD_GROUND",
-     "64dc/204800tri/0shadowTri"
-    ],
-    [
-     "WORLD_CITY_BUILDINGS",
-     "26dc/89165tri/89159shadowTri"
-    ],
-    [
-     "WORLD_CITY_ROADS",
-     "15dc/52656tri/0shadowTri"
-    ],
-    [
-     "STREET_LAMPS[inst]",
-     "2dc/46800tri/36000shadowTri"
-    ],
-    [
-     "BUILDING_INTERIORS[inst]",
-     "13dc/37586tri/0shadowTri"
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION[inst]",
-     "1dc/27984tri/27984shadowTri"
-    ],
-    [
-     "WORLD_WATER",
-     "1dc/16090tri/0shadowTri"
-    ],
-    [
-     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
-     "25dc/10224tri/10224shadowTri"
-    ],
-    [
-     "WORLD_PEOPLE_CHARACTERS[inst]",
-     "25dc/10140tri/10140shadowTri"
-    ],
-    [
-     "WORLD_SCORCH_MARKS",
-     "1dc/8000tri/0shadowTri"
-    ],
-    [
-     "CHARACTER_civilian",
-     "114dc/6336tri/6336shadowTri"
-    ],
-    [
-     "WORLD_IMPACT_DECALS[inst]",
-     "1dc/5880tri/0shadowTri"
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     "35dc/5628tri/5580shadowTri"
-    ],
-    [
-     "WORLD_PROCEDURAL_DECOR[inst]",
-     "6dc/4016tri/0shadowTri"
-    ],
-    [
-     "WORLD_IMPACT_CHIPS[inst]",
-     "1dc/2640tri/0shadowTri"
-    ],
-    [
-     "WALK_PISTOL_3D",
-     "22dc/1964tri/0shadowTri"
-    ],
-    [
-     "WANTED_POLICE_DRONES",
-     "22dc/1316tri/0shadowTri"
-    ],
-    [
-     "BUILDING_INTERIORS",
-     "7dc/1172tri/48shadowTri"
-    ],
-    [
-     "REAL_SKY",
-     "1dc/960tri/0shadowTri"
-    ],
-    [
-     "SANDBOX_COP",
-     "12dc/840tri/840shadowTri"
-    ],
-    [
-     "Group",
-     "44dc/696tri/660shadowTri"
-    ],
-    [
-     "PLAYER_JETS",
-     "18dc/606tri/596shadowTri"
-    ]
-   ],
-   "fps": 2.4,
-   "drawCalls": 301,
-   "triangles": 437678,
-   "lines": 0,
-   "programs": 467,
-   "programNames": [
-    "?#basic,highp,srgb-linear,",
-    "?#0,1,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#4,5,highp,srgb-linear,fa",
-    "?#points,highp,srgb-linear",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#4,5,highp,srgb,false,,fa",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#4,5,highp,srgb-linear,fa",
-    "?#points,highp,srgb-linear",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#10,11,highp,srgb-linear,",
-    "?#10,12,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#13,14,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#4,5,highp,srgb,false,,fa",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#10,11,highp,srgb,false,,",
-    "?#10,12,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#13,14,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#15,16,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#15,16,highp,srgb,false,,",
-    "?#17,18,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb-linea",
-    "?#4,5,highp,srgb-linear,fa",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#13,14,highp,srgb-linear,",
-    "?#10,12,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#lambert,highp,srgb-linea",
-    "?#17,19,highp,srgb-linear,",
-    "?#17,20,highp,srgb-linear,",
-    "?#17,21,highp,srgb-linear,",
-    "?#17,22,highp,srgb,false,,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#points,highp,srgb-linear",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#15,16,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#4,5,highp,srgb,false,,fa",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#physical,STANDARD,,highp",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#10,11,highp,srgb,false,,",
-    "?#10,12,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#13,14,highp,srgb,false,,",
-    "?#15,16,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#depth,highp,srgb-linear,",
-    "?#depth,highp,srgb-linear,",
-    "?#depth,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1"
-   ],
-   "status": "SIM ready: shared production runtime active.",
-   "worldMode": "real",
-   "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1182",
-   "water": "8045/182/222",
-   "ground": "satellite-albedo",
-   "roads": "990",
-   "bloom": "off-slow-device",
-   "style": "realistic-pbr-sun-ibl-v4",
-   "collisionPrisms": "900",
-   "terrainShapes": "479",
-   "droneHp": "100",
-   "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
-   "walkMode": "foot",
-   "menuHidden": true
-  },
-  {
-   "name": "interior-upper",
-   "ms": 6641,
-   "draws": [
-    [
-     "WORLD_GROUND",
-     "64dc/204800tri/0shadowTri"
-    ],
-    [
-     "WORLD_CITY_BUILDINGS",
-     "26dc/89165tri/89159shadowTri"
-    ],
-    [
-     "WORLD_CITY_ROADS",
-     "22dc/79380tri/0shadowTri"
-    ],
-    [
-     "BUILDING_INTERIORS[inst]",
-     "13dc/62576tri/0shadowTri"
-    ],
-    [
-     "STREET_LAMPS[inst]",
-     "2dc/46800tri/36000shadowTri"
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION[inst]",
-     "1dc/27984tri/27984shadowTri"
-    ],
-    [
-     "WORLD_WATER",
-     "1dc/16090tri/0shadowTri"
-    ],
-    [
-     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
-     "25dc/11292tri/11292shadowTri"
-    ],
-    [
-     "WORLD_PEOPLE_CHARACTERS[inst]",
-     "25dc/10116tri/10116shadowTri"
-    ],
-    [
-     "WORLD_SCORCH_MARKS",
-     "1dc/8000tri/0shadowTri"
-    ],
-    [
-     "CHARACTER_civilian",
-     "114dc/6336tri/6336shadowTri"
-    ],
-    [
-     "WORLD_IMPACT_DECALS[inst]",
-     "1dc/5880tri/0shadowTri"
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     "35dc/5628tri/5580shadowTri"
-    ],
-    [
-     "WORLD_PROCEDURAL_DECOR[inst]",
-     "6dc/4016tri/0shadowTri"
-    ],
-    [
-     "WORLD_IMPACT_CHIPS[inst]",
-     "1dc/2640tri/0shadowTri"
-    ],
-    [
-     "BUILDING_INTERIORS",
-     "8dc/2202tri/48shadowTri"
-    ],
-    [
-     "WALK_PISTOL_3D",
-     "22dc/1964tri/0shadowTri"
-    ],
-    [
-     "WANTED_POLICE_DRONES",
-     "22dc/1316tri/0shadowTri"
-    ],
-    [
-     "REAL_SKY",
-     "1dc/960tri/0shadowTri"
-    ],
-    [
-     "SANDBOX_COP",
-     "12dc/840tri/840shadowTri"
-    ],
-    [
-     "Group",
-     "44dc/696tri/660shadowTri"
-    ],
-    [
-     "PLAYER_JETS",
-     "18dc/606tri/596shadowTri"
-    ]
-   ],
-   "fps": 2.1,
-   "drawCalls": 352,
-   "triangles": 484708,
-   "lines": 0,
-   "programs": 467,
-   "programNames": [
-    "?#basic,highp,srgb-linear,",
-    "?#0,1,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#4,5,highp,srgb-linear,fa",
-    "?#points,highp,srgb-linear",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#4,5,highp,srgb,false,,fa",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#4,5,highp,srgb-linear,fa",
-    "?#points,highp,srgb-linear",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#10,11,highp,srgb-linear,",
-    "?#10,12,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#13,14,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#4,5,highp,srgb,false,,fa",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#10,11,highp,srgb,false,,",
-    "?#10,12,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#13,14,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#15,16,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#15,16,highp,srgb,false,,",
-    "?#17,18,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb-linea",
-    "?#4,5,highp,srgb-linear,fa",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#13,14,highp,srgb-linear,",
-    "?#10,12,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#lambert,highp,srgb-linea",
-    "?#17,19,highp,srgb-linear,",
-    "?#17,20,highp,srgb-linear,",
-    "?#17,21,highp,srgb-linear,",
-    "?#17,22,highp,srgb,false,,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#points,highp,srgb-linear",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#15,16,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#4,5,highp,srgb,false,,fa",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#physical,STANDARD,,highp",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#10,11,highp,srgb,false,,",
-    "?#10,12,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#13,14,highp,srgb,false,,",
-    "?#15,16,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#depth,highp,srgb-linear,",
-    "?#depth,highp,srgb-linear,",
-    "?#depth,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1"
-   ],
-   "status": "SIM ready: shared production runtime active.",
-   "worldMode": "real",
-   "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1182",
-   "water": "8045/182/222",
-   "ground": "satellite-albedo",
-   "roads": "1433",
-   "bloom": "off-slow-device",
-   "style": "realistic-pbr-sun-ibl-v4",
-   "collisionPrisms": "900",
-   "terrainShapes": "479",
-   "droneHp": "100",
-   "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
-   "walkMode": "foot",
-   "menuHidden": true
-  },
-  {
-   "name": "interior-roof",
-   "ms": 6065,
-   "draws": [
-    [
-     "WORLD_GROUND",
-     "64dc/204800tri/0shadowTri"
-    ],
-    [
-     "WORLD_CITY_BUILDINGS",
-     "26dc/89165tri/89159shadowTri"
-    ],
-    [
-     "WORLD_CITY_ROADS",
-     "22dc/79380tri/0shadowTri"
-    ],
-    [
-     "STREET_LAMPS[inst]",
-     "2dc/46800tri/36000shadowTri"
-    ],
-    [
-     "BUILDING_INTERIORS[inst]",
-     "13dc/37586tri/0shadowTri"
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION[inst]",
-     "1dc/27984tri/27984shadowTri"
-    ],
-    [
-     "WORLD_WATER",
-     "1dc/16090tri/0shadowTri"
-    ],
-    [
-     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
-     "25dc/11268tri/11268shadowTri"
-    ],
-    [
-     "WORLD_PEOPLE_CHARACTERS[inst]",
-     "25dc/9024tri/9024shadowTri"
-    ],
-    [
-     "WORLD_SCORCH_MARKS",
-     "1dc/8000tri/0shadowTri"
-    ],
-    [
-     "WORLD_IMPACT_DECALS[inst]",
-     "1dc/5880tri/0shadowTri"
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     "35dc/5628tri/5580shadowTri"
-    ],
-    [
-     "CHARACTER_civilian",
-     "95dc/5280tri/5280shadowTri"
-    ],
-    [
-     "WORLD_PROCEDURAL_DECOR[inst]",
-     "6dc/4016tri/0shadowTri"
-    ],
-    [
-     "WORLD_IMPACT_CHIPS[inst]",
-     "1dc/2640tri/0shadowTri"
-    ],
-    [
-     "WALK_PISTOL_3D",
-     "22dc/1964tri/0shadowTri"
-    ],
-    [
-     "WANTED_POLICE_DRONES",
-     "26dc/1500tri/0shadowTri"
-    ],
-    [
-     "BUILDING_INTERIORS",
-     "7dc/1172tri/48shadowTri"
-    ],
-    [
-     "REAL_SKY",
-     "1dc/960tri/0shadowTri"
-    ],
-    [
-     "SANDBOX_COP",
-     "12dc/840tri/840shadowTri"
-    ],
-    [
-     "SANDBOX_SWAT",
-     "12dc/840tri/840shadowTri"
-    ],
-    [
-     "FIGHTER_JETS",
-     "24dc/828tri/808shadowTri"
-    ]
-   ],
-   "fps": 2.4,
-   "drawCalls": 376,
-   "triangles": 463009,
-   "lines": 0,
-   "programs": 467,
-   "programNames": [
-    "?#basic,highp,srgb-linear,",
-    "?#0,1,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#4,5,highp,srgb-linear,fa",
-    "?#points,highp,srgb-linear",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#4,5,highp,srgb,false,,fa",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#4,5,highp,srgb-linear,fa",
-    "?#points,highp,srgb-linear",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#10,11,highp,srgb-linear,",
-    "?#10,12,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#13,14,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#4,5,highp,srgb,false,,fa",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#10,11,highp,srgb,false,,",
-    "?#10,12,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#13,14,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#15,16,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#15,16,highp,srgb,false,,",
-    "?#17,18,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb-linea",
-    "?#4,5,highp,srgb-linear,fa",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#13,14,highp,srgb-linear,",
-    "?#10,12,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#lambert,highp,srgb-linea",
-    "?#17,19,highp,srgb-linear,",
-    "?#17,20,highp,srgb-linear,",
-    "?#17,21,highp,srgb-linear,",
-    "?#17,22,highp,srgb,false,,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#points,highp,srgb-linear",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#15,16,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#lambert,highp,srgb-linea",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#points,highp,srgb-linear",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#4,5,highp,srgb,false,,fa",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#physical,STANDARD,,highp",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#10,11,highp,srgb,false,,",
-    "?#10,12,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#13,14,highp,srgb,false,,",
-    "?#15,16,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#depth,highp,srgb-linear,",
-    "?#depth,highp,srgb-linear,",
-    "?#depth,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1"
+    "?#basic,highp,srgb,false,,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
@@ -6050,7 +6191,7 @@
   },
   {
    "name": "nuke-fired",
-   "ms": 6988,
+   "ms": 6654,
    "draws": [
     [
      "WORLD_GROUND",
@@ -6077,32 +6218,32 @@
      "1dc/16090tri/0shadowTri"
     ],
     [
-     "Group",
-     "106dc/10756tri/2892shadowTri"
+     "WORLD_PEOPLE_CHARACTERS[inst]",
+     "25dc/14796tri/14796shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
-     "46dc/9368tri/9320shadowTri"
+     "49dc/10388tri/10340shadowTri"
     ],
     [
-     "WORLD_PEOPLE_CHARACTERS[inst]",
-     "25dc/9204tri/9204shadowTri"
+     "Group",
+     "103dc/9736tri/1872shadowTri"
+    ],
+    [
+     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
+     "25dc/9156tri/9156shadowTri"
     ],
     [
      "WORLD_SCORCH_MARKS",
      "1dc/8000tri/0shadowTri"
     ],
     [
-     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
-     "25dc/6924tri/6924shadowTri"
+     "WORLD_IMPACT_DECALS[inst]",
+     "1dc/5880tri/0shadowTri"
     ],
     [
      "CHARACTER_civilian",
-     "114dc/6336tri/6336shadowTri"
-    ],
-    [
-     "WORLD_IMPACT_DECALS[inst]",
-     "1dc/5880tri/0shadowTri"
+     "76dc/4224tri/4224shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
@@ -6113,10 +6254,6 @@
      "1dc/2640tri/0shadowTri"
     ],
     [
-     "SANDBOX_SWAT",
-     "18dc/1260tri/840shadowTri"
-    ],
-    [
      "LOCAL_HUMAN_VR",
      "20dc/1068tri/1068shadowTri"
     ],
@@ -6125,27 +6262,31 @@
      "1dc/960tri/0shadowTri"
     ],
     [
-     "NUKE_TORN_CHUNK",
-     "38dc/848tri/0shadowTri"
-    ],
-    [
-     "SANDBOX_COP",
-     "12dc/840tri/840shadowTri"
-    ],
-    [
-     "FIGHTER_JETS",
-     "24dc/828tri/808shadowTri"
-    ],
-    [
      "NUKE_CRATER_CONTOURS",
      "1dc/816tri/0shadowTri"
+    ],
+    [
+     "NUKE_TORN_CHUNK",
+     "30dc/672tri/0shadowTri"
+    ],
+    [
+     "PLAYER_JETS",
+     "18dc/606tri/596shadowTri"
+    ],
+    [
+     "PILOT_SHIELD",
+     "2dc/360tri/0shadowTri"
+    ],
+    [
+     "WORLD_GLASS_CRACKS[inst]",
+     "1dc/320tri/0shadowTri"
     ]
    ],
-   "fps": 1.5,
-   "drawCalls": 507,
-   "triangles": 493590,
-   "lines": 1686,
-   "programs": 480,
+   "fps": 1.6,
+   "drawCalls": 397,
+   "triangles": 491877,
+   "lines": 1860,
+   "programs": 489,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -6164,6 +6305,12 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -6182,6 +6329,13 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
@@ -6204,7 +6358,6 @@
     "?#6,7,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
@@ -6607,13 +6760,12 @@
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
@@ -6624,9 +6776,7 @@
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
     "?#basic,highp,srgb,false,,",
-    "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#sprite,highp,srgb,false,"
+    "?#points,highp,srgb,false,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
@@ -6639,10 +6789,10 @@
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
    "terrainShapes": "479",
-   "nukeDebris": "584",
-   "nukeFlung": "9",
-   "nukeBuildings": "1060",
-   "nukeActors": "121",
+   "nukeDebris": "650",
+   "nukeFlung": "2",
+   "nukeBuildings": "900",
+   "nukeActors": "98",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
    "walkMode": "drone",
@@ -6650,7 +6800,7 @@
   },
   {
    "name": "nuke-3s",
-   "ms": 4535,
+   "ms": 4619,
    "draws": [
     [
      "WORLD_GROUND",
@@ -6658,7 +6808,7 @@
     ],
     [
      "WORLD_CITY_BUILDINGS",
-     "27dc/88449tri/88443shadowTri"
+     "27dc/88481tri/88475shadowTri"
     ],
     [
      "STREET_LAMPS[inst]",
@@ -6674,11 +6824,15 @@
     ],
     [
      "Group",
-     "121dc/15675tri/8320shadowTri"
+     "132dc/14858tri/7464shadowTri"
     ],
     [
      "WORLD_SCORCH_MARKS",
      "1dc/8000tri/0shadowTri"
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION[inst]",
+     "1dc/7632tri/7632shadowTri"
     ],
     [
      "CHARACTER_civilian",
@@ -6689,27 +6843,23 @@
      "1dc/5880tri/0shadowTri"
     ],
     [
-     "WORLD_PROCEDURAL_POPULATION[inst]",
-     "1dc/4240tri/4240shadowTri"
+     "WORLD_PEOPLE_CHARACTERS[inst]",
+     "25dc/4680tri/4680shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
      "6dc/4016tri/0shadowTri"
     ],
     [
-     "WANTED_POLICE_DRONES",
-     "50dc/2908tri/0shadowTri"
-    ],
-    [
      "WORLD_IMPACT_CHIPS[inst]",
      "1dc/2640tri/0shadowTri"
     ],
     [
-     "SANDBOX_COP",
-     "24dc/1680tri/1680shadowTri"
+     "WORLD_PROCEDURAL_POPULATION",
+     "9dc/2034tri/2028shadowTri"
     ],
     [
-     "SANDBOX_SWAT",
+     "SANDBOX_COP",
      "18dc/1260tri/1260shadowTri"
     ],
     [
@@ -6729,23 +6879,23 @@
      "37dc/764tri/752shadowTri"
     ],
     [
-     "WORLD_PROCEDURAL_POPULATION",
-     "18dc/713tri/668shadowTri"
-    ],
-    [
      "PLAYER_JETS",
      "18dc/606tri/596shadowTri"
     ],
     [
-     "SANDBOX_HEAVY",
-     "6dc/448tri/448shadowTri"
+     "SANDBOX_SWAT",
+     "6dc/420tri/420shadowTri"
+    ],
+    [
+     "PILOT_SHIELD",
+     "2dc/360tri/0shadowTri"
     ]
    ],
-   "fps": 3,
-   "drawCalls": 384,
-   "triangles": 417331,
-   "lines": 1326,
-   "programs": 481,
+   "fps": 3.3,
+   "drawCalls": 442,
+   "triangles": 407064,
+   "lines": 1224,
+   "programs": 493,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -6764,6 +6914,12 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -6782,6 +6938,13 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
@@ -6804,7 +6967,6 @@
     "?#6,7,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
@@ -7207,13 +7369,12 @@
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
@@ -7224,15 +7385,16 @@
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
     "?#basic,highp,srgb,false,,",
-    "?#sprite,highp,srgb,false,",
     "?#points,highp,srgb,false,",
+    "?#lambert,highp,srgb,306,1",
+    "?#sprite,highp,srgb,false,",
     "?#sprite,highp,srgb,false,",
     "?#basic,highp,srgb,false,,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
    "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1183",
+   "cityBuildings": "1182",
    "water": "8045/182/222",
    "ground": "satellite-albedo",
    "roads": "1433",
@@ -7240,10 +7402,10 @@
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
    "terrainShapes": "479",
-   "nukeDebris": "2000",
-   "nukeFlung": "66",
-   "nukeBuildings": "1060",
-   "nukeActors": "121",
+   "nukeDebris": "1444",
+   "nukeFlung": "61",
+   "nukeBuildings": "900",
+   "nukeActors": "98",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
    "walkMode": "drone",
@@ -7251,7 +7413,7 @@
   },
   {
    "name": "nuke-8s",
-   "ms": 9367,
+   "ms": 9465,
    "draws": [
     [
      "WORLD_GROUND",
@@ -7259,11 +7421,11 @@
     ],
     [
      "WORLD_CITY_BUILDINGS",
-     "27dc/87705tri/87699shadowTri"
+     "27dc/87871tri/87865shadowTri"
     ],
     [
      "WORLD_CITY_ROADS",
-     "25dc/79944tri/0shadowTri"
+     "25dc/79962tri/0shadowTri"
     ],
     [
      "STREET_LAMPS[inst]",
@@ -7279,19 +7441,23 @@
     ],
     [
      "Group",
-     "120dc/15669tri/8320shadowTri"
+     "131dc/14852tri/7464shadowTri"
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION[inst]",
+     "1dc/12720tri/12720shadowTri"
     ],
     [
      "WORLD_SCORCH_MARKS",
      "1dc/8000tri/0shadowTri"
     ],
     [
-     "WORLD_PROCEDURAL_POPULATION[inst]",
-     "1dc/6784tri/6784shadowTri"
-    ],
-    [
      "WORLD_IMPACT_DECALS[inst]",
      "1dc/5880tri/0shadowTri"
+    ],
+    [
+     "WORLD_PEOPLE_CHARACTERS[inst]",
+     "25dc/5820tri/5820shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
@@ -7302,51 +7468,47 @@
      "1dc/2640tri/0shadowTri"
     ],
     [
-     "WANTED_POLICE_DRONES",
-     "44dc/2632tri/0shadowTri"
+     "CHARACTER_civilian",
+     "38dc/2112tri/2112shadowTri"
     ],
     [
      "SANDBOX_COP",
      "30dc/2100tri/2100shadowTri"
     ],
     [
-     "SANDBOX_SWAT",
-     "18dc/1260tri/1260shadowTri"
+     "WORLD_PROCEDURAL_POPULATION",
+     "9dc/2034tri/2028shadowTri"
     ],
     [
-     "WORLD_PEOPLE_CHARACTERS[inst]",
-     "25dc/1212tri/1212shadowTri"
+     "NUKE_TORN_CHUNK",
+     "52dc/1618tri/0shadowTri"
     ],
     [
      "LOCAL_HUMAN_VR",
      "20dc/1068tri/1068shadowTri"
     ],
     [
-     "CHARACTER_civilian",
-     "19dc/1056tri/1056shadowTri"
-    ],
-    [
      "REAL_SKY",
      "1dc/960tri/0shadowTri"
     ],
     [
-     "SANDBOX_HEAVY",
-     "12dc/896tri/896shadowTri"
+     "SANDBOX_SWAT",
+     "12dc/840tri/420shadowTri"
     ],
     [
      "NUKE_CRATER_CONTOURS",
      "1dc/816tri/0shadowTri"
     ],
     [
-     "WORLD_PROCEDURAL_POPULATION",
-     "18dc/713tri/668shadowTri"
+     "PLAYER_JETS",
+     "18dc/606tri/596shadowTri"
     ]
    ],
-   "fps": 3,
-   "drawCalls": 454,
-   "triangles": 489944,
-   "lines": 1224,
-   "programs": 481,
+   "fps": 2.7,
+   "drawCalls": 476,
+   "triangles": 482634,
+   "lines": 2085,
+   "programs": 493,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -7365,6 +7527,12 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -7383,6 +7551,13 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
@@ -7405,7 +7580,6 @@
     "?#6,7,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
@@ -7808,13 +7982,12 @@
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
@@ -7825,26 +7998,27 @@
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
     "?#basic,highp,srgb,false,,",
-    "?#sprite,highp,srgb,false,",
     "?#points,highp,srgb,false,",
+    "?#lambert,highp,srgb,306,1",
+    "?#sprite,highp,srgb,false,",
     "?#sprite,highp,srgb,false,",
     "?#basic,highp,srgb,false,,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
    "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1183",
+   "cityBuildings": "1181",
    "water": "8045/182/222",
    "ground": "satellite-albedo",
-   "roads": "1438",
+   "roads": "1439",
    "bloom": "off-slow-device",
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
    "terrainShapes": "479",
-   "nukeDebris": "2000",
-   "nukeFlung": "66",
-   "nukeBuildings": "1060",
-   "nukeActors": "121",
+   "nukeDebris": "1663",
+   "nukeFlung": "61",
+   "nukeBuildings": "900",
+   "nukeActors": "98",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
    "walkMode": "drone",
@@ -7852,7 +8026,7 @@
   },
   {
    "name": "nuke-16s",
-   "ms": 12161,
+   "ms": 12499,
    "draws": [
     [
      "WORLD_GROUND",
@@ -7860,11 +8034,11 @@
     ],
     [
      "WORLD_CITY_BUILDINGS",
-     "27dc/87705tri/87699shadowTri"
+     "27dc/87691tri/87685shadowTri"
     ],
     [
      "WORLD_CITY_ROADS",
-     "25dc/79944tri/0shadowTri"
+     "25dc/80016tri/0shadowTri"
     ],
     [
      "STREET_LAMPS[inst]",
@@ -7883,16 +8057,20 @@
      "1dc/16090tri/0shadowTri"
     ],
     [
-     "Group",
-     "85dc/8407tri/8320shadowTri"
-    ],
-    [
      "WORLD_SCORCH_MARKS",
      "1dc/8000tri/0shadowTri"
     ],
     [
+     "Group",
+     "96dc/7590tri/7464shadowTri"
+    ],
+    [
      "WORLD_IMPACT_DECALS[inst]",
      "1dc/5880tri/0shadowTri"
+    ],
+    [
+     "WORLD_PEOPLE_CHARACTERS[inst]",
+     "25dc/5820tri/5820shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
@@ -7900,7 +8078,7 @@
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
-     "23dc/3248tri/3212shadowTri"
+     "12dc/3391tri/3388shadowTri"
     ],
     [
      "WORLD_IMPACT_CHIPS[inst]",
@@ -7911,14 +8089,6 @@
      "36dc/2520tri/2520shadowTri"
     ],
     [
-     "WORLD_PEOPLE_CHARACTERS[inst]",
-     "25dc/2316tri/2316shadowTri"
-    ],
-    [
-     "SANDBOX_SWAT",
-     "24dc/1680tri/1680shadowTri"
-    ],
-    [
      "LOCAL_HUMAN_VR",
      "20dc/1068tri/1068shadowTri"
     ],
@@ -7927,8 +8097,8 @@
      "1dc/960tri/0shadowTri"
     ],
     [
-     "SANDBOX_HEAVY",
-     "12dc/896tri/896shadowTri"
+     "SANDBOX_SWAT",
+     "12dc/840tri/840shadowTri"
     ],
     [
      "NUKE_CRATER_CONTOURS",
@@ -7941,13 +8111,17 @@
     [
      "PILOT_SHIELD",
      "2dc/360tri/0shadowTri"
+    ],
+    [
+     "WORLD_GLASS_CRACKS[inst]",
+     "1dc/320tri/0shadowTri"
     ]
    ],
    "fps": 3.1,
-   "drawCalls": 360,
-   "triangles": 504708,
-   "lines": 1224,
-   "programs": 477,
+   "drawCalls": 334,
+   "triangles": 484091,
+   "lines": 1494,
+   "programs": 489,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -7966,6 +8140,12 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -7984,6 +8164,13 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
@@ -8006,7 +8193,6 @@
     "?#6,7,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
@@ -8409,39 +8595,39 @@
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#sprite,highp,srgb,false,",
     "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#basic,highp,srgb,false,,"
+    "?#basic,highp,srgb,false,,",
+    "?#points,highp,srgb,false,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
    "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1183",
+   "cityBuildings": "1181",
    "water": "8045/182/222",
    "ground": "satellite-albedo",
-   "roads": "1438",
+   "roads": "1441",
    "bloom": "off-slow-device",
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
    "terrainShapes": "479",
    "nukeDebris": "2000",
-   "nukeFlung": "66",
-   "nukeBuildings": "1060",
-   "nukeActors": "121",
+   "nukeFlung": "61",
+   "nukeBuildings": "900",
+   "nukeActors": "98",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
    "walkMode": "drone",
@@ -8449,7 +8635,7 @@
   },
   {
    "name": "nuke-30s",
-   "ms": 18140,
+   "ms": 17937,
    "draws": [
     [
      "WORLD_GROUND",
@@ -8457,11 +8643,11 @@
     ],
     [
      "WORLD_CITY_BUILDINGS",
-     "27dc/87705tri/87699shadowTri"
+     "27dc/87691tri/87685shadowTri"
     ],
     [
      "WORLD_CITY_ROADS",
-     "25dc/79944tri/0shadowTri"
+     "25dc/80016tri/0shadowTri"
     ],
     [
      "STREET_LAMPS[inst]",
@@ -8480,20 +8666,16 @@
      "1dc/16090tri/0shadowTri"
     ],
     [
-     "Group",
-     "85dc/8407tri/8320shadowTri"
-    ],
-    [
      "WORLD_SCORCH_MARKS",
      "1dc/8000tri/0shadowTri"
     ],
     [
-     "WORLD_IMPACT_DECALS[inst]",
-     "1dc/5880tri/0shadowTri"
+     "Group",
+     "96dc/7590tri/7464shadowTri"
     ],
     [
-     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
-     "25dc/4536tri/4536shadowTri"
+     "WORLD_IMPACT_DECALS[inst]",
+     "1dc/5880tri/0shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
@@ -8501,27 +8683,23 @@
     ],
     [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "25dc/3420tri/3420shadowTri"
+     "25dc/3600tri/3600shadowTri"
+    ],
+    [
+     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
+     "25dc/3516tri/3516shadowTri"
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     "12dc/3391tri/3388shadowTri"
     ],
     [
      "SANDBOX_COP",
      "48dc/3360tri/3360shadowTri"
     ],
     [
-     "WORLD_PROCEDURAL_POPULATION",
-     "23dc/3248tri/3212shadowTri"
-    ],
-    [
      "WORLD_IMPACT_CHIPS[inst]",
      "1dc/2640tri/0shadowTri"
-    ],
-    [
-     "SANDBOX_SWAT",
-     "24dc/1680tri/1680shadowTri"
-    ],
-    [
-     "WANTED_POLICE_DRONES",
-     "26dc/1500tri/0shadowTri"
     ],
     [
      "LOCAL_HUMAN_VR",
@@ -8536,15 +8714,23 @@
      "1dc/960tri/0shadowTri"
     ],
     [
-     "SANDBOX_HEAVY",
-     "12dc/896tri/896shadowTri"
+     "SANDBOX_SWAT",
+     "12dc/840tri/840shadowTri"
+    ],
+    [
+     "FIGHTER_JETS",
+     "24dc/828tri/808shadowTri"
+    ],
+    [
+     "NUKE_CRATER_CONTOURS",
+     "1dc/816tri/0shadowTri"
     ]
    ],
-   "fps": 3.3,
-   "drawCalls": 458,
-   "triangles": 518928,
+   "fps": 3.5,
+   "drawCalls": 423,
+   "triangles": 463753,
    "lines": 1224,
-   "programs": 477,
+   "programs": 489,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -8563,6 +8749,12 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#8,9,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -8581,6 +8773,13 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#lambert,highp,srgb,306,1",
+    "?#6,7,highp,srgb,false,,fa",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
@@ -8603,7 +8802,6 @@
     "?#6,7,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
-    "?#8,9,onBeforeCompile(){}",
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
@@ -9006,39 +9204,39 @@
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#sprite,highp,srgb,false,",
     "?#sprite,highp,srgb,false,",
-    "?#points,highp,srgb,false,",
-    "?#basic,highp,srgb,false,,"
+    "?#basic,highp,srgb,false,,",
+    "?#points,highp,srgb,false,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
    "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1183",
+   "cityBuildings": "1181",
    "water": "8045/182/222",
    "ground": "satellite-albedo",
-   "roads": "1438",
+   "roads": "1441",
    "bloom": "off-slow-device",
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
    "terrainShapes": "479",
    "nukeDebris": "2000",
-   "nukeFlung": "66",
-   "nukeBuildings": "1060",
-   "nukeActors": "121",
+   "nukeFlung": "61",
+   "nukeBuildings": "900",
+   "nukeActors": "98",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
    "walkMode": "drone",
@@ -9046,8 +9244,8 @@
   }
  ],
  "errors": [],
- "domContentLoadedMs": 3742,
- "loadEventMs": 10813,
+ "domContentLoadedMs": 1430,
+ "loadEventMs": 2837,
  "boot": {
   "readyState": "complete",
   "status": "SIM ready: shared production runtime active.",
@@ -9055,32 +9253,32 @@
   "resources": [
    {
     "n": "l,opsz,wght@0,14..32,400..900;1,14..32,700..900&display=swap",
-    "ms": 48,
+    "ms": 46,
     "kb": 1
-   },
-   {
-    "n": "ps://kurzlernen.de/drone_simulator.html?vcheck=1791533534930",
-    "ms": 765,
-    "kb": 1481
    },
    {
     "n": "https://kurzlernen.de/drone_simulator.webmanifest",
-    "ms": 106,
+    "ms": 51,
     "kb": 1
    },
    {
+    "n": "ps://kurzlernen.de/drone_simulator.html?vcheck=1791536558750",
+    "ms": 382,
+    "kb": 1483
+   },
+   {
     "n": "https://kurzlernen.de/sim/icons/rush-192.png",
-    "ms": 115,
+    "ms": 42,
     "kb": 19
    },
    {
     "n": "https://kurzlernen.de/sim/icons/rush-192.png",
-    "ms": 115,
+    "ms": 43,
     "kb": 0
    },
    {
     "n": "https://kurzlernen.de/sim/icons/rush-192.png",
-    "ms": 115,
+    "ms": 45,
     "kb": 0
    }
   ]
@@ -9201,142 +9399,90 @@
  },
  "attribution": {
   "baseline": 4.8,
-  "noCitySolids": 5.7,
-  "noCityEdges": 4.6,
-  "noObjectEdges": 6.1,
-  "noGrid": 4.5,
-  "no_WORLD_CITY_ROADS": 4.8,
+  "noCitySolids": 5.9,
+  "noCityEdges": 4.8,
+  "noObjectEdges": 5.8,
+  "noGrid": 4.8,
+  "no_WORLD_CITY_ROADS": 4.5,
   "no_WORLD_GROUND": 4.9,
-  "no_WORLD_WATER": 4.4,
-  "no_REAL_SKY": 5.3,
-  "no_WORLD_PROCEDURAL_POPULATION": 4.6,
-  "no_WORLD_PROCEDURAL_DECOR": 4.9,
-  "noShadows": 4.8,
-  "halfRes": 5.4,
-  "noMapCanvas": 5.2,
+  "no_WORLD_WATER": 5.1,
+  "no_REAL_SKY": 4.8,
+  "no_WORLD_PROCEDURAL_POPULATION": 4.8,
+  "no_WORLD_PROCEDURAL_DECOR": 5.2,
+  "noShadows": 5.1,
+  "halfRes": 6.2,
+  "noMapCanvas": 5.3,
   "objectEdges": 0
  },
  "cpuProfiles": {
   "drone": [
    [
     "(idle) :0",
-    61
+    59.3
    ],
    [
     "(program) :0",
-    16.7
+    12.9
    ],
    [
-    "Uo drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9744",
-    1.6
+    "getShaderInfoLog :0",
+    5.2
    ],
    [
-    "(garbage collector) :0",
-    1.5
+    "getProgramInfoLog :0",
+    4.1
    ],
    [
     "wasm-function[240] 003320de:1",
     1.1
    ],
    [
-    "toWireType drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9732",
+    "Uo drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9744",
+    1
+   ],
+   [
+    "toWireType drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9732",
     0.8
+   ],
+   [
+    "applyForces drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10671",
+    0.6
    ],
    [
     "getBoundingClientRect :0",
     0.6
    ],
    [
-    "getObjectByProperty drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:293",
-    0.5
-   ],
-   [
-    "wasm-function[438] 003320de:1",
-    0.5
-   ],
-   [
-    "applyForces drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10671",
-    0.5
-   ],
-   [
-    "b_ drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9744",
-    0.4
-   ],
-   [
-    "Bh drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4400",
-    0.4
-   ],
-   [
     "now :0",
+    0.5
+   ],
+   [
+    "Ym drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9744",
     0.4
-   ],
-   [
-    "qm drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9744",
-    0.3
-   ],
-   [
-    "updateMatrixWorld drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:293",
-    0.3
-   ],
-   [
-    "wasm-function[343] 003320de:1",
-    0.3
-   ],
-   [
-    "(anon) :3",
-    0.3
-   ],
-   [
-    "drawMinimap drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10851",
-    0.2
-   ],
-   [
-    "js-to-wasm:iif: 003320de:1",
-    0.2
-   ],
-   [
-    "wasm-to-js :1",
-    0.2
    ],
    [
     "wasm-function[342] 003320de:1",
-    0.2
+    0.4
    ],
    [
-    "HIe drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10671",
-    0.2
+    "J5.renderBufferDirect drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:4400",
+    0.3
    ],
    [
-    "setTimeout :0",
-    0.2
+    "getObjectByProperty drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:293",
+    0.3
    ],
    [
-    "tE drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4401",
-    0.2
+    "drawMinimap drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10851",
+    0.3
    ],
    [
-    "(anon) drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10851",
-    0.2
+    "S_ drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9744",
+    0.3
    ],
    [
-    "nxt drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10671",
-    0.2
-   ],
-   [
-    "renderBufferDirect drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4400",
-    0.2
-   ],
-   [
-    "bindVertexArray :0",
-    0.2
-   ],
-   [
-    "step drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10671",
-    0.2
-   ],
-   [
-    "get geometry drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4401",
-    0.2
+    "Dh drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:4400",
+    0.3
    ],
    [
     "wasm-function[795] 003320de:1",
@@ -9347,201 +9493,51 @@
     0.2
    ],
    [
-    "multiplyMatrices drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:293",
+    "wasm-to-js :1",
     0.2
-   ],
-   [
-    "postMessage :0",
-    0.2
-   ],
-   [
-    "onImpact drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9782",
-    0.2
-   ],
-   [
-    "exchangeSync drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10671",
-    0.2
-   ],
-   [
-    "Fc drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4400",
-    0.1
-   ],
-   [
-    "Mp drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4401",
-    0.1
-   ],
-   [
-    "v drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:297",
-    0.1
-   ],
-   [
-    "loadMatchingFeature drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4401",
-    0.1
-   ],
-   [
-    "Xs drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:597",
-    0.1
-   ],
-   [
-    "Dd drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4400",
-    0.1
-   ],
-   [
-    "wasm-function[74] 003320de:1",
-    0.1
-   ],
-   [
-    "traverse drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:293",
-    0.1
-   ],
-   [
-    "cqe drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9760",
-    0.1
-   ]
-  ],
-  "foot": [
-   [
-    "(idle) :0",
-    75.9
-   ],
-   [
-    "(program) :0",
-    5.5
-   ],
-   [
-    "wasm-function[240] 003320de:1",
-    1.2
-   ],
-   [
-    "Uo drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9744",
-    1.2
-   ],
-   [
-    "toWireType drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9732",
-    0.8
    ],
    [
     "(anon) :3",
-    0.7
+    0.2
    ],
    [
-    "now :0",
-    0.6
+    "sE drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:4401",
+    0.2
    ],
    [
-    "qm drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9744",
-    0.5
+    "YIe drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10671",
+    0.2
    ],
    [
-    "renderBufferDirect drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4400",
-    0.4
+    "n2 drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10472",
+    0.2
    ],
    [
-    "wasm-function[342] 003320de:1",
-    0.4
+    "exchangeSync drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10671",
+    0.2
    ],
    [
-    "wasm-to-js :1",
-    0.4
+    "updateMatrixWorld drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:293",
+    0.2
+   ],
+   [
+    "bxt drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10671",
+    0.1
+   ],
+   [
+    "bindVertexArray :0",
+    0.1
+   ],
+   [
+    "wasm-function[438] 003320de:1",
+    0.1
+   ],
+   [
+    "wasm-function[343] 003320de:1",
+    0.1
    ],
    [
     "(garbage collector) :0",
-    0.4
-   ],
-   [
-    "getBoundingClientRect :0",
-    0.4
-   ],
-   [
-    "drawMinimap drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10851",
-    0.4
-   ],
-   [
-    "Bh drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4400",
-    0.3
-   ],
-   [
-    "bindVertexArray :0",
-    0.3
-   ],
-   [
-    "wasm-function[438] 003320de:1",
-    0.3
-   ],
-   [
-    "(anon) drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10851",
-    0.3
-   ],
-   [
-    "b_ drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9744",
-    0.2
-   ],
-   [
-    "traverse drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:293",
-    0.2
-   ],
-   [
-    "HIe drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10671",
-    0.2
-   ],
-   [
-    "get geometry drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4401",
-    0.2
-   ],
-   [
-    "cqe drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9760",
-    0.2
-   ],
-   [
-    "wasm-function[343] 003320de:1",
-    0.2
-   ],
-   [
-    "setTimeout :0",
-    0.2
-   ],
-   [
-    "wasm-function[795] 003320de:1",
-    0.2
-   ],
-   [
-    "wasm-function[315] 003320de:1",
-    0.2
-   ],
-   [
-    "nxt drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10671",
-    0.2
-   ],
-   [
-    "updateMatrixWorld drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:293",
-    0.2
-   ],
-   [
-    "tE drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4401",
-    0.1
-   ],
-   [
-    "s drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:551",
-    0.1
-   ],
-   [
-    "exchangeSync drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10671",
-    0.1
-   ],
-   [
-    "querySelectorAll :0",
-    0.1
-   ],
-   [
-    "wasm-function[660] 003320de:1",
-    0.1
-   ],
-   [
-    "js-to-wasm:iif: 003320de:1",
-    0.1
-   ],
-   [
-    "wasm-function[113] 003320de:1",
     0.1
    ],
    [
@@ -9549,101 +9545,93 @@
     0.1
    ],
    [
-    "d drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:648",
+    "wasm-function[15] 000180ae:1",
     0.1
    ],
    [
-    "getRGB drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:293",
+    "querySelectorAll :0",
     0.1
    ],
    [
-    "i drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:648",
+    "wasm-function[315] 003320de:1",
     0.1
    ],
    [
-    "wasm-function[341] 003320de:1",
+    "wasm-function[72] 003320de:1",
     0.1
    ],
    [
-    "uniform1i :0",
+    "bqe drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9760",
     0.1
    ],
    [
-    "r drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:648",
+    "ir drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:4400",
     0.1
    ],
    [
-    "Mp drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4401",
+    "s drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:551",
     0.1
    ],
    [
-    "att drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9828",
+    "traverse drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:293",
+    0.1
+   ],
+   [
+    "step drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10671",
+    0.1
+   ],
+   [
+    "x drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:297",
+    0.1
+   ],
+   [
+    "Q$e drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10768",
+    0.1
+   ],
+   [
+    "i drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:648",
+    0.1
+   ],
+   [
+    "multiplyMatrices drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:293",
     0.1
    ]
   ],
-  "nuke-0-4s": [
+  "foot": [
    [
     "(idle) :0",
-    49
+    71.5
    ],
    [
     "(program) :0",
-    7.5
+    7.2
    ],
    [
-    "Cfe drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:5226",
-    1.7
-   ],
-   [
-    "Uo drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9744",
+    "Uo drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9744",
     1.3
-   ],
-   [
-    "(garbage collector) :0",
-    1.3
-   ],
-   [
-    "Jqe drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9770",
-    1.2
    ],
    [
     "wasm-function[240] 003320de:1",
-    1.2
+    1.3
    ],
    [
-    "getBoundingClientRect :0",
-    1.1
-   ],
-   [
-    "toWireType drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9732",
-    1.1
+    "toWireType drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9732",
+    1
    ],
    [
     "(anon) :3",
-    0.9
+    0.7
    ],
    [
-    "convert drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:293",
+    "(anon) drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10851",
     0.6
    ],
    [
-    "traverse drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:293",
+    "getBoundingClientRect :0",
     0.6
    ],
    [
-    "o8e drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10384",
-    0.6
-   ],
-   [
-    "setItem :0",
-    0.6
-   ],
-   [
-    "get geometry drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4401",
-    0.6
-   ],
-   [
-    "aat drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10265",
+    "Ym drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9744",
     0.5
    ],
    [
@@ -9651,23 +9639,7 @@
     0.5
    ],
    [
-    "n drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10256",
-    0.5
-   ],
-   [
-    "O drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10265",
-    0.5
-   ],
-   [
-    "Zdt drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10384",
-    0.4
-   ],
-   [
-    "lat drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10265",
-    0.4
-   ],
-   [
-    "Gst drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10256",
+    "(garbage collector) :0",
     0.4
    ],
    [
@@ -9675,59 +9647,67 @@
     0.4
    ],
    [
-    "drawMinimap drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10851",
+    "S_ drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9744",
     0.4
    ],
    [
-    "n drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10509",
+    "YIe drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10671",
     0.4
    ],
    [
-    "gfe drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:5226",
-    0.4
-   ],
-   [
-    "kr drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9770",
-    0.4
+    "renderReal drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10851",
+    0.3
    ],
    [
     "wasm-function[795] 003320de:1",
     0.3
    ],
    [
-    "Sfe drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:5226",
+    "Dh drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:4400",
     0.3
    ],
    [
-    "bgt drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10671",
+    "wasm-to-js :1",
     0.3
    ],
    [
-    "E drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10472",
+    "i drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:648",
     0.3
    ],
    [
-    "qm drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9744",
-    0.3
+    "bxt drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10671",
+    0.2
    ],
    [
-    "Sdt drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10384",
-    0.3
+    "setTimeout :0",
+    0.2
    ],
    [
-    "LJ drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10256",
-    0.3
+    "traverse drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:293",
+    0.2
    ],
    [
-    "e drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10384",
-    0.3
+    "(anon) drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:152",
+    0.2
    ],
    [
-    "_d drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10231",
-    0.3
+    "get geometry drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:4401",
+    0.2
    ],
    [
-    "(anon) drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4401",
+    "J5.renderBufferDirect drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:4400",
+    0.2
+   ],
+   [
+    "js-to-wasm:iii: 003320de:1",
+    0.2
+   ],
+   [
+    "gaussian drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10671",
+    0.2
+   ],
+   [
+    "updateMatrixWorld drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:293",
     0.2
    ],
    [
@@ -9735,36 +9715,254 @@
     0.2
    ],
    [
-    "b_ drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9744",
+    "sE drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:4401",
     0.2
    ],
    [
-    "tht drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10384",
+    "v drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:297",
     0.2
    ],
    [
-    "tE drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:4401",
+    "wasm-function[15] 000180ae:1",
     0.2
    ],
    [
-    "postMessage :0",
+    "wasm-function[198] 003320de:1",
     0.2
    ],
    [
-    "kK drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:9839",
-    0.2
+    "querySelectorAll :0",
+    0.1
    ],
    [
-    "(anon) drone_simulator.html?diag-ci=b9888e292ab219fdb328577e9dac970a19c68c94&menu=1&hq=1:10851",
-    0.2
+    "tick drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9782",
+    0.1
    ],
    [
-    "js-to-wasm:iii: 003320de:1",
-    0.2
+    "n2 drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10472",
+    0.1
+   ],
+   [
+    "Stt drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9828",
+    0.1
+   ],
+   [
+    "exchangeSync drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10671",
+    0.1
+   ],
+   [
+    "wasm-function[315] 003320de:1",
+    0.1
+   ],
+   [
+    "drawMinimap drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10851",
+    0.1
+   ],
+   [
+    "wasm-function[438] 003320de:1",
+    0.1
+   ],
+   [
+    "bqe drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9760",
+    0.1
+   ],
+   [
+    "stepBias drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10671",
+    0.1
+   ],
+   [
+    "bindVertexArray :0",
+    0.1
+   ],
+   [
+    "HK drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9839",
+    0.1
+   ]
+  ],
+  "nuke-0-4s": [
+   [
+    "(idle) :0",
+    11
+   ],
+   [
+    "(program) :0",
+    9.9
+   ],
+   [
+    "Uo drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9744",
+    7.8
+   ],
+   [
+    "wasm-function[81] 003320de:1",
+    6.9
+   ],
+   [
+    "wasm-function[339] 003320de:1",
+    4
+   ],
+   [
+    "now :0",
+    2.5
+   ],
+   [
+    "Ym drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9744",
+    2.3
+   ],
+   [
+    "Dfe drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:5226",
+    2.3
+   ],
+   [
+    "wasm-function[188] 003320de:1",
+    2.1
+   ],
+   [
+    "S_ drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9744",
+    2.1
+   ],
+   [
+    "wasm-function[113] 003320de:1",
+    1.9
+   ],
+   [
+    "wasm-function[153] 003320de:1",
+    1.5
+   ],
+   [
+    "wasm-function[709] 003320de:1",
+    1.5
+   ],
+   [
+    "g8e drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10384",
+    1.5
+   ],
+   [
+    "wasm-to-js :1",
+    1.5
+   ],
+   [
+    "wasm-function[67] 003320de:1",
+    1.4
+   ],
+   [
+    "toWireType drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9732",
+    1.2
+   ],
+   [
+    "(garbage collector) :0",
+    1.1
+   ],
+   [
+    "wasm-function[795] 003320de:1",
+    1.1
+   ],
+   [
+    "(anon) :3",
+    1.1
+   ],
+   [
+    "wasm-function[536] 003320de:1",
+    0.9
+   ],
+   [
+    "wasm-function[458] 003320de:1",
+    0.9
+   ],
+   [
+    "O drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10265",
+    0.7
+   ],
+   [
+    "YIe drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10671",
+    0.7
+   ],
+   [
+    "wasm-function[117] 003320de:1",
+    0.7
+   ],
+   [
+    "cQe drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9770",
+    0.6
+   ],
+   [
+    "getBoundingClientRect :0",
+    0.6
+   ],
+   [
+    "normalizeNormals drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:293",
+    0.6
+   ],
+   [
+    "wasm-function[240] 003320de:1",
+    0.6
+   ],
+   [
+    "traverse drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:293",
+    0.5
+   ],
+   [
+    "Sat drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10265",
+    0.5
+   ],
+   [
+    "drawMinimap drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10851",
+    0.5
+   ],
+   [
+    "wasm-function[220] 003320de:1",
+    0.5
+   ],
+   [
+    "m drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10472",
+    0.5
+   ],
+   [
+    "wasm-function[438] 003320de:1",
+    0.5
+   ],
+   [
+    "wasm-function[159] 003320de:1",
+    0.4
+   ],
+   [
+    "sE drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:4401",
+    0.3
+   ],
+   [
+    "write drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:9732",
+    0.3
+   ],
+   [
+    "Dh drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:4400",
+    0.3
+   ],
+   [
+    "wasm-function[337] 003320de:1",
+    0.3
+   ],
+   [
+    "wasm-function[15] 000180ae:1",
+    0.3
+   ],
+   [
+    "updateMatrixWorld drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:293",
+    0.3
+   ],
+   [
+    "(anon) drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:10265",
+    0.3
+   ],
+   [
+    "convert drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:293",
+    0.3
+   ],
+   [
+    "Sn drone_simulator.html?diag-ci=8c95474607a7a6c510c6db17c5fec93748c1bb7b&menu=1&hq=1:293",
+    0.3
    ]
   ]
  },
- "walkMoved": 0.5187562323005679,
+ "walkMoved": 0.518756584351797,
  "walkSprint": "0",
  "interior": {
   "key": "26295923:-380,1411;187,1033;957,1971;434,2545|-10,1535;-39,1549;-90,1477;-24,1426;19,1484;136,1397;361,1695;579,1949;426,2116;354,2014;361,1993;354,1956;303,1949;237,2007;34,1738;107,1680;114,1637;92,1629;56,1637",
@@ -9777,55 +9975,55 @@
   "door": {
    "x": -1.917888026012915,
    "y": 101.23684821364193,
-   "z": -1.3400656697149185,
+   "z": -1.0715427954768144,
    "where": "door",
    "levels": 6,
    "roof": false,
-   "eyeZ": 1.8809902212037986
+   "eyeZ": 1.6799472251318261
   },
   "inside": {
    "x": 3.930802622656394,
    "y": 97.03770333686425,
-   "z": -1.3400656697149185,
+   "z": -1.0715427954768144,
    "where": "inside",
    "levels": 6,
    "roof": false,
-   "eyeZ": 0.33993433028508147
+   "eyeZ": 0.6084572045231855
   },
   "stairs": {
    "x": 18.4407089034892,
    "y": 81.79037655232543,
-   "z": -0.5460656697149184,
+   "z": -0.2775427954768144,
    "where": "stairs",
    "levels": 6,
    "roof": false,
-   "eyeZ": 1.1339343302850768
+   "eyeZ": 1.402457204523181
   },
   "upper": {
    "x": 21.8497956552832,
    "y": 85.42413872378665,
-   "z": 5.842434330285082,
+   "z": 6.110957204523185,
    "where": "upper",
    "levels": 6,
    "roof": false,
-   "eyeZ": 7.522434330285082
+   "eyeZ": 7.790957204523185
   },
   "roof": {
    "x": 18.4407089034892,
    "y": 81.79037655232543,
-   "z": -0.5460656697149184,
+   "z": -0.2775427954768144,
    "where": "roof",
    "levels": 6,
    "roof": false,
-   "eyeZ": 1.1339343302850768
+   "eyeZ": 1.402457204523181
   }
  },
  "arm": {
   "error": "could not atomically arm healthy drone for NUKE: {\"destroyed\":false,\"canDeploy\":true,\"disabled\":false,\"button\":\"ARMING…\",\"fc\":\"DISARMED\",\"mode\":\"drone\"}"
  },
  "nukeRemote": [
-  347.1925544920995,
-  393.0732791980913,
+  -426.74602059163425,
+  30.276926587746907,
   0
  ],
  "nukeNewPrograms3s": {
@@ -9839,8 +10037,11 @@
   "Group/Mesh|MeshLambertMaterial|t1|b1|vc0|s0|fog1|inst0|254": 4,
   "Group/LineSegments2|LineMaterial|t1|b1|vc0|s0|fog0|inst0|241": 21,
   "Points/Points|PointsMaterial|t1|b1|vc1|s0|fog1|inst0|246": 1,
-  "Sprite/Sprite|SpriteMaterial|t1|b1|vc0|s0|fog1|inst0|243": 26,
-  "Group/Mesh|MeshBasicMaterial|t1|b2|vc0|s1|fog1|inst0|250": 4
+  "Sprite/Sprite|SpriteMaterial|t1|b1|vc0|s0|fog1|inst0|243": 14,
+  "Sprite/Sprite|SpriteMaterial|t1|b2|vc0|s0|fog1|inst0|243": 1,
+  "Group/Mesh|MeshBasicMaterial|t1|b2|vc0|s1|fog1|inst0|250": 4,
+  "SANDBOX_COP/Mesh|MeshLambertMaterial|t0|b1|vc0|s0|fog1|inst0|254": 12,
+  "SANDBOX_SWAT/Mesh|MeshLambertMaterial|t0|b1|vc0|s0|fog1|inst0|254": 4
  },
  "nukeNewPrograms8s": {
   "Group/Mesh|MeshBasicMaterial|t1|b2|vc0|s1|fog0|inst0|250": 17,
@@ -9853,7 +10054,11 @@
   "Group/Mesh|MeshLambertMaterial|t1|b1|vc0|s0|fog1|inst0|254": 4,
   "Group/LineSegments2|LineMaterial|t1|b1|vc0|s0|fog0|inst0|241": 21,
   "Points/Points|PointsMaterial|t1|b1|vc1|s0|fog1|inst0|246": 1,
-  "Sprite/Sprite|SpriteMaterial|t1|b1|vc0|s0|fog1|inst0|243": 26,
-  "Group/Mesh|MeshBasicMaterial|t1|b2|vc0|s1|fog1|inst0|250": 4
+  "Sprite/Sprite|SpriteMaterial|t1|b1|vc0|s0|fog1|inst0|243": 14,
+  "Sprite/Sprite|SpriteMaterial|t1|b2|vc0|s0|fog1|inst0|243": 1,
+  "Group/Mesh|MeshBasicMaterial|t1|b2|vc0|s1|fog1|inst0|250": 4,
+  "SANDBOX_COP/Mesh|MeshLambertMaterial|t0|b1|vc0|s0|fog1|inst0|254": 24,
+  "SANDBOX_SWAT/Mesh|MeshLambertMaterial|t0|b1|vc0|s0|fog1|inst0|254": 8,
+  "NUKE_TORN_CHUNK/Mesh|MeshBasicMaterial|t0|b1|vc0|s2|fog1|inst0|244": 3
  }
 }
