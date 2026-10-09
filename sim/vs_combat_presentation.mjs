@@ -2,8 +2,8 @@ import * as THREE from "three";
 
 const STALE_PEER_MS=1400;
 const PRESENTATION_MS=1000/30;
-const RESPAWN_RADIUS_MIN_M=12;
-const RESPAWN_RADIUS_MAX_M=30;
+const RESPAWN_RADIUS_MIN_M=5;
+const RESPAWN_RADIUS_MAX_M=15;
 const EARTH_RADIUS_M=6378137;
 const MOBILE_WORLD_COLLISION_SYNC_MS=1400;
 const MOBILE_RE=/(?:android|iphone|ipad|ipod|macintosh.*mobile)/i;
