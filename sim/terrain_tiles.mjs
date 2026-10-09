@@ -19,12 +19,19 @@ import {shockHeightAt,shockFieldState} from "./nuke_shock_field.mjs";
 //   * height fields side by side line up at their seams (each tile shares its
 //     border nodes with its neighbours; quantisation error < 2 mm).
 //
+// No ghost collisions at seams: Box3D smooths internal edges only inside one
+// height field — at the boundary edge of a separate tile a fast body (a wheel
+// at 35 m/s) got a tilted contact normal and was launched. Each tile therefore
+// reaches one cell into its neighbours with its outer ring sunk SKIRT_DROP_M
+// below the true surface: the seam is an interior edge of both tiles and every
+// boundary edge lies hidden under the neighbour's surface.
+//
 // Frame: Box3D height fields are y-up; each tile body is rotated +90° about x
 // so local y -> world z and local z -> world -y (rows run north -> south).
 
-export const TERRAIN_TILES_VERSION="box3d-heightfield-tiles-v1";
+export const TERRAIN_TILES_VERSION="box3d-heightfield-tiles-v2-overlap-skirts";
 export const TILE_CELLS=32;
-const ST=TERRAIN_FIELD_STEP_M,TILE_M=TILE_CELLS*ST,N=TILE_CELLS+1,ROT=[Math.SQRT1_2,0,0,Math.SQRT1_2];
+const ST=TERRAIN_FIELD_STEP_M,TILE_M=TILE_CELLS*ST,N=TILE_CELLS+3,ROT=[Math.SQRT1_2,0,0,Math.SQRT1_2],SKIRT_DROP_M=.05;
 const SHOCK_BAND_BEHIND_M=150,SHOCK_BAND_AHEAD_M=80,SHOCK_UPDATE_MS=40;
 
 export class TerrainTiles{
@@ -40,13 +47,13 @@ export class TerrainTiles{
     if(!this.available||!this.world)return 0;
     const[cx,cy]=elevationCenter(),key=`${Math.round(cx)},${Math.round(cy)}`;
     if(regions===null||key!==this.centerKey){this.rebuildAll(cx,cy);this.centerKey=key;return this.tiles.size;}
-    let n=0;for(const t of this.tiles.values())if(regions.some(r=>r[0]<=t.x1&&r[2]>=t.x0&&r[1]<=t.y1&&r[3]>=t.y0)){this.writeTile(t,this.shocked.has(t));n++;}
+    let n=0;for(const t of this.tiles.values())if(regions.some(r=>r[0]<=t.x1+ST&&r[2]>=t.x0-ST&&r[1]<=t.y1+ST&&r[3]>=t.y0-ST)){this.writeTile(t,this.shocked.has(t));n++;}
     return n;
   }
   rebuildAll(cx,cy){
     this.destroyAll();const b3=this.b3,H=TERRAIN_FIELD_HALF_M,i0=Math.floor((cx-H)/TILE_M),i1=Math.ceil((cx+H)/TILE_M)-1,j0=Math.floor((cy-H)/TILE_M),j1=Math.ceil((cy+H)/TILE_M)-1;let mn=Infinity;
     for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){
-      const x0=i*TILE_M,y0=j*TILE_M,def=b3.b3DefaultBodyDef();def.type=b3.b3BodyType.b3_staticBody;def.position=[x0,y0+TILE_M,0];def.rotation=[...ROT];
+      const x0=i*TILE_M,y0=j*TILE_M,def=b3.b3DefaultBodyDef();def.type=b3.b3BodyType.b3_staticBody;def.position=[x0-ST,y0+TILE_M+ST,0];def.rotation=[...ROT];
       const t={i,j,x0,y0,x1:x0+TILE_M,y1:y0+TILE_M,body:b3.b3CreateBody(this.world,def),shape:null,field:null};this.tiles.set(`${i},${j}`,t);
       this.writeTile(t,false);if(t.min<mn)mn=t.min;
     }
@@ -59,7 +66,7 @@ export class TerrainTiles{
   // other way round: the live shape points at its field's memory).
   writeTile(t,withShock){
     const b3=this.b3,h=this.heights;let mn=Infinity;
-    for(let r=0;r<N;r++){const y=t.y1-r*ST;for(let c=0;c<N;c++){const x=t.x0+c*ST;let v=terrainNodeHeightAt(x,y);if(withShock)v+=shockHeightAt(x,y);h[r*N+c]=v;if(v<mn)mn=v;}}
+    for(let r=0;r<N;r++){const y=t.y1+ST-r*ST;for(let c=0;c<N;c++){const x=t.x0-ST+c*ST;let v=terrainNodeHeightAt(x,y);if(withShock)v+=shockHeightAt(x,y);if(r===0||c===0||r===N-1||c===N-1)v-=SKIRT_DROP_M;h[r*N+c]=v;if(v<mn)mn=v;}}
     const field=b3.b3CreateHeightField(h,N,N,[ST,1,ST]);if(!field)return false;
     if(t.shape){b3.b3DestroyShape(t.shape,false);t.shape=null;}
     t.shape=b3.b3CreateHeightFieldShape(t.body,this.shapeDef,field);
