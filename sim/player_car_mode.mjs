@@ -66,37 +66,68 @@ function applyDriveCamera({camera,now}){const pose=vehiclePose();if(!pose?.posit
   const b=bridge(),lookYaw=camLookYaw-(Number(b?.lookYawDeg)||0)*Math.PI/180,lookPitch=camLookPitch+(Number(b?.lookPitchDeg)||0)*Math.PI/180;
   if(camMode==="cockpit"){// the physics pose carries solver/contact micro-jitter: the driver's head follows a smoothed frame (velocity feed-forward: no lag), and the cockpit is drawn in that same frame so dash and view never shake against each other
     const v=pose.velocity||[0,0,0];if(!camSmoothInit){camSmoothPos.copy(camOrigin);camSmoothQ.copy(q);camSmoothInit=true;}else{camSmoothPos.x+=(Number(v[0])||0)*dt;camSmoothPos.y+=(Number(v[1])||0)*dt;camSmoothPos.z+=(Number(v[2])||0)*dt;camSmoothPos.lerp(camOrigin,1-Math.exp(-dt*18));camSmoothQ.slerp(q,1-Math.exp(-dt*16));}
-    camUp.set(0,0,1).applyQuaternion(camSmoothQ);camFwd.set(1,0,0).applyQuaternion(camSmoothQ);placeCockpit(camSmoothPos,camSmoothQ,pose);
-    seat.set(-.22,.36,1.27).applyQuaternion(camSmoothQ).add(camSmoothPos);camera.position.copy(seat);camera.up.copy(camUp);target.copy(seat).addScaledVector(camFwd,12).addScaledVector(camUp,-.5);camera.lookAt(target);camera.rotateY(-lookYaw);camera.rotateX(lookPitch);camera.fov=84;}
+    camUp.set(0,0,1).applyQuaternion(camSmoothQ);camFwd.set(1,0,0).applyQuaternion(camSmoothQ);
+    seat.set(-.3,.36,1.2).applyQuaternion(camSmoothQ).add(camSmoothPos);camera.position.copy(seat);camera.up.copy(camUp);target.copy(seat).addScaledVector(camFwd,12).addScaledVector(camUp,-.5);camera.lookAt(target);camera.rotateY(-lookYaw);camera.rotateX(lookPitch);camera.fov=84;}
   else{const d=settings.cameraDistanceM*zoom,h=settings.cameraHeightM*(.55+.45*zoom);const wantedHeading=heading+lookYaw;{const k=1-Math.exp(-6*dt);if(camHeading===null)camHeading=wantedHeading;let e=wantedHeading-camHeading;e=Math.atan2(Math.sin(e),Math.cos(e));camHeading+=e*k;}forward.set(Math.cos(camHeading),Math.sin(camHeading),0);target.set(camOrigin.x+forward.x*1.05,camOrigin.y+forward.y*1.05,camOrigin.z+1.2);camera.position.set(target.x-forward.x*d,target.y-forward.y*d,target.z+h);camera.up.set(0,0,1);camera.lookAt(target);camera.rotateX(lookPitch);camera.fov=Math.min(80,70+Math.abs(commandSpeed)*.25);}
   if(cameraFireKick>.0001){cameraFirePhase+=dt*51;camera.rotateX((-.0022+Math.sin(cameraFirePhase)*.0008)*cameraFireKick);camera.rotateY(Math.sin(cameraFirePhase*1.31)*.0011*cameraFireKick);cameraFireKick*=Math.exp(-15*dt);}
   // cockpit needs a close near plane (dashboard is 40 cm away), the chase cam a far one
   const wantNear=camMode==="cockpit"?.04:.22;if(Math.abs(camera.near-wantNear)>1e-4)camera.near=wantNear;
   camera.updateProjectionMatrix?.();camera.updateMatrixWorld?.(true);const view=viewport();if(view){view.dataset.vehicleCamera=camMode==="cockpit"?"cockpit-v1":"chase-zoom-v2";view.dataset.vehicleCameraZoom=zoom.toFixed(2);view.dataset.vehicleCameraFireKick=cameraFireKick.toFixed(3);}return{active:true,mode:"vehicle",origin:camMode==="cockpit"?"car-cockpit":"car-chase",now};}
-// --- cockpit model (built once, parented to the driven car)
-let cockpit=null,cockpitWheel=null,cockpitNeedle=null;
+// --- cockpit (built once, a child of the driven car: it moves exactly with the body)
+// The car body stays visible: seen from the driver's seat its outer shell is back-facing (culled),
+// so roof, doors and glass vanish and only what a driver sees remains — the bonnet ahead, the
+// door tops, the headliner. The cockpit adds the inside: dashboard under the windscreen with an
+// instrument binnacle and a centre screen, A-pillars, rear-view mirror, steering column + wheel
+// (turns with the steering), lit dials with a speed needle. Car frame: x forward, y left, z up,
+// origin on the ground; the driver sits left (y +.36), eye at z 1.2 (a hand's width under the headliner).
+let cockpit=null,cockpitWheel=null,cockpitNeedle=null,cockpitRpm=null;
 function buildCockpit(){
-  const g=new THREE.Group();g.name="CAR_COCKPIT";const dark=new THREE.MeshStandardMaterial({color:0x17191d,roughness:.7}),soft=new THREE.MeshStandardMaterial({color:0x2a2d33,roughness:.85}),trim=new THREE.MeshStandardMaterial({color:0x9aa1a8,roughness:.3,metalness:.8}),glow=new THREE.MeshBasicMaterial({color:0x8fe3ff,toneMapped:false}),amber=new THREE.MeshBasicMaterial({color:0xffb347,toneMapped:false});
-  const add=(geo,mat,x,y,z,rx=0,ry=0,rz=0)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.frustumCulled=false;m.renderOrder=5;m.userData.flightFireIgnore=true;g.add(m);return m;};
-  // minimal: a thin low dash edge with the instruments and the wheel, nothing else — no pillars,
-  // mirror, doors or console in the picture; the road and the city are the view
-  add(new THREE.BoxGeometry(.3,1.46,.035),dark,.66,0,.885);                // dash edge
-  add(new THREE.BoxGeometry(.02,1.4,.012),trim,.52,0,.905);                // trim line
-  const cluster=add(new THREE.PlaneGeometry(.22,.07),new THREE.MeshBasicMaterial({color:0x0b1420}),.5,.36,.905,0,0,0);cluster.rotation.set(0,-Math.PI/2+.5,0);cluster.rotateX(Math.PI/2);
-  for(const dy of[-.05,.05])add(new THREE.TorusGeometry(.03,.003,6,24),glow,.5,.36+dy,.906,0,Math.PI/2-.5,0);
-  cockpitNeedle=add(new THREE.BoxGeometry(.004,.004,.028),amber,.499,.31,.906);
-  cockpitWheel=new THREE.Group();cockpitWheel.position.set(.34,.36,.84);cockpitWheel.rotation.order="YXZ";cockpitWheel.rotation.set(0,-.55,0);g.add(cockpitWheel);
-  const rim=new THREE.Mesh(new THREE.TorusGeometry(.145,.013,8,32),dark);rim.rotation.y=Math.PI/2;cockpitWheel.add(rim);
-  for(const a of[0,2.1,4.2]){const sp=new THREE.Mesh(new THREE.BoxGeometry(.01,.13,.022),soft);sp.position.set(0,Math.cos(a)*.066,Math.sin(a)*.066);sp.rotation.x=-a;cockpitWheel.add(sp);}
-  const hub=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,.026,14),soft);hub.rotation.z=Math.PI/2;cockpitWheel.add(hub);cockpitWheel.traverse(n=>{n.frustumCulled=false;n.renderOrder=5;n.userData.flightFireIgnore=true;});
+  const g=new THREE.Group();g.name="CAR_COCKPIT";g.userData.flightFireIgnore=true;
+  const dash=new THREE.MeshStandardMaterial({color:0x1d1f23,roughness:.86}),soft=new THREE.MeshStandardMaterial({color:0x2b2e34,roughness:.9}),trim=new THREE.MeshStandardMaterial({color:0x8d949b,roughness:.35,metalness:.75}),pillar=new THREE.MeshStandardMaterial({color:0x26282c,roughness:.8}),face=new THREE.MeshBasicMaterial({color:0x070b10}),glow=new THREE.MeshBasicMaterial({color:0x8fe3ff,toneMapped:false}),amber=new THREE.MeshBasicMaterial({color:0xffa53a,toneMapped:false}),screen=new THREE.MeshBasicMaterial({color:0x10324a,toneMapped:false}),mirror=new THREE.MeshStandardMaterial({color:0x9fb6c8,roughness:.05,metalness:.9});
+  const add=(geo,mat,x,y,z,rx=0,ry=0,rz=0,parent=g)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.userData.flightFireIgnore=true;m.castShadow=false;m.receiveShadow=true;parent.add(m);return m;};
+  // dashboard: a slab from the windscreen base back towards the driver, rounded front lip
+  add(new THREE.BoxGeometry(.4,1.46,.12),dash,.69,0,.86);
+  add(new THREE.CylinderGeometry(.06,.06,1.46,12),dash,.49,0,.86);            // rounded lip (axis = width)
+  add(new THREE.BoxGeometry(.012,1.3,.012),trim,.46,0,.83);                      // chrome trim line
+  // instrument binnacle in front of the driver
+  add(new THREE.BoxGeometry(.17,.42,.07),dash,.52,.36,.95);
+  // dial face: a group facing the driver (local +z = towards the eye), needles turn about local z
+  const dials=new THREE.Group();dials.position.set(.442,.36,.935);dials.rotation.set(0,-Math.PI/2,0,"YXZ");dials.rotateX(-.35);g.add(dials);
+  add(new THREE.PlaneGeometry(.36,.1),face,0,0,0,0,0,0,dials);
+  const needle=(dx)=>{add(new THREE.TorusGeometry(.038,.0035,6,28),glow,dx,0,.001,0,0,0,dials);const pivot=new THREE.Group();pivot.position.set(dx,0,.002);dials.add(pivot);add(new THREE.BoxGeometry(.003,.032,.002),amber,0,.016,0,0,0,0,pivot);return pivot;};
+  cockpitNeedle=needle(-.085);cockpitRpm=needle(.085);
+  // centre screen
+  add(new THREE.PlaneGeometry(.2,.11),screen,.47,0,.91,0,-Math.PI/2+.5,0).rotation.order="YXZ";
+  // A-pillars: windscreen corners (.86,±.7,.8) → (.3,±.68,1.34)
+  for(const sy of[-1,1]){const a=new THREE.Vector3(.86,sy*.7,.8),b=new THREE.Vector3(.3,sy*.68,1.34),mid=a.clone().add(b).multiplyScalar(.5),len=a.distanceTo(b),m=add(new THREE.BoxGeometry(.06,.07,len),pillar,mid.x,mid.y,mid.z);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),b.clone().sub(a).normalize());}
+  // the cabin tub: door cards with window sills, the floor/console line and a fabric headliner,
+  // so the inside reads as an interior instead of the body's painted top faces
+  const card=new THREE.MeshStandardMaterial({color:0x2c2f35,roughness:.92}),liner=new THREE.MeshStandardMaterial({color:0x8a8780,roughness:1,side:THREE.DoubleSide});
+  for(const sy of[-1,1]){add(new THREE.BoxGeometry(1.86,.06,.16),card,-.1,sy*.75,.98);add(new THREE.BoxGeometry(1.86,.1,.025),soft,-.1,sy*.71,1.055);}
+  add(new THREE.BoxGeometry(1.62,1.5,.02),card,-.28,0,.935);                     // floor / seat line (just over the body's bevelled top at ~.91)
+  add(new THREE.BoxGeometry(.9,.16,.12),soft,.05,0,.99);                         // centre console
+  add(new THREE.PlaneGeometry(1.15,1.34),liner,-.2,0,1.325,Math.PI,0,0);         // headliner (faces down)
+  // header rail over the windscreen and the rear-view mirror
+  add(new THREE.BoxGeometry(.08,1.36,.05),pillar,.3,0,1.31);
+  add(new THREE.BoxGeometry(.02,.02,.06),pillar,.26,0,1.27);add(new THREE.BoxGeometry(.03,.24,.07),pillar,.24,0,1.22);add(new THREE.PlaneGeometry(.22,.055),mirror,.224,0,1.22,0,-Math.PI/2,0);
+  // steering column + wheel (axis tilted up towards the driver)
+  const col=add(new THREE.CylinderGeometry(.035,.045,.32,10),soft,.36,.36,.91);col.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(Math.cos(.42),0,-Math.sin(.42)));
+  // wheel axis points forward-down along the column, so its top leans away from the driver
+  cockpitWheel=new THREE.Group();cockpitWheel.position.set(.22,.36,.97);cockpitWheel.rotation.set(0,.42,0);g.add(cockpitWheel);
+  const spin=new THREE.Group();cockpitWheel.add(spin);cockpitWheel.userData.spin=spin;
+  const rim=add(new THREE.TorusGeometry(.17,.016,10,40),soft,0,0,0,0,Math.PI/2,0,spin);rim.userData.flightFireIgnore=true;
+  for(const a of[Math.PI/2,Math.PI*7/6,Math.PI*11/6])add(new THREE.BoxGeometry(.014,.16,.03),soft,0,Math.cos(a)*.085,Math.sin(a)*.085,a,0,0,spin);
+  add(new THREE.CylinderGeometry(.05,.05,.04,16),dash,0,0,0,0,0,Math.PI/2,spin);
+  add(new THREE.BoxGeometry(.006,.02,.012),amber,-.02,0,.16,0,0,0,spin); // top marker: you see how far the wheel is turned
+  g.traverse(n=>{n.userData.flightFireIgnore=true;n.userData.carCockpitPart=true;});
   return g;
 }
-function placeCockpit(pos,q){if(!cockpit)return;cockpit.position.copy(pos);cockpit.quaternion.copy(q);cockpit.updateMatrixWorld(true);}
-function syncCockpit(pose){const root=vehicle?.root;if(!root)return;const want=camMode==="cockpit";
-  if(want&&!cockpit)cockpit=buildCockpit();const scene=bridge()?.threeScene;if(cockpit&&want&&scene&&cockpit.parent!==scene)scene.add(cockpit);if(cockpit)cockpit.visible=want;
-  const body=root.children.find(c=>c.isMesh&&c!==cockpit);if(body){body.visible=!want;if(want)hiddenBodies.add(body);}
-  if(want&&cockpitWheel){cockpitWheel.rotation.x=(Number(pose.steer)||0)*-6.5;}
-  if(want&&cockpitNeedle){const a=-2.2+clamp(Math.abs(commandSpeed)/42,0,1)*4.4;cockpitNeedle.position.set(.429,.30+Math.sin(a)*.025,1.006+Math.cos(a)*.025);cockpitNeedle.rotation.x=-a;}}
+function syncCockpit(pose){const root=vehicle?.root;const want=camMode==="cockpit"&&Boolean(root)&&active;
+  if(want&&!cockpit)cockpit=buildCockpit();if(!cockpit)return;
+  if(want&&cockpit.parent!==root){cockpit.parent?.remove(cockpit);root.add(cockpit);}
+  cockpit.visible=want;if(!want)return;
+  const spin=cockpitWheel?.userData?.spin;if(spin)spin.rotation.x=(Number(pose?.steer)||0)*-6.5;
+  const sp=clamp(Math.abs(commandSpeed)/42,0,1);if(cockpitNeedle)cockpitNeedle.rotation.z=2.3-sp*4.6;if(cockpitRpm)cockpitRpm.rotation.z=2.3-clamp(.18+sp*.7+(handbrake?0:.08),0,1)*4.6;}
 // Bodies hidden for the cockpit view. Every frame, any body that is not the
 // car the player is sitting in (cockpit cam) is shown again — whatever path
 // ended the drive (exit, death, reset, despawn), no car is left as bare wheels.

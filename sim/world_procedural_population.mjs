@@ -464,7 +464,7 @@ function updatePhysicalVehicle(record,epoch,now){
     if(initial.direction)record.routeDirection=initial.direction;// becomes physical driving on in the direction it was going
   }
   if(!record.physicsRegistered)record.physicsRegistered=Boolean(physics?.upsertBody?.({id:record.id,kind:record.kind,position:[initial.x,initial.y,groundHeightAt(initial.x,initial.y)+shape.half[2]],yaw:initial.yaw,halfExtents:shape.half,massKg:shape.mass}));
-  let pose=physics?.pose?.(record.id,record.physicsPose)||record.physicsPose;if(pose?.position&&pose.position[2]<staticGroundHeightAt(pose.position[0],pose.position[1])-6){physics?.removeBody?.(record.id);record.physicsRegistered=false;pose=null;}
+  let pose=physics?.pose?.(record.id,record.physicsPose)||record.physicsPose;if(!driven&&pose?.position&&pose.position[2]<staticGroundHeightAt(pose.position[0],pose.position[1])-6){physics?.removeBody?.(record.id);record.physicsRegistered=false;pose=null;}// (the car the player drives is never dropped: the physics safety net puts it back on the ground)
   if(record.towed){physics?.clearTarget?.(record.id);pose=physics?.pose?.(record.id,pose)||pose;}
   else if(pose&&globalThis.__arondightGravityGun?.heldId===record.id){physics?.clearTarget?.(record.id);physics?.setDrive?.(record.id,null);}
   else if(!driven&&pose&&record.parked){physics?.clearTarget?.(record.id);physics?.setDrive?.(record.id,{pedal:0,steer:0,handbrake:true});}

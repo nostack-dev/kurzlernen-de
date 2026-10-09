@@ -116,6 +116,7 @@ jobs:
           node tests/world_building_collision_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           node tests/world_rigid_body_physics_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           node tests/world_vehicle_dynamics_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
+          node tests/ground_safety_net_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           node tests/vehicle_steering_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           node tests/jet_flight_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           node tests/ragdoll_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
