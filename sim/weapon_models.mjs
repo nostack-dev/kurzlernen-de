@@ -141,6 +141,24 @@ export function buildSniperRifle(){
   mergeByMaterial(g);g.scale.setScalar(.62);g.position.set(0,-.01,.10);return g;
 }
 
+// GRAVITY GUN (zero-point field manipulator): a chunky emitter with three orange claws around a
+// glowing core; the claws open while it holds something (gravity_gun.mjs).
+export function buildGravityGun(){
+  const g=new THREE.Group(),K="walkGravityPart";
+  const body=std(0x3a3f45,.45,.55),dark=std(0x16181b,.6,.3),orange=std(0xf07a14,.4,.35),core=glow(0xffb347),coil=std(0x7a5a2a,.35,.8);
+  g.add(solid(profile([[-.05,.07],[.30,.07],[.36,.03],[.36,-.05],[.20,-.07],[-.05,-.06]],.13),body,0,0,0,K));
+  g.add(solid(profile([[.0,-.05],[.09,-.05],[.06,-.24],[-.03,-.24],[-.05,-.18]],.07),dark,0,0,-.02,K));
+  g.add(cyl(.062,.10,dark,0,.005,-.40,K,14));for(let i=0;i<4;i++)g.add(cyl(.068,.012,coil,0,.005,-.355-i*.026,K,14));
+  const c=tag(new THREE.Mesh(new THREE.SphereGeometry(.034,14,10),core),K);c.name="WALK_GRAVITY_CORE";c.position.set(0,.005,-.47);g.add(c);
+  const claws=new THREE.Group();claws.name="WALK_GRAVITY_CLAWS";claws.position.set(0,.005,-.45);
+  for(let i=0;i<3;i++){const a=i/3*Math.PI*2+Math.PI/2,arm=new THREE.Group();arm.rotation.z=a;const prong=box(.022,.022,.16,orange,0,.075,-.07,K);prong.rotation.x=-.32;arm.add(prong);arm.userData.clawBase=-.32;claws.add(arm);}
+  g.add(claws);
+  g.add(box(.05,.035,.18,orange,0,.088,-.12,K));
+  g.add(marker("WALK_GRAVITY_GRIP",0,-.15,-.02),marker("WALK_GRAVITY_REAR_SIGHT",0,.11,.0),marker("WALK_GRAVITY_FRONT_SIGHT",0,.11,-.30));
+  g.add(muzzle("WALK_GRAVITY_MUZZLE_NODE",-.52,.005));
+  return g;
+}
+
 export function buildBoomstick(){
   const g=new THREE.Group(),K="walkGrenadePart";
   const olive=std(0x4a5a3a,.6,.2),dark=std(0x1d2024,.7,.15),orange=std(0xff7a1a,.45,.1),yellow=std(0xffd23f,.45,.1),black=std(0x121316,.6,.1),wood=std(0x8a5a3b,.65,0),glowO=glow(0xff8a2a);

@@ -27,7 +27,7 @@ const GRENADE_RADIUS_M=GRENADE_BASE_RADIUS_M*GRENADE_VISUAL_SCALE;
 const GRENADE_FLOOR_NORMAL_Z=.58;
 const GRENADE_BLAST_RADIUS_M=8.5;
 const GRENADE_MAX_DAMAGE=125;
-const FOOT_WEAPON_ORDER=Object.freeze(["smg","glock","sniper","grenade","nuke"]);
+const FOOT_WEAPON_ORDER=Object.freeze(["smg","glock","sniper","gravity","grenade","nuke"]);
 const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tmp3=new THREE.Vector3(),right=new THREE.Vector3(),forward=new THREE.Vector3(),ndc=new THREE.Vector2();
 const shotCamera=new THREE.PerspectiveCamera(78,16/9,.01,500),shotRaycaster=new THREE.Raycaster(),boxHits=new Box3dHitscanWorld();
 const tracerAxis=new THREE.Vector3(0,1,0),tracerVector=new THREE.Vector3(),grenadeAxis=new THREE.Vector3(0,0,-1),bounceFxAxis=new THREE.Vector3(0,0,1);
@@ -227,6 +227,7 @@ function footShotAt(clientX,clientY,now=performance.now(),hand=0){
   if(footWeapon==="grenade")return launchFootGrenade(clientX,clientY,now,"foot-screen");
   if(footWeapon==="glock")return glockShotAt(clientX,clientY,now,hand);
   if(footWeapon==="sniper")return sniperShotAt(clientX,clientY,now);
+  if(footWeapon==="gravity"){if(!isFoot()||walk()?.dead||now-lastPunt<350)return false;lastPunt=now;const ray=footRay(clientX,clientY);if(!ray)return false;const hit=nearestGrenadeHit(ray,8);const ok=Boolean(globalThis.__arondightGravityGun?.punt?.({ray,hit}));if(ok)weaponFired("gravity",.35,"foot-screen","foot");return ok;}
   if(!isFoot()||walk()?.dead||now-lastSmg<SMG_INTERVAL_MS-.5)return false;lastSmg=now; // `now` = the round's due time (the hold loop keeps the cadence)
   const ray=footRay(clientX,clientY);if(!ray)return false;const hit=nearestGrenadeHit(ray,180),end=hit?.point?.clone?.()||tmp.copy(ray.origin).addScaledVector(ray.direction,130).clone(),start=footMuzzle(tmp2,ray).clone();showTracer(start,end);{const routed=hit?routeHit(hit):false;if(globalThis.__worldImpacts)globalThis.__worldImpacts.bullet(ray,hit,{routed});else if(hit&&!routed)addFallbackDecal(hit);}flashWeapon(34);audioShot(.18);weaponFired("smg",.14,"foot-screen","foot");
   const view=viewport();if(view){view.dataset.walkWeapon="smg";view.dataset.walkTouchFire="screen-point-raycast-v2";view.dataset.walkPistolTracer="world-ray-muzzle-origin-v2";view.dataset.walkSmgAutoFire="always-on-hold-v1";view.dataset.walkEnhancedShots=String((Number(view.dataset.walkEnhancedShots)||0)+1);view.dataset.walkTouchAimX=ray.point.x.toFixed(1);view.dataset.walkTouchAimY=ray.point.y.toFixed(1);}return true;
@@ -254,7 +255,7 @@ function glockShotAt(clientX,clientY,now,hand=0){
 // two bodies, kills a person outright and wrecks a car's engine. Its 41 N·s momentum goes into
 // what it hits — into the struck bone of a ragdoll, at the hit point of a rigid body. Scoped, the
 // shot leaves through the crosshair.
-const SNIPER_BOLT_MS=1150,SNIPER_RANGE_M=1500;let lastSniper=-Infinity;
+const SNIPER_BOLT_MS=1150,SNIPER_RANGE_M=1500;let lastSniper=-Infinity,lastPunt=-Infinity;
 function sniperShotAt(clientX,clientY,now){
   if(!isFoot()||walk()?.dead||now-lastSniper<SNIPER_BOLT_MS)return false;lastSniper=now;
   if(globalThis.__arondightAds?.scoped){const v=viewport()?.getBoundingClientRect();if(v){clientX=v.left+v.width/2;clientY=v.top+v.height/2;}}

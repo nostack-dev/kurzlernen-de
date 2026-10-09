@@ -21,7 +21,8 @@ body.scope-active #sniperScope{display:block}
 #sniperScope .ss-dot{position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:#ff2a1a;box-shadow:0 0 4px #ff2a1a}
 #scopeButton{position:absolute;z-index:23;display:none;width:60px;height:60px;margin:0;padding:0;border-radius:50%!important;border:2px solid #ffffffaa;background:#0c1a14d0;color:#fff;font:900 10px/1 system-ui,sans-serif;letter-spacing:.06em;touch-action:none;box-shadow:0 6px 16px #0007;flex-direction:column;align-items:center;justify-content:center;gap:2px}
 #scopeButton b{font-size:20px;line-height:1}#scopeButton.show{display:flex}#scopeButton.on{background:#b3261ed8;border-color:#ffd0c8}`;
-function sniperOut(){const w=globalThis.__arondightWalkMode;return w?.mode==="foot"&&String(globalThis.__arondightFootWeapons?.mode||"")==="sniper";}
+function weaponOut(name){const w=globalThis.__arondightWalkMode;return w?.mode==="foot"&&String(globalThis.__arondightFootWeapons?.mode||"")===name;}
+function sniperOut(){return weaponOut("sniper");}
 function touchPlay(){const b=document.body;return!b.classList.contains("desktop-input")&&!b.classList.contains("pad-input");}
 function mount(){const v=$("viewport");if(!v)return false;
   const st=document.createElement("style");st.dataset.sniperScope=SNIPER_SCOPE_VERSION;st.textContent=CSS;document.head.appendChild(st);
@@ -29,11 +30,12 @@ function mount(){const v=$("viewport");if(!v)return false;
   const dots=[];for(let k=1;k<=4;k++)for(const s of[-1,1]){dots.push(`<i style="left:${s*k*4.2}vmin;top:0"></i>`,`<i style="top:${s*k*4.2}vmin;left:0"></i>`);}
   overlay.innerHTML=`<div class="ss-tube"></div><div class="ss-ring"></div><div class="ss-h"></div><div class="ss-v"></div><div class="ss-dots">${dots.join("")}</div><div class="ss-dot"></div>`;v.appendChild(overlay);
   button=document.createElement("button");button.id="scopeButton";button.type="button";button.setAttribute("aria-label","Scope");button.innerHTML="<b>◎</b>SCOPE";v.appendChild(button);
-  button.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();globalThis.__arondightScopeToggle=!globalThis.__arondightScopeToggle;sync();},{capture:true});
+  button.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();if(weaponOut("gravity"))globalThis.__arondightGravityGun?.toggleGrab?.();else globalThis.__arondightScopeToggle=!globalThis.__arondightScopeToggle;sync();},{capture:true});
   button.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();});
   return true;}
 // beside the weapon switch (thumb_layout.mjs places that one left of the look stick): above it
 function place(){const w=$("thumbWeapon");if(!w||!w.classList.contains("show"))return false;const l=parseFloat(w.style.left),t=parseFloat(w.style.top);if(!Number.isFinite(l)||!Number.isFinite(t))return false;const L=`${Math.round(l-22)}px`,T=`${Math.round(t-64)}px`;if(button.style.left!==L)button.style.setProperty("left",L,"important");if(button.style.top!==T)button.style.setProperty("top",T,"important");return true;}
-function sync(){if(!button)return;const out=sniperOut();if(!out&&globalThis.__arondightScopeToggle)globalThis.__arondightScopeToggle=false;const show=out&&touchPlay()&&place();button.classList.toggle("show",Boolean(show));button.classList.toggle("on",Boolean(globalThis.__arondightScopeToggle));}
+function sync(){if(!button)return;const out=sniperOut(),grav=weaponOut("gravity");if(!out&&globalThis.__arondightScopeToggle)globalThis.__arondightScopeToggle=false;const show=(out||grav)&&touchPlay()&&place();button.classList.toggle("show",Boolean(show));
+  const on=grav?Boolean(globalThis.__arondightGravityGun?.holding):Boolean(globalThis.__arondightScopeToggle),html=grav?(on?"<b>✋</b>DROP":"<b>⊛</b>GRAB"):"<b>◎</b>SCOPE";if(button.dataset.html!==html){button.dataset.html=html;button.innerHTML=html;}button.classList.toggle("on",on);}
 export function installSniperScope(){if(installed||typeof document==="undefined")return;installed=true;const boot=()=>{if(!mount()){setTimeout(boot,300);return;}const loop=()=>{try{sync();}catch(e){console.warn("sniper scope",e);}setTimeout(loop,150);};loop();};boot();}
 installSniperScope();

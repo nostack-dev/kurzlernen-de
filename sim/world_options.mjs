@@ -15,6 +15,7 @@ export const WORLD_OPTIONS=Object.freeze([
   {key:"zombies",label:"ZOMBIES",help:"Zombie nights after dark."},
   {key:"police",label:"POLICE",help:"Police drones and officers when you are wanted."},
   {key:"military",label:"MILITARY",help:"Soldiers, tanks and helicopters at high wanted levels."},
+  {key:"props",label:"LOOSE OBJECTS",help:"Crates, oil drums, cones and bins lying around — throw them with the gravity gun."},
   {key:"jetpack",label:"JETPACK",help:"Jump twice to fire a short jetpack burst over houses. Recharges."},
 ]);
 export const DEFAULT_WORLD_OPTIONS=Object.freeze(Object.fromEntries(WORLD_OPTIONS.map(o=>[o.key,true])));
