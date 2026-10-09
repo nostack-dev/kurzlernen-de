@@ -176,6 +176,8 @@ function onExplosion(event){
   const t=findTrees();if(t){const reach=nuke?Math.min(600,r*1.4):r*.85;for(let i=0;i<t.trunk.count;i++){t.trunk.getMatrixAt(i,m4);p.setFromMatrixPosition(m4);const dist=Math.hypot(p.x-x,p.y-y);if(dist<reach){if(nuke)setTimeout(()=>knockTree(i,x,y,1.4),dist/343*1000);else knockTree(i,x,y,1-dist/reach);}}}
 }
 function frame(now){requestAnimationFrame(frame);const dt=Math.min(.1,(now-lastFrame)/1000);lastFrame=now;stepChips(dt);stepTrees(dt);}
+// shader prewarm: the decal / chip / scorch pools exist (and compile) before the first impact
+if(typeof window!=="undefined")(globalThis.__prewarmFactories??=[]).push(()=>{try{ensure();const sc=bridge()?.threeScene;if(sc)ensureScorch(sc);}catch{}return null;});
 export function installWorldImpacts(){
   if(installed||typeof window==="undefined")return;installed=true;
   window.addEventListener("arondight:world-explosion",onExplosion);

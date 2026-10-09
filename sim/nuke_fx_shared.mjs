@@ -93,7 +93,8 @@ export function warmNukePrograms(){
   const probe=new THREE.Group();probe.name="NUKE_PROGRAM_WARMUP";
   for(const additive of[true,false])for(const depthTest of[true,false]){for(const material of[fxMaterial(0xffffff,{additive,depthTest}),fxMaterial(0xffffff,{additive,depthTest,side:THREE.DoubleSide}),smokeMaterial(0x808080,{opacity:.5,depthTest})]){const mesh=new THREE.Mesh(sphereGeometry(.01,6,4),material);mesh.frustumCulled=false;probe.add(mesh);}}
   scene.add(probe);
-  try{renderer.compile(scene,camera);warmed=true;}catch{warmed=false;}
-  finally{scene.remove(probe);/* materials kept: disposing would release the compiled programs */}
+  // compile for the screen and for the bloom target the scene renders into while bloom is on
+  const prev=renderer.getRenderTarget?.()??null,bloom=globalThis.__arondightNeonBloom?.target||null;
+  try{if(bloom){renderer.setRenderTarget(bloom);renderer.compile(scene,camera);}renderer.setRenderTarget?.(null);renderer.compile(scene,camera);warmed=true;}catch{warmed=false;}finally{renderer.setRenderTarget?.(prev);scene.remove(probe);/* materials kept: disposing would release the compiled programs */}
   return warmed;
 }

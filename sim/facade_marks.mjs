@@ -113,3 +113,5 @@ export function addWallSoot(x,y,z,r,maxWalls=2){
 export function clearFacadeMarks(){for(const m of[cracks,soots]){if(!m)continue;for(let i=0;i<m.count;i++)m.setMatrixAt(i,ZERO);m.instanceMatrix.needsUpdate=true;}}
 if(typeof window!=="undefined"){window.addEventListener("arondight:world-reset",clearFacadeMarks);
   globalThis.__facadeMarks={glassAt,wallAt,crack:addGlassCrack,soot:addWallSoot,clear:clearFacadeMarks,version:FACADE_MARKS_VERSION};}
+// shader prewarm: the crack / soot layers exist (and compile) before the first hit
+if(typeof window!=="undefined")(globalThis.__prewarmFactories??=[]).push(()=>{try{ensure();}catch{}return null;});

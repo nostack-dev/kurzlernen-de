@@ -13,7 +13,7 @@
 //      samples. Nothing is drawn in between, so nothing flickers.
 // Modules register with:  (globalThis.__prewarmFactories??=[]).push(() => object3D)
 
-export const SHADER_PREWARM_VERSION="force-visible-compileAsync-v1";
+export const SHADER_PREWARM_VERSION="force-visible-compileAsync-v2-screen+bloom-target";
 const bridge=()=>globalThis.__arondightRealWorld||null;
 let runs=0,busy=false;
 
@@ -30,7 +30,14 @@ async function prewarm(reason){
     const flipped=[];scene.traverse(n=>{if(n.visible===false&&n!==scene&&!n.isLight){n.visible=true;flipped.push(n);}});const lightsOff=[];for(const l of darkLights)if(l.visible){l.visible=false;lightsOff.push(l);}
     const before=renderer.info.programs?.length||0;
     // 3. compile (async where KHR_parallel_shader_compile exists)
-    const p=typeof renderer.compileAsync==="function"?renderer.compileAsync(scene,camera):(renderer.compile(scene,camera),Promise.resolve());
+    // A program depends on where it is drawn: the screen (sRGB + tone mapping)
+    // or the bloom target the scene really renders into while bloom is on
+    // (linear, no tone mapping). Compile for both, else every effect compiles
+    // again on first use (the nuke stutter: ~24 programs at impact).
+    const compile=()=>typeof renderer.compileAsync==="function"?renderer.compileAsync(scene,camera):(renderer.compile(scene,camera),Promise.resolve());
+    const prevTarget=renderer.getRenderTarget(),bloomTarget=globalThis.__arondightNeonBloom?.target||null;const jobs=[];
+    try{if(bloomTarget){renderer.setRenderTarget(bloomTarget);jobs.push(compile());}renderer.setRenderTarget(null);jobs.push(compile());}finally{renderer.setRenderTarget(prevTarget);}
+    const p=Promise.all(jobs.map(j=>j.catch(()=>{})));
     for(const n of flipped)n.visible=false;for(const l of lightsOff)l.visible=true;
     await p.catch(()=>{});
     for(const o of added)o.parent?.remove(o);

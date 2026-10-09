@@ -68,4 +68,5 @@ function install(renderer){
 }
 function wait(){const r=bridge()?.threeRenderer;if(r)install(r);else requestAnimationFrame(wait);}
 if(typeof window!=="undefined"&&!/[?&]nobloom=1/.test(location.search))requestAnimationFrame(wait);
-globalThis.__arondightNeonBloom={get enabled(){return enabled;},set enabled(v){enabled=Boolean(v);},version:NEON_BLOOM_VERSION};
+// the offscreen target the scene really renders into while bloom is on (shader prewarm compiles for it)
+globalThis.__arondightNeonBloom={get target(){if(!enabled)return null;const r=bridge()?.threeRenderer;if(!state&&r)state=makeState(r);if(state)resize(state);return state?.main||null;},get enabled(){return enabled;},set enabled(v){enabled=Boolean(v);},version:NEON_BLOOM_VERSION};

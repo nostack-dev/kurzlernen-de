@@ -323,6 +323,8 @@ function runEvent(scene,e){
 // pool is created right away, and a tiny crater sits far below the ground
 // until the game has been running for a few seconds.
 let prewarm=null;
+// the crater contour lines exactly as drawn after an impact (same material flags = same program)
+if(typeof window!=="undefined")(globalThis.__prewarmFactories??=[]).push(()=>{const l=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(1,0,0)]),new THREE.LineBasicMaterial({color:0x2a2018,transparent:true,opacity:.82,depthWrite:false}));l.name="NUKE_CRATER_CONTOURS_PREWARM";return l;});
 function ensurePrewarm(scene){
   if(prewarm!==null)return;
   const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute([0,0,0,1,0,0,0,1,0],3));g.setAttribute("color",new THREE.Float32BufferAttribute([0,0,0,0,0,0,0,0,0],3));

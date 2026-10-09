@@ -126,7 +126,7 @@ const nextFrame=()=>new Promise(resolve=>requestAnimationFrame(()=>resolve()));
 function withTimeout(promise,ms){return Promise.race([Promise.resolve(promise).catch(()=>{}),wait(ms)]);}
 async function mapSettled(){const map=bridge?.map;if(!bridge?.active||!map)return;if(!map.loaded?.())await withTimeout(new Promise(resolve=>map.once?.("idle",resolve)),6000);}
 async function neonSettled(){const neon=globalThis.__arondightNeonStyle;if(!neon)return;const until=performance.now()+5000;let calm=0;while(performance.now()<until){await withTimeout(nextFrame(),250);let pending=0;try{pending=Number(neon.pending?.())||0;}catch{return;}calm=pending===0?calm+1:0;if(calm>=30)return;}}
-async function compileScene(){const renderer=bridge?.threeRenderer,scene=bridge?.threeScene,camera=bridge?.threeCamera;if(!renderer||!scene||!camera)return;try{if(renderer.compileAsync)await withTimeout(renderer.compileAsync(scene,camera),4000);else renderer.compile(scene,camera);}catch{}}
+async function compileScene(){const renderer=bridge?.threeRenderer,scene=bridge?.threeScene,camera=bridge?.threeCamera;if(!renderer||!scene||!camera)return;try{const prev=renderer.getRenderTarget(),bloom=globalThis.__arondightNeonBloom?.target||null,jobs=[];if(renderer.compileAsync){try{if(bloom){renderer.setRenderTarget(bloom);jobs.push(renderer.compileAsync(scene,camera));}renderer.setRenderTarget(null);jobs.push(renderer.compileAsync(scene,camera));}finally{renderer.setRenderTarget(prev);}await withTimeout(Promise.all(jobs),4000);}else renderer.compile(scene,camera);}catch{}}
 let starting=false;
 async function startGame(){
   if(starting)return;starting=true;
