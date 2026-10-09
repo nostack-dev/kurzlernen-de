@@ -36,11 +36,12 @@ function fullLocalReset(){clearDestruction();window.dispatchEvent(new CustomEven
 // Place the player (on foot, start mode) at local (x,y) — the first free spot
 // near it — and park the drone with it. Runs after the reset chain (sim reset,
 // vitals, walker re-anchoring) has finished.
-function spawnAt(bx,by,{slot=0,n=1,startMode=true}={}){
+function spawnAt(bx,by,{slot=0,n=1,startMode=true,spawnRadiusOnly=false}={}){
   let frames=0;const run=()=>{if(++frames<4){requestAnimationFrame(run);return;}
     const w=globalThis.__arondightWalkMode;if(startMode&&typeof globalThis.__arondightApplyStartMode==="function")globalThis.__arondightApplyStartMode();else if(w?.mode!=="foot")w?.setMode?.("foot",{persist:false,reason:"respawn"});
     if(w?.mode!=="foot"||!w.setPose)return;const a=slot/Math.max(1,n)*Math.PI*2+.4,r=slot===0?0:SLOT_R+(slot>5?SLOT_R:0),cx=bx+Math.cos(a)*r,cy=by+Math.sin(a)*r;let x=cx,y=cy;
     if(n>1){let found=false;for(let k=0;k<80;k++){const rr=k===0?r:5+(k%11),aa=k===0?a:a+k*2.399963229728653;const tx=bx+Math.cos(aa)*rr,ty=by+Math.sin(aa)*rr;if(!w.canWalkTo||w.canWalkTo(tx,ty)){x=tx;y=ty;found=true;break;}}if(!found){setData("gameResetSpawn","blocked-5-15m");return;}}
+    else if(spawnRadiusOnly){let found=false;for(let k=0;k<40;k++){const rr=k===0?0:.1+((k%12)/12)*1.9,aa=k*2.399963229728653,tx=cx+Math.cos(aa)*rr,ty=cy+Math.sin(aa)*rr;if(!w.canWalkTo||w.canWalkTo(tx,ty)){x=tx;y=ty;found=true;break;}}if(!found){setData("gameResetSpawn","blocked-near-peer");return;}}
     else for(let k=0;k<48&&w.canWalkTo&&!w.canWalkTo(x,y);k++){const aa=k*2.399,rr=1.5+k*.9;x=cx+Math.cos(aa)*rr;y=cy+Math.sin(aa)*rr;}
     w.setPose({x,y,yaw:Number(w.yaw)||0,pitch:0});globalThis.__arondightPlayerVehicleRuntime?.teleportDrone?.({x,y,yaw:Number(w.yaw)||0});
     setData("gameResetSpawn",`${x.toFixed(1)},${y.toFixed(1)}`);};
