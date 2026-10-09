@@ -40,7 +40,7 @@ ${R} .solo-height-knob{background:rgba(242,244,247,.7)!important;background-imag
 ${R} :is(.foot-stick,.solo-stick),${R} :is(.foot-stick,.solo-stick) *{color:#f2f4f7!important;font-family:var(--ui-font)!important;font-weight:600!important;letter-spacing:.06em!important;text-shadow:0 1px 1px rgba(0,0,0,.5)!important}
 ${R} #footMove.sprinting .ring{border-color:var(--ui-accent)!important;box-shadow:none!important}
 /* Settings dialog */
-${R} :is(.phone-settings-dialog,#flightLogbookDialog,dialog){background:#12161cf5!important;background-image:none!important;border:1px solid var(--ui-line)!important;box-shadow:0 10px 30px rgba(0,0,0,.45)!important;color:var(--ui-text)!important;font-family:var(--ui-font)!important;border-radius:8px!important}
+${R} :is(.phone-settings-dialog,#flightLogbookDialog,dialog:not(#airStrikeTargeting)){background:#12161cf5!important;background-image:none!important;border:1px solid var(--ui-line)!important;box-shadow:0 10px 30px rgba(0,0,0,.45)!important;color:var(--ui-text)!important;font-family:var(--ui-font)!important;border-radius:8px!important}
 ${R} :is(.phone-settings-dialog,dialog) :is(h2,h3,h4){color:var(--ui-accent)!important;text-shadow:none!important;letter-spacing:.06em!important}
 ${R} :is(.phone-settings-dialog,dialog) :is(button,select,input[type=number],input[type=text]){background:rgba(255,255,255,.1)!important;background-image:none!important;color:#fff!important;border:1.5px solid var(--ui-line)!important}
 ${R} :is(.phone-settings-dialog,dialog) input[type=range],${R} :is(.phone-settings-dialog,dialog) input[type=checkbox]{accent-color:var(--ui-accent)!important}

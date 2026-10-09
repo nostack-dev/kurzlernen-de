@@ -9,7 +9,7 @@ import * as THREE from "three";
 //                        vented compensator glowing orange
 //   BOOMSTICK 40 mm   — chunky drum launcher with hazard stripes
 
-export const WEAPON_MODELS_VERSION="hero-skins-v3-glock-rmr";
+export const WEAPON_MODELS_VERSION="hero-skins-v4-classic-glock";
 const tag=(m,partKey)=>{m.frustumCulled=false;m.renderOrder=9998;m.userData.flightFireIgnore=true;m.userData.walkWeaponPart=true;if(partKey)m.userData[partKey]=true;return m;};
 const std=(color,roughness=.45,metalness=.2,extra={})=>new THREE.MeshStandardMaterial({color,roughness,metalness,...extra});
 const glow=color=>new THREE.MeshBasicMaterial({color,toneMapped:false});
@@ -74,21 +74,13 @@ export function buildVoltSmg(){
 export function buildGoldenHandCannon(){
   const g=new THREE.Group(),K="walkGlockPart";
   const slide=std(0x24272a,.38,.48),slideCut=std(0x121416,.62,.24),cut=std(0x121416,.62,.24),frame=std(0x101315,.78,.03),barrel=std(0x080a0b,.28,.66),steel=std(0x44484b,.42,.58),white=std(0xe9ece9,.62,.02);
-  // the slide (with sights and the red dot) is its own group: it cycles back on every shot
+  // the slide (with its sights) is its own group: it cycles back on every shot
   const top=new THREE.Group();top.name="WALK_GLOCK_SLIDE";top.userData.flightFireIgnore=true;top.userData.walkWeaponPart=true;
   top.add(solid(profile([[-.025,.070],[.315,.070],[.325,.058],[.325,.008],[-.025,.008]],.074),slide,0,0,0,K));
   for(let i=0;i<5;i++)top.add(box(.076,.045,.005,slideCut,0,.040,-.012-i*.016,K));
   for(let i=0;i<3;i++)top.add(box(.076,.030,.004,slideCut,0,.045,-.262-i*.014,K)); // front serrations
   top.add(box(.052,.020,.020,slideCut,0,.087,-.015,K));top.add(box(.010,.010,.006,white,-.017,.098,-.026,K));top.add(box(.010,.010,.006,white,.017,.098,-.026,K));
   top.add(box(.018,.024,.018,slideCut,0,.090,-.304,K));top.add(box(.007,.008,.006,white,0,.103,-.313,K));
-  // red-dot sight (RMR style) on the slide, co-witnessing with the irons: the dot sits on the sight line
-  const rmr=std(0x15181b,.55,.35),lens=new THREE.MeshStandardMaterial({color:0x6fd0ff,roughness:.05,metalness:.6,transparent:true,opacity:.16,depthWrite:false});
-  top.add(box(.050,.010,.064,rmr,0,.075,-.105,K));
-  for(const x of[-.0215,.0215])top.add(box(.007,.036,.054,rmr,x,.097,-.107,K));
-  top.add(box(.050,.007,.050,rmr,0,.118,-.109,K));top.add(box(.050,.012,.010,rmr,0,.084,-.077,K));
-  const glass=tag(new THREE.Mesh(new THREE.PlaneGeometry(.036,.032),lens),K);glass.position.set(0,.1005,-.131);glass.renderOrder=9999;top.add(glass);
-  const dot=tag(new THREE.Mesh(new THREE.CircleGeometry(.0021,12),new THREE.MeshBasicMaterial({color:0xff1a1a,toneMapped:false,depthTest:false})),K);dot.name="WALK_GLOCK_RED_DOT";dot.position.set(0,.1017,-.1305);dot.renderOrder=10002;top.add(dot);
-  const halo=tag(new THREE.Mesh(new THREE.CircleGeometry(.0048,14),new THREE.MeshBasicMaterial({color:0xff3020,toneMapped:false,transparent:true,opacity:.35,depthTest:false,blending:THREE.AdditiveBlending,depthWrite:false})),K);halo.position.set(0,.1017,-.1306);halo.renderOrder=10001;top.add(halo);
   mergeByMaterial(top);g.add(top);
   g.add(box(.076,.010,.072,barrel,0,.067,-.145,K));
   g.add(cyl(.019,.275,barrel,0,.029,-.205,K,16));
@@ -99,7 +91,7 @@ export function buildGoldenHandCannon(){
   for(let i=0;i<5;i++)g.add(box(.080,.005,.050,cut,0,-.080-i*.034,.014-i*.003,K));
   g.add(box(.086,.020,.092,cut,0,-.250,.005,K));
   g.add(box(.011,.045,.012,steel,0,-.083,-.060,K));
-  g.add(marker("WALK_GLOCK_GRIP",0,-.145,.005),marker("WALK_GLOCK_REAR_SIGHT",0,.1017,-.020),marker("WALK_GLOCK_FRONT_SIGHT",0,.1017,-.304));
+  g.add(marker("WALK_GLOCK_GRIP",0,-.145,.005),marker("WALK_GLOCK_REAR_SIGHT",0,.101,-.020),marker("WALK_GLOCK_FRONT_SIGHT",0,.103,-.304));
   g.add(marker("WALK_GLOCK_EJECT",.04,.075,-.13));
   g.add(muzzle("WALK_GLOCK_MUZZLE_NODE",-.362,.029));
   mergeByMaterial(g);g.scale.setScalar(1.35);g.position.set(0,-.02,-.05);return g;

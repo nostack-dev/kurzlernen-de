@@ -57,6 +57,8 @@ function look(dx,dy){
 }
 function endLook(){const b=bridge();if(lookOwned&&b&&!b.keepLookOrientation)b.lookSnapping=true;lookOwned=false;}
 
+// the mouse was freed for a small prompt (reset vote, …), not by the player pressing Esc: no pause menu
+function quietUnlock(){return Boolean(document.getElementById("resetVoteDialog"))||performance.now()<(Number(globalThis.__arondightQuietUnlockUntil)||0);}
 function weaponApi(){return gameMode()==="foot"?globalThis.__arondightFootWeapons:globalThis.__arondightDroneWeapons;}
 function selectWeapon(index){
   const mode=gameMode();if(mode==="foot"){const order=["smg","glock","sniper","nuke","grenade","gravity"];if(order[index])globalThis.__arondightFootWeapons?.setMode?.(order[index]);return true;}
@@ -205,7 +207,7 @@ export function installDesktopControls(){
   // ESC (the browser's own mouse release) opens the pause menu, like any shooter: no
   // "press ESC, then hunt for a button" dance. Closing the menu with a click captures the
   // mouse again right away.
-  document.addEventListener("pointerlockchange",()=>{if(!locked()){lmb=false;rmb=false;droneFire(false);endLook();keys.clear();if(desktop&&inGame()&&!playerDown()&&!wantMenu)setTimeout(()=>{if(!locked()&&inGame()&&!playerDown())openMenu();},0);}wantMenu=false;syncOverlay();});
+  document.addEventListener("pointerlockchange",()=>{if(!locked()){lmb=false;rmb=false;droneFire(false);endLook();keys.clear();if(desktop&&inGame()&&!playerDown()&&!wantMenu&&!quietUnlock())setTimeout(()=>{if(!locked()&&inGame()&&!playerDown()&&!quietUnlock())openMenu();},0);}wantMenu=false;syncOverlay();});
   document.addEventListener("click",e=>{if(desktop&&e.target?.closest?.("#gameMenuStart"))requestLock();},true);
   document.addEventListener("close",e=>{if(desktop&&e.target?.matches?.("dialog.phone-settings-dialog")&&inGame())requestLock();},true);
   window.addEventListener("blur",releaseAll);
