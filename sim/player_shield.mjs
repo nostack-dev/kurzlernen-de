@@ -1,10 +1,8 @@
 import * as THREE from "three";
 
-// The pilot spawns inside a protective shield bubble (the pilot only, not the
-// drone) and is invulnerable to the nuke: blast, burn and radiation damage to
-// the player are cancelled by nuke_destruction.mjs / nuke_hazard_fx.mjs while
-// the shield is up. The bubble is drawn in the same neon line style and
-// flares when a shock wave hits it.
+// The pilot nuke shield is retired: a nuke kills whoever is inside its lethal radius, the player
+// included (blast, burn, radiation — nuke_destruction.mjs / nuke_hazard_fx.mjs). The module stays
+// as the switch (active:false) so nothing that asks for it breaks; no bubble is drawn.
 
 export const PLAYER_SHIELD_VERSION="pilot-nuke-shield-v1";
 const RADIUS_M=1.55;
@@ -14,7 +12,7 @@ const viewport=()=>document.getElementById("viewport");
 const bridge=()=>globalThis.__arondightRealWorld||null;
 const walk=()=>globalThis.__arondightWalkMode||null;
 
-export const playerShield={active:true,version:PLAYER_SHIELD_VERSION,nukeImmune(){return this.active;}};
+export const playerShield={active:false,version:PLAYER_SHIELD_VERSION,nukeImmune(){return this.active;}};
 globalThis.__arondightPlayerShield=playerShield;
 
 function ensure(scene){
