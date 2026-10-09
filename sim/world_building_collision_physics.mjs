@@ -39,7 +39,12 @@ export function findClearBuildingLaunchPoint(value,{point=DEFAULT_LAUNCH_EXCLUSI
 export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=1n,maskBits=6n,rangefinderCategoryBits=4n,launchExclusionPoint=DEFAULT_LAUNCH_EXCLUSION_POINT}={}){
   const snapshot=normalizeBuildingCollisionSnapshot(value);void launchExclusionPoint;if(!world||!snapshot.prisms.length)return{body:null,shapeCount:0,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze([]),...snapshot};
   const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_staticBody;bodyDef.position=[0,0,0];const body=b3.b3CreateBody(world,bodyDef),shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.68;shapeDef.baseMaterial.restitution=.025;const collisionMask=BigInt(maskBits)&~BigInt(rangefinderCategoryBits);shapeDef.filter={categoryBits:BigInt(categoryBits),maskBits:collisionMask,groupIndex:0};let shapeCount=0;const activePrisms=[];
-  for(const prism of snapshot.prisms){const vertices=[];let e=buildingGroundBase(prism.points);for(const height of[prism.base+e,prism.top+e])for(const point of prism.points)vertices.push(point[0],point[1],height);const hull=b3.b3CreateHull(vertices);if(!hull)continue;try{b3.b3CreateHullShape(body,shapeDef,hull);shapeCount++;activePrisms.push(prism);}finally{b3.b3DestroyHull(hull);}}
+  // a building stands on ONE ground level (its whole footprint), like the drawn building and the roof you
+  // walk on: a concave footprint is cut into triangles, and each piece must not get its own (higher) base,
+  // or pieces on a slope stick up above the visible roof and stop shots and players there
+  const groundByKey=new Map();for(const prism of snapshot.prisms){const k=prism.buildingKey;if(!k)continue;let list=groundByKey.get(k);if(!list){list=[];groundByKey.set(k,list);}for(const p of prism.points)list.push(p);}
+  for(const[k,pts]of groundByKey)groundByKey.set(k,buildingGroundBase(pts));
+  for(const prism of snapshot.prisms){const vertices=[];let e=prism.buildingKey&&groundByKey.has(prism.buildingKey)?groundByKey.get(prism.buildingKey):buildingGroundBase(prism.points);for(const height of[prism.base+e,prism.top+e])for(const point of prism.points)vertices.push(point[0],point[1],height);const hull=b3.b3CreateHull(vertices);if(!hull)continue;try{b3.b3CreateHullShape(body,shapeDef,hull);shapeCount++;activePrisms.push(prism);}finally{b3.b3DestroyHull(hull);}}
   if(!shapeCount){b3.b3DestroyBody(body);return{body:null,shapeCount:0,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze([]),...snapshot};}return{body,shapeCount,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze(activePrisms.slice()),...snapshot};
 }
 
