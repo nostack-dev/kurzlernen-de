@@ -5,13 +5,16 @@ import * as THREE from "three";
 // lit windows, explosions) are extracted at quarter resolution, blurred in
 // two small levels (1/4 and 1/8) and added back in one full-screen pass.
 // Cost ≈ one extra full-screen pass + tiny low-res passes.
-// Guarded by the frame time: if the device can't keep up it switches itself
-// off for the session (performance first).
+// Guarded by the frame time: if the device can't keep up, the bloom passes switch off for
+// the session (performance first) — but the scene keeps rendering through the same offscreen
+// target and final tone-map pass. Switching the output path (offscreen linear ↔ screen sRGB +
+// tone mapping) changes every lit shader program: dozens of programs recompiled at once, a
+// freeze of ~1 s in the middle of play. With one constant path that never happens.
 
-export const NEON_BLOOM_VERSION="quarter-res-two-level-bloom-v2-crisp";
+export const NEON_BLOOM_VERSION="quarter-res-two-level-bloom-v3-constant-output";
 const DISABLE_FRAME_MS=27,DISABLE_AFTER_MS=3500,STRENGTH_NEAR=.13,STRENGTH_WIDE=.08,THRESHOLD=.88;
 
-let installed=false,enabled=true,state=null,slowSince=0,frameAvg=16,lastFrameAt=0;
+let installed=false,enabled=true,bloomOn=true,state=null,slowSince=0,frameAvg=16,lastFrameAt=0;
 const bridge=()=>globalThis.__arondightRealWorld||null;
 
 const VERT="varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}";
@@ -42,7 +45,7 @@ function blur(s,src,tmp,w,h){s.blur.uniforms.tSrc.value=src.texture;s.blur.unifo
 function trackFrame(now){
   if(lastFrameAt){const dt=now-lastFrameAt;if(dt<200)frameAvg+=(dt-frameAvg)*.05;}lastFrameAt=now;
   if(document.hidden){slowSince=0;return;}
-  if(frameAvg>DISABLE_FRAME_MS){slowSince||=now;if(now-slowSince>DISABLE_AFTER_MS){enabled=false;const v=document.getElementById("viewport");if(v)v.dataset.neonBloom="off-slow-device";}}else slowSince=0;
+  if(frameAvg>DISABLE_FRAME_MS){slowSince||=now;if(now-slowSince>DISABLE_AFTER_MS&&bloomOn){bloomOn=false;const v=document.getElementById("viewport");if(v)v.dataset.neonBloom="glow-off-slow-device";}}else slowSince=0;
 }
 function install(renderer){
   if(installed||!renderer)return;installed=true;
@@ -55,10 +58,13 @@ function install(renderer){
       state??=makeState(renderer);const s=state;resize(s);trackFrame(performance.now());
       renderer.setRenderTarget(s.main);renderer.clear();original(scene,camera);
       const autoClear=renderer.autoClear;renderer.autoClear=true;
-      s.bright.uniforms.tSrc.value=s.main.texture;draw(s,s.bright,s.a1);
-      blur(s,s.a1,s.b1,s.a1.width,s.a1.height);
-      s.copy.uniforms.tSrc.value=s.a1.texture;draw(s,s.copy,s.a2);
-      blur(s,s.a2,s.b2,s.a2.width,s.a2.height);
+      if(bloomOn){
+        s.bright.uniforms.tSrc.value=s.main.texture;draw(s,s.bright,s.a1);
+        blur(s,s.a1,s.b1,s.a1.width,s.a1.height);
+        s.copy.uniforms.tSrc.value=s.a1.texture;draw(s,s.copy,s.a2);
+        blur(s,s.a2,s.b2,s.a2.width,s.a2.height);
+      }
+      s.combine.uniforms.uS1.value=bloomOn?STRENGTH_NEAR:0;s.combine.uniforms.uS2.value=bloomOn?STRENGTH_WIDE:0;
       s.combine.uniforms.tScene.value=s.main.texture;s.combine.uniforms.tB1.value=s.a1.texture;s.combine.uniforms.tB2.value=s.a2.texture;
       draw(s,s.combine,null);renderer.autoClear=autoClear;
     }catch(error){enabled=false;console.warn("neon bloom disabled",error);renderer.setRenderTarget(null);original(scene,camera);}
@@ -69,4 +75,4 @@ function install(renderer){
 function wait(){const r=bridge()?.threeRenderer;if(r)install(r);else requestAnimationFrame(wait);}
 if(typeof window!=="undefined"&&!/[?&]nobloom=1/.test(location.search))requestAnimationFrame(wait);
 // the offscreen target the scene really renders into while bloom is on (shader prewarm compiles for it)
-globalThis.__arondightNeonBloom={get target(){if(!enabled)return null;const r=bridge()?.threeRenderer;if(!state&&r)state=makeState(r);if(state)resize(state);return state?.main||null;},get enabled(){return enabled;},set enabled(v){enabled=Boolean(v);},version:NEON_BLOOM_VERSION};
+globalThis.__arondightNeonBloom={get target(){if(!enabled)return null;const r=bridge()?.threeRenderer;if(!state&&r)state=makeState(r);if(state)resize(state);return state?.main||null;},get enabled(){return enabled;},set enabled(v){enabled=Boolean(v);},get glow(){return bloomOn;},set glow(v){bloomOn=Boolean(v);},version:NEON_BLOOM_VERSION};
