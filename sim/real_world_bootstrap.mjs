@@ -433,7 +433,7 @@ class RealWorldBridge{
   }
   setPerfMode(mode){
     if(this.perfMode===mode)return;this.perfMode=mode;
-    const fixedBackbuffer=globalThis.__arondightDiagnostics?.presentationStableBackbuffer===true;if(this.threeRenderer&&!fixedBackbuffer){const ceiling=Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO),ratio=mode==="critical"?Math.min(ceiling,.75):mode==="constrained"?Math.min(ceiling,1):ceiling;if(Math.abs(this.threeRenderer.getPixelRatio()-ratio)>.001)this.threeRenderer.setPixelRatio(ratio);$("viewport").dataset.worldFlightPixelRatio=String(ratio);}
+    /* The resolution no longer follows the frame rate: every switch reallocated the canvas and the full-size bloom target (a hitch) and the image pumped between sharp and blurry. The mode is still measured and published. */const fixedBackbuffer=globalThis.__arondightDiagnostics?.presentationStableBackbuffer===true;if(this.threeRenderer&&!fixedBackbuffer){const ceiling=Math.min(this.flightPixelRatio||devicePixelRatio||1,WORLD_FLIGHT_PIXEL_RATIO),ratio=ceiling;if(Math.abs(this.threeRenderer.getPixelRatio()-ratio)>.001)this.threeRenderer.setPixelRatio(ratio);$("viewport").dataset.worldFlightPixelRatio=String(ratio);}
     const viewport=$("viewport");if(viewport){viewport.dataset.worldPerfMode=mode;viewport.dataset.worldMapFpsCap="presentation";}
   }
   trackFlightPerformance(now){

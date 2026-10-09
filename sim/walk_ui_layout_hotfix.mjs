@@ -50,8 +50,12 @@ function measure(){
 
 export function installWalkUiLayoutHotfix(){
   if(installed)return;installed=true;installStyle();
-  addEventListener("resize",()=>requestAnimationFrame(measure),{passive:true});
-  new MutationObserver(()=>requestAnimationFrame(measure)).observe(document.documentElement,{childList:true,subtree:true});
+  // measure() forces a synchronous layout (getBoundingClientRect on six elements). Every HUD
+  // text update is a childList mutation, so measuring per mutation forced a layout every
+  // frame. These are layout diagnostics: coalesce them to at most one measure per 500 ms.
+  let pending=0;const schedule=()=>{if(pending)return;pending=setTimeout(()=>{pending=0;requestAnimationFrame(measure);},500);};
+  addEventListener("resize",schedule,{passive:true});
+  new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true});
   requestAnimationFrame(measure);
 }
 

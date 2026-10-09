@@ -1,4 +1,5 @@
 import {installViewmodelPass} from "./viewmodel_pass.mjs";
+import {installRenderFastPaths} from "./render_fast_paths.mjs";
 import * as THREE from "three";
 import Box3DFactory from "box3d.js/dist/box3d.inline.mjs";
 import createCore from "../generated/flight_core.mjs";
@@ -27,6 +28,7 @@ import {batteryOcvVoltage,batteryVoltageUnderLoad,scaleCurrentsToPackLimit,solve
 import {PlayerCameraModePolicy} from "./player_camera_mode_policy.mjs";
 
 const DT = 0.001;
+const DRONE_SUBSTEPS = 1;
 const G = 9.80665;
 const MOTOR_YAW_SIGN=Object.freeze([-1,1,-1,1]);
 const INPUT_MAGIC = 0x314c4948;
@@ -539,12 +541,27 @@ class PhysicsModel {
     const relative=this.localVector(sub(this.linear(),p.wind)),cdA=this.cdA,horizontalSpeed=Math.hypot(relative[0],relative[1]),drag=[-.5*p.rho*cdA[0]*relative[0]*horizontalSpeed,-.5*p.rho*cdA[1]*relative[1]*horizontalSpeed,-.5*p.rho*cdA[2]*relative[2]*Math.abs(relative[2])];b3.b3Body_ApplyForceToCenter(this.body,this.worldVector(drag),true);
     const omega=this.localVector(this.angular()),angularDrag=omega.map(v=>-.0012*v*Math.abs(v));b3.b3Body_ApplyTorque(this.body,this.worldVector(angularDrag),true);
   }
+  // A parked airframe (motors stopped, at rest for 0.5 s) is not stepped: exactly what Box3D's
+  // own sleeping does, which this world keeps off for the IMU path. Stepping it 1000×/s while
+  // the player walks, drives or flies the jet was a quarter of the whole frame's CPU. Any motor
+  // command, a teleport or an impulse (pose/velocity no longer the parked ones) wakes it at once.
+  parkedCheck(pulses){
+    let commanded=false;for(let i=0;i<4;i++)if(pulses[i]>1000||this.motorOmega[i]>1e-3){commanded=true;break;}
+    if(commanded){this.parkedSteps=0;this.parked=null;return false;}
+    const v=this.linear(),pos=this.position();
+    if(this.parked){const q=this.parked;if(Math.abs(v[0])+Math.abs(v[1])+Math.abs(v[2])<1e-9&&pos[0]===q[0]&&pos[1]===q[1]&&pos[2]===q[2])return true;this.parked=null;this.parkedSteps=0;return false;}
+    const w=this.angular();if(Math.hypot(v[0],v[1],v[2])<2e-3&&Math.hypot(w[0],w[1],w[2])<2e-3){if((this.parkedSteps=(this.parkedSteps||0)+1)>500){b3.b3Body_SetLinearVelocity(this.body,[0,0,0]);b3.b3Body_SetAngularVelocity(this.body,[0,0,0]);this.parked=this.position();this.worldAcceleration=[0,0,0];return true;}}else this.parkedSteps=0;
+    return false;
+  }
   step(pulses,dt=DT){
     this.capturePresentationStep();
+    if(this.parkedCheck(pulses)){this.terrainTiles?.tick();this.capturePresentationCurrent();return;}
     this.applyForces(pulses,dt);
     const before=this.linear();
     this.terrainTiles?.tick();
-    b3.b3World_Step(this.world,dt,4);
+    // 1 kHz steps: one Box3D substep is already 4× finer than Box3D's design point (60 Hz × 4);
+    // four substeps per 1 ms step tripled the solver work for no physical difference.
+    b3.b3World_Step(this.world,dt,DRONE_SUBSTEPS);
     if(((this.terrainGuardTick=(this.terrainGuardTick||0)+1)&3)===0)this.rescueFromTerrain();
     this.worldAcceleration=scale(sub(this.linear(),before),1/dt);
     this.capturePresentationCurrent();
@@ -572,7 +589,7 @@ const scene=new THREE.Scene();scene.background=daylightSky();scene.fog=new THREE
 const camera=new THREE.PerspectiveCamera(52,1,.01,1500);camera.up.set(0,0,1);camera.position.set(1.65,0,.8);
 const initialRenderProfile=renderPlatformProfile({userAgent:navigator.userAgent,devicePixelRatio});
 const renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:initialRenderProfile.stableBackbuffer?"default":"high-performance",desynchronized:false,preserveDrawingBuffer:false});
-installViewmodelPass(renderer);
+installViewmodelPass(renderer);installRenderFastPaths(renderer);
 // production: no synchronous shader error checks (each compile would block on
 // getProgramInfoLog and lose the driver's parallel compile); ?debug keeps them
 renderer.debug.checkShaderErrors=/[?&]debug/.test(globalThis.location?.search||"");
@@ -1045,6 +1062,8 @@ function updatePresentationQuality(now){
   else if(cadence>PRESENTATION_CADENCE_RECOVER&&presentationPixelRatio<presentationQualityCeiling){
     if(++presentationQualityGoodWindows>=PRESENTATION_RECOVERY_WINDOWS){target=Math.min(presentationQualityCeiling,presentationPixelRatio+.20);presentationQualityGoodWindows=0;}
   }else presentationQualityGoodWindows=0;
+  // measured only: switching the backbuffer size with the frame rate reallocated the canvas and the bloom target (a hitch) and made the image pump
+  target=presentationQualityCeiling;
   if(Math.abs(target-presentationPixelRatio)>.01){presentationPixelRatio=target;renderer.setPixelRatio(presentationPixelRatio);resize();}
   const viewport=$("viewport");if(viewport){viewport.dataset.presentationPixelRatio=presentationPixelRatio.toFixed(2);viewport.dataset.presentationCadence=cadence.toFixed(3);}
 }

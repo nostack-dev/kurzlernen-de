@@ -55,8 +55,8 @@ export function createCrowd(scene,{capacity=64,outfit="civilian",name="CROWD"}={
       tpl.root.position.set(x,y,z);tpl.root.rotation.set(lean,0,yaw);tpl.root.updateMatrixWorld(true);
       for(let k=0;k<parts.length;k++)set[k].setMatrixAt(slot,parts[k].visible&&visibleChain(parts[k])?parts[k].matrixWorld:ZERO);
       if(owner[slot]!==i){owner[slot]=i;const c=p.colors;for(let k=0;k<set.length;k++){const v=c?.[set[k].userData.cat];set[k].setColorAt(slot,col.set(v??base[k]));}if(mid)midColorDirty=true;else colorDirty=true;}},
-    commit(){for(const m of meshes){m.count=cursor;if(cursor)m.instanceMatrix.needsUpdate=true;if(colorDirty&&m.instanceColor)m.instanceColor.needsUpdate=true;}colorDirty=false;cursor=0;
-      if(meshesMid){for(const m of meshesMid){m.count=midCursor;if(midCursor)m.instanceMatrix.needsUpdate=true;if(midColorDirty&&m.instanceColor)m.instanceColor.needsUpdate=true;}}midColorDirty=false;midCursor=0;far.count=farCursor;if(farCursor)far.instanceMatrix.needsUpdate=true;if(farColorDirty)far.instanceColor.needsUpdate=true;farColorDirty=false;farCursor=0;},
+    commit(){/* an empty instanced mesh still costs a full draw setup (program, uniforms) per part per pass: hide it */for(const m of meshes){m.count=cursor;m.visible=cursor>0;if(cursor)m.instanceMatrix.needsUpdate=true;if(colorDirty&&m.instanceColor)m.instanceColor.needsUpdate=true;}colorDirty=false;cursor=0;
+      if(meshesMid){for(const m of meshesMid){m.count=midCursor;m.visible=midCursor>0;if(midCursor)m.instanceMatrix.needsUpdate=true;if(midColorDirty&&m.instanceColor)m.instanceColor.needsUpdate=true;}}midColorDirty=false;midCursor=0;far.count=farCursor;far.visible=farCursor>0;if(farCursor)far.instanceMatrix.needsUpdate=true;if(farColorDirty)far.instanceColor.needsUpdate=true;farColorDirty=false;farCursor=0;},
     dispose(){group.parent?.remove(group);for(const m of[...meshes,...(meshesMid||[])]){m.material.dispose();m.dispose?.();}},
   };
   return crowd;

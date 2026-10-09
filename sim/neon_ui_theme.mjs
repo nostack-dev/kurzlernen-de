@@ -77,7 +77,10 @@ export function installNeonUiTheme(){
   document.documentElement.classList.add("neon-line-style");
   const style=document.createElement("style");style.dataset.neonUiTheme=NEON_UI_THEME_VERSION;style.textContent=CSS;
   (document.head||document.documentElement).appendChild(style);
-  const labelObserver=new MutationObserver(()=>scheduleLabelFit(true));labelObserver.observe(document.body,{subtree:true,childList:true,characterData:true});
+  // Only button label changes matter. HUD readouts change text every frame; refitting (which
+  // reads clientWidth/scrollWidth = a forced layout) on each of them cost a layout per frame.
+  const inButton=n=>{const el=n?.nodeType===1?n:n?.parentElement;return Boolean(el?.closest?.("button,.phone-settings-button"));};
+  const labelObserver=new MutationObserver(list=>{let tree=false,text=false;for(const m of list){if(m.type==="childList"){for(const n of m.addedNodes)if(n.nodeType===1&&(n.matches?.("button,.phone-settings-button")||n.querySelector?.("button"))){tree=true;break;}if(!tree&&inButton(m.target))text=true;}else if(inButton(m.target))text=true;if(tree)break;}if(tree||text)scheduleLabelFit(tree);});labelObserver.observe(document.body,{subtree:true,childList:true,characterData:true});
   addEventListener("resize",()=>scheduleLabelFit(true),{passive:true});addEventListener("orientationchange",()=>scheduleLabelFit(true),{passive:true});
   scheduleLabelFit(true);setTimeout(guardMinimap,1500);
 }
