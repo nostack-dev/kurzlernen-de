@@ -92,7 +92,7 @@ function onDown(event){
   // newest finger on a stick takes it over: a finger whose "up" got lost can never block the stick
   if(move){dropOther("move",event.pointerId);pointers.set(event.pointerId,startMove(move,event));}
   else if(look){dropOther("look",event.pointerId);pointers.set(event.pointerId,startLook(look,event));setData("walkTouchLookModel",FOOT_TOUCH_LOOK);}
-  else{const hand=chooseFireHand(event.clientX,event.clientY);if(hand<0){setData("walkGlockExtraTouch","ignored-third-fire-pointer");return claim(event);}const entry={kind:"fire",x:event.clientX,y:event.clientY,sx:event.clientX,sy:event.clientY,lx:event.clientX,ly:event.clientY,lt:Number(event.timeStamp)||now,looking:false,lastShot:now,hand};pointers.set(event.pointerId,entry);fire(entry.x,entry.y,"screen-touch-hold-start",entry.hand);setData("walkFirePointerActive","1");setData("walkFirePointerId",event.pointerId);setData("walkFireHand",entry.hand);setData("walkFireHands",fireHands().join(","));setData("walkGlockTriggerModel","screen-half-owns-pistol-v4");setData("walkHoldFire","screen-pointer-owned-smg-v1");setData("walkScreenTouch","fire-only-v1");}
+  else{const hand=chooseFireHand(event.clientX,event.clientY);if(hand<0){setData("walkGlockExtraTouch","ignored-third-fire-pointer");return claim(event);}const entry={kind:"fire",x:event.clientX,y:event.clientY,sx:event.clientX,sy:event.clientY,lx:event.clientX,ly:event.clientY,lt:Number(event.timeStamp)||now,looking:false,lastShot:now,hand};pointers.set(event.pointerId,entry);fire(entry.x,entry.y,"screen-touch-hold-start",entry.hand);setData("walkFirePointerActive","1");ensureHoldTimer();setData("walkFirePointerId",event.pointerId);setData("walkFireHand",entry.hand);setData("walkFireHands",fireHands().join(","));setData("walkGlockTriggerModel","screen-half-owns-pistol-v4");setData("walkHoldFire","screen-pointer-owned-smg-v1");setData("walkScreenTouch","fire-only-v1");}
   // Keep the established input contracts that the live regression checks.
   setData("walkTouchContract","drone-normalized-pointer-origin-v2");setData("walkStickSemantics","drone-normalizedPointer-v1");setData("walkMultiTouchMoveIsolation","pointer-id-owned-v1");setData("walkAimStickCoordinates","drone-normalizedPointer-v2");setData("walkWeaponTouchVector","screen-ray+hand-anchor-v1");
   {const e=pointers.get(event.pointerId);if(e&&(e.kind==="move"||e.kind==="look"))e.el.classList.add("stick-live");}
@@ -125,6 +125,17 @@ function stillLooking(){for(const e of pointers.values())if(e.kind==="look"||e.l
 function onUp(event){if(!pointers.has(event.pointerId))return;release(event.pointerId,event.type);claim(event);}
 function releaseAll(reason){for(const id of[...pointers.keys()])release(id,reason);nextPistolHand=0;}
 
+// Held fire (MP full-auto, Glock repeat). Driven by the frame loop AND a 25 ms timer: on a device
+// (or a CI browser) whose frames stall, the timer keeps the cadence; both share entry.lastShot,
+// so a round is never fired twice.
+function holdFire(now){if(!active())return;const mode=String(weapons()?.mode||"");for(const entry of pointers.values()){if(entry.kind!=="fire")continue;
+  if(mode==="smg"){
+    // Fire rate is independent of the frame rate: catch up on missed
+    // intervals (bounded) so a slow frame doesn't throttle the MP.
+    let n=0;while(now-entry.lastShot>=FIRE_INTERVAL_MS&&n<4){entry.lastShot+=FIRE_INTERVAL_MS;n++;fire(entry.x,entry.y,"screen-touch-hold-repeat",entry.hand,entry.lastShot);}
+    if(now-entry.lastShot>=FIRE_INTERVAL_MS)entry.lastShot=now;}
+  else if(mode==="glock"&&now-entry.lastShot>=GLOCK_HOLD_MS){entry.lastShot=now;fire(entry.x,entry.y,"screen-touch-hold-repeat",entry.hand);}}}
+let holdTimer=0;function ensureHoldTimer(){if(holdTimer)return;holdTimer=setInterval(()=>{if(![...pointers.values()].some(e=>e.kind==="fire")){clearInterval(holdTimer);holdTimer=0;return;}holdFire(performance.now());},25);}
 // Continuous work: edge-turn on the look stick and MP auto-fire.
 function ensureLoop(){if(loop)return;lastLoop=performance.now();const tick=now=>{const dt=clamp((now-lastLoop)/1000,0,.05);lastLoop=now;
   // a blip of "inactive" (mode event, respawn frame) must not drop fingers that are still down
@@ -132,13 +143,8 @@ function ensureLoop(){if(loop)return;lastLoop=performance.now();const tick=now=>
   if(!pointers.size){loop=0;return;}
   for(const entry of pointers.values()){
     if(entry.kind==="look"&&entry.axes.edge>0){const k=entry.axes.edge,n=entry.axes.m||1;walk()?.applyTouchLookStick?.({x:entry.axes.x/n*k,y:entry.axes.y/n*k,dt,now,source:"touch-stick-edge"});}
-    else if(entry.kind==="fire"&&String(weapons()?.mode||"")==="smg"){
-      // Fire rate is independent of the frame rate: catch up on missed
-      // intervals (bounded) so a slow frame doesn't throttle the MP.
-      let n=0;while(now-entry.lastShot>=FIRE_INTERVAL_MS&&n<4){entry.lastShot+=FIRE_INTERVAL_MS;n++;fire(entry.x,entry.y,"screen-touch-hold-repeat",entry.hand,entry.lastShot);}
-      if(now-entry.lastShot>=FIRE_INTERVAL_MS)entry.lastShot=now;}
-    else if(entry.kind==="fire"&&String(weapons()?.mode||"")==="glock"&&now-entry.lastShot>=GLOCK_HOLD_MS){entry.lastShot=now;fire(entry.x,entry.y,"screen-touch-hold-repeat",entry.hand);}
   }
+  holdFire(now);
   loop=requestAnimationFrame(tick);};loop=requestAnimationFrame(tick);}
 
 export function installFootTouchController(){
