@@ -90,7 +90,12 @@ function updateTracers(now){for(const group of tracerPool){if(!group.visible)con
   if(head>=state.distance&&!state.impacted){state.impacted=true;const f=impactPool[impactCursor++%Math.max(1,impactPool.length)];if(f){f.position.copy(state.start).addScaledVector(state.direction,state.distance);f.userData.born=now;f.visible=true;}}
   const fade=head>=state.distance?Math.max(.05,1-arrivedMs/state.holdMs):1;const center=(head+tail)*.5;group.position.copy(state.start).addScaledVector(state.direction,center);group.quaternion.setFromUnitVectors(tracerAxis,state.direction);group.scale.set(fade,segment,fade);}
   for(const f of impactPool){if(!f.visible)continue;const t=(now-f.userData.born)/110;if(t>=1){f.visible=false;continue;}f.scale.setScalar(.06+.22*t);f.material.opacity=.95*(1-t);}}
-function routeHit(hit){if(!hit)return false;const b=bridge(),object=hit.object||physicsSceneObject(hit.physicsId,hit.physicsKind),routed={...hit,object};if(hit.box3d&&!object)return false;const police=Boolean(b?.registerPoliceHit?.(routed)),population=!police&&Boolean(b?.registerWorldPopulationHit?.(routed)),versus=!police&&!population&&Boolean(b?.registerVsHit?.(routed));return police||population||versus;}
+function routeHit(hit){if(!hit)return false;
+  if(hit.physicsKind==="animal"&&hit.physicsId){
+    const p=hit.point,dir=shotRaycaster.ray.direction;
+    return Boolean(globalThis.__ambientAnimals?.hit?.({id:hit.physicsId,point:p?[p.x,p.y,p.z]:null,direction:[dir.x,dir.y,dir.z],strength:1}));
+  }
+  const b=bridge(),object=hit.object||physicsSceneObject(hit.physicsId,hit.physicsKind),routed={...hit,object};if(hit.box3d&&!object)return false;const police=Boolean(b?.registerPoliceHit?.(routed)),population=!police&&Boolean(b?.registerWorldPopulationHit?.(routed)),versus=!police&&!population&&Boolean(b?.registerVsHit?.(routed));return police||population||versus;}
 function addFallbackDecal(hit){if(!hit?.point)return;const b=bridge(),scene=b?.threeScene;if(!scene)return;const g=new THREE.CircleGeometry(.026,8),m=new THREE.MeshBasicMaterial({color:0x171717,transparent:true,opacity:.9,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,side:THREE.DoubleSide}),mesh=new THREE.Mesh(g,m),n=hit.worldNormal?.clone?.()||hit.face?.normal?.clone?.().transformDirection(hit.object?.matrixWorld)||new THREE.Vector3(0,0,1);mesh.position.copy(hit.point).addScaledVector(n.normalize(),.004);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),n);mesh.userData.flightFireIgnore=true;scene.add(mesh);setTimeout(()=>{scene.remove(mesh);g.dispose();m.dispose();},9000);}
 
 export const SMG_INTERVAL_MS=55,GLOCK_MIN_INTERVAL_MS=110; // MP ~1090 rpm
