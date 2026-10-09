@@ -19,12 +19,12 @@ function installHud(){
 `;document.head.appendChild(style);}return true;
 }
 
-function playerWorldPose(){const w=walk(),vehicle=globalThis.__arondightPlayerVehicleRuntime,source=w?.mode==="foot"&&w.position?w.position:vehicle?.humanAnchor;return{x:Number(source?.x)||0,y:Number(source?.y)||0,z:0,yaw:Number(w?.yaw??viewport()?.dataset.walkYaw)||0};}
+function playerWorldPose(){const w=walk(),vehicle=globalThis.__arondightPlayerVehicleRuntime,source=w?.mode==="foot"&&w.position?w.position:vehicle?.humanAnchor,j=globalThis.__arondightWalkJump,foot=w?.mode==="foot",feet=foot&&Number.isFinite(j?.feet)?j.feet:0;return{x:Number(source?.x)||0,y:Number(source?.y)||0,z:feet,yaw:Number(w?.yaw??viewport()?.dataset.walkYaw)||0,velocity:foot&&j?.airborne?[Number(j.vx)||0,Number(j.vy)||0,Number(j.vz)||0]:[0,0,0]};}
 function announce(type,detail){window.dispatchEvent(new CustomEvent(type,{detail}));}
 
 function setBridgePlayerHp(hp,dead){const b=bridge();if(!b)return;b.vsLocalHealth=hp;b.vsLocalDead=dead;b.updateVsCombatHud?.(true);}
 function markPlayerDeath(source="world"){
-  if(playerDead)return;playerDead=true;const pose=playerWorldPose(),side=((String(source).length+Math.round(Math.abs(pose.x+pose.y)))&1)?1:-1;spawnWorldPersonRagdoll({position:[pose.x,pose.y,pose.z],yaw:pose.yaw,colors:{shirt:0x4b5238,vest:0x2b3024,pants:0x3d3b33,boots:0x1a1a18,skin:0xc08a68,gloves:0x1c1e1b,helmet:0x3a4030},impulse:[side*.55,-.35,.15],seed:`local-player-${source}`,id:"local-player"});
+  if(playerDead)return;playerDead=true;const pose=playerWorldPose(),side=((String(source).length+Math.round(Math.abs(pose.x+pose.y)))&1)?1:-1;spawnWorldPersonRagdoll({position:[pose.x,pose.y,pose.z],yaw:pose.yaw,colors:{shirt:0x4b5238,vest:0x2b3024,pants:0x3d3b33,boots:0x1a1a18,skin:0xc08a68,gloves:0x1c1e1b,helmet:0x3a4030},impulse:[side*.55+pose.velocity[0],-.35+pose.velocity[1],.15+pose.velocity[2]],seed:`local-player-${source}`,id:"local-player"});
   document.body?.classList.add("player-dead");announce("arondight:player-death",{source,position:[pose.x,pose.y,pose.z],yaw:pose.yaw,fallSide:side});const w=walk();if(w?.mode!=="foot")w?.setMode?.("foot",{persist:false,reason:"player-death"});
 }
 function revivePlayer(){const wasDead=playerDead;playerDead=false;document.body?.classList.remove("player-dead");if(wasDead)announce("arondight:player-revived",{hp:playerHp});}

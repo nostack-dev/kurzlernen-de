@@ -256,6 +256,10 @@ function onPeerEvent(event){
   const detail=event.detail||{},id=String(detail.peerId||"");if(detail.type==="join"){recordFor(id);refreshColors(true);}else if(detail.type==="leave")removePeer(id);updateIdentity();if(detail.type==="join"){if(authorityId===selfId){sendSnapshotTo(id);sendSpawnAnchor(id);}else reportLocalState();}else if(detail.type==="leave"&&authorityId!==selfId)reportLocalState();
 }
 
+// Damage of one round on a mate: by weapon, times where it lands (head ×2, legs ×0.65). An MP burst
+// needs about eight body hits, the Glock four, the sniper one to the head or body.
+const VS_WEAPON_DAMAGE={smg:13,glock:26,sniper:95,gun:13,"5.56":13},VS_ZONE={head:2,torso:1,legs:.65};
+function vsDamage(hit){let zone="";for(let n=hit?.object;n&&!zone;n=n.parent)zone=String(n.userData?.vsHitZone||"");const base=VS_WEAPON_DAMAGE[String(hit?.weapon||"")]??20;return Math.max(1,Math.min(100,Math.round(base*(VS_ZONE[zone]??1))));}
 function targetFromHit(hit){
   for(let node=hit?.object;node;node=node.parent){const id=String(node.userData?.vsPlayerId||"");if(id&&id!==selfId)return id;}
   const b=bridge();if(primaryId&&b?.vsPeerMesh){for(let node=hit?.object;node;node=node.parent)if(node===b.vsPeerMesh)return primaryId;}return"";
@@ -263,7 +267,7 @@ function targetFromHit(hit){
 
 function installBridgeHooks(){
   const b=bridge();if(!b||b.__vsMultiplayerHooks)return;b.__vsMultiplayerHooks=true;const baseRegister=b.registerVsHit?.bind(b);
-  b.registerVsHit=hit=>{if(b.registerWorldPopulationHit?.(hit))return true;updateIdentity();const target=targetFromHit(hit);if(!target||!session()?.sendGame)return baseRegister?.(hit)||false;const id=packetId("hit"),packet={type:"hit-request",id,shooter:selfId,target,damage:25};if(authorityId===selfId)authorityHit(packet);else if(authorityId)session()?.sendGame?.(packet,{target:authorityId});return true;};
+  b.registerVsHit=hit=>{if(b.registerWorldPopulationHit?.(hit))return true;updateIdentity();const target=targetFromHit(hit);if(!target||!session()?.sendGame)return baseRegister?.(hit)||false;const id=packetId("hit"),packet={type:"hit-request",id,shooter:selfId,target,damage:vsDamage(hit)};if(authorityId===selfId)authorityHit(packet);else if(authorityId)session()?.sendGame?.(packet,{target:authorityId});return true;};
 }
 
 function scanLocalFx(now){
@@ -295,7 +299,7 @@ function render(now=performance.now()){
 }
 
 export function installVsMultiplayer(){
-  if(installed)return;installed=true;globalThis.__arondightVsMultiplayer={reportLocalDamage,resetLevelHealth,blastHit,get connected(){return Boolean(session()&&peers.size>0);},get authority(){return authorityId;},get self(){return selfId;}};style=document.createElement("style");style.textContent=`body.vs-multiplayer #vsEnemyMarker{display:none!important}.vs-player-marker{--vs-player-color:#fff;--vpm-angle:180deg;position:absolute;z-index:14;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;color:#fff;font-family:system-ui,-apple-system,sans-serif;filter:drop-shadow(0 1px 2px #000c);transform-origin:50% 100%;will-change:transform}
+  if(installed)return;installed=true;globalThis.__arondightVsMultiplayer={reportLocalDamage,resetLevelHealth,blastHit,peerDead:id=>Boolean(peers.get(String(id||""))?.dead),get connected(){return Boolean(session()&&peers.size>0);},get authority(){return authorityId;},get self(){return selfId;}};style=document.createElement("style");style.textContent=`body.vs-multiplayer #vsEnemyMarker{display:none!important}.vs-player-marker{--vs-player-color:#fff;--vpm-angle:180deg;position:absolute;z-index:14;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;color:#fff;font-family:system-ui,-apple-system,sans-serif;filter:drop-shadow(0 1px 2px #000c);transform-origin:50% 100%;will-change:transform}
 .vs-player-marker .vpm-tag{display:flex;align-items:baseline;gap:6px;padding:3px 8px;border-radius:8px;background:#060b10b8;border:1.5px solid var(--vs-player-color);white-space:nowrap}
 .vs-player-marker strong{font:900 13px/1 system-ui,-apple-system,sans-serif;letter-spacing:.06em;color:var(--vs-player-color)}
 .vs-player-marker small{font:800 11.5px/1 system-ui,-apple-system,sans-serif;opacity:.92;font-variant-numeric:tabular-nums}

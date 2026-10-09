@@ -81,8 +81,9 @@ function box3dProjectileHit(ray,maxDistance){
   const b=bridge();if(!b?.active)return null;const fallback=boxHits.cast(o,d,maxDistance,b.buildingCollisionSnapshot);return fallback?{box3d:true,physics:false,physicsKind:"terrain",distance:fallback.distanceM,point:new THREE.Vector3(...fallback.point),worldNormal:new THREE.Vector3(...fallback.normal)}:null;
 }
 function nearestHit(ray,maxDistance=180){
-  const scene=bridge()?.threeScene;if(!scene||!ray)return null;const physicsReady=Boolean(rigid()?.ready);shotRaycaster.set(ray.origin,ray.direction);shotRaycaster.near=.01;shotRaycaster.far=maxDistance;const sceneHit=shotRaycaster.intersectObjects(actorCandidates(scene,{physicsReady}),false)[0]||null,physicsHit=box3dProjectileHit(ray,maxDistance);
-  return physicsHit&&(!sceneHit||physicsHit.distance<sceneHit.distance)?physicsHit:sceneHit;
+  const scene=bridge()?.threeScene;if(!scene||!ray)return null;const physicsReady=Boolean(rigid()?.ready);shotRaycaster.set(ray.origin,ray.direction);shotRaycaster.near=.01;shotRaycaster.far=maxDistance;const sceneHit=shotRaycaster.intersectObjects(actorCandidates(scene,{physicsReady}),false)[0]||null,mateHit=shotRaycaster.intersectObjects(globalThis.__arondightVsHumanHitboxes?.()||[],false)[0]||null,physicsHit=box3dProjectileHit(ray,maxDistance);
+  const actorHit=mateHit&&(!sceneHit||mateHit.distance<sceneHit.distance)?mateHit:sceneHit;
+  return physicsHit&&(!actorHit||physicsHit.distance<actorHit.distance)?physicsHit:actorHit;
 }
 function nearestGrenadeHit(ray,maxDistance){
   const scene=bridge()?.threeScene;if(!scene||!ray)return null;const base=nearestHit(ray,maxDistance);refreshActorCache(scene,Boolean(rigid()?.ready));shotRaycaster.set(ray.origin,ray.direction);shotRaycaster.near=.005;shotRaycaster.far=maxDistance;const organic=shotRaycaster.intersectObjects(grenadeOrganicCache,false)[0]||null;return organic&&(!base||organic.distance<Number(base.distance??Infinity))?organic:base;
@@ -104,7 +105,11 @@ function routeHit(hit){if(!hit)return false;
     const p=hit.point,dir=shotRaycaster.ray.direction;
     return Boolean(globalThis.__ambientAnimals?.hit?.({id:hit.physicsId,point:p?[p.x,p.y,p.z]:null,origin:[shotRaycaster.ray.origin.x,shotRaycaster.ray.origin.y,shotRaycaster.ray.origin.z],direction:[dir.x,dir.y,dir.z],strength:1}));
   }
-  const b=bridge(),object=hit.object||physicsSceneObject(hit.physicsId,hit.physicsKind),routed={...hit,object};lastRoute=object?(object.userData?.worldPopulationId||object.userData?.worldProceduralId||"obj"):"none";if(hit.box3d&&!object)return false;const police=Boolean(b?.registerPoliceHit?.(routed)),population=!police&&Boolean(b?.registerWorldPopulationHit?.({...routed,playerAction:true})),versus=!police&&!population&&Boolean(b?.registerVsHit?.(routed));lastRoute+=`/p${police?1:0}w${population?1:0}v${versus?1:0}`;return police||population||versus;}
+  const b=bridge(),object=hit.object||physicsSceneObject(hit.physicsId,hit.physicsKind);
+  // a mate takes one hit per round (his damage comes from the weapon and where it lands), however many
+  // times the round is counted against world targets
+  if(object?.userData?.vsPlayerId){if(hit.__vsDone)return true;hit.__vsDone=true;}
+  const routed={...hit,object,weapon:hit.weapon||footWeapon};lastRoute=object?(object.userData?.worldPopulationId||object.userData?.worldProceduralId||"obj"):"none";if(hit.box3d&&!object)return false;const police=Boolean(b?.registerPoliceHit?.(routed)),population=!police&&Boolean(b?.registerWorldPopulationHit?.({...routed,playerAction:true})),versus=!police&&!population&&Boolean(b?.registerVsHit?.(routed));lastRoute+=`/p${police?1:0}w${population?1:0}v${versus?1:0}`;return police||population||versus;}
 function addFallbackDecal(hit){if(!hit?.point)return;const b=bridge(),scene=b?.threeScene;if(!scene)return;const g=new THREE.CircleGeometry(.026,8),m=new THREE.MeshBasicMaterial({color:0x171717,transparent:true,opacity:.9,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,side:THREE.DoubleSide}),mesh=new THREE.Mesh(g,m),n=hit.worldNormal?.clone?.()||hit.face?.normal?.clone?.().transformDirection(hit.object?.matrixWorld)||new THREE.Vector3(0,0,1);mesh.position.copy(hit.point).addScaledVector(n.normalize(),.004);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),n);mesh.userData.flightFireIgnore=true;scene.add(mesh);setTimeout(()=>{scene.remove(mesh);g.dispose();m.dispose();},9000);}
 
 export const SMG_INTERVAL_MS=55,GLOCK_MIN_INTERVAL_MS=110; // MP ~1090 rpm

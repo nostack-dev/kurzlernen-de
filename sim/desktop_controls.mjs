@@ -211,7 +211,7 @@ export function installDesktopControls(){
   document.addEventListener("click",e=>{if(desktop&&e.target?.closest?.("#gameMenuStart"))requestLock();},true);
   document.addEventListener("close",e=>{if(desktop&&e.target?.matches?.("dialog.phone-settings-dialog")&&inGame())requestLock();},true);
   window.addEventListener("blur",releaseAll);
-  window.addEventListener("arondight:player-death",()=>{if(locked())document.exitPointerLock?.();});
+  /* death keeps the mouse captured: R / Enter (or Ⓐ) respawns after the countdown, no cursor in the picture */
   globalThis.__arondightDesktopDroneInput=droneSample;
   globalThis.__arondightDesktopInput={get active(){return desktop;},get locked(){return locked();},get mode(){return gameMode();},get lmb(){return lmb;},get rmb(){return rmb;},keys,takeMouseDelta(){const d={x:jetDelta.x,y:jetDelta.y};jetDelta.x=jetDelta.y=0;return d;},version:"desktop-mouse-keyboard-v1"};
   setInterval(tick,16);

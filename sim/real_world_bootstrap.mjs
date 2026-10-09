@@ -2,6 +2,7 @@ import "./desktop_controls.mjs";
 import "./thumb_layout.mjs";
 import "./sniper_scope.mjs";
 import "./world_props.mjs";
+import "./player_push.mjs";
 import "./gravity_gun.mjs";
 import "./world_options_menu.mjs";
 import "./world_options.mjs";

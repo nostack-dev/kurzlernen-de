@@ -80,6 +80,7 @@ function onKey(e){
 }
 // Where am I? A pad user always sees the focused control, the start button says Ⓐ.
 const PAD_CSS=`
+html body.pad-input:not(:has(dialog[open])):not(:has(#resetVoteDialog)),html body.pad-input:not(:has(dialog[open])):not(:has(#resetVoteDialog)) #viewport,html body.pad-input:not(:has(dialog[open])):not(:has(#resetVoteDialog)) #viewport *{cursor:none!important}
 html body.pad-input dialog :is(button,input,select,summary,[tabindex]):focus{outline:3px solid #ffd76a!important;outline-offset:2px!important;box-shadow:0 0 0 6px #ffd76a33!important}
 html body.pad-input dialog input[type=range]:focus{outline-offset:6px!important}
 html body.pad-connected #gameMenuStart::after{content:"Ⓐ";display:inline-block;margin-left:10px;padding:0 7px;border-radius:50%;background:#3fbf5a;color:#fff;font-weight:900}

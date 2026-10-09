@@ -13,6 +13,8 @@ function alignBodies(now){
   for(const{node,id}of vehicleGroups(now)){
     const pose=api.pose(id);if(!pose?.position||!Array.isArray(pose.velocity))continue;
     const vx=Number(pose.velocity[0])||0,vy=Number(pose.velocity[1])||0,speed=Math.hypot(vx,vy);if(speed<.8)continue;
+    // only the traffic AI's own driving is straightened: never a car that is held, thrown, tumbling or in the air
+    if(globalThis.__arondightGravityGun?.touched?.(id))continue;{const q=pose.rotation||[0,0,0,1],up=1-2*(q[0]*q[0]+q[1]*q[1]),w=pose.angularVelocity||[0,0,0];if(up<.97||Math.hypot(w[0],w[1])>.6||Math.abs(Number(pose.velocity[2])||0)>1.2)continue;}
     const yaw=Number(pose.yaw)||0,fx=Math.cos(yaw),fy=Math.sin(yaw),signedForward=vx*fx+vy*fy;
     const heading=signedForward>=0?yaw:wrap(yaw+Math.PI),slip=Math.abs(wrap(Math.atan2(vy,vx)-heading)),angularZ=Math.abs(Number(pose.angularVelocity?.[2])||0);
     if(slip<.08||angularZ>1.8)continue;

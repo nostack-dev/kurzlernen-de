@@ -326,13 +326,14 @@ function updateAmbientAnimals(epoch,now){if(!animalBodies||now-lastAmbientAnimal
     // a hit that changes its velocity this hard (blast, car) kills it — the body flies on
     if(a.lastV&&!dead){const dv=Math.hypot(v[0]-a.lastV[0],v[1]-a.lastV[1],v[2]-a.lastV[2]);if(dv>6.5)killAnimal(i);}a.lastV=[v[0],v[1],v[2]];
     quat.set(pose.rotation[0],pose.rotation[1],pose.rotation[2],pose.rotation[3]);tmp.set(0,0,1).applyQuaternion(quat);
-    if(!animalDead[i]){
+    const gunHeld=globalThis.__arondightGravityGun?.heldId===a.id;if(gunHeld&&!a.gunHeld){a.gunHeld=true;R.clearTarget?.(a.id);R.setForces?.(a.id,{});}else if(!gunHeld&&a.gunHeld)a.gunHeld=false;
+    if(!animalDead[i]&&!gunHeld){
       // steer toward where the path is a moment ahead (trot to catch up when knocked away)
       const [tx,ty]=pathAt(epoch+1.2),off=Math.hypot(tx-pose.position[0],ty-pose.position[1]),want=Math.min(off>6?3.4:1.6,off*.9);
       if(tmp.z>.6)R.setTarget?.(a.id,{position:[tx,ty,pose.position[2]],speedMps:want,response:3,maxAccelerationMps2:6});else R.clearTarget?.(a.id);
       // legs right the body after a stumble (a torque toward upright, damped)
       const w=pose.angularVelocity||[0,0,0],k=a.mass*9.81*a.half[2]*3,d=a.mass*a.half[2]*a.half[2]*6;R.setForces?.(a.id,{torque:[-tmp.y*k-w[0]*d,tmp.x*k-w[1]*d,0]});
-    }else if(!a.deadGrip){a.deadGrip=true;R.clearTarget?.(a.id);R.setForces?.(a.id,{});R.setFriction?.(a.id,.7);}
+    }else if(animalDead[i]&&!a.deadGrip){a.deadGrip=true;R.clearTarget?.(a.id);R.setForces?.(a.id,{});R.setFriction?.(a.id,.7);}
     a.gait+=speed*dt/(.55*sc*(speed>2.2?1.3:1));const yawNow=Math.atan2(2*(quat.w*quat.z+quat.x*quat.y),1-2*(quat.y*quat.y+quat.z*quat.z));
     // the physics box spans feet to back: the drawn animal stands on the box's bottom
     tmp2.set(0,0,-a.half[2]+.25*sc).applyQuaternion(quat).add(tmp.set(pose.position[0],pose.position[1],pose.position[2]));
@@ -428,7 +429,7 @@ function updatePhysicalVehicle(record,epoch,now){
   // a car another multiplayer player is driving: his replicated car is drawn by the
   // player runtime, our own copy of it steps aside (hidden, no physics)
   if(record.remoteDriven){record.group.visible=false;record.wheelPoses=null;if(record.physicsRegistered){rigidBodies()?.removeBody?.(record.id);record.physicsRegistered=false;}return;}
-  const driven=Boolean(record.group.userData?.playerDriven);
+  const gunHeld=globalThis.__arondightGravityGun?.heldId===record.id,driven=Boolean(record.group.userData?.playerDriven)||gunHeld; // held by the gravity gun: like a driven car, nothing moves it behind the scenes
   // traffic switched off: no traffic exists (the car the player sits in / on the tow hook stays)
   if(!opts.traffic&&!driven&&!record.towed&&!record.parked){if(record.placed||record.group.visible||record.physicsRegistered){hideVehicle(record);stopWorldCriticalDamage(record.id);}record.placed=false;record.parked=null;return;}
   // a wreck is gone for good; another car comes along later, out of view (never at the wreck)
@@ -463,6 +464,7 @@ function updatePhysicalVehicle(record,epoch,now){
   if(!record.physicsRegistered)record.physicsRegistered=Boolean(physics?.upsertBody?.({id:record.id,kind:record.kind,position:[initial.x,initial.y,groundHeightAt(initial.x,initial.y)+shape.half[2]],yaw:initial.yaw,halfExtents:shape.half,massKg:shape.mass}));
   let pose=physics?.pose?.(record.id,record.physicsPose)||record.physicsPose;if(pose?.position&&pose.position[2]<staticGroundHeightAt(pose.position[0],pose.position[1])-6){physics?.removeBody?.(record.id);record.physicsRegistered=false;pose=null;}
   if(record.towed){physics?.clearTarget?.(record.id);pose=physics?.pose?.(record.id,pose)||pose;}
+  else if(pose&&globalThis.__arondightGravityGun?.heldId===record.id){physics?.clearTarget?.(record.id);physics?.setDrive?.(record.id,null);}
   else if(!driven&&pose&&record.parked){physics?.clearTarget?.(record.id);physics?.setDrive?.(record.id,{pedal:0,steer:0,handbrake:true});}
   else if(!driven&&pose){const current=pose.position;let targetPoint;
     if(route){const nearest=nearestRouteDistance(route,current[0],current[1]);if(nearest.distance>route.length-2.5)record.routeDirection=-1;else if(nearest.distance<2.5)record.routeDirection=1;const lookahead=Math.max(7,record.speed*1.3),targetDistance=clamp(nearest.distance+record.routeDirection*lookahead,0,route.length),offset=laneWidth(route,record)*record.routeDirection;targetPoint=sampleRoadRoute(route,targetDistance,offset,record.routeDirection);}
@@ -537,7 +539,7 @@ function frame(now=performance.now()){requestAnimationFrame(frame);{const b=brid
 
 export function installWorldProceduralPopulation(){if(installed)return;installed=true;globalThis.__arondightProceduralPopulation={
     // traffic as the tow service (tow_service.mjs) sees it: physical cars near the player, their route and how far off it they are
-    vehicles(){const out=[];for(const r of records){if((r.kind!=="car"&&r.kind!=="bus")||!r.physicsRegistered||!r.physicsPose||!r.group.visible||r.deadUntil||r.remoteDriven)continue;const p=r.physicsPose,q=p.rotation||[0,0,0,1],up=1-2*(q[0]*q[0]+q[1]*q[1]),route=routeFor(r),near=route?nearestRouteDistance(route,p.position[0],p.position[1]):null;
+    vehicles(){const out=[],gun=globalThis.__arondightGravityGun?.heldId||"";for(const r of records){if((r.kind!=="car"&&r.kind!=="bus")||!r.physicsRegistered||!r.physicsPose||!r.group.visible||r.deadUntil||r.remoteDriven||r.id===gun)continue;const p=r.physicsPose,q=p.rotation||[0,0,0,1],up=1-2*(q[0]*q[0]+q[1]*q[1]),route=routeFor(r),near=route?nearestRouteDistance(route,p.position[0],p.position[1]):null;
       out.push({id:r.id,kind:r.kind,x:p.position[0],y:p.position[1],z:p.position[2],yaw:Number.isFinite(p.yaw)?p.yaw:Math.atan2(2*(q[3]*q[2]+q[0]*q[1]),1-2*(q[1]*q[1]+q[2]*q[2])),speed:Math.hypot(p.velocity?.[0]||0,p.velocity?.[1]||0),up,parked:Boolean(r.parked),driven:Boolean(r.group.userData?.playerDriven),towed:Boolean(r.towed),offRoute:near?Math.max(0,near.offsetM-Math.abs(laneWidth(route,r))):0,hasRoute:Boolean(route)});}return out;},
     // where this car belongs: its own lane on its own route, some way along its driving direction
     lanePose(id,ahead=25){const r=byId.get(String(id||""));if(!r)return null;const route=routeFor(r),p=r.physicsPose;if(!route||!p)return null;const n=nearestRouteDistance(route,p.position[0],p.position[1]),dir=r.routeDirection||1,d=clamp(n.distance+dir*ahead,3,route.length-3),pt=sampleRoadRoute(route,d,laneWidth(route,r)*dir,dir);return pt?{x:pt.x,y:pt.y,yaw:pt.yaw}:null;},

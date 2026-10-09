@@ -176,6 +176,9 @@ export function spawnWorldPersonRagdoll({position,yaw=0,impulse=[0,0,0],seed="",
   r.active=true;r.born=performance.now();r.expires=r.born+LIFE_MS;r.seed=seedNumber;r.id=String(id||"");r.settledMs=0;r.recover=typeof recover?.onUp==="function"?recover:null;r.getup=null;if(r.recover)r.expires=r.born+60000;r.group.visible=true;r.group.userData.worldRagdollId=r.id;renderRagdoll(r);const view=viewport();if(view){view.dataset.worldRagdollSpawns=String((Number(view.dataset.worldRagdollSpawns)||0)+1);view.dataset.worldRagdollLastId=r.id;}return true;
 }
 
+// where a ragdoll is (its chest), for the death camera; null when it is not lying around (any more)
+export function ragdollFocus(id,out=null){const key=String(id||"");if(!key)return null;const r=ragdolls.find(q=>q.active&&q.id===key);if(!r)return null;const c=r.points.chest.p,o=out||{x:0,y:0,z:0};o.x=c.x;o.y=c.y;o.z=c.z;return o;}
+if(typeof globalThis!=="undefined")globalThis.__arondightRagdollFocus=ragdollFocus;
 export function worldPersonRagdollStats(){return{active:ragdolls.filter(r=>r.active).length,pool:ragdolls.length,max:MAX_RAGDOLLS,model:"articulated-character"};}
 
 // shader prewarm: build the ragdoll pool early (hidden; compiled with everything else)

@@ -3,7 +3,7 @@ import * as THREE from "three";
 const STALE_PEER_MS=1400;
 const PRESENTATION_MS=1000/30;
 // back in the game a moment after going down, a few metres from where it happened
-const RESPAWN_RADIUS_MIN_M=1.5;
+const RESPAWN_RADIUS_MIN_M=3;
 const RESPAWN_RADIUS_MAX_M=5;
 const RESPAWN_COOLDOWN_MS=3000;
 let localDeathAt=-Infinity;
