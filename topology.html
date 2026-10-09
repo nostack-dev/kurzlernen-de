@@ -162,6 +162,7 @@ textarea{width:100%;box-sizing:border-box;height:110px;font:11px var(--mono);bac
           <p class="note">Ein Motor. Jeder Kreis dreht sich um eine feste Achse, genau U-mal je Motorumdrehung: ganzzahlige Zahnräder auf stillstehenden Plattformen, 1:1-Riemen, in 3D Kegelräder. Kein Teil berührt ein anderes oder das Gezeichnete – wo es eng wird, weicht die Maschine aus.</p>
           <label class="sl">Größe <select id="kSize"><option value="200">200 mm</option><option value="400" selected>400 mm</option><option value="800">800 mm</option><option value="1600">1600 mm</option><option value="3200">3200 mm</option></select><output></output></label>
           <label class="ck"><input type="checkbox" id="cInt" checked> Ganze Zahlen: Längen in mm, Winkel in Grad</label>
+          <label class="ck" id="rowWire"><input type="checkbox" id="cWire"> Linie ist fest (Draht, 3D-Druck)</label>
           <div id="parts" class="parts">Noch kein Modell.</div>
           <div class="row"><button id="bParts">Stückliste kopieren</button><button id="bPatch" title="Box3D hat kein Zahnrad-Gelenk – dieser Patch ergänzt es">Box3D-Patch kopieren</button></div>
         </div>
@@ -1156,13 +1157,19 @@ function makeCore(E, opt){
     for(let i=0;i<n;i++){ const [piv,tip]=pt2[i]; P.push({c:[piv,tip], r:PART.armW/2*u, ci:2*i+1, ai:i});
       if(i<n-1) P.push(disc(tip,list[i+1].n,sp[i+1],list[i+1].k,2*i+2,i+1)); }
     const [,tip]=pt2[n-1], pen=add(tip,mul(list[n-1].n,nd*u)), nl=Math.abs(nd)*u, keep=nl>1e-9?Math.max(0,1-PART.nib*u/nl):0;
-    P.push({c:[tip, add(tip,mul(add(pen,mul(tip,-1)),keep))], r:PART.needle/2*u, ci:2*n, ai:n-1});   // thin pen needle, tip free
+    P.push({c:[tip, add(tip,mul(add(pen,mul(tip,-1)),keep))], r:PART.needle/2*u, ci:2*n, ai:n-1, pen:true});   // thin pen needle, tip free
     return {P,pen}; }
-  // signed distance from a point to a solid disc (negative inside)
-  function discSd(D,x){ const d=add(x,mul(D.o,-1)), a=dot(d,D.n), r=Math.hypot(...add(d,mul(D.n,-a)));
-    const da=Math.abs(a)-D.h, dr=r-D.R; return (da>0||dr>0)?Math.hypot(Math.max(da,0),Math.max(dr,0)):Math.max(da,dr); }
-  function segDiscSd(p,q,D){ let lo=0, hi=1; const f=t=>discSd(D,add(p,mul(add(q,mul(p,-1)),t)));
-    for(let k=0;k<22;k++){ const m1=lo+(hi-lo)/3, m2=hi-(hi-lo)/3; if(f(m1)<f(m2)) hi=m2; else lo=m1; } return f((lo+hi)/2); }
+  // signed distance from a point to a solid disc (negative inside); allocation-free, it runs millions of times
+  function discSd(D,x){ const dx=x[0]-D.o[0], dy=x[1]-D.o[1], dz=x[2]-D.o[2], a=dx*D.n[0]+dy*D.n[1]+dz*D.n[2];
+    const rx=dx-a*D.n[0], ry=dy-a*D.n[1], rz=dz-a*D.n[2], da=Math.abs(a)-D.h, dr=Math.sqrt(rx*rx+ry*ry+rz*rz)-D.R;
+    return (da>0||dr>0)?Math.hypot(da>0?da:0,dr>0?dr:0):(da>dr?da:dr); }
+  // smallest signed distance from a segment to a disc: convex along the segment, golden-section search
+  function segDiscSd(p,q,D){ const nx=D.n[0],ny=D.n[1],nz=D.n[2], px=p[0]-D.o[0],py=p[1]-D.o[1],pz=p[2]-D.o[2], ex=q[0]-p[0],ey=q[1]-p[1],ez=q[2]-p[2];
+    const a0=px*nx+py*ny+pz*nz, a1=ex*nx+ey*ny+ez*nz, x0=px-a0*nx,y0=py-a0*ny,z0=pz-a0*nz, x1=ex-a1*nx,y1=ey-a1*ny,z1=ez-a1*nz, R=D.R, h=D.h;
+    const f=t=>{ const da=Math.abs(a0+a1*t)-h, x=x0+x1*t,y=y0+y1*t,z=z0+z1*t, dr=Math.sqrt(x*x+y*y+z*z)-R; return (da>0||dr>0)?Math.hypot(da>0?da:0,dr>0?dr:0):(da>dr?da:dr); };
+    let lo=0, hi=1; const g=0.6180339887; let c=hi-g*(hi-lo), d=lo+g*(hi-lo), fc=f(c), fd=f(d);
+    for(let k=0;k<14;k++){ if(fc<fd){ hi=d; d=c; fd=fc; c=hi-g*(hi-lo); fc=f(c); } else { lo=c; c=d; fc=fd; d=lo+g*(hi-lo); fd=f(d); } }
+    return Math.min(fc,fd,f(0),f(1)); }
   function discPts(D){ const [e1,e2]=basisN(D.n), out=[D.o]; for(let j=0;j<8;j++){ const a=j*Math.PI/4, rr=add(mul(e1,Math.cos(a)*D.R),mul(e2,Math.sin(a)*D.R));
     out.push(add(add(D.o,rr),mul(D.n,D.h)),add(add(D.o,rr),mul(D.n,-D.h))); } return out; }
   function partGap(A,B){
@@ -1171,18 +1178,36 @@ function makeCore(E, opt){
     if(B.c) return segDiscSd(B.c[0],B.c[1],A)-B.r;
     let m=Infinity; for(const x of discPts(A)) m=Math.min(m,discSd(B,x)); for(const x of discPts(B)) m=Math.min(m,discSd(A,x)); return m; }
   function pointGap(A,x){ return A.c?segDist(A.c[0],A.c[1],x,x)-A.r:discSd(A,x); }
-  function gapOf(P,pen,drawn,step){ const g=gearMM(), u=1/g; let w={gap:Infinity,arm:0,other:0,what:''};
-    // bounding spheres give a cheap lower bound: pairs that cannot beat the smallest gap so far are skipped
-    for(const p of P){ if(p.c){ p.bc=mul(add(p.c[0],p.c[1]),0.5); p.br=Math.hypot(...add(p.c[1],mul(p.c[0],-1)))/2+p.r; } else { p.bc=p.o; p.br=Math.hypot(p.R,p.h); } }
+  // Gap check between sampled instants is made gapless: every point of a rigid part moves along a path no longer than
+  // its largest endpoint step, so between two samples a part stays within half that step of its nearest sampled pose.
+  // Each part is therefore inflated by 0.6 x its step (with 20 % margin for the next interval). Gaps above CAP are clipped.
+  const CAP=25;
+  function bound(p){ if(p.c){ p.bc=mul(add(p.c[0],p.c[1]),0.5); p.br=Math.hypot(...add(p.c[1],mul(p.c[0],-1)))/2+p.r; } else { p.bc=p.o; p.br=Math.hypot(p.R,p.h); } }
+  function stepOf(p,q){ if(!q) return 0; return p.c?Math.max(Math.hypot(...add(p.c[0],mul(q.c[0],-1))),Math.hypot(...add(p.c[1],mul(q.c[1],-1)))):Math.hypot(...add(p.o,mul(q.o,-1))); }
+  // the drawn wire, kept as a polyline in blocks of 16 segments with bounding spheres
+  function wireAdd(W,p){ W.pts.push(p); const n=W.pts.length; if(n<2) return; const bi=Math.floor((n-2)/16);
+    if(!W.blk[bi]) W.blk[bi]={i0:n-2,i1:n-2,c:p,r:0};
+    const B=W.blk[bi]; B.i1=n-2; let c=[0,0,0]; for(let i=B.i0;i<=B.i1+1;i++) c=add(c,W.pts[i]); c=mul(c,1/(B.i1-B.i0+2)); let r=0; for(let i=B.i0;i<=B.i1+1;i++) r=Math.max(r,Math.hypot(...add(W.pts[i],mul(c,-1)))); B.c=c; B.r=r; }
+  function partSegGap(p,a,b){ return p.c?segDist(p.c[0],p.c[1],a,b)-p.r:segDiscSd(a,b,p); }
+  function gapOf(P,prev,pen,W,stopAt){ const g=gearMM(), u=1/g; let w={gap:CAP,arm:0,other:0,what:''};
+    P.forEach((p,i)=>{ bound(p); p.inf=1.2*0.5*stepOf(p,prev&&prev[i]); });
     const lb=(A,B)=>Math.hypot(A.bc[0]-B.bc[0],A.bc[1]-B.bc[1],A.bc[2]-B.bc[2])-A.br-B.br;
-    for(let x=0;x<P.length;x++) for(let y=x+1;y<P.length;y++){ if(Math.abs(P[x].ci-P[y].ci)<3) continue; if(lb(P[x],P[y])*g>=w.gap) continue;
-      const d=partGap(P[x],P[y])*g; if(d<w.gap) w={gap:d,arm:Math.max(P[x].ai,P[y].ai),other:Math.min(P[x].ai,P[y].ai),what:'self'}; }
-    const far=(PART.nib+PART.wire)*u, wr=PART.wire*u;
-    if(drawn) for(let j=0;j<drawn.length;j+=step){ const q=drawn[j]; if(Math.hypot(q[0]-pen[0],q[1]-pen[1],q[2]-pen[2])<far) continue;
-      for(const p of P){ if((Math.hypot(q[0]-p.bc[0],q[1]-p.bc[1],q[2]-p.bc[2])-p.br-wr)*g>=w.gap) continue;
-        const d=pointGap(p,q)*g-PART.wire; if(d<w.gap) w={gap:d,arm:p.ai,other:p.ai,what:'object'}; } }
+    for(let x=0;x<P.length;x++) for(let y=x+1;y<P.length;y++){ if(Math.abs(P[x].ci-P[y].ci)<3) continue; const A=P[x], B=P[y];
+      if((lb(A,B)-A.inf-B.inf)*g>=w.gap) continue;
+      const d=(partGap(A,B)-A.inf-B.inf)*g; if(d<w.gap){ w={gap:d,arm:Math.max(A.ai,B.ai),other:Math.min(A.ai,B.ai),what:'self',ci:[A.ci,B.ci]}; if(stopAt!=null&&d<=stopAt) return w; } }
+    // the object the drawing is made on (e.g. a ball): every part stays outside it; only the pen tip touches it
+    if(opt.obj&&opt.obj.type==='sphere'){ const C0=opt.obj.c, R0=opt.obj.r;
+      for(const p of P){ if(p.pen) continue;   // the sprung pen holder rides on the surface
+        const dc=p.c?segDist(p.c[0],p.c[1],C0,C0)-p.r:discSd(p,C0); const d=(dc-R0-p.inf)*g; if(d<w.gap){ w={gap:d,arm:p.ai,other:p.ai,what:'object',ci:p.ci}; if(stopAt!=null&&d<=stopAt) return w; } } }
+    // the drawn line itself, when it is solid (wire, 3D print)
+    if(W&&opt.solidWire){ const far=(PART.nib+PART.wire)*u, wr=PART.wire*u, n=W.pts.length;
+      for(const p of P){ for(const B of W.blk){ if(!B) continue; if((Math.hypot(B.c[0]-p.bc[0],B.c[1]-p.bc[1],B.c[2]-p.bc[2])-B.r-p.br-wr-p.inf)*g>=w.gap) continue;
+        for(let i=B.i0;i<=B.i1&&i<n-1;i++){ const a=W.pts[i], b=W.pts[i+1];
+          if(Math.hypot(a[0]-pen[0],a[1]-pen[1],a[2]-pen[2])<far||Math.hypot(b[0]-pen[0],b[1]-pen[1],b[2]-pen[2])<far) continue;   // the pen's own fresh line
+          const mx=(a[0]+b[0])/2-p.bc[0], my=(a[1]+b[1])/2-p.bc[1], mz=(a[2]+b[2])/2-p.bc[2], hl=Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2])/2;
+          if((Math.sqrt(mx*mx+my*my+mz*mz)-hl-p.br-wr-p.inf)*g>=w.gap) continue;
+          const d=(partSegGap(p,a,b)-wr-p.inf)*g; if(d<w.gap){ w={gap:d,arm:p.ai,other:p.ai,what:'object',ci:p.ci,seg:i,nw:n,distPen:Math.hypot(a[0]-pen[0],a[1]-pen[1],a[2]-pen[2])*g}; if(stopAt!=null&&d<=stopAt) return w; } } } } }
     return w; }
-  function clearance(M,drawn){ const pt2=M.arms.map(a=>[state(a.b).p, pt(a.b,a.len,0,0)]), {P,pen}=partsOf(M.Lay,pt2); return gapOf(P,pen,drawn,2); }
   // ---- parts list: every number a whole number ----
   const gcdI=(a,b)=>{ a=Math.abs(a); b=Math.abs(b); while(b){ [a,b]=[b,a%b]; } return a; };
   // gearbox stage(s) for |k| turns per motor turn: [[driver teeth, driven teeth], ...], plus an idler if the direction needs it
@@ -1199,7 +1224,7 @@ function makeCore(E, opt){
     return {stages:st, idler:idler&&st.length>0, direct:a===1&&k>0};
   }
   // real part sizes in millimetres: arms, pen holder, drawn wire, gear module, pulleys, spacer posts
-  const PART={armW:8, armT:4, gap:2, boxH:8, nib:3, needle:2, needleLen:30, wire:1.5, mod:0.5, pulleyR:6.4, oldham:20};
+  const PART={armW:8, armT:4, gap:2, boxH:8, nib:10, needle:2, needleLen:30, wire:1.5, mod:0.5, pulleyR:6.4, oldham:20};
   // how far a platform's gearbox reaches from the axis it drives
   function gearReach(k){ const gb=gearbox(k), m=PART.mod; let r=PART.pulleyR+2;
     for(const [z1,z2] of gb.stages) r=Math.max(r, m*(z1+z2)/2+m*Math.max(z1,z2)/2+m);
@@ -1259,12 +1284,12 @@ function makeCore(E, opt){
   function simulate(mech, mode){
     const M = mode==='2d'?(opt.gear?buildGear(mech):build2D(mech)):(opt.gear?build3DGear(mech):build3D(mech));
     if(!M) return null;
-    const h=TSIM/(S*SUB), tr=[]; let worst=null;
+    const h=TSIM/(S*SUB), tr=[]; let dev=0;
     for(let n=0;n<S;n++){ const p=penOf(M); if(!p.every(Number.isFinite)){ E.worldFree(M.w); return null; } tr.push(p);
-      // the machine must not pass through itself, nor through the wire it has drawn so far in this turn
-      if(M.check&&(n&1)===0){ const c=clearance(M,tr); if(!worst||c.gap<worst.gap) worst=c; }
+      // gear machine: how far does Box3D's motion deviate from the exact gear motion the clearance plan uses?
+      if(M.check){ const ex=armPoses(M.Lay,n*TSIM/S); M.arms.forEach((a,i)=>{ dev=Math.max(dev,Math.hypot(...add(state(a.b).p,mul(ex[i][0],-1))),Math.hypot(...add(pt(a.b,a.len,0,0),mul(ex[i][1],-1)))); }); }
       for(let s=0;s<SUB;s++) stepMachine(M,h); }
-    if(worst){ tr.gap=worst.gap; tr.hit=worst; tr.ks=M.arms.map(a=>a.k); if(worst.gap<0) tr.hits=1; }
+    if(M.check){ tr.dev=dev*gearMM(); tr.ks=M.arms.map(a=>a.k); }
     E.worldFree(M.w); return tr;
   }
 
@@ -1272,17 +1297,69 @@ function makeCore(E, opt){
   // Planning the dodge: the gear joints make the motion exact, so every part's position at any instant follows from
   // the design directly (each arm turns k times about its fixed axis). A plan is always confirmed by a full Box3D run.
   const rotN=(v,n,a)=>add(mul(v,Math.cos(a)),mul(cross(n,v),Math.sin(a)));
-  function planGap(m,coarse,stopAt){ const Lay=layout3(snapGear(m)), drawn=[], ck=coarse?4:2; let w={gap:Infinity,arm:0,other:0,what:''};
-    // same sampling as the Box3D run: every sample's pen joins the wire, every second sample is checked
-    for(let n=0;n<S;n++){ const t=n*TSIM/S, pt2=[]; let piv=Lay.c.slice();
-      Lay.list.forEach((A,i)=>{ piv=add(piv,mul(A.n,Lay.sp[i]/gearMM())); const tip=add(piv,rotN(A.vec,A.n,A.k*WS*t)); pt2.push([piv,tip]); piv=tip; });
-      const {P,pen}=partsOf(Lay,pt2); drawn.push(pen); if(n%ck) continue; const c=gapOf(P,pen,drawn,ck); if(c.gap<w.gap){ w=c; if(stopAt!=null&&w.gap<=stopAt){ w.ks=Lay.list.map(a=>a.k); w.early=true; return w; } } }
+  function armPoses(Lay,t){ const pt2=[]; let piv=Lay.c.slice();
+    Lay.list.forEach((A,i)=>{ piv=add(piv,mul(A.n,Lay.sp[i]/gearMM())); const tip=add(piv,rotN(A.vec,A.n,A.k*WS*t)); pt2.push([piv,tip]); piv=tip; });
+    return pt2; }
+  // fast gap: one full turn at the sample instants (used to steer the dodge search)
+  function planGap(m,stopAt){ const Lay=layout3(snapGear(m)), W={pts:[],blk:[]}; let w={gap:CAP,arm:0,other:0,what:''};
+    for(let n=0;n<S;n++){ const {P,pen}=partsOf(Lay,armPoses(Lay,n*TSIM/S)); wireAdd(W,pen);
+      const c=gapOf(P,null,pen,W,stopAt); if(c.gap<w.gap){ w=c; if(stopAt!=null&&w.gap<=stopAt){ w.ks=Lay.list.map(a=>a.k); w.early=true; return w; } } }
     w.ks=Lay.list.map(a=>a.k); return w; }
+  // safe gap: gapless over the whole turn. Between two instants every point of a rigid part travels at most its largest
+  // endpoint step, so the gap anywhere in between is at least the smaller end gap minus half the two largest steps.
+  // Where that bound is not enough, the interval is split (up to 64 times per sample) until it is - or a real touch is found.
+  function safeGap(m){ const Lay=layout3(snapGear(m)), W={pts:[],blk:[]}; let w={gap:CAP,arm:0,other:0,what:''};
+    const at=t=>{ const r=partsOf(Lay,armPoses(Lay,t)); return r; };
+    const steps=(A,B)=>{ let s1=0,s2=0; for(let i=0;i<A.length;i++){ const st=stepOf(A[i],B[i]); if(st>s1){ s2=s1; s1=st; } else if(st>s2) s2=st; } return [s1,s2]; };
+    const g=gearMM(), dt=TSIM/S;
+    let prev=at(0); wireAdd(W,prev.pen); let gPrev=gapOf(prev.P,null,prev.pen,W);
+    const visit=(t0,A,gA,t1,B,gB,depth)=>{ const [s1,s2]=steps(A.P,B.P), lo=Math.min(gA.gap,gB.gap)-1.05*(s1+s2)/2*g;
+      if(lo>=w.gap) return;
+      // tighten the bound until it clears 1 mm (or until the split limit): a loose bound would read as a touch
+      if(lo>=1||depth>=6){ const c=gA.gap<gB.gap?gA:gB; const v={...c,gap:lo}; if(lo<w.gap) w=v; return; }
+      const tm=(t0+t1)/2, M=at(tm); wireAdd(W,M.pen); const gM=gapOf(M.P,null,M.pen,W);
+      if(gM.gap<w.gap&&gM.gap<0){ w=gM; return; }
+      visit(t0,A,gA,tm,M,gM,depth+1); visit(tm,M,gM,t1,B,gB,depth+1); };
+    for(let n=1;n<=S;n++){ const t=n*dt, cur=at(t%TSIM); wireAdd(W,cur.pen); const gc=gapOf(cur.P,null,cur.pen,W);
+      if(gc.gap<w.gap&&gc.gap<0){ w=gc; break; }
+      visit(t-dt,prev,gPrev,t,cur,gc,0); if(w.gap<0) break; prev=cur; gPrev=gc; }
+    w.ks=Lay.list.map(a=>a.k); return w; }
+  // A good first layout, like a 2D machine hung over the drawing: pick the axis most arms turn about (the stacking
+  // direction d). Arms about other axes go first, at the base, and move the whole stack; arms about d follow as layers
+  // along d; the pen needle reaches back along d past the whole drawing, so the machine stays on one side of it.
+  function stackLayout(m,side){ const v=clone3(snapGear(m)); delete v.order; delete v.sp; delete v.nd; const Lay=layout3(v), list=Lay.list;
+    if(!list.length) return v;
+    const groups=[]; for(const A of list){ const L=Math.hypot(...A.vec); let g=groups.find(G=>Math.abs(dot(G.n,A.n))>0.999); if(!g){ g={n:A.n,w:0}; groups.push(g); } g.w+=L; }
+    groups.sort((a,b)=>b.w-a.w); const d=mul(groups[0].n,side||1), u=gearMM(), len=A=>Math.hypot(...A.vec);
+    const P=list.filter(A=>Math.abs(dot(A.n,d))>0.999).sort((a,b)=>len(b)-len(a)), O=list.filter(A=>Math.abs(dot(A.n,d))<=0.999).sort((a,b)=>len(b)-len(a));
+    const Lg=PART.armT+PART.gap; let reach=0; for(const A of list) reach=Math.max(reach,gearReach(A.k));
+    v.order=[...O,...P].map(a=>a.k); v.sp={};
+    O.forEach((A,i)=>{ v.sp[A.k]=i?Lg:0; });
+    const osc0=O.reduce((a,A)=>a+len(A)*u,0);
+    // the first layer clears everything the base arms can swing through
+    let stackH=0; P.forEach((A,i)=>{ const s=i?Lg:(O.length?Math.ceil(2*osc0+reach+Lg):0); stackH+=s; v.sp[A.k]=Math.round((Math.sign(dot(A.n,d))||1)*s); });
+    let lo=Infinity, hi=-Infinity; for(let n=0;n<S;n+=4){ const pt2=armPoses(Lay,n*TSIM/S), pen=pt2[pt2.length-1][1], z=dot(pen,d)*u; lo=Math.min(lo,z); hi=Math.max(hi,z); }
+    const osc=O.reduce((a,A)=>a+len(A)*u,0), last=v.order[v.order.length-1], nl=list.find(A=>A.k===last).n;
+    v.nd=-Math.round((Math.sign(dot(nl,d))||1)*((hi-lo)+2*osc+stackH+reach+30));
+    return v; }
+  // Drawing on an object (a ball): the whole machine stays outside it. The arm whose axis points most away from the
+  // object goes last; its pen needle reaches in to the surface, so every other part sits beyond the needle, outside.
+  function objLayout(m){ const v=clone3(snapGear(m)); delete v.order; delete v.nd; const Lay=layout3(v), list=Lay.list, u=gearMM();
+    if(!list.length||!opt.obj) return v;
+    let cen=[0,0,0]; for(let n=0;n<S;n+=8){ const pt2=armPoses(Lay,n*TSIM/S); cen=add(cen,pt2[pt2.length-1][1]); } cen=mul(cen,8/S);
+    const o=norm(add(cen,mul(opt.obj.c,-1)))||[0,0,1];
+    let best=list[0]; for(const A of list) if(Math.abs(dot(A.n,o))>Math.abs(dot(best.n,o))) best=A;
+    v.order=list.filter(A=>A!==best).map(a=>a.k).concat([best.k]);
+    let reach=0, tot=0; for(const A of list){ reach=Math.max(reach,gearReach(A.k)); tot+=Math.hypot(...A.vec)*u; }
+    const c=Math.max(0.3,Math.abs(dot(best.n,o)));
+    v.nd=-Math.round((Math.sign(dot(best.n,o))||1)*((tot+2*reach)/c+20));
+    return v; }
   // greedy: change one free choice at a time (spacer, needle, neighbour swap), keep it when the smallest gap grows
   function planDodge(m,budget){ let cur=clone3(snapGear(m)); const ks0=layout3(cur).list.map(a=>a.k);
     if(!cur.order) cur.order=ks0.slice(); cur.sp={...(cur.sp||{})}; ks0.forEach((k,i)=>{ if(cur.sp[k]==null) cur.sp[k]=spOf(cur,k,i); }); if(cur.nd==null) cur.nd=PART.needleLen;
-    let g=planGap(cur), used=1; const L=PART.armT+PART.gap;
-    while(g.gap<0.5&&used<budget){ const ks=g.ks, n=ks.length, pri=[]; let moved=false;
+    let g=planGap(cur), used=1, need=0.5; const L=PART.armT+PART.gap;
+    if(g.gap<need) for(const v of [stackLayout(cur,1),stackLayout(cur,-1)].concat(opt.obj?[objLayout(cur)]:[])){ const gv=planGap(v); used++; if(gv.gap>g.gap){ cur=v; g=gv; } }
+    while(used<budget){ if(g.gap>=need){ const sg=safeGap(cur); used+=3; if(sg.gap>=0){ g=sg; g.safe=true; break; } need+=3; } const ks=g.ks, n=ks.length, pri=[]; let moved=false;
       for(const i of [g.arm,g.other,g.arm-1,g.other-1,g.arm+1]) if(i>=0&&i<n&&!pri.includes(i)) pri.push(i);
       for(let i=0;i<n;i++) if(!pri.includes(i)) pri.push(i);
       const moves=[['nd',10],['nd',-10],['nd',30],['nd',-30],['ndflip']];
@@ -1292,14 +1369,21 @@ function makeCore(E, opt){
         else if(mv[0]==='nd'){ const s=Math.sign(v.nd)||1; v.nd=s*Math.max(PART.nib+2,Math.abs(v.nd)+mv[1]); }
         else if(mv[0]==='ndflip') v.nd=-v.nd;
         else { const a=v.order.indexOf(mv[1]), b=v.order.indexOf(mv[2]); v.order[a]=mv[2]; v.order[b]=mv[1]; }
-        const gv=planGap(v,false,g.gap+0.01); used++; if(!gv.early&&gv.gap>g.gap+0.01){ cur=v; g=gv; moved=true; break; } }
-      if(!moved) break; }
+        const gv=planGap(v,g.gap+0.01); used++; if(!gv.early&&gv.gap>g.gap+0.01){ cur=v; g=gv; moved=true; break; } }
+      if(!moved) break;
+      if(g.gap>=need){ const sg=safeGap(cur); used+=3; if(sg.gap>=0){ g=sg; g.safe=true; break; } need+=3; } }
+    // the answer is always the gapless (safe) gap of the final layout
+    if(!g.safe) g=g.gap>=0?safeGap(cur):g;
     return {mech:cur,gap:g.gap,used,what:g.what}; }
   let blocked=0; const takeBlocked=()=>{ const b=blocked; blocked=0; return b; };
-  function measure(m,mode,tS){ let tr=simulate(m,mode), n=1;
-    if(tr&&tr.hits&&mode==='3d'&&opt.gear){ const D=planDodge(m,opt.dodgeBudget||300); if(D.gap<0.5) blocked++;
-      if(D.gap>=0.5){ const t2=simulate(D.mech,mode); n++; if(t2&&!t2.hits){ m=D.mech; tr=t2; } } }
-    return {mech:m,trace:tr,err:errOf(tr,tS),evals:n}; }
+  // A 3D gear design counts only if, over the whole turn, no part comes closer than 0 mm to another or to the drawn wire,
+  // after subtracting how far the Box3D motion deviates from the exact gear motion.
+  function measure(m,mode,tS,noDodge){ let tr=simulate(m,mode), n=1;
+    if(tr&&mode==='3d'&&opt.gear){ let G=safeGap(m);
+      if(G.gap-tr.dev<0&&!noDodge){ const D=planDodge(m,opt.dodgeBudget||300);
+        if(D.gap>=0){ const t2=simulate(D.mech,mode); n++; if(t2&&D.gap-t2.dev>=0){ m=D.mech; tr=t2; G=D; } } }
+      tr.gap=G.gap-tr.dev; tr.hit=G; if(tr.gap<0){ tr.hits=1; if(!noDodge) blocked++; } }
+    return {mech:m,trace:tr,err:errOf(tr,tS),evals:n,blocked:!!(tr&&tr.hits),raw:tr&&tS?errOf(Object.assign(tr.slice(),{hits:0}),tS):Infinity}; }
 
   // ---------- learning ----------
   const clone2=m=>({c:m.c.slice(),arms:m.arms.map(a=>({k:a.k,a:a.a.slice()}))});
@@ -1391,15 +1475,19 @@ function makeCore(E, opt){
       else for(const r of R){ const used=new Set(chainsOf(best.mech,mode)[r.ch].arms.map(a=>a.k)), sc=r.dims===1?2:1;
         for(let k=(r.dims===1?1:-kmax());k<=kmax();k++){ if(!k||used.has(k)) continue; const p=proj(r.res,k,r.dims); cands.push({ch:r.ch,k,a:[sc*p[0],sc*p[1]],g:Math.hypot(p[0],p[1])*sc}); } }
       cands.sort((a,b)=>b.g-a.g);
-      st.needArm=false;
-      for(const cd of cands.slice(0,3)){
+      st.needArm=false; let tried=0, nb=0, bestBlocked=Infinity;
+      for(const cd of cands.slice(0,3)){ tried++;
         // add the circle, then let the whole machine re-settle for a few rounds before judging it
         let m=cloneM(best.mech,mode); if(mode==='3d') m.terms.push({k:cd.k,C:cd.C}); else chainsOf(m,mode)[cd.ch].arms.push({k:cd.k,a:cd.a});
-        let R0=measure(m,mode,tS); m=R0.mech; let tr=R0.trace, e=R0.err; st.evals+=R0.evals;
-        let et=1; for(let r=0;r<8 && !(e<best.err) && et>0.1 && isFinite(e);r++){ const m2=refine({mech:m,trace:tr},tS,mode,et); const R2=measure(m2,mode,tS); st.evals+=R2.evals; if(R2.err<e){ m=R2.mech; tr=R2.trace; e=R2.err; } else et*=0.5; }
-        if(e<best.err){ st.best={mech:m,trace:tr,err:e}; st.eta=1; st.stall=0; return true; }
+        let R0=measure(m,mode,tS); if(R0.blocked){ nb++; bestBlocked=Math.min(bestBlocked,R0.raw); } m=R0.mech; let tr=R0.trace, e=R0.err; st.evals+=R0.evals;
+        let et=1; for(let r=0;r<8 && !(e<best.err) && et>0.1 && isFinite(e);r++){ const m2=refine({mech:m,trace:tr},tS,mode,et); const R2=measure(m2,mode,tS,true); st.evals+=R2.evals; if(R2.err<e){ m=R2.mech; tr=R2.trace; e=R2.err; } else et*=0.5; }
+        if(e<best.err){ const won=e;
+          // a blocked circle would have helped far more than the one that fit: the machine is too small for its parts
+          st.addBlocked=bestBlocked<best.err&&(best.err-bestBlocked)>3*(best.err-won);
+          st.best={mech:m,trace:tr,err:e}; st.eta=1; st.stall=0; return true; }
       }
-      st.stall++; return false;
+      // every new circle collided: the machine is too small for its parts (the caller may let it grow)
+      st.addBlocked=tried>0&&nb===tried; st.stall++; return false;
     }
     const m=refine(best,tS,mode,st.eta);
     if(opt.gear&&intDims()){
@@ -1409,7 +1497,7 @@ function makeCore(E, opt){
       if(key(m)===key(best.mech)){ if((st.drift=(st.drift||0)+1)<8){ st.best={mech:m,trace:best.trace,err:best.err}; return false; } st.drift=0; }
       else st.drift=0;
     }
-    const R1=measure(m,mode,tS), tr=R1.trace, e=R1.err; st.evals+=R1.evals;
+    const R1=measure(m,mode,tS,true), tr=R1.trace, e=R1.err; st.evals+=R1.evals;
     if(e<best.err){ const g=(best.err-e)/best.err; st.best={mech:R1.mech,trace:tr,err:e}; st.eta=Math.min(1,st.eta*1.3); if(g<0.03) st.needArm=true; return true; }
     st.eta*=0.5; if(st.eta<0.06){ st.eta=1;
       st.needArm=true; }
@@ -1432,7 +1520,7 @@ function makeCore(E, opt){
       const e=P.i>>1, s=(P.i&1)?-1:1; P.i++; let moved=false;
       for(let rep=0;rep<8;rep++){ const mm=polishEdit(st.best.mech,e,s);
         if(intFields(toInt(mm)).length!==P.n) break;            // a circle would vanish: not a step
-        const R=measure(mm,mode,tS), tr=R.trace, err=R.err; st.evals+=R.evals; used+=R.evals;
+        const R=measure(mm,mode,tS,true), tr=R.trace, err=R.err; st.evals+=R.evals; used+=R.evals;
         if(err<st.best.err-1e-9){ st.best={mech:R.mech,trace:tr,err}; moved=P.won=true; } else break; }
       if(moved&&s===1) P.i++;            // it moved up: no need to try down
     }
@@ -1606,12 +1694,12 @@ function makeCore(E, opt){
   // add-and-settle: simulate a candidate, then let it re-settle a few rounds; returns the best it found
   function settle(mech,tS,mode,baseErr){
     const R0=measure(mech,mode,tS); let m=R0.mech, tr=R0.trace, e=R0.err, n=R0.evals, et=1;
-    for(let r=0;r<8 && !(e<baseErr) && et>0.1 && isFinite(e);r++){ const m2=refine({mech:m,trace:tr},tS,mode,et); const R2=measure(m2,mode,tS); n+=R2.evals; if(R2.err<e){ m=R2.mech; tr=R2.trace; e=R2.err; } else et*=0.5; }
+    for(let r=0;r<8 && !(e<baseErr) && et>0.1 && isFinite(e);r++){ const m2=refine({mech:m,trace:tr},tS,mode,et); const R2=measure(m2,mode,tS,true); n+=R2.evals; if(R2.err<e){ m=R2.mech; tr=R2.trace; e=R2.err; } else et*=0.5; }
     return {mech:m,trace:tr,err:e,evals:n};
   }
-  function refineEval(best,tS,mode,eta){ return measure(refine(best,tS,mode,eta),mode,tS); }
+  function refineEval(best,tS,mode,eta){ return measure(refine(best,tS,mode,eta),mode,tS,true); }
   function evalMech(mech,tS,mode){ return measure(mech,mode,tS); }
-  return {takeBlocked,layout3,partsOf,planGap,planDodge,PART,gearReach,measure,polish,polishStep,build3DGear,toInt,buildGear,gearParts,snapGear,gearbox,gearMM,addCandidates,settle,refineEval,evalMech,SIZE,S,TSIM,WS,KMAX,SUB,exportScene,loadScene,H:TSIM/(S*SUB),CAT,CRANK,HC,CRANK3,frame,toW,quatBasis,armsOf3,body,pt,state,buf,build2D,build3D,stepMachine,penOf,tipOf,simulate,learnStep,blindStep,start,errOf,setDense,reparam,armsCount,cloneM};
+  return {safeGap,takeBlocked,layout3,partsOf,planGap,planDodge,PART,gearReach,measure,polish,polishStep,build3DGear,toInt,buildGear,gearParts,snapGear,gearbox,gearMM,addCandidates,settle,refineEval,evalMech,SIZE,S,TSIM,WS,KMAX,SUB,exportScene,loadScene,H:TSIM/(S*SUB),CAT,CRANK,HC,CRANK3,frame,toW,quatBasis,armsOf3,body,pt,state,buf,build2D,build3D,stepMachine,penOf,tipOf,simulate,learnStep,blindStep,start,errOf,setDense,reparam,armsCount,cloneM};
 }
 if(typeof module!=='undefined') module.exports={makeCore};
 
@@ -1652,6 +1740,9 @@ const trefoil=()=>curve(400,t=>[Math.sin(t)+2*Math.sin(2*t),Math.cos(t)-2*Math.c
 const torus=()=>curve(600,t=>{const r=2+Math.cos(5*t); return [r*Math.cos(2*t),r*Math.sin(2*t),-Math.sin(5*t)];});
 const heart3=()=>curve(600,t=>{ const x=16*Math.sin(t)**3, y=13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t); return [x, y, 7*Math.sin(t)*Math.cos(t)+3*Math.cos(t)]; });
 const seam=()=>curve(500,t=>{const a=0.42; const x=(1-a)*Math.cos(t)+a*Math.cos(3*t), y=(1-a)*Math.sin(t)-a*Math.sin(3*t), z=2*Math.sqrt(a*(1-a))*Math.sin(2*t); return [x,y,z];});
+function sphereObj(P3){ // the ball the outline lies on, in the normalized frame (normalize() centres the box and scales to SIZE)
+  const lo=[1e9,1e9,1e9],hi=[-1e9,-1e9,-1e9]; for(const p of P3) p.forEach((v,d)=>{lo[d]=Math.min(lo[d],v);hi[d]=Math.max(hi[d],v);});
+  const s=SIZE/Math.max(...hi.map((h,d)=>h-lo[d])); return {type:'sphere', c:[0,1,2].map(d=>-(lo[d]+hi[d])/2*s), r:s*0.985}; }
 function onSphere(pts2){ // 2D-Umriss auf eine Kugel gelegt
   const n=normalize(pts2.map(p=>[p[0],p[1]])); return n.map(([x,y])=>{ const lon=x/SIZE*2.2, lat=-y/SIZE*1.6; return [Math.cos(lat)*Math.sin(lon), -Math.sin(lat), Math.cos(lat)*Math.cos(lon)]; }); }
 function resample(P0,n){ const P=P0.concat([P0[0]]),L=[0];
@@ -1704,8 +1795,11 @@ const workerMain=function(self){
       if(st.pol){ const r=core.polishStep(st,tS,3); imp=true;
         if(r){ if(r.won){ st.polishTried=false; st.needArm=true; st.stall=0; lastStage='ganze Zahlen nachgestellt'; } }
         continue; }
-      if(opt.mode==='learn'?core.learnStep(st,tS,dim):core.blindStep(st,tS,dim)){ imp=true; st.polishTried=false; st.blk=0; }
-      if(opt.gear&&dim==='3d') st.blk=(st.blk||0)+core.takeBlocked();
+      if(opt.mode==='learn'?core.learnStep(st,tS,dim):core.blindStep(st,tS,dim)){ imp=true; st.polishTried=false; st.blk=0; st.addBlocked=false; }
+      // 3D gears: when every new circle collides, the machine grows at once (its parts keep their real size)
+      if(opt.gear&&dim==='3d'){ st.blk=(st.blk||0)+core.takeBlocked();
+        // grow when every new circle collided, or when progress stalled and collisions were part of the reason
+        if((st.addBlocked||(st.stall>=2&&st.blk>0))&&opt.gearSize<3200){ st.addBlocked=false; st.blk=0; grow(); imp=true; } }
       if(st.best.err<0.001){ done=true; break; }
       if(st.stall>(opt.mode==='learn'?3:6)){
         // stuck: tune the machine's physics, one property at a time; keep a change only if the error drops
@@ -1713,7 +1807,6 @@ const workerMain=function(self){
         // gear machine with whole-number dimensions: first step the integers themselves (runs in slices)
         if(opt.gear && opt.intDims!==false && !st.polishTried){ st.polishTried=true; st.stall=0; st.pol=null; core.polishStep(st,tS,0); lastStage='ganze Zahlen werden nachgestellt'; continue; }
         // 3D gears: when parts had no room to pass each other, the machine grows (parts keep their real size)
-        if(opt.gear && dim==='3d' && (st.blk||0)+core.takeBlocked()>=3 && opt.gearSize<3200){ opt.gearSize*=2; st.blk=0; reeval(); won=true; lastStage='Maschine wächst auf '+opt.gearSize+' mm – die Teile brauchen Platz'; }
         if(!won && opt.autoPhys) won=tunePhysics();
         // the gear machine follows its ratios exactly; more substeps would not change the drawing
         if(!won && opt.autoPrec && !opt.gear && opt.inner<256){ opt.inner=Math.min(256,opt.inner*2); reeval(); won=true; lastStage='Präzision → '+opt.inner+' Unterschritte'; }
@@ -1724,6 +1817,8 @@ const workerMain=function(self){
   }
   const go=()=>{ if(!running){ running=true; setTimeout(tick,0); } };
   let lastStage='';
+  function grow(){ const old=st.best; opt.gearSize*=2; const R=core.measure(old.mech,dim,tS); st.evals+=R.evals;
+    st.best=isFinite(R.err)?{mech:R.mech,trace:R.trace,err:R.err}:{mech:old.mech,trace:old.trace,err:old.err*1.0001+1e-9}; st.needArm=true; st.stall=0; st.polishTried=false; lastStage='Maschine wächst auf '+opt.gearSize+' mm – die Teile brauchen Platz'; }
   function reeval(){ const R=core.measure(st.best.mech,dim,tS); st.best={mech:R.mech,trace:R.trace,err:R.err}; st.evals+=R.evals; }
   // machine properties the tuner may change (gravity is the environment and stays untouched)
   const PHYS=[
@@ -1763,7 +1858,7 @@ try{
   const src=makeCore.toString()+'\n('+workerMain.toString()+')(self);';
   wk=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
 }catch(e){ wk=localWorker(); threaded=false; }
-const wopt=()=>({maxArms:opt.maxArms,res:opt.res,inner:opt.inner,autoPrec:opt.autoPrec,autoPhys:opt.autoPhys,gearGain:opt.gearGain,fly:opt.fly,torque:opt.torque,grav:opt.grav,mode:opt.mode,run:opt.run,gear:opt.gear,gearSize:opt.gearSize,intDims:opt.intDims});
+const wopt=()=>({solidWire:opt.solidWire,obj:opt.dim==='3d'?opt.obj:null,dodgeBudget:threaded?300:60,maxArms:opt.maxArms,res:opt.res,inner:opt.inner,autoPrec:opt.autoPrec,autoPhys:opt.autoPhys,gearGain:opt.gearGain,fly:opt.fly,torque:opt.torque,grav:opt.grav,mode:opt.mode,run:opt.run,gear:opt.gear,gearSize:opt.gearSize,intDims:opt.intDims});
 wk.onmessage=e=>{ const m=e.data;
   if(m.type==='error'){ fail(m.msg); return; }
   if(m.type!=='state'||m.gen!==gen) return;
@@ -1879,7 +1974,7 @@ function initThree(){
   if(!window.THREE) return null;
   try{
     const T=window.THREE, renderer=new T.WebGLRenderer({canvas:gl,antialias:true});
-    const scene=new T.Scene(), camera=new T.PerspectiveCamera(38,1,0.1,300);
+    const scene=new T.Scene(), camera=new T.PerspectiveCamera(38,1,0.1,3000);
     scene.add(new T.HemisphereLight(0xffffff,0x445555,0.9)); const dl=new T.DirectionalLight(0xffffff,0.7); dl.position.set(6,14,10); scene.add(dl);
     return {T,renderer,scene,camera,dyn:new T.Group(),stat:new T.Group(),bodies:[],links:[],trail:null,ghost:null,cap:0};
   }catch(e){ return null; }
@@ -1898,6 +1993,7 @@ function buildScene3D(){
   scene.background=col('stage'); scene.add(R3.stat); scene.add(R3.dyn);
   const box=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(SIZE,SIZE,SIZE)),lineMat('line')); R3.stat.add(box);
   R3.stat.add(polyline(tDraw,'muted',{transparent:true,opacity:.45},true));
+  if(opt.obj&&opt.obj.type==='sphere'){ const b=new T.Mesh(new T.SphereGeometry(opt.obj.r,48,32),mat('shape',{transparent:true,opacity:.35,depthWrite:false})); b.position.set(...opt.obj.c); R3.stat.add(b); }
   if(!live) return;
   const add=(b,obj)=>{ R3.dyn.add(obj); R3.bodies.push({b,obj}); };
   // crank with flywheel: the drive
@@ -1931,6 +2027,12 @@ function buildScene3D(){
   R3.cap=Math.round(TSIM/H)+8;
   const mkTrail=(k,o)=>{ const g=new T.BufferGeometry(); g.setAttribute('position',new T.BufferAttribute(new Float32Array(R3.cap*3),3)); g.setDrawRange(0,0); const L=new T.Line(g,lineMat(k,o)); R3.stat.add(L); return L; };
   R3.ghost=mkTrail('accent',{transparent:true,opacity:.25}); R3.trail=mkTrail('accent',{linewidth:2});
+  // frame the whole machine, not just the drawing: the view only ever widens while one shape is being worked on
+  { const H=SIZE/2, pts=tDraw.concat([[-H,-H,-H],[H,H,H]]); for(const a of live.arms){ const s=core.state(a.b); pts.push(s.p, core.pt(a.b,a.len,0,0)); } if(live.c) pts.push(live.c);
+    const lo=[1e9,1e9,1e9], hi=[-1e9,-1e9,-1e9]; for(const p of pts) for(let d=0;d<3;d++){ lo[d]=Math.min(lo[d],p[d]); hi[d]=Math.max(hi[d],p[d]); }
+    const c=lo.map((v,d)=>(v+hi[d])/2), r=Math.hypot(...hi.map((v,d)=>v-lo[d]))/2, rc=gl.getBoundingClientRect(), asp=rc.height>0?rc.width/rc.height:1;
+    const half=Math.atan(Math.tan(19*Math.PI/180)*Math.min(1,asp)), want=Math.max(27*(asp<1?1/asp:1)*0.8,1.08*r/Math.sin(half));
+    if(want>camR*1.02){ camR=want; camT=c; } }
   fillTrail(R3.ghost,ghost);
 }
 function fillTrail(L,arr){ if(!L) return; const a=L.geometry.attributes.position.array, n=Math.min(arr.length,R3.cap);
@@ -1965,7 +2067,7 @@ const fmt=e=>!isFinite(e)?'–':(e<10?e.toFixed(2):e.toFixed(1))+' %';
 function updateHud(){
   $('hErr').textContent=fmt(liveErr); $('hIt').textContent=iter; $('hArms').textContent=liveArms; $('hEvals').textContent=evals;
   const s=!best?'startet …':done?'Iteration fertig: '+fmt(best.err)+' mit '+best.arms+' Kreisen':(opt.run?(opt.mode==='learn'?'lernt aus der gemessenen Spur':'probiert blind')+' · bisher bestes '+fmt(best.err):'pausiert');
-  $('hPrec').textContent=(opt.gear?'1 Motor · Zahnradgelenke · '+opt.gearSize+' mm'+(opt.intDims?' · ganze mm und Grad':'')+(opt.dim==='3d'&&liveGap!=null&&isFinite(liveGap)?' · kollisionsfrei, engste Stelle '+liveGap.toFixed(1)+' mm':''):opt.inner+' Unterschritte · '+S+' Messpunkte · Kopplung '+(Math.round(opt.gearGain*10)/10)+' · Motor '+opt.torque+' · Schwungrad '+(Math.round(opt.fly*10)/10)+'×')+(stage?' · zuletzt: '+stage:'');
+  $('hPrec').textContent=(opt.gear?'1 Motor · Zahnradgelenke · '+opt.gearSize+' mm'+(opt.intDims?' · ganze mm und Grad':'')+(opt.dim==='3d'&&liveGap!=null&&isFinite(liveGap)?' · '+(liveGap>=0?'kollisionsfrei, engste Stelle '+liveGap.toFixed(1)+' mm':'klemmt noch'):''):opt.inner+' Unterschritte · '+S+' Messpunkte · Kopplung '+(Math.round(opt.gearGain*10)/10)+' · Motor '+opt.torque+' · Schwungrad '+(Math.round(opt.fly*10)/10)+'×')+(stage?' · zuletzt: '+stage:'');
   $('hState').textContent=s+(queue.length?' · noch '+queue.length+(queue.length===1?' Runde':' Runden')+' zu malen':'');
   $('bRun').textContent=done?'Weiter':(opt.run?'Pause':'Weiter');
 }
@@ -1985,18 +2087,18 @@ function loop(now){
 
 // ---------- Eingabe ----------
 function load2D(pts){ last2d=pts; opt.dim='2d'; ensureCore(); const n=normalize(resample(pts,1024)); tDraw=n; tS=resample(n,S); applyDimUI(); go(); }
-function load3D(pts){ opt.dim='3d'; ensureCore(); const n=normalize(resample(pts,1024)); tDraw=n; tS=resample(n,S); applyDimUI(); go(); }
-function go(){ try{ stopTurbo(false); opt.run=true; if(R3){ R3.bodies=[]; R3.pen=null; } if(live){ E.worldFree(live.w); live=null; } trail=[]; ghost=[]; restart(); broken=false; }catch(e){ broken=true; fail(e); } }
+function load3D(pts,obj){ opt.dim='3d'; opt.obj=obj||null; ensureCore(); const n=normalize(resample(pts,1024)); tDraw=n; tS=resample(n,S); applyDimUI(); go(); }
+function go(){ try{ camR=27; camT=[-0.6,-0.6,0]; stopTurbo(false); opt.run=true; if(R3){ R3.bodies=[]; R3.pen=null; } if(live){ E.worldFree(live.w); live=null; } trail=[]; ghost=[]; restart(); broken=false; }catch(e){ broken=true; fail(e); } }
 const presets={pKnight:()=>load2D(knight()),pStar:()=>load2D(star()),pHeart:()=>load2D(heart()),
-  p3Tre:()=>load3D(trefoil()),p3Heart:()=>load3D(heart3()),p3Tor:()=>load3D(torus()),p3Seam:()=>load3D(seam()),p3Sph:()=>load3D(onSphere(last2d))};
+  p3Tre:()=>load3D(trefoil()),p3Heart:()=>load3D(heart3()),p3Tor:()=>load3D(torus()),p3Seam:()=>load3D(seam()),p3Sph:()=>{ const P=onSphere(last2d); load3D(P,sphereObj(resample(P,1024))); }};
 let cur2='pKnight', cur3='p3Tre';
 function press(id){ if(id){ if(id.startsWith('p3')) cur3=id; else cur2=id; } for(const b in presets) $(b).setAttribute('aria-pressed',String(b===id)); }
 for(const id in presets) $(id).onclick=()=>{ press(id); presets[id](); };
 function applyDimUI(){
   $('d2').setAttribute('aria-pressed',String(opt.dim==='2d')); $('dG').setAttribute('aria-pressed',String(opt.gear)); $('d3').setAttribute('aria-pressed',String(opt.dim==='3d'));
-  $('gGear').hidden=!opt.gear; if(opt.gear) $('gGear').open=true; partsDirty=true;
+  $('gGear').hidden=!opt.gear; $('rowWire').hidden=opt.dim!=='3d'; if(opt.gear) $('gGear').open=true; partsDirty=true;
   $('in2d').hidden=opt.dim!=='2d'; $('in3d').hidden=opt.dim!=='3d'; $('tools2d').hidden=opt.dim!=='2d'; $('tools3d').hidden=opt.dim!=='3d';
-  $('hint').textContent=opt.dim==='2d'?hints[opt.tool]:'Ziehen dreht · Rad zoomt';
+  $('hint').textContent=opt.dim==='2d'?hints[opt.tool]:(matchMedia('(pointer: coarse)').matches?'Wischen dreht':'Ziehen dreht · Rad zoomt');
   cv.hidden=opt.dim==='3d'&&!!R3; gl.hidden=!(opt.dim==='3d'&&R3);
   fit();
 }
@@ -2020,6 +2122,7 @@ function partsCSV(){ const P=partsOf(); if(!P) return ''; const d3=P.dim==='3d';
   return ['Nr;Umdrehungen je Motorumdrehung;Laenge mm;'+(d3?'Achse Azimut Grad;Achse Hoehe Grad;':'')+'Montagewinkel Grad;'+(d3?'Abstandshalter mm;':'Ebene;')+'Getriebe Zaehne (Modul '+P.module+');Zwischenrad;'+(d3?'Kegelrad Grad;':'')+'Verbindung;Riemen Zaehne GT2']
     .concat(P.arms.map(a=>[a.nr,a.turns,a.lengthMM].concat(d3?a.axisDeg:[]).concat([a.mountDeg,d3?a.spacerMM:a.layer,a.direct?'direkt':a.gearbox.map(([p,q])=>p+':'+q).join(' + '),a.idler?'ja':'nein']).concat(d3?[a.bevelAtTip]:[]).concat([a.link==='belt'?'2x GT2-Riemen':a.link==='oldham'?'2x Oldham-Kupplung':'',a.link==='belt'?a.beltTeethGT2:'']).join(';'))).concat(d3?['Stift-Nadel mm;'+P.needleMM]:[]).join('\n'); }
 $('kSize').onchange=e=>{ opt.gearSize=+e.target.value; done=false; send({reeval:true,resume:true}); liveDirty=true; partsDirty=true; updateHud(); };
+$('cWire').onchange=e=>{ opt.solidWire=e.target.checked; done=false; send({reeval:true,resume:true}); updateHud(); };
 $('cInt').onchange=e=>{ opt.intDims=e.target.checked; done=false; send({reeval:true,resume:true}); liveDirty=true; partsDirty=true; updateHud(); };
 const copyBtn=(id,label,get)=>{ $(id).onclick=()=>{ const t=get(), b=$(id); if(!t) return; const fb=()=>{ const x=$('exp'); x.hidden=false; x.readOnly=true; x.value=t; x.select(); b.textContent='Text markiert'; };
   try{ navigator.clipboard.writeText(t).then(()=>{ b.textContent='Kopiert'; setTimeout(()=>b.textContent=label,1600); },fb); }catch(_){ fb(); } }; };
@@ -2067,7 +2170,7 @@ gl.addEventListener('pointerdown',e=>{ gl.setPointerCapture(e.pointerId); drag3=
 gl.addEventListener('pointermove',e=>{ if(!drag3) return; yaw=drag3.yaw-(e.clientX-drag3.x)*0.008; pitch=Math.max(-1.2,Math.min(1.35,drag3.pitch+(e.clientY-drag3.y)*0.008)); });
 const up3=()=>{ if(drag3){ drag3=null; autoRot=false; gl.style.cursor='grab'; } };
 gl.addEventListener('pointerup',up3); gl.addEventListener('pointercancel',up3);
-gl.addEventListener('wheel',e=>{ e.preventDefault(); camR=Math.max(12,Math.min(60,camR*(1+Math.sign(e.deltaY)*0.08))); },{passive:false});
+gl.addEventListener('wheel',e=>{ e.preventDefault(); camR=Math.max(12,Math.min(400,camR*(1+Math.sign(e.deltaY)*0.08))); },{passive:false});
 
 // ---------- Regler ----------
 const send=(extra)=>wk.postMessage({cmd:'opt',opt:wopt(),...extra});
@@ -2084,7 +2187,7 @@ const poolMain=function(self){
       if(m.cmd==='init'){ E=(await WebAssembly.instantiate(m.wasm,{})).instance.exports; E.init(); E.jointHertz(1e5); opt=m.opt; core=makeCore(E,opt); self.postMessage({type:'ready'}); return; }
       if(m.cmd==='job'){ Object.assign(opt,m.opt); if(core.S!==opt.res) core=makeCore(E,opt);
         const r = m.op==='polish' ? core.polish({mech:m.mech,trace:m.trace,err:m.err},m.tS) : m.op==='settle' ? core.settle(m.mech,m.tS,m.dim,m.base) : m.op==='refine' ? core.refineEval({mech:m.mech,trace:m.trace},m.tS,m.dim,m.eta) : core.evalMech(m.mech,m.tS,m.dim);
-        self.postMessage({type:'job',id:m.id,res:{mech:r.mech,trace:r.trace,err:r.err,evals:r.evals,gap:r.trace&&r.trace.gap,blocked:core.takeBlocked()}}); }
+        self.postMessage({type:'job',id:m.id,res:{mech:r.mech,trace:r.trace,err:r.err,evals:r.evals,gap:r.trace&&r.trace.gap,blocked:!!(r.trace&&r.trace.hits)}}); }
     }catch(err){ self.postMessage({type:'job',id:m.id,error:String(err&&err.message||err)}); }
   };
 };
@@ -2099,7 +2202,7 @@ async function makePool(){
   const free=ws.slice(), queue=[];
   const pump=()=>{ while(free.length&&queue.length){ const w=free.pop(), j=queue.shift(); const id=nextId++;
     pending.set(id,{res:r=>{ free.push(w); j.res(r); pump(); }, rej:e=>{ free.push(w); j.rej(e); pump(); }}); w.postMessage({...j.job,cmd:'job',id}); } };
-  return {N:ws.length, run:jobs=>Promise.all(jobs.map(job=>new Promise((res,rej)=>{ queue.push({job,res,rej}); pump(); }))).then(rs=>{ if(turbo.T) turbo.T.blocked=(turbo.T.blocked||0)+rs.reduce((a,r)=>a+(r.blocked||0),0); return rs; })};
+  return {N:ws.length, run:jobs=>Promise.all(jobs.map(job=>new Promise((res,rej)=>{ queue.push({job,res,rej}); pump(); })))};
 }
 const baseJob=extra=>({opt:wopt(),dim:opt.dim,tS,...extra});
 const pick=rs=>rs.reduce((a,b)=>b.err<a.err?b:a);
@@ -2112,6 +2215,9 @@ async function turboLoop(){
       const rs=await P.run(cands.map(m=>baseJob({op:'settle',mech:m,base:T.best.err}))); if(!turbo.on) break;
       T.evals+=rs.reduce((a,r)=>a+r.evals,0); const b=pick(rs);
       if(b.err<T.best.err){ T.best=b; T.stall=0; T.stage=''; T.blocked=0; } else T.stall++;
+      // every candidate collided: grow the machine at once
+      if(!(b.err<T.best.err)&&opt.gear&&opt.dim==='3d'&&rs.every(r=>r.blocked)&&opt.gearSize<3200){ opt.gearSize*=2; $('kSize').value=String(opt.gearSize); partsDirty=true;
+        const [r]=await P.run([baseJob({op:'eval',mech:T.best.mech})]); if(!turbo.on) break; T.best=r; T.stall=0; T.needArm=true; T.stage='Maschine wächst auf '+opt.gearSize+' mm'; }
 
       T.needArm=false;
     } else {
@@ -2125,8 +2231,6 @@ async function turboLoop(){
       if(opt.gear&&opt.intDims&&!T.polished){ T.polished=true; T.stage='ganze Zahlen werden nachgestellt'; turboHud();
         const [r]=await P.run([baseJob({op:'polish',mech:T.best.mech,trace:T.best.trace,err:T.best.err})]); if(!turbo.on) break;
         T.evals+=r.evals; if(r.err<T.best.err){ T.best=r; won=true; T.stage='ganze Zahlen nachgestellt'; } }
-      if(!won && opt.gear && opt.dim==='3d' && T.blocked>=3 && opt.gearSize<3200){ opt.gearSize*=2; T.blocked=0; $('kSize').value=String(opt.gearSize); partsDirty=true;
-        const [r]=await P.run([baseJob({op:'eval',mech:T.best.mech})]); if(!turbo.on) break; T.best=r; won=true; T.stage='Maschine wächst auf '+opt.gearSize+' mm'; }
       if(!won && opt.autoPhys){ const vars=(opt.gear?[]:[['gearGain',v=>v*2],['gearGain',v=>v/2]]).concat([['torque',v=>Math.min(100,v+10)],['torque',v=>Math.max(0,v-10)],['fly',v=>Math.min(64,v*2)],['fly',v=>Math.max(.5,v/2)]]);
         const rs=await P.run(vars.map(([k,f])=>({...baseJob({op:'eval',mech:T.best.mech}),opt:{...wopt(),[k]:f(opt[k])}}))); if(!turbo.on) break;
         T.evals+=rs.length; let bi=-1; rs.forEach((r,i)=>{ if(r.err<T.best.err-1e-6&&(bi<0||r.err<rs[bi].err)) bi=i; });
