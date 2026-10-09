@@ -1,1 +1,8 @@
-Mobile startup regression passed. {"playerMode":"drone","cameraMode":"fpv","fpv":"1","auto":"fpv","startup":"drone-fpv-fresh-v1","startupMode":"drone","deathReset":"0","localDead":false,"respawnState":"none","respawnVisible":false,"onFoot":false,"armDisabled":false,"dock":["DRONE","WEAPON · GUN","SETTINGS"],"topbar":"none"}
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_startup_live_smoke.mjs:17
+  if(state.dock.length!==3||state.dock[0]!=="DRONE"||!state.dock.includes("SETTINGS")||state.dock.some(x=>x==="MENU"||x==="START"))throw new Error(`startup HUD regressed: ${JSON.stringify(state)}`);
+                                                                                                                                         ^
+
+Error: startup HUD regressed: {"playerMode":"drone","cameraMode":"fpv","fpv":"1","auto":"fpv","startup":"drone-fpv-fresh-v1","startupMode":"drone","deathReset":"0","localDead":false,"respawnState":"none","respawnVisible":false,"onFoot":false,"armDisabled":false,"dock":["DRONE","WEAPON · GUN","SETTINGS","✈ JET"],"topbar":"none"}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_startup_live_smoke.mjs:17:138
+
+Node.js v22.23.3
