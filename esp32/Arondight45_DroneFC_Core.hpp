@@ -305,18 +305,36 @@ struct Mix {
     std::array<float, 4> motor{};
 };
 
+// Attitude-priority mixing (as Betaflight/PX4 desaturation): in flight the
+// collective yields to the attitude correction. At full collective (a
+// full-power climb) the motors keep their differential authority by giving up
+// a little thrust instead of losing all torque — the old throttle-priority mix
+// scaled corrections to zero at t = 1, so a full-power takeoff could not hold
+// level and pitched over. On the ground / at idle (t <= 5 %) the collective is
+// never raised for a correction (no hopping), corrections scale down instead.
+constexpr float kMixFlightCollective = 0.05f;
 inline Mix mix(float t, float roll, float pitch, float yaw) {
     t = clamp(t, 0.0f, 1.0f);
     std::array<float, 4> correction{{pitch - roll - 0.65f * yaw,
                                       pitch + roll + 0.65f * yaw,
                                       -pitch + roll - 0.65f * yaw,
                                       -pitch - roll + 0.65f * yaw}};
+    float cmax = correction[0], cmin = correction[0];
+    for (float v : correction) { cmax = std::max(cmax, v); cmin = std::min(cmin, v); }
     float scale_factor = 1.0f;
-    for (float v : correction) {
-        if (v > 0.0f) scale_factor = std::min(scale_factor, (1.0f - t) / v);
-        else if (v < 0.0f) scale_factor = std::min(scale_factor, t / -v);
+    if (t > kMixFlightCollective) {
+        const float range = cmax - cmin;
+        if (range > 1.0f) scale_factor = 1.0f / range;
+        const float hi = cmax * scale_factor, lo = cmin * scale_factor;
+        if (t + hi > 1.0f) t = 1.0f - hi;
+        if (t + lo < 0.0f) t = -lo;
+    } else {
+        for (float v : correction) {
+            if (v > 0.0f) scale_factor = std::min(scale_factor, (1.0f - t) / v);
+            else if (v < 0.0f) scale_factor = std::min(scale_factor, t / -v);
+        }
+        scale_factor = clamp(scale_factor, 0.0f, 1.0f);
     }
-    scale_factor = clamp(scale_factor, 0.0f, 1.0f);
     Mix out;
     for (size_t i = 0; i < 4; ++i) out.motor[i] = clamp(t + scale_factor * correction[i], 0.0f, 1.0f);
     return out;

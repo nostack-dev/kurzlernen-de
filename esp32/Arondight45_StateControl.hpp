@@ -214,12 +214,17 @@ public:
 
         const float agl_error = agl_valid ? intent.clearance_m - nav.agl_m : 0.0f;
         // Climb and descent need asymmetric envelopes. High upward authority is
-        // useful for takeoff/recovery, while allowing the same 30 m/s target on
-        // descent builds downward momentum that cannot be removed before a low
-        // AGL target. Keep the historically validated 2 m/s descent envelope and
-        // retain the modern high climb ceiling.
+        // useful for takeoff/recovery; descent is a real "sink with power" up to
+        // 9 m/s. Braking a descent uses the full upward reserve (50 m/s^2) and the
+        // AGL slope (2/s) starts braking 4.5 m above the target at full sink, so
+        // the momentum is always removed before a low AGL target.
+        // Kinematic altitude law (square-root controller): linear close to the
+        // target, sqrt(2·a·e) further out, so the commanded vertical speed can
+        // always be braked to zero exactly at the target with the real thrust
+        // margin (climb braking = thrust cut, descent braking = thrust surplus).
+        // No overshoot after a full-power climb, no float after a hard sink.
         const float target_vz = agl_valid
-            ? clamp(kAglToVerticalSpeed * agl_error, -kMaxVerticalDescentSpeedMps, kMaxVerticalSpeedMps)
+            ? clamp(kinematic_vertical_speed(agl_error), -kMaxVerticalDescentSpeedMps, kMaxVerticalSpeedMps)
             : 0.0f;
         const float vz_error = target_vz - nav.velocity_world_mps.z;
         // The altitude/vertical-speed cascade is critically damped on descent.
@@ -308,7 +313,12 @@ public:
         const float desired_yaw_rate = clamp(intent.yaw_rate_dps + kHeadingKp * yaw_error,
                                              -180.0f, 180.0f);
         const float yaw_command = desired_yaw_rate / 180.0f;
-        if (agl_valid) {
+        // Learn the hover throttle only while (nearly) hovering, as real FCs do:
+        // adapting through a commanded climb/sink transient winds the trim up/down
+        // (a long full sink drove it to the floor and the aircraft could not brake).
+        const bool hovering = std::fabs(target_vz) < 1.5f;
+        const bool cannot_lift = target_vz > 0.0f && vz_error > 0.0f && nav.velocity_world_mps.z < 0.5f;
+        if (agl_valid && (hovering || cannot_lift)) {
             hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
                                 kMinHoverTrim, kMaxHoverTrim);
         }
@@ -383,18 +393,23 @@ private:
     static constexpr float kMaxHorizontalAccelerationMps2 = 7.5f;
 
     static constexpr float kAglToVerticalSpeed = 2.00f;
+    // Braking used by the kinematic altitude law: a climb is braked by cutting
+    // thrust (bounded by the descent reserve), a sink by thrust surplus.
+    static constexpr float kClimbBrakeAccelerationMps2 = 6.0f;
+    static constexpr float kDescentBrakeAccelerationMps2 = 4.0f;
     static constexpr float kMaxVerticalSpeedMps = 30.0f;
-    static constexpr float kMaxVerticalDescentSpeedMps = 2.0f;
+    static constexpr float kMaxVerticalDescentSpeedMps = 9.0f;
     static constexpr float kVerticalVelocityGain = 4.0f;
     static constexpr float kVerticalDescentVelocityGain = 8.0f;
     static constexpr float kMaxVerticalAccelerationMps2 = 50.0f;
-    static constexpr float kMaxVerticalDescentAccelerationMps2 = 4.0f;
+    static constexpr float kMaxVerticalDescentAccelerationMps2 = 6.8f;
     static constexpr float kVerticalJerkLimitMps3 = 1200.0f;
     // Keep enough collective thrust during aggressive descent for the inner
     // attitude loop to retain real motor/torque authority. 0.5 m/s² was nearly
     // free-fall and allowed the physical airframe to tumble well beyond the
-    // bounded attitude target. 4.0 m/s² is the previously validated reserve.
-    static constexpr float kMinSpecificUpMps2 = 4.0f;
+    // bounded attitude target. 3.0 m/s² (≈30 % hover thrust) keeps the props
+    // spinning with differential authority while sinking hard.
+    static constexpr float kMinSpecificUpMps2 = 3.0f;
     static constexpr float kMaxSpecificUpMps2 = 60.0f;
 
     static constexpr float kEscCommandOffset =
@@ -403,12 +418,24 @@ private:
         static_cast<float>(kEscMaxUs - kEscIdleUs) / static_cast<float>(kEscMaxUs - kEscMinUs);
 
     static constexpr float kHeadingKp = 2.2f;
-    static constexpr float kHoverAdapt = 0.050f;
+    static constexpr float kHoverAdapt = 0.120f;
     static constexpr float kInitialHoverThrottle = 0.39f;
     static constexpr float kMinHoverTrim = 0.25f;
     static constexpr float kMaxHoverTrim = 0.65f;
     static constexpr float kMinFlightThrottle = 0.08f;
     static constexpr float kMaxFlightThrottle = 1.00f;
+
+    // min(linear, braking curve): the braking curve v = -a·tau + sqrt((a·tau)^2 + 2·a·e)
+    // already budgets the vertical-velocity loop's own lag tau = 1/gain, so a
+    // full-rate sink is stopped at the target, not below it.
+    static float kinematic_vertical_speed(float agl_error) {
+        const bool up = agl_error >= 0.0f;
+        const float a = up ? kClimbBrakeAccelerationMps2 : kDescentBrakeAccelerationMps2;
+        const float tau = 1.0f / (up ? kVerticalVelocityGain : kVerticalDescentVelocityGain);
+        const float e = std::fabs(agl_error), at = a * tau;
+        const float v = std::min(kAglToVerticalSpeed * e, -at + std::sqrt(at * at + 2.0f * a * e));
+        return up ? v : -v;
+    }
 
     void reset_horizontal_state() {
         acceleration_estimator_valid_ = false;

@@ -93,9 +93,10 @@ try{
   const targetStart=(await read()).targetAgl;
   await holdHeight(+1,1100,"CLIMB",vertical);
   const targetHigh=(await read()).targetAgl;
-  if(!(targetHigh-targetStart>4.0&&targetHigh-targetStart<6.5))throw new Error(`CLIMB target slew unexpected: start=${targetStart} high=${targetHigh}`);
+  // height stick = vertical speed: the target rides the FC braking lead above the measured AGL
+  if(!(targetHigh-targetStart>6.0&&targetHigh-targetStart<45))throw new Error(`CLIMB target unexpected: start=${targetStart} high=${targetHigh}`);
   for(let i=0;i<30;i++){const sample=await read();vertical.push(sample);assertFlightHealthy(sample,"HIGH HOLD");await wait(100);}
-  await holdHeight(-1,1800,"DESCEND",vertical);
+  await holdHeight(-1,6500,"DESCEND",vertical);
   const targetLow=(await read()).targetAgl;
   if(!(targetLow>=.49&&targetLow<=.75))throw new Error(`DESCEND did not clamp target at safe floor: ${targetLow}`);
   for(let i=0;i<80;i++){const sample=await read();vertical.push(sample);assertFlightHealthy(sample,"LOW HOLD");await wait(100);}

@@ -3,7 +3,7 @@ import Box3DFactory from "box3d.js/dist/box3d.inline.mjs";
 import createCore from "../generated/flight_core.mjs";
 import {ViewPeerLink,copySignal,shareSignal} from "./p2p_link.mjs";
 import {QrScanner,renderQr} from "./qr_pairing.mjs";
-import {neutralControls,copyControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M,MIN_GAME_AGL_SENSOR_SLANT_RANGE_M,clearanceRateMps,stepGroundClearanceTarget} from "./control_semantics.mjs";
+import {neutralControls,copyControls,armReady as sharedArmReady,normalizedPointer,endPointerDrag,applyStick,releaseStick,knobAxes,knobPercent,phoneAxis,inversePhoneAxis,applyGameStick,gameKnobAxes,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M,MIN_GAME_AGL_SENSOR_SLANT_RANGE_M,clearanceRateMps,stepGroundClearanceTarget,clearanceLeadM} from "./control_semantics.mjs";
 import {RaceTrack} from "./race_track.mjs";
 import {loadPhoneControlSettings,mountPlayerControlSettings} from "./control_settings.mjs";
 import {loadCameraSettings,mountCameraSettings} from "./camera_settings.mjs";
@@ -902,8 +902,19 @@ function activeControlState(){
   effectiveInput=soloMode?copyControls(soloControls):(inputSource==="remote"?(remoteLink.current()||neutral):localControlState());
   arm=effectiveInput.arm;throttle=effectiveInput.throttle;return effectiveInput;
 }
+// Height stick = vertical speed, like a real drone: while held, the AGL target
+// rides exactly the FC's braking lead above/below the measured AGL, so the FC
+// flies the commanded climb/sink rate; released, the target is set where the
+// aircraft can physically stop (no overshoot, no float). Without a valid AGL
+// the target integrates as before.
+let soloHeightHeld=false;
+function steerSoloHeight(){
+  const axis=soloHeightAxis,nav=latestNavigation,agl=nav?.aglValid&&Number.isFinite(nav.agl)?nav.agl:null,vz=Number.isFinite(nav?.vz)?nav.vz:0;
+  if(Math.abs(axis)>1e-4){soloHeightHeld=true;const rate=clearanceRateMps(axis);soloGroundClearance=agl===null?stepGroundClearanceTarget(soloGroundClearance,axis,.01):clamp(agl+clearanceLeadM(rate),MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M);soloControls.groundClearance=soloGroundClearance;return;}
+  if(soloHeightHeld){soloHeightHeld=false;if(agl!==null){soloGroundClearance=clamp(agl+clearanceLeadM(vz),MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M);soloControls.groundClearance=soloGroundClearance;renderSoloHeightControl();}}
+}
 function controls(){
-  if(globalThis.__arondightOnFootMode===true)lockSoloHeightForFoot();else if(soloMode&&Math.abs(soloHeightAxis)>1e-4){const next=stepGroundClearanceTarget(soloGroundClearance,soloHeightAxis,.01);soloGroundClearance=next;soloControls.groundClearance=next;}
+  if(globalThis.__arondightOnFootMode===true)lockSoloHeightForFoot();else if(soloMode)steerSoloHeight();
   const c=activeControlState(),channels=new Array(16).fill(992);
   channels[0]=Math.round(992+820*clamp(c.roll||0,-1,1));channels[1]=Math.round(992+820*clamp(c.pitch||0,-1,1));channels[3]=Math.round(992+820*clamp(c.yaw||0,-1,1));channels[4]=c.arm?1811:172;
   if(c.gameMode){channels[2]=172;const clearance=clamp(Number(c.groundClearance)||2,MIN_GAME_CLEARANCE_M,MAX_GAME_CLEARANCE_M),normalized=(clearance-MIN_GAME_CLEARANCE_M)/(MAX_GAME_CLEARANCE_M-MIN_GAME_CLEARANCE_M);channels[5]=Math.round(172+1639*normalized);channels[6]=1811;channels[7]=Math.round(992+820*clamp(c.bodyPitch||0,-1,1));}else channels[2]=Math.round(172+1639*clamp(c.throttle||0,0,1));

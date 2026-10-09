@@ -4,7 +4,12 @@ export const MAX_GAME_CLEARANCE_M=50.0;
 export const MAX_GAME_TILT_DEG=40.0;
 export const GAME_AGL_SENSOR_RANGE_MARGIN_M=10.0;
 export const MIN_GAME_AGL_SENSOR_SLANT_RANGE_M=Math.ceil(MAX_GAME_CLEARANCE_M/Math.pow(Math.cos(MAX_GAME_TILT_DEG*Math.PI/180),2)+GAME_AGL_SENSOR_RANGE_MARGIN_M);
-export const MAX_GAME_CLEARANCE_RATE_MPS=5.0;
+export const MAX_GAME_CLEARANCE_RATE_MPS=12.0;
+// The FC's kinematic altitude law (esp32/Arondight45_StateControl.hpp): the AGL
+// lead that makes it command exactly this vertical speed. Linear near the
+// target (2/s), braking curve with the velocity-loop lag further out (6 m/s² climb brake, 4 m/s² sink brake).
+export const GAME_AGL_TO_VERTICAL_SPEED=2.0,GAME_CLIMB_BRAKE_MPS2=6.0,GAME_SINK_BRAKE_MPS2=4.0;
+export function clearanceLeadM(verticalSpeedMps){const v=Number(verticalSpeedMps)||0,up=v>=0,a=up?GAME_CLIMB_BRAKE_MPS2:GAME_SINK_BRAKE_MPS2,tau=up?.25:.125,k=GAME_AGL_TO_VERTICAL_SPEED,s=Math.abs(v);const e=Math.max(s/k,(s*s+2*a*tau*s)/(2*a));return up?e:-e;}
 export const GAME_CLEARANCE_RATE_DEADBAND=0.08;
 export const MIN_GAME_HORIZONTAL_SPEED_KMH=5;
 export const MAX_GAME_HORIZONTAL_SPEED_KMH=90;

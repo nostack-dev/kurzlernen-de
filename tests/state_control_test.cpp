@@ -103,7 +103,7 @@ int main() {
     controller.reset();
     auto high_clearance = base_rc(true);high_clearance.ch[fc::kStateClearanceChannel] = 1811;
     nav = {{0.0f,0.0f,0.0f},0.5f,true};cmd=controller.run(high_clearance,nav,0.0f,true,0.001f);
-    CHECK(controller.debug().target_vz_mps > 29.9f);CHECK(controller.debug().vertical_accel_mps2 > 49.9f);CHECK(cmd.throttle > 0.99f);
+    CHECK(controller.debug().target_vz_mps > 20.0f);CHECK(controller.debug().vertical_accel_mps2 > 49.9f);CHECK(cmd.throttle > 0.99f);
 
     controller.reset();
     rc = base_rc(true);
@@ -113,8 +113,8 @@ int main() {
     const float descent_auto_roll_deg = std::fabs(cmd.roll * fc::kInnerMaxAttitudeDeg);
     const float descent_horizontal_accel = std::hypot(controller.debug().forward_accel_mps2,
                                                        controller.debug().right_accel_mps2);
-    CHECK(controller.debug().target_vz_mps < -1.99f && controller.debug().target_vz_mps > -2.01f);
-    CHECK(controller.debug().vertical_accel_mps2 < -3.99f && controller.debug().vertical_accel_mps2 > -4.01f);
+    CHECK(controller.debug().target_vz_mps < -6.0f && controller.debug().target_vz_mps > -9.01f);
+    CHECK(controller.debug().vertical_accel_mps2 < -6.79f && controller.debug().vertical_accel_mps2 > -6.81f);
     CHECK(descent_horizontal_accel < 2.71f);
     CHECK(cmd.throttle > 0.10f);
     CHECK(descent_auto_pitch_deg <= 25.05f);
