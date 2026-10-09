@@ -138,6 +138,7 @@ const HINTS={
 function installUi(){
   if(document.querySelector("style[data-desktop-controls]"))return;
   const st=document.createElement("style");st.dataset.desktopControls="v1";st.textContent=`
+html body.desktop-input #viewport #footHud #footMove,html body.desktop-input #viewport #footHud #footLook,html body.desktop-input #viewport #footHud #footFire,html body.desktop-input #viewport #footHud #footJump,html body.desktop-input #viewport #footHud #footLookZone{display:none!important;pointer-events:none!important}
 body.desktop-input #footMove,body.desktop-input #footLook,body.desktop-input #footJump,body.desktop-input #footFire,body.desktop-input #footLookZone,
 body.desktop-input #soloLeft,body.desktop-input #soloRight,body.desktop-input #soloHeightPad,body.desktop-input .vehicle-stick,
 body.desktop-input #vehicleCamButton,body.desktop-input #footWeaponToggle,body.desktop-input #droneWeaponToggle,body.desktop-input #vehicleBrakeButton,body.desktop-input #jetHud .jet-btns,body.desktop-input #mobileGameplayDock{display:none!important;pointer-events:none!important}

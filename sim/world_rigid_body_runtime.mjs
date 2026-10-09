@@ -27,6 +27,7 @@ function setPose(id,pose={}){const key=String(id||""),config=pendingBodies.get(k
 function setGravityScale(id,gravityScale=1){const key=String(id||""),value=Number(gravityScale),config=pendingBodies.get(key);if(!key||!Number.isFinite(value)||!config)return false;pendingBodies.set(key,{...config,gravityScale:value});return ensureEngine()?.setGravityScale(key,value)??true;}
 function removeBody(id){const key=String(id||"");pendingBodies.delete(key);pendingTargets.delete(key);return ensureEngine()?.removeBody(key)??false;}
 function setForces(id,forces){return ensureEngine()?.setForces?.(String(id||""),forces)??false;}
+function setController(id,fn){const key=String(id||""),config=pendingBodies.get(key);if(config)pendingBodies.set(key,{...config,controller:typeof fn==="function"?fn:null});return ensureEngine()?.setController?.(key,fn)??Boolean(config);}
 function applyImpulse(id,impulse,options){return ensureEngine()?.applyImpulse(String(id||""),impulse,options)??false;}
 function pose(id,out=null){return ensureEngine()?.pose(String(id||""),out)||null;}
 function raycast(origin,direction,maxDistance=2000,options){return ensureEngine()?.raycast(origin,direction,maxDistance,options)||null;}
@@ -39,6 +40,6 @@ function frame(now=performance.now()){
 onTerrainChange((_craters,regions)=>{try{engine?.rebuildTerrain?.(regions??null);}catch(error){console.warn("rigid terrain",error);}});
 export // every registered body (id, kind, half extents, mass) — e.g. vehicle-vs-pedestrian checks
 function bodies(){const current=ensureEngine();const out=[];for(const b of pendingBodies.values())if(!current||current.records.has(b.id))out.push(b);return out;}
-const worldRigidBodyRuntime=Object.freeze({bodies,setForces,upsertBody,setTarget,setDrive,clearTarget,setPose,setGravityScale,removeBody,applyImpulse,pose,raycast,get ready(){return Boolean(ensureEngine());},get engine(){return ensureEngine();}});
+const worldRigidBodyRuntime=Object.freeze({bodies,setForces,setController,upsertBody,setTarget,setDrive,clearTarget,setPose,setGravityScale,removeBody,applyImpulse,pose,raycast,get ready(){return Boolean(ensureEngine());},get engine(){return ensureEngine();}});
 globalThis.__arondightWorldRigidBodies=worldRigidBodyRuntime;
 requestAnimationFrame(frame);
