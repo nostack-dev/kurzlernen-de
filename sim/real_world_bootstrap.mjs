@@ -1,4 +1,5 @@
 import "./desktop_controls.mjs";
+import "./settings_help.mjs";
 import "./foot_touch_controller.mjs";
 import * as THREE from "three";
 import {Map as MapLibreMap,LngLat} from "maplibre-gl";

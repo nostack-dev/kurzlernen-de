@@ -8,7 +8,7 @@ const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-s
 const page=await browser.newPage();
 try{
   await page.setViewport({width:844,height:390,deviceScaleFactor:1});
-  await page.goto(`${base}/drone_simulator.html`,{waitUntil:"load",timeout:30000});
+  await page.goto(`${base}/drone_simulator.html?start=drone`,{waitUntil:"load",timeout:30000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("SIM ready"),{timeout:30000});
   await page.waitForFunction(()=>document.body.classList.contains("solo-flight")&&document.querySelector("#soloLogbook"),{timeout:10000});
   await page.evaluate(()=>{
