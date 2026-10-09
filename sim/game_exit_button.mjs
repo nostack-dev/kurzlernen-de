@@ -29,10 +29,11 @@ html.neon-line-style:not(#ng-a):not(#ng-b):not(#ng-c) #gameExitButton{border-top
 /* Desktop gets the same MULTI | EXIT control as mobile (one multiplayer
    entry point everywhere); the old FIND MATE topbar button stays in the DOM
    (MULTI routes to it) but is no longer shown twice. */
-body.solo-flight:not(.mobile-gameplay-compact) #mobileGameplayMultiplayer{display:flex!important;align-items:center;justify-content:center;position:absolute;top:max(60px,calc(var(--solo-safe-top,env(safe-area-inset-top)) + 54px));left:max(10px,var(--solo-safe-left,env(safe-area-inset-left)));min-height:32px;z-index:47;pointer-events:auto;padding:0 6px!important;font-size:9px!important}
-body.solo-flight:not(.mobile-gameplay-compact) #mobileGameplayMultiplayerStatus{display:block;position:absolute;top:max(98px,calc(var(--solo-safe-top,env(safe-area-inset-top)) + 92px));left:max(10px,var(--solo-safe-left,env(safe-area-inset-left)));z-index:45;font-size:9px}
-body.solo-flight:not(.mobile-gameplay-compact) #mobileGameplayMultiplayerStatus:empty{display:none}
+html body.solo-flight:not(.mobile-gameplay-compact) #viewport #mobileGameplayMultiplayer{display:flex!important;visibility:visible!important;opacity:1!important;align-items:center;justify-content:center;position:absolute;top:max(10px,var(--solo-safe-top,env(safe-area-inset-top)));left:max(10px,var(--solo-safe-left,env(safe-area-inset-left)));min-height:34px;z-index:100002;pointer-events:auto;padding:0 7px!important;font-size:10px!important}
+html body.solo-flight:not(.mobile-gameplay-compact) #viewport #mobileGameplayMultiplayerStatus{display:block;position:absolute;top:max(50px,calc(var(--solo-safe-top,env(safe-area-inset-top)) + 40px));left:max(10px,var(--solo-safe-left,env(safe-area-inset-left)));z-index:45;font-size:9px}
+html body.solo-flight:not(.mobile-gameplay-compact) #viewport #mobileGameplayMultiplayerStatus:empty{display:none}
 body.solo-flight #soloTopbar #lanVsButton{display:none!important}
+body.solo-flight:not(.mobile-gameplay-compact) #gameExitButton{z-index:100002}
 html.neon-line-style:not(#ng-a):not(#ng-b):not(#ng-c) #mobileGameplayMultiplayer.split-left{width:52px!important;border-top-right-radius:0!important;border-bottom-right-radius:0!important;border-right-width:0!important}`;
   document.head.appendChild(style);sync();
 }
