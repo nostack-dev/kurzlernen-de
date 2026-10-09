@@ -93,7 +93,7 @@ function updateTracers(now){for(const group of tracerPool){if(!group.visible)con
 function routeHit(hit){if(!hit)return false;
   if(hit.physicsKind==="animal"&&hit.physicsId){
     const p=hit.point,dir=shotRaycaster.ray.direction;
-    return Boolean(globalThis.__ambientAnimals?.hit?.({id:hit.physicsId,point:p?[p.x,p.y,p.z]:null,direction:[dir.x,dir.y,dir.z],strength:1}));
+    return Boolean(globalThis.__ambientAnimals?.hit?.({id:hit.physicsId,point:p?[p.x,p.y,p.z]:null,origin:[shotRaycaster.ray.origin.x,shotRaycaster.ray.origin.y,shotRaycaster.ray.origin.z],direction:[dir.x,dir.y,dir.z],strength:1}));
   }
   const b=bridge(),object=hit.object||physicsSceneObject(hit.physicsId,hit.physicsKind),routed={...hit,object};if(hit.box3d&&!object)return false;const police=Boolean(b?.registerPoliceHit?.(routed)),population=!police&&Boolean(b?.registerWorldPopulationHit?.(routed)),versus=!police&&!population&&Boolean(b?.registerVsHit?.(routed));return police||population||versus;}
 function addFallbackDecal(hit){if(!hit?.point)return;const b=bridge(),scene=b?.threeScene;if(!scene)return;const g=new THREE.CircleGeometry(.026,8),m=new THREE.MeshBasicMaterial({color:0x171717,transparent:true,opacity:.9,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,side:THREE.DoubleSide}),mesh=new THREE.Mesh(g,m),n=hit.worldNormal?.clone?.()||hit.face?.normal?.clone?.().transformDirection(hit.object?.matrixWorld)||new THREE.Vector3(0,0,1);mesh.position.copy(hit.point).addScaledVector(n.normalize(),.004);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),n);mesh.userData.flightFireIgnore=true;scene.add(mesh);setTimeout(()=>{scene.remove(mesh);g.dispose();m.dispose();},9000);}
