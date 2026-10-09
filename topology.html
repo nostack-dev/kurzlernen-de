@@ -141,7 +141,9 @@ textarea{width:100%;box-sizing:border-box;height:110px;font:11px var(--mono);bac
               <button id="p3Tor">Torusknoten</button>
               <button id="p3Seam">Tennisball</button>
               <button id="p3Sph">Umriss auf Kugel</button>
+              <span class="file">3D-Datei<input type="file" id="file3D" accept=".stl,.3mf,.obj"></span>
             </div>
+            <p class="note" id="in3dNote">STL, 3MF (auch VoxelShaper/Bambu), OBJ · räumliche Zielspur aus der Mesh-Oberfläche.</p>
           </div>
         </div>
       </details>
@@ -1753,6 +1755,148 @@ function resample(P0,n){ const P=P0.concat([P0[0]]),L=[0];
 function normalize(P){ const D=P[0].length,lo=Array(D).fill(1e9),hi=Array(D).fill(-1e9);
   for(const p of P) p.forEach((v,d)=>{lo[d]=Math.min(lo[d],v);hi[d]=Math.max(hi[d],v);});
   const s=SIZE/Math.max(...hi.map((h,d)=>h-lo[d])); return P.map(p=>p.map((v,d)=>(v-(lo[d]+hi[d])/2)*s)); }
+// ---------- 3D-Zielimport: STL, OBJ und 3MF (VoxelShaper/Bambu kompatibel) ----------
+const MESH_LIMIT=22000;
+function reduceMesh(mesh){
+  if(!mesh.vertices.length||!mesh.faces.length)throw Error('Keine Dreiecksflächen gefunden.');
+  const step=Math.max(1,Math.ceil(mesh.faces.length/MESH_LIMIT)),used=new Map(),V=[],F=[];
+  for(let i=0;i<mesh.faces.length;i+=step){
+    const face=mesh.faces[i];if(!face||face.length!==3||face.some(j=>!Number.isInteger(j)||j<0||j>=mesh.vertices.length))continue;
+    const indices=face.map(j=>{if(!used.has(j)){used.set(j,V.length);V.push(mesh.vertices[j]);}return used.get(j);});
+    F.push(indices);
+  }
+  if(!F.length||V.some(p=>p.length!==3||p.some(n=>!Number.isFinite(n))))throw Error('Das Mesh enthält ungültige Koordinaten.');
+  return {vertices:V,faces:F};
+}
+function readSTL(bytes){
+  const V=[],F=[],dv=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  const count=bytes.length>=84?dv.getUint32(80,true):0;
+  if(count>0 && count*50+84===bytes.length){
+    const step=Math.max(1,Math.ceil(count/MESH_LIMIT));
+    for(let i=0;i<count;i+=step){
+      const off=84+i*50,j=V.length;
+      for(let k=0;k<3;k++)V.push([dv.getFloat32(off+12+k*12,true),dv.getFloat32(off+16+k*12,true),dv.getFloat32(off+20+k*12,true)]);
+      F.push([j,j+1,j+2]);
+    }
+  }else{
+    const txt=new TextDecoder().decode(bytes),r=/\bvertex\s+([+\-.\deE]+)\s+([+\-.\deE]+)\s+([+\-.\deE]+)/g;
+    let m,tri=[];
+    while((m=r.exec(txt))&&F.length<MESH_LIMIT){tri.push([+m[1],+m[2],+m[3]]);
+      if(tri.length===3){const j=V.length;V.push(...tri);F.push([j,j+1,j+2]);tri=[];}
+    }
+  }
+  return reduceMesh({vertices:V,faces:F});
+}
+function readOBJ(text){
+  const V=[],F=[];
+  for(const raw of text.split(/\r?\n/)){
+    const t=raw.trim();
+    if(t.startsWith('v ')){const x=t.split(/\s+/);V.push([+x[1],+x[2],+x[3]]);}
+    else if(t.startsWith('f ')){
+      const ids=t.split(/\s+/).slice(1).map(v=>{const n=parseInt(v.split('/')[0],10);return n<0?V.length+n:n-1;});
+      for(let i=1;i<ids.length-1&&F.length<MESH_LIMIT;i++)F.push([ids[0],ids[i],ids[i+1]]);
+    }
+  }
+  return reduceMesh({vertices:V,faces:F});
+}
+async function read3MF(bytes){
+  const dv=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),u16=i=>dv.getUint16(i,true),u32=i=>dv.getUint32(i,true);
+  let e=-1;for(let i=bytes.length-22;i>=Math.max(0,bytes.length-65557);i--)if(u32(i)===0x06054b50){e=i;break;}
+  if(e<0)throw Error('Kein gültiges 3MF-ZIP-Archiv.');
+  let pos=u32(e+16);const files=[],dec=new TextDecoder();
+  for(let i=0;i<u16(e+10);i++){
+    if(pos+46>bytes.length||u32(pos)!==0x02014b50)throw Error('3MF-ZIP-Verzeichnis beschädigt.');
+    const method=u16(pos+10),packed=u32(pos+20),unpacked=u32(pos+24),nameLen=u16(pos+28),extra=u16(pos+30),comment=u16(pos+32),local=u32(pos+42);
+    const name=dec.decode(bytes.subarray(pos+46,pos+46+nameLen));pos+=46+nameLen+extra+comment;
+    if(/^3D\/[^/]+\.model$/i.test(name))files.push({name,method,packed,unpacked,local});
+  }
+  if(!files.length)throw Error('3MF-Datei enthält keine Modellgeometrie.');
+  files.sort((a,b)=>Number(/3dmodel\.model$/i.test(b.name))-Number(/3dmodel\.model$/i.test(a.name)));
+  const f=files[0];
+  if(f.unpacked>40e6||f.local+30>bytes.length||u32(f.local)!==0x04034b50)throw Error('3MF-Inhalt zu groß oder beschädigt.');
+  const off=f.local+30+u16(f.local+26)+u16(f.local+28);
+  if(off+f.packed>bytes.length)throw Error('3MF-Datenblock beschädigt.');
+  let xml;
+  if(f.method===0)xml=dec.decode(bytes.subarray(off,off+f.packed));
+  else if(f.method===8){
+    if(typeof DecompressionStream==='undefined')throw Error('Browser kann 3MF nicht entpacken.');
+    const stream=new Blob([bytes.slice(off,off+f.packed)]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    const raw=await new Response(stream).arrayBuffer();
+    if(raw.byteLength>40e6)throw Error('3MF-Modell zu groß.');
+    xml=dec.decode(raw);
+  }else throw Error('3MF-Kompressionsformat nicht unterstützt.');
+  if(/<!DOCTYPE/i.test(xml))throw Error('Unsicheres XML im 3MF-Archiv.');
+  const doc=new DOMParser().parseFromString(xml,'application/xml');
+  if(doc.getElementsByTagName('parsererror').length)throw Error('3MF-Modell-XML ungültig.');
+  const all=(node,name)=>Array.from(node.getElementsByTagNameNS('*',name));
+  const resources=new Map();
+  for(const el of all(doc,'object')){
+    const id=el.getAttribute('id'),mesh=all(el,'mesh')[0],comps=all(el,'components')[0];
+    if(mesh)resources.set(id,{V:all(mesh,'vertex').map(n=>[+n.getAttribute('x'),+n.getAttribute('y'),+n.getAttribute('z')]),F:all(mesh,'triangle').map(n=>[+n.getAttribute('v1'),+n.getAttribute('v2'),+n.getAttribute('v3')])});
+    else if(comps)resources.set(id,{components:all(comps,'component').map(n=>({id:n.getAttribute('objectid'),matrix:n.getAttribute('transform')}))});
+  }
+  const transform=(p,txt)=>{
+    if(!txt)return p;
+    const a=txt.trim().split(/\s+/).map(Number);if(a.length!==12||a.some(n=>!Number.isFinite(n)))throw Error('Ungültige 3MF-Transformation.');
+    const [x,y,z]=p;
+    return [a[0]*x+a[3]*y+a[6]*z+a[9],a[1]*x+a[4]*y+a[7]*z+a[10],a[2]*x+a[5]*y+a[8]*z+a[11]];
+  };
+  const V=[],F=[];
+  const append=(id,mats,depth)=>{
+    if(depth>12)throw Error('Rekursive 3MF-Komponenten.');
+    const r=resources.get(id);if(!r)return;
+    if(r.components){for(const c of r.components)append(c.id,[c.matrix,...mats],depth+1);return;}
+    const base=V.length;
+    for(const p of r.V)V.push(mats.reduce((p,m)=>transform(p,m),p));
+    for(const face of r.F)F.push(face.map(i=>base+i));
+  };
+  const items=all(doc,'build').flatMap(b=>all(b,'item')).filter(n=>n.getAttribute('printable')!=='0');
+  if(items.length)for(const item of items)append(item.getAttribute('objectid'),[item.getAttribute('transform')],0);
+  else {const largest=Array.from(resources.entries()).filter(([,x])=>x.F).sort((a,b)=>b[1].F.length-a[1].F.length)[0];if(largest)append(largest[0],[],0);}
+  return reduceMesh({vertices:V,faces:F});
+}
+async function readMeshFile(file){
+  if(file.size>45e6)throw Error('Maximal 45 MB pro Datei.');
+  const bytes=new Uint8Array(await file.arrayBuffer()),ext=file.name.split('.').pop().toLowerCase();
+  if(ext==='stl')return readSTL(bytes);
+  if(ext==='obj')return readOBJ(new TextDecoder().decode(bytes));
+  if(ext==='3mf')return read3MF(bytes);
+  throw Error('Bitte STL, 3MF oder OBJ auswählen.');
+}
+function shapeFromMesh(mesh){
+  // Der Motor folgt einer einzigen geschlossenen 3D-Spur auf der originalen Mesh-Oberfläche.
+  // Radiale Oberflächentreffer mit wechselnder Höhe erhalten mehr 3D-Form als ein 2D-Umriss.
+  const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
+  mesh.vertices.forEach(p=>p.forEach((v,d)=>{lo[d]=Math.min(lo[d],v);hi[d]=Math.max(hi[d],v);}));
+  const span=Math.max(...hi.map((v,d)=>v-lo[d]));
+  if(!Number.isFinite(span)||span<1e-12)throw Error('Modell hat keine messbare Ausdehnung.');
+  const mid=lo.map((v,d)=>(v+hi[d])/2),scale=SIZE/span;
+  const vertices=mesh.vertices.map(p=>p.map((v,d)=>(v-mid[d])*scale)),faces=mesh.faces;
+  const tris=faces.map(f=>[vertices[f[0]],vertices[f[1]],vertices[f[2]]]);
+  const curve=[],N=384;
+  for(let i=0;i<N;i++){
+    const a=2*Math.PI*i/N,phi=0.9*Math.sin(2*a),dx=Math.cos(phi)*Math.cos(a),dy=Math.sin(phi),dz=Math.cos(phi)*Math.sin(a);
+    let maxT=0,hit=null;
+    for(const [A,B,C] of tris){
+      const e1x=B[0]-A[0],e1y=B[1]-A[1],e1z=B[2]-A[2],e2x=C[0]-A[0],e2y=C[1]-A[1],e2z=C[2]-A[2];
+      const hx=dy*e2z-dz*e2y,hy=dz*e2x-dx*e2z,hz=dx*e2y-dy*e2x,det=e1x*hx+e1y*hy+e1z*hz;
+      if(Math.abs(det)<1e-10)continue;
+      const inv=1/det,tx=-A[0],ty=-A[1],tz=-A[2],u=(tx*hx+ty*hy+tz*hz)*inv;
+      if(u<0||u>1)continue;
+      const qx=ty*e1z-tz*e1y,qy=tz*e1x-tx*e1z,qz=tx*e1y-ty*e1x,v=(dx*qx+dy*qy+dz*qz)*inv;
+      if(v<0||u+v>1)continue;
+      const t=(e2x*qx+e2y*qy+e2z*qz)*inv;
+      if(t>maxT){maxT=t;hit=[dx*t,dy*t,dz*t];}
+    }
+    if(!hit){
+      // Offene/hohle Meshes: fehlenden Strahl durch nahen echten Oberflächenpunkt ersetzen.
+      let best=-Infinity;
+      for(const p of vertices){const len=Math.hypot(...p)||1,score=(p[0]*dx+p[1]*dy+p[2]*dz)/len+len*0.00001;if(score>best){best=score;hit=p;}}
+    }
+    curve.push(hit);
+  }
+  return {curve,model:{type:'mesh',vertices,faces}};
+}
 function contourFromImage(img){
   const M=260, sc=Math.min(1,M/Math.max(img.width,img.height));
   const w=Math.max(8,Math.round(img.width*sc)), h=Math.max(8,Math.round(img.height*sc));
@@ -1783,7 +1927,7 @@ function contourFromImage(img){
 }
 
 // ---------- Iteration (läuft in einem eigenen Thread mit eigener Box3D-Instanz) ----------
-let stage='', queue=[], shown=null, tS=[], tDraw=[], best=null, iter=0, evals=0, hist=[], done=false, last2d=knight(), gen=0;
+let stage='', queue=[], shown=null, tS=[], tDraw=[], best=null, iter=0, evals=0, hist=[], done=false, last2d=knight(), mesh3=null, gen=0;
 const workerMain=function(self){
   let E,core,opt,st=null,tS,dim,gen=0,running=false,iter=0,done=false;
   const post=send=>self.postMessage({type:'state',gen,iter,evals:st.evals,err:st.best.err,mech:send?st.best.mech:null,done,arms:core.armsCount(st.best.mech,dim),inner:opt.inner,gearSize:opt.gearSize,gap:st.best.trace&&st.best.trace.gap,phys:{gearGain:opt.gearGain,torque:opt.torque,fly:opt.fly},stage:lastStage});
@@ -1994,6 +2138,10 @@ function buildScene3D(){
   const box=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(SIZE,SIZE,SIZE)),lineMat('line')); R3.stat.add(box);
   R3.stat.add(polyline(tDraw,'muted',{transparent:true,opacity:.45},true));
   if(opt.obj&&opt.obj.type==='sphere'){ const b=new T.Mesh(new T.SphereGeometry(opt.obj.r,48,32),mat('shape',{transparent:true,opacity:.35,depthWrite:false})); b.position.set(...opt.obj.c); R3.stat.add(b); }
+  if(mesh3){ const positions=new Float32Array(mesh3.faces.length*9);let k=0;
+    for(const f of mesh3.faces)for(const j of f){const p=mesh3.vertices[j];positions[k++]=p[0];positions[k++]=p[1];positions[k++]=p[2];}
+    const geo=new T.BufferGeometry();geo.setAttribute('position',new T.BufferAttribute(positions,3));geo.computeVertexNormals();
+    R3.stat.add(new T.Mesh(geo,mat('shape',{side:T.DoubleSide,transparent:true,opacity:.22,depthWrite:false}))); }
   if(!live) return;
   const add=(b,obj)=>{ R3.dyn.add(obj); R3.bodies.push({b,obj}); };
   // crank with flywheel: the drive
@@ -2087,7 +2235,7 @@ function loop(now){
 
 // ---------- Eingabe ----------
 function load2D(pts){ last2d=pts; opt.dim='2d'; ensureCore(); const n=normalize(resample(pts,1024)); tDraw=n; tS=resample(n,S); applyDimUI(); go(); }
-function load3D(pts,obj){ opt.dim='3d'; opt.obj=obj||null; ensureCore(); const n=normalize(resample(pts,1024)); tDraw=n; tS=resample(n,S); applyDimUI(); go(); }
+function load3D(pts,obj){ opt.dim='3d'; mesh3=obj&&obj.type==='mesh'?obj:null; opt.obj=mesh3?null:obj||null; ensureCore(); const n=mesh3?resample(pts,1024):normalize(resample(pts,1024)); tDraw=n; tS=resample(n,S); applyDimUI(); go(); }
 function go(){ try{ camR=27; camT=[-0.6,-0.6,0]; stopTurbo(false); opt.run=true; if(R3){ R3.bodies=[]; R3.pen=null; } if(live){ E.worldFree(live.w); live=null; } trail=[]; ghost=[]; restart(); broken=false; }catch(e){ broken=true; fail(e); } }
 const presets={pKnight:()=>load2D(knight()),pStar:()=>load2D(star()),pHeart:()=>load2D(heart()),
   p3Tre:()=>load3D(trefoil()),p3Heart:()=>load3D(heart3()),p3Tor:()=>load3D(torus()),p3Seam:()=>load3D(seam()),p3Sph:()=>{ const P=onSphere(last2d); load3D(P,sphereObj(resample(P,1024))); }};
@@ -2135,6 +2283,13 @@ $('file').onchange=e=>{ const f=e.target.files[0]; if(!f) return; const url=URL.
   img.onerror=()=>{ $('inNote').innerHTML='<span class="err">Die Datei ließ sich nicht als Bild öffnen.</span>'; };
   img.src=url; e.target.value=''; };
 
+$('file3D').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
+  const status=$('in3dNote');status.textContent='3D-Form wird eingelesen …';
+  try{const mesh=await readMeshFile(f),shape=shapeFromMesh(mesh);
+    press(null);load3D(shape.curve,shape.model);
+    status.textContent='Geladen: '+f.name+' · '+mesh.faces.length+' Dreiecke · 3D-Oberflächenspur als Ziel.';
+  }catch(err){status.textContent='Importfehler: '+(err&&err.message||err);console.error(err);}
+};
 // ---------- Werkzeuge ----------
 const toolBtns={drag:'tDrag',ball:'tBall',box:'tBox',draw:'tDraw'};
 const hints={drag:'Ziehen: Arm greifen',ball:'Tippen: Ball',box:'Tippen: Kiste',draw:'Form zeichnen, loslassen'};
@@ -2281,7 +2436,7 @@ $('mLearn').onclick=()=>{ opt.mode='learn'; $('mLearn').setAttribute('aria-press
   $('modeNote').textContent='Die gemessene Abweichung wird auf die Arme zurückgeführt. Reicht das nicht mehr, kommt ein Kreis dazu.'; done=false; send({resume:true}); updateHud(); };
 $('mBlind').onclick=()=>{ opt.mode='blind'; $('mBlind').setAttribute('aria-pressed','true'); $('mLearn').setAttribute('aria-pressed','false');
   $('modeNote').textContent='Reines Ausprobieren: zufällige Änderung, simulieren, behalten nur wenn der Fehler sinkt. Langsam, aber ohne jedes Vorwissen.'; done=false; send({resume:true}); updateHud(); };
-$('kRes').onchange=e=>{ opt.res=+e.target.value; if(opt.dim==='2d') load2D(last2d); else presets[cur3](); };
+$('kRes').onchange=e=>{ opt.res=+e.target.value; if(opt.dim==='2d') load2D(last2d); else if(mesh3){ensureCore();tS=resample(tDraw,S);go();}else presets[cur3](); };
 $('kPrec').oninput=e=>{ opt.inner=2**(+e.target.value); $('oPrec').textContent=opt.inner; later(()=>{ done=false; send({reeval:true,resume:true}); }); };
 $('cAuto').onchange=e=>{ opt.autoPrec=e.target.checked; done=false; send({resume:true}); };
 $('cPhys').onchange=e=>{ opt.autoPhys=e.target.checked; done=false; send({resume:true}); };
@@ -2321,7 +2476,7 @@ function importModel(text){
     $('kPrec').value=Math.log2(opt.inner); $('oPrec').textContent=opt.inner; $('kRes').value=opt.res; $('kTq').value=opt.torque; $('oTq').textContent=opt.torque;
     $('kFly').value=Math.min(40,Math.max(1,Math.round(opt.fly))); $('oFly').textContent=opt.fly+'×'; $('kArms').value=opt.maxArms; $('oArms').textContent=opt.maxArms;
     $('cGrav').checked=opt.grav; $('cAuto').checked=opt.autoPrec; $('cPhys').checked=opt.autoPhys; }
-  opt.dim=mode; ensureCore(); press(null); applyDimUI();
+  opt.dim=mode; mesh3=null; opt.obj=null; ensureCore(); press(null); applyDimUI();
   if(R3){ R3.bodies=[]; R3.pen=null; } if(live){ E.worldFree(live.w); live=null; } trail=[]; ghost=[];
   if(sc.app&&sc.app.target&&sc.app.mech){
     tDraw=sc.app.target; tS=resample(tDraw,S); if(mode==='2d') last2d=tDraw;
