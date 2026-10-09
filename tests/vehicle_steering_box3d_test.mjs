@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
 import {resolve} from "node:path";
 import {WorldRigidBodyPhysics} from "../sim/world_rigid_body_physics.mjs";
+import {setRoadCorridors,groundSurfaceAt} from "../sim/terrain_craters.mjs";
+// the test field is a wide asphalt road (tyre grip depends on the ground material)
+setRoadCorridors([{pts:[[-600,0],[600,0]],w:420}]);
 
 // Steering + drive feel of the physical car (tyre model, steering column vs.
 // aligning torque, power assist, TCS/ABS) — all measured on the Box3D world:
@@ -53,3 +56,6 @@ for(const v of[15,25]){
   for(let i=0;i<12;i++){ph.step(1/60,4,i*16.7);worst=Math.max(worst,b3.b3Body_GetPosition([0,0,0],body)[2]-.34);}b3.b3DestroyBody(body);}
   console.log("seam crossing max lift",(worst*100).toFixed(1),"cm");assert.ok(worst<.05,"terrain tile seams must not launch fast bodies (ghost collisions)");ph.destroy();}
 console.log("vehicle steering test passed");
+// grip is a property of tyre rubber x ground material
+assert.equal(groundSurfaceAt(0,0).kind,"asphalt");assert.ok(groundSurfaceAt(0,0).mu<1&&groundSurfaceAt(0,0).mu>.8,"asphalt is not 100 % grip");
+assert.ok(groundSurfaceAt(0,500).mu<groundSurfaceAt(0,0).mu,"off-road paving grips less than the carriageway");

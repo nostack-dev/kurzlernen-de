@@ -13,7 +13,8 @@
 // traffic (an AI driver steers towards its route target and controls speed
 // with the same pedal). Frame: world z up; chassis local x forward, y left.
 
-export const VEHICLE_DYNAMICS_VERSION="box3d-vehicles-v4-pacejka-tyres-wheel-spin-dof";
+import {groundSurfaceAt} from "./terrain_craters.mjs";
+export const VEHICLE_DYNAMICS_VERSION="box3d-vehicles-v4.1-material-pair-friction";
 
 // Joint frame: local x -> up (suspension + steering axis), local z -> left
 // (wheel spin axis), local y -> forward. Same frame on chassis and wheel.
@@ -23,9 +24,9 @@ const FRAME_Q=[-.5,-.5,-.5,.5];
 // area, wheel + drivetrain inertia, brake torques per wheel.
 export const VEHICLE_SPECS=Object.freeze({
   car:{half:[1.78,.82,.36],mass:1350,comZ:-.06,comX:.15,radius:.34,wheelWidth:.22,wheelMass:22,attachZ:-.26,wheels:[[1.2,.78,true],[1.2,-.78,true],[-1.15,.78,false],[-1.15,-.78,false]],
-    suspension:{hertz:3.8,damping:.8,lower:-.15,upper:.11},torque:{front:550,rear:850},power:140000,steerLag:.1,dragArea:.68,rollingResistance:.013,wheelInertia:1.3,brake:2400,handbrake:3200,coast:30,steerLock:.58,steerTorque:3000,steerHand:430,steerAssist:600,steerAssistSpeed:6,friction:1.0},
+    suspension:{hertz:3.8,damping:.8,lower:-.15,upper:.11},torque:{front:550,rear:850},power:140000,steerLag:.15,steerDampSpeed:15,dragArea:.68,rollingResistance:.013,wheelInertia:1.3,brake:2400,handbrake:3200,coast:30,steerLock:.58,steerTorque:3000,steerHand:430,steerAssist:600,steerAssistSpeed:6,friction:1.1},
   bus:{half:[4,1.17,1.2],mass:9200,comZ:-.52,radius:.46,wheelWidth:.3,wheelMass:85,attachZ:-1.1,wheels:[[2.6,1.08,true],[2.6,-1.08,true],[-2.55,1.08,false],[-2.55,-1.08,false]],
-    suspension:{hertz:2.8,damping:.86,lower:-.18,upper:.14},torque:{front:0,rear:4200},power:230000,dragArea:6.2,rollingResistance:.008,wheelInertia:14,brake:9500,handbrake:12000,coast:200,steerLock:.44,steerTorque:6000,steerHand:2600,steerAssist:5200,steerAssistSpeed:6,friction:.9},
+    suspension:{hertz:2.8,damping:.86,lower:-.18,upper:.14},torque:{front:0,rear:4200},power:230000,dragArea:6.2,rollingResistance:.008,wheelInertia:14,brake:9500,handbrake:12000,coast:200,steerLock:.44,steerTorque:6000,steerHand:2600,steerAssist:5200,steerAssistSpeed:6,friction:1.0},
 });
 export function vehicleSpec(kind){return kind==="bus"?VEHICLE_SPECS.bus:kind==="car"||kind==="vehicle"?VEHICLE_SPECS.car:null;}
 // Static sag the suspension settles at under the vehicle's weight.
@@ -55,7 +56,7 @@ const KAPPA_PEAK=.1,ALPHA_PEAK=Math.tan(6.5*Math.PI/180),SLIDE_GRIP=.78,LOAD_SEN
 // Electric power steering as in a real car: the assist (column stiffness)
 // falls with speed, so at speed the aligning torque holds the wheel nearer
 // straight; caster/kingpin geometry adds a self-centring torque ∝ load·angle.
-const PNEUMATIC_TRAIL=.03,CASTER_TRAIL=.025,STEER_JACKING=.18,TRAIL_COLLAPSE=3;
+const RUBBER_FRICTION=.9,PNEUMATIC_TRAIL=.03,CASTER_TRAIL=.025,STEER_JACKING=.18,TRAIL_COLLAPSE=3;
 // stick = hand torque on the wheel (N·m at the tyres, both wheels) incl. assist
 const steerTorqueAt=(spec,v)=>(spec.steerHand||360)+(spec.steerAssist||520)/(1+(v/(spec.steerAssistSpeed||8))**2);
 const sagOf=spec=>spec===VEHICLE_SPECS.bus?SAG.bus:SAG.car;
@@ -76,7 +77,7 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
 function rotate(q,v){const[x,y,z,w]=q,[vx,vy,vz]=v,tx=2*(y*vz-z*vy),ty=2*(z*vx-x*vz),tz=2*(x*vy-y*vx);return[vx+w*tx+(y*tz-z*ty),vy+w*ty+(z*tx-x*tz),vz+w*tz+(x*ty-y*tx)];}
 
 // Creates the four wheels and joints for an existing chassis record.
-export function attachWheels(physics,record,spec,{category,mask}){
+export function attachWheels(physics,record,spec,{category,mask,terrain=1n}){
   const b3=physics.b3;if(typeof b3.b3CreateWheelJoint!=="function"||typeof b3.b3DefaultWheelJointDef!=="function")return false;
   const chassisPos=b3.b3Body_GetPosition([0,0,0],record.body),chassisRot=b3.b3Body_GetRotation([0,0,0,1],record.body);
   record.wheels=[];record.spec=spec;record.groundOffset=vehicleGroundOffset(spec);record.steerAngle=0;
@@ -87,7 +88,7 @@ export function attachWheels(physics,record,spec,{category,mask}){
   const r=spec.radius,volume=4/3*Math.PI*r*r*r;
   for(const[x,y,front]of spec.wheels){
     const local=[x,y,spec.attachZ],off=rotate(chassisRot,local),bd=b3.b3DefaultBodyDef();bd.type=b3.b3BodyType.b3_dynamicBody;bd.position=[chassisPos[0]+off[0],chassisPos[1]+off[1],chassisPos[2]+off[2]];bd.rotation=[...chassisRot];bd.angularDamping=.05;bd.linearDamping=.02;if("allowFastRotation"in bd)bd.allowFastRotation=true;bd.enableSleep=false;
-    const body=b3.b3CreateBody(physics.world,bd),sd=b3.b3DefaultShapeDef();sd.density=spec.wheelMass/volume;sd.baseMaterial.friction=0;sd.baseMaterial.restitution=0;sd.enableContactEvents=true;sd.enableHitEvents=true;sd.filter={categoryBits:category,maskBits:mask,groupIndex:0};
+    const body=b3.b3CreateBody(physics.world,bd),sd=b3.b3DefaultShapeDef();sd.density=spec.wheelMass/volume;sd.baseMaterial.friction=0;sd.baseMaterial.restitution=0;sd.enableContactEvents=true;sd.enableHitEvents=true;sd.filter={categoryBits:category,maskBits:mask&terrain,groupIndex:0};
     // A tyre is a finite-width cylinder, not a sphere. The cylinder axis is body-local Y,
     // exactly the wheel joint spin axis (joint-frame Z maps to body Y via FRAME_Q).
     // Box3D's cylinder runs from yOffset to yOffset+height: center it exactly on
@@ -96,7 +97,12 @@ export function attachWheels(physics,record,spec,{category,mask}){
     // Wheels exactly as in Erin Catto's Box3D "Driving" sample (samples/sample_joint.cpp):
     // a sphere per wheel (the cylinder hull is commented out there) with
     // allowFastRotation — smooth rolling, no faceted tread bumps or wobble.
+    // two shapes, one sphere: the tyre's contact with the GROUND has no solver
+    // friction (its grip is the tyre model's: rubber x surface, slip, load);
+    // against everything else (kerb stones, walls, other cars) the same tyre
+    // rubs with real rubber friction
     const shape=b3.b3CreateSphereShape(body,sd,{center:[0,0,0],radius:r});
+    let rubber=null;{const rd=b3.b3DefaultShapeDef();rd.density=0;rd.baseMaterial.friction=RUBBER_FRICTION;rd.baseMaterial.restitution=.05;rd.enableContactEvents=true;rd.enableHitEvents=true;rd.filter={categoryBits:category,maskBits:mask&~terrain,groupIndex:0};rubber=b3.b3CreateSphereShape(body,rd,{center:[0,0,0],radius:r});physics.shapeRecords.set(physics.shapeKeyOf(rubber),record);}
     const jd=b3.b3DefaultWheelJointDef();jd.base.bodyIdA=record.body;jd.base.bodyIdB=body;jd.base.localFrameA={position:local,quaternion:[...FRAME_Q]};jd.base.localFrameB={position:[0,0,0],quaternion:[...FRAME_Q]};jd.base.collideConnected=false;
     const tune=suspensionTuning(spec,SPRING_ZETA,1-STRUT_K_SHARE);jd.enableSuspensionSpring=true;jd.suspensionHertz=tune.hertz;jd.suspensionDampingRatio=tune.dampingRatio;jd.enableSuspensionLimit=true;jd.lowerSuspensionLimit=spec.suspension.lower;jd.upperSuspensionLimit=spec.suspension.upper;
     jd.enableSpinMotor=true;jd.maxSpinTorque=spec.mass*40;jd.spinSpeed=0;/* the body does not spin: the wheel's rotation is its own DOF (tyres) */
@@ -107,14 +113,14 @@ export function attachWheels(physics,record,spec,{category,mask}){
     let strut=null;if(typeof b3.b3CreateDistanceJoint==="function"){const st=strutTuning(spec);const dd=b3.b3DefaultDistanceJointDef();dd.base.bodyIdA=record.body;dd.base.bodyIdB=body;dd.base.localFrameA={position:[x,y,spec.attachZ+STRUT_M],quaternion:[0,0,0,1]};dd.base.localFrameB={position:[0,0,0],quaternion:[0,0,0,1]};dd.base.collideConnected=false;
       dd.length=STRUT_M;dd.enableSpring=true;dd.hertz=st.hertz;dd.dampingRatio=st.dampingRatio;dd.enableLimit=false;dd.minLength=STRUT_M-spec.suspension.upper-.25;dd.maxLength=STRUT_M-spec.suspension.lower+.25;dd.enableMotor=false;
       try{strut=b3.b3CreateDistanceJoint(physics.world,dd);}catch(error){console.warn("damper strut",error);}}
-    record.wheels.push({body,shape,joint,strut,front:Boolean(front),local,omega:0,angle:0,travel:null,load:0,fx:0,fy:0,kappa:0,alpha:0});physics.shapeRecords.set(physics.shapeKeyOf(shape),record);
+    record.wheels.push({body,shape,rubber,joint,strut,front:Boolean(front),local,omega:0,angle:0,travel:null,load:0,fx:0,fy:0,kappa:0,alpha:0});physics.shapeRecords.set(physics.shapeKeyOf(shape),record);
   }
 
   // No "keep upright" constraint to the world: roll, pitch, tipping and flips
   // come only from mass distribution, tyres, springs and dampers.
   return true;
 }
-export function detachWheels(physics,record){const b3=physics.b3;for(const w of record.wheels||[]){physics.shapeRecords.delete(physics.shapeKeyOf(w.shape));if(b3.b3Body_IsValid(w.body))b3.b3DestroyBody(w.body);}record.wheels=null;}
+export function detachWheels(physics,record){const b3=physics.b3;for(const w of record.wheels||[]){physics.shapeRecords.delete(physics.shapeKeyOf(w.shape));if(w.rubber)physics.shapeRecords.delete(physics.shapeKeyOf(w.rubber));if(b3.b3Body_IsValid(w.body))b3.b3DestroyBody(w.body);}record.wheels=null;}
 
 // Puts the wheels back under the chassis (teleports / resets).
 export function placeWheels(physics,record){
@@ -167,7 +173,7 @@ export function driveWheeled(physics,record,dt,state=null){
   // assist. Solved quasi-statically each frame (the column is much faster than
   // the car); the steering servo then holds that angle, rack speed limited.
   const fronts=[];for(const wheel of record.wheels)if(wheel.front){b3.b3Body_GetPosition(hubP,wheel.body);const a=rotate(q,wheel.local),pt=[hubP[0]-up[0]*r,hubP[1]-up[1]*r,hubP[2]-up[2]*r];b3.b3Body_GetWorldPointVelocity(patchV,body,pt);
-    const pf=patchV[0]*forward[0]+patchV[1]*forward[1]+patchV[2]*forward[2],pl=patchV[0]*left[0]+patchV[1]*left[1]+patchV[2]*left[2];wheel.loadF=(wheel.loadF??mq*9.81)+(Math.max(0,wheel.load||0)-(wheel.loadF??mq*9.81))*Math.min(1,dt/.1);const N=wheel.loadF;fronts.push({pf,pl,N,muN:(spec.friction||1)*Math.pow(clamp(N/(mq*9.81),.2,3),-LOAD_SENSITIVITY)*N,kappa:wheel.kappa||0});}
+    const pf=patchV[0]*forward[0]+patchV[1]*forward[1]+patchV[2]*forward[2],pl=patchV[0]*left[0]+patchV[1]*left[1]+patchV[2]*left[2];wheel.loadF=(wheel.loadF??mq*9.81)+(Math.max(0,wheel.load||0)-(wheel.loadF??mq*9.81))*Math.min(1,dt/.1);const N=wheel.loadF;fronts.push({pf,pl,N,muN:(spec.friction||1)*groundSurfaceAt(hubP[0],hubP[1]).mu*Math.pow(clamp(N/(mq*9.81),.2,3),-LOAD_SENSITIVITY)*N,kappa:wheel.kappa||0});}
   const alignAt=d=>{let M=0;for(const f of fronts){const V=Math.max(Math.abs(f.pf),V_REG),ca=Math.cos(d),sa=Math.sin(d),vx=f.pf*ca+f.pl*sa,vy=-f.pf*sa+f.pl*ca,ta=vy/Math.max(Math.abs(vx),V_REG);tyre(f.kappa,ta,f.muN,tf);M+=(CASTER_TRAIL+PNEUMATIC_TRAIL*Math.max(0,1-Math.abs(ta)/(TRAIL_COLLAPSE*ALPHA_PEAK)))*tf[1]+f.N*STEER_JACKING*Math.sin(d);}return M;};
   // equilibrium anywhere in −lock…+lock (countersteer included), nearest the
   // current rack position when there is more than one
@@ -175,14 +181,16 @@ export function driveWheeled(physics,record,dt,state=null){
     if(prev<0)best=-L;
     for(let i=1;i<=n;i++){const d=-L+2*L*i/n,fd=f(d);if(fd===0||Math.sign(fd)!==Math.sign(prev)){let lo=prevD,hi=d,flo=prev;for(let it=0;it<12;it++){const m=(lo+hi)/2,fm=f(m);if(Math.sign(fm)===Math.sign(flo)){lo=m;flo=fm;}else hi=m;}const root=(lo+hi)/2;if(best===null||Math.abs(root-record.steerAngle)<Math.abs(best-record.steerAngle))best=root;}prevD=d;prev=fd;}
     steerEq=best===null?(prev>0?L:-L):best;}
-  // column + hands + rack: inertia/damping ≈ 60 ms lag, rack speed limit
-  record.steerEqF=(record.steerEqF||0)+(steerEq-(record.steerEqF||0))*Math.min(1,dt/(spec.steerLag||.06));record.steerAngle+=clamp(record.steerEqF-record.steerAngle,-rackRate,rackRate);record.steerTorque=stick*steerTorqueAt(spec,speed);
+  // column + hands + rack inertia/damping (lag), plus the EPS's speed-dependent
+  // active damping (real EPS damp more at speed for stability); rack speed limit
+  record.steerEqF=(record.steerEqF||0)+(steerEq-(record.steerEqF||0))*Math.min(1,dt/((spec.steerLag||.06)*(1+speed/(spec.steerDampSpeed||20))));record.steerAngle+=clamp(record.steerEqF-record.steerAngle,-rackRate,rackRate);record.steerTorque=stick*steerTorqueAt(spec,speed);
   for(const wheel of record.wheels){
     const j=wheel.joint;if(wheel.front)b3.b3WheelJoint_SetTargetSteeringAngle(j,record.steerAngle);
     // load: the suspension's actual spring + damper force on this wheel
     b3.b3Body_GetPosition(hubP,wheel.body);const a=rotate(q,wheel.local),travel=(hubP[0]-p[0]-a[0])*up[0]+(hubP[1]-p[1]-a[1])*up[1]+(hubP[2]-p[2]-a[2])*up[2];
     const rate=wheel.travel===null?0:clamp((travel-wheel.travel)/Math.max(dt,1e-4),-3,3);wheel.travel=travel;let N=k*travel+cDamp*rate;N=N>0?N+spec.wheelMass*9.81:0;wheel.load=N;
-    const mu=(spec.friction||1)*Math.pow(clamp(N/(mq*9.81),.2,3),-LOAD_SENSITIVITY),muN=mu*N;
+    // peak grip of this material pair: the tyre's grip factor x rubber on this ground
+    const surface=groundSurfaceAt(hubP[0],hubP[1]);wheel.surface=surface.kind;const mu=(spec.friction||1)*surface.mu*Math.pow(clamp(N/(mq*9.81),.2,3),-LOAD_SENSITIVITY),muN=mu*N;
     // contact patch, its velocity, wheel heading
     const steerA=wheel.front&&typeof b3.b3WheelJoint_GetSteeringAngle==="function"?b3.b3WheelJoint_GetSteeringAngle(j):0,ca=Math.cos(steerA),sa=Math.sin(steerA);
     const fw=[ca*forward[0]+sa*left[0],ca*forward[1]+sa*left[1],ca*forward[2]+sa*left[2]],lw=[up[1]*fw[2]-up[2]*fw[1],up[2]*fw[0]-up[0]*fw[2],up[0]*fw[1]-up[1]*fw[0]];

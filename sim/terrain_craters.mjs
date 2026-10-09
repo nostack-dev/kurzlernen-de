@@ -116,6 +116,20 @@ function roadLevel(x,y,h){
   for(const s of segs){const t=Math.max(0,Math.min(1,((x-s.ax)*s.dx+(y-s.ay)*s.dy)/s.l2)),px=s.ax+s.dx*t,py=s.ay+s.dy*t,d=Math.hypot(x-px,y-py),w=d<=s.half?1:d>=s.half+ROAD_BLEND_M?0:1-(d-s.half)/ROAD_BLEND_M;if(w<=0)continue;const ws=w*w*(3-2*w);sw+=ws;sh+=ws*(s.ha+(s.hb-s.ha)*t);if(w>best)best=w;}
   if(!sw)return h;const k=best*best*(3-2*best);return h+(sh/sw-h)*k;
 }
+// What the ground at (x,y) is made of, with the typical peak friction of a
+// tyre's rubber on it (the friction is a property of the material pair):
+// carriageway asphalt 0.9, pavement concrete 0.8, paved urban ground off the
+// mapped roads 0.75, the loose soil of a crater 0.5, water 0.25.
+const SURFACES=Object.freeze({asphalt:.9,concrete:.8,urban:.75,soil:.5,water:.25});
+const SIDEWALK_M=1.7;
+export function groundSurfaceAt(x,y){
+  if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return{kind:"water",mu:SURFACES.water};
+  for(const c of craters)if(Math.hypot(x-c.x,y-c.y)<CRATER_R*.8)return{kind:"soil",mu:SURFACES.soil};
+  if(roadGrid.size){const segs=roadGrid.get(roadKey(Math.floor(x/RG),Math.floor(y/RG)));if(segs){let best=Infinity,half=0;for(const s of segs){const t=Math.max(0,Math.min(1,((x-s.ax)*s.dx+(y-s.ay)*s.dy)/s.l2)),d=Math.hypot(x-(s.ax+s.dx*t),y-(s.ay+s.dy*t))-s.half;if(d<best){best=d;half=s.half;}}
+    if(best<=-SIDEWALK_M)return{kind:"asphalt",mu:SURFACES.asphalt};if(best<=0)return{kind:"concrete",mu:SURFACES.concrete};}}
+  return{kind:"urban",mu:SURFACES.urban};
+}
+export const GROUND_SURFACES=SURFACES;
 export function terrainNodeHeightAt(x,y){const e=elevationAt(x,y);let h=roadLevel(x,y,padBlend(x,y,e));for(const c of craters){const r=Math.hypot(x-c.x,y-c.y);if(r<CRATER_R)h+=craterProfile(r);}if(waterRects.length&&waterAt(x,y)&&!onBridge(x,y))return Math.min(h,e-WATER_BED_M);return h;}
 const terrainCellCache=new Map();
 function terrainCell(ix,iy){
