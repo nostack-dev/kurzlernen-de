@@ -122,8 +122,10 @@ function speciesOf(i){if(i===1&&(blackCatActive()||catAttack))return"black-cat";
 let paintedBlack=null,catAttack=null;
 function paintAnimals(force=false){if(!animalBodies)return;const bc=speciesOf(1)==="black-cat";if(!force&&bc===paintedBlack)return;paintedBlack=bc;const c=new THREE.Color();for(let i=0;i<AMBIENT_ANIMAL_COUNT;i++){const sp=speciesOf(i),seed=hashText(`animal-color:${i}`);c.set(sp==="black-cat"?0x0d0d0f:sp==="cat"?CAT_COLORS[seed%CAT_COLORS.length]:DOG_COLORS[seed%DOG_COLORS.length]);animalBodies.setColorAt(i,c);animalHeads.setColorAt(i,c);if(animalLegs)for(let k=0;k<4;k++)animalLegs.setColorAt(i*4+k,c);}animalBodies.instanceColor.needsUpdate=true;animalHeads.instanceColor.needsUpdate=true;if(animalLegs?.instanceColor)animalLegs.instanceColor.needsUpdate=true;}
 function speciesScale(i,base){const sp=speciesOf(i);return sp==="dog"?base:base*.62;}
-function killAnimal(i){const p=animalPose[i];if(!p||animalDead[i])return false;const sp=speciesOf(i);
-  if(sp==="black-cat"){if(!catAttack){catAttack={i,start:performance.now(),x:p.x,y:p.y,z:p.z,yaw:p.yaw,phase:"charge"};playAnimal("hiss");const v=document.getElementById("viewport");if(v)v.dataset.blackCat="charging";}return true;}
+function killAnimal(i,{directShot=false}={}){const p=animalPose[i];if(!p||animalDead[i])return false;const sp=speciesOf(i);
+  // A stray ray, explosion, vehicle impact, physics jolt or generic kill() NEVER triggers the killer cat.
+  // Only the authoritative Box3D raycast against this exact animal's own body may explicitly opt in.
+  if(sp==="black-cat"){if(!directShot)return false;if(!catAttack){catAttack={i,start:performance.now(),x:p.x,y:p.y,z:p.z,yaw:p.yaw,phase:"charge"};playAnimal("hiss");const v=document.getElementById("viewport");if(v)v.dataset.blackCat="charging";}return true;}
   animalDead[i]={at:performance.now(),x:p.x,y:p.y,yaw:p.yaw,sc:p.sc};playAnimal(sp==="cat"?"cat":"dog");window.dispatchEvent(new CustomEvent("arondight:world-kill",{detail:{id:`animal-${i}`,kind:"animal",species:sp,network:false,local:true}}));return true;}
 function playerHead(){const w=globalThis.__arondightWalkMode;if(w?.mode==="foot"&&w.position)return{x:w.position.x,y:w.position.y,z:w.position.z};const c=bridge()?.threeCamera;return c?{x:c.position.x,y:c.position.y,z:c.position.z}:null;}
 // The charge: 11 m/s straight at you (faster than you can run), a leap at
@@ -147,7 +149,7 @@ globalThis.__ambientAnimals={
     const impulseNs=Math.min(48,Math.max(9,a.mass*2.8))*Math.max(.2,Math.min(2,Number(strength)||1));
     const dir=[direction[0]/len,direction[1]/len,direction[2]/len+.27];
     rigidBodies()?.applyImpulse?.(a.id,dir.map(x=>x*impulseNs),{point:Array.isArray(point)&&point.length===3?point:null});
-    return killAnimal(i);
+    return killAnimal(i,{directShot:true});
   }
 };
 // Dogs and cats are Box3D bodies: they walk (steered toward their wandering path by leg force),
