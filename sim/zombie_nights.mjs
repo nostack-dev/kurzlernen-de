@@ -6,6 +6,7 @@ import {groundHeightAt} from "./terrain_craters.mjs";
 import {spawnWorldPersonRagdoll} from "./world_person_ragdoll.mjs";
 import {getSharedCombatAudioContext,playCombatAudio} from "./combat_audio_bank.mjs";
 import {VS_FX_EVENT} from "./lan_vs.mjs";
+import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 
 // Zombie nights (CoD Zombies in the open sandbox). When night falls the dead
 // rise in rounds around the player and shamble (later: sprint) after him.
@@ -56,10 +57,12 @@ function repairNearest(){const d=nearDoor();if(!d||points<REPAIR_COST)return fal
 function doorFor(z){let best=null;for(const d of interiors()?.doors?.()||[]){const dd=Math.hypot(z.x-d.cx,z.y-d.cy);if(!best||dd<best.dd)best={...d,dd};}return best;}
 
 // ------------------------------------------------------------ zombies
+// the dead rise only where no player sees it happen (out of every view, or behind a building);
+// if no such place is found this time, the next attempt comes with the next spawn interval
+function unseen(x,y,z){const g=globalThis.__spawnVisibilityGuard;return g?.canSpawnAt?g.canSpawnAt(x,y,z,{heightM:1.9}):true;}
 function spawnOne(player,now){
-  const cam=bridge()?.threeCamera,fwd=cam?new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld,2).negate():null;
   for(let k=0;k<14;k++){const a=Math.random()*Math.PI*2,r=SPAWN_MIN+Math.random()*(SPAWN_MAX-SPAWN_MIN),x=player.position.x+Math.cos(a)*r,y=player.position.y+Math.sin(a)*r;if(insideBuilding(x,y)||interiors()?.insideActive?.(x,y))continue;
-    if(fwd&&k<10){const dx=x-player.position.x,dy=y-player.position.y;if((dx*fwd.x+dy*fwd.y)/Math.hypot(dx,dy)>.55)continue;} // rise out of view
+    if(!unseen(x,y,groundHeightAt(x,y)))continue;
     const fast=round>=3&&Math.random()<Math.min(.55,.12*(round-2));const slot=freeSlot();if(slot<0)return false;
     zombies.push({id:`z${(++serial).toString(36)}`,slot,x,y,z:groundHeightAt(x,y),yaw:Math.atan2(player.position.y-y,player.position.x-x),hp:HP0+round*12,speed:fast?3+Math.random()*1.1:.85+Math.random()*.7+round*.06,state:"chase",nextHit:0,nextPlank:0,inside:false,proxy:proxy(),born:now,anim:"zombie",sp:0});return true;}
   return false;
@@ -91,8 +94,8 @@ function stepZombie(z,player,now,dt){
   if(dd<1.35&&dz<1.3){z.state="attack";if(now>=z.nextHit){z.nextHit=now+MELEE_MS;z.swing=now;const t=playerTarget();t?.model?.damage?.(MELEE_DMG,"zombie");window.dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage:MELEE_DMG,source:"zombie",target:"player"}}));}}
   if(Math.random()<dt*.25)groan(z,now);
 }
-function killZombie(z,dir=null,award=true){
-  const i=zombies.indexOf(z);if(i<0)return;zombies.splice(i,1);z.proxy.parent?.remove(z.proxy);if(award)addPoints(KILL_PTS);
+function killZombie(z,dir=null,award=true,{silent=false}={}){
+  const i=zombies.indexOf(z);if(i<0)return;zombies.splice(i,1);z.proxy.parent?.remove(z.proxy);if(award)addPoints(KILL_PTS);if(silent)return;
   spawnWorldPersonRagdoll({position:[z.x,z.y,z.z+.05],yaw:z.yaw-Math.PI/2,impulse:dir?[dir.x*2.4,dir.y*2.4,1.6]:[0,0,.8],seed:z.id,id:z.id,colors:ZCOL[z.slot%4]});
 }
 
@@ -118,25 +121,33 @@ function broadcast(now){if(now-lastSync<SYNC_MS)return;lastSync=now;const s=sess
   sendFx({kind:"zombie-sync",list:zombies.map(z=>[z.id,+(z.x+o[0]).toFixed(2),+(z.y+o[1]).toFixed(2),+z.z.toFixed(2),+z.yaw.toFixed(2),z.state==="attack"||z.state==="breach"?1:0,+z.sp.toFixed(1)])});}
 function onFx(e){const pk=e?.detail?.packet,peer=String(e?.detail?.peerId||pk?.playerId||"");if(pk?.objectId!=="zombies")return;
   if(pk.kind==="zombie-hit"){if(pk.to&&pk.to!==selfId())return;const z=zombies.find(q=>q.id===pk.zid);if(z){z.hp-=Number(pk.dmg)||HIT_DMG;if(z.hp<=0)killZombie(z,null,false);}return;}
-  if(pk.kind!=="zombie-sync"||!Array.isArray(pk.list)||!peer)return;ensureScene();let r=remote.get(peer);if(!r){r={list:[],seen:0};remote.set(peer,r);}r.seen=performance.now();const o=localOffset(),keep=new Map(r.list.map(z=>[z.id,z]));
+  if(pk.kind!=="zombie-sync"||!Array.isArray(pk.list)||!peer||!zombiesEnabled)return;ensureScene();let r=remote.get(peer);if(!r){r={list:[],seen:0};remote.set(peer,r);}r.seen=performance.now();const o=localOffset(),keep=new Map(r.list.map(z=>[z.id,z]));
   r.list=pk.list.slice(0,REMOTE_CAP).map(([id,x,y,z,yaw,att,sp])=>{let q=keep.get(id);if(!q)q={id,x:x-o[0],y:y-o[1],z,yaw,proxy:proxy()};keep.delete(id);Object.assign(q,{tx:x-o[0],ty:y-o[1],tz:z,tyaw:yaw,att,sp});return q;});for(const q of keep.values())q.proxy.parent?.remove(q.proxy);}
 function renderRemote(now,dt){if(!remoteCrowd)return;const a=1-Math.exp(-dt*10);for(const[peer,r]of remote){if(now-r.seen>2500){for(const q of r.list)q.proxy.parent?.remove(q.proxy);remote.delete(peer);continue;}
     for(const q of r.list){q.x+=(q.tx-q.x)*a;q.y+=(q.ty-q.y)*a;q.z+=(q.tz-q.z)*a;q.yaw+=angleTo(q.yaw,q.tyaw)*a;remoteCrowd.set(remoteIndex(q),{x:q.x,y:q.y,z:q.z,yaw:q.yaw-Math.PI/2,state:"zombie",speed:Math.max(.4,q.sp),dt});q.proxy.position.set(q.x,q.y,q.z);q.proxy.updateMatrixWorld();}}
   remoteCrowd.commit();}
 const remoteIdx=new Map();let remoteNext=0;function remoteIndex(q){let i=remoteIdx.get(q.id);if(i===undefined){i=remoteNext++%REMOTE_CAP;remoteIdx.set(q.id,i);if(remoteIdx.size>400)remoteIdx.delete(remoteIdx.keys().next().value);}return i;}
 
+// ------------------------------------------------------------ world option
+// zombies switched off: none exist (no bodies, no AI, no draw, no night rounds); switched back on,
+// the next night (or this one) brings them in out of view like always
+let zombiesEnabled=worldOption("zombies");
+function removeAllZombies(){for(const z of zombies)z.proxy.parent?.remove(z.proxy);zombies=[];for(const r of remote.values())for(const q of r.list)q.proxy.parent?.remove(q.proxy);remote.clear();active=false;round=0;toSpawn=0;roundBreakUntil=0;crowd?.commit();remoteCrowd?.commit();}
+function onWorldOptions(){const on=worldOption("zombies");if(on===zombiesEnabled)return;zombiesEnabled=on;if(!on)removeAllZombies();}
+
 // ------------------------------------------------------------ loop
 let lastUi=0;
 function frame(now=performance.now()){
   requestAnimationFrame(frame);const dt=Math.min(.1,Math.max(0,(now-lastFrame)/1000));lastFrame=now;if(!ensureScene())return;
+  if(!zombiesEnabled){if(active||zombies.length||remote.size)removeAllZombies();if(now-lastUi>200){lastUi=now;renderHud();}return;}
   const night=isNight()||Boolean(globalThis.__zombieForce);if(night&&!active)startNight(now);else if(!night&&active)endNight();
   const player=playerTarget();
   if(active&&player){
     if(toSpawn>0&&now>=nextSpawn&&zombies.length<CAP){if(spawnOne(player,now))toSpawn--;nextSpawn=now+Math.max(350,1100-round*60);}
     if(toSpawn<=0&&!zombies.length){if(!roundBreakUntil){roundBreakUntil=now+9000;banner(`RUNDE ${round} ÜBERSTANDEN`,2400);}else if(now>roundBreakUntil)nextRound(now);}
     for(const z of zombies)stepZombie(z,player,now,dt);
-    // far stragglers catch up (keep the pressure without teleporting in view)
-    for(const z of zombies){const d=Math.hypot(player.position.x-z.x,player.position.y-z.y);if(d>140){z.hp=0;}}
+    // far stragglers drop out (the round keeps its pressure) - only where nobody sees them go
+    for(const z of [...zombies]){const d=Math.hypot(player.position.x-z.x,player.position.y-z.y);if(d>140&&unseen(z.x,z.y,z.z)){killZombie(z,null,false,{silent:true});toSpawn++;}}
     for(const z of [...zombies])if(z.hp<=0)killZombie(z,null,false);
   }
   for(const z of zombies){const st=z.state==="attack"||z.state==="breach"?"zombie":"zombie";crowd.set(z.slot,{x:z.x,y:z.y,z:z.z,yaw:z.yaw-Math.PI/2,state:st,speed:Math.max(.5,z.sp),lean:z.swing&&now-z.swing<300?.25:0,dt});z.proxy.position.set(z.x,z.y,z.z);z.proxy.updateMatrixWorld();}
@@ -144,7 +155,7 @@ function frame(now=performance.now()){
   if(now-lastUi>200){lastUi=now;renderHud();const v=viewport();if(v)v.dataset.zombies=`${active?"night":"day"}/r${round}/${zombies.length}z/${points}p`;}
 }
 export function installZombieNights(){if(globalThis.__zombies||typeof window==="undefined")return globalThis.__zombies;
-  addEventListener("arondight:world-explosion",onExplosion);addEventListener(VS_FX_EVENT,onFx);addEventListener("arondight:world-reset",()=>{for(const z of zombies)z.proxy.parent?.remove(z.proxy);zombies=[];points=0;if(active){round=0;nextRound(performance.now());}});
+  addEventListener("arondight:world-explosion",onExplosion);addEventListener(VS_FX_EVENT,onFx);addEventListener(WORLD_OPTIONS_EVENT,onWorldOptions);addEventListener("arondight:world-reset",()=>{for(const z of zombies)z.proxy.parent?.remove(z.proxy);zombies=[];points=0;if(active){round=0;nextRound(performance.now());}});
   globalThis.__zombies={hit,get active(){return active;},get round(){return round;},get points(){return points;},get list(){return zombies;},atDoor(x,y){return zombies.some(z=>z.entering&&Math.hypot(z.x-x,z.y-y)<2.6);},force(on=true){globalThis.__zombieForce=on;},simulate(seconds=10,dt=.05){const player=playerTarget();if(!player)return 0;let t=performance.now();for(let k=0;k<seconds/dt;k++){t+=dt*1000;for(const z of zombies)stepZombie(z,player,t,dt);}return zombies.length;},version:ZOMBIE_NIGHTS_VERSION};
   requestAnimationFrame(frame);return globalThis.__zombies;}
 installZombieNights();

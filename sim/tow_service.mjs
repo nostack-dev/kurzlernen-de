@@ -33,7 +33,10 @@ function pursuitPoint(path,x,y,look){let bi=0,bt=0,bd=Infinity;for(let i=0;i<pat
   if(path.length<2)return path[0];let i=bi,t=bt,left=look;while(i<path.length-1){const a=path[i],b=path[i+1],l=Math.hypot(b.x-a.x,b.y-a.y)||1e-6,rest=(1-t)*l;if(rest>=left){const tt=t+left/l;return{x:a.x+(b.x-a.x)*tt,y:a.y+(b.y-a.y)*tt};}left-=rest;i++;t=0;}return path.at(-1);}
 function insideBuilding(x,y){for(const pr of bridge()?.buildingCollisionSnapshot?.prisms||[]){const pts=pr.points;if(!pts||pts.length<3||Math.abs(x-pts[0][0])>120||Math.abs(y-pts[0][1])>120)continue;if(wantedPointInRing(x,y,pts))return true;}return false;}
 function playerPos(){const w=globalThis.__arondightWalkMode;if(w?.mode==="foot"&&w.position)return w.position;return bridge()?.threeCamera?.position||null;}
-function inView(x,y){const cam=bridge()?.threeCamera;if(!cam)return false;const v=new THREE.Vector3(x,y,groundHeightAt(x,y)+1.5).project(cam);return v.z<1&&Math.abs(v.x)<1.1&&Math.abs(v.y)<1.1&&cam.position.distanceTo(new THREE.Vector3(x,y,cam.position.z))<260;}
+// seen by a player right now? The spawn guard knows the view that was actually drawn (walk / car /
+// jet camera, not the drone camera the scene holds between frames) and peers' views, and buildings
+const viewPoint=new THREE.Vector3();
+function inView(x,y){const z=groundHeightAt(x,y),g=globalThis.__spawnVisibilityGuard;if(g?.canSpawnAt)return!g.canSpawnAt(x,y,z,{heightM:3});const cam=bridge()?.presentedCamera?.()||bridge()?.threeCamera;if(!cam)return false;const v=viewPoint.set(x,y,z+1.5).project(cam);return v.z<1&&Math.abs(v.x)<1.1&&Math.abs(v.y)<1.1;}
 
 // ------------------------------------------------------------ the truck
 function ensureScene(){const scene=bridge()?.threeScene;if(!scene)return false;if(scene===sceneRef&&root?.parent===scene)return true;for(const t of trucks)removeTruck(t);trucks=[];root?.parent?.remove(root);sceneRef=scene;root=new THREE.Group();root.name="TOW_SERVICE";scene.add(root);return true;}

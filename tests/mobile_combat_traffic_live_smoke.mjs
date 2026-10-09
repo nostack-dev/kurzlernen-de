@@ -35,7 +35,7 @@ try{
   if(!(held.alignment==="grip-anchor-to-resolved-shot-v6"&&Number.isFinite(held.error)&&held.error<.5&&Number.isFinite(held.drift)&&held.drift<.003&&held.grip==="grip-world-fixed-v2"&&held.vector==="grip-to-muzzle-to-shot-point-v1"&&held.target))throw new Error(`weapon geometry is not grip-anchored to resolved shot point: ${JSON.stringify(held)}`);
 
   const crowd=await page.evaluate(()=>{const v=document.querySelector("#viewport"),root=globalThis.__arondightRealWorld?.threeScene?.getObjectByName?.("WORLD_CROWD_EXTRAS");return{contract:v?.dataset.worldCrowdDensity,extra:Number(v?.dataset.worldCrowdExtraCount)||0,native:Number(v?.dataset.worldCrowdNativePeople)||0,visible:Number(v?.dataset.worldCrowdVisibleExtras)||0,spawn:v?.dataset.worldCrowdSpawnRule,children:root?.children?.length||0};});
-  if(!(crowd.contract==="native+supplemental-passersby-v1"&&crowd.extra>=12&&crowd.children>=12&&crowd.spawn==="outside-joint-player-cones-v1"))throw new Error(`crowd density contract missing: ${JSON.stringify(crowd)}`);
+  if(!(crowd.contract==="persistent-pedestrian-agents-v2"&&crowd.extra>=12&&crowd.spawn==="out-of-view-arrivals-v2"))throw new Error(`crowd density contract missing: ${JSON.stringify(crowd)}`);
 
   let traffic=null;
   for(let attempt=0;attempt<12;attempt++){

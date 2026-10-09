@@ -5,6 +5,7 @@ import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./a
 import {accelerateCriticalDetonation,criticalDamageProfile,isCriticalDamage} from "./critical_damage_logic.mjs";
 import {WANTED_EMP_COOLDOWN_MS,WANTED_EMP_RANGE_M,wantedCrimeSeverity,wantedDetectionRadiusM,wantedEmpImpulseNs,wantedEscapeDurationMs,wantedLineBlockedByPrisms,wantedPointInRing,wantedPoliceAltitudeOffsetM,wantedPoliceCount,wantedPoliceDamage,wantedPoliceEngageDelayMs,wantedPoliceHitChance,wantedPoliceShotIntervalMs,wantedPoliceSpawnRadiusM,wantedPoliceWaveBreakMs,wantedSearchState,wantedStarsForHeat} from "./wanted_system_logic.mjs";
 import {accelerateWorldCriticalDamage,startWorldCriticalDamage,stopWorldCriticalDamage} from "./world_critical_damage_fx.mjs";
+import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 
 const WORLD_KILL_EVENT="arondight:world-kill";
 const MAX_POLICE_DRONES=5;
@@ -39,6 +40,9 @@ const lastTargetDamageAt={player:-Infinity,drone:-Infinity};
 const BUILDING_GRID_CELL_M=32,buildingGrid=new Map(),losCandidates=[],losSeen=new Set();let buildingGridSnapshot=null;
 
 let installed=false;
+// police switched off in the world options: no police drones exist (the wanted level still counts);
+// switched back on, the next wave comes in out of view
+let policeEnabled=worldOption("police"),wavePending=0,waveRetryAt=-Infinity;
 let sceneRef=null;
 let policeRoot=null;
 let hud=null,empButton=null,hudStars=[],hudTitle=null,hudDetail=null,lastHudRender=-Infinity,policeHitBridge=null;
@@ -310,11 +314,22 @@ function buildingTopAt(x,y){
 
 function safeAltitude(x,y,z){const top=buildingTopAt(x,y);return Math.max(.85,Number(z)||0,top?top+1.6:0);}
 
+const spawnForward=new THREE.Vector3();
+// where a police drone may come in: behind the view that is actually drawn, fanned out per drone,
+// at its pursuit radius and altitude; never where a player (or a peer) sees it appear
+function policeSpawnSpot(drone,player){
+  const viewer=globalThis.__spawnVisibilityGuard?.presentedViewer?.(),walk=globalThis.__arondightWalkMode;
+  const forwardAngle=viewer?Math.atan2(viewer.forward.y,viewer.forward.x):walk?.mode==="foot"?Math.PI/2-(Number(walk.yaw)||0):0;
+  const base=forwardAngle+Math.PI+(drone.index-(MAX_POLICE_DRONES-1)/2)*.34,guard=globalThis.__spawnVisibilityGuard;
+  for(let k=0;k<12;k++){const angle=base+(k%2?1:-1)*Math.ceil(k/2)*.38,radius=wantedPoliceSpawnRadiusM(drone.index)+(k>>2)*6,x=player.x+Math.cos(angle)*radius,y=player.y+Math.sin(angle)*radius,z=safeAltitude(x,y,player.z+wantedPoliceAltitudeOffsetM(drone.index,"pursuit"));
+    if(!guard?.canSpawnAt||guard.canSpawnAt(x,y,z,{heightM:1}))return{angle,radius,x,y,z};}
+  return null;}
 function spawnDrone(drone,player,now){
-  const walk=globalThis.__arondightWalkMode,playerForwardAngle=walk?.mode==="foot"?Math.PI/2-(Number(walk.yaw)||0):now*.00017,angle=playerForwardAngle+Math.PI+(drone.index-(MAX_POLICE_DRONES-1)/2)*.34,radius=wantedPoliceSpawnRadiusM(drone.index),x=player.x+Math.cos(angle)*radius,y=player.y+Math.sin(angle)*radius,z=safeAltitude(x,y,player.z+wantedPoliceAltitudeOffsetM(drone.index,"pursuit")),id=`police-drone-${drone.index}`;
+  const spot=policeSpawnSpot(drone,player);if(!spot)return false;const{angle,radius,x,y,z}=spot,id=`police-drone-${drone.index}`;
   stopWorldCriticalDamage(id);drone.root.position.set(x,y,z);drone.root.userData.wantedOwnerId=String(bridge()?.vsSession?.getSelfId?.()||"local");
   drone.root.userData.wantedTargetId=drone.root.userData.wantedOwnerId;
   drone.root.rotation.set(0,0,angle+Math.PI);drone.root.scale.setScalar(1);drone.velocity.set(-Math.sin(angle)*1.2,Math.cos(angle)*1.2,0);drone.hp=POLICE_HP;drone.critical=false;drone.criticalExpiresAt=Infinity;drone.lastCollisionDamageAt=-Infinity;drone.lastDirectHitAt=-Infinity;drone.empDisabled=false;drone.empDisabledAt=-Infinity;drone.empImpactAt=-Infinity;drone.retreating=false;drone.retreatUntil=-Infinity;drone.targetKind="";drone.targetSpeedMps=0;drone.targetPosition.copy(player);drone.active=true;drone.root.visible=true;drone.hitbox.visible=true;drone.flash.visible=false;drone.hitUntil=0;drone.spawnSerial++;drone.shotSerial=0;drone.spawnedAt=now;drone.engageAt=now+wantedPoliceEngageDelayMs(stars);drone.nextShotAt=drone.engageAt+drone.index*160;drone.nextSensorAt=now+drone.index*24;drone.nextGoalRoofAt=0;drone.nextCollisionAt=0;drone.goalRoof=0;drone.collisionRoof=0;drone.seesPlayer=false;drone.distance=drone.root.position.distanceTo(player);drone.tracer.visible=false;rigidBodies()?.upsertBody?.({id,kind:"police-drone",position:[x,y,z],yaw:angle+Math.PI,halfExtents:[.79,.79,.34],massKg:18,gravityScale:0,linearDamping:.38,angularDamping:1.1});const view=viewport();if(view){view.dataset.wantedPoliceSpawnDistanceM=radius.toFixed(1);view.dataset.wantedPoliceInboundMs=String(Math.round(drone.engageAt-now));}
+  return true;
 }
 
 function deactivateDrone(drone){const id=`police-drone-${drone.index}`;stopWorldCriticalDamage(id);drone.active=false;drone.critical=false;drone.criticalExpiresAt=Infinity;drone.empDisabled=false;drone.empDisabledAt=-Infinity;drone.empImpactAt=-Infinity;drone.retreating=false;drone.retreatUntil=-Infinity;drone.targetKind="";drone.targetSpeedMps=0;drone.root.visible=false;drone.hitbox.visible=false;drone.tracer.visible=false;drone.seesPlayer=false;drone.distance=Infinity;drone.emergencyLight.intensity=0;rigidBodies()?.removeBody?.(id);}
@@ -325,9 +340,14 @@ function updatePoliceRetreats(now,dt){for(const drone of drones){if(!drone.activ
 
 function syncPoliceWaves(player,now){
   const desired=wantedPoliceCount(stars);let active=drones.filter(drone=>drone.active).length;if(active>desired)for(const drone of[...drones].reverse())if(drone.active&&active>desired){deactivateDrone(drone);active--;}
-  if(active>0){nextWaveAt=Infinity;return active;}if(nextWaveAt===Infinity)nextWaveAt=now+wantedPoliceWaveBreakMs(stars);else if(nextWaveAt===-Infinity)nextWaveAt=now;if(now<nextWaveAt)return 0;
+  const anchor=phase==="searching"?lastKnownPosition:player;
+  // drones of this wave that found no unseen way in yet keep trying (no unchecked fallback)
+  if(active>0){nextWaveAt=Infinity;if(wavePending>0&&now>=waveRetryAt){waveRetryAt=now+400;for(const drone of drones){if(wavePending<=0||active>=desired)break;if(!drone.active&&now>=drone.destroyedUntil&&spawnDrone(drone,anchor,now)){wavePending--;active++;}}}return active;}
+  if(nextWaveAt===Infinity)nextWaveAt=now+wantedPoliceWaveBreakMs(stars);else if(nextWaveAt===-Infinity)nextWaveAt=now;if(now<nextWaveAt)return 0;
   const available=drones.filter(drone=>!drone.active&&now>=drone.destroyedUntil);if(available.length<desired){const readyTimes=drones.filter(drone=>!drone.active).map(drone=>drone.destroyedUntil).sort((a,b)=>a-b);nextWaveAt=Math.max(nextWaveAt,readyTimes[Math.max(0,desired-1)]||now+250);return 0;}
-  const anchor=phase==="searching"?lastKnownPosition:player;waveNumber++;waveStartedAt=now;nextWaveAt=Infinity;for(const drone of available.slice(0,desired))spawnDrone(drone,anchor,now);const view=viewport();if(view){view.dataset.wantedPoliceWave=String(waveNumber);view.dataset.wantedPoliceWaveSpawns=String((Number(view.dataset.wantedPoliceWaveSpawns)||0)+1);}return desired;
+  let spawned=0;for(const drone of available.slice(0,desired))if(spawnDrone(drone,anchor,now))spawned++;
+  if(!spawned){nextWaveAt=now+400;return 0;}// nobody could come in unseen right now: try again shortly
+  waveNumber++;waveStartedAt=now;nextWaveAt=Infinity;wavePending=desired-spawned;waveRetryAt=now+400;const view=viewport();if(view){view.dataset.wantedPoliceWave=String(waveNumber);view.dataset.wantedPoliceWaveSpawns=String((Number(view.dataset.wantedPoliceWaveSpawns)||0)+1);}return desired;
 }
 
 function updateExplosion(drone,now){
@@ -454,7 +474,8 @@ function updateWanted(now,dt){
   if(stars<=0){updatePoliceRetreats(now,dt);if(heat>0&&now-lastCrimeAt>CRIME_MEMORY_MS)heat=0;renderHud(0);return;}
   const player=currentPlayerPosition();if(!player)return;
   if(currentPlayerHp()<=0){clearWanted("busted");return;}
-  updatePlayerSpeed(player,now);syncPoliceWaves(player,now);const seesPlayer=updateSensors(now),search=wantedSearchState({stars,seesPlayer,now,lastContactAt});lastContactAt=search.lastContactAt;phase=search.phase;
+  if(!policeEnabled){for(const drone of drones)if(drone.active)deactivateDrone(drone);wavePending=0;}
+  updatePlayerSpeed(player,now);if(policeEnabled)syncPoliceWaves(player,now);const seesPlayer=updateSensors(now),search=wantedSearchState({stars,seesPlayer,now,lastContactAt});lastContactAt=search.lastContactAt;phase=search.phase;
   if(search.escaped){clearWanted("escaped");return;}
   for(const drone of drones)if(drone.active){updateDroneMotion(drone,now,dt);updateDroneAttack(drone,now);}updateSiren(now);renderHud(search.remainingMs);
 }
@@ -488,6 +509,7 @@ function remotePoliceMesh(owner,unit){
 function remotePolicePacket(event){
   const p=event?.detail?.packet,owner=String(event?.detail?.peerId||"");
   if(!p||p.type!=="impact"||p.objectId!=="wanted-cop-state"||!owner||p.ownerId!==owner)return;
+  if(!policeEnabled){const meta=remoteWanted.get(owner),seq=Number(p.seq);if(!meta||!Number.isFinite(seq)||seq>=meta.seq)remoteWanted.set(owner,{stars:Math.max(0,Math.min(5,Number(p.stars)||0)),phase:String(p.phase||"clear"),lastAt:performance.now(),seq:Number.isFinite(seq)?seq:0});return;}
   const now=performance.now(),seq=Number(p.seq),unit=Number(p.unit);
   if(!Number.isInteger(unit)||unit< -1||unit>=MAX_POLICE_DRONES||!Array.isArray(p.p)||p.p.length!==3||!p.p.every(Number.isFinite))return;
   let x=p.p[0],y=p.p[1],z=p.p[2];const b=bridge();
@@ -520,7 +542,7 @@ function replicatePolice(now,dt){
   }
   for(const [key,state]of remotePolice){
     if(state.scene!==b?.threeScene||now-state.lastAt>8000){state.root.parent?.remove(state.root);for(const child of state.root.children){child.geometry?.dispose?.();child.material?.dispose?.();}remotePolice.delete(key);continue;}
-    if(now-state.lastAt>1800){state.root.visible=false;continue;}
+    if(now-state.lastAt>1800||!policeEnabled){state.root.visible=false;continue;}
     state.root.position.lerp(state.target,1-Math.exp(-Math.max(0,dt)*10));
   }
   for(const [id,meta]of remoteWanted)if(now-meta.lastAt>8000)remoteWanted.delete(id);
@@ -532,6 +554,7 @@ function frame(now=performance.now()){
 
 export function installWantedPoliceDrones(){
   if(installed)return globalThis.__arondightWantedSystem;installed=true;installHud();installPoliceHitApi();
+  addEventListener(WORLD_OPTIONS_EVENT,()=>{policeEnabled=worldOption("police");if(!policeEnabled){for(const drone of drones)if(drone.active)deactivateDrone(drone);wavePending=0;nextWaveAt=-Infinity;for(const state of remotePolice.values())state.root.visible=false;}});
   addEventListener(VS_FX_EVENT,remotePolicePacket);addEventListener(WORLD_KILL_EVENT,onWorldKill);addEventListener("arondight:combat-hit-confirm",onCombatKill);addEventListener("arondight:world-physics-impact",onPhysicsImpact);addEventListener(AUDIO_SETTINGS_EVENT,event=>{audioSettings=normalizeAudioSettings(event.detail||loadAudioSettings());});
   const unlock=()=>{audioUnlocked=true;ensureAudio();};addEventListener("pointerdown",unlock,{capture:true,passive:true});addEventListener("keydown",unlock,{capture:true});
   document.addEventListener("click",event=>{const target=event.target instanceof Element?event.target.closest("#reset,#soloReset"):null;if(target)clearWanted("reset");},{capture:true,passive:true});

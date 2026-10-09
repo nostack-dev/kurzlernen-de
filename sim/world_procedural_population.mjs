@@ -10,10 +10,20 @@ import {spawnWorldCarExplosion} from "./world_car_explosion.mjs";
 import {stopWorldCriticalDamage} from "./world_critical_damage_fx.mjs";
 import {buildTrafficRoute,collectRenderedDrivableRoads,makeBuildingsOpaque} from "./world_traffic_routes.mjs";
 import {syncWorldBuildingDepthOcclusion} from "./world_building_depth_occlusion.mjs";
+import {createPedestrianNetwork,seedRouteAgents,stepAgent,routePointInto,projectOnRoute,agentRandom,shiftAgent,frighten} from "./pedestrian_agents.mjs";
+import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 
 const MOBILE=/(?:android|iphone|ipad|ipod|macintosh.*mobile)/i.test(globalThis.navigator?.userAgent||"");
 const CAR_COUNT=MOBILE?28:42;
-const PERSON_COUNT=MOBILE?40:60;
+// People are persistent agents (pedestrian_agents.mjs) living on the sidewalk network; this many are
+// drawn at once around the player (the former route walkers + passers-by, now all one kind of person)
+const PERSON_SLOTS=MOBILE?68:100;
+const PEOPLE_SPACING_M=MOBILE?20:14,PEOPLE_ROUTE_CAP=MOBILE?18:30;// a lively street; more people live around than can be drawn at once (nearest first)
+const PEOPLE_SHOW_M=MOBILE?140:170,PEOPLE_ENTRY_M=MOBILE?125:150,PEOPLE_HIDE_M=MOBILE?160:190;
+const PEOPLE_NET_M=650,PEOPLE_SEED_M=320,PEOPLE_DROP_M=520,PEOPLE_FAR_SIM_M=220,PEOPLE_FAR_SIM_MS=400,PEOPLE_GATE_MS=250,PEOPLE_NET_MS=1000,PEOPLE_REBIRTH_MS=10000;
+// traffic: arrivals out of view, or from far away along the road (a few pixels at the horizon)
+const VEHICLE_ENTRY_M=260,VEHICLE_RELOCATE_M=330,VEHICLE_VANISH_M=600,VEHICLE_PLACE_MIN_M=45,VEHICLE_PLACE_MAX_M=240,VEHICLE_PLACE_MS=500;
+const ANIMAL_ENTRY_M=110,BIRD_ENTRY_M=150,GATE_RECHECK_MS=250,REANCHOR_M=2500;
 const BUS_COUNT=MOBILE?5:8;
 const BIRD_COUNT=MOBILE?16:24;
 const AMBIENT_ANIMAL_COUNT=MOBILE?12:20;
@@ -26,19 +36,24 @@ const ROUTE_REFRESH_MS=1600;
 const ROUTE_STALE_MS=18000;
 const MAX_ROUTE_POOL=56;
 const POPULATION_TICK_MS=MOBILE?32:16;
-const STREAM_REBIND_DISTANCE_M=MOBILE?105:135;
 const VEHICLE_STALL_NUDGE_MS=2600;
 const IMAGERY_STORAGE="arondight45WorldImageryV1";
 const IMAGERY_DEFAULT_OFF_MIGRATION="arondight45WorldImageryDefaultOffV3";
 const FX_TYPE="world-procedural-death-v1";
 const EARTH_RADIUS_M=6378137;
 
-let sceneBoundAt=0;const SPAWN_GRACE_MS=6000;
+// the world shown for the first time (or a different world loaded) is populated in one go, while
+// it appears; after that everything arrives out of view
+let worldShownAt=0,firstRoutesAt=0;const SPAWN_GRACE_MS=6000,ROUTES_GRACE_MS=3000;
 const records=[],spawnVisibilityRoots=[],byId=new Map(),routes=[],routeCache=new Map();
 const tmp=new THREE.Vector3(),cameraPos=new THREE.Vector3(),matrix=new THREE.Matrix4(),quat=new THREE.Quaternion(),scale=new THREE.Vector3(1,1,1),decorUp=new THREE.Vector3(0,0,1);
 let animalLegs=null,lastAnimalFrame=0;
+// switched-off kinds do not exist (no bodies, no AI, no draw); switched on they arrive out of view
+const opts={people:true,traffic:true,dogs:true,cats:true,birds:true};
+function readOptions(){for(const k in opts)opts[k]=worldOption(k);}readOptions();
+if(typeof window!=="undefined")addEventListener(WORLD_OPTIONS_EVENT,()=>readOptions());
 let installed=false,boundScene=null,root=null,decorRoot=null,lightRoot=null,treeTrunks=null,treeCrowns=null,treeGlow=null,lampPoles=null,lampHeads=null,animalBodies=null,animalHeads=null;
-let worldKey="",worldSeed=0,anchorX=0,anchorY=0,lastOriginLon=NaN,lastOriginLat=NaN,lastMaintenance=-Infinity,lastRouteRefresh=-Infinity,lastRouteOrigin="",worldVisibleLatched=false,mapStyledFor=null;
+let worldKey="",worldSeed=0,anchorX=0,anchorY=0,anchorLon=NaN,anchorLat=NaN,lastOriginLon=NaN,lastOriginLat=NaN,lastMaintenance=-Infinity,lastRouteRefresh=-Infinity,lastRouteOrigin="",worldVisibleLatched=false,mapStyledFor=null;
 let hitBridge=null,lastFrame=performance.now(),lastPopulationTick=-Infinity,lastAmbientAnimalTick=-Infinity,forceImageryOff=false,cachedFocusTick=-Infinity,cachedFocus=null,cachedRoutePoolTick=-Infinity,cachedRoutePool=[];
 
 function bridge(){return globalThis.__arondightRealWorld||null;}
@@ -67,23 +82,106 @@ function zCylinder(rt,rb,h,segments=8){const g=new THREE.CylinderGeometry(rt,rb,
 function ensureShared(){if(shared.carBody)return;shared.carBody=new THREE.BoxGeometry(3.55,1.62,.55);shared.carCabin=new THREE.BoxGeometry(1.75,1.44,.55);shared.busBody=new THREE.BoxGeometry(8,2.34,2.2);shared.busWindow=new THREE.BoxGeometry(5.9,2.37,.66);shared.wheel=new THREE.CylinderGeometry(.3,.3,.18,8);shared.busWheel=new THREE.CylinderGeometry(.4,.4,.22,10);shared.torso=zCylinder(.2,.29,.7,7);shared.leg=new THREE.BoxGeometry(.14,.15,.62);shared.arm=new THREE.BoxGeometry(.12,.12,.58);shared.head=new THREE.SphereGeometry(.19,8,6);shared.bird=new THREE.BufferGeometry();shared.bird.setAttribute("position",new THREE.BufferAttribute(new Float32Array([-.08,.38,0,-.78,-.12,.02,-.08,.02,.02,.08,.38,0,.08,.02,.02,.78,-.12,.02,-.08,.38,0,.08,.38,0,0,-.46,.04]),3));shared.bird.computeVertexNormals();shared.carMats=[0xc7473a,0x3079b7,0xc59b36,0xd7d9d8,0x3d4348,0x4d8b62,0x71588f].map(c=>mat(c,.42,.2));shared.busMats=[0x236da8,0xb84b40,0xc49a38,0x3f7d5c].map(c=>mat(c,.48,.12));shared.window=mat(0x263b46,.26,.1);shared.wheelMat=mat(0x202327,.88,.02);shared.shirts=[0x397da1,0xa9574a,0x5c8f62,0xb38f43,0x75659b,0xad7040,0x3f8b86].map(c=>mat(c,.82));shared.pants=[0x26313a,0x3a4146,0x403b36,0x263a50].map(c=>mat(c,.9));shared.skins=[0xe2b391,0xc5906d,0xa76f50,0x75452f,0xd1a07e].map(c=>mat(c,.88));shared.birds=[0x2f3942,0x56626a,0x806e53,0xc3c6c4,0x415666].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,side:THREE.DoubleSide}));}
 function tag(mesh,record){mesh.userData.worldPopulationKind=record.kind;mesh.userData.worldPopulationId=record.id;mesh.userData.worldProceduralId=record.id;mesh.userData.worldPopulationClone=false;}
 function retag(record){record.group.userData.worldPopulationKind=record.kind;record.group.userData.worldPopulationId=record.id;record.group.userData.worldProceduralId=record.id;record.group.userData.gtaDrivableVehicle=record.kind==="car";record.group.traverse(node=>{if(node?.isMesh){tag(node,record);node.userData.gtaDrivableVehicle=record.kind==="car";}});}
-function baseRecord(kind,index,group,color=0){return{kind,index,group,color,id:"",seed:0,motion:null,deadUntil:0,speed:0,routeDirection:index&1?-1:1,routeKey:"",streamX:0,streamY:0,streamRebinds:0,physicsRegistered:false,physicsPose:null,stalledSince:0,lastNudgeAt:0};}
+function baseRecord(kind,index,group,color=0){return{kind,index,group,color,id:"",seed:0,motion:null,deadUntil:0,speed:0,routeDirection:index&1?-1:1,routeKey:"",placed:false,dOffset:0,relocations:0,physicsRegistered:false,physicsPose:null,stalledSince:0,lastNudgeAt:0};}
 function makeCar(index){ensureShared();const s=hashText(`car:${index}`),group=new THREE.Group(),paint=shared.carMats[s%shared.carMats.length].color.getHex(),body=new THREE.Mesh(vehicleGeometry("car",paint),vehicleMaterial),r=baseRecord("car",index,group,paint);body.castShadow=true;group.add(body);return r;}
 function makeBus(index){ensureShared();const s=hashText(`bus:${index}`),group=new THREE.Group(),paint=shared.busMats[s%shared.busMats.length].color.getHex(),body=new THREE.Mesh(vehicleGeometry("bus",paint),vehicleMaterial),r=baseRecord("bus",index,group,paint);body.castShadow=true;group.add(body);return r;}
-// People are drawn by the instanced articulated crowd (crowd_characters.mjs);
-// the record keeps its logical group plus an invisible, raycastable body
-// proxy so shots, grenades and the car hit them exactly where they stand.
+// People are drawn by the instanced articulated crowd (crowd_characters.mjs). A person is an agent
+// (pedestrian_agents.mjs) that exists whether anybody looks or not; a draw slot is lent to it while it
+// is near the player. Each slot keeps its logical group plus an invisible, raycastable body proxy so
+// shots, grenades and the car hit the person exactly where it stands. A slot is only ever given to a
+// person out of every player's view (or far away), and only taken back out of view or far away.
 let proxyGeo=null,proxyMat=null;
-let crowd=null,crowdHooked=null;const crowdPrev=new Map(),crowdPos=new THREE.Vector3();let crowdLast=performance.now();
-function updateCrowd(){if(!crowd)return;const now=performance.now(),dt=Math.min(.1,Math.max(.001,(now-crowdLast)/1000));crowdLast=now;let slot=0;const shown=root?.visible!==false;
-  for(const r of records){if(r.kind!=="person")continue;const i=slot++;if(i>=crowd.capacity)break;if(!shown||!r.group.visible||r.deadUntil){crowd.hide(i);crowdPrev.delete(i);continue;}
-    if(!r.crowdColored){crowd.setColors(i,r.colors||civilianColors(r.seed));r.crowdColored=true;}
-    r.group.getWorldPosition(crowdPos);const prev=crowdPrev.get(i);let speed=r.speed||1.3;if(prev){const d=Math.hypot(crowdPos.x-prev.x,crowdPos.y-prev.y);speed=d/dt>12?speed:Math.max(.0,d/dt);prev.x=crowdPos.x;prev.y=crowdPos.y;prev.s=prev.s*.85+speed*.15;speed=prev.s;}else crowdPrev.set(i,{x:crowdPos.x,y:crowdPos.y,s:speed});
-    crowd.set(i,{x:crowdPos.x,y:crowdPos.y,z:groundHeightAt(crowdPos.x,crowdPos.y),yaw:r.group.rotation.z-Math.PI/2,state:speed>3.2?"run":speed>.25?"walk":"idle",speed,dt});}
+let crowd=null,crowdHooked=null;let crowdLast=performance.now();
+const people=[],personSlots=[],routePeople=new Map(),pedNet=createPedestrianNetwork(),candidates=[],peopleOut=[],peopleOutPool=[];
+let lastPeopleNet=-Infinity,lastPeopleGate=-Infinity,lastPeopleSlow=-Infinity,peopleStepAt=performance.now(),peopleShown=0,peopleSpawnRefused=0;
+function makePersonSlot(i){proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.26,1.2,3,8);g.rotateX(Math.PI/2);g.translate(0,0,.86);return g;})();proxyMat??=Object.assign(new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),{colorWrite:false,visible:false});
+  const group=new THREE.Group(),proxy=new THREE.Mesh(proxyGeo,proxyMat);proxy.name="PERSON_HIT_PROXY";proxy.userData.hitProxy=true;proxy.userData.styleSkip=true;proxy.userData.worldPopulationKind="person";group.add(proxy);
+  group.name="WORLD_PERSON";group.visible=false;group.userData.worldPopulationKind="person";group.userData.agentDriven=true;/* position owned by the agent: no other module moves it */group.userData.worldPopulationClone=false;group.userData.spawnFarEntryM=PEOPLE_ENTRY_M;return{i,group,agent:null};}
+function updateCrowd(){if(!crowd)return;const now=performance.now(),dt=Math.min(.1,Math.max(.001,(now-crowdLast)/1000));crowdLast=now;const shown=root?.visible!==false;
+  // only who is set this frame is drawn (the crowd packs its instances)
+  if(shown)for(const slot of personSlots){const a=slot.agent;if(!a||!slot.group.visible)continue;crowd.set(slot.i,{x:a.x,y:a.y,z:a.z,yaw:a.yaw-Math.PI/2,state:a.v>3.2?"run":a.v>.25?"walk":"idle",speed:a.v,dt});}
   crowd.commit();}
-function makePerson(index){ensureShared();const s=hashText(`person:${index}`),group=new THREE.Group(),colors=civilianColors(s),r=baseRecord("person",index,group,colors.shirt);r.colors=colors;r.legs=[];r.arms=[];
-  proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.26,1.2,3,8);g.rotateX(Math.PI/2);g.translate(0,0,.86);return g;})();proxyMat??=Object.assign(new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),{colorWrite:false,visible:false});
-  const proxy=new THREE.Mesh(proxyGeo,proxyMat);proxy.name="PERSON_HIT_PROXY";proxy.userData.hitProxy=true;proxy.userData.styleSkip=true;group.add(proxy);return r;}
+// people wait at the kerb for a gap in the traffic: no car near the crossing, none coming at it
+pedNet.crossingClear=(x0,y0,x1,y1)=>{const mx=(x0+x1)/2,my=(y0+y1)/2;for(const r of records){if((r.kind!=="car"&&r.kind!=="bus")||!r.group.visible)continue;const g=r.group.position,dx=mx-g.x,dy=my-g.y,d=Math.hypot(dx,dy);if(d>40)continue;
+  // a car right at the crossing (even one waiting for people) goes first; one coming at it is waited for
+  if(d<(r.kind==="bus"?10:8))return false;const v=r.physicsPose?.velocity,yaw=r.group.rotation.z,vx=v?v[0]:Math.cos(yaw)*r.speed,vy=v?v[1]:Math.sin(yaw)*r.speed,sp=Math.hypot(vx,vy);if(sp<.8)continue;if((dx*vx+dy*vy)/(d*sp)>.55&&d/sp<4.5)return false;}return true;};
+let seenWalkShots=-1;const roadPeople=[],knockLog=[];// roadPeople: the drawn, standing people drivers look out for; knockLog: the last knock-downs (diagnostics)
+// drivers brake for anybody in their path (people crossing, running in panic, or on the corner the
+// car is cutting); people walking outside the car's corridor do not slow it down
+function yieldsToPedestrian(record,pose,now){if(now<(record.yieldCheckAt||0))return record.yielding;record.yieldCheckAt=now+120;record.yielding=false;if(!roadPeople.length)return false;
+  const q=pose.rotation,yaw=Number.isFinite(pose.yaw)?pose.yaw:Math.atan2(2*(q[3]*q[2]+q[0]*q[1]),1-2*(q[1]*q[1]+q[2]*q[2])),c=Math.cos(yaw),sn=Math.sin(yaw),v=pose.velocity||[0,0,0],sp=Math.hypot(v[0],v[1]),reach=(record.kind==="bus"?9:6)+sp*.5+sp*sp/9,half=record.kind==="bus"?1.95:1.6;/* stopping distance at ~4.5 m/s2; corridor = half the body + a person + margin */
+  for(const a of roadPeople){const dx=a.x-pose.position[0],dy=a.y-pose.position[1],along=dx*c+dy*sn;if(along<-.5||along>reach)continue;if(Math.abs(-dx*sn+dy*c)<half){record.yielding=true;break;}}return record.yielding;}
+// gunshots and blasts frighten the people around: they run, then find their way again
+function frightenAround(x,y,radius,now,strength=1){for(const a of people){if(!a.alive||a.knocked)continue;const d=Math.hypot(a.x-x,a.y-y);if(d<radius)frighten(a,x,y,now,{strength:strength*(1-d/radius*.5)});}}
+function noticeShots(now){const v=viewport(),shots=Number(v?.dataset.walkShots)||0;if(seenWalkShots<0||shots<seenWalkShots){seenWalkShots=shots;return;}if(shots===seenWalkShots)return;seenWalkShots=shots;const pos=String(v.dataset.walkPosition||"").split(",").map(Number);if(pos.length>=2&&pos.every(Number.isFinite))frightenAround(pos[0],pos[1],32,now);}
+if(typeof window!=="undefined")addEventListener("arondight:world-explosion",e=>{const pos=e?.detail?.position,x=Array.isArray(pos)?+pos[0]:+pos?.x,y=Array.isArray(pos)?+pos[1]:+pos?.y;if(Number.isFinite(x)&&Number.isFinite(y))frightenAround(x,y,Math.min(90,Math.max(20,(Number(e.detail.radiusM)||6)*5)),performance.now(),1.3);});
+function personRecordFor(a){a.kind="person";a.hp=100;a.gen=0;a.baseId=a.id;a.colors=civilianColors(a.seed);a.slot=null;a.z=0;a.simAt=performance.now();a.deadAt=0;return a;}
+function bindPerson(slot,a){slot.agent=a;a.slot=slot;const u=slot.group.userData;u.worldPopulationId=u.worldProceduralId=a.id;u.spawnHeld=false;u.spawnHandoff=false;crowd?.setColors(slot.i,a.colors);a.z=groundHeightAt(a.x,a.y);slot.group.position.set(a.x,a.y,a.z);slot.group.rotation.set(0,0,a.yaw);slot.group.updateMatrixWorld();}
+function unbindPerson(slot){const a=slot.agent;if(a)a.slot=null;slot.agent=null;const u=slot.group.userData;u.worldPopulationId=u.worldProceduralId="";u.spawnHeld=false;slot.group.visible=false;}
+function removePerson(a){a.removed=true;a.alive=false;if(a.slot)unbindPerson(a.slot);byId.delete(a.id);const entry=routePeople.get(a.home);if(entry&&entry.agents[a.idx]===a)entry.agents[a.idx]=null;}
+function clearPeople(){for(const slot of personSlots)unbindPerson(slot);for(const a of people){a.removed=true;a.alive=false;byId.delete(a.id);}people.length=0;routePeople.clear();pedNet.sync([]);peopleShown=0;roadPeople.length=0;}
+function personGateOpen(x,y,z,farEntryM=PEOPLE_ENTRY_M){return spawnGateOpen(x,y,z,{farEntryM,heightM:1.9});}
+// the streets people live on: everything near enough in the route cache (training: the fixed range)
+function peopleNetwork(now,focus){if(now-lastPeopleNet<PEOPLE_NET_MS)return;lastPeopleNet=now;const list=[];
+  for(const route of(worldKey==="training"?routes:routeCache.values())){if(!focus||worldKey==="training"||nearestRouteDistance(route,focus.x,focus.y).offsetM<PEOPLE_NET_M)list.push(route);}
+  pedNet.sync(list);
+  // a street near the player has its people (deterministic per street: the same people every time)
+  const spacing=worldKey==="training"?Math.max(4,list.reduce((n,r)=>n+r.length,0)/PERSON_SLOTS):PEOPLE_SPACING_M,cap=worldKey==="training"?80:PEOPLE_ROUTE_CAP;
+  for(const route of pedNet.routes.values()){if(focus&&worldKey!=="training"&&nearestRouteDistance(route,focus.x,focus.y).offsetM>PEOPLE_SEED_M)continue;let entry=routePeople.get(route.key);if(entry&&entry.full)continue;
+    const fresh=seedRouteAgents(route,{spacingM:spacing,cap,salt:worldKey==="training"?"training":"street"});if(!entry){entry={agents:new Array(fresh.length).fill(null),full:false};routePeople.set(route.key,entry);}
+    for(let i=0;i<fresh.length;i++){if(entry.agents[i])continue;const a=personRecordFor(fresh[i]);a.idx=i;if(a.leader){const lead=entry.agents[a.leader.idx??-1]||entry.agents.find((q,k)=>q&&fresh[k]===a.leader);if(lead)a.leader=lead;}entry.agents[i]=a;people.push(a);byId.set(a.id,a);}
+    entry.full=true;}}
+// how much way is left to the destination: along the streets, plus the walk to the next sidewalk
+function remainingWay(a){if(a.state!=="walk")return 0;let way=0;for(let k=a.li;k<a.legs.length;k++){const leg=a.legs[k];way+=Math.abs(leg.toS-(k===a.li?a.s:leg.fromS));}const leg=a.legs[a.li],route=leg&&pedNet.get(leg.route);if(route){const p=routePointInto(route,a.s,(leg.side||a.side)*a.off,{});way+=Math.hypot(p.x-a.x,p.y-a.y);}return way;}
+function personDistance(a,focus){return focus?Math.hypot(a.x-focus.x,a.y-focus.y):0;}
+function updatePeople(now,focus){
+  if(!opts.people){if(people.length)clearPeople();return;}
+  peopleNetwork(now,focus);noticeShots(now);
+  const dtNear=Math.min(.1,Math.max(0,(now-peopleStepAt)/1000));peopleStepAt=now;
+  // walk: near / shown people every tick, far unseen people a few times a second (same legs, bigger steps)
+  for(const a of people){if(!a.alive||a.knocked)continue;const near=a.slot||personDistance(a,focus)<PEOPLE_FAR_SIM_M;
+    if(near){stepAgent(a,dtNear,now,pedNet);a.simAt=now;}else if(now-a.simAt>=PEOPLE_FAR_SIM_MS){stepAgent(a,Math.min(1,(now-a.simAt)/1000),now,pedNet);a.simAt=now;}}
+  if(now-lastPeopleGate>=PEOPLE_GATE_MS){lastPeopleGate=now;gatePeople(now,focus);}
+  if(now-lastPeopleSlow>=1000){lastPeopleSlow=now;peopleLifecycle(now,focus);}
+  roadPeople.length=0;for(const slot of personSlots){const a=slot.agent;if(a&&a.alive&&!a.knocked)roadPeople.push(a);}
+  let shown=0;for(const slot of personSlots){const a=slot.agent;if(!a)continue;const g=slot.group;a.z=groundHeightAt(a.x,a.y);g.position.set(a.x,a.y,a.z);g.rotation.set(0,0,a.yaw);g.visible=a.alive&&!a.knocked&&!g.userData.spawnHeld;if(g.visible)shown++;}peopleShown=shown;}
+// lend draw slots: nearest people first, only where nobody sees them arrive; give slots back far
+// away or out of view
+function gatePeople(now,focus){
+  let free=0;for(const slot of personSlots){const a=slot.agent;if(!a){free++;continue;}if(a.removed||!a.alive||(!a.knocked&&personDistance(a,focus)>PEOPLE_HIDE_M)){unbindPerson(slot);free++;}}
+  candidates.length=0;for(const a of people)if(a.alive&&!a.knocked&&!a.slot){const d=personDistance(a,focus);if(d<PEOPLE_SHOW_M){a.gateD=d;candidates.push(a);}}
+  if(!candidates.length)return;candidates.sort((p,q)=>p.gateD-q.gateD);let checks=0;
+  for(const a of candidates){if(checks>=48)break;let slot=null;
+    if(free>0)slot=personSlots.find(s=>!s.agent);
+    else{// all slots in use: take one back from the farthest drawn person, if nobody sees that one vanish
+      let far=null,fd=a.gateD+25;for(const s of personSlots){const b=s.agent;if(!b||b.knocked)continue;const d=personDistance(b,focus);if(d>fd){fd=d;far=s;}}
+      if(!far)break;checks++;if(!personGateOpen(far.agent.x,far.agent.y,far.agent.z))continue;slot=far;unbindPerson(far);free++;}
+    checks++;if(!personGateOpen(a.x,a.y,groundHeightAt(a.x,a.y))){peopleSpawnRefused++;continue;}
+    bindPerson(slot,a);free--;}}
+// deaths, rebirths (a new person, out of view, on the home street) and people who walked far off
+function peopleLifecycle(now,focus){
+  for(let i=people.length-1;i>=0;i--){const a=people[i];
+    if(!a.alive&&!a.removed&&now-a.deadAt>PEOPLE_REBIRTH_MS)rebirthPerson(a,now,focus);
+    if(!a.slot&&!a.knocked&&personDistance(a,focus)>PEOPLE_DROP_M&&worldKey!=="training"){removePerson(a);const entry=routePeople.get(a.home);if(entry)entry.full=false;people.splice(i,1);}}}
+function rebirthPerson(a,now,focus){const route=pedNet.get(a.home);if(!route)return false;const p={};
+  for(let k=0;k<8;k++){const s=2+agentRandom(a)*Math.max(0,route.length-4),side=agentRandom(a)<.5?1:-1;routePointInto(route,s,side*a.off,p);if(focus&&Math.hypot(p.x-focus.x,p.y-focus.y)<30)continue;if(!personGateOpen(p.x,p.y,groundHeightAt(p.x,p.y),0))continue;
+    byId.delete(a.id);a.gen++;a.id=`${a.baseId}-g${a.gen}`;byId.set(a.id,a);a.colors=civilianColors(a.seed+a.gen*7919);a.hp=100;a.alive=true;a.knocked=false;a.leader=null;a.x=p.x;a.y=p.y;a.yaw=Math.atan2(p.ty,p.tx);a.v=0;a.route=route.key;a.s=s;a.side=side;a.legs.length=0;a.state="wait";a.waitUntil=now+agentRandom(a)*4000;a.simAt=now;return true;}
+  return false;}
+function killPerson(a,{network=true,impulse=null}={}){if(!a||!a.alive)return false;const now=performance.now(),shown=Boolean(a.slot?.group.visible)||a.knocked,angle=range(a.seed,21,-Math.PI,Math.PI),z=groundHeightAt(a.x,a.y);
+  a.alive=false;a.deadAt=now;a.v=0;
+  // the body that was seen falls; somebody nobody saw dies without a corpse appearing out of nowhere
+  if(shown&&!a.knocked)spawnWorldPersonRagdoll({position:[a.x,a.y,z+.05],yaw:a.yaw-Math.PI/2,impulse:impulse||[Math.cos(angle)*2.5,Math.sin(angle)*2.5,2.6],seed:a.id,id:a.id,colors:a.colors});
+  a.knocked=false;if(a.slot)unbindPerson(a.slot);
+  if(network){try{bridge()?.vsSession?.sendFx?.({type:"impact",fx:FX_TYPE,id:`${a.id}-${Date.now().toString(36)}`.slice(-80),objectId:"npc-death",npcId:a.id,kind:"person",p:[a.x,a.y,z],yaw:a.yaw});}catch{}window.dispatchEvent(new CustomEvent("arondight:world-kill",{detail:{id:a.id,kind:"person",position:[a.x,a.y,z],network:true}}));}
+  const v=viewport();if(v){v.dataset.worldLifeHits=String((Number(v.dataset.worldLifeHits)||0)+1);v.dataset.worldPopulationHits=String((Number(v.dataset.worldPopulationHits)||0)+1);v.dataset.worldLifeLastHit="person";v.dataset.worldPopulationLastHit="person";}return true;}
+// a hit that is not (yet) fatal: the person goes down as a ragdoll and gets up again where it lies
+function knockPerson(a,{impulse=[0,0,2],damage=0,network=true}={}){if(!a||!a.alive||a.knocked||!a.slot?.group.visible)return null;a.hp=(Number.isFinite(a.hp)?a.hp:100)-Math.max(0,Number(damage)||0);
+  if(a.hp<=0){killPerson(a,{network,impulse});return"dead";}
+  a.knocked=true;a.v=0;a.slot.group.visible=false;const z=groundHeightAt(a.x,a.y);
+  {const route=pedNet.get(a.route),j=route?projectOnRoute(route,a.x,a.y,{}):null;knockLog.push({id:a.id,at:Math.round(performance.now()),state:a.state,crossing:a.crossing,companion:Boolean(a.leader),route:a.route,lateral:j?+j.lateral.toFixed(2):null,impulse});if(knockLog.length>32)knockLog.shift();}
+  spawnWorldPersonRagdoll({position:[a.x,a.y,z+.05],yaw:a.yaw-Math.PI/2,impulse,seed:a.id,id:a.id,colors:a.colors,recover:{onUp:({x,y,yaw})=>{if(a.removed||!a.alive)return;a.knocked=false;a.x=x;a.y=y;if(Number.isFinite(yaw))a.yaw=yaw;
+    // the same body walks on from where it stood up: back to its sidewalk, then on to where it was going
+    const route=pedNet.get(a.route);if(route){const j=projectOnRoute(route,x,y,{});a.s=j.s;}a.legs.length=0;a.leader=null;a.state="wait";a.waitUntil=performance.now()+600;if(a.slot)a.slot.group.userData.spawnHandoff=true;}}});return"down";}
 function makeBird(index){ensureShared();const s=hashText(`bird:${index}`),group=new THREE.Group(),mesh=new THREE.Mesh(shared.bird,shared.birds[s%shared.birds.length]),r=baseRecord("bird",index,group,mesh.material.color.getHex());mesh.scale.setScalar(.85+(s%14)/60);group.add(mesh);return r;}
 
 function mergeParts(list){let n=0;const geos=list.map(([g,x=0,y=0,z=0,rx=0,ry=0,rz=0])=>{const q=g.index?g.toNonIndexed():g;q.rotateX(rx);q.rotateY(ry);q.rotateZ(rz);q.translate(x,y,z);n+=q.attributes.position.count;return q;});const pos=new Float32Array(n*3);let o=0;for(const q of geos){pos.set(q.attributes.position.array,o*3);o+=q.attributes.position.count;q.dispose();}const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.BufferAttribute(pos,3));g.computeVertexNormals();return g;}
@@ -97,7 +195,7 @@ function createDecor(scene){
   // Stylized (cel-shaded via stylized_world_style.mjs): brown trunks, leafy crowns.
   const trunkMat=new THREE.MeshStandardMaterial({color:0x5a4030,roughness:.95}),crownMat=new THREE.MeshStandardMaterial({color:0x3f6b2a,roughness:.9}),glowMat=new THREE.MeshBasicMaterial({color:0x5fb04a,transparent:true,opacity:0,depthWrite:false,toneMapped:false}),animalMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.85});
   treeTrunks=new THREE.InstancedMesh(trunk,trunkMat,TREE_COUNT);treeCrowns=new THREE.InstancedMesh(crown,crownMat,TREE_COUNT);treeGlow=new THREE.InstancedMesh(crown,glowMat,TREE_COUNT);
-  animalBodies=new THREE.InstancedMesh(animalBody,animalMat,AMBIENT_ANIMAL_COUNT);animalHeads=new THREE.InstancedMesh(animalHead,animalMat,AMBIENT_ANIMAL_COUNT);animalLegs=new THREE.InstancedMesh(quadrupedLeg(),animalMat,AMBIENT_ANIMAL_COUNT*4);paintAnimals(true);
+  animalBodies=new THREE.InstancedMesh(animalBody,animalMat,AMBIENT_ANIMAL_COUNT);animalHeads=new THREE.InstancedMesh(animalHead,animalMat,AMBIENT_ANIMAL_COUNT);animalLegs=new THREE.InstancedMesh(quadrupedLeg(),animalMat,AMBIENT_ANIMAL_COUNT*4);paintAnimals(true);for(let i=0;i<AMBIENT_ANIMAL_COUNT;i++)hideAnimal(i);
   lampPoles=new THREE.InstancedMesh(pole,mat(0x4b5358,.55,.35),LAMP_COUNT);lampHeads=new THREE.InstancedMesh(head,new THREE.MeshStandardMaterial({color:0xe4d3a3,roughness:.38,emissive:0x8f6f35,emissiveIntensity:.15}),LAMP_COUNT);
   decorRoot=new THREE.Group();decorRoot.name="WORLD_PROCEDURAL_DECOR";decorRoot.add(treeGlow,treeTrunks,treeCrowns,animalBodies,animalHeads,animalLegs,lampPoles,lampHeads);
   for(const m of[treeTrunks,treeCrowns,treeGlow,animalBodies,animalHeads,animalLegs,lampPoles,lampHeads]){m.userData.flightFireIgnore=true;m.userData.neonSkip=true;m.frustumCulled=true;}for(const m of[animalBodies,animalHeads,animalLegs])m.frustumCulled=false;/* they move: a stale instance bound would cull them */animalLegs.userData.worldDecorKind="ambient-animal";
@@ -127,10 +225,10 @@ function killAnimal(i,{directShot=false}={}){const p=animalPose[i];if(!p||animal
   // Only the authoritative Box3D raycast against this exact animal's own body may explicitly opt in.
   if(sp==="black-cat"){if(!directShot)return false;if(!catAttack){catAttack={i,start:performance.now(),x:p.x,y:p.y,z:p.z,yaw:p.yaw,phase:"charge"};playAnimal("hiss");const v=document.getElementById("viewport");if(v)v.dataset.blackCat="charging";}return true;}
   animalDead[i]={at:performance.now(),x:p.x,y:p.y,yaw:p.yaw,sc:p.sc};playAnimal(sp==="cat"?"cat":"dog");window.dispatchEvent(new CustomEvent("arondight:world-kill",{detail:{id:`animal-${i}`,kind:"animal",species:sp,network:false,local:true}}));return true;}
-function playerHead(){const w=globalThis.__arondightWalkMode;if(w?.mode==="foot"&&w.position)return{x:w.position.x,y:w.position.y,z:w.position.z};const c=bridge()?.threeCamera;return c?{x:c.position.x,y:c.position.y,z:c.position.z}:null;}
+function playerHead(){const w=globalThis.__arondightWalkMode;if(w?.mode==="foot"&&w.position)return{x:w.position.x,y:w.position.y,z:w.position.z};const c=bridge()?.presentedCamera?.()||bridge()?.threeCamera;return c?{x:c.position.x,y:c.position.y,z:c.position.z}:null;}
 // The charge: 11 m/s straight at you (faster than you can run), a leap at
 // 1.6 m, then lights out. If you are already dead/gone it gives up.
-function updateCatAttack(now){const a=catAttack;if(!a)return null;const head=playerHead(),dt=Math.min(.05,(now-(a.last||now))/1000);a.last=now;if(!head||globalThis.__arondightPlayerDamageModel?.dead){catAttack=null;return null;}
+function updateCatAttack(now){const a=catAttack;if(!a)return null;if(!opts.cats){catAttack=null;return null;}const head=playerHead(),dt=Math.min(.05,(now-(a.last||now))/1000);a.last=now;if(!head||globalThis.__arondightPlayerDamageModel?.dead){catAttack=null;return null;}
   const dx=head.x-a.x,dy=head.y-a.y,d=Math.hypot(dx,dy);a.yaw=Math.atan2(dy,dx);
   if(a.phase==="charge"){const step=Math.min(d,11*dt);a.x+=dx/(d||1)*step;a.y+=dy/(d||1)*step;a.z=groundHeightAt(a.x,a.y)+ANIMAL_GROUND_OFFSET_M+Math.abs(Math.sin(now/55))*.12;if(d<1.6){a.phase="leap";a.leapAt=now;a.fx=a.x;a.fy=a.y;a.fz=a.z;playAnimal("screech");}if(now-a.start>25000){catAttack=null;return null;}}
   else{const t=Math.min(1,(now-a.leapAt)/340);a.x=a.fx+(head.x-a.fx)*t;a.y=a.fy+(head.y-a.fy)*t;const airborne=a.fz+(head.z-.05-a.fz)*t+Math.sin(t*Math.PI)*.55;a.z=Math.max(groundHeightAt(a.x,a.y)+.18,airborne);
@@ -165,7 +263,7 @@ function directlyShotBlackCat(i,{origin,point,direction}={}){
 }
 globalThis.__ambientAnimals={
   kill:killAnimal,
-  poses:()=>animalPose.map((p,i)=>p&&!animalDead[i]?{i,...p}:null).filter(Boolean),
+  poses:()=>animalPose.map((p,i)=>p&&!animalDead[i]&&animalShown[i]?{i,species:speciesOf(i),...p}:null).filter(Boolean),
   // Hitscan ray selects the ACTUAL Box3D animal collider. Transfer momentum at its 3D impact point.
   hit({id,point=null,origin=null,direction=[0,0,1],strength=1}={}){
     const i=animalPhys.findIndex(a=>a?.id===String(id));
@@ -185,6 +283,11 @@ globalThis.__ambientAnimals={
 // walk (lateral sequence) slow, trot (diagonal pairs) faster.
 const animalPhys=[],LEG_HIPS=[[.24,.09],[.24,-.09],[-.24,.09],[-.24,-.09]],GAIT_WALK=[.25,.75,0,.5],GAIT_TROT=[0,.5,.5,0],ANIMAL_TORSO_UP=.11,legQ=new THREE.Quaternion(),legM=new THREE.Matrix4(),bodyM=new THREE.Matrix4(),legY=new THREE.Vector3(0,1,0),hipV=new THREE.Vector3();
 function animalBodyId(i){return`animal-${worldSeed.toString(36)}-${i}`;}
+// an instance nobody owns right now is drawn nowhere (zero scale), never at the origin
+const ZERO_MATRIX=new THREE.Matrix4().makeScale(0,0,0),animalShown=[],animalGateAt=[];
+function hideAnimal(i){if(!animalBodies)return;animalBodies.setMatrixAt(i,ZERO_MATRIX);animalHeads.setMatrixAt(i,ZERO_MATRIX);for(let k=0;k<4;k++)animalLegs.setMatrixAt(i*4+k,ZERO_MATRIX);}
+function animalAllowed(i){const sp=speciesOf(i);return sp==="dog"?opts.dogs:opts.cats;}
+function retireAnimal(i){dropAnimalBody(i);animalShown[i]=false;animalPose[i]=null;animalDead[i]=null;if(catAttack?.i===i){catAttack=null;const v=viewport();if(v)v.dataset.blackCat="idle";}hideAnimal(i);}
 function dropAnimalBody(i){const a=animalPhys[i];if(a){rigidBodies()?.removeBody?.(a.id);animalPhys[i]=null;}}
 function ensureAnimalBody(i,x,y,yaw,sc){const R=rigidBodies();if(!R?.ready)return null;const id=animalBodyId(i);let a=animalPhys[i];if(a&&a.id===id)return a;if(a)R.removeBody(a.id);
   const dog=speciesOf(i)==="dog",half=[.33*sc,.13*sc,.25*sc],mass=dog?28*sc*sc*sc:4.5*Math.pow(sc/.62,3),z=groundHeightAt(x,y)+half[2]+.03;
@@ -201,14 +304,17 @@ function updateAmbientAnimals(epoch,now){if(!animalBodies||now-lastAmbientAnimal
   for(let i=0;i<AMBIENT_ANIMAL_COUNT;i++){
     const m=animalMotion[i]||(animalMotion[i]=(()=>{const seed=hashText(`${worldSeed}:animal:${i}`);const radius=range(seed,1,13,58);return{radius,omega:range(seed,2,.55,1.45)/radius,phase:range(seed,3,0,Math.PI*2),wobbleOmega:range(seed,4,.12,.3),wobbleRadius:range(seed,5,1.2,3.5),baseScale:range(seed,6,.72,1.18)}})()),sc=speciesScale(i,m.baseScale);
     const pathAt=t=>{const a=t*m.omega+m.phase,w=Math.sin(t*m.wobbleOmega+m.phase)*m.wobbleRadius;return[cx+Math.cos(a)*m.radius+Math.cos(a*2.3)*w,cy+Math.sin(a*.92)*m.radius*.72+Math.sin(a*1.7)*w];};
+    if(!animalAllowed(i)){if(animalShown[i]||animalPhys[i]||animalPose[i])retireAnimal(i);else hideAnimal(i);continue;}
     const dead=animalDead[i];
-    if(dead&&(now-dead.at)/1000>25){animalDead[i]=null;dropAnimalBody(i);continue;}
+    // a dead animal is gone after a while; another one wanders in later, where nobody sees it appear
+    if(dead&&(now-dead.at)/1000>25){retireAnimal(i);continue;}
+    if(!animalShown[i]){hideAnimal(i);if(now<(animalGateAt[i]||0))continue;animalGateAt[i]=now+GATE_RECHECK_MS;const[gx,gy]=pathAt(epoch);if(!spawnGateOpen(gx,gy,groundHeightAt(gx,gy),{farEntryM:ANIMAL_ENTRY_M,heightM:.8}))continue;animalShown[i]=true;animalPose[i]=null;}
     if(attack&&attack.i===i){// the black cat's charge is a scripted leap: its body follows it
       const a=animalPhys[i];if(a)R?.setPose?.(a.id,{position:[attack.x,attack.y,attack.z-ANIMAL_TORSO_UP*.62],yaw:attack.yaw});quat.setFromAxisAngle(decorUp,attack.yaw);if(attack.phase==="leap")quat.multiply(tmp2q.setFromAxisAngle(tmp2.set(0,1,0),-.5));animalPose[i]={x:attack.x,y:attack.y,z:attack.z,yaw:attack.yaw,sc:.62};m.gait=(m.gait||0)+11*dt/.4;drawAnimal(i,tmp2.set(attack.x,attack.y,attack.z-ANIMAL_TORSO_UP*.62),quat,.62,11,m.gait,false);continue;}
     const [px,py]=pathAt(epoch);const a=ensureAnimalBody(i,px,py,Math.atan2(py-(animalPose[i]?.y??py),px-(animalPose[i]?.x??px)),sc);
     if(!a){// no physics yet: walk the path
-      const prior=animalPose[i],yaw=prior&&Math.hypot(px-prior.x,py-prior.y)>1e-4?Math.atan2(py-prior.y,px-prior.x):0,gz=groundHeightAt(px,py)+.25*sc,spd=prior&&dt>0?Math.hypot(px-prior.x,py-prior.y)/dt:0;m.gait=(m.gait||0)+spd*dt/(.55*sc);quat.setFromAxisAngle(decorUp,yaw);animalPose[i]={x:px,y:py,z:gz+ANIMAL_TORSO_UP*sc,yaw,sc};if(!dead)drawAnimal(i,tmp2.set(px,py,gz),quat,sc,spd,m.gait,false);continue;}
-    const pose=R.pose(a.id,a.pose);if(!pose)continue;a.pose=pose;const v=pose.velocity,speed=Math.hypot(v[0],v[1]);
+      const prior=animalPose[i],yaw=prior&&Math.hypot(px-prior.x,py-prior.y)>1e-4?Math.atan2(py-prior.y,px-prior.x):0,gz=groundHeightAt(px,py)+.25*sc,spd=prior&&dt>0?Math.hypot(px-prior.x,py-prior.y)/dt:0;m.gait=(m.gait||0)+spd*dt/(.55*sc);quat.setFromAxisAngle(decorUp,yaw);animalPose[i]={x:px,y:py,z:gz+ANIMAL_TORSO_UP*sc,yaw,sc};if(!dead)drawAnimal(i,tmp2.set(px,py,gz),quat,sc,spd,m.gait,false);else hideAnimal(i);continue;}
+    const pose=R.pose(a.id,a.pose);if(!pose){const prior=animalPose[i];if(prior&&!animalDead[i]){quat.setFromAxisAngle(decorUp,prior.yaw);drawAnimal(i,tmp2.set(prior.x,prior.y,prior.z-ANIMAL_TORSO_UP*sc),quat,sc,0,m.gait||0,false);}else hideAnimal(i);continue;}a.pose=pose;const v=pose.velocity,speed=Math.hypot(v[0],v[1]);
     // a hit that changes its velocity this hard (blast, car) kills it — the body flies on
     if(a.lastV&&!dead){const dv=Math.hypot(v[0]-a.lastV[0],v[1]-a.lastV[1],v[2]-a.lastV[2]);if(dv>6.5)killAnimal(i);}a.lastV=[v[0],v[1],v[2]];
     quat.set(pose.rotation[0],pose.rotation[1],pose.rotation[2],pose.rotation[3]);tmp.set(0,0,1).applyQuaternion(quat);
@@ -226,25 +332,42 @@ function updateAmbientAnimals(epoch,now){if(!animalBodies||now-lastAmbientAnimal
     drawAnimal(i,tmp2,quat,gone?0.0001:sc,speed,a.gait,Boolean(animalDead[i]));}
   animalBodies.instanceMatrix.needsUpdate=true;animalHeads.instanceMatrix.needsUpdate=true;animalLegs.instanceMatrix.needsUpdate=true;}
 
-function ensureScene(){const scene=bridge()?.threeScene;if(!scene)return false;if(scene===boundScene&&root)return true;for(const record of records)if(record.id){rigidBodies()?.removeBody?.(record.id);stopWorldCriticalDamage(record.id);}boundScene=scene;sceneBoundAt=performance.now();records.splice(0);byId.clear();routes.splice(0);routeCache.clear();worldKey="";worldSeed=0;lastRouteRefresh=-Infinity;lastRouteOrigin="";root=new THREE.Group();root.name="WORLD_PROCEDURAL_POPULATION";scene.add(root);crowd?.dispose?.();crowd=createCrowd(scene,{capacity:PERSON_COUNT,name:"WORLD_PEOPLE"});createDecor(scene);createLights(scene);for(let i=0;i<CAR_COUNT;i++)records.push(makeCar(i));for(let i=0;i<PERSON_COUNT;i++)records.push(makePerson(i));for(let i=0;i<BUS_COUNT;i++)records.push(makeBus(i));for(let i=0;i<BIRD_COUNT;i++)records.push(makeBird(i));spawnVisibilityRoots.length=0;for(const record of records){record.group.visible=false;root.add(record.group);if(record.kind==="car"||record.kind==="person")spawnVisibilityRoots.push(record.group);}return true;}
+function ensureScene(){const scene=bridge()?.threeScene;if(!scene)return false;if(scene===boundScene&&root)return true;for(const record of records)if(record.id){rigidBodies()?.removeBody?.(record.id);stopWorldCriticalDamage(record.id);}boundScene=scene;worldShownAt=0;firstRoutesAt=0;records.splice(0);byId.clear();routes.splice(0);routeCache.clear();worldKey="";worldSeed=0;lastRouteRefresh=-Infinity;lastRouteOrigin="";root=new THREE.Group();root.name="WORLD_PROCEDURAL_POPULATION";scene.add(root);crowd?.dispose?.();crowd=createCrowd(scene,{capacity:PERSON_SLOTS,name:"WORLD_PEOPLE"});createDecor(scene);createLights(scene);clearPeople();personSlots.length=0;for(let i=0;i<CAR_COUNT;i++)records.push(makeCar(i));for(let i=0;i<BUS_COUNT;i++)records.push(makeBus(i));for(let i=0;i<BIRD_COUNT;i++)records.push(makeBird(i));spawnVisibilityRoots.length=0;for(const record of records){record.group.visible=false;root.add(record.group);if(record.kind==="car")spawnVisibilityRoots.push(record.group);}for(let i=0;i<PERSON_SLOTS;i++){const slot=makePersonSlot(i);personSlots.push(slot);root.add(slot.group);spawnVisibilityRoots.push(slot.group);}animalShown.length=0;return true;}
 function motionFor(record){const s=record.seed,person=record.kind==="person",bus=record.kind==="bus";if(record.kind==="bird")return{cx:range(s,1,-35,35),cy:range(s,2,-35,35),rx:range(s,3,20,62),ry:range(s,4,16,52),z:range(s,5,9,24),omega:range(s,6,.16,.34),phase:range(s,7,0,Math.PI*2)};return{cx:range(s,1,-42,42),cy:range(s,2,-42,42),hx:person?range(s,3,10,28):bus?range(s,3,44,68):range(s,3,28,58),hy:person?range(s,4,8,24):bus?range(s,4,32,56):range(s,4,22,48),angle:range(s,5,-Math.PI,Math.PI),phase:range(s,6,0,1),speed:person?range(s,7,1.0,1.65):bus?range(s,7,5.0,7.6):range(s,7,7.4,13.2)};}
 function trainingMotionFor(record){const motion=motionFor(record);if(record.kind!=="car"&&record.kind!=="bus")return motion;const bus=record.kind==="bus",s=record.seed;if(record.index===0)return{...motion,cx:0,cy:0,hx:bus?25:18,hy:bus?17:13,angle:range(s,35,-Math.PI,Math.PI)};return{...motion,cx:range(s,31,-10,10),cy:range(s,32,-8,8),hx:bus?range(s,33,25,40):range(s,33,18,34),hy:bus?range(s,34,17,28):range(s,34,13,25),angle:range(s,35,-Math.PI,Math.PI)};}
+// the local frame moved (origin rebase): everything this module simulates moves with it, nobody jumps
+function shiftWorld(dx,dy){if(!dx&&!dy)return;const R=rigidBodies();for(const a of people)shiftAgent(a,dx,dy);
+  for(const r of records){if(r.parked){r.parked.x+=dx;r.parked.y+=dy;}if(r.fall){r.fall.x+=dx;r.fall.y+=dy;}r.group.position.x+=dx;r.group.position.y+=dy;
+    if(r.physicsRegistered){const p=R?.pose?.(r.id);if(p)R.setPose?.(r.id,{position:[p.position[0]+dx,p.position[1]+dy,p.position[2]],velocity:[...p.velocity],angularVelocity:[...(p.angularVelocity||[0,0,0])]});r.physicsPose=null;}}
+  for(let i=0;i<animalPhys.length;i++){const a=animalPhys[i];if(a){const p=R?.pose?.(a.id);if(p)R.setPose?.(a.id,{position:[p.position[0]+dx,p.position[1]+dy,p.position[2]],velocity:[...p.velocity]});a.pose=null;}const q=animalPose[i];if(q){q.x+=dx;q.y+=dy;}}
+  if(catAttack){catAttack.x+=dx;catAttack.y+=dy;if(Number.isFinite(catAttack.fx)){catAttack.fx+=dx;catAttack.fy+=dy;}}}
 function configureWorld(){
   const b=bridge(),v=viewport(),real=Boolean(b?.active&&Number.isFinite(b.originLon)&&Number.isFinite(b.originLat));let key="training",east=0,north=0;
-  if(real){const bucketLat=Math.round(b.originLat*1000)/1000,bucketLon=Math.round(b.originLon*1000)/1000;key=`${bucketLat.toFixed(3)}:${bucketLon.toFixed(3)}`;[east,north]=lngLatToMeters(b.originLon,b.originLat,bucketLon,bucketLat);lastOriginLon=b.originLon;lastOriginLat=b.originLat;}
+  if(real){
+    // the population is anchored to one geographic point: stable while the player roams and across
+    // origin rebases; only kilometres away does a new neighbourhood anchor take over
+    if(!Number.isFinite(anchorLon)||worldKey==="training"||!worldKey||Math.hypot(...lngLatToMeters(anchorLon,anchorLat,b.originLon,b.originLat))>REANCHOR_M){anchorLat=Math.round(b.originLat*1000)/1000;anchorLon=Math.round(b.originLon*1000)/1000;}
+    key=`${anchorLat.toFixed(3)}:${anchorLon.toFixed(3)}`;[east,north]=lngLatToMeters(b.originLon,b.originLat,anchorLon,anchorLat);
+    if(key===worldKey&&Number.isFinite(lastOriginLon)&&(b.originLon!==lastOriginLon||b.originLat!==lastOriginLat)){const[dx,dy]=lngLatToMeters(b.originLon,b.originLat,lastOriginLon,lastOriginLat);shiftWorld(dx,dy);}
+    lastOriginLon=b.originLon;lastOriginLat=b.originLat;}
   else if(v?.dataset?.worldMode==="real"&&worldKey&&worldKey!=="training")return true;
-  else{lastOriginLon=NaN;lastOriginLat=NaN;}
-  anchorX=east;anchorY=north;if(key===worldKey)return true;
+  else{lastOriginLon=NaN;lastOriginLat=NaN;anchorLon=anchorLat=NaN;}
+  if(anchorX!==east||anchorY!==north){anchorX=east;anchorY=north;positionDecor();}if(key===worldKey)return true;
+  // a new neighbourhood anchor kilometres from the old one (same real world): its animals and birds
+  // come in out of view; people and traffic keep living where they are (they never re-seed)
+  if(worldKey&&worldKey!=="training"&&key!=="training"){worldKey=key;worldSeed=hashText(`arondight-world-pop:${key}`);catAttack=null;for(let i=0;i<AMBIENT_ANIMAL_COUNT;i++)retireAnimal(i);animalPhys.length=0;animalMotion.length=0;
+    for(const record of records)if(record.kind==="bird"&&!record.fall){record.seed=hashText(`${worldSeed}:bird:${record.index}`);record.motion=motionFor(record);record.appeared=false;record.group.visible=false;}positionDecor();if(v)v.dataset.worldProceduralBucket=key;return true;}
+  worldShownAt=performance.now();firstRoutesAt=0;
   for(const record of records)if(record.id){rigidBodies()?.removeBody?.(record.id);stopWorldCriticalDamage(record.id);}
   if(key==="training"||worldKey==="training"){routes.splice(0);routeCache.clear();lastRouteOrigin="";}
   catAttack=null;const view=document.getElementById("viewport");if(view)view.dataset.blackCat="idle";
-  for(let i=0;i<animalPhys.length;i++)dropAnimalBody(i);animalPhys.length=0;
-  worldKey=key;worldSeed=hashText(`arondight-world-pop:${key}`);byId.clear();
+  for(let i=0;i<animalPhys.length;i++)dropAnimalBody(i);animalPhys.length=0;animalShown.length=0;animalPose.length=0;animalDead.length=0;for(let i=0;i<AMBIENT_ANIMAL_COUNT;i++)hideAnimal(i);
+  clearPeople();worldKey=key;worldSeed=hashText(`arondight-world-pop:${key}`);byId.clear();
   if(key==="training"){const seeded=trainingRoutes();routes.splice(0,routes.length,...seeded);for(const route of seeded)routeCache.set(route.key,route);}
-  for(const record of records){record.seed=hashText(`${worldSeed}:${record.kind}:${record.index}`);record.id=`${record.kind}-proc-${worldSeed.toString(36)}-${record.index}`;record.motion=key==="training"?trainingMotionFor(record):motionFor(record);record.speed=record.motion.speed||0;record.deadUntil=0;record.physicsRegistered=false;record.physicsPose=null;record.routeKey="";record.streamX=record.streamY=record.streamRebinds=0;record.stalledSince=0;record.lastNudgeAt=0;record.routeDirection=record.seed&1?-1:1;retag(record);byId.set(record.id,record);}
-  animalMotion.length=0;positionDecor();lastAmbientAnimalTick=-Infinity;if(v){v.dataset.worldProceduralSeed=worldSeed.toString(36);v.dataset.worldProceduralBucket=key;v.dataset.worldPopulationMode=key==="training"?"training-physical":"real-road-physical";v.dataset.worldPopulationArchitecture="route+box3d-rigid-v3";v.dataset.worldLifeArchitecture="route+box3d-rigid-v3";v.dataset.worldTrafficContinuity="force-driven-contact-resolved-v2";v.dataset.worldCars=String(CAR_COUNT);v.dataset.worldDrivableCars=String(CAR_COUNT);v.dataset.worldPeople=String(PERSON_COUNT);v.dataset.worldLifeExtraCars=String(CAR_COUNT);v.dataset.worldLifeExtraPeople=String(PERSON_COUNT);v.dataset.worldLifeBuses=String(BUS_COUNT);v.dataset.worldLifeBirds=String(BIRD_COUNT);v.dataset.worldAmbientAnimals=String(AMBIENT_ANIMAL_COUNT);v.dataset.worldTrees=String(TREE_COUNT);v.dataset.worldTreeMesh="stylized-cel-instanced-v1";v.dataset.worldLifeShootable="1";v.dataset.worldTrafficRoutes="1";v.dataset.worldLifeRoutes=String(routes.length);v.dataset.worldVehiclePhysics="box3d-dynamic-force-controller-v1";v.dataset.worldVehicleGrounding="box3d-static-ground-contact-v1";v.dataset.worldTrainingTrafficRadiusM="52";v.dataset.worldVehicleDamagePresentation="critical-smoke+delayed-explosion-v1";}return true;
+  for(const record of records){record.seed=hashText(`${worldSeed}:${record.kind}:${record.index}`);record.id=`${record.kind}-proc-${worldSeed.toString(36)}-${record.index}`;record.motion=key==="training"?trainingMotionFor(record):motionFor(record);record.speed=record.motion.speed||0;record.deadUntil=0;record.physicsRegistered=false;record.physicsPose=null;record.routeKey="";record.placed=false;record.appeared=false;record.dOffset=0;record.parked=null;record.fall=null;record.group.visible=false;record.relocations=0;record.stalledSince=0;record.lastNudgeAt=0;record.routeDirection=record.seed&1?-1:1;retag(record);byId.set(record.id,record);}
+  animalMotion.length=0;positionDecor();lastAmbientAnimalTick=-Infinity;if(v){v.dataset.worldProceduralSeed=worldSeed.toString(36);v.dataset.worldProceduralBucket=key;v.dataset.worldPopulationMode=key==="training"?"training-physical":"real-road-physical";v.dataset.worldPopulationArchitecture="route+box3d-rigid-v3";v.dataset.worldLifeArchitecture="route+box3d-rigid-v3";v.dataset.worldTrafficContinuity="force-driven-contact-resolved-v2";v.dataset.worldCars=String(CAR_COUNT);v.dataset.worldDrivableCars=String(CAR_COUNT);v.dataset.worldPeople=String(PERSON_SLOTS);v.dataset.worldLifeExtraCars=String(CAR_COUNT);v.dataset.worldLifeExtraPeople=String(PERSON_SLOTS);v.dataset.worldLifeBuses=String(BUS_COUNT);v.dataset.worldLifeBirds=String(BIRD_COUNT);v.dataset.worldAmbientAnimals=String(AMBIENT_ANIMAL_COUNT);v.dataset.worldTrees=String(TREE_COUNT);v.dataset.worldTreeMesh="stylized-cel-instanced-v1";v.dataset.worldLifeShootable="1";v.dataset.worldTrafficRoutes="1";v.dataset.worldLifeRoutes=String(routes.length);v.dataset.worldVehiclePhysics="box3d-dynamic-force-controller-v1";v.dataset.worldVehicleGrounding="box3d-static-ground-contact-v1";v.dataset.worldTrainingTrafficRadiusM="52";v.dataset.worldVehicleDamagePresentation="critical-smoke+delayed-explosion-v1";}return true;
 }
-function refreshAnchor(){const b=bridge();if(worldKey==="training"||!Number.isFinite(b?.originLon)||!Number.isFinite(b?.originLat))return;if(b.originLon===lastOriginLon&&b.originLat===lastOriginLat)return;configureWorld();positionDecor();}
+function refreshAnchor(){/* origin moves are handled in configureWorld (shift, never re-seed) */}
 
 function localRoute(key,points,roadClass="secondary"){const segments=[];let length=0;for(let i=0;i<points.length-1;i++){const a=points[i],c=points[i+1],dx=c[0]-a[0],dy=c[1]-a[1],d=Math.hypot(dx,dy);if(d<.5)continue;segments.push({a,c,dx,dy,d,start:length});length+=d;}return segments.length?{key,points,segments,length,roadClass,lastSeen:Infinity,training:true}:null;}
 function trainingRoutes(){return[
@@ -257,28 +380,35 @@ function fallbackRoads(b){const out=[];for(const feature of b?.minimapFeatures||
 function refreshRoutes(now){
   const b=bridge();if(!b?.active||!Number.isFinite(b.originLon)||!Number.isFinite(b.originLat))return;const origin=`${b.originLon.toFixed(6)}:${b.originLat.toFixed(6)}`;if(now-lastRouteRefresh<ROUTE_REFRESH_MS&&origin===lastRouteOrigin)return;lastRouteRefresh=now;
   if(origin!==lastRouteOrigin&&routeCache.size){for(const[key,old]of routeCache){const rebuilt=buildTrafficRoute(old.geoPath,{originLon:b.originLon,originLat:b.originLat,roadClass:old.roadClass,lastSeen:old.lastSeen});if(rebuilt)routeCache.set(key,rebuilt);else routeCache.delete(key);}}lastRouteOrigin=origin;
-  let candidates=[];try{candidates=collectRenderedDrivableRoads(b.map);}catch{}if(!candidates.length)candidates=fallbackRoads(b);const seen=new Set();for(const candidate of candidates){const route=buildTrafficRoute(candidate.path,{originLon:b.originLon,originLat:b.originLat,roadClass:candidate.roadClass,lastSeen:now});if(!route||seen.has(route.key))continue;seen.add(route.key);routeCache.set(route.key,route);}for(const[key,route]of routeCache)if(now-route.lastSeen>ROUTE_STALE_MS*5)routeCache.delete(key);const fresh=[...routeCache.values()].filter(route=>now-route.lastSeen<=ROUTE_STALE_MS),pool=(fresh.length?fresh:[...routeCache.values()]).sort((a,c)=>a.key.localeCompare(c.key)).slice(0,MAX_ROUTE_POOL);if(pool.length)routes.splice(0,routes.length,...pool);const v=viewport();if(v){v.dataset.worldLifeRoutes=String(routes.length);v.dataset.worldTrafficRoadSource=seen.size?"rendered-osm":"cached-or-fallback";v.dataset.worldTrafficRouteModel="nearest-progress-lookahead-v1";}
+  let candidates=[];try{candidates=collectRenderedDrivableRoads(b.map);}catch{}if(!candidates.length)candidates=fallbackRoads(b);const seen=new Set();for(const candidate of candidates){const route=buildTrafficRoute(candidate.path,{originLon:b.originLon,originLat:b.originLat,roadClass:candidate.roadClass,lastSeen:now});if(!route||seen.has(route.key))continue;seen.add(route.key);routeCache.set(route.key,route);}for(const[key,route]of routeCache)if(now-route.lastSeen>ROUTE_STALE_MS*5)routeCache.delete(key);const fresh=[...routeCache.values()].filter(route=>now-route.lastSeen<=ROUTE_STALE_MS),focus=populationFocus(),pool=(fresh.length?fresh:[...routeCache.values()]).map(route=>({route,d:focus?nearestRouteDistance(route,focus.x,focus.y).offsetM:0})).sort((a,c)=>a.d-c.d||a.route.key.localeCompare(c.route.key)).slice(0,MAX_ROUTE_POOL).map(x=>x.route);if(pool.length){if(!routes.length&&!firstRoutesAt)firstRoutesAt=now;routes.splice(0,routes.length,...pool);}const v=viewport();if(v){v.dataset.worldLifeRoutes=String(routes.length);v.dataset.worldTrafficRoadSource=seen.size?"rendered-osm":"cached-or-fallback";v.dataset.worldTrafficRouteModel="nearest-progress-lookahead-v1";}
 }
 function populationFocus(){if(cachedFocusTick===lastPopulationTick)return cachedFocus;cachedFocusTick=lastPopulationTick;const b=bridge(),walk=globalThis.__arondightWalkMode,drive=globalThis.__arondightVehicleDrive;if(drive?.active&&drive.cameraAnchor)return cachedFocus=drive.cameraAnchor;if(walk?.mode==="foot"&&walk.position)return cachedFocus=walk.position;const airframe=b?.airframeFor?.(b.threeScene)||b?.airframe;if(airframe?.getWorldPosition){airframe.getWorldPosition(cameraPos);return cachedFocus=cameraPos;}return cachedFocus=b?.threeCamera?.position||null;}
-function streamFallbackAroundFocus(record,focus=populationFocus(),epoch=Date.now()/1000){
-  if(!focus||!record.group.visible||record.group.userData?.playerDriven||record.parked||Math.hypot(record.group.position.x-focus.x,record.group.position.y-focus.y)<=STREAM_REBIND_DISTANCE_M)return false;
-  const cellX=Math.floor(focus.x/80),cellY=Math.floor(focus.y/80),seed=hashText(`${record.seed}:${cellX}:${cellY}:${record.streamRebinds}`),angle=u(seed,1)*Math.PI*2,distance=range(seed,2,MOBILE?72:88,MOBILE?98:116),sample=rectSample(record.motion,epoch);
-  record.streamX=focus.x+Math.cos(angle)*distance-sample.x;record.streamY=focus.y+Math.sin(angle)*distance-sample.y;record.streamRebinds++;record.stalledSince=0;
-  if(record.physicsRegistered){rigidBodies()?.removeBody?.(record.id);record.physicsRegistered=false;record.physicsPose=null;}
-  return true;
-}
-function routeFor(record,now=performance.now()){
-  if(!routes.length)return null;const current=record.routeKey?routeCache.get(record.routeKey):null,focus=populationFocus(),driven=Boolean(record.group.userData?.playerDriven),far=Boolean(focus&&record.group.visible&&Math.hypot(record.group.position.x-focus.x,record.group.position.y-focus.y)>STREAM_REBIND_DISTANCE_M),stale=Boolean(current&&now-current.lastSeen>ROUTE_STALE_MS*5);
-  if(current&&(driven||(!far&&!stale)))return current;
-  let pool=routes;if(focus){if(cachedRoutePoolTick!==lastPopulationTick){cachedRoutePoolTick=lastPopulationTick;cachedRoutePool=[...routes].map(route=>({route,d:nearestRouteDistance(route,focus.x,focus.y).offsetM})).sort((a,c)=>a.d-c.d).slice(0,Math.min(routes.length,18)).map(x=>x.route);}pool=cachedRoutePool;}const cellX=focus?Math.floor(focus.x/80):0,cellY=focus?Math.floor(focus.y/80):0,index=mod(record.index*7+(record.kind==="bus"?5:record.kind==="person"?3:1)+hashText(`${cellX}:${cellY}`),pool.length),next=pool[index]||pool[0];
-  if(!next)return current||null;if(current?.key!==next.key){record.routeKey=next.key;record.routeDirection=record.seed&1?-1:1;record.stalledSince=0;if(record.physicsRegistered&&!driven){rigidBodies()?.removeBody?.(record.id);record.physicsRegistered=false;record.physicsPose=null;}}return next;
-}
+// a vehicle keeps its street: it is never re-bound to another one while it exists where it is
+function routeFor(record){return record.routeKey?routeCache.get(record.routeKey)||null:null;}
+function routePool(focus){if(!focus)return routes;if(cachedRoutePoolTick!==lastPopulationTick){cachedRoutePoolTick=lastPopulationTick;cachedRoutePool=[...routes].map(route=>({route,d:nearestRouteDistance(route,focus.x,focus.y).offsetM})).sort((a,c)=>a.d-c.d).slice(0,Math.min(routes.length,18)).map(x=>x.route);}return cachedRoutePool;}
 function laneWidth(route,record){const cls=String(route?.roadClass||""),width=/motorway|trunk|primary|secondary/.test(cls)?1.25:/service|living/.test(cls)? .64:.88;return(record.seed&1?1:-1)*width;}
 function sampleRoadRoute(route,distance,offset=0,direction=1){if(!route?.segments?.length)return null;const d=clamp(distance,0,route.length),segment=route.segments.find(item=>d<=item.start+item.d)||route.segments.at(-1),t=clamp((d-segment.start)/segment.d,0,1),nx=-segment.dy/segment.d,ny=segment.dx/segment.d;return{x:segment.a[0]+segment.dx*t+nx*offset,y:segment.a[1]+segment.dy*t+ny*offset,yaw:Math.atan2(segment.dy,segment.dx)+(direction<0?Math.PI:0),distance:d};}
-function samplePingPongRoute(route,distance,offset=0){const period=Math.max(.01,route.length*2),cycle=mod(distance,period),direction=cycle<=route.length?1:-1,d=direction>0?cycle:period-cycle;return sampleRoadRoute(route,d,offset,direction);}
+// far traffic drives its street analytically: a distance growing with time, there and back again,
+// always in the lane of the direction it is going (the same lane the physical driver keeps)
+function samplePingPongRoute(route,distance,lane=0){const period=Math.max(.01,route.length*2),cycle=mod(distance,period),direction=cycle<=route.length?1:-1,d=direction>0?cycle:period-cycle,p=sampleRoadRoute(route,d,lane*direction,direction);if(p)p.direction=direction;return p;}
+function vehicleSampleAt(record,route,epoch){return samplePingPongRoute(route,epoch*record.speed+(record.dOffset||0),laneWidth(route,record));}
+// leaving physics: the analytic drive continues exactly from where the car is, in its direction
+function syncAnalyticToPose(record,route,epoch,x,y){const n=nearestRouteDistance(route,x,y).distance;record.dOffset=(record.routeDirection>0?n:route.length*2-n)-epoch*record.speed;}
+function vehicleSpotTaken(record,p){const r0=record.kind==="bus"?14:10;for(const o of records){if(o===record||(o.kind!=="car"&&o.kind!=="bus")||!o.group.visible)continue;if(Math.hypot(o.group.position.x-p.x,o.group.position.y-p.y)<r0)return true;}return false;}
+// a vehicle comes into existence (or arrives after a far car was called over) only where nobody sees
+// it appear: out of every view, behind buildings, or far down the road
+function placeVehicle(record,epoch,now){if(now<(record.nextPlaceAt||0))return false;record.nextPlaceAt=now+VEHICLE_PLACE_MS;const focus=populationFocus(),pool=routePool(focus);if(!pool.length)return false;
+  for(let k=0;k<7;k++){let route,s,dir;
+    if(k===0&&!record.relocations){route=pool[mod(record.index*7+(record.kind==="bus"?5:1),pool.length)];s=mod((record.motion?.phase||0)*route.length,route.length);dir=record.seed&1?-1:1;}// its own seeded street first
+    else{route=pool[Math.floor(Math.random()*Math.min(pool.length,12))];s=2+Math.random()*Math.max(0,route.length-4);dir=Math.random()<.5?1:-1;}
+    const p=sampleRoadRoute(route,s,laneWidth(route,record)*dir,dir);if(!p)continue;
+    if(focus&&record.relocations){const d=Math.hypot(p.x-focus.x,p.y-focus.y);if(d<VEHICLE_PLACE_MIN_M||d>VEHICLE_PLACE_MAX_M)continue;}
+    if(vehicleSpotTaken(record,p)||!spawnGateOpen(p.x,p.y,groundHeightAt(p.x,p.y),{farEntryM:VEHICLE_ENTRY_M,heightM:record.kind==="bus"?3.2:1.6}))continue;
+    record.routeKey=route.key;record.routeDirection=dir;record.dOffset=(dir>0?s:route.length*2-s)-epoch*record.speed;record.placed=true;record.stalledSince=0;record.relocations=(record.relocations||0)+1;return true;}
+  return false;}
+function hideVehicle(record){record.group.visible=false;record.wheelPoses=null;record.physicsPose=null;if(record.physicsRegistered){rigidBodies()?.removeBody?.(record.id);record.physicsRegistered=false;}}
 function nearestRouteDistance(route,x,y){let best=0,bestDistance=Infinity;for(const segment of route?.segments||[]){const t=clamp(((x-segment.a[0])*segment.dx+(y-segment.a[1])*segment.dy)/(segment.d*segment.d),0,1),px=segment.a[0]+segment.dx*t,py=segment.a[1]+segment.dy*t,distance=Math.hypot(x-px,y-py);if(distance<bestDistance){bestDistance=distance;best=segment.start+segment.d*t;}}return{distance:best,offsetM:bestDistance};}
 function vehicleShape(record){return record.kind==="bus"?{half:[4,1.17,1.08],mass:9200}:{half:[1.78,.82,.42],mass:1420};}
-function fallbackVehicleSample(record,epoch){const p=rectSample(record.motion,epoch,anchorX+record.streamX,anchorY+record.streamY);return{x:p.x,y:p.y,yaw:p.yaw};}
 // Vehicles near the player (or the one being driven) are real Box3D cars
 // (chassis + 4 wheel joints, AI driver steering to its route target). Far
 // ones keep driving their route as a lightweight point (no physics body)
@@ -290,31 +420,45 @@ function updatePhysicalVehicle(record,epoch,now){
   // a car another multiplayer player is driving: his replicated car is drawn by the
   // player runtime, our own copy of it steps aside (hidden, no physics)
   if(record.remoteDriven){record.group.visible=false;record.wheelPoses=null;if(record.physicsRegistered){rigidBodies()?.removeBody?.(record.id);record.physicsRegistered=false;}return;}
-  if(!respawnAllowed(record)){record.group.visible=false;record.wheelPoses=null;if(record.physicsRegistered){rigidBodies()?.removeBody?.(record.id);record.physicsRegistered=false;}return;}
-  let physics=rigidBodies(),route=routeFor(record,now);if(!route)streamFallbackAroundFocus(record,populationFocus(),epoch);const shape=vehicleShape(record),fallback=fallbackVehicleSample(record,epoch);let initial=route?samplePingPongRoute(route,epoch*record.speed+(record.motion?.phase||0)*route.length,laneWidth(route,record)):fallback;
+  const driven=Boolean(record.group.userData?.playerDriven);
+  // traffic switched off: no traffic exists (the car the player sits in / on the tow hook stays)
+  if(!opts.traffic&&!driven&&!record.towed&&!record.parked){if(record.placed||record.group.visible||record.physicsRegistered){hideVehicle(record);stopWorldCriticalDamage(record.id);}record.placed=false;record.parked=null;return;}
+  // a wreck is gone for good; another car comes along later, out of view (never at the wreck)
+  if(record.deadUntil){if(Date.now()<record.deadUntil){hideVehicle(record);return;}record.deadUntil=0;record.placed=false;record.parked=null;}
+  if(!record.placed&&!driven&&!record.towed&&!placeVehicle(record,epoch,now)){hideVehicle(record);return;}
+  const physics=rigidBodies(),shape=vehicleShape(record),focus=populationFocus();let route=routeFor(record);
+  // a far car nobody sees can be called to the player's neighbourhood (traffic stays around the
+  // player, but only behind the scenes: it leaves out of view and arrives out of view)
+  if(!driven&&!record.towed&&!record.parked&&!record.physicsRegistered&&focus&&worldKey!=="training"&&now>=(record.nextRelocateAt||0)){const g=record.group.position;
+    if(!route||Math.hypot(g.x-focus.x,g.y-focus.y)>VEHICLE_RELOCATE_M){record.nextRelocateAt=now+VEHICLE_PLACE_MS*2;if(!record.group.visible||spawnGateOpen(g.x,g.y,g.z,{farEntryM:VEHICLE_VANISH_M})){const was=record.relocations;if(placeVehicle(record,epoch,now)&&record.relocations>was){route=routeFor(record);const v=viewport();if(v)v.dataset.worldPopulationRebinds=String((Number(v.dataset.worldPopulationRebinds)||0)+1);}}}}
+  let initial=route?vehicleSampleAt(record,route,epoch):null;
   // A car the player left stays where it was parked (GTA): no route AI, handbrake on,
   // until the player is far away or the park time ran out.
-  if(record.parked){const fp=populationFocus(),far=fp&&Math.hypot(record.parked.x-fp.x,record.parked.y-fp.y)>PARK_RELEASE_M;if(now>record.parked.until||far){record.parked=null;rigidBodies()?.setDrive?.(record.id,null);}}
+  if(record.parked){const fp=populationFocus(),far=fp&&Math.hypot(record.parked.x-fp.x,record.parked.y-fp.y)>PARK_RELEASE_M;if(now>record.parked.until||far){record.parked=null;rigidBodies()?.setDrive?.(record.id,null);if(route&&record.physicsPose)syncAnalyticToPose(record,route,epoch,record.physicsPose.position[0],record.physicsPose.position[1]);}}
   if(record.parked)initial={x:record.parked.x,y:record.parked.y,yaw:record.parked.yaw};
-  // first appearance: not in anybody's view (no pop-in) - until then it does not exist at all
-  if(!record.appeared){if(!spawnGateOpen(initial.x,initial.y,groundHeightAt(initial.x,initial.y))){record.group.visible=false;record.wheelPoses=null;record.physicsPose=null;if(record.physicsRegistered){rigidBodies()?.removeBody?.(record.id);record.physicsRegistered=false;}return;}record.appeared=true;}
-  const driven=Boolean(record.group.userData?.playerDriven),focus=populationFocus(),here=record.physicsRegistered&&record.physicsPose?record.physicsPose.position:[initial.x,initial.y],dist=focus?Math.hypot(here[0]-focus.x,here[1]-focus.y):0,near=driven||record.towed||!focus||dist<(record.physicsRegistered?PHYS_FAR_M:PHYS_NEAR_M);
-  if(!near){if(record.physicsRegistered){physics?.removeBody?.(record.id);record.physicsRegistered=false;}record.physicsPose=null;record.wheelPoses=null;record.group.position.set(initial.x,initial.y,groundHeightAt(initial.x,initial.y));record.group.rotation.set(0,0,initial.yaw);record.group.visible=true;return;}
+  if(!initial){const pp=record.physicsPose?.position;if(record.physicsRegistered&&pp)initial={x:pp[0],y:pp[1],yaw:Number(record.physicsPose.yaw)||record.group.rotation.z};
+    // its street is gone from the map cache (far away): it leaves only where nobody sees it
+    else{if(!record.group.visible||spawnGateOpen(record.group.position.x,record.group.position.y,record.group.position.z,{farEntryM:VEHICLE_VANISH_M})){hideVehicle(record);record.placed=false;}return;}}
+  const here=record.physicsRegistered&&record.physicsPose?record.physicsPose.position:[initial.x,initial.y],dist=focus?Math.hypot(here[0]-focus.x,here[1]-focus.y):0,near=driven||record.towed||!focus||dist<(record.physicsRegistered?PHYS_FAR_M:PHYS_NEAR_M);
+  if(!near){if(record.physicsRegistered){if(route&&record.physicsPose){syncAnalyticToPose(record,route,epoch,record.physicsPose.position[0],record.physicsPose.position[1]);initial=vehicleSampleAt(record,route,epoch)||initial;}physics?.removeBody?.(record.id);record.physicsRegistered=false;}
+    record.physicsPose=null;record.wheelPoses=null;record.group.position.set(initial.x,initial.y,groundHeightAt(initial.x,initial.y));record.group.rotation.set(0,0,initial.yaw);record.group.visible=true;return;}
   if(!record.physicsRegistered){
     const candidate={x:initial.x,y:initial.y,yaw:initial.yaw,half:shape.half};
     const occupied=records.some(other=>{
       if(other===record||!other.physicsRegistered||(other.kind!=="car"&&other.kind!=="bus"))return false;
       const p=other.physicsPose||physics?.pose?.(other.id);return p&&vehicleFootprintsOverlap(candidate,{x:p.position[0],y:p.position[1],yaw:p.yaw,half:vehicleShape(other).half});
     });
-    if(occupied){record.group.visible=false;record.physicsPose=null;record.wheelPoses=null;return;}
+    // the spot is blocked by a physical car right now: keep driving analytically (never vanish), retry
+    if(occupied){record.group.position.set(initial.x,initial.y,groundHeightAt(initial.x,initial.y));record.group.rotation.set(0,0,initial.yaw);record.group.visible=true;record.physicsPose=null;record.wheelPoses=null;return;}
+    if(initial.direction)record.routeDirection=initial.direction;// becomes physical driving on in the direction it was going
   }
   if(!record.physicsRegistered)record.physicsRegistered=Boolean(physics?.upsertBody?.({id:record.id,kind:record.kind,position:[initial.x,initial.y,groundHeightAt(initial.x,initial.y)+shape.half[2]],yaw:initial.yaw,halfExtents:shape.half,massKg:shape.mass}));
   let pose=physics?.pose?.(record.id,record.physicsPose)||record.physicsPose;if(pose?.position&&pose.position[2]<staticGroundHeightAt(pose.position[0],pose.position[1])-6){physics?.removeBody?.(record.id);record.physicsRegistered=false;pose=null;}
   if(record.towed){physics?.clearTarget?.(record.id);pose=physics?.pose?.(record.id,pose)||pose;}
   else if(!driven&&pose&&record.parked){physics?.clearTarget?.(record.id);physics?.setDrive?.(record.id,{pedal:0,steer:0,handbrake:true});}
   else if(!driven&&pose){const current=pose.position;let targetPoint;
-    if(route){const nearest=nearestRouteDistance(route,current[0],current[1]);if(nearest.distance>route.length-2.5)record.routeDirection=-1;else if(nearest.distance<2.5)record.routeDirection=1;const lookahead=Math.max(7,record.speed*1.3),targetDistance=clamp(nearest.distance+record.routeDirection*lookahead,0,route.length),offset=laneWidth(route,record)*record.routeDirection;targetPoint=sampleRoadRoute(route,targetDistance,offset,record.routeDirection);}else targetPoint=fallbackVehicleSample(record,epoch+1.1);
-    physics?.setTarget?.(record.id,{position:[targetPoint.x,targetPoint.y,0],yaw:targetPoint.yaw,speedMps:record.speed});pose=physics?.pose?.(record.id,pose)||pose;}
+    if(route){const nearest=nearestRouteDistance(route,current[0],current[1]);if(nearest.distance>route.length-2.5)record.routeDirection=-1;else if(nearest.distance<2.5)record.routeDirection=1;const lookahead=Math.max(7,record.speed*1.3),targetDistance=clamp(nearest.distance+record.routeDirection*lookahead,0,route.length),offset=laneWidth(route,record)*record.routeDirection;targetPoint=sampleRoadRoute(route,targetDistance,offset,record.routeDirection);}
+    if(targetPoint)physics?.setTarget?.(record.id,{position:[targetPoint.x,targetPoint.y,0],yaw:targetPoint.yaw,speedMps:yieldsToPedestrian(record,pose,now)?0:record.speed});else{physics?.clearTarget?.(record.id);physics?.setDrive?.(record.id,{pedal:0,steer:0,handbrake:true});}pose=physics?.pose?.(record.id,pose)||pose;}
   record.physicsPose=pose;
   if(pose){const q=pose.rotation,off=Number(pose.groundOffset)||shape.half[2];record.group.quaternion.set(q[0],q[1],q[2],q[3]);wheelUp.set(0,0,1).applyQuaternion(record.group.quaternion);record.group.position.set(pose.position[0]-wheelUp.x*off,pose.position[1]-wheelUp.y*off,pose.position[2]-wheelUp.z*off);record.wheelPoses=pose.wheels||null;}
   else{record.group.position.set(initial.x,initial.y,groundHeightAt(initial.x,initial.y));record.group.rotation.set(0,0,initial.yaw);record.wheelPoses=null;}
@@ -337,10 +481,9 @@ function updateWheelInstances(){
 }
 
 function rectSample(m,t,baseX=anchorX,baseY=anchorY){const w=2*m.hx,h=2*m.hy,per=2*(w+h),d=mod(t*m.speed+m.phase*per,per);let x,y,dx,dy;if(d<w){x=-m.hx+d;y=-m.hy;dx=1;dy=0;}else if(d<w+h){x=m.hx;y=-m.hy+(d-w);dx=0;dy=1;}else if(d<2*w+h){x=m.hx-(d-w-h);y=m.hy;dx=-1;dy=0;}else{x=-m.hx;y=m.hy-(d-2*w-h);dx=0;dy=-1;}const c=Math.cos(m.angle),s=Math.sin(m.angle),rx=x*c-y*s,ry=x*s+y*c,rdx=dx*c-dy*s,rdy=dx*s+dy*c;return{x:baseX+m.cx+rx,y:baseY+m.cy+ry,yaw:Math.atan2(rdy,rdx)};}
-function respawnAllowed(record){if(!record.deadUntil)return true;const now=Date.now();if(now<record.deadUntil)return false;const camera=bridge()?.threeCamera;if(!camera?.getWorldPosition)return false;camera.getWorldPosition(cameraPos);const clearance=record.kind==="bird"?70:55;if(cameraPos.distanceTo(record.group.position)<clearance)return false;if(!spawnGateOpen(record.group.position.x,record.group.position.y,record.group.position.z))return false;record.deadUntil=0;return true;}
-// a vehicle comes into existence only where no player sees it appear (local view +
-// peers' view cones), or while the world is still being shown for the first time
-function spawnGateOpen(x,y,z){if(performance.now()-sceneBoundAt<SPAWN_GRACE_MS)return true;const g=globalThis.__spawnVisibilityGuard;return g?.canSpawnAt?Boolean(g.canSpawnAt(x,y,z)):true;}
+// may something appear at (x,y,z)? Only where no player sees it appear (local presented view +
+// peers' views, buildings hide), or while the world is still being shown for the first time
+function spawnGateOpen(x,y,z,options){const t=performance.now();if(worldShownAt&&t-worldShownAt<SPAWN_GRACE_MS)return true;if(firstRoutesAt&&t-firstRoutesAt<ROUTES_GRACE_MS)return true;const g=globalThis.__spawnVisibilityGuard;return g?.canSpawnAt?Boolean(g.canSpawnAt(x,y,z,options)):true;}
 // A shot bird drops out of the sky: ballistic fall with air drag, tumbling,
 // wings folded; it lies on the (deformed) ground for a while, then is gone.
 function updateFallingBird(record){const f=record.fall,t=Date.now(),dt=Math.min(.05,(t-f.last)/1000);f.last=t;const g=record.group;
@@ -348,11 +491,15 @@ function updateFallingBird(record){const f=record.fall,t=Date.now(),dt=Math.min(
     g.position.set(f.x,f.y,f.z);g.rotation.set(f.roll,.6*Math.sin(f.roll*.7),g.rotation.z+f.spin*.35*dt);g.scale.set(1,.35,1);}
   else{g.position.z=groundHeightAt(f.x,f.y)+.05;g.rotation.set(Math.PI*.5*Math.sign(f.spin||1),0,g.rotation.z);g.scale.set(1,.4,1);}
   g.visible=true;if(f.landed&&t-f.landed>6000){record.fall=null;g.visible=false;g.scale.set(1,1,1);}}
-function updateRecord(record,epoch,now){if(record.kind==="car"||record.kind==="bus"){updatePhysicalVehicle(record,epoch,now);return;}if(record.fall){updateFallingBird(record);return;}if(record.knocked){record.group.visible=false;return;}if(!respawnAllowed(record)){record.group.visible=false;return;}if(record.kind==="bird"){const m=record.motion,a=epoch*m.omega+m.phase,flap=.82+.2*Math.sin(epoch*10+record.index),cx=anchorX+m.cx,cy=anchorY+m.cy;const bx=cx+Math.cos(a)*m.rx,by=cy+Math.sin(a*.94)*m.ry,bz=m.z+Math.sin(a*2.3+record.index)*2.1,dx=-Math.sin(a)*m.rx,dy=.94*Math.cos(a*.94)*m.ry,yaw=Math.atan2(dy,dx);record.group.position.set(bx,by,bz+Math.max(0,groundHeightAt(bx,by)));record.group.rotation.set(.08*Math.sin(a*3),0,yaw);record.group.scale.set(1,flap,1);record.group.visible=true;return;}const route=routeFor(record,now);if(!route&&worldKey!=="training")streamFallbackAroundFocus(record,populationFocus(),epoch);const p=route?samplePingPongRoute(route,epoch*record.speed+(record.motion?.phase||0)*route.length,(record.seed&1?1:-1)*2.45):rectSample(record.motion,epoch,anchorX+record.streamX,anchorY+record.streamY),phase=epoch*(6.2+record.speed*.35)+record.index,z=record.kind==="person"?groundHeightAt(p.x,p.y):.018*Math.sin(phase)+groundHeightAt(p.x,p.y);if(record.kind==="person"&&(record.knockPending||record.knock)){// got up off the route: walk back to it at human speed (no snapping)
-    if(record.knockPending){const k=record.knockPending;record.knock={ox:k.x-p.x,oy:k.y-p.y,t:now};record.knockPending=null;}
-    const k=record.knock,d=Math.hypot(k.ox,k.oy),step=Math.min(d,1.25*Math.min(.1,Math.max(0,(now-k.t)/1000)));k.t=now;
-    if(d<.05)record.knock=null;else{const fx=-k.ox/d,fy=-k.oy/d;k.ox+=fx*step;k.oy+=fy*step;p.x+=k.ox;p.y+=k.oy;p.yaw=Math.atan2(fy,fx);}}
-  record.group.position.set(p.x,p.y,z);record.group.rotation.set(0,0,p.yaw);if(record.kind==="person"){const swing=Math.sin(phase)*.42;if(record.legs?.[0])record.legs[0].rotation.y=swing;if(record.legs?.[1])record.legs[1].rotation.y=-swing;if(record.arms?.[0])record.arms[0].rotation.y=-swing*.72;if(record.arms?.[1])record.arms[1].rotation.y=swing*.72;}record.group.visible=true;}
+function updateBird(record,epoch,now){
+  if(!opts.birds){if(record.group.visible||record.fall){record.group.visible=false;record.fall=null;record.group.scale.set(1,1,1);}record.appeared=false;return;}
+  if(record.fall){updateFallingBird(record);if(!record.fall)record.appeared=false;return;}
+  if(record.deadUntil){if(Date.now()<record.deadUntil){record.group.visible=false;return;}record.deadUntil=0;record.appeared=false;}
+  const m=record.motion,a=epoch*m.omega+m.phase,flap=.82+.2*Math.sin(epoch*10+record.index),cx=anchorX+m.cx,cy=anchorY+m.cy;const bx=cx+Math.cos(a)*m.rx,by=cy+Math.sin(a*.94)*m.ry,bz=m.z+Math.sin(a*2.3+record.index)*2.1+Math.max(0,groundHeightAt(bx,by)),dx=-Math.sin(a)*m.rx,dy=.94*Math.cos(a*.94)*m.ry,yaw=Math.atan2(dy,dx);
+  // a (new) bird joins the flock only where nobody sees it appear
+  if(!record.appeared){record.group.visible=false;if(now<(record.gateAt||0))return;record.gateAt=now+GATE_RECHECK_MS;if(!spawnGateOpen(bx,by,bz,{farEntryM:BIRD_ENTRY_M,heightM:1}))return;record.appeared=true;}
+  record.group.position.set(bx,by,bz);record.group.rotation.set(.08*Math.sin(a*3),0,yaw);record.group.scale.set(1,flap,1);record.group.visible=true;}
+function updateRecord(record,epoch,now){if(record.kind==="car"||record.kind==="bus"){updatePhysicalVehicle(record,epoch,now);return;}if(record.kind==="bird")updateBird(record,epoch,now);}
 
 function styleMap(){const b=bridge(),map=b?.map;if(!b?.active||!map?.getStyle||!map?.setPaintProperty||mapStyledFor===map)return;let changed=0;for(const layer of map.getStyle()?.layers||[]){const id=String(layer?.id||"").toLowerCase(),source=String(layer?.["source-layer"]||"").toLowerCase();try{if(layer.type==="fill-extrusion"&&(source==="building"||id.includes("building"))){map.setPaintProperty(layer.id,"fill-extrusion-opacity",1);changed++;}}catch{}}mapStyledFor=map;const v=viewport();if(v){v.dataset.worldVisualPalette="neon-tactical-v1";v.dataset.worldVisualPaletteLayers=String(changed);}}
 function maintain(now){const b=bridge();if(!b?.active||now-lastMaintenance<MAINTENANCE_MS)return;lastMaintenance=now;try{const opaque=makeBuildingsOpaque(b.map),depth=syncWorldBuildingDepthOcclusion(b),v=viewport();styleMap();if(v){v.dataset.worldBuildingsOpaque="1";v.dataset.worldBuildingsSolidified=String(opaque);v.dataset.worldBuildingDepthOccluders=String(depth);}}catch{}}
@@ -360,11 +507,11 @@ function maintain(now){const b=bridge();if(!b?.active||now-lastMaintenance<MAINT
 function nodeRecord(hit){for(let n=hit?.object;n;n=n.parent){const id=String(n.userData?.worldProceduralId||n.userData?.worldPopulationId||"");if(id&&byId.has(id))return byId.get(id);}return null;}
 function sendDeath(record){try{bridge()?.vsSession?.sendFx?.({type:"impact",fx:FX_TYPE,id:`${record.id}-${Date.now().toString(36)}`.slice(-80),objectId:"npc-death",npcId:record.id,kind:record.kind,p:[record.group.position.x,record.group.position.y,record.group.position.z],yaw:record.group.rotation.z});}catch{}}
 function killRecord(record,{network=true,impulse=null}={}){
+  if(record?.kind==="person")return killPerson(record,{network,impulse});
   if(!record||record.deadUntil)return false;
   stopWorldCriticalDamage(record.id);
   record.group.getWorldPosition(tmp);const physicsPose=rigidBodies()?.pose?.(record.id),position=[tmp.x,tmp.y,tmp.z],now=Date.now(),angle=range(record.seed,21,-Math.PI,Math.PI);
-  if(record.kind==="person"){record.deadUntil=now+10000;record.knocked=false;record.knock=null;spawnWorldPersonRagdoll({position:[tmp.x,tmp.y,tmp.z+.05],yaw:record.group.rotation.z-Math.PI/2,impulse:impulse||[Math.cos(angle)*2.5,Math.sin(angle)*2.5,2.6],seed:record.id,id:record.id,colors:record.colors});}
-  else if(record.kind==="car"||record.kind==="bus"){record.deadUntil=now+(record.kind==="bus"?20000:16000);spawnWorldCarExplosion({position:[tmp.x,tmp.y,record.kind==="bus"?1.2:.45],yaw:record.group.rotation.z,velocity:physicsPose?.velocity||[Math.cos(record.group.rotation.z)*record.speed,Math.sin(record.group.rotation.z)*record.speed,0],color:record.color,seed:record.id,id:record.id});rigidBodies()?.removeBody?.(record.id);record.physicsRegistered=false;record.physicsPose=null;}
+  if(record.kind==="car"||record.kind==="bus"){record.deadUntil=now+(record.kind==="bus"?20000:16000);spawnWorldCarExplosion({position:[tmp.x,tmp.y,record.kind==="bus"?1.2:.45],yaw:record.group.rotation.z,velocity:physicsPose?.velocity||[Math.cos(record.group.rotation.z)*record.speed,Math.sin(record.group.rotation.z)*record.speed,0],color:record.color,seed:record.id,id:record.id});rigidBodies()?.removeBody?.(record.id);record.physicsRegistered=false;record.physicsPose=null;}
   else if(record.kind==="bird"){record.deadUntil=now+9000;const yaw=record.group.rotation.z,m=record.motion||{},sp=(m.omega||.25)*(m.rx||30)*.8;record.fall={t:now,last:now,x:tmp.x,y:tmp.y,z:tmp.z,vx:Math.cos(yaw)*sp,vy:Math.sin(yaw)*sp,vz:1.2,spin:range(record.seed,22,-9,9),roll:0,landed:0};playAnimal("bird");}
   else record.deadUntil=now+9000;
   if(!record.fall)record.group.visible=false;
@@ -372,13 +519,13 @@ function killRecord(record,{network=true,impulse=null}={}){
   const v=viewport();if(v){v.dataset.worldLifeHits=String((Number(v.dataset.worldLifeHits)||0)+1);v.dataset.worldPopulationHits=String((Number(v.dataset.worldPopulationHits)||0)+1);v.dataset.worldLifeLastHit=record.kind;v.dataset.worldPopulationLastHit=record.kind;}return true;
 }
 // a shot person goes down (ragdoll, thrown away from the shooter) and gets up again while there is life left; the second hit kills
-function shotImpulse(hit){const cam=bridge()?.threeCamera,p=hit?.point;if(!cam?.position||!p)return[0,0,2];let dx=p.x-cam.position.x,dy=p.y-cam.position.y;const d=Math.hypot(dx,dy)||1;dx/=d;dy/=d;return[dx*2.6,dy*2.6,1.7];}
-function handleProceduralHit(hit){const record=nodeRecord(hit);if(!record)return false;if(record.deadUntil||record.knocked)return true;if(hit.playerAction===true){const source=String(bridge()?.vsSession?.getSelfId?.()||"");globalThis.__arondightWantedSystem?.reportCrime?.({id:`direct-${record.id}-${Date.now().toString(36)}-${Math.round(performance.now())}`,kind:record.kind==="person"?"person-hit":record.kind,playerId:source||undefined});}if(record.kind==="person"){const imp=shotImpulse(hit),r=globalThis.__arondightProceduralPopulation?.knockdown?.(record.id,{impulse:imp,damage:55});if(r==="down"){globalThis.__peopleImpacts?.broadcast?.("pop",record.id,imp,55);/* direct player hit already attributed once at the dispatcher */}return true;}killRecord(record);return true;}
+function shotImpulse(hit){const cam=bridge()?.presentedCamera?.()||bridge()?.threeCamera,p=hit?.point;if(!cam?.position||!p)return[0,0,2];let dx=p.x-cam.position.x,dy=p.y-cam.position.y;const d=Math.hypot(dx,dy)||1;dx/=d;dy/=d;return[dx*2.6,dy*2.6,1.7];}
+function handleProceduralHit(hit){const record=nodeRecord(hit);if(!record)return false;if(record.kind==="person"?(!record.alive||record.knocked||!record.slot):record.deadUntil)return true;if(hit.playerAction===true){const source=String(bridge()?.vsSession?.getSelfId?.()||"");globalThis.__arondightWantedSystem?.reportCrime?.({id:`direct-${record.id}-${Date.now().toString(36)}-${Math.round(performance.now())}`,kind:record.kind==="person"?"person-hit":record.kind,playerId:source||undefined});}if(record.kind==="person"){const imp=shotImpulse(hit),r=globalThis.__arondightProceduralPopulation?.knockdown?.(record.id,{impulse:imp,damage:55});if(r==="down"){globalThis.__peopleImpacts?.broadcast?.("pop",record.id,imp,55);/* direct player hit already attributed once at the dispatcher */}return true;}killRecord(record);return true;}
 function ensureHitBridge(){const b=bridge();if(!b||hitBridge===b)return;const base=typeof b.registerWorldPopulationHit==="function"?b.registerWorldPopulationHit.bind(b):null;const dispatcher=hit=>handleProceduralHit(hit)||(base?Boolean(base(hit)):false);dispatcher.__proceduralPopulationProvider=true;dispatcher.__worldLivelinessWrapper=true;dispatcher.__gameplayPolishLiteWrapper=true;b.__proceduralPopulationHit=handleProceduralHit;b.registerWorldPopulationHit=dispatcher;hitBridge=b;}
-function handleRemoteFx(event){const packet=event?.detail?.packet;if(packet?.objectId!=="npc-death"||packet.fx!==FX_TYPE)return;const record=byId.get(String(packet.npcId||""));/* sent as a valid "impact" packet: lan_vs only carries shot / impact / explosion */if(record&&!record.deadUntil)killRecord(record,{network:false});}
+function handleRemoteFx(event){const packet=event?.detail?.packet;if(packet?.objectId!=="npc-death"||packet.fx!==FX_TYPE)return;const record=byId.get(String(packet.npcId||""));/* sent as a valid "impact" packet: lan_vs only carries shot / impact / explosion */if(record&&(record.kind==="person"?record.alive:!record.deadUntil))killRecord(record,{network:false});}
 
-let lastTelemetryTick=-Infinity;
-function frame(now=performance.now()){requestAnimationFrame(frame);{const b=bridge();if(b&&crowdHooked!==b&&typeof b.addPreRenderHook==="function"){b.addPreRenderHook(()=>{try{updateCrowd();}catch(e){console.warn("crowd",e);}try{updateWheelInstances();}catch(e){console.warn("wheels",e);}});crowdHooked=b;}}const dt=Math.min(.05,Math.max(0,(now-lastFrame)/1000||0));lastFrame=now;void dt;syncSatelliteMigration();if(!ensureScene())return;ensureHitBridge();const visible=worldVisible();root.visible=visible;decorRoot.visible=visible;lightsOn(lightRoot,visible);if(!visible||now-lastPopulationTick<POPULATION_TICK_MS)return;lastPopulationTick=now;if(!configureWorld())return;refreshAnchor();refreshRoutes(now);maintain(now);const epoch=Date.now()/1000;updateAmbientAnimals(epoch,now);let alive=0,physicalVehicles=0,lowestVehicleZ=Infinity,streamRebinds=0;for(const record of records){updateRecord(record,epoch,now);streamRebinds+=record.streamRebinds||0;if(record.group.visible)alive++;if((record.kind==="car"||record.kind==="bus")&&record.physicsPose){physicalVehicles++;lowestVehicleZ=Math.min(lowestVehicleZ,record.group.position.z);}}if(!bridge()?.active){try{updateWheelInstances();}catch(e){console.warn("wheels",e);}}/* no pre-render hooks outside the real world */if(now-lastTelemetryTick>=250){lastTelemetryTick=now;const v=viewport();if(v){v.dataset.worldLifeVisible=String(alive);v.dataset.worldLifeTotal=String(records.length);v.dataset.worldProceduralPopulation="1";v.dataset.worldPopulationTickHz=String(Math.round(1000/POPULATION_TICK_MS));v.dataset.worldAmbientAnimalTickHz=String(Math.round(1000/AMBIENT_ANIMAL_TICK_MS));v.dataset.worldDecorDrawCalls="instanced-trees+halo+animals-v1";v.dataset.worldPopulationStreaming="world-anchored-routes+offscreen-recycle-v6";v.dataset.worldPopulationGrounding="world-space-fixed-centres-v1";v.dataset.worldTrainingRoutes="fixed-local-road-network-v1";v.dataset.worldPopulationRebinds=String(streamRebinds);v.dataset.worldVehicleStallRecovery="impulse-nudge-v1";v.dataset.worldPedestrianRouting=worldKey==="training"?"training-offscreen-stream-v2":"road-sidewalk-stream-v1";v.dataset.worldVehiclePhysics=rigidBodies()?.ready?"box3d-dynamic-force-controller-v1":"waiting-box3d";v.dataset.worldPhysicsVehicleVisuals=String(physicalVehicles);v.dataset.worldPhysicsVehicleLowestZ=Number.isFinite(lowestVehicleZ)?lowestVehicleZ.toFixed(3):"waiting";v.dataset.worldPopulationTelemetry="250ms";}}}
+let lastTelemetryTick=-Infinity,hookRanAt=-Infinity;
+function frame(now=performance.now()){requestAnimationFrame(frame);{const b=bridge();if(b&&crowdHooked!==b&&typeof b.addPreRenderHook==="function"){b.addPreRenderHook(()=>{hookRanAt=performance.now();try{updateCrowd();}catch(e){console.warn("crowd",e);}try{updateWheelInstances();}catch(e){console.warn("wheels",e);}});crowdHooked=b;}}const dt=Math.min(.05,Math.max(0,(now-lastFrame)/1000||0));lastFrame=now;void dt;syncSatelliteMigration();if(!ensureScene())return;ensureHitBridge();const visible=worldVisible();root.visible=visible;decorRoot.visible=visible;lightsOn(lightRoot,visible);if(!visible||now-lastPopulationTick<POPULATION_TICK_MS)return;lastPopulationTick=now;if(!worldShownAt)worldShownAt=now;if(!configureWorld())return;refreshAnchor();refreshRoutes(now);maintain(now);const epoch=Date.now()/1000;updateAmbientAnimals(epoch,now);try{updatePeople(now,populationFocus());}catch(e){console.warn("population people",e);}let alive=peopleShown,physicalVehicles=0,lowestVehicleZ=Infinity;for(const record of records){updateRecord(record,epoch,now);if(record.group.visible)alive++;if((record.kind==="car"||record.kind==="bus")&&record.physicsPose){physicalVehicles++;lowestVehicleZ=Math.min(lowestVehicleZ,record.group.position.z);}}if(now-hookRanAt>250){try{updateCrowd();updateWheelInstances();}catch(e){console.warn("population draw",e);}}/* frames drawn without pre-render hooks (training drone view) */if(now-lastTelemetryTick>=250){lastTelemetryTick=now;const v=viewport();if(v){v.dataset.worldLifeVisible=String(alive);v.dataset.worldLifeTotal=String(records.length);v.dataset.worldProceduralPopulation="1";v.dataset.worldPopulationTickHz=String(Math.round(1000/POPULATION_TICK_MS));v.dataset.worldAmbientAnimalTickHz=String(Math.round(1000/AMBIENT_ANIMAL_TICK_MS));v.dataset.worldDecorDrawCalls="instanced-trees+halo+animals-v1";v.dataset.worldPopulationStreaming="persistent-agents+out-of-view-arrivals-v7";v.dataset.worldPedestrianModel="persistent-goal-agents-v1";v.dataset.worldPedestrianAgents=String(people.length);v.dataset.worldPedestrianShown=String(peopleShown);v.dataset.worldPedestrianStreets=String(pedNet.routes.size);v.dataset.worldPedestrianRefusedArrivals=String(peopleSpawnRefused);v.dataset.worldPopulationGrounding="world-space-fixed-centres-v1";v.dataset.worldTrainingRoutes="fixed-local-road-network-v1";v.dataset.worldPopulationRebinds??="0";v.dataset.worldVehicleStallRecovery="impulse-nudge-v1";v.dataset.worldPedestrianRouting="sidewalk-network-destinations-v1";v.dataset.worldOptions=`${+opts.people}${+opts.traffic}${+opts.dogs}${+opts.cats}${+opts.birds}`;v.dataset.worldVehiclePhysics=rigidBodies()?.ready?"box3d-dynamic-force-controller-v1":"waiting-box3d";v.dataset.worldPhysicsVehicleVisuals=String(physicalVehicles);v.dataset.worldPhysicsVehicleLowestZ=Number.isFinite(lowestVehicleZ)?lowestVehicleZ.toFixed(3):"waiting";v.dataset.worldPopulationTelemetry="250ms";}}}
 
 export function installWorldProceduralPopulation(){if(installed)return;installed=true;globalThis.__arondightProceduralPopulation={
     // traffic as the tow service (tow_service.mjs) sees it: physical cars near the player, their route and how far off it they are
@@ -388,12 +535,12 @@ export function installWorldProceduralPopulation(){if(installed)return;installed
     lanePose(id,ahead=25){const r=byId.get(String(id||""));if(!r)return null;const route=routeFor(r),p=r.physicsPose;if(!route||!p)return null;const n=nearestRouteDistance(route,p.position[0],p.position[1]),dir=r.routeDirection||1,d=clamp(n.distance+dir*ahead,3,route.length-3),pt=sampleRoadRoute(route,d,laneWidth(route,r)*dir,dir);return pt?{x:pt.x,y:pt.y,yaw:pt.yaw}:null;},
     towBegin(id){const r=byId.get(String(id||""));if(!r||r.towed||!r.physicsRegistered)return false;r.towed=true;r.parked=null;rigidBodies()?.clearTarget?.(r.id);rigidBodies()?.setDrive?.(r.id,null);return true;},
     towEnd(id,{x,y,yaw}={}){const r=byId.get(String(id||""));if(!r||!r.towed)return false;r.towed=false;const shape=vehicleShape(r);if(Number.isFinite(x)&&Number.isFinite(y))rigidBodies()?.setPose?.(r.id,{position:[x,y,staticGroundHeightAt(x,y)+shape.half[2]+.08],yaw:Number(yaw)||0});return true;},
-    people(){const out=[];for(const r of records)if(r.kind==="person"&&r.group.visible&&!r.deadUntil&&!r.knocked)out.push({id:r.id,x:r.group.position.x,y:r.group.position.y,z:r.group.position.z,yaw:r.group.rotation.z});return out;},
+    // people as vehicle impacts (people_impacts.mjs) see them: the drawn, standing ones
+    people(){peopleOut.length=0;let k=0;for(const slot of personSlots){const a=slot.agent;if(!a||!slot.group.visible||!a.alive||a.knocked)continue;const o=peopleOutPool[k]||(peopleOutPool[k]={id:"",x:0,y:0,z:0,yaw:0});k++;o.id=a.id;o.x=a.x;o.y=a.y;o.z=a.z;o.yaw=a.yaw;peopleOut.push(o);}return peopleOut;},
     // a hit that is not (yet) fatal: the person goes down as a ragdoll and gets up again
-    knockdown(id,{impulse=[0,0,2],damage=0,network=true}={}){const r=byId.get(String(id||""));if(!r||r.kind!=="person"||r.deadUntil||r.knocked)return null;r.hp=(Number.isFinite(r.hp)?r.hp:100)-Math.max(0,Number(damage)||0);
-      if(r.hp<=0){killRecord(r,{network,impulse});return"dead";}
-      r.group.getWorldPosition(tmp);r.knocked=true;r.group.visible=false;crowd.commit();
-      spawnWorldPersonRagdoll({position:[tmp.x,tmp.y,tmp.z+.05],yaw:r.group.rotation.z-Math.PI/2,impulse,seed:r.id,id:r.id,colors:r.colors,recover:{onUp:({x,y})=>{r.knocked=false;r.knockPending={x,y};}}});return"down";},
-    get spawnVisibilityRoots(){return spawnVisibilityRoots;},roads(){return routes;},setRemoteDriven(id,on){const r=byId.get(String(id||""));if(!r)return false;r.remoteDriven=Boolean(on);return true;},parkAt(id,{x,y,yaw=0,ms=PARK_MS}={}){const r=byId.get(String(id||""));if(!r||(r.kind!=="car"&&r.kind!=="bus")||!Number.isFinite(x)||!Number.isFinite(y))return false;r.parked={until:performance.now()+ms,x,y,yaw};r.remoteDriven=false;if(r.physicsRegistered){const shape=vehicleShape(r),pose=r.physicsPose||rigidBodies()?.pose?.(r.id);if(!pose||Math.hypot(pose.position[0]-x,pose.position[1]-y)>1.5)rigidBodies()?.setPose?.(r.id,{position:[x,y,staticGroundHeightAt(x,y)+(pose?.groundOffset||shape.half[2])+.05],yaw});}return true;}};globalThis.addEventListener(VS_FX_EVENT,handleRemoteFx);requestAnimationFrame(frame);}
+    knockdown(id,options={}){const a=byId.get(String(id||""));return a?.kind==="person"?knockPerson(a,options):null;},
+    // every pedestrian with its destination (diagnostics / tests)
+    agents(){return people.filter(a=>a.alive).map(a=>({id:a.id,x:a.x,y:a.y,yaw:a.yaw,state:a.state,trip:a.trip,dest:a.dest?{x:a.dest.x,y:a.dest.y}:null,remaining:remainingWay(a.leader||a),route:a.route,home:a.home,shown:Boolean(a.slot?.group.visible),bound:Boolean(a.slot),knocked:Boolean(a.knocked),held:Boolean(a.slot?.group.userData.spawnHeld),companion:Boolean(a.leader),speed:a.v}));},
+    knockLog,get spawnVisibilityRoots(){return spawnVisibilityRoots;},roads(){return routes;},setRemoteDriven(id,on){const r=byId.get(String(id||""));if(!r)return false;r.remoteDriven=Boolean(on);return true;},parkAt(id,{x,y,yaw=0,ms=PARK_MS}={}){const r=byId.get(String(id||""));if(!r||(r.kind!=="car"&&r.kind!=="bus")||!Number.isFinite(x)||!Number.isFinite(y))return false;r.parked={until:performance.now()+ms,x,y,yaw};r.remoteDriven=false;if(r.physicsRegistered){const shape=vehicleShape(r),pose=r.physicsPose||rigidBodies()?.pose?.(r.id);if(!pose||Math.hypot(pose.position[0]-x,pose.position[1]-y)>1.5)rigidBodies()?.setPose?.(r.id,{position:[x,y,staticGroundHeightAt(x,y)+(pose?.groundOffset||shape.half[2])+.05],yaw});}return true;}};globalThis.addEventListener(VS_FX_EVENT,handleRemoteFx);requestAnimationFrame(frame);}
 
 installWorldProceduralPopulation();

@@ -1,4 +1,5 @@
 import "./desktop_controls.mjs";
+import "./world_options.mjs";
 import "./pad_actions.mjs";
 import "./settings_help.mjs";
 import "./foot_touch_controller.mjs";

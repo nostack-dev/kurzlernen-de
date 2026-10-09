@@ -7,6 +7,7 @@ import {spawnWorldPersonRagdoll} from "./world_person_ragdoll.mjs";
 import {requestLight} from "./dynamic_lights.mjs";
 import {getSharedCombatAudioContext,playCombatAudio} from "./combat_audio_bank.mjs";
 import {VS_FX_EVENT} from "./lan_vs.mjs";
+import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 
 // MILITARY. Only when the player really overdoes it — five stars held for
 // over a minute while the heat keeps climbing, or a truly extreme rampage —
@@ -29,13 +30,18 @@ const OLIVE=0x4b5634,SOLDIER_COLORS=[0xc8956f,0xa87052,0x7b4a33,0xd2a27e].map(sk
 const bridge=()=>globalThis.__arondightRealWorld||null,physics=()=>globalThis.__arondightWorldRigidBodies||null,wanted=()=>globalThis.__arondightWantedSystem||null,viewport=()=>document.getElementById("viewport");
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),angleTo=(a,b)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;};
 let active=false,root=null,sceneRef=null,crowd=null,remoteCrowd=null,since5=0,alertAt=0,startedAt=0,nextReinforce=0,serial=0,lastTx=0;
+// military switched off in the world options: no army exists; spawns that found no unseen way in
+// yet are retried (never placed in view as a fallback)
+let militaryEnabled=worldOption("military");const pending={heli:0,squad:0,tank:0};let pendingAt=0;
 let helis=[],tanks=[],soldiers=[],tracers=[],shells=[];const remote=new Map(),tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),Y=new THREE.Vector3(0,1,0);
 
 function playerTarget(){return globalThis.__arondightPlayerVitals?.damageTargets?.()?.find?.(t=>t.kind==="drone")||globalThis.__arondightPlayerVitals?.damageTargets?.()?.find?.(t=>t.kind==="player")||null;}
 function prisms(){return bridge()?.buildingCollisionSnapshot?.prisms||[];}
 function blocked(a,b){try{return wantedLineBlockedByPrisms(a,b,prisms());}catch{return false;}}
 function insideBuilding(x,y){for(const pr of prisms()){const pts=pr.points;if(!pts||pts.length<3||Math.abs(x-pts[0][0])>120||Math.abs(y-pts[0][1])>120)continue;if(wantedPointInRing(x,y,pts))return true;}return false;}
-function inView(x,y,z){const cam=bridge()?.threeCamera;if(!cam)return false;const v=tmp.set(x,y,z).project(cam);return v.z<1&&Math.abs(v.x)<1.1&&Math.abs(v.y)<1.1;}
+// seen by a player right now: the view that was actually drawn (not the drone camera the scene holds
+// between frames), peers' views, buildings in between - the spawn guard knows
+function inView(x,y,z,heightM=2){const g=globalThis.__spawnVisibilityGuard;if(g?.canSpawnAt)return!g.canSpawnAt(x,y,z,{heightM});const cam=bridge()?.presentedCamera?.()||bridge()?.threeCamera;if(!cam)return false;const v=tmp.set(x,y,z).project(cam);return v.z<1&&Math.abs(v.x)<1.1&&Math.abs(v.y)<1.1;}
 function sound(kind,x,y,z,gain=.5,rate=1){try{const c=getSharedCombatAudioContext();if(!c||c.state!=="running")return;const pl=playerTarget()?.position,d=pl?Math.hypot(pl.x-x,pl.y-y,(pl.z||0)-z):60;playCombatAudio(c,kind,{gain:clamp(gain*40/(25+d),.03,gain),playbackRate:rate,minIntervalMs:30});}catch{}}
 function damagePlayer(t,dmg,source){if(t?.model?.damage)t.model.damage(dmg,source);else window.dispatchEvent(new CustomEvent("arondight:player-damage",{detail:{damage:dmg,source}}));window.dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage:dmg,source,target:t?.kind||"player"}}));}
 
@@ -73,7 +79,7 @@ function shoot(from,t,chance,dmg,source,spread=2.6){const a=t.position,aim=new T
 function boom(p,radius,damage,scale=.45){globalThis.__fighterJets?.blast?.(p,{radiusM:radius,maxDamage:damage,scale,kind:"military"});}
 
 // ------------------------------------------------------------ helicopter
-function spawnHeli(now,target){const a=Math.random()*Math.PI*2,x=target.x+Math.cos(a)*650,y=target.y+Math.sin(a)*650,z=groundHeightAt(x,y)+95;const m=buildHeli();root.add(m.group);const h={id:`mil-heli-${(++serial).toString(36)}`,m,p:new THREE.Vector3(x,y,z),v:new THREE.Vector3(),yaw:Math.atan2(target.y-y,target.x-x)-Math.PI/2,hp:HELI_HP,state:"inbound",orbit:a,rotor:0,nextBurst:now+5000,burst:0,nextShot:0,born:now};helis.push(h);sound("explosion",x,y,z,.2,.3);return h;}
+function spawnHeli(now,target){let a=0,x=0,y=0,z=0,found=false;for(let k=0;k<12&&!found;k++){a=Math.random()*Math.PI*2;x=target.x+Math.cos(a)*650;y=target.y+Math.sin(a)*650;z=groundHeightAt(x,y)+95;found=!inView(x,y,z,6);}if(!found)return null;const m=buildHeli();root.add(m.group);const h={id:`mil-heli-${(++serial).toString(36)}`,m,p:new THREE.Vector3(x,y,z),v:new THREE.Vector3(),yaw:Math.atan2(target.y-y,target.x-x)-Math.PI/2,hp:HELI_HP,state:"inbound",orbit:a,rotor:0,nextBurst:now+5000,burst:0,nextShot:0,born:now};helis.push(h);sound("explosion",x,y,z,.2,.3);return h;}
 function stepHeli(h,t,now,dt){const tp=t.position;
   if(h.state==="down"){h.v.z-=9.8*dt;h.v.multiplyScalar(1-.3*dt);h.p.addScaledVector(h.v,dt);h.yaw+=4*dt;const gz=groundHeightAt(h.p.x,h.p.y);if(h.p.z<gz+1||insideBuilding(h.p.x,h.p.y)&&h.p.z<gz+25){boom(h.p.clone().setZ(Math.max(h.p.z,gz)),14,120,.9);h.dead=true;}render(h,now,dt);return;}
   const leaving=h.state==="leave";let goal;
@@ -129,8 +135,8 @@ function stepShells(dt){for(let i=shells.length-1;i>=0;i--){const s=shells[i];co
   if(hitP||s.life<=0){shells.splice(i,1);if(hitP&&!s.remote)boom(hitP,6,48,.55);else if(hitP)boom(hitP,0,0,.55);continue;}tracer(prev,s.p,0xffb060);}}
 
 // ------------------------------------------------------------ soldiers
-function spawnSquad(now,target,n){const g=roadGraph(now),cands=g.nodes.filter(q=>{const d=Math.hypot(q.x-target.x,q.y-target.y);return d>90&&d<170&&!insideBuilding(q.x,q.y)&&!inView(q.x,q.y,groundHeightAt(q.x,q.y)+1);});const base=cands[(Math.random()*cands.length)|0]||{x:target.x+120,y:target.y};
-  const used=new Set(soldiers.filter(s=>!s.dead).map(s=>s.slot));for(let k=0,slot=0;k<n&&slot<MAX_SOLDIERS;slot++){if(used.has(slot))continue;const x=base.x+(k%2)*1.6,y=base.y+Math.floor(k/2)*1.6;soldiers=soldiers.filter(s=>s.slot!==slot);soldiers.push({slot,x,y,z:groundHeightAt(x,y),yaw:0,hp:SOLDIER_HP,speed:0,anim:"run",los:false,losAt:0,nextShot:now+3000+Math.random()*2000,burst:0,dead:false,proxy:soldierProxy(),hold:20+Math.random()*12});k++;}}
+function spawnSquad(now,target,n){const g=roadGraph(now),cands=g.nodes.filter(q=>{const d=Math.hypot(q.x-target.x,q.y-target.y);return d>90&&d<170&&!insideBuilding(q.x,q.y)&&!inView(q.x,q.y,groundHeightAt(q.x,q.y)+1);});const base=cands[(Math.random()*cands.length)|0];if(!base)return 0;let placed=0;
+  const used=new Set(soldiers.filter(s=>!s.dead).map(s=>s.slot));for(let k=0,slot=0;k<n&&slot<MAX_SOLDIERS;slot++){if(used.has(slot))continue;const x=base.x+(k%2)*1.6,y=base.y+Math.floor(k/2)*1.6;soldiers=soldiers.filter(s=>s.slot!==slot);soldiers.push({slot,x,y,z:groundHeightAt(x,y),yaw:0,hp:SOLDIER_HP,speed:0,anim:"run",los:false,losAt:0,nextShot:now+3000+Math.random()*2000,burst:0,dead:false,proxy:soldierProxy(),hold:20+Math.random()*12});k++;placed++;}return placed;}
 function stepSoldier(s,t,now,dt){if(s.dead)return;const tp=t.position,dx=tp.x-s.x,dy=tp.y-s.y,d=Math.hypot(dx,dy),eye={x:s.x,y:s.y,z:s.z+1.5};
   if(now-s.losAt>350){s.losAt=now;s.los=d<90&&!blocked(eye,{x:tp.x,y:tp.y,z:(tp.z||1.6)-.3});}
   let move=null;s.anim="aim";if(active===false){move=d>.1?[-dx/d,-dy/d]:null;}
@@ -163,8 +169,10 @@ function onExplosion(e){const d=e?.detail||{};if(d.kind==="military")return;cons
 // ------------------------------------------------------------ escalation
 function clearAll(hard=false){for(const h of helis)h.m.group.parent?.remove(h.m.group);for(const tk of tanks){physics()?.removeBody?.(tk.id);tk.m.group.parent?.remove(tk.m.group);}for(const s of soldiers)s.proxy?.parent?.remove(s.proxy);helis=[];tanks=[];soldiers=[];shells=[];if(hard){for(const t of tracers)t.mesh.parent?.remove(t.mesh);tracers=[];}for(let i=0;i<MAX_SOLDIERS;i++)crowd?.hide(i);}
 function banner(text){const v=viewport();if(!v)return;let b=document.getElementById("militaryBanner");if(!b){b=document.createElement("div");b.id="militaryBanner";b.style.cssText="position:absolute;left:50%;top:22%;transform:translateX(-50%);z-index:40;padding:10px 18px;border-radius:10px;background:#2c3320e8;border:2px solid #b8c27a;color:#e8f0b8;font:900 16px/1.1 Inter,system-ui,sans-serif;letter-spacing:.12em;pointer-events:none;text-align:center;transition:opacity .4s";v.appendChild(b);}b.textContent=text;b.style.opacity="1";clearTimeout(b._t);b._t=setTimeout(()=>{b.style.opacity="0";},3800);}
-function start(nowMs,t){active=true;startedAt=nowMs;nextReinforce=nowMs+50000;wanted()?.setMilitary?.(true);spawnHeli(nowMs,t.position);spawnSquad(nowMs,t.position,SQUAD);spawnTank(nowMs,t.position);banner("⚠ MILITÄR RÜCKT AN");const v=viewport();if(v)v.dataset.militaryResponse="active";}
-function stop(){active=false;wanted()?.setMilitary?.(false);for(const h of helis)if(h.state!=="down")h.state="leave";for(const tk of tanks)if(tk.state!=="wreck")tk.state="leave";banner("MILITÄR ZIEHT AB");const v=viewport();if(v)v.dataset.militaryResponse="withdrawing";}
+// spawn what is asked for, keep what could not come in unseen yet for the next attempt
+function spawnPending(nowMs,t){if(nowMs<pendingAt)return;pendingAt=nowMs+1000;if(pending.heli>0&&spawnHeli(nowMs,t.position))pending.heli--;if(pending.squad>0)pending.squad-=spawnSquad(nowMs,t.position,pending.squad);if(pending.tank>0&&spawnTank(nowMs,t.position))pending.tank--;}
+function start(nowMs,t){if(!militaryEnabled)return;active=true;startedAt=nowMs;nextReinforce=nowMs+50000;wanted()?.setMilitary?.(true);pending.heli=1;pending.squad=SQUAD;pending.tank=1;pendingAt=0;spawnPending(nowMs,t);banner("⚠ MILITÄR RÜCKT AN");const v=viewport();if(v)v.dataset.militaryResponse="active";}
+function stop(){active=false;pending.heli=pending.squad=pending.tank=0;wanted()?.setMilitary?.(false);for(const h of helis)if(h.state!=="down")h.state="leave";for(const tk of tanks)if(tk.state!=="wreck")tk.state="leave";banner("MILITÄR ZIEHT AB");const v=viewport();if(v)v.dataset.militaryResponse="withdrawing";}
 
 // ------------------------------------------------------------ multiplayer
 function session(){return bridge()?.vsSession||null;}
@@ -174,7 +182,7 @@ function broadcast(nowMs){if(nowMs-lastTx<125)return;lastTx=nowMs;const s=sessio
   const b=bridge(),geo=(x,y)=>b?.active&&Number.isFinite(b.originLon)?[+(b.originLon+x/(6378137*Math.cos(b.originLat*Math.PI/180))*180/Math.PI).toFixed(7),+(b.originLat+y/6378137*180/Math.PI).toFixed(7)]:[x,y];
   sendFx({kind:"mil-snap",u:[...helis.filter(h=>!h.dead).map(h=>({id:h.id,t:"h",g:geo(h.p.x,h.p.y),z:+h.p.z.toFixed(1),y:+h.yaw.toFixed(2),d:h.state==="down"?1:0})),...tanks.filter(k=>!k.dead&&k.pose).map(k=>({id:k.id,t:"k",g:geo(k.pose.position[0],k.pose.position[1]),z:+k.m.group.position.z.toFixed(1),y:+k.pose.yaw.toFixed(2),r:+k.turret.toFixed(2)}))],s:soldiers.filter(q=>!q.dead).map(q=>({i:q.slot,g:geo(q.x,q.y),y:+q.yaw.toFixed(2),a:q.anim==="aim"||nowMs-(q.lastShotAt||0)<500?1:q.speed>3?2:q.speed>0?3:0}))});}
 function toLocal(g){const b=bridge();if(!Array.isArray(g))return[0,0];if(!b?.active||!Number.isFinite(b.originLon))return[+g[0],+g[1]];return[(g[0]-b.originLon)*Math.PI/180*6378137*Math.cos(b.originLat*Math.PI/180),(g[1]-b.originLat)*Math.PI/180*6378137];}
-function onFx(e){const pk=e?.detail?.packet,peer=String(e?.detail?.peerId||pk?.playerId||"");if(pk?.objectId!=="military")return;ensureScene();
+function onFx(e){const pk=e?.detail?.packet,peer=String(e?.detail?.peerId||pk?.playerId||"");if(pk?.objectId!=="military"||!militaryEnabled)return;ensureScene();
   if(pk.kind==="tracer"&&Array.isArray(pk.a)){tracer(new THREE.Vector3(...pk.a),new THREE.Vector3(...pk.b));return;}
   if(pk.kind==="shell"&&Array.isArray(pk.a)){const a=new THREE.Vector3(...pk.a),b=new THREE.Vector3(...pk.b);shells.push({p:a,v:b.sub(a).setLength(130),life:3,remote:true});return;}
   if(pk.kind==="mil-hit"){if(pk.to!==selfId())return;const id=String(pk.id||"");if(id.startsWith("s")){const s=soldiers.find(q=>q.slot===Number(id.slice(1))&&!q.dead);if(s)damage({s},Number(pk.dmg)||HIT,null);}else{const h=helis.find(q=>q.id===id),tk=tanks.find(q=>q.id===id);if(h)damage({h},Number(pk.dmg)||HIT);if(tk)damage({tk},4);}return;}
@@ -189,14 +197,17 @@ function renderRemote(dt){const a=1-Math.exp(-dt*8);let k=0;for(const[peer,r]of 
 
 // ------------------------------------------------------------ loop
 let lastFrame=performance.now();
+function disableMilitary(){if(active){active=false;wanted()?.setMilitary?.(false);}alertAt=0;since5=0;pending.heli=pending.squad=pending.tank=0;clearAll();for(const r of remote.values()){for(const m of r.units.values())m.m.group.parent?.remove(m.m.group);for(const s of r.soldiers)s.proxy?.parent?.remove(s.proxy);}remote.clear();remoteCrowd?.commit?.();const v=viewport();if(v){v.dataset.militaryResponse="disabled";v.dataset.military="off/0h/0t/0s";}}
 function frame(nowMs=performance.now()){requestAnimationFrame(frame);const dt=Math.min(.05,Math.max(0,(nowMs-lastFrame)/1000));lastFrame=nowMs;if(!bridge()?.threeScene||!ensureScene())return;
+  if(!militaryEnabled){if(active||alertAt||helis.length||tanks.length||soldiers.length||remote.size)disableMilitary();renderSoldiers(dt);return;}
   const st=wanted()?.state,t=globalThis.__jetMode?.active?null:playerTarget();// a pilot in the jet is out of their reach
   if(st&&t){if(st.stars>=5){since5||=nowMs;}else since5=0;
     if(!active&&!alertAt&&st.stars>=5&&((st.heat>=TRIGGER_HEAT&&nowMs-since5>TRIGGER_HOLD_MS)||st.heat>=TRIGGER_EXTREME_HEAT)){alertAt=nowMs;banner("⚠ MILITÄR ALARMIERT");const v=viewport();if(v)v.dataset.militaryResponse="alert";}
     else if(alertAt&&!active&&st.stars<5){alertAt=0;banner("MILITÄR-ALARM AUFGEHOBEN");const v=viewport();if(v)v.dataset.militaryResponse="alert-cancelled";}
     else if(alertAt&&!active&&nowMs-alertAt>ALERT_MS){alertAt=0;start(nowMs,t);}
     else if(active&&st.stars<=END_STARS)stop();
-    if(active&&nowMs>nextReinforce){nextReinforce=nowMs+45000;if(helis.filter(h=>!h.dead&&h.state!=="down").length<2)spawnHeli(nowMs,t.position);if(soldiers.filter(s=>!s.dead).length<MAX_SOLDIERS-1)spawnSquad(nowMs,t.position,2);if(!tanks.some(k=>!k.dead&&k.state!=="wreck"))spawnTank(nowMs,t.position);}}
+    if(active&&nowMs>nextReinforce){nextReinforce=nowMs+45000;if(helis.filter(h=>!h.dead&&h.state!=="down").length+pending.heli<2)pending.heli++;if(soldiers.filter(s=>!s.dead).length+pending.squad<MAX_SOLDIERS-1)pending.squad+=2;if(!tanks.some(k=>!k.dead&&k.state!=="wreck")&&!pending.tank)pending.tank=1;}
+    if(active)spawnPending(nowMs,t);}
   else if(active&&!t){/* player down: hold fire, they stay */}
   if(t){for(const h of helis)stepHeli(h,t,nowMs,dt);for(const tk of tanks)stepTank(tk,t,nowMs,dt);for(const s of soldiers)stepSoldier(s,t,nowMs,dt);}
   for(let i=helis.length-1;i>=0;i--)if(helis[i].dead){helis[i].m.group.parent?.remove(helis[i].m.group);helis.splice(i,1);}
@@ -209,5 +220,6 @@ function frame(nowMs=performance.now()){requestAnimationFrame(frame);const dt=Ma
 export function installMilitaryResponse(){if(globalThis.__militaryResponse||typeof window==="undefined")return;
   globalThis.__militaryResponse={version:MILITARY_RESPONSE_VERSION,hit,get active(){return active;},start(){const t=playerTarget();if(t)start(performance.now(),t);},stop,get units(){return{helis:helis.map(h=>({id:h.id,state:h.state,hp:h.hp,p:h.p.toArray().map(v=>+v.toFixed(1))})),tanks:tanks.map(k=>({id:k.id,hp:k.hp,state:k.state,p:k.pose?.position?.map(v=>+v.toFixed(1))})),soldiers:soldiers.filter(s=>!s.dead).map(s=>({slot:s.slot,hp:s.hp,x:+s.x.toFixed(1),y:+s.y.toFixed(1)}))};}};
   addEventListener("arondight:world-explosion",onExplosion);addEventListener(VS_FX_EVENT,onFx);addEventListener("arondight:world-reset",()=>{if(active)stop();clearAll();});
+  addEventListener(WORLD_OPTIONS_EVENT,()=>{militaryEnabled=worldOption("military");if(!militaryEnabled)disableMilitary();});
   (globalThis.__prewarmFactories??=[]).push(()=>{const g=new THREE.Group();g.add(buildHeli().group,buildTank().group);return g;});requestAnimationFrame(frame);}
 installMilitaryResponse();

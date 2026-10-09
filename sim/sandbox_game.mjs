@@ -3,6 +3,7 @@ import {groundHeightAt} from "./terrain_craters.mjs";
 import {getSharedCombatAudioContext,playCombatAudio} from "./combat_audio_bank.mjs";
 import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./audio_settings.mjs";
 import {addTrauma} from "./camera_shake.mjs";
+import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 
 // RUSH sandbox loop — no story, just a fun escalation:
 //  * CHAOS earns SCORE: takedowns, wrecked cars, demolished buildings,
@@ -98,9 +99,14 @@ function target(){
   const list=globalThis.__arondightPlayerVitals?.damageTargets?.()||[],droneMode=walk()?.mode!=="foot"&&!drive()?.active&&!globalThis.__jetMode?.active;
   return list.find(t=>t.kind===(droneMode?"drone":"player"))||list[0]||null;
 }
+// cops and SWAT are police, the rocket-carrying heavy is military: a kind switched off in the world
+// options does not come at all
+function typeAllowed(type){return type==="heavy"?worldOption("military"):worldOption("police");}
+function dropDisallowed(){for(let i=enemies.length-1;i>=0;i--){const e=enemies[i];if(typeAllowed(e.type))continue;e.root.parent?.remove(e.root);enemies.splice(i,1);}}
 function spawnEnemy(type,center){
-  const scene=bridge()?.threeScene;if(!scene)return null;
-  for(let attempt=0;attempt<10;attempt++){const a=Math.random()*Math.PI*2,d=rand(55,85),x=center.x+Math.cos(a)*d,y=center.y+Math.sin(a)*d;if(insideBuilding(x,y))continue;
+  const scene=bridge()?.threeScene;if(!scene||!typeAllowed(type))return null;const guard=globalThis.__spawnVisibilityGuard;
+  // they come in where nobody sees them appear (out of view or behind buildings); none found: retry next interval
+  for(let attempt=0;attempt<10;attempt++){const a=Math.random()*Math.PI*2,d=rand(55,85),x=center.x+Math.cos(a)*d,y=center.y+Math.sin(a)*d;if(insideBuilding(x,y))continue;if(guard?.canSpawnAt&&!guard.canSpawnAt(x,y,groundHeightAt(x,y),{heightM:2.2}))continue;
     const e=buildEnemy(type);e.root.position.set(x,y,groundHeightAt(x,y));scene.add(e.root);enemies.push(e);return e;}
   return null;
 }
@@ -169,7 +175,7 @@ function stepEnemy(e,dt,now,t){
   if(e.state!=="retreat"&&dist<e.t.range*1.15&&now>=e.nextShot){shoot(e,now);if(e.burstLeft>0){e.burstLeft--;e.nextShot=now+110;}else{e.burstLeft=e.t.burst-1;e.nextShot=now+e.t.shotMs*rand(.8,1.25);}}
   return true;
 }
-function chooseType(stars){const r=Math.random();if(stars>=4&&r<.22&&enemies.filter(e=>e.type==="heavy"&&e.state!=="dead").length<2)return"heavy";if(stars>=2&&r<.5)return"swat";return"cop";}
+function chooseType(stars){const r=Math.random(),police=worldOption("police"),military=worldOption("military");if(military&&stars>=4&&(r<.22||!police)&&enemies.filter(e=>e.type==="heavy"&&e.state!=="dead").length<2)return"heavy";if(!police)return null;if(stars>=2&&r<.5)return"swat";return"cop";}
 
 // ------------------------------------------------------------------ chaos sources
 function onWorldKill(event){const d=event?.detail||{};if(d.remote||d.network===false)return;const kind=String(d.kind||"");if(kind==="car"||kind==="bus")award(kind==="bus"?220:140,kind==="bus"?"BUS WRECKED!":"CAR WRECKED!","gold");else if(kind!=="police-drone")award(40,null);}
@@ -192,15 +198,18 @@ function frame(now){
   if(sceneRef!==scene){sceneRef=scene;enemies=[];}
   wrapHits();trackSystems(now,dt);renderHud();
   const w=wanted()?.state,stars=Number(w?.stars)||0,t=target();
-  if(stars>0){noWantedSince=0;const alive=enemies.filter(e=>e.state!=="dead"&&e.state!=="retreat").length;if(t&&alive<Math.min(MAX_ENEMIES,BUDGET[Math.min(5,stars)])&&now-lastSpawn>SPAWN_MS){lastSpawn=now;spawnEnemy(chooseType(stars),t.position);}}
+  if(stars>0){noWantedSince=0;const alive=enemies.filter(e=>e.state!=="dead"&&e.state!=="retreat").length;if(t&&alive<Math.min(MAX_ENEMIES,BUDGET[Math.min(5,stars)])&&now-lastSpawn>SPAWN_MS){lastSpawn=now;const type=chooseType(stars);if(type)spawnEnemy(type,t.position);}}
   else{noWantedSince||=now;if(now-noWantedSince>2500)for(const e of enemies)if(e.state==="approach")e.state="retreat";}
-  for(let i=enemies.length-1;i>=0;i--){const e=enemies[i];let keep=stepEnemy(e,dt,now,t);if(e.state==="retreat"&&t&&Math.hypot(t.position.x-e.root.position.x,t.position.y-e.root.position.y)>120)keep=false;if(!keep){e.root.parent?.remove(e.root);enemies.splice(i,1);}}
+  for(let i=enemies.length-1;i>=0;i--){const e=enemies[i];let keep=stepEnemy(e,dt,now,t);if(e.state==="retreat"&&t&&Math.hypot(t.position.x-e.root.position.x,t.position.y-e.root.position.y)>120)keep=false;
+    // somebody who walked off leaves only where nobody sees it (a corpse has already sunk away)
+    if(!keep&&e.state!=="dead"){const g=globalThis.__spawnVisibilityGuard,p=e.root.position;if(g?.canSpawnAt&&!g.canSpawnAt(p.x,p.y,p.z,{farEntryM:600}))keep=true;}if(!keep){e.root.parent?.remove(e.root);enemies.splice(i,1);}}
   stepTracers(dt);stepRockets(dt);
   const v=document.getElementById("viewport");if(v){const s=String(enemies.filter(e=>e.state!=="dead").length);if(v.dataset.sandboxEnemies!==s)v.dataset.sandboxEnemies=s;}
 }
 export function installSandboxGame(){
   if(installed||typeof window==="undefined")return;installed=true;(globalThis.__prewarmFactories??=[]).push(()=>{const g=new THREE.Group();for(const t of Object.keys(TYPES)){try{g.add(buildEnemy(t).root);}catch{}}return g;});
   window.addEventListener("arondight:world-explosion",onExplosion);
+  window.addEventListener(WORLD_OPTIONS_EVENT,dropDisallowed);
   window.addEventListener("arondight:world-kill",onWorldKill);
   window.addEventListener("arondight:nuke-impact",e=>{if(!e?.detail?.remote)setTimeout(()=>award(2000,"MEGA BLAST!!!","gold"),900);});
   window.addEventListener(AUDIO_SETTINGS_EVENT,e=>{settings=normalizeAudioSettings(e?.detail||loadAudioSettings());});
