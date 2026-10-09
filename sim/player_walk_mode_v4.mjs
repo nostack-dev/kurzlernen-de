@@ -29,6 +29,7 @@ const jump={z:0,vz:0,feet:NaN,vx:0,vy:0,queuedAt:-Infinity,airborne:false,snap:t
 const JET_ACC=21,JET_BURST_S=.6,JET_FUEL_PER_S=.2,JET_RECHARGE_S=4,JET_AIR_ACCEL=14,JET_CUSHION_FUEL=.02,JET_AIR_REGEN_DELAY_MS=350;
 // air drag on a falling person, ½ρ·Cd·A/m with Cd·A ≈ 0.42 m², 80 kg → terminal velocity ≈ 55 m/s
 const AIR_DRAG_K=.00322;
+const JET_CLIMB_ACC=13.8,JET_MAX_CLIMB_MPS=8;
 const jet={hold:false,fuel:1,burstLeft:0,used:false,groundSince:0,thrusting:false,el:null};
 function jetpackOn(){return globalThis.__arondightWorldOptions?.get?.("jetpack")!==false;}
 function startJet(now){if(!jetpackOn()||jet.fuel<.06||isPlayerDead())return false;jet.burstLeft=JET_BURST_S;jet.used=true;if(jump.vz<0)jump.vz*=.35;window.dispatchEvent(new CustomEvent("arondight:player-jetpack",{detail:{fuel:jet.fuel}}));return true;}
@@ -288,8 +289,11 @@ function update(now,dt,lookDt=dt){
     // fall always brings back more than the landing cushion needs (it regains 0.25 / s, braking a fall costs ~0.18 / s
     // of fall time): you can never strand yourself high up and break your legs
     if(!jump.airborne){jet.used=false;jet.burstLeft=0;if(!jet.groundSince)jet.groundSince=now;if(now-jet.groundSince>400)jet.fuel=Math.min(1,jet.fuel+dt/JET_RECHARGE_S);}else{jet.groundSince=0;if(now-(jet.lastThrustAt||0)>JET_AIR_REGEN_DELAY_MS)jet.fuel=Math.min(1,jet.fuel+dt/JET_RECHARGE_S);}
-    jet.thrusting=false;if(jump.airborne&&jetpackOn()&&jet.fuel>0){const padA=(()=>{const p=globalThis.__arondightPadBlocked?.()?null:gamepad();return p?button(p,0)>.5:false;})(),burst=jet.burstLeft>0||(jet.used&&(jet.hold||padA)),stopDist=jump.vz<0?jump.vz*jump.vz/(2*(JET_ACC-JUMP_G)):0,cushion=jump.vz<-FALL_SAFE_MPS*.8&&jet.fuel>JET_CUSHION_FUEL&&jump.feet-ground<stopDist+.6;if(burst||cushion){jet.thrusting=true;jet.lastThrustAt=now;jet.fuel=Math.max(0,jet.fuel-JET_FUEL_PER_S*dt);if(burst)jet.burstLeft-=dt;}}
-    const thrust=jet.thrusting?JET_ACC:0;jetHud();
+    jet.thrusting=false;if(jump.airborne&&jetpackOn()&&jet.fuel>0){const padA=(()=>{const p=globalThis.__arondightPadBlocked?.()?null:gamepad();return p?button(p,0)>.5:false;})(),burst=jet.burstLeft>0||(jet.used&&(jet.hold||padA)),stopDist=jump.vz<0?jump.vz*jump.vz/(2*(JET_ACC-JUMP_G)):0,cushion=jump.vz<-FALL_SAFE_MPS*.8&&jet.fuel>JET_CUSHION_FUEL&&jump.feet-ground<stopDist+.6;if(burst||cushion){jet.thrusting=true;jet.lastThrustAt=now;
+      // the pilot flies on part throttle: about 1.4 g, eased off so the climb stays under 8 m/s; only the landing
+      // cushion opens it fully (2.1 g). Fuel burns with the thrust actually made.
+      jet.acc=cushion?JET_ACC:Math.max(0,Math.min(JET_CLIMB_ACC,JUMP_G+(JET_MAX_CLIMB_MPS-jump.vz)*3));jet.fuel=Math.max(0,jet.fuel-JET_FUEL_PER_S*dt*jet.acc/JET_ACC);if(burst)jet.burstLeft-=dt;}}
+    const thrust=jet.thrusting?(jet.acc??JET_ACC):0;jetHud();
     if(jump.airborne){const vz0=jump.vz,acc=thrust-JUMP_G-AIR_DRAG_K*vz0*Math.abs(vz0);jump.feet+=vz0*dt+.5*acc*dt*dt;jump.vz=vz0+acc*dt;
       if(jump.feet<=ground&&jump.vz<=0){const impact=Math.sqrt(Math.max(0,vz0*vz0+2*JUMP_G*Math.max(0,prevFeet-ground)));jump.feet=ground;jump.vz=0;jump.airborne=false;cameraMotion.shakeEnergy=Math.min(1,(cameraMotion.shakeEnergy||0)+.12+.05*impact);window.dispatchEvent(new CustomEvent("arondight:player-land",{detail:{impactMps:impact}}));
         if(impact>FALL_SAFE_MPS)playerVitals()?.damage?.(Math.round(100*Math.min(1,(impact-FALL_SAFE_MPS)/(FALL_LETHAL_MPS-FALL_SAFE_MPS))),"fall");}

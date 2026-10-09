@@ -67,6 +67,11 @@ function prompt(from,vid){
   document.body.appendChild(d);const t0=performance.now(),tick=setInterval(()=>{const left=Math.max(0,Math.ceil((VOTE_MS-(performance.now()-t0))/1000));const el=d.querySelector("[data-t]");if(el)el.textContent=String(left);if(!left){done(false);}},250);
   const done=yes=>{clearInterval(tick);d.remove();send({kind:"answer",vid,to:from,yes:Boolean(yes)});};
   d.querySelector("[data-yes]").addEventListener("click",e=>{e.stopPropagation();done(true);});d.querySelector("[data-no]").addEventListener("click",e=>{e.stopPropagation();done(false);});
+  // answerable with everything: the mouse is released from the game, JA has focus (Enter / Ⓐ),
+  // N / Esc / Ⓑ say no, Y says yes (pad_actions.mjs drives the pad side)
+  try{if(document.pointerLockElement)document.exitPointerLock?.();}catch{}d.querySelector("[data-yes]")?.focus({preventScroll:true});
+  const key=e=>{if(!d.isConnected){removeEventListener("keydown",key,true);return;}const k=e.code;if(k==="Enter"||k==="KeyY"||k==="KeyJ"){e.preventDefault();e.stopImmediatePropagation();done(true);}else if(k==="Escape"||k==="KeyN"){e.preventDefault();e.stopImmediatePropagation();done(false);}};addEventListener("keydown",key,true);
+  d.addEventListener("pointerdown",e=>e.stopPropagation());
 }
 function onFx(event){const pk=event?.detail?.packet;if(pk?.objectId!=="reset-vote")return;const from=String(event?.detail?.peerId||pk.playerId||"");
   if(pk.kind==="request"&&from&&from!==selfId())prompt(from,pk.vid);
