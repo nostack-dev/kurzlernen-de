@@ -9,7 +9,7 @@ const page=await browser.newPage();
 
 try{
   for(const viewport of [{width:844,height:390,name:"landscape"},{width:844,height:300,name:"safari-bars"},{width:390,height:844,name:"iphone-portrait"}]){
-    await page.setViewport({width:viewport.width,height:viewport.height,deviceScaleFactor:1});
+    await page.setViewport({width:viewport.width,height:viewport.height,deviceScaleFactor:1,isMobile:true,hasTouch:true}); // phone layouts: touch device (a mouse switches to the desktop layout)
     await page.goto(simulatorUrl,{waitUntil:"load",timeout:30000});
     await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready"),{timeout:30000});
     await page.waitForFunction(()=>document.body.classList.contains("solo-flight"),{timeout:5000});

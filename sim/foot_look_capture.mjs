@@ -42,9 +42,7 @@ export function installFootLookCapture(){
   if(installed)return;installed=true;
   window.addEventListener("pointerdown",event=>{
     if(walk()?.mode!=="foot"||walk()?.dead||pointer!==null||reservedControlAt(event))return;const nextSurface=lookSurface(event.target);if(!nextSurface)return;if(event.pointerType==="mouse"&&event.button!==0)return;syncAim();surface=nextSurface;
-    if(nextSurface==="zone"&&event.pointerType==="mouse"){
-      const v=viewport();if(document.pointerLockElement!==v)try{v?.requestPointerLock?.({unadjustedMovement:true});}catch{try{v?.requestPointerLock?.();}catch{}}if(v)v.dataset.walkAimMouse="pointerlock-v12";consume(event);return;
-    }
+    if(event.pointerType==="mouse")return; // mouse + pointer lock: desktop_controls.mjs
     if(nextSurface==="zone"){
       fireScreen(event.clientX,event.clientY);surface=null;const v=viewport();if(v){v.dataset.walkAimTouch="screen-fire-only-v5";v.dataset.walkTouchOwnership="stick-origin-only+screen-fire-v2";}consume(event);return;
     }
@@ -53,7 +51,7 @@ export function installFootLookCapture(){
     consume(event);
   },{capture:true,passive:false});
   window.addEventListener("pointermove",event=>{
-    if(walk()?.mode!=="foot")return;const v=viewport();if(document.pointerLockElement===v){if(event.movementX||event.movementY){applyDelta(event.movementX,event.movementY,{mouse:true});consume(event);}return;}if(event.pointerId!==pointer)return;if(surface==="stick")updateStick(event);consume(event);
+    if(walk()?.mode!=="foot"||event.pointerId!==pointer)return;if(surface==="stick")updateStick(event);consume(event);
   },{capture:true,passive:false});
   const release=event=>{if(event.pointerId!==pointer)return;hardRelease(event.type);consume(event);};
   window.addEventListener("pointerup",release,{capture:true,passive:false});window.addEventListener("pointercancel",release,{capture:true,passive:false});window.addEventListener("lostpointercapture",event=>{if(event.pointerId===pointer)hardRelease("lostpointercapture");},true);addEventListener("blur",()=>hardRelease("window-blur"),true);addEventListener("pagehide",()=>hardRelease("pagehide"),true);document.addEventListener("visibilitychange",()=>{if(document.hidden)hardRelease("visibility-hidden");},true);

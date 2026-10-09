@@ -843,7 +843,19 @@ addEventListener("gamepadconnected",event=>{if(rememberXboxGamepad(event.gamepad
 addEventListener("gamepaddisconnected",event=>{if(xboxObservedGamepad&&Number(xboxObservedGamepad.index)===Number(event.gamepad?.index))xboxObservedGamepad=null;if(soloMode)pollXboxGamepad(performance.now());});
 addEventListener("focus",()=>{if(soloMode)pollXboxGamepad(performance.now());});
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&soloMode)pollXboxGamepad(performance.now());});
-globalThis.setInterval(()=>{if(soloMode)pollXboxGamepad(performance.now());},16);$("viewport").dataset.gamepadPollLoop="dedicated-60hz-v1";
+// Desktop keyboard + mouse drone input: desktop_controls.mjs writes a sample
+// in the same shape as an Xbox pad (left = move, right = turn/tilt rate,
+// heightAxis = climb/sink); it drives the same assisted flight path.
+let desktopDronePrevious=null;
+function pollDesktopDrone(){
+  const d=globalThis.__arondightDesktopDroneInput,body=document.body,active=Boolean(d?.active)&&soloMode&&!xboxGamepadActive&&globalThis.__arondightOnFootMode!==true&&!body.classList.contains("player-driving")&&!body.classList.contains("jet-mode");
+  if(!active){if(desktopDronePrevious){neutralizeSoloMotion();flightFireFx?.setGamepadFire(false);flightFireFx?.setGamepadAim(false);desktopDronePrevious=null;}return;}
+  applyGameStick(soloControls,"left",d.left,phoneSettings);applyGameStick(soloControls,"right",d.right,phoneSettings);soloHeightAxis=clamp(Number(d.heightAxis)||0,-1,1);
+  flightFireFx?.setGamepadAim(true);if(d.fire||desktopDronePrevious?.fire)flightFireFx?.setGamepadFire(Boolean(d.fire));
+  if(desktopDronePrevious){if(d.arm&&!desktopDronePrevious.arm)toggleSoloArm();if(d.camera&&!desktopDronePrevious.camera)cycleSoloCamera();}
+  desktopDronePrevious={fire:Boolean(d.fire),arm:Boolean(d.arm),camera:Boolean(d.camera)};const v=$("viewport");if(v)v.dataset.controlSourceDesktop="keyboard-mouse-v1";
+}
+globalThis.setInterval(()=>{if(soloMode){const now=performance.now();pollXboxGamepad(now);pollDesktopDrone(now);}},16);$("viewport").dataset.gamepadPollLoop="dedicated-60hz-v1";
 async function enterSolo(){
   soloMode=true;resetPresentationTiming();soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");syncSoloPresentationOrientation();/* touch mapping needs the orientation now, not at the next resize */soloHud.hidden=false;setXboxControlPreference(phoneSettings.xboxControllerEnabled);inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
   try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}
@@ -1200,7 +1212,7 @@ ui.reset.onclick=()=>{stopRun();remoteAutoStarted=false;resetSimulation(mode==="
 ui.logFile.onchange=event=>event.target.files[0]&&loadLog(event.target.files[0]).catch(error=>ui.fitStatus.textContent=error.message);
 ui.fit.onclick=()=>fitPhysics().catch(error=>{ui.fit.disabled=false;ui.fitStatus.textContent=error.message;});
 ui.exportLog.onclick=exportSession;
-addEventListener("keydown",event=>{if(event.code==="Space"&&!event.repeat){localArm=!localArm;ui.touchArm.textContent=`ARM request: ${localArm?"ON":"OFF"}`;event.preventDefault();}keys.add(event.code);});addEventListener("keyup",event=>keys.delete(event.code));ui.touchArm.onclick=()=>{localArm=!localArm;ui.touchArm.textContent=`ARM request: ${localArm?"ON":"OFF"}`;};
+addEventListener("keydown",event=>{if(!soloMode&&event.code==="Space"&&!event.repeat){localArm=!localArm;ui.touchArm.textContent=`ARM request: ${localArm?"ON":"OFF"}`;event.preventDefault();}keys.add(event.code);});addEventListener("keyup",event=>keys.delete(event.code));ui.touchArm.onclick=()=>{localArm=!localArm;ui.touchArm.textContent=`ARM request: ${localArm?"ON":"OFF"}`;};
 function updateRemoteUI(){
   const current=remoteLink.current();ui.controllerLink.href="./drone_controller.html";
   if(inputSource==="local"){ui.remoteStatus.textContent="LOCAL FALLBACK selected. P2P controller input is ignored.";ui.remoteStatus.className="statusline warn";}

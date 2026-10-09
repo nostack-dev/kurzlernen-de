@@ -97,11 +97,12 @@ function patchSelfHitRouting(){
 function applyAimDelta(dx,dy){const w=walk(),v=viewport();if(w?.mode!=="foot"||!v)return false;const yaw=Number(v.dataset.walkYaw)||0,pitch=Number(v.dataset.walkPitch)||0;w.setPose?.({yaw:yaw+Number(dx||0)*AIM_YAW_PER_PX,pitch:clamp(pitch-Number(dy||0)*AIM_PITCH_PER_PX,-FPS_PITCH_LIMIT_RAD,FPS_PITCH_LIMIT_RAD)});v.dataset.walkAimEvents=String((Number(v.dataset.walkAimEvents)||0)+1);return true;}
 function installAim(){
   window.addEventListener("pointerdown",event=>{
-    const v=viewport(),w=walk();if(w?.mode!=="foot"||!v||!gameplayTarget(event.target))return;if(event.pointerType==="mouse"&&event.button!==0)return;
-    if(event.pointerType==="mouse"&&document.pointerLockElement===v){w.fire?.();return;}dragPointer=event.pointerId;lastPointerX=event.clientX;lastPointerY=event.clientY;if(event.pointerType==="mouse"&&v.requestPointerLock)try{v.requestPointerLock();}catch{}
+    // the mouse (pointer lock, look, fire) belongs to desktop_controls.mjs
+    const v=viewport(),w=walk();if(w?.mode!=="foot"||!v||!gameplayTarget(event.target)||event.pointerType==="mouse")return;
+    dragPointer=event.pointerId;lastPointerX=event.clientX;lastPointerY=event.clientY;
   },{capture:true,passive:true});
   window.addEventListener("pointermove",event=>{
-    if(walk()?.mode!=="foot")return;const v=viewport();if(document.pointerLockElement===v){applyAimDelta(event.movementX,event.movementY);return;}if(event.pointerId!==dragPointer)return;const dx=event.clientX-lastPointerX,dy=event.clientY-lastPointerY;lastPointerX=event.clientX;lastPointerY=event.clientY;applyAimDelta(dx,dy);
+    if(walk()?.mode!=="foot"||event.pointerType==="mouse"||event.pointerId!==dragPointer)return;const dx=event.clientX-lastPointerX,dy=event.clientY-lastPointerY;lastPointerX=event.clientX;lastPointerY=event.clientY;applyAimDelta(dx,dy);
   },{capture:true,passive:true});
   const release=event=>{if(event.pointerId===dragPointer)dragPointer=null;};window.addEventListener("pointerup",release,{capture:true,passive:true});window.addEventListener("pointercancel",release,{capture:true,passive:true});window.addEventListener("contextmenu",event=>{if(walk()?.mode==="foot"&&gameplayTarget(event.target))event.preventDefault();},{capture:true});const v=viewport();if(v)v.dataset.walkAimProfile="window-pointerlock+drag-center-v7";
 }
