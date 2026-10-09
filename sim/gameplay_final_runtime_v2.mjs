@@ -4,6 +4,7 @@ import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./a
 import {getSharedCombatAudioContext,playCombatAudio} from "./combat_audio_bank.mjs";
 import {wantedLineBlockedByPrisms} from "./wanted_system_logic.mjs";
 import {groundHeightAt} from "./terrain_craters.mjs";
+import {bulletImpulse} from "./ballistics.mjs";
 
 const IMAGERY_KEY="arondight45WorldImageryV1";
 const FOOT_WEAPON_KEY="arondight45FootWeaponV1";
@@ -225,7 +226,7 @@ function glockShotAt(clientX,clientY,now,hand=0){
     if(!hit){end=origin.clone().addScaledVector(ray.direction,remaining);globalThis.__worldImpacts?.bullet(r,null,{maxDistance:remaining});break;}
     let routed=false;for(let i=0;i<6;i++)routed=routeHit(hit)||routed;
     globalThis.__worldImpacts?.bullet(r,hit,{routed});if(hit.point)globalThis.__worldImpacts?.chips?.(hit.point,ray.direction.clone().negate(),routed?"actor":"building",9,6);
-    if(hit.physicsId)rigid()?.applyImpulse?.(hit.physicsId,[ray.direction.x*40,ray.direction.y*40,ray.direction.z*40],{point:[hit.point.x,hit.point.y,hit.point.z]});
+    if(hit.physicsId)rigid()?.applyImpulse?.(hit.physicsId,bulletImpulse(ray.direction,"9mm"),{point:[hit.point.x,hit.point.y,hit.point.z]});
     end=hit.point?.clone?.()||origin.clone().addScaledVector(ray.direction,Number(hit.distance)||10);
     if(!routed&&!hit.physicsId)break;pierced++;const d=Number(hit.distance)||origin.distanceTo(end);origin=end.clone().addScaledVector(ray.direction,.6);remaining-=d+.6;}
   tracerHand=h;showTracer(start,end||origin);flashWeapon(52,h);
@@ -257,9 +258,11 @@ function populationRoots(scene){const roots=new Map();scene?.traverse?.(node=>{c
 function meshFor(root){let out=null;root?.traverse?.(n=>{if(!out&&n.isMesh)out=n;});return out||root;}
 function applyBlast(event){
   const d=event?.detail||{},p=Array.isArray(d.position)?d.position:null;if(!p||p.length<3)return;if(d.kind==="nuke")return;/* shock-timed nuke damage lives in nuke_destruction.mjs */const center=new THREE.Vector3(Number(p[0])||0,Number(p[1])||0,Number(p[2])||0),radius=clamp(d.radiusM??BLAST_RADIUS_M,2,18),maxDamage=clamp(d.maxDamage??BLAST_MAX_DAMAGE,10,160),sourceId=String(d.id||"");let impulses=0,damaged=0,occluded=0;const runtime=rigid(),engine=runtime?.engine;
-  if(engine?.records)for(const record of engine.records.values()){if(record.id===sourceId)continue;const pose=runtime.pose?.(record.id),q=pose?.position;if(!q)continue;tmp2.set(q[0],q[1],q[2]);const dist=tmp2.distanceTo(center);if(dist>=radius)continue;const exposure=blastExposure(center,tmp2);if(exposure<1)occluded++;const f=blastFalloff(dist,radius)*Math.sqrt(exposure),dir=tmp3.copy(tmp2).sub(center);if(dir.lengthSq()<.001)dir.set(.2,0,1);dir.normalize();const mass=Math.max(.1,Number(record.massKg)||1),dv=(record.drone?6.2:3.1*Math.min(5,Math.max(.5,Math.cbrt(1350/mass))))*f,/* the blast pushes on the body's area (~ mass^2/3): light things (a dog) fly much faster than a car */impulse=[dir.x*mass*dv,dir.y*mass*dv,(dir.z+.32)*mass*dv];if(runtime.applyImpulse?.(record.id,impulse,{point:q}))impulses++;}
-  // ragdolls (Box3D humans) are thrown as well: same area/mass law, a 70 kg body
-  if(engine?.humans)for(const[hid,h]of engine.humans){const b=h.bodies?.[0];if(!b||!engine.b3.b3Body_IsValid(b))continue;const q=engine.b3.b3Body_GetPosition([0,0,0],b);tmp2.set(q[0],q[1],q[2]);const dist=tmp2.distanceTo(center);if(dist>=radius)continue;const f=blastFalloff(dist,radius)*Math.sqrt(blastExposure(center,tmp2)),dir=tmp3.copy(tmp2).sub(center);if(dir.lengthSq()<.001)dir.set(.2,0,1);dir.normalize();const dv=3.1*Math.cbrt(1350/70)*f;if(runtime.pushHuman?.(hid,[dir.x*dv,dir.y*dv,(dir.z+.32)*dv],8*f))impulses++;}
+  // bodies and ragdolls: the blast wave's real impulse (world_rigid_body_physics.blast): pressure ×
+  // exposed area at each body's range, at the loaded side. TNT equivalent from the event, or from
+  // the lethal radius (≈ the 35 kPa ring, r ≈ 5.5·W^(1/3)).
+  {const tntKg=Number.isFinite(Number(d.tntKg))?Number(d.tntKg):Math.pow(Math.max(1,Number(d.radiusM)||BLAST_RADIUS_M)/5.5,3);
+   impulses+=Number(runtime?.blast?.([center.x,center.y,center.z],{tntKg,skipId:sourceId,exposure:(x,y,z)=>{const e=blastExposure(center,tmp2.set(x,y,z));if(e<1)occluded++;return e;}}))||0;}
   const vitals=globalThis.__arondightPlayerVitals;for(const target of vitals?.damageTargets?.()||[]){const q=target.position;if(!q)continue;tmp2.set(Number(q.x)||0,Number(q.y)||0,Number(q.z)||0);const dist=tmp2.distanceTo(center);if(dist>=radius)continue;const exposure=blastExposure(center,tmp2);if(exposure<1)occluded++;const amount=maxDamage*blastFalloff(dist,radius)*exposure;if(amount>2){target.model?.damage?.(amount,`explosion:${d.kind||"world"}`);damaged++;}}
   const wanted=globalThis.__arondightWantedSystem,b=bridge();for(const drone of wanted?.drones||[]){if(!drone?.active||!drone.root)continue;drone.root.getWorldPosition?.(tmp2);const dist=tmp2.distanceTo(center);if(dist>=radius)continue;const exposure=blastExposure(center,tmp2);if(exposure<1)occluded++;const amount=maxDamage*blastFalloff(dist,radius)*exposure,hits=Math.min(3,Math.max(0,Math.round(amount/34)));for(let i=0;i<hits;i++)b?.registerPoliceHit?.({object:drone.hitbox||drone.root,point:tmp2.clone()});if(hits)damaged++;}
   const scene=b?.threeScene;if(scene&&typeof b?.registerWorldPopulationHit==="function")for(const[id,root]of populationRoots(scene)){if(id===sourceId||root.visible===false)continue;root.getWorldPosition(tmp2);const dist=tmp2.distanceTo(center);if(dist>=radius)continue;const exposure=blastExposure(center,tmp2);if(exposure<1)occluded++;const f=blastFalloff(dist,radius)*exposure,kind=String(root.userData?.worldPopulationKind||root.userData?.worldLifeKind||"").replace(/^life-/,"");let hits=kind==="person"?(f>.22?1:0):kind==="bus"?Math.ceil(f*4):kind==="car"?Math.ceil(f*5):f>.7?1:0;hits=Math.min(5,hits);const object=meshFor(root);for(let i=0;i<hits;i++)b.registerWorldPopulationHit({object,point:tmp2.clone()});if(hits)damaged++;}

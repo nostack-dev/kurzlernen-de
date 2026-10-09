@@ -2,6 +2,7 @@ import * as THREE from "three";
 import {Box3dHitscanWorld} from "./box3d_hitscan.mjs";
 import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./audio_settings.mjs";
 import {getSharedCombatAudioContext,playCombatAudio} from "./combat_audio_bank.mjs";
+import {bulletImpulse} from "./ballistics.mjs";
 
 const SHOT_INTERVAL_MS=92;
 const DECAL_POOL_SIZE=32;
@@ -118,7 +119,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     if(sceneHit.box3d){
       if(sceneHit.physicsId&&sceneHit.physicsKind!=="terrain"){
         const dir=raycaster.ray.direction,p=sceneHit.point;
-        globalThis.__arondightWorldRigidBodies?.applyImpulse?.(sceneHit.physicsId,[dir.x*7,dir.y*7,dir.z*7],{point:[p.x,p.y,p.z]});
+        globalThis.__arondightWorldRigidBodies?.applyImpulse?.(sceneHit.physicsId,bulletImpulse(dir,"5.56"),{point:[p.x,p.y,p.z]});
       }
       if(!globalThis.__worldImpacts)addThreeDecal(sceneHit);return false;
     }

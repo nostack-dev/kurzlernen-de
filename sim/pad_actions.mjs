@@ -14,6 +14,7 @@
 //   D-pad ←/→   previous / next weapon                                                  wheel
 //   D-pad ↓     on foot ⇄ drone                                                         key V
 //   D-pad ↑     air strike: aim with the crosshair, A / RT / ↑ calls it                 key 4 / J
+//   B           EMP pulse (on foot, drone)                                              key G
 //
 // The pad also switches the game to pad play on first use (the XBOX CONTROLLER setting, which
 // hides the touch sticks), and blocks gameplay input while a menu is open.
@@ -35,6 +36,7 @@ function cycleWeapon(dir){const m=mode();if(m!=="foot"&&m!=="drone")return;const
 function switchFootDrone(){const m=mode();if(m!=="foot"&&m!=="drone")return;walk()?.setMode?.(m==="foot"?"drone":"foot",{reason:"pad-dpad-down"});}
 function camera(){const m=mode();if(m==="drone")document.getElementById("soloCamera")?.click();else if(m==="car"||m==="jet")sendKey("KeyC");}
 function strike(){const j=globalThis.__fighterJets;if(!j)return;if(j.targeting)j.confirm?.();else j.target?.(true);}
+function emp(){const w=globalThis.__arondightWantedSystem;if(w?.triggerEmp)w.triggerEmp();else document.getElementById("wantedEmpButton")?.click();}
 function respawn(){const hud=document.getElementById("vsRespawnHud");if(hud&&!hud.hidden){hud.querySelector("button")?.click();return;}globalThis.__arondightRequestReset?.();}
 function enablePadPlay(){if(autoEnabled)return;autoEnabled=true;const box=document.querySelector("[data-xbox-controller]");if(box&&!box.checked){box.click();}}
 // title screen: D-pad / stick moves between START, WORLD and the world switches, A presses, B backs out
@@ -61,12 +63,15 @@ function frame(){
     if(edge(BTN.VIEW))camera();
     if(edge(BTN.X))sendKey("KeyE");
     if(m==="foot"||m==="drone"){if(edge(BTN.Y)||edge(BTN.RIGHT))cycleWeapon(1);else if(edge(BTN.LEFT))cycleWeapon(-1);}
+    if((m==="foot"||m==="drone")&&edge(BTN.B))emp();
   }finally{prev=now;}
 }
 function onKey(e){
   if(e.__synthetic||e.metaKey||e.ctrlKey||e.altKey||e.repeat)return;const t=e.target;if(t instanceof Element&&t.closest("input,textarea,select,[contenteditable]"))return;
   // F = E (interact), as in most shooters
   if(e.code==="KeyF"&&!document.querySelector("#zombieRepair:not([hidden])")){e.preventDefault();sendKey("KeyE");return;}
+  // G = EMP (the police-drone pulse), like a tactical in shooters
+  if(e.code==="KeyG"){if(menuOpen()||startScreen()||dead())return;e.preventDefault();emp();return;}
   if(e.code==="Digit4"){if(menuOpen()||startScreen()||dead())return;e.preventDefault();strike();}
 }
 // Where am I? A pad user always sees the focused control, the start button says Ⓐ.

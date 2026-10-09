@@ -73,6 +73,24 @@ export class WorldRigidBodyPhysics{
   removeHuman(id){const h=this.humans?.get(String(id||""));if(!h)return false;destroyBox3dHuman(this.b3,h);this.humans.delete(String(id));return true;}
   // a blast / hit: the same velocity change for every bone (spread over its mass), plus spin
   pushHuman(id,dv=[0,0,0],spin=0){const h=this.human(id);if(!h||!finiteVector(dv))return false;for(const b of h.bodies){if(!this.b3.b3Body_IsValid(b))continue;const v=this.b3.b3Body_GetLinearVelocity([0,0,0],b);this.b3.b3Body_SetLinearVelocity(b,[v[0]+dv[0],v[1]+dv[1],v[2]+dv[2]]);this.b3.b3Body_SetAwake?.(b,true);}if(spin&&h.bodies[1])this.b3.b3Body_ApplyAngularImpulse(h.bodies[1],[(Math.random()-.5)*spin,(Math.random()-.5)*spin,(Math.random()-.5)*spin],true);return true;}
+  // Blast loading from first principles. A charge of W kg TNT-equivalent delivers a side-on
+  // positive-phase specific impulse i_s ≈ 250·W^(2/3)/r Pa·s (Kingery-Bulmash far field, surface
+  // burst); a face turned to the blast takes the reflected ≈ 2·i_s. The impulse on a body is that
+  // pressure-time integral times the area it shows to the blast, applied where the wave hits it:
+  //   rigid bodies: mean projected area of their box (Cauchy: surface/4), at the point of the
+  //                 body nearest to the charge (a ground burst loads the low side → it tips);
+  //   ragdolls:     each bone gets its share of a 0.7 m² silhouette (by mass), at its own range,
+  //                 so near bones get more and the body tumbles through its joints.
+  // exposure(x,y,z) → 0..1 (buildings shadow the wave). Returns the number of bodies pushed.
+  blast(center,{tntKg=1,exposure=null,skipId=""}={}){const W=Math.max(.001,Number(tntKg)||1),w3=Math.cbrt(W),w23=w3*w3,rMin=.5*w3,iAt=r=>250*w23/Math.max(rMin,r),reach=60*w3;let pushed=0;const c=center;
+    for(const record of this.records.values()){if(record.id===skipId||!this.b3.b3Body_IsValid(record.body))continue;const p=this.b3.b3Body_GetPosition([0,0,0],record.body),h=record.halfExtents||[.5,.5,.5],q=[Math.min(p[0]+h[0],Math.max(p[0]-h[0],c[0])),Math.min(p[1]+h[1],Math.max(p[1]-h[1],c[1])),Math.min(p[2]+h[2],Math.max(p[2]-h[2],c[2]))];
+      let dx=q[0]-c[0],dy=q[1]-c[1],dz=q[2]-c[2],r=Math.hypot(dx,dy,dz);if(r>reach)continue;if(r<1e-3){dx=p[0]-c[0];dy=p[1]-c[1];dz=p[2]-c[2]+.01;r=Math.hypot(dx,dy,dz)||1;}
+      const e=exposure?Math.max(0,Math.min(1,exposure(p[0],p[1],p[2]))):1;if(e<=0)continue;const a=2*h[0],b=2*h[1],cc=2*h[2],area=(a*b+b*cc+cc*a)/2,J=2*iAt(r)*area*e,k=J/Math.max(1e-6,Math.hypot(dx,dy,dz));
+      if(J<.05)continue;if(this.applyImpulse(record.id,[dx*k,dy*k,dz*k],{point:q}))pushed++;if(this.b3.b3Body_IsValid(record.body))this.b3.b3Body_SetAwake?.(record.body,true);}
+    for(const[,h]of this.humans||[]){let M=0;for(const b of h.bodies)if(this.b3.b3Body_IsValid(b))M+=this.b3.b3Body_GetMass(b);if(M<=0)continue;let any=false;
+      for(const b of h.bodies){if(!this.b3.b3Body_IsValid(b))continue;const p=this.b3.b3Body_GetPosition([0,0,0],b);let dx=p[0]-c[0],dy=p[1]-c[1],dz=p[2]-c[2];const r=Math.hypot(dx,dy,dz)||1e-3;if(r>reach)continue;const e=exposure?Math.max(0,Math.min(1,exposure(p[0],p[1],p[2]))):1;if(e<=0)continue;
+        const J=2*iAt(r)*.7*(this.b3.b3Body_GetMass(b)/M)*e;if(J<.02)continue;const k=J/r;this.b3.b3Body_ApplyLinearImpulseToCenter(b,[dx*k,dy*k,dz*k],true);any=true;}if(any)pushed++;}
+    return pushed;}
   setController(id,fn){const record=this.records.get(String(id||""));if(!record)return false;record.controller=typeof fn==="function"?fn:null;return true;}
   setForces(id,{force=null,torque=null}={}){const record=this.records.get(String(id||""));if(!record)return false;record.extForce=finiteVector(force)?[...force]:null;record.extTorque=finiteVector(torque)?[...torque]:null;if(this.b3.b3Body_IsValid(record.body))this.b3.b3Body_SetAwake?.(record.body,true);return true;}
   applyImpulse(id,impulse,{point=null}={}){const record=this.records.get(String(id||""));if(!record||!finiteVector(impulse))return false;const bounded=limitedVector(impulse,record.massKg*60);/* at most a 60 m/s kick in one go (a nuke front): blasts must be able to throw light bodies */for(let index=0;index<3;index++)record.pendingImpulse[index]+=bounded[index];record.impulsePoint=finiteVector(point)?[...point]:null;return true;}

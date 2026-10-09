@@ -12,6 +12,7 @@ import {buildTrafficRoute,collectRenderedDrivableRoads,makeBuildingsOpaque} from
 import {syncWorldBuildingDepthOcclusion} from "./world_building_depth_occlusion.mjs";
 import {createPedestrianNetwork,seedRouteAgents,stepAgent,routePointInto,projectOnRoute,agentRandom,shiftAgent,frighten} from "./pedestrian_agents.mjs";
 import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
+import {projectileMomentumNs} from "./ballistics.mjs";
 
 const MOBILE=/(?:android|iphone|ipad|ipod|macintosh.*mobile)/i.test(globalThis.navigator?.userAgent||"");
 const CAR_COUNT=MOBILE?28:42;
@@ -270,9 +271,8 @@ globalThis.__ambientAnimals={
     if(i<0||!animalPose[i]||animalDead[i])return false;
     const a=animalPhys[i],len=Math.hypot(...direction)||1;
     if(speciesOf(i)==="black-cat"&&!directlyShotBlackCat(i,{origin,point,direction}))return false;
-    // A configurable gameplay impulse in N*s; mass scaling keeps dogs and cats responsive without teleporting.
-    const impulseNs=Math.min(48,Math.max(9,a.mass*2.8))*Math.max(.2,Math.min(2,Number(strength)||1));
-    const dir=[direction[0]/len,direction[1]/len,direction[2]/len+.27];
+    // the bullet's real momentum, at the hit point, along its path (ballistics.mjs); strength = rounds
+    const impulseNs=projectileMomentumNs("9mm")*Math.max(1,Math.min(4,Number(strength)||1)),dir=[direction[0]/len,direction[1]/len,direction[2]/len];
     rigidBodies()?.applyImpulse?.(a.id,dir.map(x=>x*impulseNs),{point:Array.isArray(point)&&point.length===3?point:null});
     return killAnimal(i,{directShot:true});
   }

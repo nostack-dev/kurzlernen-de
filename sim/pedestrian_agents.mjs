@@ -95,7 +95,7 @@ function detach(a,net,now){const L=a.leader;a.leader=null;const route=net.get(L?
 export function stepAgent(a,dt,now,net){
   if(dt<=0)return;
   // frightened (a shot, a blast): run away from it, then calm down and find the way again
-  if(a.fleeUntil){if(now<a.fleeUntil){a.v+=clamp(a.fleeSpeed-a.v,-4*dt,4*dt);a.x+=a.fleeX*a.v*dt;a.y+=a.fleeY*a.v*dt;turn(a,Math.atan2(a.fleeY,a.fleeX),dt*2);a.state="flee";return;}
+  if(a.fleeUntil){if(now<a.fleeUntil){a.v+=clamp(a.fleeSpeed-a.v,-3*dt,2.2*dt);a.x+=a.fleeX*a.v*dt;a.y+=a.fleeY*a.v*dt;turn(a,Math.atan2(a.fleeY,a.fleeX),dt*2);a.state="flee";return;}
     a.fleeUntil=0;a.crossing=false;const L=a.leader;a.leader=null;if(L&&L.alive&&!L.removed){a.leader=L;a.state=L.state;return;}const route=net.get(a.route)||net.get(a.home);if(route){projectOnRoute(route,a.x,a.y,J);a.route=route.key;a.s=J.s;a.side=J.lateral>=0?1:-1;}a.legs.length=0;a.state="wait";a.waitUntil=now+800+agentRandom(a)*1500;return;}
   if(a.leader){const L=a.leader;if(!L.alive||L.removed||L.knocked){detach(a,net,now);return;}
     // companions walk beside / behind their leader, on their own legs (bounded pace, no snapping),
@@ -145,6 +145,6 @@ export function makeAgent(id,seed,route,s){
   routePointInto(route,a.s,a.side*a.off,P);a.x=P.x;a.y=P.y;a.yaw=Math.atan2(P.ty,P.tx)+(seed&2?Math.PI:0);a.waitUntil=0;return a;
 }
 // something frightening happened at (x,y): run away from it for a few seconds
-export function frighten(a,x,y,now,{ms=5600,strength=1}={}){let dx=a.x-x,dy=a.y-y,d=Math.hypot(dx,dy);if(d<.3){const t=agentRandom(a)*Math.PI*2;dx=Math.cos(t);dy=Math.sin(t);d=1;}a.fleeX=dx/d;a.fleeY=dy/d;a.fleeSpeed=Math.min(4.2,a.speed+1.8+.8*strength);a.fleeUntil=now+ms*(.8+.4*agentRandom(a));}
+export function frighten(a,x,y,now,{ms=5600,strength=1}={}){let dx=a.x-x,dy=a.y-y,d=Math.hypot(dx,dy);if(d<.3){const t=agentRandom(a)*Math.PI*2;dx=Math.cos(t);dy=Math.sin(t);d=1;}a.fleeX=dx/d;a.fleeY=dy/d;a.fleeSpeed=Math.min(3.3,a.speed+1.1+.5*strength); /* an everyday person running away: 2.5-3.3 m/s, not a sprinter */a.fleeUntil=now+ms*(.8+.4*agentRandom(a));}
 // re-place an agent whose origin frame moved (all coordinates shift together)
 export function shiftAgent(a,dx,dy){a.x+=dx;a.y+=dy;if(a.dest){a.dest.x+=dx;a.dest.y+=dy;}}

@@ -32,6 +32,7 @@ function createHuman(id,opts){return ensureEngine()?.createHuman?.(String(id||""
 function human(id){return ensureEngine()?.human?.(id)||null;}
 function removeHuman(id){return ensureEngine()?.removeHuman?.(id)??false;}
 function pushHuman(id,dv,spin){return ensureEngine()?.pushHuman?.(id,dv,spin)??false;}
+function blast(center,options){return ensureEngine()?.blast?.(center,options)??0;}
 function setController(id,fn){const key=String(id||""),config=pendingBodies.get(key);if(config)pendingBodies.set(key,{...config,controller:typeof fn==="function"?fn:null});return ensureEngine()?.setController?.(key,fn)??Boolean(config);}
 function applyImpulse(id,impulse,options){return ensureEngine()?.applyImpulse(String(id||""),impulse,options)??false;}
 function pose(id,out=null){return ensureEngine()?.pose(String(id||""),out)||null;}
@@ -45,6 +46,6 @@ function frame(now=performance.now()){
 onTerrainChange((_craters,regions)=>{try{engine?.rebuildTerrain?.(regions??null);}catch(error){console.warn("rigid terrain",error);}});
 export // every registered body (id, kind, half extents, mass) — e.g. vehicle-vs-pedestrian checks
 function bodies(){const current=ensureEngine();const out=[];for(const b of pendingBodies.values())if(!current||current.records.has(b.id))out.push(b);return out;}
-const worldRigidBodyRuntime=Object.freeze({bodies,setForces,setController,setFriction,createHuman,human,removeHuman,pushHuman,upsertBody,setTarget,setDrive,clearTarget,setPose,setGravityScale,removeBody,applyImpulse,pose,raycast,get ready(){return Boolean(ensureEngine());},get engine(){return ensureEngine();}});
+const worldRigidBodyRuntime=Object.freeze({blast,bodies,setForces,setController,setFriction,createHuman,human,removeHuman,pushHuman,upsertBody,setTarget,setDrive,clearTarget,setPose,setGravityScale,removeBody,applyImpulse,pose,raycast,get ready(){return Boolean(ensureEngine());},get engine(){return ensureEngine();}});
 globalThis.__arondightWorldRigidBodies=worldRigidBodyRuntime;
 requestAnimationFrame(frame);

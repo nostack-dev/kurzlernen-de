@@ -147,7 +147,7 @@ function tick(){
 
 let hintEl=null,playEl=null,lastHint="";
 const HINTS={
-  foot:"WASD move · SHIFT sprint · SPACE jump (2× jetpack) · LMB fire · 1-3 / Q / WHEEL weapon · F vehicle · V drone · 4 strike · ESC menu",
+  foot:"WASD move · SHIFT sprint · SPACE jump (2× jetpack) · LMB fire · 1-3 / Q / WHEEL weapon · F vehicle · V drone · 4 strike · G EMP · ESC menu",
   drone:"WASD fly · SPACE / SHIFT up / down · MOUSE turn · RMB look · LMB fire · R arm · C camera · 1-3 / Q weapon · V on foot · ESC menu",
   car:"W / S gas / brake · A / D steer · SPACE handbrake · MOUSE look · C camera · F exit · ESC menu",
   jet:"W / S throttle · A / D rudder · MOUSE pitch / roll · LMB / SPACE gun · R rocket · B bomb · V hover / flight · C camera · F exit / eject · ESC menu",
@@ -163,7 +163,7 @@ body.desktop-input #vehicleCamButton,body.desktop-input #footWeaponToggle,body.d
 body.desktop-input #mobileGameplayDock button::after{display:inline-block;margin-left:6px;padding:1px 4px;border:1px solid #ffffff55;border-radius:3px;font:800 9px/1.2 system-ui,sans-serif;letter-spacing:.04em;opacity:.8}
 html body.desktop-input.mobile-gameplay-compact.solo-flight #mobileGameplayDock{width:min(calc(100% - 300px),470px)}
 /* the STRIKE button stays visible with its key / pad button, so the strike is easy to find */
-html body.desktop-input #airStrikeButton{position:relative}html body.desktop-input #airStrikeButton::after,html body.pad-input #airStrikeButton::after{position:absolute;right:-6px;top:-6px;padding:1px 5px;border-radius:4px;background:#000c;border:1px solid #ffffff66;color:#fff;font:800 10px/1.2 system-ui,sans-serif}html body.desktop-input:not(.pad-input) #airStrikeButton::after{content:"4"}html body.pad-input #airStrikeButton::after{content:"D-PAD ⬆"}
+html body.desktop-input #airStrikeButton{position:relative}html body.desktop-input #airStrikeButton::after,html body.pad-input #airStrikeButton::after{position:absolute;right:-6px;top:-6px;padding:1px 5px;border-radius:4px;background:#000c;border:1px solid #ffffff66;color:#fff;font:800 10px/1.2 system-ui,sans-serif}html body.desktop-input:not(.pad-input) #airStrikeButton::after{content:"4"}html body.desktop-input #wantedEmpButton{position:relative}html body.desktop-input:not(.pad-input) #wantedEmpButton::after,html body.pad-input #wantedEmpButton::after{position:absolute;right:-6px;top:-6px;padding:1px 5px;border-radius:4px;background:#000c;border:1px solid #ffffff66;color:#fff;font:800 10px/1.2 system-ui,sans-serif}html body.desktop-input:not(.pad-input) #wantedEmpButton::after{content:"G"}html body.pad-input #wantedEmpButton::after{content:"B"}html body.pad-input #airStrikeButton::after{content:"D-PAD ⬆"}
 /* the last used device owns the help line: keys or pad */
 html body.pad-input #desktopKeyHints{display:none!important}
 /* pad: the dock shows the pad buttons instead of keys */
