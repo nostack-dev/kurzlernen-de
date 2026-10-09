@@ -99,13 +99,29 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   function immediateHit(ray){
     ensurePeerCombatScale();scene.updateMatrixWorld(true);refreshCandidates(performance.now(),true);intersections.length=0;raycaster.intersectObjects(candidates,false,intersections);
     const sceneHit=intersections[0]||null;
-    const staticRaw=worldBridge?.active?box3dHitscan.cast([ray.origin.x,ray.origin.y,ray.origin.z],[ray.direction.x,ray.direction.y,ray.direction.z],MAX_HITSCAN_M,worldBridge?.buildingCollisionSnapshot):null;
-    const staticHit=staticRaw?{distance:staticRaw.distanceM,point:worldPoint.set(...staticRaw.point),worldNormal:worldNormal.set(...staticRaw.normal),box3d:true}:null;
-    if(staticHit&&(!sceneHit||staticHit.distance<sceneHit.distance))return staticHit;
-    return sceneHit;
+    const runtime=globalThis.__arondightWorldRigidBodies;
+    const body=runtime?.raycast?.([ray.origin.x,ray.origin.y,ray.origin.z],[ray.direction.x,ray.direction.y,ray.direction.z],MAX_HITSCAN_M);
+    const dynamicHit=body?.point?{distance:body.distanceM,point:new THREE.Vector3(...body.point),worldNormal:new THREE.Vector3(...(body.normal||[0,0,1])),box3d:true,physicsId:body.id,physicsKind:body.kind,physics:true}:null;
+    // Fallback only if no shared Box3D world is available; avoids a second full static-world query.
+    const staticRaw=!runtime?.ready&&worldBridge?.active?box3dHitscan.cast([ray.origin.x,ray.origin.y,ray.origin.z],[ray.direction.x,ray.direction.y,ray.direction.z],MAX_HITSCAN_M,worldBridge?.buildingCollisionSnapshot):null;
+    const staticHit=staticRaw?{distance:staticRaw.distanceM,point:new THREE.Vector3(...staticRaw.point),worldNormal:new THREE.Vector3(...staticRaw.normal),box3d:true}:null;
+    const physicalHit=dynamicHit&&(!staticHit||dynamicHit.distance<staticHit.distance)?dynamicHit:staticHit;
+    return physicalHit&&(!sceneHit||physicalHit.distance<sceneHit.distance)?physicalHit:sceneHit;
   }
   function routeHit(sceneHit){
-    if(!sceneHit)return false;if(sceneHit.box3d){if(!globalThis.__worldImpacts)addThreeDecal(sceneHit);return false;}
+    if(!sceneHit)return false;
+    if(sceneHit.physicsKind==="animal"&&sceneHit.physicsId){
+      const dir=raycaster.ray.direction,p=sceneHit.point;
+      const hit=globalThis.__ambientAnimals?.hit?.({id:sceneHit.physicsId,point:[p.x,p.y,p.z],direction:[dir.x,dir.y,dir.z],strength:1});
+      if(hit){viewport.dataset.fireAnimalHits=String((Number(viewport.dataset.fireAnimalHits)||0)+1);hitConfirmSound();return true;}
+    }
+    if(sceneHit.box3d){
+      if(sceneHit.physicsId&&sceneHit.physicsKind!=="terrain"){
+        const dir=raycaster.ray.direction,p=sceneHit.point;
+        globalThis.__arondightWorldRigidBodies?.applyImpulse?.(sceneHit.physicsId,[dir.x*7,dir.y*7,dir.z*7],{point:[p.x,p.y,p.z]});
+      }
+      if(!globalThis.__worldImpacts)addThreeDecal(sceneHit);return false;
+    }
     const police=Boolean(worldBridge?.registerPoliceHit?.(sceneHit));
     const population=!police&&Boolean(worldBridge?.registerWorldPopulationHit?.(sceneHit));
     const vsHit=!police&&!population&&Boolean(worldBridge?.registerVsHit?.(sceneHit));
