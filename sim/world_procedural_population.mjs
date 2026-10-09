@@ -565,9 +565,11 @@ export function installWorldProceduralPopulation(){if(installed)return;installed
     // a hit that is not (yet) fatal: the person goes down as a ragdoll and gets up again
     knockdown(id,options={}){const a=byId.get(String(id||""));return a?.kind==="person"?knockPerson(a,options):null;},
     // a fist (player melee): hurts, angers, and three or four of them put a person down (ragdoll)
-    punch(id,{dir=[0,0,0],damage=22}={}){const a=byId.get(String(id||""));if(a?.kind!=="person"||!a.alive||a.knocked)return null;a.hp=(Number.isFinite(a.hp)?a.hp:100)-damage;const now=performance.now();
-      if(a.hp<=0){killPerson(a,{network:true,impulse:[dir[0]*1.6,dir[1]*1.6,.8]});return"dead";}
-      if(a.hp<=35){knockPerson(a,{impulse:[dir[0]*1.8,dir[1]*1.8,.9],damage:0});return"down";}provoke(a,now,{punched:true});say(a,"angry");return"hit";},
+    punch(id,{dir=[0,0,0],damage=22,momentumNs=30}={}){const a=byId.get(String(id||""));if(a?.kind!=="person"||!a.alive||a.knocked)return null;a.hp=(Number.isFinite(a.hp)?a.hp:100)-damage;const now=performance.now(),k=Math.max(.5,momentumNs/30),hd=Math.hypot(dir[0],dir[1])||1;
+      if(a.hp<=0){killPerson(a,{network:true,impulse:[dir[0]/hd*1.8*k,dir[1]/hd*1.8*k,.8]});return"dead";}
+      if(a.hp<=35){knockPerson(a,{impulse:[dir[0]/hd*2*k,dir[1]/hd*2*k,.9],damage:0});return"down";}
+      // the punch lands with its momentum: a ~75 kg person rocks back a step (staggers)
+      const step=Math.min(.6,.22*k);a.x+=dir[0]/hd*step;a.y+=dir[1]/hd*step;a.v=0;provoke(a,now,{punched:true});say(a,"angry");return"hit";},
     // every pedestrian with its destination (diagnostics / tests)
     agents(){return people.filter(a=>a.alive).map(a=>({id:a.id,x:a.x,y:a.y,yaw:a.yaw,state:a.state,trip:a.trip,dest:a.dest?{x:a.dest.x,y:a.dest.y}:null,remaining:remainingWay(a.leader||a),route:a.route,home:a.home,shown:Boolean(a.slot?.group.visible),bound:Boolean(a.slot),knocked:Boolean(a.knocked),held:Boolean(a.slot?.group.userData.spawnHeld),companion:Boolean(a.leader),speed:a.v}));},
     // the drawn object of a record (shots resolve a Box3D body id to what the player sees)

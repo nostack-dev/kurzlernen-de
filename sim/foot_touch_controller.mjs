@@ -69,8 +69,9 @@ function fireHands(){return[...pointers.values()].filter(e=>e.kind==="fire").map
 // the right pistol — each finger aims and fires its own gun, alone,
 // alternating or both at once.
 function screenSide(x,y){const v=viewport(),r=v?.getBoundingClientRect();if(!r)return 0;const rotated=v.dataset.soloOrientation==="css-landscape",lx=rotated?y-r.top:x-r.left,w=rotated?r.height:r.width;return lx<w/2?1:0;}
-function chooseFireHand(){return 0;}// one Glock: always the right hand
-void screenSide;
+// one Glock: always the right hand. Fists: the half of the screen picks the hand — left thumb
+// throws the left, right thumb the right; both thumbs box independently (multitouch).
+function chooseFireHand(x,y){return String(weapons()?.mode||"")==="fists"?screenSide(x,y):0;}
 
 function claim(event){event.preventDefault();event.stopImmediatePropagation();}
 // EMP works in every mode and wins over any overlay or later handler: if the
