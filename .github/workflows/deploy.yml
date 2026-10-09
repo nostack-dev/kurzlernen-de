@@ -142,6 +142,8 @@ jobs:
           test "$(wc -c < drone_simulator.html)" -gt 100000
           grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" drone_simulator.html
           grep -q "foot-pistol-fresh-v1" drone_simulator.html
+          printf '{"sha":"%s"}\n' "$GITHUB_SHA" > build.json
+          grep -q "$GITHUB_SHA" build.json
           rm -rf generated
 
       - name: Build ORCL minute feed

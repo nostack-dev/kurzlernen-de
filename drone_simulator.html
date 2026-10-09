@@ -62,25 +62,42 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   </div>
 </div>
 <script>
-// Strict versioning for the installed app: the deployed page carries its
-// build SHA (first comment of the document). We compare it with the live
-// page fetched with no-store on start, on every return to the app and every
-// minute. A newer build reloads right away in the menu / on resume, or at
-// the next menu visit / app switch while a flight is running.
+// Strict versioning for the installed app (home screen). The deployed page carries its build
+// SHA (first comment of the document); every deploy also publishes ./build.json with the same
+// SHA. We ask for build.json with no-store + a unique query (no CDN, no HTTP cache, no service
+// worker cache can answer) on start, on every return to the app (visibility, focus, pageshow,
+// back online) and every 30 s. A newer build:
+//  * in the menu or on resume → reload right away,
+//  * mid-game → a NEW VERSION pill (tap = update now); it also updates on the next menu visit
+//    or app switch.
+// Before reloading, the service worker is told to update, every Cache Storage entry is dropped,
+// and the reload URL carries the new SHA so nothing on the way can serve the old page.
 (function(){
   var first=document.firstChild,m=first&&first.nodeType===8&&/BUILD_SHA:([0-9a-f]{7,40})/.exec(first.nodeValue||""),mine=m&&m[1];if(!mine)return;
-  var pending=null,menu=function(){return document.getElementById("gameMenu");};
-  function fresh(sha){var u=new URL(location.href);u.searchParams.set("v",sha.slice(0,12));location.replace(u.toString());}
+  var pending=null,reloading=false,lastCheck=0,pill=null;
+  function menu(){return document.getElementById("gameMenu");}
   function inMenu(){var el=menu();return !el||!el.hidden;}
-  function check(reason){
-    fetch(location.pathname+"?vcheck="+Date.now(),{cache:"no-store",credentials:"same-origin"}).then(function(r){return r.ok?r.text():"";}).then(function(t){
-      var n=/BUILD_SHA:([0-9a-f]{7,40})/.exec(t.slice(0,300));if(!n||n[1]===mine)return;pending=n[1];
-      if(inMenu()||reason==="resume"||reason==="load")fresh(pending);
-    }).catch(function(){});
-  }
-  document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"){if(pending)fresh(pending);else check("resume");}});
-  window.addEventListener("pageshow",function(e){if(e.persisted)check("resume");});
-  setInterval(function(){if(pending&&inMenu())fresh(pending);else check("interval");},60000);
+  function purge(){var jobs=[];try{if(window.caches&&caches.keys)jobs.push(caches.keys().then(function(k){return Promise.all(k.map(function(n){return caches.delete(n);}));}));}catch(e){}
+    try{if(navigator.serviceWorker&&navigator.serviceWorker.getRegistrations)jobs.push(navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.update().catch(function(){});}));}));}catch(e){}
+    return Promise.race([Promise.all(jobs),new Promise(function(r){setTimeout(r,1500);})]);}
+  function fresh(sha){if(reloading)return;
+    // loop guard: if the CDN still hands out the old page after two reloads for this SHA, wait for a tap
+    var key="rushUpdateTries:"+sha,tries=0;try{tries=+sessionStorage.getItem(key)||0;sessionStorage.setItem(key,String(tries+1));}catch(e){}
+    if(tries>=2){showPill();return;}
+    reloading=true;purge().then(function(){var u=new URL(location.href);u.searchParams.set("v",sha.slice(0,12));location.replace(u.toString());});}
+  function showPill(){if(pill||!document.body)return;pill=document.createElement("button");pill.type="button";pill.id="appUpdatePill";pill.textContent="NEW VERSION · TAP TO UPDATE";
+    pill.style.cssText="position:fixed;z-index:2147483000;left:50%;top:max(8px,env(safe-area-inset-top));transform:translateX(-50%);padding:9px 16px;border-radius:20px;border:2px solid #7ff0c5;background:#0d1118e6;color:#eafff7;font:800 12px/1 system-ui,sans-serif;letter-spacing:.08em;cursor:pointer";
+    pill.addEventListener("pointerdown",function(e){e.stopPropagation();},true);pill.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();if(!pending)return;try{sessionStorage.removeItem("rushUpdateTries:"+pending);}catch(_){}fresh(pending);});document.body.appendChild(pill);}
+  function seen(sha,reason){if(!sha||sha===mine)return;pending=sha;if(inMenu()||reason==="resume"||reason==="load")fresh(sha);else showPill();}
+  function viaPage(reason){return fetch(location.pathname+"?vcheck="+Date.now(),{cache:"no-store",credentials:"same-origin"}).then(function(r){return r.ok?r.text():"";}).then(function(t){var n=/BUILD_SHA:([0-9a-f]{7,40})/.exec(t.slice(0,300));if(n)seen(n[1],reason);});}
+  function check(reason){var now=Date.now();if(reason!=="load"&&reason!=="resume"&&now-lastCheck<10000)return;lastCheck=now;
+    fetch("./build.json?t="+now,{cache:"no-store",credentials:"same-origin"}).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(j){seen(String(j&&j.sha||""),reason);}).catch(function(){viaPage(reason).catch(function(){});});}
+  function resume(){if(pending)fresh(pending);else check("resume");}
+  document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible")resume();});
+  window.addEventListener("pageshow",function(e){if(e.persisted)resume();});
+  window.addEventListener("focus",function(){check("focus");});
+  window.addEventListener("online",function(){check("resume");});
+  setInterval(function(){if(pending&&inMenu())fresh(pending);else check("interval");},30000);
   check("load");
 })();
 </script>
@@ -111,7 +128,7 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   var btn=document.getElementById("installApp"),hint=document.getElementById("installHint"),menu=document.getElementById("gameMenu"),deferred=null;
   var standalone=window.matchMedia("(display-mode: standalone)").matches||window.matchMedia("(display-mode: fullscreen)").matches||navigator.standalone===true;
   var ios=/iphone|ipad|ipod/i.test(navigator.userAgent)||(/macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
-  if("serviceWorker" in navigator)navigator.serviceWorker.register("./oppenheimer-sw.js",{scope:"./drone_simulator.html"}).catch(function(){});
+  if("serviceWorker" in navigator)navigator.serviceWorker.register("./oppenheimer-sw.js",{scope:"./drone_simulator.html",updateViaCache:"none"}).catch(function(){});
   function sync(){btn.hidden=standalone||!menu||menu.hidden||!(deferred||ios);if(btn.hidden)hint.hidden=true;setTimeout(sync,500);}
   window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferred=e;});
   window.addEventListener("appinstalled",function(){standalone=true;deferred=null;});
