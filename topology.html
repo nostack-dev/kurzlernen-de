@@ -98,7 +98,7 @@ textarea{width:100%;box-sizing:border-box;height:110px;font:11px var(--mono);bac
 <div class="app">
   <div class="top">
     <h1>Umriss-Motor</h1>
-    <p class="sub">Box3D-Maschine findet ihre Form: Runde simulieren, Spur messen, umbauen.</p>
+    <p class="sub">Bewegung + Takt + Toleranz rein – kleinste Zahnradmaschine mit einem Motor raus: in Box3D gemessen, baubar, per Foto kalibriert.</p>
     <div class="modes">
       <button id="dG" class="tog" aria-pressed="false" title="Ein Motor, ganzzahlige Zahnräder und Riemen – in 2D und 3D">Getriebe</button>
       <div class="seg" role="group" aria-label="Dimension">
@@ -112,7 +112,7 @@ textarea{width:100%;box-sizing:border-box;height:110px;font:11px var(--mono);bac
       <canvas id="cv"></canvas>
       <canvas id="gl" hidden></canvas>
       <div class="hud">
-        <div class="big">Fehler = <b id="hErr">–</b></div>
+        <div class="big"><span id="hErrL">Fehler</span> = <b id="hErr">–</b></div>
         <div class="small"><span id="hArms">0</span> Kreise · Iteration <span id="hIt">0</span> · <span id="hEvals">0</span> Sim.</div>
         <div class="small" id="hState">startet …</div>
         <div class="small" id="hPrec"></div>
@@ -128,6 +128,14 @@ textarea{width:100%;box-sizing:border-box;height:110px;font:11px var(--mono);bac
         <summary>Ziel</summary>
         <div class="gbody">
           <div id="in2d" class="gbody">
+            <div id="taskRow" class="gbody" hidden>
+              <div class="row">
+                <button id="kLeg">Laufbein</button>
+                <button id="kBead">Kleberaupe</button>
+                <span class="file">Bahn laden<input type="file" id="fPath" accept=".svg,.csv,.txt,image/svg+xml,text/csv"></span>
+              </div>
+              <label class="sl">Toleranz <select id="kTol"><option value="0.25">± 0,25 mm</option><option value="0.5" selected>± 0,5 mm</option><option value="1">± 1 mm</option><option value="2">± 2 mm</option><option value="5">± 5 mm</option></select><output></output></label>
+            </div>
             <div class="row">
               <button id="pKnight" aria-pressed="true">Springer</button>
               <button id="pStar">Stern</button>
@@ -1050,7 +1058,8 @@ function makeCore(E, opt){
   const gearMM=()=>(opt.gearSize||200)/SIZE;            // millimetres per core unit
   const intDims=()=>opt.intDims!==false;
   const kmax=()=>opt.gear?Math.min(KMAX,opt.gearKMax||24):KMAX;
-  const DEG=Math.PI/180, degQ=()=>opt.degStep||1;
+  const DEG=Math.PI/180, degQ=()=>opt.degStep||1, lenQ=()=>opt.lenStep||1;   // 2D: length quantum (mm), angle quantum (°)
+  const qround=(v,q)=>Math.round(Math.round(v/q)*q*1000)/1000;
   // ---- whole numbers: every dimension as an integer (mm, degrees) ----
   // 2D: {c:[x,y], arms:[{k,L,t}]}   3D: {c:[x,y,z], terms:[{k,az,el,LA,tA,LB,tB}]}  (t, az, el in units of degQ degrees)
   const clamp1=v=>Math.max(-1,Math.min(1,v));
@@ -1073,11 +1082,11 @@ function makeCore(E, opt){
       const az=R(Math.atan2(P.n[0],P.n[2])/q), el=R(Math.asin(clamp1(P.n[1]))/q), [e1,e2]=basisN(axisOf(az*q,el*q));
       const pol=v=>{ const x=dot(v,e1), y=dot(v,e2); return [R(Math.hypot(x,y)*g), R(Math.atan2(y,x)/q)]; };
       const [LA,tA]=pol(P.A), [LB,tB]=pol(P.B); return {k:T.k,az,el,LA,tA,LB,tB}; })};
-    return {c:m.c.map(v=>R(v*g)), arms:m.arms.map(a=>({k:a.k, L:R(hyp(a.a)*g), t:R(Math.atan2(a.a[1],a.a[0])/q)}))}; }
+    const lq=lenQ(); return {c:m.c.map(v=>R(v*g/lq)), arms:m.arms.map(a=>({k:a.k, L:R(hyp(a.a)*g/lq), t:R(Math.atan2(a.a[1],a.a[0])/q)}))}; }
   function fromInt(P){ const g=gearMM(), q=DEG*degQ();
     if(P.terms) return {c:P.c.map(v=>v/g), terms:P.terms.filter(T=>T.LA>=minL()||T.LB>=minL()).map(T=>{ const [e1,e2]=basisN(axisOf(T.az*q,T.el*q));
       const pc=(L,t)=>L>=minL()?[L/g*Math.cos(t*q),L/g*Math.sin(t*q)]:[0,0]; return termFrom(T.k,pc(T.LA,T.tA),pc(T.LB,T.tB),e1,e2); })};
-    return {c:P.c.map(v=>v/g), arms:P.arms.filter(a=>a.L>=minL()).map(a=>({k:a.k, a:[a.L/g*Math.cos(a.t*q), a.L/g*Math.sin(a.t*q)]}))}; }
+    const lq=lenQ(); return {c:P.c.map(v=>v*lq/g), arms:P.arms.filter(a=>a.L*lq>=minL()).map(a=>({k:a.k, a:[a.L*lq/g*Math.cos(a.t*q), a.L*lq/g*Math.sin(a.t*q)]}))}; }
   // a real machine has no circles below a few millimetres: each one costs a whole layer of parts
   const minL=()=>opt.minArmMM!=null?opt.minArmMM:3;
   function snapGear(mech){ if(!intDims()) return mech; const o=fromInt(toInt(mech)); if(mech.order) o.order=mech.order.slice(); if(mech.sp) o.sp={...mech.sp}; if(mech.nd!=null) o.nd=mech.nd; return o; }
@@ -1267,9 +1276,9 @@ function makeCore(E, opt){
         parts:{armWidthMM:PART.armW, armThicknessMM:PART.armT, gearboxThicknessMM:PART.boxH, wireDiameterMM:2*PART.wire, needleDiameterMM:PART.needle}};
     }
     const order=m.arms.slice().sort((p,q2)=>hyp(q2.a)-hyp(p.a)), n=order.length;
-    return {dim:'2d', sizeMM:opt.gearSize||200, base:I.c, platforms:Math.max(0,n-1),
-      arms:order.map((A,i)=>{ const L=Math.round(hyp(A.a)*g), gb=gearbox(A.k);
-        return {nr:i+1, turns:A.k, lengthMM:L, mountDeg:Math.round(Math.atan2(A.a[1],A.a[0])/DEG), gearbox:gb.stages, idler:gb.idler, direct:gb.direct,
+    return {dim:'2d', sizeMM:opt.gearSize||200, base:I.c.map(v=>qround(v*lenQ(),lenQ())), platforms:Math.max(0,n-1), lenStep:lenQ(), degStep:degQ(),
+      arms:order.map((A,i)=>{ const L=qround(hyp(A.a)*g,lenQ()), gb=gearbox(A.k);
+        return {nr:i+1, turns:A.k, lengthMM:L, mountDeg:qround(Math.atan2(A.a[1],A.a[0])/DEG,degQ()), gearbox:gb.stages, idler:gb.idler, direct:gb.direct,
           gearboxRadiusMM:Math.round(gearReach(A.k)), layer:i+1, link:i<n-1?(L>=PART.oldham?'belt':'oldham'):'', belts:i<n-1?2:0, beltTeethGT2:L+20}; }), module:PART.mod};
   }
 
@@ -1443,7 +1452,14 @@ function makeCore(E, opt){
     const sm=w.pos.map((_,n)=>{ let a=0,c=0; for(let k=-3;k<=3;k++){ const m=n+k; let v=w.pos[(m+N0)%N0]; if(m<0) v-=M; if(m>=N0) v+=M; a+=v; c++; } return a/c; });
     st.tSw=sm.map(x=>{ let f=((x+w.j0)%M+M)%M, i0=Math.floor(f), t=f-i0; const p=w.TD[i0], q=w.TD[(i0+1)%M]; return p.map((v,d)=>v+(q[d]-v)*t); });
   }
+  // Motion task with a tolerance per sample (opt.tolMM, mm): the error is the worst point's deviation/tolerance in
+  // percent (100 = it just touches its band; a tiny mean term breaks ties).
+  const TOLP=8, tolOn=()=>Array.isArray(opt.tolMM)&&opt.tolMM.length===S&&!opt.warp;
+  function tolStats(tr,tS){ if(!tr||!tolOn()) return null; const g=gearMM(); let mr=0, mi=0, mm=0, s=0;
+    for(let n=0;n<S;n++){ const d=Math.hypot(tr[n][0]-tS[n][0],tr[n][1]-tS[n][1])*g, r=d/opt.tolMM[n]; s+=r**TOLP; if(r>mr){ mr=r; mi=n; mm=d; } }
+    return {maxRatio:mr, worst:mi, maxMM:mm, pnorm:Math.pow(s/S,1/TOLP)}; }
   function errOf(tr,tS){ if(!tr||tr.hits) return Infinity; if(!tS) return 0;
+    if(tolOn()){ const g=gearMM(); let mx=0, s=0; for(let n=0;n<S;n++){ const r=Math.hypot(tr[n][0]-tS[n][0],tr[n][1]-tS[n][1])*g/opt.tolMM[n]; mx=Math.max(mx,r); s+=r; } return 100*mx+1e-3*s/S; }
     if(opt.warp&&TD) return warpMatch(tr).err;
     let e=0; for(let n=0;n<S;n++){ let d=0; for(let i=0;i<tS[n].length;i++) d+=(tr[n][i]-tS[n][i])**2; e+=Math.sqrt(d); } return e/S/SIZE*100; }
   function armsCount(m,mode){ if(!m) return 0; if(Array.isArray(m.terms)) return 2*m.terms.length; if(Array.isArray(m.arms)) return m.arms.length; if(Array.isArray(m)) return m.reduce((n,ch)=>n+(Array.isArray(ch.arms)?ch.arms.length:0),0); return 0; }
@@ -1465,6 +1481,9 @@ function makeCore(E, opt){
   // learning step: measured residual → arm updates; add a circle when progress stalls
   // residuals of the measured trace, per machine: 2D = one complex channel, 3D = three scalar channels
   function residuals(best,tS,mode){
+    if(mode==='2d'&&tolOn()){ // weight every point by how close it is to its band (gradient of the p-norm), mean weight 1
+      const g=gearMM(), res=best.trace.map((p,n)=>[tS[n][0]-p[0],tS[n][1]-p[1]]), w=res.map((r,n)=>{ const t=opt.tolMM[n]/g, q=Math.hypot(r[0],r[1])/t; return Math.pow(Math.max(q,1e-3),TOLP-2)/(t*t); });
+      let mw=0; for(const v of w) mw+=v/S; return [{ch:0, dims:2, res:res.map((r,n)=>{ const f=Math.min(6,w[n]/(mw||1)); return [r[0]*f,r[1]*f]; })}]; }
     if(mode==='2d') return [{ch:0, dims:2, res:best.trace.map((p,n)=>[tS[n][0]-p[0],tS[n][1]-p[1]])}];
     return [{ch:0, dims:3, res:best.trace.map((p,n)=>[tS[n][0]-p[0],tS[n][1]-p[1],tS[n][2]-p[2]])}];
   }
@@ -1481,8 +1500,53 @@ function makeCore(E, opt){
       for(const A of C.arms){ const p=proj(r.res,A.k,r.dims); A.a[0]+=eta*sc*p[0]; A.a[1]+=eta*sc*p[1]; } }
     return m;
   }
+  // ---- motion task (2D, tolerance bands): model-based learning ----
+  // The update direction comes from the machine's own structure (circle k moves the pen along e^{ikt}); the error
+  // it corrects is always the measured one. Weighted least squares (Gauss-Newton), weights re-balanced towards the
+  // points closest to their band (Lawson) – this drives the worst point down, which is what a tolerance asks for.
+  function gnStep(cur,tS,w,damp){ const m=cloneM(cur.mech,'2d'), K=m.arms.length, M=K+1, tr=cur.trace;
+    const G=Array.from({length:2*M},()=>new Float64Array(2*M+1));
+    for(let n=0;n<S;n++){ const t=2*Math.PI*n/S, r=[tS[n][0]-tr[n][0],tS[n][1]-tr[n][1]], ph=[[1,0]].concat(m.arms.map(A=>[Math.cos(A.k*t),Math.sin(A.k*t)])), wn=w[n];
+      // real form: unknown (x_j, y_j) per complex coefficient; pen moves by (x c - y s, x s + y c)
+      const J=[]; for(let j=0;j<M;j++){ const [c,s2]=ph[j]; J.push([c,s2],[-s2,c]); }      // d(pen)/dx_j, d(pen)/dy_j
+      for(let p=0;p<2*M;p++){ const jp=J[p]; G[p][2*M]+=wn*(jp[0]*r[0]+jp[1]*r[1]); for(let q=p;q<2*M;q++){ const jq=J[q]; G[p][q]+=wn*(jp[0]*jq[0]+jp[1]*jq[1]); } } }
+    let tr2=0; for(let p=0;p<2*M;p++){ for(let q=0;q<p;q++) G[p][q]=G[q][p]; tr2+=G[p][p]; } for(let p=0;p<2*M;p++) G[p][p]+=(damp||1e-6)*tr2/(2*M);
+    for(let c=0;c<2*M;c++){ let pv=c; for(let r=c+1;r<2*M;r++) if(Math.abs(G[r][c])>Math.abs(G[pv][c])) pv=r; const T=G[c]; G[c]=G[pv]; G[pv]=T;
+      const d=G[c][c]||1e-30; for(let r=0;r<2*M;r++){ if(r===c) continue; const f=G[r][c]/d; if(!f) continue; for(let q=c;q<=2*M;q++) G[r][q]-=f*G[c][q]; } }
+    const x=[]; for(let p=0;p<2*M;p++) x.push(G[p][2*M]/(G[p][p]||1e-30));
+    m.c[0]+=x[0]; m.c[1]+=x[1]; m.arms.forEach((A,i)=>{ A.a[0]+=x[2+2*i]; A.a[1]+=x[3+2*i]; }); return m; }
+  // Lawson: weighted least squares whose weights grow where the path is closest to its band edge -> minimax
+  const ratios=(tr,tS)=>{ const g=gearMM(); return tr.map((q,n)=>Math.hypot(q[0]-tS[n][0],q[1]-tS[n][1])*g/opt.tolMM[n]); };
+  const w0=()=>{ const g=gearMM(); return opt.tolMM.map(t=>1/((t/g)**2)); };
+  function lawsonW(w,r){ const mx=Math.max(...r)||1; let s=0; const o=w.map((v,n)=>{ const x=v*(r[n]/mx+1e-3); s+=x; return x; }); return o.map(v=>v/s*S); }
+  // every step is built and measured; returns the best measured state and its weights
+  function lawson(cur,tS,w,budget,st){ let best=cur, bw=w, fails=0;
+    for(let i=0;i<budget&&fails<3;i++){ const R=measure(gnStep(best,tS,w),'2d',tS,true); st.evals+=R.evals;
+      if(R.err<best.err){ best={mech:R.mech,trace:R.trace,err:R.err}; bw=w; fails=0; } else fails++;
+      w=lawsonW(w,ratios(i&&fails?best.trace:R.trace,tS)); }
+    return {best,w:bw}; }
+  // the machine's own kinematics (pen = c + Σ a_k e^{ikt}, exact for these gears) used to *propose* a circle;
+  // every proposal is then built and measured – only measured results count
+  function kinTrace(m){ const tr=[]; for(let n=0;n<S;n++){ const t=2*Math.PI*n/S; let x=m.c[0],y=m.c[1]; for(const A of m.arms){ const c=Math.cos(A.k*t),s=Math.sin(A.k*t); x+=A.a[0]*c-A.a[1]*s; y+=A.a[0]*s+A.a[1]*c; } tr.push([x,y]); } return tr; }
+  function propose(m,tS,iters){ let cur={mech:m,trace:kinTrace(m)}, w=w0(), bestR=Infinity, best=null;
+    for(let i=0;i<iters;i++){ const mm=gnStep(cur,tS,w), tr=kinTrace(mm), r=ratios(tr,tS), mx=Math.max(...r); if(mx<bestR){ bestR=mx; best=mm; } cur={mech:mm,trace:tr}; w=lawsonW(w,r); }
+    return {mech:best,ratio:bestR}; }
+  function learnTol(st,tS){
+    const best=st.best; if(!st.w) st.w=w0();
+    if(st.needArm&&best.mech.arms.length<opt.maxArms){ st.needArm=false;
+      const used=new Set(best.mech.arms.map(A=>A.k)), props=[];
+      for(let k=-kmax();k<=kmax();k++){ if(!k||used.has(k)) continue; const m=cloneM(best.mech,'2d'); m.arms.push({k,a:[0,0]}); const p=propose(m,tS,25); p.k=k; props.push(p); }
+      props.sort((p,q)=>p.ratio-q.ratio); let won=null;
+      for(const p of props.slice(0,2)){ const R=measure(p.mech,'2d',tS,true); st.evals+=R.evals; const out=lawson({mech:R.mech,trace:R.trace,err:R.err},tS,w0(),10,st);
+        if(out.best.err<best.err&&(!won||out.best.err<won.best.err)) won=out; }
+      if(won){ st.best=won.best; st.w=won.w; st.stall=0; return true; }
+      st.stall++; return false; }
+    const out=lawson(best,tS,st.w,6,st); st.w=out.w;
+    if(out.best.err<best.err*0.998){ st.best=out.best; return true; }
+    st.needArm=true; return false; }
   // learning step: measured residual → arm updates; when progress stalls, try adding a circle
   function learnStep(st, tS, mode){
+    if(mode==='2d'&&tolOn()) return learnTol(st,tS);
     if(opt.warp&&st.tSw) tS=st.tSw;
     const best=st.best, R=residuals(best,tS,mode);
     if(st.needArm && armsCount(best.mech,mode)<opt.maxArms){
@@ -1584,6 +1648,20 @@ function makeCore(E, opt){
     if(++st.fails>60){ st.fails=0; st.sigma=0.3; if(2*m.terms.length<opt.maxArms) st.needArm=true; else st.stall++; }
     return false;
   }
+  // Fewest stages: once the task is met, try to take circles away (smallest first). The rest re-settles physically
+  // (measured residual fed back); a circle stays out only if the measured path is still inside the target share of
+  // every tolerance band. One candidate per call; returns 'done' when no circle can go.
+  function pruneStep(st,tS,target){
+    const m=st.best.mech; if(!m.arms||m.arms.length<=1) return 'done';
+    const order=m.arms.map((A,i)=>({i,r:hyp(A.a)})).sort((p,q)=>p.r-q.r); st.prI=st.prI||0;
+    if(st.prI>=order.length){ st.prI=0; return 'done'; }
+    const cand=cloneM(m,'2d'); cand.arms.splice(order[st.prI].i,1);
+    let R=measure(cand,'2d',tS,true), cur={mech:R.mech,trace:R.trace,err:R.err}; st.evals+=R.evals;
+    let eta=1; for(let r=0;r<14&&eta>0.05;r++){ const ok=tolStats(cur.trace,tS); if(ok&&ok.maxRatio<=target) break;
+      const R2=measure(refine(cur,tS,'2d',eta),'2d',tS,true); st.evals+=R2.evals; if(R2.err<cur.err) cur={mech:R2.mech,trace:R2.trace,err:R2.err}; else eta*=0.5; }
+    const T=tolStats(cur.trace,tS);
+    if(T&&T.maxRatio<=target){ st.best=cur; st.prI=0; return 'removed'; }
+    st.prI++; return 'kept'; }
   function start(tS, mode, tD){
     if(tD) setDense(tD);
     const R=measure(initial(tS,mode),mode,tS);
@@ -1717,7 +1795,7 @@ function makeCore(E, opt){
   }
   function refineEval(best,tS,mode,eta){ return measure(refine(best,tS,mode,eta),mode,tS,true); }
   function evalMech(mech,tS,mode){ return measure(mech,mode,tS); }
-  return {safeGap,takeBlocked,layout3,partsOf,planGap,planDodge,PART,gearReach,measure,polish,polishStep,build3DGear,toInt,buildGear,gearParts,snapGear,gearbox,gearMM,addCandidates,settle,refineEval,evalMech,SIZE,S,TSIM,WS,KMAX,SUB,exportScene,loadScene,H:TSIM/(S*SUB),CAT,CRANK,HC,CRANK3,frame,toW,quatBasis,armsOf3,body,pt,state,buf,build2D,build3D,stepMachine,penOf,tipOf,simulate,learnStep,blindStep,start,errOf,setDense,reparam,armsCount,cloneM};
+  return {gnStep,tolStats,pruneStep,safeGap,takeBlocked,layout3,partsOf,planGap,planDodge,PART,gearReach,measure,polish,polishStep,build3DGear,toInt,buildGear,gearParts,snapGear,gearbox,gearMM,addCandidates,settle,refineEval,evalMech,SIZE,S,TSIM,WS,KMAX,SUB,exportScene,loadScene,H:TSIM/(S*SUB),CAT,CRANK,HC,CRANK3,frame,toW,quatBasis,armsOf3,body,pt,state,buf,build2D,build3D,stepMachine,penOf,tipOf,simulate,learnStep,blindStep,start,errOf,setDense,reparam,armsCount,cloneM};
 }
 if(typeof module!=='undefined') module.exports={makeCore};
 
@@ -2077,7 +2155,7 @@ void loop() {
     const ns=core.snapGear(nm), I0=core.toInt(m), I1=core.toInt(ns), changes=[];
     const parts0=core.gearParts(m).arms;
     I0.arms.forEach((A,i)=>{ const B=I1.arms.find(x=>x.k===A.k); if(B&&(B.L!==A.L||B.t!==A.t)){ const p=parts0.find(x=>x.turns===A.k)||{nr:i+1,lengthMM:A.L,mountDeg:A.t};
-      changes.push({nr:p.nr,k:A.k,lenOld:p.lengthMM,lenNew:p.lengthMM+(B.L-A.L),degOld:p.mountDeg,degNew:Math.round((p.mountDeg+(B.t-A.t)*(opt.degStep||1))*10)/10,dL:err[i].dL,dDeg:err[i].dDeg}); } });
+      changes.push({nr:p.nr,k:A.k,lenOld:p.lengthMM,lenNew:Math.round((p.lengthMM+(B.L-A.L)*(opt.lenStep||1))*100)/100,degOld:p.mountDeg,degNew:Math.round((p.mountDeg+(B.t-A.t)*(opt.degStep||1))*10)/10,dL:err[i].dL,dDeg:err[i].dDeg}); } });
     // prediction: real errors applied to the corrected (integer) design, compared with the design curve
     const real=ns.arms.map(B=>{ const i=ks.indexOf(B.k), L=Math.hypot(...B.a)*g+full[i].dL, t=Math.atan2(B.a[1],B.a[0])+full[i].dDeg*D2R; return [L*Math.cos(t),L*Math.sin(t)]; });
     let left=0; for(let n=0;n<NT;n+=4){ let x=0,y=0; ns.arms.forEach((B,j)=>{ const e=cm(real[j],cis(B.k*n/NT*TAU)); x+=e[0]; y+=e[1]; }); const q=curve(a,[0,0],n/NT*TAU); left+=Math.hypot(x-q[0],y-q[1]); } left/=NT/4;
@@ -2086,6 +2164,54 @@ void loop() {
   return {design, buildKit, calibrate, extractCurve, solve, revertedTrain, gearPoly, gearSTL, zip};
 }
 if(typeof module!=='undefined') module.exports={makeKit};
+
+// Umriss-Motor · Bewegungsaufgaben: a cyclic motion with timing and a tolerance per moment, in millimetres.
+// A task is a list of segments, each taking a share of the cycle: 'dwell' (stand still), 'move' (rest to rest with a
+// cycloidal profile, the usual cam law), 'line' (constant speed), 'arc' (lifted swing). Every segment has its own
+// tolerance band: tight where the work happens (pick, place, ground contact, bead), loose where only clearance matters.
+function makeTasks(){
+  const cyc=s=>s-Math.sin(2*Math.PI*s)/(2*Math.PI);                       // cycloidal: zero speed and acceleration at both ends
+  function sample(task,N){ const segs=task.segs, tot=segs.reduce((s,g)=>s+g.dur,0); const pts=[], tol=[];
+    let p=task.start.slice();
+    const ends=[]; { let q=p.slice(); for(const g of segs){ const e=g.to?g.to.slice():q.slice(); ends.push([q,e]); q=e; } }
+    for(let n=0;n<N;n++){ let t=n/N*tot, i=0; while(i<segs.length-1&&t>=segs[i].dur){ t-=segs[i].dur; i++; } const g=segs[i], [a,b]=ends[i], s=Math.min(1,Math.max(0,t/g.dur));
+      let x,y; if(g.kind==='dwell'){ x=a[0]; y=a[1]; }
+      else if(g.kind==='line'){ x=a[0]+(b[0]-a[0])*s; y=a[1]+(b[1]-a[1])*s; }
+      else if(g.kind==='arc'){ const c=cyc(s); x=a[0]+(b[0]-a[0])*c; y=a[1]+(b[1]-a[1])*c+(g.lift||0)*Math.sin(Math.PI*c); }
+      else { const c=cyc(s); x=a[0]+(b[0]-a[0])*c; y=a[1]+(b[1]-a[1])*c; }
+      // tolerance: the segment's own, eased towards its neighbours' over the first/last 15 % so the band has no jumps
+      let T=g.tol; const prev=segs[(i-1+segs.length)%segs.length].tol, next=segs[(i+1)%segs.length].tol, e=0.15;
+      if(s<e) T=Math.min(T,prev+(T-prev)*s/e); if(s>1-e) T=Math.min(T,next+(T-next)*(1-s)/e);
+      pts.push([x,y]); tol.push(T); }
+    return {pts,tol}; }
+  // T = the tight tolerance the user asks for (mm)
+  const TASKS={
+    pick:{name:'Umsetzen (Pick & Place)', what:'Greifer holt ein Teil links und setzt es 100 mm weiter rechts ab: senkrecht hoch, quer, senkrecht runter, je eine Rast. Eng: Greif- und Ablegeposition. Locker: der Weg dazwischen.',
+      make:T=>({start:[-50,0], segs:[
+        {kind:'dwell',dur:.14,tol:T},{kind:'move',to:[-50,30],dur:.10,tol:Math.max(1.5,3*T)},{kind:'move',to:[50,30],dur:.16,tol:Math.max(6,12*T)},{kind:'move',to:[50,0],dur:.10,tol:Math.max(1.5,3*T)},
+        {kind:'dwell',dur:.14,tol:T},{kind:'move',to:[50,30],dur:.10,tol:Math.max(1.5,3*T)},{kind:'move',to:[-50,30],dur:.16,tol:Math.max(6,12*T)},{kind:'move',to:[-50,0],dur:.10,tol:Math.max(1.5,3*T)}]})},
+    leg:{name:'Laufbein (Fußbahn)', what:'Fuß einer Laufmaschine: 80 mm Bodenkontakt in gerader Linie mit konstanter Geschwindigkeit (kein Rutschen), dann 25 mm angehoben zurück. Eng: Bodenkontakt. Locker: Rückweg in der Luft.',
+      make:T=>({start:[40,0], segs:[{kind:'line',to:[-40,0],dur:.55,tol:T},{kind:'arc',to:[40,0],lift:25,dur:.45,tol:Math.max(5,10*T)}]})},
+    bead:{name:'Kleberaupe (Kontur)', what:'Dosierspitze fährt eine Deckelkontur 100 × 60 mm (Eckradius 12 mm) mit gleichmäßiger Geschwindigkeit ab – gleich dicke Raupe. Überall eng.',
+      make:T=>{ const W=50,H=30,R=12, segs=[], ar=(cx,cy,a0)=>{ for(let j=1;j<=6;j++){ const a=a0+j/6*Math.PI/2; segs.push({kind:'line',to:[cx+R*Math.cos(a),cy+R*Math.sin(a)],dur:R*Math.PI/12,tol:T}); } };
+        const L=(x,y,l)=>segs.push({kind:'line',to:[x,y],dur:l,tol:T});
+        L(W-R,-H,2*(W-R)); ar(W-R,-H+R,-Math.PI/2); L(W,H-R,2*(H-R)); ar(W-R,H-R,0); L(-W+R,H,2*(W-R)); ar(-W+R,H-R,Math.PI/2); L(-W,-H+R,2*(H-R)); ar(-W+R,-H+R,Math.PI);
+        return {start:[-W+R,-H], segs}; }}};
+  // a path from a file: CSV "x;y[;tol]" (one row per equal time step: repeat rows for a rest) or points at constant speed
+  function fromPoints(P,T,timed,N){ let pts=P.map(p=>[p[0],p[1]]), tol=P.map(p=>p[2]>0?p[2]:T);
+    if(!timed){ const Q=pts.concat([pts[0]]), L=[0]; for(let i=1;i<Q.length;i++) L.push(L[i-1]+Math.hypot(Q[i][0]-Q[i-1][0],Q[i][1]-Q[i-1][1]));
+      const tot=L[L.length-1], out=[], ot=[]; let j=1; for(let i=0;i<N;i++){ const d=i/N*tot; while(L[j]<d) j++; const f=(d-L[j-1])/((L[j]-L[j-1])||1); out.push([Q[j-1][0]+f*(Q[j][0]-Q[j-1][0]),Q[j-1][1]+f*(Q[j][1]-Q[j-1][1])]); ot.push(tol[(j-1)%tol.length]); }
+      return {pts:out,tol:ot}; }
+    const out=[], ot=[], M=pts.length; for(let i=0;i<N;i++){ const f=i/N*M, i0=Math.floor(f), t=f-i0, a=pts[i0%M], b=pts[(i0+1)%M]; out.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]); ot.push(Math.min(tol[i0%M],tol[(i0+1)%M])); }
+    return {pts:out,tol:ot}; }
+  function parseCSV(txt){ const rows=[]; for(const line of String(txt).split(/\r?\n/)){ const c=line.trim().split(/[;,\t ]+/).map(v=>Number(v.replace(',','.'))); if(c.length>=2&&c.slice(0,2).every(Number.isFinite)) rows.push(c.slice(0,3)); } return rows.length>=4?rows:null; }
+  // mm samples → machine units (the app's shape box) plus the machine size that maps one onto the other
+  function toMachine(sm,SIZE){ let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; for(const p of sm.pts){ x0=Math.min(x0,p[0]); x1=Math.max(x1,p[0]); y0=Math.min(y0,p[1]); y1=Math.max(y1,p[1]); }
+    const ext=Math.max(x1-x0,y1-y0)||1, s=SIZE/ext, cx=(x0+x1)/2, cy=(y0+y1)/2;
+    return {tS:sm.pts.map(p=>[(p[0]-cx)*s,-(p[1]-cy)*s]), tolMM:sm.tol.slice(), sizeMM:Math.round(ext*10)/10, centre:[cx,cy]}; }
+  return {TASKS, sample, fromPoints, parseCSV, toMachine};
+}
+if(typeof module!=='undefined') module.exports={makeTasks};
 
 </script>
 <script>
@@ -2312,7 +2438,7 @@ function contourFromImage(img){
 let stage='', queue=[], shown=null, tS=[], tDraw=[], best=null, iter=0, evals=0, hist=[], done=false, last2d=knight(), mesh3=null, gen=0;
 const workerMain=function(self){
   let E,core,opt,st=null,tS,dim,gen=0,running=false,iter=0,done=false;
-  const post=send=>self.postMessage({type:'state',gen,iter,evals:st.evals,err:st.best.err,mech:send?st.best.mech:null,done,arms:core.armsCount(st.best.mech,dim),inner:opt.inner,gearSize:opt.gearSize,gap:st.best.trace&&st.best.trace.gap,phys:{gearGain:opt.gearGain,torque:opt.torque,fly:opt.fly},stage:lastStage});
+  const post=send=>self.postMessage({type:'state',dims:{intDims:opt.intDims,lenStep:opt.lenStep,degStep:opt.degStep},tol:opt.tolMM&&st.best.trace?core.tolStats(st.best.trace,tS):null,phase:st.phase||'',gen,iter,evals:st.evals,err:st.best.err,mech:send?st.best.mech:null,done,arms:core.armsCount(st.best.mech,dim),inner:opt.inner,gearSize:opt.gearSize,gap:st.best.trace&&st.best.trace.gap,phys:{gearGain:opt.gearGain,torque:opt.torque,fly:opt.fly},stage:lastStage});
   function tick(){
     if(!st||done||!opt.run){ running=false; return; }
     const t0=performance.now(); let imp=false;
@@ -2320,6 +2446,15 @@ const workerMain=function(self){
       iter++;
       if(st.pol){ const r=core.polishStep(st,tS,3); imp=true;
         if(r){ if(r.won){ st.polishTried=false; st.needArm=true; st.stall=0; lastStage='ganze Zahlen nachgestellt'; } }
+        continue; }
+      // motion task with tolerance bands: fit until the worst point uses at most TARGET of its band, then take stages
+      // away while it still holds, then round dimensions as coarsely as the task allows (whole mm/° if possible)
+      if(opt.tolMM&&dim==='2d'){ const TARGET=0.7, n=()=>st.best.mech.arms.length; st.phase=st.phase||'fit'; imp=true;
+        if(st.phase==='fit'){ core.learnStep(st,tS,dim); const s=core.tolStats(st.best.trace,tS);
+          if(s.maxRatio<=TARGET){ st.phase='prune'; lastStage='Toleranz erreicht mit '+n()+' Stufen – geht es mit weniger?'; }
+          else if(st.stall>6||n()>=opt.maxArms){ st.phase='round'; st.missed=true; lastStage='Toleranz mit '+n()+' Stufen nicht erreicht'; } }
+        else if(st.phase==='prune'){ const r=core.pruneStep(st,tS,TARGET); if(r==='removed') lastStage='eine Stufe gespart: '+n()+' Stufen'; if(r==='done') st.phase='round'; }
+        else { roundDims(TARGET); st.phase='done'; done=true; break; }
         continue; }
       if(opt.mode==='learn'?core.learnStep(st,tS,dim):core.blindStep(st,tS,dim)){ imp=true; st.polishTried=false; st.blk=0; st.addBlocked=false; }
       // 3D gears: when every new circle collides, the machine grows at once (its parts keep their real size)
@@ -2346,6 +2481,13 @@ const workerMain=function(self){
   function grow(){ const old=st.best; opt.gearSize*=2; const R=core.measure(old.mech,dim,tS); st.evals+=R.evals;
     st.best=isFinite(R.err)?{mech:R.mech,trace:R.trace,err:R.err}:{mech:old.mech,trace:old.trace,err:old.err*1.0001+1e-9}; st.needArm=true; st.stall=0; st.polishTried=false; lastStage='Maschine wächst auf '+opt.gearSize+' mm – die Teile brauchen Platz'; }
   function reeval(){ const R=core.measure(st.best.mech,dim,tS); st.best={mech:R.mech,trace:R.trace,err:R.err}; st.evals+=R.evals; }
+  // coarsest drawing units that keep the task: 1 mm/1°, else 0.5, else 0.1 (the machine is built and measured each time)
+  function roundDims(target){ const base=core.tolStats(st.best.trace,tS).maxRatio, lim=Math.min(0.85,Math.max(target,base+0.15)), exact=st.best.mech;
+    for(const q of [1,0.5,0.1]){ opt.intDims=true; opt.lenStep=q; opt.degStep=q; const m=core.snapGear(exact); if(m.arms.length!==exact.arms.length) continue;
+      const R0=core.measure(m,dim,tS,true); st.evals+=R0.evals; const P=core.polish({mech:R0.mech,trace:R0.trace,err:R0.err},tS); st.evals+=P.evals;   // step every dimension by one unit while it helps
+      const s=core.tolStats(P.trace,tS);
+      if(s.maxRatio<=lim&&P.mech.arms.length===exact.arms.length){ st.best={mech:P.mech,trace:P.trace,err:P.err}; lastStage=(st.missed?'Toleranz nicht ganz erreicht · ':'fertig · ')+st.best.mech.arms.length+' Stufen · Maße auf '+(q===1?'ganze mm und Grad':String(q).replace('.',',')+' mm / '+String(q).replace('.',',')+'°'); return; } }
+    opt.intDims=false; opt.lenStep=0.1; opt.degStep=0.1; lastStage='fertig · '+st.best.mech.arms.length+' Stufen'; }
   // machine properties the tuner may change (gravity is the environment and stays untouched)
   const PHYS=[
     {key:'gearGain', name:'Gelenk-Kopplung', steps:[v=>v*2,v=>v/2], lo:2, hi:160},
@@ -2384,13 +2526,13 @@ try{
   const src=makeCore.toString()+'\n('+workerMain.toString()+')(self);';
   wk=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
 }catch(e){ wk=localWorker(); threaded=false; }
-const wopt=()=>({solidWire:opt.solidWire,obj:opt.dim==='3d'?opt.obj:null,dodgeBudget:threaded?300:60,maxArms:opt.maxArms,res:opt.res,inner:opt.inner,autoPrec:opt.autoPrec,autoPhys:opt.autoPhys,gearGain:opt.gearGain,fly:opt.fly,torque:opt.torque,grav:opt.grav,mode:opt.mode,run:opt.run,gear:opt.gear,gearSize:opt.gearSize,intDims:opt.intDims});
+const wopt=()=>({tolMM:opt.tolMM||null,lenStep:opt.lenStep,degStep:opt.degStep,minArmMM:opt.minArmMM,solidWire:opt.solidWire,obj:opt.dim==='3d'?opt.obj:null,dodgeBudget:threaded?300:60,maxArms:opt.maxArms,res:opt.res,inner:opt.inner,autoPrec:opt.autoPrec,autoPhys:opt.autoPhys,gearGain:opt.gearGain,fly:opt.fly,torque:opt.torque,grav:opt.grav,mode:opt.mode,run:opt.run,gear:opt.gear,gearSize:opt.gearSize,intDims:opt.intDims});
 wk.onmessage=e=>{ const m=e.data;
   if(m.type==='error'){ fail(m.msg); return; }
   if(m.type!=='state'||m.gen!==gen) return;
   iter=m.iter; evals=m.evals; done=m.done;
   if(m.gearSize&&m.gearSize!==opt.gearSize){ opt.gearSize=m.gearSize; $('kSize').value=String(opt.gearSize); partsDirty=true; }
-  liveGap=m.gap;
+  liveGap=m.gap; if(m.dims&&opt.tolMM){ opt.intDims=m.dims.intDims; opt.lenStep=m.dims.lenStep; opt.degStep=m.dims.degStep; } tolNow=m.tol||null; phase=m.phase||'';
   if(m.inner&&m.inner!==opt.inner){ opt.inner=m.inner; $('kPrec').value=Math.log2(opt.inner); $('oPrec').textContent=opt.inner; }
   if(m.phys){ opt.gearGain=m.phys.gearGain; if(m.phys.torque!==opt.torque){ opt.torque=m.phys.torque; $('kTq').value=opt.torque; $('oTq').textContent=opt.torque; }
     if(m.phys.fly!==opt.fly){ opt.fly=m.phys.fly; $('kFly').value=Math.min(40,Math.max(1,Math.round(opt.fly))); $('oFly').textContent=(Math.round(opt.fly*10)/10)+'×'; } }
@@ -2503,7 +2645,15 @@ function drawGears(map,sc){
 
 function draw2D(){
   const map=p=>W2S(p[0],p[1]);
-  line(tDraw,map,true); ctx.fillStyle=C.shape; ctx.fill(); if(opt.solid){ctx.strokeStyle=C.muted;ctx.lineWidth=1.5*dpr;ctx.stroke();}
+  if(taskOn()&&tolDraw){ // the task: a band as wide as its tolerance (2·T) around the path, the path itself thin
+    // tight parts of the band (where the work happens) in the accent colour, loose parts (only clearance) muted
+    const tmin=Math.min(...tolDraw); ctx.lineCap='round';
+    for(let i=0;i<tDraw.length;i++){ const j=(i+1)%tDraw.length, a=map(tDraw[i]), b=map(tDraw[j]), t=Math.min(tolDraw[i],tolDraw[j]), tight=t<=1.6*tmin;
+      ctx.strokeStyle=tight?C.accent:C.muted; ctx.globalAlpha=tight?.35:.16; ctx.lineWidth=Math.max(3*dpr,2*t*view.s); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); }
+    ctx.globalAlpha=1;
+    line(tDraw,map,true); ctx.strokeStyle=C.muted; ctx.lineWidth=1*dpr; ctx.stroke();
+    if(tolNow&&tS[tolNow.worst]){ const [x,y]=map(tS[tolNow.worst]); ctx.beginPath(); ctx.arc(x,y,7*dpr,0,2*Math.PI); ctx.strokeStyle=C.fg; ctx.lineWidth=1.2*dpr; ctx.stroke(); } }
+  else { line(tDraw,map,true); ctx.fillStyle=C.shape; ctx.fill(); if(opt.solid){ctx.strokeStyle=C.muted;ctx.lineWidth=1.5*dpr;ctx.stroke();} }
   ctx.lineJoin='round'; ctx.lineCap='round';
   if(ghost.length>1){ line(ghost.map(q=>q.p),map,false); ctx.strokeStyle=C.accent; ctx.globalAlpha=.22; ctx.lineWidth=1.6*dpr; ctx.stroke(); ctx.globalAlpha=1; }
   if(!live) return;
@@ -2720,9 +2870,11 @@ function drawChart(){
 }
 const fmt=e=>!isFinite(e)?'–':(e<10?e.toFixed(2):e.toFixed(1))+' %';
 function updateHud(){
-  $('hErr').textContent=fmt(liveErr); $('hIt').textContent=iter; $('hArms').textContent=liveArms; $('hEvals').textContent=evals;
-  const s=!best?'startet …':done?'Iteration fertig: '+fmt(best.err)+' mit '+best.arms+' Kreisen':(opt.run?(opt.mode==='learn'?'lernt aus der gemessenen Spur':'probiert blind')+' · bisher bestes '+fmt(best.err):'pausiert');
-  $('hPrec').textContent=(opt.gear?'1 Motor · Zahnradgelenke · '+opt.gearSize+' mm'+(opt.intDims?' · ganze mm und Grad':'')+(opt.dim==='3d'&&liveGap!=null&&isFinite(liveGap)?' · '+(liveGap>=0?'kollisionsfrei, engste Stelle '+liveGap.toFixed(1)+' mm':'klemmt noch'):''):opt.inner+' Unterschritte · '+S+' Messpunkte · Kopplung '+(Math.round(opt.gearGain*10)/10)+' · Motor '+opt.torque+' · Schwungrad '+(Math.round(opt.fly*10)/10)+'×')+(stage?' · zuletzt: '+stage:'');
+  const tk=taskOn(); $('hErrL').textContent=tk?'Toleranz genutzt':'Fehler'; $('hErr').textContent=tk?(tolNow?Math.round(tolNow.maxRatio*100)+' %':'–'):fmt(liveErr); $('hIt').textContent=iter; $('hArms').textContent=liveArms; $('hEvals').textContent=evals;
+  const T=$('kTol').value.replace('.',','), mm=v=>(Math.round(v*100)/100).toString().replace('.',',');
+  const s=tk?(!best?'startet …':done?(tolNow&&tolNow.maxRatio<=1?'fertig: '+best.arms+' Stufen, ein Motor · schlechteste Stelle '+mm(tolNow.maxMM)+' mm bei ±'+mm(opt.tolMM[tolNow.worst])+' mm erlaubt ('+Math.round(tolNow.maxRatio*100)+' %) · der Rest bleibt Reserve für Bau und Spiel':'mit '+best.arms+' Stufen nicht in ±'+T+' mm – Toleranz lockern oder Bahn glätten'):
+      (phase==='prune'?'in Toleranz – prüft, ob es mit weniger Stufen geht':'sucht die kleinste Maschine, die in ±'+T+' mm bleibt')+(tolNow?' · '+best.arms+' Stufen, schlechteste Stelle '+Math.round(tolNow.maxRatio*100)+' % des Bands':'')):!best?'startet …':done?'Iteration fertig: '+fmt(best.err)+' mit '+best.arms+' Kreisen':(opt.run?(opt.mode==='learn'?'lernt aus der gemessenen Spur':'probiert blind')+' · bisher bestes '+fmt(best.err):'pausiert');
+  $('hPrec').textContent=(opt.gear?'1 Motor · Zahnradgelenke · '+opt.gearSize+' mm'+(opt.intDims?(opt.lenStep&&opt.lenStep!==1?' · Maße auf '+String(opt.lenStep).replace('.',',')+' mm / '+String(opt.degStep||1).replace('.',',')+'°':' · ganze mm und Grad'):'')+(opt.dim==='3d'&&liveGap!=null&&isFinite(liveGap)?' · '+(liveGap>=0?'kollisionsfrei, engste Stelle '+liveGap.toFixed(1)+' mm':'klemmt noch'):''):opt.inner+' Unterschritte · '+S+' Messpunkte · Kopplung '+(Math.round(opt.gearGain*10)/10)+' · Motor '+opt.torque+' · Schwungrad '+(Math.round(opt.fly*10)/10)+'×')+(stage?' · zuletzt: '+stage:'');
   $('hState').textContent=s+(queue.length?' · noch '+queue.length+(queue.length===1?' Runde':' Runden')+' zu malen':'');
   $('bRun').textContent=done?'Weiter':(opt.run?'Pause':'Weiter');
 }
@@ -2741,8 +2893,32 @@ function loop(now){
 }
 
 // ---------- Eingabe ----------
-function load2D(pts){ last2d=pts; opt.dim='2d'; ensureCore(); const n=normalize(resample(pts,1024)); tDraw=n; tS=resample(n,S); applyDimUI(); go(); }
-function load3D(pts,obj){ opt.dim='3d'; mesh3=obj&&obj.type==='mesh'?obj:null; opt.obj=mesh3?null:obj||null; ensureCore(); const n=mesh3?resample(pts,1024):normalize(resample(pts,1024)); tDraw=n; tS=resample(n,S); applyDimUI(); go(); }
+function load2D(pts){ last2d=pts; opt.dim='2d'; if(opt.gear){ loadTask(shapeTask(pts)); return; } clearTask(); ensureCore(); const n=normalize(resample(pts,1024)); tDraw=n; tS=resample(n,S); applyDimUI(); go(); }
+// ---------- Bewegungsaufgabe: Bahn + Takt + Toleranz in mm -> kleinste Zahnradmaschine ----------
+const TK=makeTasks(); let task=null, tolDraw=null, tolNow=null, phase='', shapeMM=400;
+const taskOn=()=>!!(task&&opt.gear&&opt.dim==='2d');
+function clearTask(){ if(!task&&!opt.tolMM) return; task=null; tolDraw=null; tolNow=null; opt.tolMM=null; opt.intDims=$('cInt').checked; opt.lenStep=1; opt.degStep=1; delete opt.minArmMM; }
+// a drawn or loaded outline as a task: constant speed, the same tolerance everywhere, size from the size selector
+function shapeTask(pts){ let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; for(const q of pts){ x0=Math.min(x0,q[0]); x1=Math.max(x1,q[0]); y0=Math.min(y0,q[1]); y1=Math.max(y1,q[1]); }
+  const k=shapeMM/(Math.max(x1-x0,y1-y0)||1); return {key:'shape', name:'Kontur', what:'Kontur mit gleichmäßiger Geschwindigkeit, überall dieselbe Toleranz. Scharfe Ecken kosten viele Stufen – runde Formen wenige.', pts:pts.map(q=>[q[0]*k,-q[1]*k]), timed:false}; }
+function ensureSizeOption(v){ const sel=$('kSize'), s=String(v); if(![...sel.options].some(o=>o.value===s)){ const o=document.createElement('option'); o.value=s; o.textContent=String(v).replace('.',',')+' mm'; o.dataset.task='1'; sel.appendChild(o); } sel.value=s; }
+function loadTask(t){ task=t; opt.dim='2d'; opt.gear=true; ensureCore(); const T=+$('kTol').value, sc=t.scale||1;
+  const gen=N=>{ const sm=t.make?TK.sample(t.make(T),N):TK.fromPoints(t.pts,T,t.timed,N); return {pts:sm.pts.map(q=>[q[0]*sc,q[1]*sc]),tol:sm.tol}; };
+  const dense=gen(1024), sm=gen(S), F=TK.toMachine(dense,core.SIZE), s=core.SIZE/F.sizeMM, map=q=>[(q[0]-F.centre[0])*s,-(q[1]-F.centre[1])*s];
+  tDraw=dense.pts.map(map); tolDraw=dense.tol.map(v=>v*s); tS=sm.pts.map(map); opt.tolMM=sm.tol.slice(); tolNow=null; phase='';
+  opt.gearSize=F.sizeMM; ensureSizeOption(opt.gearSize); opt.intDims=false; opt.lenStep=0.1; opt.degStep=0.1; opt.minArmMM=0.3;
+  for(const b of ['kLeg','kBead']) $(b).setAttribute('aria-pressed',String(t.key===b)); $('inNote').textContent=t.what; applyDimUI(); go(); }
+const TASKBTN={kLeg:'leg',kBead:'bead'};
+for(const [id,key] of Object.entries(TASKBTN)) $(id).onclick=()=>{ const d=TK.TASKS[key]; press(null); loadTask({key:id,name:d.name,what:d.what,make:d.make}); };
+$('kTol').onchange=()=>{ if(task) loadTask(task); };
+// a path from a file: SVG (first path/shape, at constant speed, units = mm) or CSV x;y[;tol] (one row per time step)
+$('fPath').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; f.text().then(txt=>{ let t=null;
+    if(/<svg[\s>]/i.test(txt)){ const doc=new DOMParser().parseFromString(txt,'image/svg+xml'), el=doc.querySelector('path,polygon,polyline,ellipse,circle,rect');
+      if(el){ const ns='http://www.w3.org/2000/svg', svg=document.createElementNS(ns,'svg'); svg.style.cssText='position:absolute;width:0;height:0;visibility:hidden'; const c=document.importNode(el,true); svg.appendChild(c); document.body.appendChild(svg);
+        try{ const L=c.getTotalLength(), pts=[]; for(let i=0;i<800;i++){ const q=c.getPointAtLength(i/800*L); pts.push([q.x,-q.y]); } t={key:'file', name:f.name, what:'Bahn aus '+f.name+' (Einheiten = mm), gleichmäßige Geschwindigkeit.', pts, timed:false}; } catch(_){} svg.remove(); } }
+    else { const rows=TK.parseCSV(txt); if(rows) t={key:'file', name:f.name, what:'Bahn aus '+f.name+': je Zeile ein gleicher Zeitschritt (Zeilen wiederholen = Rast); 3. Spalte = Toleranz in mm.', pts:rows, timed:true}; }
+    if(t){ press(null); loadTask(t); } else $('inNote').innerHTML='<span class="err">Keine Bahn gefunden: SVG mit einem Pfad oder CSV „x;y[;Toleranz]“ in mm.</span>'; }); };
+function load3D(pts,obj){ clearTask(); opt.dim='3d'; mesh3=obj&&obj.type==='mesh'?obj:null; opt.obj=mesh3?null:obj||null; ensureCore(); const n=mesh3?resample(pts,1024):normalize(resample(pts,1024)); tDraw=n; tS=resample(n,S); applyDimUI(); go(); }
 function go(){ try{ camR=27; camT=[-0.6,-0.6,0]; stopTurbo(false); opt.run=true; if(R3){ R3.bodies=[]; R3.pen=null; } if(live){ E.worldFree(live.w); live=null; } trail=[]; ghost=[]; restart(); broken=false; }catch(e){ broken=true; fail(e); } }
 const presets={pKnight:()=>load2D(knight()),pStar:()=>load2D(star()),pHeart:()=>load2D(heart()),
   p3Tre:()=>load3D(trefoil()),p3Heart:()=>load3D(heart3()),p3Tor:()=>load3D(torus()),p3Seam:()=>load3D(seam()),p3Sph:()=>{ const P=onSphere(last2d); load3D(P,sphereObj(resample(P,1024))); }};
@@ -2752,16 +2928,19 @@ for(const id in presets) $(id).onclick=()=>{ press(id); presets[id](); };
 function applyDimUI(){
   $('d2').setAttribute('aria-pressed',String(opt.dim==='2d')); $('dG').setAttribute('aria-pressed',String(opt.gear)); $('d3').setAttribute('aria-pressed',String(opt.dim==='3d'));
   $('gGear').hidden=!opt.gear; $('rowWire').hidden=opt.dim!=='3d'; $('kitBox').hidden=opt.dim!=='2d'; $('kit3d').hidden=opt.dim==='2d'; $('cal').hidden=true; if(opt.gear) $('gGear').open=true; partsDirty=true;
+  $('taskRow').hidden=!(opt.gear&&opt.dim==='2d'); $('cInt').closest('label').hidden=taskOn(); $('bTurbo').hidden=taskOn();
   $('in2d').hidden=opt.dim!=='2d'; $('in3d').hidden=opt.dim!=='3d'; $('tools2d').hidden=opt.dim!=='2d'; $('tools3d').hidden=opt.dim!=='3d';
   $('hint').textContent=opt.dim==='2d'?hints[opt.tool]:(matchMedia('(pointer: coarse)').matches?'Wischen dreht':'Ziehen dreht · Rad zoomt');
   cv.hidden=opt.dim==='3d'&&!!R3; gl.hidden=!(opt.dim==='3d'&&R3);
   fit();
 }
-$('d2').onclick=()=>{ if(opt.dim!=='2d'){ opt.dim='2d'; if(opt.gear) gearDefault(); press(cur2); load2D(last2d); } };
-$('d3').onclick=()=>{ if(opt.dim!=='3d'){ opt.dim='3d'; if(opt.gear) gearDefault(); press(cur3); presets[cur3](); } };
+$('d2').onclick=()=>{ if(opt.dim!=='2d'){ opt.dim='2d'; if(opt.gear){ gearDefault(); if(task&&task.key!=='shape'){ loadTask(task); return; } } press(cur2); load2D(last2d); } };
+$('d3').onclick=()=>{ if(opt.dim!=='3d'){ opt.dim='3d'; clearTask(); if(opt.gear) gearDefault(); press(cur3); presets[cur3](); } };
 // Getriebe: the same shapes, built as a one-motor machine with whole-number gears (2D and 3D)
 const gearDefault=()=>{ opt.gearSize=opt.dim==='3d'?800:400; $('kSize').value=String(opt.gearSize); };
-$('dG').onclick=()=>{ opt.gear=!opt.gear; if(opt.gear) gearDefault(); applyDimUI(); go(); };
+$('dG').onclick=()=>{ opt.gear=!opt.gear; if(opt.gear) gearDefault();
+  if(opt.dim==='2d'){ if(opt.gear){ const d=TK.TASKS.leg; press(null); loadTask(task||{key:'kLeg',name:d.name,what:d.what,make:d.make}); } else { clearTask(); press(cur2); load2D(last2d); } return; }
+  applyDimUI(); go(); };
 // ---------- Getriebe: Größe, ganze Zahlen, Stückliste ----------
 let partsDirty=true;
 const gbTxt=a=>a.direct?'direkt':a.gearbox.map(([p,q])=>p+':'+q).join(' · ')+(a.idler?' + Zwischenrad':'');
@@ -2785,7 +2964,7 @@ function partsCSV(){ const P=partsOf(); if(!P) return ''; const d3=P.dim==='3d';
     .concat(D.arms.map(a=>[a.nr,a.k,a.L,a.deg,a.kin].concat(a.train.direct?['','','','','']:[a.train.Zin,a.train.Za,a.train.Zb,a.train.Zout,a.train.idler?'ja':'nein']).concat([a.tube?'Rohr '+a.tube.b+'x'+a.tube.w:'Kurbel R'+a.crankR,a.slide?2*a.slide.hx+'x'+2*a.slide.hy:'']).join(';'))).join('\n');
   return ['Nr;Umdrehungen je Motorumdrehung;Laenge mm;'+(d3?'Achse Azimut Grad;Achse Hoehe Grad;':'')+'Montagewinkel Grad;'+(d3?'Abstandshalter mm;':'Ebene;')+'Getriebe Zaehne (Modul '+P.module+');Zwischenrad;'+(d3?'Kegelrad Grad;':'')+'Verbindung;Riemen Zaehne GT2']
     .concat(P.arms.map(a=>[a.nr,a.turns,a.lengthMM].concat(d3?a.axisDeg:[]).concat([a.mountDeg,d3?a.spacerMM:a.layer,a.direct?'direkt':a.gearbox.map(([p,q])=>p+':'+q).join(' + '),a.idler?'ja':'nein']).concat(d3?[a.bevelAtTip]:[]).concat([a.link==='belt'?'2x GT2-Riemen':a.link==='oldham'?'2x Oldham-Kupplung':'',a.link==='belt'?a.beltTeethGT2:'']).join(';'))).concat(d3?['Stift-Nadel mm;'+P.needleMM]:[]).join('\n'); }
-$('kSize').onchange=e=>{ opt.gearSize=+e.target.value; done=false; send({reeval:true,resume:true}); liveDirty=true; partsDirty=true; updateHud(); };
+$('kSize').onchange=e=>{ if(taskOn()){ const v=+e.target.value; if(task.key==='shape'){ shapeMM=v; loadTask(shapeTask(last2d)); } else { task.scale=(task.scale||1)*v/opt.gearSize; loadTask(task); } return; } opt.gearSize=+e.target.value; done=false; send({reeval:true,resume:true}); liveDirty=true; partsDirty=true; updateHud(); };
 $('cWire').onchange=e=>{ opt.solidWire=e.target.checked; done=false; send({reeval:true,resume:true}); updateHud(); };
 $('cInt').onchange=e=>{ opt.intDims=e.target.checked; done=false; send({reeval:true,resume:true}); liveDirty=true; partsDirty=true; updateHud(); };
 const copyBtn=(id,label,get)=>{ $(id).onclick=()=>{ const t=get(), b=$(id); if(!t) return; const fb=()=>{ const x=$('exp'); x.hidden=false; x.readOnly=true; x.value=t; x.select(); b.textContent='Text markiert'; };
@@ -2793,7 +2972,7 @@ const copyBtn=(id,label,get)=>{ $(id).onclick=()=>{ const t=get(), b=$(id); if(!
 copyBtn('bParts','Stückliste kopieren',partsCSV);
 copyBtn('bPatch','Box3D-Patch kopieren',()=>document.getElementById('gear-patch').textContent.trim()+'\n');
 // ---------- Bausatz (ZIP) and calibration from a photo of the real drawing ----------
-const shapeName=()=>({pKnight:'Springer',pStar:'Stern',pHeart:'Herz'}[cur2]||'Eigene Form');
+const shapeName=()=>taskOn()&&task.key!=='shape'?task.name.replace(/\s*\(.*\)/,'').replace(/\.[a-z]+$/i,''):({pKnight:'Springer',pStar:'Stern',pHeart:'Herz'}[cur2]||'Eigene Form');
 async function saveFile(fn,data,note){ const dl=await downloadsCap();
   if(dl){ try{ await dl.save({filename:fn,data}); note('Gespeichert: '+fn); } catch(e){ note(e&&e.code==='declined'?'Speichern abgebrochen.':'Speichern ging hier nicht ('+(e&&e.code||'unbekannt')+').'); } return; }
   try{ const url=URL.createObjectURL(data instanceof Blob?data:new Blob([data])), a=document.createElement('a'); a.href=url; a.download=fn; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000); note('Heruntergeladen: '+fn); }
@@ -2818,7 +2997,7 @@ $('fCal').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) ret
       let html='<p>Abweichung der echten Zeichnung: <b>'+fmt(r.errMM)+' mm</b> ('+fmt(r.errPct)+' %) · nach dem Nachstellen ≈ '+fmt(r.leftMM)+' mm</p>';
       if(!r.changes.length) html+='<p>Nichts nachzustellen – die Maschine zeichnet im Rahmen der Messgenauigkeit.</p>';
       else { html+='<table><thead><tr><th>Arm</th><th>Länge</th><th>Winkel</th><th>einstellen auf</th></tr></thead><tbody>'+r.changes.map(c=>{ const dL=c.lenNew-c.lenOld, dD=Math.round((c.degNew-c.degOld)*10)/10, A=D&&D.arms.find(a=>a.nr===c.nr);
-          return '<tr><td>'+c.nr+(A?(A.tube?' (Langloch)':' (Kurbel)'):'')+'</td><td>'+(dL?sg(dL)+' mm':'–')+'</td><td>'+(dD?sg(dD)+'°':'–')+'</td><td>'+(dL?c.lenNew+' mm ':'')+(dD?fmt(c.degNew)+'°':'')+'</td></tr>'; }).join('')+'</tbody></table>';
+          return '<tr><td>'+c.nr+(A?(A.tube?' (Langloch)':' (Kurbel)'):'')+'</td><td>'+(dL?sg(dL)+' mm':'–')+'</td><td>'+(dD?sg(dD)+'°':'–')+'</td><td>'+(dL?fmt(c.lenNew)+' mm ':'')+(dD?fmt(c.degNew)+'°':'')+'</td></tr>'; }).join('')+'</tbody></table>';
         html+='<p class="note">Länge: Achse im Langloch verschieben (Rohr) bzw. Zapfenplatten neu schneiden (Kurbel). Winkel: Klemmnabe von Zb lösen, Arm drehen, festziehen. Dann neu zeichnen und wieder fotografieren.</p>'; }
       if(r.mirrored) html+='<p class="note">Das Foto war gespiegelt (z. B. von unten oder durchs Papier) – ist berücksichtigt.</p>';
       html+='<p class="note">'+pts.length+' Bildpunkte · Größe und Drehung der ganzen Zeichnung kann ein Foto nicht prüfen, die Form schon.</p>';
@@ -2987,7 +3166,7 @@ $('mLearn').onclick=()=>{ opt.mode='learn'; $('mLearn').setAttribute('aria-press
   $('modeNote').textContent='Die gemessene Abweichung wird auf die Arme zurückgeführt. Reicht das nicht mehr, kommt ein Kreis dazu.'; done=false; send({resume:true}); updateHud(); };
 $('mBlind').onclick=()=>{ opt.mode='blind'; $('mBlind').setAttribute('aria-pressed','true'); $('mLearn').setAttribute('aria-pressed','false');
   $('modeNote').textContent='Reines Ausprobieren: zufällige Änderung, simulieren, behalten nur wenn der Fehler sinkt. Langsam, aber ohne jedes Vorwissen.'; done=false; send({resume:true}); updateHud(); };
-$('kRes').onchange=e=>{ opt.res=+e.target.value; if(opt.dim==='2d') load2D(last2d); else if(mesh3){ensureCore();tS=resample(tDraw,S);go();}else presets[cur3](); };
+$('kRes').onchange=e=>{ opt.res=+e.target.value; if(taskOn()){ loadTask(task); return; } if(opt.dim==='2d') load2D(last2d); else if(mesh3){ensureCore();tS=resample(tDraw,S);go();}else presets[cur3](); };
 $('kPrec').oninput=e=>{ opt.inner=2**(+e.target.value); $('oPrec').textContent=opt.inner; later(()=>{ done=false; send({reeval:true,resume:true}); }); };
 $('cAuto').onchange=e=>{ opt.autoPrec=e.target.checked; done=false; send({resume:true}); };
 $('cPhys').onchange=e=>{ opt.autoPhys=e.target.checked; done=false; send({resume:true}); };
@@ -3009,7 +3188,7 @@ $('bView').onclick=()=>{ autoRot=!autoRot; };
 const r6=v=>Math.round(v*1e6)/1e6;
 function exportModel(){
   if(!best) return '';
-  const settings={dim:opt.dim, gearMachine:opt.gear, machineSizeMM:opt.gearSize, wholeNumbers:opt.intDims, samplesPerTurn:S, substeps:opt.inner, gearGain:opt.gearGain, torque:opt.torque, flywheel:opt.fly, gravity:opt.grav, maxCircles:opt.maxArms, autoPrecision:opt.autoPrec, autoPhysics:opt.autoPhys};
+  const settings={dim:opt.dim, gearMachine:opt.gear, machineSizeMM:opt.gearSize, wholeNumbers:opt.intDims, lengthStepMM:opt.lenStep||1, angleStepDeg:opt.degStep||1, toleranceMM:opt.tolMM||null, samplesPerTurn:S, substeps:opt.inner, gearGain:opt.gearGain, torque:opt.torque, flywheel:opt.fly, gravity:opt.grav, maxCircles:opt.maxArms, autoPrecision:opt.autoPrec, autoPhysics:opt.autoPhys};
   const sc=core.exportScene(best.mech,opt.dim,{jointHertz:1e5,extra:{
     result:{error_percent:best.err, circles:best.arms, iterations:iter, simulations:evals},
     app:{tool:'Umriss-Motor', settings, mech:best.mech, target:tDraw.filter((_,i)=>i%2===0).map(p=>p.map(r6))}}});
@@ -3019,12 +3198,12 @@ function exportModel(){
   return JSON.stringify(sc);
 }
 // ---------- Import ----------
-function importModel(text){
+function importModel(text){ clearTask();
   let sc; try{ sc=JSON.parse(text); }catch(e){ $('ioNote').innerHTML='<span class="err">Das ist kein gültiges JSON.</span>'; return; }
   if(sc.format!=='umriss-motor/box3d'||!sc.bodies||!sc.joints){ $('ioNote').innerHTML='<span class="err">Die Datei ist kein Umriss-Motor-Modell.</span>'; return; }
   const st=sc.app&&sc.app.settings, mode=sc.controller.type==='gearTrain'?(sc.controller.dim||'2d'):(sc.controller.joints.length&&sc.controller.joints[0].kind==='spherical'?'3d':'2d');
   opt.gear=sc.controller&&sc.controller.type==='gearTrain';
-  if(st){ if(st.machineSizeMM){ opt.gearSize=st.machineSizeMM; $('kSize').value=opt.gearSize; } if(st.wholeNumbers!=null){ opt.intDims=st.wholeNumbers; $('cInt').checked=opt.intDims; }
+  if(st){ if(st.machineSizeMM){ opt.gearSize=st.machineSizeMM; $('kSize').value=opt.gearSize; } if(st.lengthStepMM) opt.lenStep=st.lengthStepMM; if(st.angleStepDeg) opt.degStep=st.angleStepDeg; if(st.wholeNumbers!=null){ opt.intDims=st.wholeNumbers; $('cInt').checked=opt.intDims; }
     Object.assign(opt,{inner:st.substeps,gearGain:st.gearGain,torque:st.torque,fly:st.flywheel,grav:st.gravity,maxArms:st.maxCircles,autoPrec:st.autoPrecision,autoPhys:st.autoPhysics,res:st.samplesPerTurn});
     $('kPrec').value=Math.log2(opt.inner); $('oPrec').textContent=opt.inner; $('kRes').value=opt.res; $('kTq').value=opt.torque; $('oTq').textContent=opt.torque;
     $('kFly').value=Math.min(40,Math.max(1,Math.round(opt.fly))); $('oFly').textContent=opt.fly+'×'; $('kArms').value=opt.maxArms; $('oArms').textContent=opt.maxArms;
@@ -3064,7 +3243,7 @@ $('fImport').onchange=e=>{ const f=e.target.files[0]; if(!f) return; f.text().th
 
 window.addEventListener('resize',fit);
 try{ new ResizeObserver(()=>fit()).observe(cv.parentElement); }catch(_){}
-fit(); press('p3Tre'); load3D(trefoil()); requestAnimationFrame(loop);
+fit(); { const d=TK.TASKS.leg; opt.gear=true; opt.dim='2d'; press(null); loadTask({key:'kLeg',name:d.name,what:d.what,make:d.make}); } requestAnimationFrame(loop);
 })();
 
 </script>
