@@ -1,9 +1,9 @@
-Dual-mobile multiplayer diagnostic: {"phoneA":{"connected":false,"starting":false,"hasSession":false,"vsPlayers":1,"vsPeers":0,"mobileState":"offline","mobilePlayers":1,"intent":"off","retryCount":0,"buttonText":"MULTI","buttonState":"offline","statusText":"","poseAge":null,"poseMode":"","poseFrame":"","frameMismatch":0,"policy":"","policyRooms":0,"policyStageMs":0,"roomIds":[],"stageRoomIds":[],"activeRoom":"","transport":"","networkEvents":[]},"phoneB":{"connected":false,"starting":false,"hasSession":false,"vsPlayers":1,"vsPeers":0,"mobileState":"offline","mobilePlayers":1,"intent":"off","retryCount":0,"buttonText":"MULTI","buttonState":"offline","statusText":"","poseAge":null,"poseMode":"","poseFrame":"","frameMismatch":0,"policy":"","policyRooms":0,"policyStageMs":0,"roomIds":[],"stageRoomIds":[],"activeRoom":"","transport":"","networkEvents":[]}}
+Dual-mobile multiplayer diagnostic: {"phoneA":null,"phoneB":null}
 file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_multiplayer_live_smoke.mjs:10
 async function bounded(promise,ms,label){let timer=0;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out after ${ms} ms`)),ms);})]);}finally{clearTimeout(timer);}}
                                                                                                                                                  ^
 
-Error: start phone-a multiplayer timed out after 5000 ms
+Error: phone-b ui snapshot timed out after 8000 ms
     at Timeout.<anonymous> (file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_multiplayer_live_smoke.mjs:10:146)
     at listOnTimeout (node:internal/timers:585:17)
     at process.processTimers (node:internal/timers:521:7)
