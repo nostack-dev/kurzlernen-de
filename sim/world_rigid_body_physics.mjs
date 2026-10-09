@@ -1,6 +1,6 @@
 import {TerrainTiles} from "./terrain_tiles.mjs";
 import {createTerrainBody,waterAt,waterFlowAt,waterLevelAt,groundHeightAt,terrainRescueZ} from "./terrain_craters.mjs";
-import {vehicleSpec,vehicleGroundOffset,attachWheels,detachWheels,placeWheels,driveWheeled,wheelPoses} from "./world_vehicle_dynamics.mjs";
+import {vehicleSpec,vehicleUpperBody,vehicleGroundOffset,attachWheels,detachWheels,placeWheels,driveWheeled,wheelPoses} from "./world_vehicle_dynamics.mjs";
 import {createBox3dHuman,destroyBox3dHuman} from "./box3d_human.mjs";
 import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,normalizeBuildingCollisionSnapshot} from "./world_building_collision_physics.mjs";
 
@@ -43,7 +43,10 @@ export class WorldRigidBodyPhysics{
     // convex hulls (an airframe: fuselage + wing) instead of one box; mass and principal inertia then set explicitly
     let shape=null;const extraShapes=[];
     if(Array.isArray(hulls)&&hulls.length){for(const points of hulls){const hull=b3.b3CreateHull(points);if(!hull)continue;try{const sh=b3.b3CreateHullShape(body,shapeDef,hull);if(shape)extraShapes.push(sh);else shape=sh;}finally{b3.b3DestroyHull(hull);}}}
+    // wheeled vehicles: chassis box + the upper body as drawn (greenhouse / bus roof), the mass split between them
+    const upper=spec?vehicleUpperBody(spec):null;if(!shape&&upper){shapeDef.density=Math.max(.01,(massKg-upper.mass)/Math.max(.01,volume));}
     if(!shape)shape=b3.b3CreateBoxShape(body,shapeDef,...halfExtents);
+    if(upper){const hull=b3.b3CreateHull(upper.points);if(hull){try{shapeDef.density=upper.mass/upper.volume;extraShapes.push(b3.b3CreateHullShape(body,shapeDef,hull));}finally{b3.b3DestroyHull(hull);}}}
     if(finiteVector(inertia)&&typeof b3.b3Body_SetMassData==="function")b3.b3Body_SetMassData(body,{mass:Math.max(.1,Number(massKg)||1),center:[0,0,0],inertia:{cx:[inertia[0],0,0],cy:[0,inertia[1],0],cz:[0,0,inertia[2]]}});
     const record={id:key,kind:String(kind||"vehicle"),body,shape,extraShapes,controller:typeof controller==="function"?controller:null,halfExtents:[...halfExtents],massKg:Math.max(.1,Number(massKg)||1),gravityScale:resolvedGravityScale,drone,target:null,pendingImpulse:[0,0,0],impulsePoint:null,preVelocity:[0,0,0],lastVelocity:[0,0,0],stepPosition:[0,0,0],stepVelocity:[0,0,0],stepAngular:[0,0,0],stepRotation:[0,0,0,1],postVelocity:[0,0,0],lastImpactAt:-Infinity,impactCount:0};this.records.set(key,record);this.shapeRecords.set(shapeKey(shape),record);for(const sh of extraShapes)this.shapeRecords.set(shapeKey(sh),record);
     if(spec){try{attachWheels(this,record,spec,{category,mask:WORLD_PHYSICS_CATEGORIES.terrain|ALL_DYNAMIC|WORLD_PHYSICS_CATEGORIES.projectileQuery,terrain:WORLD_PHYSICS_CATEGORIES.terrain});}catch(error){console.warn("vehicle wheels",error);record.wheels=null;}}

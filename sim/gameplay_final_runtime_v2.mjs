@@ -66,7 +66,14 @@ function footRay(clientX,clientY){
 }
 function droneRay(clientX,clientY){const camera=bridge()?.threeCamera,p=logicalPoint(clientX,clientY);if(!camera||!p)return null;ndc.set(p.x/p.width*2-1,1-p.y/p.height*2);shotRaycaster.setFromCamera(ndc,camera);return{origin:shotRaycaster.ray.origin.clone(),direction:shotRaycaster.ray.direction.clone(),point:p};}
 function refreshActorCache(scene,physicsReady,now=performance.now()){if(scene===actorCacheScene&&physicsReady===actorCachePhysicsReady&&now-actorCacheAt<180)return;actorCacheScene=scene;actorCachePhysicsReady=physicsReady;actorCacheAt=now;actorCache=[];grenadeOrganicCache=[];actorByPhysicsId=new Map();scene?.traverse?.(node=>{if(!node?.isMesh)return;const u=node.userData||{},kind=String(u.worldPopulationKind||u.worldLifeKind||""),decor=String(u.worldDecorKind||""),id=String(u.worldPopulationId||u.worldProceduralId||"");if(id){const existing=actorByPhysicsId.get(id);if(!existing||Number.isInteger(Number(u.policeDroneId)))actorByPhysicsId.set(id,node);}if(!effectiveVisible(node)||(node.material?.visible===false&&!node.userData?.hitProxy)||u.walkWeaponPart||u.arondightAirframe||u.localHumanAvatar||u.worldPopulationClone||u.neonEdge)return;if(decor==="ambient-animal"||decor.startsWith("tree-"))grenadeOrganicCache.push(node);if(u.flightFireIgnore||u.neonSkip)return;if(!kind&&!u.vsPeer&&!u.vsPlayerId)return;if(physicsReady&&(kind==="car"||kind==="bus"||kind==="police-drone"||u.gtaDrivableVehicle))return;actorCache.push(node);});const view=viewport();if(view){view.dataset.walkProjectileActorCache=String(actorCache.length);view.dataset.walkGrenadeOrganicCache=String(grenadeOrganicCache.length);view.dataset.walkProjectileActorCacheMs="180";}}
-function physicsSceneObject(id){const key=String(id||""),scene=bridge()?.threeScene;if(!key||!scene)return null;refreshActorCache(scene,Boolean(rigid()?.ready));return actorByPhysicsId.get(key)||null;}
+// Box3D body id → the object drawn for it. Owners that know their bodies answer first (the
+// population's own id map is always current); the scene scan is the fallback, and it walks
+// the real scene graph (a cached index can lag seconds behind cars and people being placed).
+function physicsSceneObject(id){const key=String(id||""),scene=bridge()?.threeScene;if(!key||!scene)return null;
+  const owned=globalThis.__arondightProceduralPopulation?.object?.(key);if(owned)return owned;
+  refreshActorCache(scene,Boolean(rigid()?.ready));const cached=actorByPhysicsId.get(key);if(cached&&cached.parent)return cached;
+  const now=performance.now();if(now-lastNativeScan<250)return null;lastNativeScan=now;let found=null;const walkAll=scene.traverse?.__nativeTraverse||scene.traverse;walkAll.call(scene,node=>{if(found||!node?.isMesh)return;const u=node.userData||{};if(String(u.worldPopulationId||u.worldProceduralId||"")===key)found=node;});return found;}
+let lastNativeScan=-Infinity;
 function actorCandidates(scene,{physicsReady=false}={}){refreshActorCache(scene,physicsReady);return actorCache;}
 function box3dProjectileHit(ray,maxDistance){
   const runtime=rigid(),o=[ray.origin.x,ray.origin.y,ray.origin.z],d=[ray.direction.x,ray.direction.y,ray.direction.z],hit=runtime?.raycast?.(o,d,maxDistance);
@@ -91,12 +98,13 @@ function updateTracers(now){for(const group of tracerPool){if(!group.visible)con
   if(head>=state.distance&&!state.impacted){state.impacted=true;const f=impactPool[impactCursor++%Math.max(1,impactPool.length)];if(f){f.position.copy(state.start).addScaledVector(state.direction,state.distance);f.userData.born=now;f.visible=true;}}
   const fade=head>=state.distance?Math.max(.05,1-arrivedMs/state.holdMs):1;const center=(head+tail)*.5;group.position.copy(state.start).addScaledVector(state.direction,center);group.quaternion.setFromUnitVectors(tracerAxis,state.direction);group.scale.set(fade,segment,fade);}
   for(const f of impactPool){if(!f.visible)continue;const t=(now-f.userData.born)/110;if(t>=1){f.visible=false;continue;}f.scale.setScalar(.06+.22*t);f.material.opacity=.95*(1-t);}}
+let lastRoute="";
 function routeHit(hit){if(!hit)return false;
   if(hit.physicsKind==="animal"&&hit.physicsId){
     const p=hit.point,dir=shotRaycaster.ray.direction;
     return Boolean(globalThis.__ambientAnimals?.hit?.({id:hit.physicsId,point:p?[p.x,p.y,p.z]:null,origin:[shotRaycaster.ray.origin.x,shotRaycaster.ray.origin.y,shotRaycaster.ray.origin.z],direction:[dir.x,dir.y,dir.z],strength:1}));
   }
-  const b=bridge(),object=hit.object||physicsSceneObject(hit.physicsId,hit.physicsKind),routed={...hit,object};if(hit.box3d&&!object)return false;const police=Boolean(b?.registerPoliceHit?.(routed)),population=!police&&Boolean(b?.registerWorldPopulationHit?.({...routed,playerAction:true})),versus=!police&&!population&&Boolean(b?.registerVsHit?.(routed));return police||population||versus;}
+  const b=bridge(),object=hit.object||physicsSceneObject(hit.physicsId,hit.physicsKind),routed={...hit,object};lastRoute=object?(object.userData?.worldPopulationId||object.userData?.worldProceduralId||"obj"):"none";if(hit.box3d&&!object)return false;const police=Boolean(b?.registerPoliceHit?.(routed)),population=!police&&Boolean(b?.registerWorldPopulationHit?.({...routed,playerAction:true})),versus=!police&&!population&&Boolean(b?.registerVsHit?.(routed));lastRoute+=`/p${police?1:0}w${population?1:0}v${versus?1:0}`;return police||population||versus;}
 function addFallbackDecal(hit){if(!hit?.point)return;const b=bridge(),scene=b?.threeScene;if(!scene)return;const g=new THREE.CircleGeometry(.026,8),m=new THREE.MeshBasicMaterial({color:0x171717,transparent:true,opacity:.9,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,side:THREE.DoubleSide}),mesh=new THREE.Mesh(g,m),n=hit.worldNormal?.clone?.()||hit.face?.normal?.clone?.().transformDirection(hit.object?.matrixWorld)||new THREE.Vector3(0,0,1);mesh.position.copy(hit.point).addScaledVector(n.normalize(),.004);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),n);mesh.userData.flightFireIgnore=true;scene.add(mesh);setTimeout(()=>{scene.remove(mesh);g.dispose();m.dispose();},9000);}
 
 export const SMG_INTERVAL_MS=55,GLOCK_MIN_INTERVAL_MS=110; // MP ~1090 rpm
@@ -231,7 +239,7 @@ function glockShotAt(clientX,clientY,now,hand=0){
   const ray=footRay(clientX,clientY);if(!ray)return false;const start=footMuzzle(tmp2,ray,h).clone();let origin=ray.origin.clone(),remaining=240,pierced=0,end=null;
   while(pierced<3&&remaining>1){const r={origin,direction:ray.direction},hit=nearestGrenadeHit(r,remaining);
     if(!hit){end=origin.clone().addScaledVector(ray.direction,remaining);globalThis.__worldImpacts?.bullet(r,null,{maxDistance:remaining});break;}
-    let routed=false;for(let i=0;i<6;i++)routed=routeHit(hit)||routed;
+    let routed=false;for(let i=0;i<6;i++)routed=routeHit(hit)||routed;{const v=viewport();if(v){const u=hit.object?.userData||{};v.dataset.walkGlockLastHit=(pierced?(v.dataset.walkGlockLastHit||"")+">":"")+`${hit.physicsKind||u.worldPopulationKind||u.worldDecorKind||hit.object?.name||hit.object?.type||"?"}:${hit.physicsId||u.worldPopulationId||""}:${routed?1:0}:${lastRoute}`;}}
     globalThis.__worldImpacts?.bullet(r,hit,{routed});if(hit.point)globalThis.__worldImpacts?.chips?.(hit.point,ray.direction.clone().negate(),routed?"actor":"building",9,6);
     if(hit.physicsId)rigid()?.applyImpulse?.(hit.physicsId,bulletImpulse(ray.direction,"9mm"),{point:[hit.point.x,hit.point.y,hit.point.z]});
     end=hit.point?.clone?.()||origin.clone().addScaledVector(ray.direction,Number(hit.distance)||10);

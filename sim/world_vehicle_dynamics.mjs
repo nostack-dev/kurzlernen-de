@@ -28,6 +28,17 @@ export const VEHICLE_SPECS=Object.freeze({
   bus:{half:[4,1.17,1.2],mass:9200,comZ:-.52,radius:.46,wheelWidth:.3,wheelMass:85,attachZ:-1.1,wheels:[[2.6,1.08,true],[2.6,-1.08,true],[-2.55,1.08,false],[-2.55,-1.08,false]],
     suspension:{hertz:2.8,damping:.86,lower:-.18,upper:.14},torque:{front:0,rear:4200},power:230000,dragArea:6.2,rollingResistance:.008,wheelInertia:14,brake:9500,handbrake:12000,coast:200,steerLock:.44,steerTorque:6000,steerHand:2600,steerAssist:5200,steerAssistSpeed:6,friction:1.0},
 });
+// The body above the chassis box, as drawn (vehicle_models.mjs): the car's greenhouse (glass,
+// pillars, roof) and the bus's upper body. A real collision shape, so bullets, people, cars
+// and blasts meet the car where it is visible, not only its lower 0.7 m. Points are in the
+// chassis frame (origin = chassis centre, which sits vehicleGroundOffset above the ground the
+// model is drawn on); `mass` is the share of spec.mass it carries (glass, roof, pillars).
+function prism(profile,halfWidth,dz){const v=[];for(const y of[-halfWidth,halfWidth])for(const[x,z]of profile)v.push(x,y,z-dz);let a=0;for(let i=0;i<profile.length;i++){const[x0,z0]=profile[i],[x1,z1]=profile[(i+1)%profile.length];a+=x0*z1-x1*z0;}return Object.freeze({points:v,volume:Math.abs(a)/2*2*halfWidth});}
+export const VEHICLE_UPPER_BODY=Object.freeze({
+  car:{mass:95,...prism([[-1.02,.8],[-.64,1.37],[.3,1.37],[.86,.8]],.71,.54)},
+  bus:{mass:450,...prism([[-4,2.6],[-4,2.9],[-3.85,3.05],[3.8,3.05],[4,2.85],[4,2.6]],1.21,1.48)},
+});
+export function vehicleUpperBody(spec){return spec===VEHICLE_SPECS.bus?VEHICLE_UPPER_BODY.bus:spec===VEHICLE_SPECS.car?VEHICLE_UPPER_BODY.car:null;}
 export function vehicleSpec(kind){return kind==="bus"?VEHICLE_SPECS.bus:kind==="car"||kind==="vehicle"?VEHICLE_SPECS.car:null;}
 // Static sag the suspension settles at under the vehicle's weight.
 // Suspension per wheel = the wheel joint (axis guidance, bump stops, spring)
