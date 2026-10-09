@@ -105,6 +105,42 @@ export function buildGoldenHandCannon(){
   mergeByMaterial(g);g.scale.setScalar(1.35);g.position.set(0,-.02,-.05);return g;
 }
 
+// SNIPER: .50 anti-materiel bolt rifle — fluted heavy barrel with a muzzle brake, long scope
+// (objective bell, turrets), bolt handle, folded bipod, skeleton stock. The scope's line of sight
+// is the sight line for ADS: looking through it puts the reticle on the shot.
+export function buildSniperRifle(){
+  const g=new THREE.Group(),K="walkSniperPart";
+  const dark=std(0x23272b,.55,.35),tan=std(0x8a7a5c,.7,.05),steel=std(0x3c4044,.35,.7),black=std(0x0c0d0f,.5,.4),glass=new THREE.MeshStandardMaterial({color:0x1a3a52,roughness:.05,metalness:.9}),bolt=std(0x9aa0a6,.3,.8);
+  // receiver + stock (tan furniture) + grip
+  g.add(solid(profile([[-.10,.050],[.42,.050],[.44,.030],[.44,-.040],[.30,-.050],[-.10,-.045]],.070),dark,0,0,0,K));
+  g.add(solid(profile([[-.62,.040],[-.10,.040],[-.10,-.045],[-.25,-.060],[-.45,-.150],[-.62,-.160]],.060),tan,0,0,0,K));
+  g.add(box(.064,.12,.02,black,0,-.04,.62,K)); // butt pad
+  g.add(solid(profile([[-.02,-.040],[.06,-.040],[.03,-.200],[-.05,-.200],[-.06,-.150]],.058),tan,0,0,0,K));
+  g.add(box(.06,.09,.11,black,0,-.09,-.20,K)); // magazine
+  // fluted heavy barrel + brake
+  g.add(cyl(.026,.95,steel,0,.015,-.90,K,14));
+  for(let i=0;i<6;i++)g.add(box(.006,.006,.70,black,Math.cos(i*Math.PI/3)*.026,.015+Math.sin(i*Math.PI/3)*.026,-.82,K));
+  g.add(cyl(.040,.13,black,0,.015,-1.42,K,10));
+  for(const x of[-.041,.041])g.add(box(.004,.03,.09,steel,x,.015,-1.42,K));
+  // handguard rail
+  g.add(box(.068,.06,.46,dark,0,.01,-.62,K));
+  // folded bipod
+  for(const x of[-.022,.022])g.add(box(.012,.012,.30,black,x,-.035,-.70,K));
+  // bolt handle
+  g.add(cyl(.009,.07,bolt,.06,.035,-.04,K,8));g.children.at(-1).rotation.set(0,0,Math.PI/2);g.add(tag(new THREE.Mesh(new THREE.SphereGeometry(.016,10,8),bolt),K));g.children.at(-1).position.set(.10,.035,-.04);
+  // scope: rings, tube, bells, turrets, lens
+  for(const z of[-.08,-.36])g.add(box(.05,.055,.03,black,0,.075,z,K));
+  g.add(cyl(.024,.42,black,0,.125,-.22,K,18));
+  g.add(cyl(.036,.11,black,0,.125,-.49,K,18,.024));g.children.at(-1).rotation.x=-Math.PI/2;
+  g.add(cyl(.032,.07,black,0,.125,.03,K,18,.024));g.children.at(-1).rotation.x=Math.PI/2;
+  g.add(cyl(.016,.035,dark,0,.162,-.22,K,12));g.children.at(-1).rotation.x=0;
+  g.add(cyl(.016,.035,dark,.040,.125,-.22,K,12));g.children.at(-1).rotation.set(0,0,Math.PI/2);
+  const lens=tag(new THREE.Mesh(new THREE.CircleGeometry(.030,20),glass),K);lens.position.set(0,.125,.067);g.add(lens);
+  g.add(marker("WALK_SNIPER_GRIP",0,-.12,.0),marker("WALK_SNIPER_REAR_SIGHT",0,.125,.06),marker("WALK_SNIPER_FRONT_SIGHT",0,.125,-.54));
+  g.add(muzzle("WALK_SNIPER_MUZZLE_NODE",-1.49,.015));
+  mergeByMaterial(g);g.scale.setScalar(.62);g.position.set(0,-.01,.10);return g;
+}
+
 export function buildBoomstick(){
   const g=new THREE.Group(),K="walkGrenadePart";
   const olive=std(0x4a5a3a,.6,.2),dark=std(0x1d2024,.7,.15),orange=std(0xff7a1a,.45,.1),yellow=std(0xffd23f,.45,.1),black=std(0x121316,.6,.1),wood=std(0x8a5a3b,.65,0),glowO=glow(0xff8a2a);

@@ -27,7 +27,7 @@ const GRENADE_RADIUS_M=GRENADE_BASE_RADIUS_M*GRENADE_VISUAL_SCALE;
 const GRENADE_FLOOR_NORMAL_Z=.58;
 const GRENADE_BLAST_RADIUS_M=8.5;
 const GRENADE_MAX_DAMAGE=125;
-const FOOT_WEAPON_ORDER=Object.freeze(["smg","glock","grenade","nuke"]);
+const FOOT_WEAPON_ORDER=Object.freeze(["smg","glock","sniper","grenade","nuke"]);
 const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tmp3=new THREE.Vector3(),right=new THREE.Vector3(),forward=new THREE.Vector3(),ndc=new THREE.Vector2();
 const shotCamera=new THREE.PerspectiveCamera(78,16/9,.01,500),shotRaycaster=new THREE.Raycaster(),boxHits=new Box3dHitscanWorld();
 const tracerAxis=new THREE.Vector3(0,1,0),tracerVector=new THREE.Vector3(),grenadeAxis=new THREE.Vector3(0,0,-1),bounceFxAxis=new THREE.Vector3(0,0,1);
@@ -156,8 +156,8 @@ function patchWeaponVisual(){
     warhead.add(body,ring,stem);for(let k=0;k<4;k++){const fin=new THREE.Mesh(new THREE.BoxGeometry(.006,.09,.09),dark);fin.position.set(Math.cos(k*Math.PI/2)*.07,Math.sin(k*Math.PI/2)*.07,-.02);fin.rotation.z=k*Math.PI/2;warhead.add(fin);}
     warhead.traverse(n=>{if(n.isMesh){n.renderOrder=10000;n.userData.flightFireIgnore=true;n.userData.walkWeaponPart=true;}});muzzleNode.add(warhead);}
   if(warhead)warhead.visible=footWeapon==="nuke"&&!(globalThis.__arondightFootNuke?.readyInMs>0);
-  const rightNode=gun.getObjectByName?.(footWeapon==="grenade"||footWeapon==="nuke"?"WALK_GRENADE_MUZZLE_NODE":footWeapon==="glock"?"WALK_GLOCK_MUZZLE_NODE":"WALK_SMG_MUZZLE_NODE"),leftNode=footWeapon==="glock"?scene.getObjectByName?.("WALK_GLOCK_MUZZLE_LEFT"):null;
-  if(rightNode)attachFlash(custom,rightNode,footWeapon==="grenade"?1.45:footWeapon==="glock"?1.7:1);
+  const rightNode=gun.getObjectByName?.(footWeapon==="grenade"||footWeapon==="nuke"?"WALK_GRENADE_MUZZLE_NODE":footWeapon==="glock"?"WALK_GLOCK_MUZZLE_NODE":footWeapon==="sniper"?"WALK_SNIPER_MUZZLE_NODE":"WALK_SMG_MUZZLE_NODE"),leftNode=footWeapon==="glock"?scene.getObjectByName?.("WALK_GLOCK_MUZZLE_LEFT"):null;
+  if(rightNode)attachFlash(custom,rightNode,footWeapon==="grenade"?1.45:footWeapon==="glock"?1.7:footWeapon==="sniper"?2.4:1);
   if(leftNode)attachFlash(leftFlash,leftNode,1.7);else leftFlash.visible=false;
   gun.userData.finalWeapon=footWeapon;const view=viewport();if(view){view.dataset.walkMuzzleDepth="depth-tested-viewmodel-occlusion-v2";view.dataset.walkWeaponViewmodelAlignment="camera-owned-sights-v2";view.dataset.walkMuzzleAnchor=rightNode?"dedicated-weapon-node-v1":"fallback";view.dataset.walkGlockMuzzleFx=footWeapon==="glock"&&leftNode?"independent-right+left-v3":"single";}
 }
@@ -172,7 +172,7 @@ function updateOneFlash(flash,now){
   const t=clamp((now-started)/Math.max(1,until-started),0,1),fade=(1-t)**1.6,grow=1+.35*t;flash.traverse?.(node=>{if(!node?.material||!Number.isFinite(node.userData?.flashBaseOpacity))return;if(node.material.uniforms?.uFade)node.material.uniforms.uFade.value=fade;else node.material.opacity=node.userData.flashBaseOpacity*fade;});const sc=(Number(flash.userData.flashScale)||1)*(Number(flash.userData.flashBase)||1)*grow;flash.scale.setScalar(sc);
 }
 function updateFlash(){const now=performance.now();updateOneFlash(cachedMuzzleFlash,now);updateOneFlash(cachedMuzzleFlashLeft,now);}
-function footMuzzle(out,ray,hand=0){const scene=bridge()?.threeScene,node=scene?.getObjectByName?.(footWeapon==="grenade"?"WALK_GRENADE_MUZZLE_NODE":footWeapon==="glock"&&hand===1?"WALK_GLOCK_MUZZLE_LEFT":footWeapon==="glock"?"WALK_GLOCK_MUZZLE_NODE":"WALK_SMG_MUZZLE_NODE");if(node?.getWorldPosition){node.updateWorldMatrix?.(true,false);node.getWorldPosition(out);return out;}const muzzle=footWeapon==="glock"&&hand===1?cachedMuzzleFlashLeft:cachedMuzzleFlash;if(muzzle?.getWorldPosition){muzzle.updateWorldMatrix?.(true,false);muzzle.getWorldPosition(out);return out;}right.set(ray.direction.y,-ray.direction.x,0).normalize();return out.copy(ray.origin).addScaledVector(ray.direction,.34).addScaledVector(right,hand===1?-.20:.20).add(new THREE.Vector3(0,0,-.16));}
+function footMuzzle(out,ray,hand=0){const scene=bridge()?.threeScene,node=scene?.getObjectByName?.(footWeapon==="grenade"?"WALK_GRENADE_MUZZLE_NODE":footWeapon==="glock"&&hand===1?"WALK_GLOCK_MUZZLE_LEFT":footWeapon==="glock"?"WALK_GLOCK_MUZZLE_NODE":footWeapon==="sniper"?"WALK_SNIPER_MUZZLE_NODE":"WALK_SMG_MUZZLE_NODE");if(node?.getWorldPosition){node.updateWorldMatrix?.(true,false);node.getWorldPosition(out);return out;}const muzzle=footWeapon==="glock"&&hand===1?cachedMuzzleFlashLeft:cachedMuzzleFlash;if(muzzle?.getWorldPosition){muzzle.updateWorldMatrix?.(true,false);muzzle.getWorldPosition(out);return out;}right.set(ray.direction.y,-ray.direction.x,0).normalize();return out.copy(ray.origin).addScaledVector(ray.direction,.34).addScaledVector(right,hand===1?-.20:.20).add(new THREE.Vector3(0,0,-.16));}
 
 function makeGrenade(scene,start,direction){
   const group=new THREE.Group(),shell=new THREE.MeshStandardMaterial({color:0x102018,roughness:.36,metalness:.52}),core=new THREE.MeshBasicMaterial({color:0xffb347,toneMapped:false}),haloMat=new THREE.MeshBasicMaterial({color:0x00ff66,transparent:true,opacity:.24,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});
@@ -226,6 +226,7 @@ function updateFootGrenades(now,dt){
 function footShotAt(clientX,clientY,now=performance.now(),hand=0){
   if(footWeapon==="grenade")return launchFootGrenade(clientX,clientY,now,"foot-screen");
   if(footWeapon==="glock")return glockShotAt(clientX,clientY,now,hand);
+  if(footWeapon==="sniper")return sniperShotAt(clientX,clientY,now);
   if(!isFoot()||walk()?.dead||now-lastSmg<SMG_INTERVAL_MS-.5)return false;lastSmg=now; // `now` = the round's due time (the hold loop keeps the cadence)
   const ray=footRay(clientX,clientY);if(!ray)return false;const hit=nearestGrenadeHit(ray,180),end=hit?.point?.clone?.()||tmp.copy(ray.origin).addScaledVector(ray.direction,130).clone(),start=footMuzzle(tmp2,ray).clone();showTracer(start,end);{const routed=hit?routeHit(hit):false;if(globalThis.__worldImpacts)globalThis.__worldImpacts.bullet(ray,hit,{routed});else if(hit&&!routed)addFallbackDecal(hit);}flashWeapon(34);audioShot(.18);weaponFired("smg",.14,"foot-screen","foot");
   const view=viewport();if(view){view.dataset.walkWeapon="smg";view.dataset.walkTouchFire="screen-point-raycast-v2";view.dataset.walkPistolTracer="world-ray-muzzle-origin-v2";view.dataset.walkSmgAutoFire="always-on-hold-v1";view.dataset.walkEnhancedShots=String((Number(view.dataset.walkEnhancedShots)||0)+1);view.dataset.walkTouchAimX=ray.point.x.toFixed(1);view.dataset.walkTouchAimY=ray.point.y.toFixed(1);}return true;
@@ -242,11 +243,34 @@ function glockShotAt(clientX,clientY,now,hand=0){
     let routed=false;for(let i=0;i<6;i++)routed=routeHit(hit)||routed;{const v=viewport();if(v){const u=hit.object?.userData||{};v.dataset.walkGlockLastHit=(pierced?(v.dataset.walkGlockLastHit||"")+">":"")+`${hit.physicsKind||u.worldPopulationKind||u.worldDecorKind||hit.object?.name||hit.object?.type||"?"}:${hit.physicsId||u.worldPopulationId||""}:${routed?1:0}:${lastRoute}`;}}
     globalThis.__worldImpacts?.bullet(r,hit,{routed});if(hit.point)globalThis.__worldImpacts?.chips?.(hit.point,ray.direction.clone().negate(),routed?"actor":"building",9,6);
     if(hit.physicsId)rigid()?.applyImpulse?.(hit.physicsId,bulletImpulse(ray.direction,"9mm"),{point:[hit.point.x,hit.point.y,hit.point.z]});
+    if(hit.point){const pt=[hit.point.x,hit.point.y,hit.point.z],J=bulletImpulse(ray.direction,"9mm");queueMicrotask(()=>rigid()?.impulseHumanAt?.(pt,J));}
     end=hit.point?.clone?.()||origin.clone().addScaledVector(ray.direction,Number(hit.distance)||10);
     if(!routed&&!hit.physicsId)break;pierced++;const d=Number(hit.distance)||origin.distanceTo(end);origin=end.clone().addScaledVector(ray.direction,.6);remaining-=d+.6;}
   tracerHand=h;showTracer(start,end||origin);flashWeapon(52,h);
   if(audioSettings.soundEnabled&&audioSettings.shotsVolume>0){const ctx=getSharedCombatAudioContext({resume:true});if(ctx)playCombatAudio(ctx,"pistol",{gain:.72*audioSettings.shotsVolume/100,playbackRate:1,minIntervalMs:0});}
   weaponFired("glock",.55,"foot-screen","foot");const view=viewport();if(view){view.dataset.walkWeapon="glock";view.dataset.walkGlockShots=String((Number(view.dataset.walkGlockShots)||0)+1);view.dataset.walkGlockLastHand=String(h);view.dataset.walkGlockMultitouch="one-pointer-one-pistol-v3";view.dataset.walkGlockMuzzleHand=String(h);}return true;
+}
+// SNIPER (.50 anti-materiel, bolt action): one round a bolt cycle, reaches 1.5 km, goes through
+// two bodies, kills a person outright and wrecks a car's engine. Its 41 N·s momentum goes into
+// what it hits — into the struck bone of a ragdoll, at the hit point of a rigid body. Scoped, the
+// shot leaves through the crosshair.
+const SNIPER_BOLT_MS=1150,SNIPER_RANGE_M=1500;let lastSniper=-Infinity;
+function sniperShotAt(clientX,clientY,now){
+  if(!isFoot()||walk()?.dead||now-lastSniper<SNIPER_BOLT_MS)return false;lastSniper=now;
+  if(globalThis.__arondightAds?.scoped){const v=viewport()?.getBoundingClientRect();if(v){clientX=v.left+v.width/2;clientY=v.top+v.height/2;}}
+  const ray=footRay(clientX,clientY);if(!ray)return false;const start=footMuzzle(tmp2,ray).clone();let origin=ray.origin.clone(),remaining=SNIPER_RANGE_M,pierced=0,end=null;const J=bulletImpulse(ray.direction,".50bmg");
+  while(pierced<3&&remaining>1){const r={origin,direction:ray.direction},hit=nearestGrenadeHit(r,remaining);
+    if(!hit){end=origin.clone().addScaledVector(ray.direction,Math.min(remaining,400));globalThis.__worldImpacts?.bullet(r,null,{maxDistance:remaining});break;}
+    const u=hit.object?.userData||{},kind=String(hit.physicsKind||u.worldPopulationKind||""),hits=kind==="car"||kind==="bus"?4:6;hit.weaponDamage=200;let routed=false;for(let i=0;i<hits;i++)routed=routeHit(hit)||routed;
+    globalThis.__worldImpacts?.bullet(r,hit,{routed});if(hit.point)globalThis.__worldImpacts?.chips?.(hit.point,ray.direction.clone().negate(),routed?"actor":"building",16,9);
+    const pt=hit.point?[hit.point.x,hit.point.y,hit.point.z]:null;
+    if(hit.physicsId)rigid()?.applyImpulse?.(hit.physicsId,J,{point:pt});
+    if(pt)queueMicrotask(()=>rigid()?.impulseHumanAt?.(pt,J));
+    end=hit.point?.clone?.()||origin.clone().addScaledVector(ray.direction,Number(hit.distance)||10);
+    if(!routed&&!hit.physicsId)break;pierced++;const d=Number(hit.distance)||origin.distanceTo(end);origin=end.clone().addScaledVector(ray.direction,.6);remaining-=d+.6;}
+  showTracer(start,end||origin);flashWeapon(70);
+  if(audioSettings.soundEnabled&&audioSettings.shotsVolume>0){const ctx=getSharedCombatAudioContext({resume:true});if(ctx){playCombatAudio(ctx,"pistol",{gain:1.0*audioSettings.shotsVolume/100,playbackRate:.52,minIntervalMs:0});playCombatAudio(ctx,"pistol",{gain:.55*audioSettings.shotsVolume/100,playbackRate:.36,minIntervalMs:0});}}
+  weaponFired("sniper",.8,"foot-screen","foot");const view=viewport();if(view){view.dataset.walkWeapon="sniper";view.dataset.walkSniperShots=String((Number(view.dataset.walkSniperShots)||0)+1);}return true;
 }
 function footBurst(clientX,clientY){return footShotAt(clientX,clientY,performance.now());}
 

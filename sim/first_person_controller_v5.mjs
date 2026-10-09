@@ -60,10 +60,11 @@ function staticDistance(ray,max){const b=bridge();let best=max;try{if(b?.active)
 function resolveDistance(ray,{full=false}={}){let distance=staticDistance(ray,MAX_RAY_M);if(full){const scene=bridge()?.threeScene;if(scene){raycaster.set(ray.origin,ray.direction);raycaster.near=.05;raycaster.far=distance;const hit=raycaster.intersectObjects(sceneCandidates(scene),false)[0];if(hit)distance=Math.min(distance,hit.distance);}}return clamp(distance,1.2,MAX_RAY_M);}
 
 function gunParts(gun){
-  const mode=String(footWeapons()?.mode||"smg"),smg=mode==="smg",grenade=mode==="grenade"||mode==="nuke",glock=mode==="glock";
-  const grip=gun.getObjectByName(grenade?"WALK_GL_GRIP":smg?"WALK_SMG_PISTOL_GRIP":glock?"WALK_GLOCK_GRIP":"WALK_VM_GRIP")||gun.getObjectByName("WALK_VM_GRIP");
-  const rear=gun.getObjectByName(grenade?"WALK_GL_REAR_SIGHT":smg?"WALK_SMG_REAR_SIGHT":glock?"WALK_GLOCK_REAR_SIGHT":"WALK_VM_REAR_SIGHT");
-  const front=gun.getObjectByName(grenade?"WALK_GL_FRONT_SIGHT":smg?"WALK_SMG_FRONT_SIGHT":glock?"WALK_GLOCK_FRONT_SIGHT":"WALK_VM_FRONT_SIGHT")||gun.getObjectByName(grenade?"WALK_GRENADE_MUZZLE_NODE":smg?"WALK_SMG_MUZZLE_NODE":glock?"WALK_GLOCK_MUZZLE_NODE":"WALK_VM_MUZZLE");
+  const mode=String(footWeapons()?.mode||"smg"),smg=mode==="smg",grenade=mode==="grenade"||mode==="nuke",glock=mode==="glock",sniper=mode==="sniper";
+  const P=grenade?"WALK_GL":smg?"WALK_SMG":glock?"WALK_GLOCK":sniper?"WALK_SNIPER":"WALK_VM";
+  const grip=gun.getObjectByName(grenade?"WALK_GL_GRIP":smg?"WALK_SMG_PISTOL_GRIP":`${P}_GRIP`)||gun.getObjectByName("WALK_VM_GRIP");
+  const rear=gun.getObjectByName(`${P}_REAR_SIGHT`);
+  const front=gun.getObjectByName(`${P}_FRONT_SIGHT`)||gun.getObjectByName(grenade?"WALK_GRENADE_MUZZLE_NODE":smg?"WALK_SMG_MUZZLE_NODE":glock?"WALK_GLOCK_MUZZLE_NODE":sniper?"WALK_SNIPER_MUZZLE_NODE":"WALK_VM_MUZZLE");
   return{grip,rear,front,smg,grenade};
 }
 // Rotate the gun about its grip so the sight line passes through `target`.
@@ -135,8 +136,11 @@ function kick(obj,h,now){const age=now-h.kickAt;if(age>=0&&age<KICK_MS){const k=
 // the screen centre and rear + front sight line up on it (Kimme und Korn), the view zooms in
 // (walk camera) and look speed scales with the zoom. Not on touch: no second button there.
 const ADS_TAU_S=.075,ADS_EYE_M=.46,ADS_ZOOM=1.45;let adsT=0;const adsEye=new THREE.Vector3(),adsDir=new THREE.Vector3(),adsRear=new THREE.Vector3(),adsGoal=new THREE.Vector3(),adsFront=new THREE.Vector3(),adsQ=new THREE.Quaternion(),adsQ0=new THREE.Quaternion(),adsLocal=new THREE.Vector3();
-function adsWanted(){if(!isFoot()||walk()?.dead)return false;const d=globalThis.__arondightDesktopInput;if(d?.active&&d.locked&&d.rmb)return true;if(globalThis.__arondightPadBlocked?.())return false;for(const p of navigator.getGamepads?.()||[]){if(p?.connected&&p.mapping==="standard"){const b=p.buttons?.[6];return Number(typeof b==="number"?b:b?.value)>.35;}}return false;}
-function stepAds(dt){const goal=adsWanted()?1:0;adsT+=(goal-adsT)*(1-Math.exp(-dt/ADS_TAU_S));if(Math.abs(adsT-goal)<.002)adsT=goal;globalThis.__arondightAds={t:adsT,zoom:1+(ADS_ZOOM-1)*adsT};document.body.classList.toggle("ads-active",adsT>.6);return adsT;}
+function scopeWeapon(){return String(footWeapons()?.mode||"")==="sniper";}
+function adsWanted(){if(!isFoot()||walk()?.dead)return false;if(scopeWeapon()&&globalThis.__arondightScopeToggle===true)return true;const d=globalThis.__arondightDesktopInput;if(d?.active&&d.locked&&d.rmb)return true;if(globalThis.__arondightPadBlocked?.())return false;for(const p of navigator.getGamepads?.()||[]){if(p?.connected&&p.mapping==="standard"){const b=p.buttons?.[6];return Number(typeof b==="number"?b:b?.value)>.35;}}return false;}
+// the sniper's scope: 8× true magnification (FOV through tan), the rifle drops out of view once the eye is at the scope
+const SCOPE_ZOOM=8;let scopeHidGun=false;
+function stepAds(dt){const goal=adsWanted()?1:0,scope=scopeWeapon();adsT+=(goal-adsT)*(1-Math.exp(-dt/(scope?ADS_TAU_S*1.6:ADS_TAU_S)));if(Math.abs(adsT-goal)<.002)adsT=goal;const zoom=scope?(adsT>.85?SCOPE_ZOOM:1+(ADS_ZOOM-1)*adsT):1+(ADS_ZOOM-1)*adsT,scoped=scope&&adsT>.85;globalThis.__arondightAds={t:adsT,zoom,scoped};document.body.classList.toggle("ads-active",adsT>.6);document.body.classList.toggle("scope-active",scoped);return adsT;}
 function adsPose(gun,parts,camera,t){const{rear,front}=parts;if(!rear||!front||!camera||t<=.001)return;
   camera.getWorldPosition(adsEye);camera.getWorldDirection(adsDir);rear.getWorldPosition(adsRear);
   adsGoal.copy(adsEye).addScaledVector(adsDir,ADS_EYE_M).sub(adsRear).multiplyScalar(t);
@@ -163,7 +167,7 @@ function beforeRender(scene,camera,now=performance.now()){
   // the left pistol takes its rest pose from the right one *before* aiming
   // one Glock (in the right hand) — the left-hand mirror pistol is retired
   const left=null;if(leftRoot)leftRoot.visible=false;void placeLeftPistol;
-  stepAim(hands[0],dt,now,rest);const result=alignSights(gun,hands[0].aim);if(!result)return;const ads=stepAds(dt);if(ads>.001)adsPose(gun,gunParts(gun),camera,ads);kick(gun,hands[0],now);
+  stepAim(hands[0],dt,now,rest);const result=alignSights(gun,hands[0].aim);if(!result)return;const ads=stepAds(dt);if(ads>.001)adsPose(gun,gunParts(gun),camera,ads);{const scoped=Boolean(globalThis.__arondightAds?.scoped);if(scoped!==scopeHidGun){scopeHidGun=scoped;const rifle=gun.getObjectByName("WALK_SNIPER_3D");if(rifle)rifle.visible=!scoped&&String(footWeapons()?.mode||"")==="sniper";}}kick(gun,hands[0],now);
   if(left){stepAim(hands[1],dt,now,rest);alignSights(left,hands[1].aim,leftParts(left));kick(left,hands[1],now);}
   const h=hands[0];
   setData("walkWeaponController",FIRST_PERSON_CONTROLLER_VERSION);setData("walkWeaponAimMode",h.pointer?"touch-drag":now-h.releasedAt<=RELEASE_HOLD_MS?"shot-hold":"crosshair-rest");

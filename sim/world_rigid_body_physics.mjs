@@ -74,6 +74,11 @@ export class WorldRigidBodyPhysics{
     const h=createBox3dHuman(this.b3,this.world,{...opts,groupIndex:this.humanGroup,categoryBits:WORLD_PHYSICS_CATEGORIES.vehicle,maskBits:WORLD_PHYSICS_CATEGORIES.terrain|ALL_DYNAMIC|WORLD_PHYSICS_CATEGORIES.projectileQuery});this.humans.set(key,h);return h;}
   human(id){return this.humans?.get(String(id||""))||null;}
   removeHuman(id){const h=this.humans?.get(String(id||""));if(!h)return false;destroyBox3dHuman(this.b3,h);this.humans.delete(String(id));return true;}
+  // a bullet in a ragdoll: its whole momentum goes into the bone it hits, at the hit point (a 2 kg
+  // forearm takes a .50 round's 41 N·s as ~20 m/s; the joints hand it on to the rest of the body)
+  impulseHumanAt(point,impulse,radius=.9){if(!finiteVector(point)||!finiteVector(impulse)||!this.humans?.size)return false;let best=null,bestD=radius;
+    for(const h of this.humans.values())for(const b of h.bodies){if(!this.b3.b3Body_IsValid(b))continue;const p=this.b3.b3Body_GetPosition([0,0,0],b),d=Math.hypot(p[0]-point[0],p[1]-point[1],p[2]-point[2]);if(d<bestD){bestD=d;best=b;}}
+    if(!best)return false;this.b3.b3Body_ApplyLinearImpulse(best,[...impulse],[...point],true);return true;}
   // a blast / hit: the same velocity change for every bone (spread over its mass), plus spin
   pushHuman(id,dv=[0,0,0],spin=0){const h=this.human(id);if(!h||!finiteVector(dv))return false;for(const b of h.bodies){if(!this.b3.b3Body_IsValid(b))continue;const v=this.b3.b3Body_GetLinearVelocity([0,0,0],b);this.b3.b3Body_SetLinearVelocity(b,[v[0]+dv[0],v[1]+dv[1],v[2]+dv[2]]);this.b3.b3Body_SetAwake?.(b,true);}if(spin&&h.bodies[1])this.b3.b3Body_ApplyAngularImpulse(h.bodies[1],[(Math.random()-.5)*spin,(Math.random()-.5)*spin,(Math.random()-.5)*spin],true);return true;}
   // Blast loading from first principles. A charge of W kg TNT-equivalent delivers a side-on
