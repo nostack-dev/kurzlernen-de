@@ -13,12 +13,19 @@ import * as THREE from "three";
 // stereo is on (it would otherwise run per eye at full size).
 // Toggle: Settings → CAMERA → SIDE-BY-SIDE 3D, or ?sbs=1.
 
-export const STEREO_SBS_VERSION="cross-eye-side-by-side-v1";
+export const STEREO_SBS_VERSION="cross-eye-side-by-side-v2-comfort-parallax";
 export const STEREO_SETTINGS_KEY="rushStereoSbsV1";
 export const STEREO_SETTINGS_EVENT="rush-stereo-sbs-change";
 export const STEREO_EYE_SEPARATION_M=.064;
 
-let active=false,installedOn=null,inside=false;
+let active=false,installedOn=null,inside=false;let focus=NaN;
+// convergence distance and eye base for the current view
+function stereoRig(camera){
+  const k=2*Math.tan((Number(camera.fov)||70)*Math.PI/360)*Math.max(.3,Number(camera.aspect)||1),jet=globalThis.__jetMode?.active,foot=globalThis.__arondightWalkMode?.mode==="foot"&&!jet&&!globalThis.__arondightVehicleDrive?.active;
+  const F=jet?40:globalThis.__arondightVehicleDrive?.active?8:foot?4:6;
+  const e=foot?STEREO_EYE_SEPARATION_M:Math.max(STEREO_EYE_SEPARATION_M,Math.min(2,.013*F*k));
+  return{focus:F,eyeSep:e};
+}
 const stereo=new THREE.StereoCamera(),size=new THREE.Vector2(),vp=new THREE.Vector4(),sc=new THREE.Vector4();
 
 export function loadStereoSetting(){
@@ -49,7 +56,12 @@ export function installStereo(renderer){
     const W=size.x,H=size.y,half=Math.floor(W/2);
     try{
       camera.aspect=half/Math.max(1,H);camera.updateProjectionMatrix();camera.updateMatrixWorld();
-      stereo.aspect=1;stereo.eyeSep=STEREO_EYE_SEPARATION_M;stereo.update(camera);
+      // Comfortable free-viewing stereo: the zero-parallax plane (convergence) sits where the action
+      // is, and the eye base keeps the screen parallax inside the usual budget (far ~1-1.5 % of the
+      // image width behind the screen, near ~3 % in front). On foot that is real human eyes (6.4 cm,
+      // convergence 4 m); flying, the base grows (hyperstereo) so distant terrain still has depth.
+      const rig=stereoRig(camera);stereo.aspect=1;stereo.eyeSep=rig.eyeSep;focus=camera.focus;camera.focus=rig.focus;stereo.update(camera);
+      stereo.cameraL.userData.monoCamera=camera;stereo.cameraR.userData.monoCamera=camera;
       renderer.setScissorTest(true);
       if(autoClear){renderer.setScissor(0,0,W,H);renderer.setViewport(0,0,W,H);renderer.clear();}
       renderer.autoClear=false;
@@ -60,7 +72,7 @@ export function installStereo(renderer){
     }finally{
       renderer.shadowMap.autoUpdate=autoShadow;renderer.autoClear=autoClear;
       renderer.setScissorTest(scissorTest);renderer.setScissor(sc);renderer.setViewport(vp);
-      camera.aspect=aspect;camera.updateProjectionMatrix();inside=false;
+      if(Number.isFinite(focus))camera.focus=focus;camera.aspect=aspect;camera.updateProjectionMatrix();inside=false;
     }
   };
   syncDom();

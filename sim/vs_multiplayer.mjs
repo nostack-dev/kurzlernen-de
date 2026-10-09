@@ -2,7 +2,7 @@ import * as THREE from "three";
 import {VsPoseTimeline} from "./vs_pose_sync.mjs";
 import {VS_PEER_EVENT,VS_POSE_EVENT,VS_GAME_EVENT,VS_FX_EVENT} from "./lan_vs.mjs";
 
-const VISUAL_SCALE=12;
+const VISUAL_SCALE=1;// other players' drones at their true size (a 12x drone sank half into the ground); the player marker keeps them readable
 const HITBOX_PADDING=1.16;
 const STALE_MS=3000;
 const MAX_PLAYERS=9;
@@ -59,10 +59,10 @@ function makeMarker(record){
 function createPeerMesh(record){
   const b=bridge(),scene=b?.threeScene;if(!scene)return null;
   const group=new THREE.Group(),material=new THREE.MeshStandardMaterial({color:record.color,emissive:record.color,emissiveIntensity:1.7,roughness:.24,metalness:.18});group.scale.setScalar(VISUAL_SCALE);
-  const body=new THREE.Mesh(new THREE.BoxGeometry(.22,.34,.07),material);body.userData.flightFireIgnore=true;group.add(body);
+  const body=new THREE.Mesh(new THREE.BoxGeometry(.09,.11,.044),material);body.userData.flightFireIgnore=true;group.add(body);
   for(const[x,y]of[[-.19,-.19],[.19,-.19],[-.19,.19],[.19,.19]]){const arm=new THREE.Mesh(new THREE.BoxGeometry(.025,.26,.025),material);arm.position.set(x*.5,y*.5,0);arm.rotation.z=(x*y>0?1:-1)*Math.PI/4;arm.userData.flightFireIgnore=true;group.add(arm);}
   const hitMaterial=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,depthTest:false});hitMaterial.colorWrite=false;
-  const hitbox=new THREE.Mesh(new THREE.BoxGeometry(.32*HITBOX_PADDING,.44*HITBOX_PADDING,.10*HITBOX_PADDING),hitMaterial);hitbox.userData.vsCombatHitbox=true;hitbox.userData.vsPlayerId=record.id;hitbox.userData.vsPeerHitProxy=true;group.add(hitbox);
+  const hitbox=new THREE.Mesh(new THREE.BoxGeometry(.27*HITBOX_PADDING,.27*HITBOX_PADDING,.06*HITBOX_PADDING),hitMaterial);hitbox.userData.vsCombatHitbox=true;hitbox.userData.vsPlayerId=record.id;hitbox.userData.vsPeerHitProxy=true;group.add(hitbox);
   group.userData.vsPlayerId=record.id;group.userData.vsPlayerColor=record.color;group.userData.vsMultiplayerPeer=true;group.visible=false;scene.add(group);return group;
 }
 

@@ -66,7 +66,7 @@ finder.stop();
 
 const fireSource=readFileSync(new URL("../sim/flight_fire_fx.mjs",import.meta.url),"utf8");
 const hitscanSource=readFileSync(new URL("../sim/box3d_hitscan.mjs",import.meta.url),"utf8");
-for(const marker of ["fireHitMode=\"box3d-raycast-hitscan\"","fireProjectilePoolSize=\"0\"","VS_COMBAT_VISUAL_SCALE=7","VS_HITBOX_PADDING=1.16","vsCombatHitbox=true","vsPeerHitboxM","raycaster.setFromCamera(pointerNdc,camera)","registerWorldPopulationHit?.(sceneHit)","flightFireTracer","vsPeerHitProxy","combatLocked()"])
+for(const marker of ["fireHitMode=\"box3d-raycast-hitscan\"","fireProjectilePoolSize=\"0\"","VS_COMBAT_VISUAL_SCALE=1","VS_HITBOX_PADDING=1.16","vsCombatHitbox=true","vsPeerHitboxM","raycaster.setFromCamera(pointerNdc,camera)","registerWorldPopulationHit?.(sceneHit)","flightFireTracer","vsPeerHitProxy","combatLocked()"])
   assert.ok(fireSource.includes(marker),`hitscan VS/readability contract missing: ${marker}`);
 for(const marker of ["b3DefaultQueryFilter","b3World_CastRayClosest","QUERY_HITSCAN=16n","COLLISION_WORLD=1n","createWorldBuildingCollisionBodies"])
   assert.ok(hitscanSource.includes(marker),`Box3D hitscan contract missing: ${marker}`);

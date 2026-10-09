@@ -63,6 +63,9 @@ function replacementRemainingMs(now=performance.now()){return droneReplacementRe
 function damageTargetKindFromHit(hit){for(let node=hit?.object;node;node=node.parent){const kind=String(node.userData?.localDamageTarget||"");if(kind==="player"||kind==="drone")return kind;}return"";}
 function localDamageTargets(){
   const w=walk(),vehicle=globalThis.__arondightPlayerVehicleRuntime,targets=[];
+  // in the jet the airframe takes the hits (the pilot dies only with it); under the chute the pilot is up there, not on the ground below
+  const jm=globalThis.__jetMode,pilot=jm?.active?jm.pilotPosition:null;if(jm?.active&&!pilot)return targets;
+  if(pilot&&!playerDead&&currentPlayerHp()>0){targets.push({kind:"player",model:globalThis.__arondightPlayerDamageModel,hp:currentPlayerHp(),position:{x:pilot.x,y:pilot.y,z:pilot.z},speedMps:0,mesh:null});return targets;}
   if(!playerDead&&currentPlayerHp()>0){const foot=currentMode()==="foot",source=foot?w?.position:vehicle?.humanAnchor,velocity=vehicle?.humanVelocity||{},targetZ=foot?(Number(source?.z)||1.68):(Number(source?.z)||0)+1.12;if(source)targets.push({kind:"player",model:globalThis.__arondightPlayerDamageModel,hp:currentPlayerHp(),position:{x:Number(source.x)||0,y:Number(source.y)||0,z:targetZ},speedMps:foot?Math.hypot(Number(velocity.x)||0,Number(velocity.y)||0):0,mesh:vehicle?.humanMesh||null});}
   if(currentMode()==="drone"&&!droneDestroyed&&droneHp>0){const pose=vehicle?.dronePose;if(pose)targets.push({kind:"drone",model:globalThis.__arondightDroneDamageModel,hp:droneHp,position:{x:Number(pose.x)||0,y:Number(pose.y)||0,z:Number(pose.z)||0},speedMps:0,mesh:vehicle?.droneMesh||null});}
   return targets;

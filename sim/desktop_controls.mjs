@@ -24,6 +24,7 @@ const bridge=()=>globalThis.__arondightRealWorld||null;
 let installed=false,desktop=false,lmb=false,rmb=false,dronePx={x:0,y:0},droneRate={x:0,y:0},lastTick=performance.now(),lastLookMs=-Infinity,lookOwned=false,jetDelta={x:0,y:0};
 const keys=new Set(),droneSample={active:false,left:{x:0,y:0},right:{x:0,y:0},heightAxis:0,fire:false,arm:false,camera:false};
 
+function playerDown(){return Boolean(globalThis.__arondightPlayerDamageModel?.dead||globalThis.__arondightRealWorld?.vsLocalDead||document.body.classList.contains("player-dead"));}
 function gameMode(){const b=document.body;if(b.classList.contains("jet-mode"))return"jet";if(b.classList.contains("player-driving"))return"car";return walk()?.mode==="foot"?"foot":"drone";}
 function locked(){const v=viewport();return Boolean(v)&&document.pointerLockElement===v;}
 function inGame(){const menu=document.getElementById("gameMenu");return document.body.classList.contains("solo-flight")&&(!menu||menu.hidden)&&!document.querySelector("dialog[open]");}
@@ -39,7 +40,8 @@ function releaseAll(){keys.clear();lmb=rmb=false;dronePx.x=dronePx.y=0;droneRate
 
 function requestLock(){
   const v=viewport();if(!v?.requestPointerLock)return;
-  try{const p=v.requestPointerLock({unadjustedMovement:true});if(p?.catch)p.catch(()=>{try{v.requestPointerLock();}catch{}});}catch{try{v.requestPointerLock();}catch{}}
+  // the OS pointer speed curve stays on (like the desktop cursor the player is used to): raw counts felt dead on small, slow moves
+  try{const p=v.requestPointerLock();if(p?.catch)p.catch(()=>{});}catch{}
 }
 
 // head look (car, drone with RMB): the shared world look, snapping back when idle
@@ -106,7 +108,10 @@ const DRONE_KEYS=new Set(["KeyW","KeyA","KeyS","KeyD","Space","ShiftLeft","Shift
 function onKeyDown(event){
   if(event.metaKey||event.ctrlKey||event.altKey)return;
   const target=event.target;if(target instanceof Element&&target.closest("input,textarea,select,[contenteditable]"))return;
-  setDesktop(true);if(!inGame())return;const mode=gameMode();
+  setDesktop(true);
+  // dead: R / Enter respawns (the mouse is captured, the RESET button cannot be clicked)
+  if((event.code==="KeyR"||event.code==="Enter")&&!event.repeat&&playerDown()){const hud=document.getElementById("vsRespawnHud");if(hud&&!hud.hidden)hud.querySelector("button")?.click();else globalThis.__arondightRequestReset?.();event.preventDefault();event.stopImmediatePropagation();return;}
+  if(!inGame())return;const mode=gameMode();
   if(/^Digit[1-3]$/.test(event.code)&&(mode==="foot"||mode==="drone")){selectWeapon(Number(event.code.slice(5))-1);event.preventDefault();return;}
   if(mode!=="drone")return;
   if(event.code==="KeyV"&&!event.repeat){walk()?.setMode?.("foot");consume(event);return;}
@@ -156,7 +161,7 @@ function ensureEls(){
   return true;
 }
 const WEAPON_NAMES={smg:"SMG",glock:"PISTOL",grenade:"GRENADE LAUNCHER",gun:"GUN",missile:"MISSILE",nuke:"NUKE"};
-function renderHints(){if(!ensureEls())return;const mode=gameMode(),api=mode==="foot"?globalThis.__arondightFootWeapons:mode==="drone"?globalThis.__arondightDroneWeapons:null,w=api?WEAPON_NAMES[String(api.displayMode||api.mode)]||"":"",text=desktop?(w?`[ ${w} ]  `:"")+(HINTS[mode]||""):"";if(text!==lastHint){hintEl.textContent=text;lastHint=text;}}
+function renderHints(){if(!ensureEls())return;if(desktop&&playerDown()){const t="DOWN · R / ENTER = RESPAWN";if(t!==lastHint){hintEl.textContent=t;lastHint=t;}return;}const mode=gameMode(),api=mode==="foot"?globalThis.__arondightFootWeapons:mode==="drone"?globalThis.__arondightDroneWeapons:null,w=api?WEAPON_NAMES[String(api.displayMode||api.mode)]||"":"",text=desktop?(w?`[ ${w} ]  `:"")+(HINTS[mode]||""):"";if(text!==lastHint){hintEl.textContent=text;lastHint=text;}}
 function syncOverlay(){if(!ensureEls())return;renderHints();playEl.classList.toggle("show",desktop&&inGame()&&!locked());const v=viewport();if(v)v.dataset.pointerLock=locked()?"1":"0";}
 
 export function installDesktopControls(){
@@ -171,6 +176,7 @@ export function installDesktopControls(){
   window.addEventListener("contextmenu",event=>{if(locked()||(desktop&&gameplayTarget(event.target)))event.preventDefault();},{capture:true});
   document.addEventListener("pointerlockchange",()=>{if(!locked()){lmb=false;rmb=false;droneFire(false);endLook();keys.clear();}syncOverlay();});
   window.addEventListener("blur",releaseAll);
+  window.addEventListener("arondight:player-death",()=>{if(locked())document.exitPointerLock?.();});
   globalThis.__arondightDesktopDroneInput=droneSample;
   globalThis.__arondightDesktopInput={get active(){return desktop;},get locked(){return locked();},get mode(){return gameMode();},get lmb(){return lmb;},get rmb(){return rmb;},keys,takeMouseDelta(){const d={x:jetDelta.x,y:jetDelta.y};jetDelta.x=jetDelta.y=0;return d;},version:"desktop-mouse-keyboard-v1"};
   setInterval(tick,16);

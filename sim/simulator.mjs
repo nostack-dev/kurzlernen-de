@@ -1,3 +1,4 @@
+import {installViewmodelPass} from "./viewmodel_pass.mjs";
 import * as THREE from "three";
 import Box3DFactory from "box3d.js/dist/box3d.inline.mjs";
 import createCore from "../generated/flight_core.mjs";
@@ -498,7 +499,7 @@ class PhysicsModel {
     const slant=fraction*range,agl=slant*verticalProjection;
     return{valid:slant>=.001&&slant<=range&&Number.isFinite(agl),slant,agl,verticalProjection};
   }
-  resolveCameraPath(anchor,desired){return resolveBox3dCameraPath(b3,this.world,anchor,desired,{queryCategoryBits:QUERY_CAMERA,terrainCategoryBits:COLLISION_TERRAIN,clearanceM:.08});}
+  resolveCameraPath(anchor,desired){const a=Array.isArray(anchor)?anchor:[0,0,0],g=staticGroundHeightAt(Number(a[0])||0,Number(a[1])||0);return resolveBox3dCameraPath(b3,this.world,anchor,desired,{queryCategoryBits:QUERY_CAMERA,terrainCategoryBits:COLLISION_TERRAIN,clearanceM:.08,anchorClearanceM:(Number(a[2])||0)-(Number.isFinite(g)?g:0)});}
   imuRaw(dt=DT){
     this.noise.stepBias(dt);
     const omegaBody=this.localVector(this.angular()),alpha=scale(sub(omegaBody,this.prevOmegaBody),1/dt);this.prevOmegaBody=omegaBody.slice();
@@ -571,6 +572,7 @@ const scene=new THREE.Scene();scene.background=daylightSky();scene.fog=new THREE
 const camera=new THREE.PerspectiveCamera(52,1,.01,1500);camera.up.set(0,0,1);camera.position.set(1.65,0,.8);
 const initialRenderProfile=renderPlatformProfile({userAgent:navigator.userAgent,devicePixelRatio});
 const renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:initialRenderProfile.stableBackbuffer?"default":"high-performance",desynchronized:false,preserveDrawingBuffer:false});
+installViewmodelPass(renderer);
 // production: no synchronous shader error checks (each compile would block on
 // getProgramInfoLog and lose the driver's parallel compile); ?debug keeps them
 renderer.debug.checkShaderErrors=/[?&]debug/.test(globalThis.location?.search||"");

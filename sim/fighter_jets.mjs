@@ -105,7 +105,7 @@ function explode(p,now,o={}){
   const blast={group:new THREE.Group(),born:now,scale:Number(o.scale)||1};const core=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),new THREE.MeshBasicMaterial({color:0xffc070,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false}));
   const smoke=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),new THREE.MeshStandardMaterial({color:0x2c2724,roughness:1,transparent:true,opacity:.85,depthWrite:false}));const light={intensity:40};
   blast.group.add(core,smoke);blast.core=core;blast.smoke=smoke;blast.light=light;blast.group.position.copy(p);blast.group.traverse(n=>{n.userData.flightFireIgnore=true;n.raycast=()=>{};});root.add(blast.group);blasts.push(blast);
-  window.dispatchEvent(new CustomEvent("arondight:world-explosion",{detail:{position:[p.x,p.y,p.z+.4],radiusM:o.radiusM??BOMB_RADIUS,maxDamage:o.maxDamage??BOMB_DAMAGE,kind:o.kind||"airstrike",id:`${o.kind||"airstrike"}-${now}`}}));
+  window.dispatchEvent(new CustomEvent("arondight:world-explosion",{detail:{position:[p.x,p.y,p.z+.4],radiusM:o.radiusM??BOMB_RADIUS,maxDamage:o.maxDamage??BOMB_DAMAGE,kind:o.kind||"airstrike",remote:Boolean(o.remote),id:`${o.kind||"airstrike"}-${now}`}}));
   try{const c=ensureAudio(),L=listenerPos(),d=L?L.distanceTo(p):100;if(c)setTimeout(()=>playCombatAudio(c,"explosion",{destination:master,gain:Math.min(1.6,40/(10+d)),playbackRate:.7+Math.random()*.15}),d/SOUND*1000);}catch{}
 }
 function updateBlasts(now){for(let i=blasts.length-1;i>=0;i--){const b=blasts[i],t=(now-b.born)/1000;if(t>6){b.group.parent?.remove(b.group);blasts.splice(i,1);continue;}

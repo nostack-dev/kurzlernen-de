@@ -37,11 +37,11 @@ import {startWorldCriticalDamage,stopWorldCriticalDamage} from "./world_critical
 //     player owns (parked / ejected / wreck) rides along in the pose; hits on
 //     another player's jet are sent to its owner, who applies them.
 export const JET_MODE_VERSION="vtol-jet-mode-v4-6dof-aero-damage";
-const G=9.81,REBASE_M=6000,SOUND=340,ENTER_M=9,HP_MAX=400,WRECK_MS=30000,PAD_RESPAWN_MS=30000;
+const G=9.81,REBASE_M=6000,SOUND=340,ENTER_M=9,HP_MAX=400,DEBRIS_MS=45000,PAD_RESPAWN_MS=75000,PAD_RADIUS_M=30,MAX_AIRFRAMES=4;
 const bridge=()=>globalThis.__arondightRealWorld||null,viewport=()=>document.getElementById("viewport"),walk=()=>globalThis.__arondightWalkMode||null,physics=()=>globalThis.__arondightWorldRigidBodies||null;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 let active=false,jet=null,root=null,sceneRef=null,camMode="cockpit",keys=new Set(),firing=false,lastGun=0,lastFrame=performance.now(),camOff=new THREE.Vector3(),camInit=false,voice=null,serial=0,machWas=0,coneUntil=0,para=null,baseFar=0,spawnPad=null,firstSeen=0,respawnAt=0,airSerial=0;
-const bombs=[],remote=new Map(),peerAir=new Map(),airframes=new Map(),mouseStick={x:0,y:0};
+const bombs=[],remote=new Map(),peerAir=new Map(),airframes=new Map(),debris=[],mouseStick={x:0,y:0};let padEmptySince=0,debrisSerial=0;
 const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),fwd=new THREE.Vector3(),upv=new THREE.Vector3(),rightv=new THREE.Vector3(),qd=new THREE.Quaternion(),X=new THREE.Vector3(1,0,0),Y=new THREE.Vector3(0,1,0),Z=new THREE.Vector3(0,0,1);
 
 // ------------------------------------------------------------ world helpers
@@ -107,17 +107,42 @@ function damageAirframe(A,amount,source="world"){
   if(A.hp<=0)destroyAirframe(A,source);
 }
 function destroyAirframe(A,source="world"){
-  if(!A||A.state==="wreck")return;const wasPlayer=A===jet,p=A.p.clone();A.state="wreck";A.hp=0;A.burning=false;stopWorldCriticalDamage(A.id);
-  A.af.pilot=false;A.af.engineOn=false;A.af.input={lift:0,yawIn:0,pitchIn:0,rollIn:0,brake:1};A.wreckAt=performance.now();scorch(A.model);
-  A.ignoreBlastUntil=performance.now()+400;globalThis.__fighterJets?.blast?.(p,{radiusM:14,maxDamage:180,scale:1.25,kind:"jet-wreck"});addTrauma?.(wasPlayer?1:.4);
-  sendFx({kind:"jet-destroyed",aid:A.id,g:geoOf(p.x,p.y),p:canon(p)});
-  if(wasPlayer){const h=headingOf(A.q);jet=null;try{globalThis.__arondightPlayerDamageModel?.damage?.(1000,`jet-destroyed:${source}`);}catch{}finish(p.x+Math.cos(h)*6,p.y+Math.sin(h)*6,h);}
-  if(A.pad)respawnAt=performance.now()+PAD_RESPAWN_MS;
+  if(!A||A.state==="wreck")return;const wasPlayer=A===jet,p=A.p.clone(),v=A.v.clone(),q=A.q.clone();A.state="wreck";A.hp=0;A.burning=false;stopWorldCriticalDamage(A.id);
+  A.ignoreBlastUntil=performance.now()+400;sendFx({kind:"jet-destroyed",aid:A.id,g:geoOf(p.x,p.y),p:canon(p),v:[+v.x.toFixed(1),+v.y.toFixed(1),+v.z.toFixed(1)]});
+  // the airframe comes apart: its body is gone, the pieces fly under physics
+  physics()?.removeBody?.(A.id);airframes.delete(A.id);breakApart(A.model,p,q,v);
+  globalThis.__fighterJets?.blast?.(p,{radiusM:14,maxDamage:180,scale:1.25,kind:"jet-wreck"});addTrauma?.(wasPlayer?1:.4);
+  if(wasPlayer){const h=headingOf(q);jet=null;try{globalThis.__arondightPlayerDamageModel?.damage?.(1000,`jet-destroyed:${source}`);}catch{}finish(p.x+Math.cos(h)*6,p.y+Math.sin(h)*6,h);}
 }
+// Break a jet model into its real parts (nose, centre fuselage, tail, both wings): each part becomes a
+// Box3D body with the jet's velocity plus the blast's push; they burn, tumble, come to rest and burn out.
+function breakApart(model,p,q,v){
+  if(!model)return;scorch(model);model.updateMatrixWorld(true);const inv=new THREE.Matrix4().copy(model.matrixWorld).invert(),groups=new Map();
+  for(const mesh of[...model.children]){if(!mesh.isMesh||mesh===model.userData.cone||mesh===model.userData.flame)continue;mesh.geometry.computeBoundingBox?.();const bb=mesh.geometry.boundingBox?.clone();if(!bb)continue;bb.applyMatrix4(mesh.matrix);const c=bb.getCenter(new THREE.Vector3());
+    const key=Math.abs(c.x)>1.4?(c.x>0?"wingR":"wingL"):c.y>3.2?"nose":c.y<-3.2?"tail":"body";let g=groups.get(key);if(!g){g={meshes:[],box:new THREE.Box3()};groups.set(key,g);}g.meshes.push(mesh);g.box.union(bb);}
+  void inv;const now=performance.now();let i=0;
+  for(const[key,g]of groups){const c=g.box.getCenter(new THREE.Vector3()),size=g.box.getSize(new THREE.Vector3()),grp=new THREE.Group();grp.name=`JET_DEBRIS_${key}`;
+    for(const mesh of g.meshes){mesh.parent?.remove(mesh);mesh.position.sub(c);mesh.raycast=()=>{};mesh.userData.flightFireIgnore=true;grp.add(mesh);}
+    const wp=c.clone().applyQuaternion(q).add(p);grp.position.copy(wp);grp.quaternion.copy(q);root?.add(grp);
+    const id=`jet-debris-${(++debrisSerial).toString(36)}`,half=[Math.max(.15,size.x/2),Math.max(.15,size.y/2),Math.max(.12,size.z/2)],mass=key==="body"?4200:key.startsWith("wing")?1300:2200;
+    const out=c.clone().applyQuaternion(q).normalize(),push=8+Math.random()*7,vel=[v.x+out.x*push+(Math.random()-.5)*3,v.y+out.y*push+(Math.random()-.5)*3,v.z+Math.abs(out.z)*push+5+Math.random()*5];
+    const yaw=Math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z));
+    const ok=physics()?.upsertBody?.({id,kind:"debris",position:[wp.x,wp.y,wp.z],yaw,halfExtents:half,massKg:mass,wheeled:false,linearDamping:.05,angularDamping:.3,friction:.6});
+    if(ok)physics()?.setPose?.(id,{position:[wp.x,wp.y,wp.z],velocity:vel,angularVelocity:[(Math.random()-.5)*4,(Math.random()-.5)*4,(Math.random()-.5)*3]});
+    const d={id:ok?id:null,group:grp,offset:new THREE.Quaternion().copy(q).premultiply(qd.setFromAxisAngle(Z,-yaw)),until:now+DEBRIS_MS+i*1500,v:new THREE.Vector3(...vel)};debris.push(d);
+    if(key==="body"||i===0)startWorldCriticalDamage({id:`${id}-fire`,object:grp,kind:"jet-debris",offset:[0,0,.3],scale:1.6,delayMs:DEBRIS_MS*.6,onExpire:null});i++;}
+  model.parent?.remove(model);
+}
+// a body pose follows Box3D; the parts are created with the airframe's full attitude, the body with yaw only: keep that offset
+function debrisFrame(now,dt){for(let k=debris.length-1;k>=0;k--){const d=debris[k];if(now>d.until){if(d.id)physics()?.removeBody?.(d.id);stopWorldCriticalDamage(`${d.id}-fire`);d.group.parent?.remove(d.group);debris.splice(k,1);continue;}
+  const pose=d.id?physics()?.pose?.(d.id):null;if(pose){d.group.position.set(pose.position[0],pose.position[1],pose.position[2]);d.group.quaternion.set(pose.rotation[0],pose.rotation[1],pose.rotation[2],pose.rotation[3]).multiply(d.offset);}
+  else{d.v.z-=G*dt;d.group.position.addScaledVector(d.v,dt);const gz=groundHeightAt(d.group.position.x,d.group.position.y);if(d.group.position.z<gz+.3){d.group.position.z=gz+.3;d.v.set(0,0,0);}}
+  const left=d.until-now;if(left<4000)d.group.scale.setScalar(Math.max(.01,left/4000));}}
 // distance from a point to the airframe (its body-frame bounding box: fuselage + wing span)
 function distanceToAirframe(A,x,y,z){tmp.set(x-A.p.x,y-A.p.y,z-A.p.z).applyQuaternion(qd.copy(A.q).invert());const dx=Math.max(0,Math.abs(tmp.x)-6),dy=Math.max(0,tmp.y>9?tmp.y-9:tmp.y<-7.6?-7.6-tmp.y:0),dz=Math.max(0,Math.abs(tmp.z)-.9);return Math.hypot(dx,dy,dz);}
 function blastDamage(dist,radius,maxDamage){if(dist>=radius)return 0;return(Number(maxDamage)||60)*1.2*Math.pow(1-dist/radius,1.3);}
 function onExplosion(e){const d=e?.detail||{},p=d.position;if(!Array.isArray(p)&&!p)return;const x=Array.isArray(p)?+p[0]:+p.x,y=Array.isArray(p)?+p[1]:+p.y,z=Array.isArray(p)?+p[2]:+p.z;if(![x,y,z].every(Number.isFinite))return;
+  if(d.remote&&d.kind!=="nuke")return;// a replayed blast: the client where it happened already sent its hits
   const r=Math.max(1.5,Number(d.radiusM)||6),maxD=d.kind==="nuke"?99999:Number(d.maxDamage)||60,now=performance.now();
   for(const A of[...airframes.values()]){if(A.ignoreBlastUntil>now)continue;const dmg=blastDamage(distanceToAirframe(A,x,y,z),d.kind==="nuke"?Math.max(r,600):r,maxD);if(dmg>0)damageAirframe(A,dmg,String(d.kind||"blast"));}
   // jets of other players: the owner applies the damage
@@ -149,7 +174,7 @@ function exit(){
     park(A);jet=null;finish(A.p.x+Math.cos(h)*5,A.p.y+Math.sin(h)*5,h);return true;}
   // EJECT: the seat takes the pilot; the empty jet keeps its body — no pilot, engine winding down — and comes down under physics
   A.state="ghost";af.pilot=false;af.engineOn=false;af.input={lift:0,yawIn:0,pitchIn:0,rollIn:0,brake:0};
-  upv.copy(Z).applyQuaternion(A.q);const agl=A.p.z-groundHeightAt(A.p.x,A.p.y);para={p:A.p.clone().addScaledVector(upv,2.8),v:A.v.clone().addScaledVector(upv,agl>20?22:12),t:performance.now()};jet=null;ensureChute().visible=true;firing=false;
+  upv.copy(Z).applyQuaternion(A.q);const agl=A.p.z-groundHeightAt(A.p.x,A.p.y);para={p:A.p.clone().addScaledVector(upv,2.8),v:A.v.clone().addScaledVector(upv,28),t:performance.now()};jet=null;ensureChute().visible=true;firing=false;
   sfx("explosion",{gain:.35,playbackRate:1.6});addTrauma?.(.5);stopVoice();return true;
 }
 function toggleMode(){if(!jet)return;setFlightMode(jet.af,jet.af.mode==="hover"?"flight":"hover");sfx("bounce",{gain:.25,playbackRate:.4});renderButtons();}
@@ -182,8 +207,17 @@ function stepPara(dt){const c=para,inp=readInputs(dt)||{pitchIn:0,rollIn:0},age=
   if(c.p.z<=gz+.2||(age>1.5&&hitsBuilding(c.p))){ch.visible=false;finish(c.p.x,c.p.y,Math.atan2(-c.v.x,c.v.y||1));}}
 // ejected / wrecked jets: a ghost that comes to rest on its gear is parked again; wrecks burn out
 function airframesFrame(now){for(const A of[...airframes.values()]){syncAirframe(A);
-  if(A.state==="ghost"&&A.af.contacts>=2&&A.v.length()<1)park(A);
-  if(A.state==="wreck"&&now-A.wreckAt>WRECK_MS)removeAirframe(A);}}
+  if(A.state==="ghost"&&A.af.contacts>=2&&A.v.length()<1)park(A);}}
+// The start pad always gets its jet back: 75 s after it is empty (destroyed, or flown away and left
+// somewhere) a new one stands there. Left-behind jets stay where they were put — up to a few; then the
+// oldest unused one far from the player (out of sight) is taken away.
+function padFrame(now){
+  if(!spawnPad)return;const occupied=[...airframes.values()].some(A=>A.state!=="wreck"&&Math.hypot(A.p.x-spawnPad.x,A.p.y-spawnPad.y)<PAD_RADIUS_M&&A.p.z-groundHeightAt(A.p.x,A.p.y)<12);
+  if(occupied){padEmptySince=0;return;}if(!padEmptySince){padEmptySince=now;return;}if(now-padEmptySince<PAD_RESPAWN_MS)return;
+  const w=walk()?.position;if(w&&Math.hypot(w.x-spawnPad.x,w.y-spawnPad.y)<14)return;// never on top of the player
+  padEmptySince=0;for(const A of airframes.values())A.pad=false;const s=freeSpot(spawnPad.x,spawnPad.y);createAirframeBody(s.x,s.y,spawnPad.heading,{pad:true});
+  const spare=[...airframes.values()].filter(A=>A!==jet&&A.state==="parked"&&!A.pad).sort((a,b)=>a.born-b.born);while(airframes.size>MAX_AIRFRAMES&&spare.length){const A=spare.shift(),d=w?Math.hypot(A.p.x-w.x,A.p.y-w.y):1e9;if(d>150)removeAirframe(A);}
+}
 function rebase(dx,dy){const b=bridge();if(!b?.active||!Number.isFinite(b.originLon)||!Number.isFinite(b.originLat))return;if(b.vsSession)return;/* a shared multiplayer frame never moves (everybody's positions are in it) */const[lon,lat]=metersToLngLat(b.originLon,b.originLat,dx,dy);
   b.originLon=lon;b.originLat=lat;b.lastMapSyncMs=-Infinity;b.lastMapView=null;b.lastViewportSize="";b.minimapLastQueryMs=-Infinity;b.minimapLastDrawMs=-Infinity;b.buildingCollisionDirty=true;b.clearBuildingCollisions?.();try{b.map?.jumpTo?.({center:[lon,lat]});}catch{}
   for(const A of airframes.values()){const p=physics()?.pose?.(A.id);if(p)physics()?.setPose?.(A.id,{position:[p.position[0]-dx,p.position[1]-dy,p.position[2]],velocity:[...p.velocity],angularVelocity:[...(p.angularVelocity||[0,0,0])]});A.p.x-=dx;A.p.y-=dy;}
@@ -314,14 +348,18 @@ function renderRemote(dt){const now=performance.now(),a=1-Math.exp(-dt*8);for(co
 function onFx(e){const pk=e?.detail?.packet;if(pk?.objectId!=="player-jet")return;
   if(pk.kind==="jet-boom"){sfx("explosion",{gain:.5,playbackRate:.55});return;}
   if(pk.kind==="jet-hit"){const me=selfId();if(!me||String(pk.target)!==me)return;const A=String(pk.aid)==="flying"?jet:airframes.get(String(pk.aid||""));if(A)damageAirframe(A,clamp(Number(pk.dmg)||0,0,2000),`player:${String(pk.playerId||e?.detail?.peerId||"")}`);return;}
-  if(pk.kind==="jet-destroyed"){const loc=Array.isArray(pk.g)?lngLatToLocal(+pk.g[0],+pk.g[1]):null,p=loc?new THREE.Vector3(loc[0],loc[1],Array.isArray(pk.p)?+pk.p[2]||0:groundHeightAt(loc[0],loc[1])):null;if(p)globalThis.__fighterJets?.blast?.(p,{radiusM:14,maxDamage:180,scale:1.25,kind:"jet-wreck"});}}
+  if(pk.kind==="jet-destroyed"){const loc=Array.isArray(pk.g)?lngLatToLocal(+pk.g[0],+pk.g[1]):null,p=loc?new THREE.Vector3(loc[0],loc[1],Array.isArray(pk.p)?+pk.p[2]||0:groundHeightAt(loc[0],loc[1])):null;if(!p)return;
+    // the same break-up here: the owner's jet (parked proxy or the flying one) comes apart where it was
+    const owner=String(pk.playerId||e?.detail?.peerId||""),v=Array.isArray(pk.v)?new THREE.Vector3(+pk.v[0]||0,+pk.v[1]||0,+pk.v[2]||0):new THREE.Vector3();let model=null,q=null;
+    const key=`${owner}|${pk.aid}`,pa=peerAir.get(key);if(pa){model=pa.model;q=pa.q.clone();peerAir.delete(key);}else{const r=remote.get(owner);if(r&&!r.para){model=r.model;q=r.q.clone();remote.delete(owner);}}
+    if(model&&q)breakApart(model,p,q,v);globalThis.__fighterJets?.blast?.(p,{radiusM:14,maxDamage:180,scale:1.25,kind:"jet-wreck",remote:true});}}
 
 // ------------------------------------------------------------ loop
 let lastUi=0;
 function frame(now=performance.now()){
   requestAnimationFrame(frame);const dt=Math.min(.05,Math.max(0,(now-lastFrame)/1000));lastFrame=now;if(!bridge()?.threeScene)return;ensureScene();ensureProvider();
-  if(now-lastUi>250){lastUi=now;ui();renderButtons();maybeSpawnPad(now);if(respawnAt&&now>respawnAt&&spawnPad&&![...airframes.values()].some(A=>A.pad&&A.state!=="wreck")){respawnAt=0;const s=freeSpot(spawnPad.x,spawnPad.y);createAirframeBody(s.x,s.y,spawnPad.heading,{pad:true});}}
-  airframesFrame(now);
+  if(now-lastUi>250){lastUi=now;ui();renderButtons();maybeSpawnPad(now);padFrame(now);}
+  airframesFrame(now);if(debris.length)debrisFrame(now,dt);
   if(active){globalThis.__arondightWeaponLockUntil=Math.max(Number(globalThis.__arondightWeaponLockUntil)||0,now+250);// foot weapons stay holstered in the cockpit
     if(para)stepPara(dt);else if(jet)flyFrame(dt,now);
     if(active){const p=para?para.p:jet?.p,v=para?para.v:jet?.v;if(p){// the pilot is here: walker pose (streaming, MP, police), haze, far ground
@@ -336,9 +374,9 @@ export function installJetMode(){if(globalThis.__jetMode||typeof window==="undef
     if(["KeyW","KeyS","KeyA","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)){keys.add(e.code);e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="Space"){keys.add("Space");firing=!para;e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyB"){dropBomb();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyR"){fireRocket();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyV"&&!e.repeat){toggleMode();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyC"){camMode=camMode==="chase"?"cockpit":"chase";camInit=false;e.stopImmediatePropagation();}else if(e.code==="KeyE"&&!e.repeat){exit();e.preventDefault();e.stopImmediatePropagation();}},{capture:true});
   addEventListener("keyup",e=>{keys.delete(e.code);if(e.code==="Space")firing=false;},{capture:true});addEventListener(VS_FX_EVENT,onFx);
   addEventListener("arondight:world-explosion",onExplosion);addEventListener("arondight:physics-body-hit",onBodyHit);addEventListener("arondight:remote-airframe-hit",onRemoteHit);addEventListener("arondight:world-physics-impact",onPhysicsImpact);
-  addEventListener("arondight:world-reset",()=>{if(active){jet=null;para=null;finish(walk()?.position?.x||0,walk()?.position?.y||0,0);}for(const A of[...airframes.values()])removeAirframe(A);spawnPad=null;firstSeen=0;respawnAt=0;});
+  addEventListener("arondight:world-reset",()=>{if(active){jet=null;para=null;finish(walk()?.position?.x||0,walk()?.position?.y||0,0);}for(const A of[...airframes.values()])removeAirframe(A);for(const d of debris.splice(0)){if(d.id)physics()?.removeBody?.(d.id);stopWorldCriticalDamage(`${d.id}-fire`);d.group.parent?.remove(d.group);}spawnPad=null;firstSeen=0;padEmptySince=0;});
   globalThis.__arondightStreamFocus=()=>{if(!active)return null;const p=para?para.p:jet?.p,v=para?para.v:jet?.v;return p?{x:p.x+(v?.x||0)*1.5,y:p.y+(v?.y||0)*1.5,z:p.z}:null;};
-  globalThis.__jetMode={enter,exit,get active(){return active;},get cockpit(){return active&&camMode==="cockpit"&&!para;},get pose(){return poseOut();},get ownedAirframes(){return ownedOut();},peer,peerAirframes,
+  globalThis.__jetMode={enter,exit,get active(){return active;},get cockpit(){return active&&camMode==="cockpit"&&!para;},get pose(){return poseOut();},get pilotPosition(){return para?{x:para.p.x,y:para.p.y,z:para.p.z}:null;},get ownedAirframes(){return ownedOut();},peer,peerAirframes,
     get parked(){return[...airframes.values()].filter(A=>A.state==="parked").map(A=>({x:A.p.x,y:A.p.y,id:A.id,hp:A.hp}));},get airframes(){return[...airframes.values()].map(A=>({id:A.id,state:A.state,hp:A.hp,x:A.p.x,y:A.p.y,z:A.p.z}));},
     get state(){return jet?{p:jet.p.clone(),speed:jet.v.length(),mach:machOf(jet.v.length()),throttle:jet.af.lever,thrust:jet.af.thrust,g:jet.af.tele?.nz,mode:jet.af.mode,landed:jet.af.landed,hp:jet.hp,tele:{...jet.af.tele}}:para?{para:true,p:para.p.clone()}:null;},
     damage(id,amount,source="script"){const A=airframes.get(String(id))||(id==="flying"?jet:null);if(A)damageAirframe(A,Number(amount)||0,source);return A?A.hp:null;},

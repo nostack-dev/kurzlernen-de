@@ -72,14 +72,20 @@ function startVote(button){const list=peers();if(vote)return;const vid=`v${Date.
 function flash(button,text){if(!button)return;const original=button.dataset.resetLabel||button.textContent;button.dataset.resetLabel=original;button.textContent=text;clearTimeout(button.__resetFlash);button.__resetFlash=setTimeout(()=>{button.textContent=button.dataset.resetLabel;},900);}
 function setData(key,value){const v=viewport();if(v)v.dataset[key]=String(value);}
 
+// returns true when the reset chain should continue (the button's own click handlers run)
+function handleReset(button){
+  const now=performance.now(),mp=multiplayer(),cooldown=mp?MP_COOLDOWN_MS:SP_COOLDOWN_MS;
+  if(now-lastResetAt<cooldown){flash(button,`WAIT ${Math.ceil((cooldown-(now-lastResetAt))/1000)}s`);setData("gameResetBlocked","cooldown");return false;}
+  lastResetAt=now;setData("gameReset",GAME_RESET_VERSION);setData("gameResetMode",mp?"multiplayer-respawn":"single-full");setData("gameResets",(Number(viewport()?.dataset.gameResets)||0)+1);
+  if(mp){startVote(button);return false;}
+  // Alone (single player or alone in a session): back to the start origin, let the normal reset chain run, rebuild the world, respawn at the start.
+  bridge()?.restoreStartOrigin?.();fullLocalReset();spawnAtStart(0,1);return true;
+}
 function onClick(event){
   const button=event.target instanceof Element?event.target.closest(SELECTOR):null;if(!button||!event.isTrusted)return;
-  const now=performance.now(),mp=multiplayer(),cooldown=mp?MP_COOLDOWN_MS:SP_COOLDOWN_MS;
-  if(now-lastResetAt<cooldown){event.preventDefault();event.stopImmediatePropagation();flash(button,`WAIT ${Math.ceil((cooldown-(now-lastResetAt))/1000)}s`);setData("gameResetBlocked","cooldown");return;}
-  lastResetAt=now;setData("gameReset",GAME_RESET_VERSION);setData("gameResetMode",mp?"multiplayer-respawn":"single-full");setData("gameResets",(Number(viewport()?.dataset.gameResets)||0)+1);
-  if(mp){event.preventDefault();event.stopImmediatePropagation();startVote(button);return;}
-  // Alone (single player or alone in a session): back to the start origin, let the normal reset chain run, rebuild the world, respawn at the start.
-  bridge()?.restoreStartOrigin?.();fullLocalReset();spawnAtStart(0,1);
+  if(!handleReset(button)){event.preventDefault();event.stopImmediatePropagation();}
 }
+// the same as pressing RESET (keyboard: R / Enter after death)
+globalThis.__arondightRequestReset=()=>{const button=document.getElementById("soloReset");if(handleReset(button))button?.click();};
 export function installGameReset(){if(installed)return;installed=true;window.addEventListener("click",onClick,{capture:true});window.addEventListener(VS_FX_EVENT,onFx);setData("gameReset",GAME_RESET_VERSION);}
 installGameReset();

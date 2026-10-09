@@ -8,7 +8,7 @@ const DECAL_POOL_SIZE=32;
 const TRACER_POOL_SIZE=24;
 const SCREEN_IMPACT_POOL_SIZE=8;
 const MAX_HITSCAN_M=650;
-const VS_COMBAT_VISUAL_SCALE=7;
+const VS_COMBAT_VISUAL_SCALE=1;// true size: a magnified copy sank into the ground
 const VS_HITBOX_PADDING=1.16;
 const FIRE_CANDIDATE_REFRESH_MS=100;
 const BLOCKED_SELECTOR="#soloTopbar,#soloRaceHud,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud,dialog,button,input,select,textarea,a,label";
@@ -87,7 +87,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     peer.updateWorldMatrix?.(true,true);peerBounds.makeEmpty();for(const proxy of originals){proxy.updateWorldMatrix?.(true,false);peerBounds.union(new THREE.Box3().setFromObject(proxy));}peerBounds.getSize(peerBoundsSize);peerBounds.getCenter(peerBoundsCenter);peer.worldToLocal(peerBoundsCenter);
     const visualGroup=new THREE.Group();visualGroup.name="VS_READABLE_DRONE";visualGroup.scale.setScalar(VS_COMBAT_VISUAL_SCALE);visualGroup.userData.vsReadableVisualGroup=true;visualGroup.userData.flightFireIgnore=true;
     for(const proxy of originals){const visualMaterial=proxy.material?.clone?.()||proxy.material;if(visualMaterial?.emissive&&visualMaterial?.color){visualMaterial.emissive.copy?.(visualMaterial.color);visualMaterial.emissiveIntensity=.32;}if(visualMaterial){visualMaterial.roughness=.42;visualMaterial.metalness=.18;}const visual=new THREE.Mesh(proxy.geometry,visualMaterial);visual.position.copy(proxy.position);visual.quaternion.copy(proxy.quaternion);visual.scale.copy(proxy.scale);visual.renderOrder=6;visual.userData.vsReadableVisual=true;visual.userData.flightFireIgnore=true;visual.raycast=()=>{};visualGroup.add(visual);proxy.userData.vsPeerHitProxy=false;proxy.userData.vsCombatOutline=true;proxy.userData.flightFireIgnore=true;proxy.material=peerHitProxyMaterial;proxy.raycast=()=>{};}
-    const hitboxSize=peerBoundsSize.clone().multiplyScalar(VS_COMBAT_VISUAL_SCALE*VS_HITBOX_PADDING);hitboxSize.z=Math.max(hitboxSize.z,.56);const hitbox=new THREE.Mesh(new THREE.BoxGeometry(Math.max(.62,hitboxSize.x),Math.max(.62,hitboxSize.y),hitboxSize.z),peerHitProxyMaterial);hitbox.position.copy(peerBoundsCenter).multiplyScalar(VS_COMBAT_VISUAL_SCALE);hitbox.userData.vsPeerHitProxy=true;hitbox.userData.vsCombatHitbox=true;hitbox.renderOrder=5;peer.add(hitbox,visualGroup);peer.userData.vsCombatVisualScale=VS_COMBAT_VISUAL_SCALE;viewport.dataset.vsPeerVisualScale=String(VS_COMBAT_VISUAL_SCALE);viewport.dataset.vsPeerHitboxM=[hitboxSize.x,hitboxSize.y,hitboxSize.z].map(value=>value.toFixed(2)).join("x");lastCandidateRefreshMs=-Infinity;
+    const hitboxSize=peerBoundsSize.clone().multiplyScalar(VS_COMBAT_VISUAL_SCALE*VS_HITBOX_PADDING);const hitbox=new THREE.Mesh(new THREE.BoxGeometry(hitboxSize.x,hitboxSize.y,Math.max(.05,hitboxSize.z)),peerHitProxyMaterial);hitbox.position.copy(peerBoundsCenter).multiplyScalar(VS_COMBAT_VISUAL_SCALE);hitbox.userData.vsPeerHitProxy=true;hitbox.userData.vsCombatHitbox=true;hitbox.renderOrder=5;peer.add(hitbox,visualGroup);peer.userData.vsCombatVisualScale=VS_COMBAT_VISUAL_SCALE;viewport.dataset.vsPeerVisualScale=String(VS_COMBAT_VISUAL_SCALE);viewport.dataset.vsPeerHitboxM=[hitboxSize.x,hitboxSize.y,hitboxSize.z].map(value=>value.toFixed(2)).join("x");lastCandidateRefreshMs=-Infinity;
   }
 
   function screenImpact(x,y){const el=screenImpacts[screenImpactCursor++%screenImpacts.length];el.classList.remove("active");el.style.left=`${x}px`;el.style.top=`${y}px`;void el.offsetWidth;el.classList.add("active");}
