@@ -74,6 +74,24 @@ int main() {
     CHECK(cmd.throttle < 0.001f);
     CHECK(cmd.arm);
 
+    {
+        // Rangefinder dropout: the height command must keep working on the inertial
+        // vertical channel instead of freezing at vz = 0.
+        fc::StateController dropout;
+        auto climb = base_rc(true);
+        climb.ch[fc::kStateClearanceChannel] = 1811;  // highest clearance target
+        fc::NavigationState seen{{0.0f, 0.0f, 0.0f}, 20.0f, true};
+        dropout.run(climb, seen, 0.0f, true, 0.004f, true);
+        CHECK(dropout.debug().target_vz_mps > 1.0f);
+        fc::NavigationState lost{{0.0f, 0.0f, 2.0f}, 0.0f, true};
+        for (int i = 0; i < 50; ++i) dropout.run(climb, lost, 0.0f, true, 0.004f, false);
+        CHECK(dropout.debug().target_vz_mps > 1.0f);  // still climbing toward the target
+        auto low = base_rc(true);
+        low.ch[fc::kStateClearanceChannel] = 172;  // lowest clearance target
+        for (int i = 0; i < 5; ++i) dropout.run(low, lost, 0.0f, true, 0.004f, false);
+        CHECK(dropout.debug().target_vz_mps < -1.0f);  // sink works too
+    }
+
     controller.reset();
     nav = {{0.0f, 0.0f, 0.0f}, 0.5f, true};
     rc = base_rc(true);
@@ -133,7 +151,7 @@ int main() {
         auto high = base_rc(true);
         high.ch[fc::kStateClearanceChannel] = 1811;
         const auto intent = fc::state_intent(high);
-        CHECK(std::fabs(intent.clearance_m - 50.0f) < 0.02f);
+        CHECK(std::fabs(intent.clearance_m - 120.0f) < 0.05f);
     }
 
     {
@@ -321,7 +339,7 @@ int main() {
         CHECK(degraded.armed);
         CHECK((degraded.state & fc::kStateNavigationDegraded) != 0);
         CHECK((degraded.state & fc::kStateNavigationValid) == 0);
-        CHECK(state_runtime.state_controller().debug().target_vz_mps == 0.0f);
+        CHECK(std::fabs(state_runtime.state_controller().debug().target_vz_mps) < 0.2f);  // holds on the inertial AGL estimate
         CHECK(degraded.motor_us[0] > fc::kEscMinUs);
 
         in.flight = stationary_input(t += 1000);

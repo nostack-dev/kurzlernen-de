@@ -32,11 +32,11 @@ near(gameHorizontalSpeedScale(90),1,1e-12,"90 km/h must retain full FC translati
 for(const value of [0,.02,.1,.25,.5,.75,1])near(gameStateStickMagnitude(inverseGameStateStickMagnitude(value)),value,2e-8,"GAME FC transfer inverse");
 assert.equal(normalizePhoneSettings({maxHorizontalSpeedKmh:999}).maxHorizontalSpeedKmh,90);assert.equal(normalizePhoneSettings({maxHorizontalSpeedKmh:-5}).maxHorizontalSpeedKmh,5);
 assert.equal(normalizePhoneSettings({}).xboxControllerEnabled,false);assert.equal(normalizePhoneSettings({xboxControllerEnabled:true}).xboxControllerEnabled,true);const legacyLocked=normalizePhoneSettings({lockLeftHorizontal:true,lockRightHorizontal:true});assert.equal(legacyLocked.lockLeftHorizontal,false);assert.equal(legacyLocked.lockRightHorizontal,false);
-assert.equal(MIN_GAME_CLEARANCE_M,.5);assert.equal(MAX_GAME_CLEARANCE_M,50);
+assert.equal(MIN_GAME_CLEARANCE_M,.5);assert.equal(MAX_GAME_CLEARANCE_M,120);
 assert.equal(MAX_GAME_TILT_DEG,40);assert.equal(GAME_AGL_SENSOR_RANGE_MARGIN_M,10);
 const requiredAglSlant=MAX_GAME_CLEARANCE_M/Math.pow(Math.cos(MAX_GAME_TILT_DEG*Math.PI/180),2);
 assert.ok(MIN_GAME_AGL_SENSOR_SLANT_RANGE_M>=requiredAglSlant+GAME_AGL_SENSOR_RANGE_MARGIN_M,`AGL sensor envelope ${MIN_GAME_AGL_SENSOR_SLANT_RANGE_M} m cannot cover ${MAX_GAME_CLEARANCE_M} m at ${MAX_GAME_TILT_DEG} deg plus margin`);
-assert.equal(copyControls({groundClearance:999}).groundClearance,50);assert.equal(copyControls({groundClearance:-5}).groundClearance,.5);
+assert.equal(copyControls({groundClearance:999}).groundClearance,120);assert.equal(copyControls({groundClearance:-5}).groundClearance,.5);
 near(finenessToExpo(1),0,1e-12,"1/10 must be direct");
 near(finenessToExpo(10),MAX_PHONE_EXPO,1e-12,"10/10 must be max expo");
 near(MAX_PHONE_EXPO,.70,1e-12,"max phone expo");
@@ -170,7 +170,7 @@ import {clearanceRateMps,stepGroundClearanceTarget,MAX_GAME_CLEARANCE_RATE_MPS} 
 if(clearanceRateMps(0)!==0||clearanceRateMps(.05)!==0)throw new Error("height HOLD/deadband failed");
 if(Math.abs(clearanceRateMps(1)-MAX_GAME_CLEARANCE_RATE_MPS)>1e-9||Math.abs(clearanceRateMps(-1)+MAX_GAME_CLEARANCE_RATE_MPS)>1e-9)throw new Error("height full-rate authority failed");
 if(Math.abs(stepGroundClearanceTarget(1.2,1,.05)-(1.2+MAX_GAME_CLEARANCE_RATE_MPS*.05))>.011)throw new Error("height target slew failed");
-if(stepGroundClearanceTarget(49.9,1,1)>50||stepGroundClearanceTarget(.6,-1,1)<.5)throw new Error("height target envelope failed");
+if(stepGroundClearanceTarget(119.9,1,1)>120||stepGroundClearanceTarget(.6,-1,1)<.5)throw new Error("height target envelope failed");
 let fineHeight=1.2;for(let i=0;i<60;i++)fineHeight=stepGroundClearanceTarget(fineHeight,.2,1/60);if(!(fineHeight>1.25))throw new Error(`fine height input stalled instead of accumulating: ${fineHeight}`);
 
 // Release gate for the browser SIL hot path. It may remove JavaScript overhead,

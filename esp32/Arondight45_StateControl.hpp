@@ -22,7 +22,7 @@ constexpr float kStateMaxHorizontalSpeedMps = 25.0f;
 constexpr float kStateMaxYawRateDps = 140.0f;
 constexpr float kStateMaxBodyPitchDeg = 25.0f;
 constexpr float kStateMinClearanceM = 0.50f;
-constexpr float kStateMaxClearanceM = 50.00f;
+constexpr float kStateMaxClearanceM = 120.00f;
 
 struct NavigationState {
     V3 velocity_world_mps{};
@@ -168,6 +168,7 @@ public:
         const float measured_right = -s * nav.velocity_world_mps.x + c * nav.velocity_world_mps.y;
 
         if (!inner_armed) {
+            agl_estimate_valid_ = false;
             reset_horizontal_state();
             reset_command_targets();
             manual_pitch_active_ = false;
@@ -212,7 +213,22 @@ public:
         const float measured_forward_accel = -c * measured_acceleration_world_mps2_.x - s * measured_acceleration_world_mps2_.y;
         const float measured_right_accel = -s * measured_acceleration_world_mps2_.x + c * measured_acceleration_world_mps2_.y;
 
-        const float agl_error = agl_valid ? intent.clearance_m - nav.agl_m : 0.0f;
+        // Rangefinder dropouts (beyond its slant range, steep bank, no return over a
+        // gap) must not freeze the pilot's height command. Real FCs bridge them with
+        // the inertial/baro vertical channel: the last measured AGL is propagated with
+        // the navigation vertical velocity until the rangefinder returns. Without this
+        // the altitude law commanded vz = 0 and climb/sink input simply hung.
+        bool agl_usable = agl_valid;
+        float agl_m = nav.agl_m;
+        if (agl_valid) {
+            agl_estimate_m_ = nav.agl_m;
+            agl_estimate_valid_ = true;
+        } else if (agl_estimate_valid_ && std::isfinite(nav.velocity_world_mps.z)) {
+            agl_estimate_m_ += nav.velocity_world_mps.z * dt;
+            agl_m = agl_estimate_m_;
+            agl_usable = true;
+        }
+        const float agl_error = agl_usable ? intent.clearance_m - agl_m : 0.0f;
         // Climb and descent need asymmetric envelopes. High upward authority is
         // useful for takeoff/recovery; descent is a real "sink with power" up to
         // 9 m/s. Braking a descent uses the full upward reserve (50 m/s^2) and the
@@ -223,7 +239,7 @@ public:
         // always be braked to zero exactly at the target with the real thrust
         // margin (climb braking = thrust cut, descent braking = thrust surplus).
         // No overshoot after a full-power climb, no float after a hard sink.
-        const float target_vz = agl_valid
+        const float target_vz = agl_usable
             ? clamp(kinematic_vertical_speed(agl_error), -kMaxVerticalDescentSpeedMps, kMaxVerticalSpeedMps)
             : 0.0f;
         const float vz_error = target_vz - nav.velocity_world_mps.z;
@@ -318,7 +334,7 @@ public:
         // (a long full sink drove it to the floor and the aircraft could not brake).
         const bool hovering = std::fabs(target_vz) < 1.5f;
         const bool cannot_lift = target_vz > 0.0f && vz_error > 0.0f && nav.velocity_world_mps.z < 0.5f;
-        if (agl_valid && (hovering || cannot_lift)) {
+        if (agl_usable && (hovering || cannot_lift)) {
             hover_trim_ = clamp(hover_trim_ + kHoverAdapt * vz_error * dt,
                                 kMinHoverTrim, kMaxHoverTrim);
         }
@@ -336,7 +352,7 @@ public:
         debug_ = {commanded_forward_mps_, measured_forward,
                   commanded_right_mps_, measured_right,
                   target_yaw_deg_, measured_yaw_deg,
-                  intent.clearance_m, nav.agl_m,
+                  intent.clearance_m, agl_m,
                   target_vz, throttle_command,
                   roll_command, pitch_command, yaw_command,
                   forward_accel, right_accel, vertical_accel};
@@ -370,6 +386,8 @@ public:
     float hover_trim() const { return hover_trim_; }
 
 private:
+    float agl_estimate_m_{};
+    bool agl_estimate_valid_{false};
     static constexpr float kGravityMps2 = 9.80665f;
     static constexpr float kInnerAttitudeRangeDeg = kInnerMaxAttitudeDeg;
     static constexpr float kMaxTiltDeg = 40.0f;
