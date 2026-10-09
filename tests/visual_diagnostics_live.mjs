@@ -88,10 +88,16 @@ try{
   // A real tap-fired nuke lands close (drone sits in its crater); for a
   // readable view of the cloud the diagnostic also drops one 450 m ahead
   // through the multiplayer entry point (exercises the remote path too).
+  // which materials compile their shader only when the nuke hits (stutter source)
+  await page.evaluate(()=>{const r=globalThis.__arondightRealWorld?.threeRenderer;globalThis.__diagProgramsBefore=new Set(r?.info?.programs||[]);});
+  const newPrograms=async()=>page.evaluate(()=>{const b=globalThis.__arondightRealWorld,r=b?.threeRenderer,before=globalThis.__diagProgramsBefore;if(!r||!before)return null;const out={};
+    b.threeScene.traverse(n=>{const mats=Array.isArray(n.material)?n.material:n.material?[n.material]:[];for(const m of mats){const prog=r.properties.get(m)?.currentProgram;if(!prog||before.has(prog))continue;let top=n;while(top.parent&&top.parent!==b.threeScene)top=top.parent;const key=`${top.name||top.type}/${n.name||n.type}|${m.type}|t${m.transparent?1:0}|b${m.blending}|vc${m.vertexColors?1:0}|s${m.side}|fog${m.fog?1:0}|inst${n.isInstancedMesh?1:0}|${(r.properties.get(m)?.currentProgram?.cacheKey||"").length}`;out[key]=(out[key]||0)+1;}});return out;});
   await step("nuke-fired",async()=>{report.nukeRemote=await page.evaluate(()=>{const c=globalThis.__arondightRealWorld?.threeCamera;if(!c)return null;const d=c.getWorldDirection(c.position.clone());d.z=0;d.normalize();const p=[c.position.x+d.x*450,c.position.y+d.y*450,0];window.dispatchEvent(new CustomEvent("arondight:remote-nuke",{detail:{position:p}}));return p;});await pause(1500);});
   await cpuProfile("nuke-0-4s",4000);
   await step("nuke-3s",()=>pause(200));
+  report.nukeNewPrograms3s=await newPrograms().catch(e=>String(e));
   await step("nuke-8s",()=>pause(5000));
+  report.nukeNewPrograms8s=await newPrograms().catch(e=>String(e));
   await step("nuke-16s",()=>pause(8000));
   await step("nuke-30s",()=>pause(14000));
 }finally{
