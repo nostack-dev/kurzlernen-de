@@ -77,6 +77,8 @@ function follow(t,goal,speed,now){const p=t.pose;if(!p)return Infinity;const cx=
 // ------------------------------------------------------------ the job
 function update(t,now){
   const p=truckPose(t);if(!p){removeTruck(t);return false;}syncTruck(t,now);const job=t.job,api=pop();
+  // the player got into the car the truck came for (or is holding it): the job is off, the car is his
+  if(t.state!=="depot"&&(globalThis.__arondightVehicleDrive?.vehicleId===job.id||globalThis.__arondightGravityGun?.heldId===job.id)){if(job.towing){api?.towEnd?.(job.id,{});job.towing=false;}t.state="depot";t.path=null;t.leaveAt=now;const w=watch.get(job.id);if(w){w.dispatched=false;w.cooldownUntil=now+60000;}return true;}
   if(now-t.born>GIVE_UP_MS&&t.state!=="depot"){if(job.towing){const lp=api?.lanePose?.(job.id,0);api?.towEnd?.(job.id,lp||{});job.towing=false;}t.state="depot";t.path=null;}
   if(t.state==="to-job"){const car=api?.vehicles?.().find(v=>v.id===job.id);if(!car){t.state="depot";t.path=null;return true;}job.x=car.x;job.y=car.y;
     const d=follow(t,{x:car.x,y:car.y},DRIVE_SPEED,now);if(d<HOOK_M){brake(t);t.state="hook";t.hookAt=now;}return true;}
