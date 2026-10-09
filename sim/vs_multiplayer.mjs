@@ -130,7 +130,11 @@ function applyState(packet){
   if(!packet)return;const stateKey=`${packet.id}:${packet.playerId}:${packet.hp}:${packet.killed}`;if(seenStates.has(stateKey))return;seenStates.add(stateKey);while(seenStates.size>1024)seenStates.delete(seenStates.values().next().value);
   const id=String(packet.playerId||""),hp=clamp(Math.round(Number(packet.hp)||0),0,100),killed=Boolean(packet.killed);if(!id)return;health.set(id,hp);confirmedHealth.add(id);
   if(id===selfId){const b=bridge();if(b){const wasDead=Boolean(b.vsLocalDead);b.vsLocalHealth=hp;b.vsLocalDead=killed;if(killed&&!wasDead)deaths++;b.updateVsCombatHud?.(true);}return;}
-  const r=recordFor(id);if(!r)return;const wasDead=r.dead;r.health=hp;r.dead=killed;if(killed&&!wasDead&&packet.by===selfId)kills++;setPrimaryCompatibility(r);
+  const r=recordFor(id);if(!r)return;const wasDead=r.dead;r.health=hp;r.dead=killed;if(killed&&!wasDead&&packet.by===selfId){
+    kills++;
+    globalThis.__arondightWantedSystem?.reportCrime?.({id:"pvp-"+String(packet.id||id),kind:"player",playerId:selfId});
+  }
+  setPrimaryCompatibility(r);
 }
 
 function sendState(playerId,hp,killed,by="",id="",options={}){
