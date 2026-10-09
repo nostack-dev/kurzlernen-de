@@ -24,7 +24,7 @@ const bridge=()=>globalThis.__arondightRealWorld||null;
 const walk=()=>globalThis.__arondightWalkMode||null;
 const viewport=()=>document.getElementById("viewport");
 let sceneRef=null,root=null,jets=[],bombs=[],flares=[],blasts=[],nextAmbient=performance.now()+40000+Math.random()*40000,lastFrame=performance.now(),lastStrike=-Infinity,serial=0;
-let ctx=null,jetBuffer=null,master=null;
+let ctx=null,jetBuffer=null,master=null;const strikes=[];
 
 // ------------------------------------------------------------ model
 let jetGeo=null;
@@ -122,7 +122,7 @@ function aimPoint(){
 function flare(p,now){const m=new THREE.Mesh(new THREE.SphereGeometry(.35,10,8),new THREE.MeshBasicMaterial({color:0xff2a1a}));const smoke=new THREE.Mesh(new THREE.CylinderGeometry(.6,2.4,26,10,1,true),new THREE.MeshBasicMaterial({color:0xff3a2a,transparent:true,opacity:.35,depthWrite:false,blending:THREE.AdditiveBlending}));smoke.rotation.x=Math.PI/2;smoke.position.z=13;const l={intensity:8};const g=new THREE.Group();g.add(m,smoke);g.position.copy(p);g.traverse(n=>{n.userData.flightFireIgnore=true;n.raycast=()=>{};});root.add(g);flares.push({g,until:now+9000,l});}
 function updateFlares(now){for(let i=flares.length-1;i>=0;i--){const f=flares[i];if(now>f.until){f.g.parent?.remove(f.g);flares.splice(i,1);continue;}f.l.intensity=6+Math.sin(now*.05)*3;requestLight(f.g.position,{color:0xff2a1a,intensity:f.l.intensity,distance:30});}}
 export function callAirStrike(target=null){
-  const now=performance.now();if(now-lastStrike<STRIKE_COOLDOWN_MS||!ensureScene())return false;const p=target||aimPoint();if(!p)return false;lastStrike=now;
+  const now=performance.now();if(now-lastStrike<STRIKE_COOLDOWN_MS||!ensureScene())return false;let p=target||aimPoint();if(!p)return false;if(!p.isVector3)p=new THREE.Vector3(+p.x,+p.y,Number.isFinite(+p.z)?+p.z:groundHeightAt(+p.x,+p.y));if(!Number.isFinite(p.x)||!Number.isFinite(p.y))return false;p.z=groundHeightAt(p.x,p.y);lastStrike=now;strikes.push({x:p.x,y:p.y,until:now+9000});
   flare(p,now);const arrive=now+3500;launch(p.x,p.y,{strike:{x:p.x,y:p.y},offset:0,alt:70,at:arrive-SPAN/SPEED*1000+380/SPEED*1000});
   sendFx({kind:"strike",p:canon(p.x,p.y),t:Date.now()});renderButton();return true;
 }
@@ -134,7 +134,7 @@ const canon=(x,y)=>{const o=localOffset();return[+(x+o[0]).toFixed(2),+(y+o[1]).
 const local=(x,y)=>{const o=localOffset();return[x-o[0],y-o[1]];};
 function sendFx(extra){const s=session();if(!s?.sendFx)return;try{s.sendFx({type:"impact",objectId:"fighter-jets",id:`jets-${Date.now().toString(36)}-${serial}`,...extra});}catch{}}
 function onFx(e){const pk=e?.detail?.packet;if(pk?.objectId!=="fighter-jets"||!Array.isArray(pk.p))return;const[x,y]=local(+pk.p[0]||0,+pk.p[1]||0);const now=performance.now();
-  if(pk.kind==="strike"){const p=new THREE.Vector3(x,y,groundHeightAt(x,y));ensureScene();flare(p,now);launch(x,y,{strike:{x,y},alt:70,at:now+3500-SPAN/SPEED*1000+380/SPEED*1000,remote:true});}
+  if(pk.kind==="strike"){const p=new THREE.Vector3(x,y,groundHeightAt(x,y));strikes.push({x,y,until:now+9000});ensureScene();flare(p,now);launch(x,y,{strike:{x,y},alt:70,at:now+3500-SPAN/SPEED*1000+380/SPEED*1000,remote:true});}
   else if(pk.kind==="flyover")launch(x,y,{offset:+pk.o||0,alt:+pk.a||70,remote:true});}
 
 // ------------------------------------------------------------ UI
@@ -156,5 +156,5 @@ function frame(now=performance.now()){
   const v=viewport();if(v)v.dataset.fighterJets=`${jets.length}j/${bombs.length}b`;
 }
 export function installFighterJets(){if(globalThis.__fighterJets||typeof window==="undefined")return globalThis.__fighterJets;(globalThis.__prewarmFactories??=[]).push(()=>{const g=jetModel();const b=new THREE.Mesh(new THREE.CapsuleGeometry(.22,1.1,3,8),new THREE.MeshStandardMaterial({color:0x3b4135,roughness:.6,metalness:.3}));g.add(b);g.add(new THREE.Mesh(new THREE.SphereGeometry(1,8,6),new THREE.MeshBasicMaterial({color:0xffc070,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})),new THREE.Mesh(new THREE.SphereGeometry(1,8,6),new THREE.MeshStandardMaterial({color:0x2c2724,roughness:1,transparent:true,opacity:.85,depthWrite:false})),new THREE.Mesh(new THREE.CylinderGeometry(.6,2.4,4,8,1,true),new THREE.MeshBasicMaterial({color:0xff3a2a,transparent:true,opacity:.35,depthWrite:false,blending:THREE.AdditiveBlending})));return g;});addEventListener(VS_FX_EVENT,onFx);addEventListener("pointerdown",()=>ensureAudio(),{capture:true,passive:true});
-  globalThis.__fighterJets={flyover(){const L=listenerPos();return L?launch(L.x,L.y,{offset:(Math.random()-.5)*100}):null;},strike:callAirStrike,get jets(){return jets;},version:FIGHTER_JETS_VERSION};requestAnimationFrame(frame);return globalThis.__fighterJets;}
+  globalThis.__fighterJets={flyover(){const L=listenerPos();return L?launch(L.x,L.y,{offset:(Math.random()-.5)*100}):null;},strike:callAirStrike,ready(){return performance.now()-lastStrike>=STRIKE_COOLDOWN_MS;},markers(){const now=performance.now();for(let i=strikes.length-1;i>=0;i--)if(now>strikes[i].until)strikes.splice(i,1);return[...strikes.map(q=>({kind:"strike",x:q.x,y:q.y})),...jets.map(j=>({kind:"jet",x:j.model.position.x,y:j.model.position.y}))];},get jets(){return jets;},version:FIGHTER_JETS_VERSION};requestAnimationFrame(frame);return globalThis.__fighterJets;}
 installFighterJets();
