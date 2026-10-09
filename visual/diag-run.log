@@ -1,9 +1,9 @@
 {
- "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=6198c0f66dd9450d8a9f3d2ee5d97c2bde552f5f",
+ "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=affc498ea2ec6d30ebdef7907655f6ab3ecdbae6",
  "steps": [
   {
    "name": "boot-5s",
-   "ms": 10374,
+   "ms": 16542,
    "draws": [
     [
      "Group",
@@ -62,11 +62,11 @@
      "25dc/0tri/0shadowTri"
     ]
    ],
-   "fps": 0.7,
+   "fps": 0.1,
    "drawCalls": 1,
    "triangles": 12,
    "lines": 0,
-   "programs": 28,
+   "programs": 20,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -85,14 +85,6 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#8,9,onBeforeCompile(){}",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1"
@@ -110,7 +102,7 @@
   },
   {
    "name": "menu",
-   "ms": 3472,
+   "ms": 3374,
    "draws": [
     [
      "Group",
@@ -169,11 +161,11 @@
      "25dc/0tri/0shadowTri"
     ]
    ],
-   "fps": 6.2,
+   "fps": 4.9,
    "drawCalls": 1,
    "triangles": 12,
    "lines": 0,
-   "programs": 28,
+   "programs": 20,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -192,14 +184,6 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#8,9,onBeforeCompile(){}",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1"
@@ -217,7 +201,7 @@
   },
   {
    "name": "started",
-   "ms": 24620,
+   "ms": 24233,
    "draws": [
     [
      "WORLD_GROUND",
@@ -245,7 +229,7 @@
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
-     "32dc/4608tri/4560shadowTri"
+     "36dc/5968tri/5920shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
@@ -265,4 +249,32 @@
     ],
     [
      "PILOT_SHIELD",
-     "2dc/360
+     "2dc/360tri/0shadowTri"
+    ],
+    [
+     "WORLD_CROWD_EXTRAS_CHARACTERS[inst]",
+     "25dc/336tri/336shadowTri"
+    ],
+    [
+     "WORLD_PEOPLE_CHARACTERS[inst]",
+     "25dc/192tri/192shadowTri"
+    ],
+    [
+     "Mesh",
+     "1dc/12tri/0shadowTri"
+    ],
+    [
+     "POLICE_OFFICERS_CHARACTERS[inst]",
+     "25dc/0tri/0shadowTri"
+    ],
+    [
+     "POLICE_OFFICERS_REMOTE_CHARACTERS[inst]",
+     "25dc/0tri/0shadowTri"
+    ],
+    [
+     "ZOMBIES_CHARACTERS[inst]",
+     "24dc/0tri/0shadowTri"
+    ],
+    [
+     "ZOMBIES_REMOTE_CHARACTERS[inst]",
+  
