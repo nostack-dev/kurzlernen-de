@@ -76,8 +76,8 @@ function placeAfter(anchor,node){if(anchor&&node&&anchor.nextElementSibling!==no
 // reachable with mouse, touch and the pad (the settings navigator walks these buttons too).
 const GAME_ACTIONS=[
   ["resume","RESUME",d=>d.close()],
-  ["reset","RESET",d=>{d.close();if(globalThis.__arondightRequestReset)globalThis.__arondightRequestReset();else document.getElementById("soloReset")?.click();}],
   ["multi","MULTIPLAYER",d=>{d.close();(document.getElementById("mobileGameplayMultiplayer")||document.getElementById("lanVsButton"))?.click();}],
+  ["reset","RESET",d=>{d.close();if(globalThis.__arondightRequestReset)globalThis.__arondightRequestReset();else document.getElementById("soloReset")?.click();}],
   ["world","REAL WORLD",d=>{d.close();document.getElementById("soloWorld")?.click();}],
   ["logbook","LOGBOOK",d=>{d.close();document.getElementById("soloLogbook")?.click();}],
   ["exit","EXIT TO TITLE",d=>{d.close();document.getElementById("soloExit")?.click();}],

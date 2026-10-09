@@ -90,9 +90,16 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
     var key="rushUpdateTries:"+sha,tries=0;try{tries=+sessionStorage.getItem(key)||0;sessionStorage.setItem(key,String(tries+1));}catch(e){}
     if(tries>=2){showPill();return;}
     reloading=true;purge().then(function(){var u=new URL(location.href);u.searchParams.set("v",sha.slice(0,12));location.replace(u.toString());});}
-  function showPill(){if(pill||!document.body)return;pill=document.createElement("button");pill.type="button";pill.id="appUpdatePill";pill.textContent="NEW VERSION · TAP TO UPDATE";
-    pill.style.cssText="position:fixed;z-index:2147483000;left:50%;top:max(8px,env(safe-area-inset-top));transform:translateX(-50%);padding:9px 16px;border-radius:20px;border:2px solid #7ff0c5;background:#0d1118e6;color:#eafff7;font:800 12px/1 system-ui,sans-serif;letter-spacing:.08em;cursor:pointer";
-    pill.addEventListener("pointerdown",function(e){e.stopPropagation();},true);pill.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();if(!pending)return;try{sessionStorage.removeItem("rushUpdateTries:"+pending);}catch(_){}fresh(pending);});document.body.appendChild(pill);}
+  // in-game live notice: a new build is online → banner with a RELOAD button (tap / click / U key);
+  // the game keeps running until you choose, "LATER" hides it until the next check finds it again
+  function showPill(){if(pill&&pill.isConnected){pill.style.display="flex";return;}if(!document.body)return;pill=document.createElement("div");pill.id="appUpdatePill";pill.setAttribute("role","status");
+    pill.innerHTML='<span style="font:800 12px/1.2 system-ui,sans-serif;letter-spacing:.08em">⬆ UPDATE AVAILABLE</span><button type="button" data-u="go" style="padding:7px 12px;border-radius:14px;border:0;background:linear-gradient(180deg,#7ff0c5,#3fbf8a);color:#06261a;font:900 12px/1 system-ui,sans-serif;letter-spacing:.1em;cursor:pointer">RELOAD · U</button><button type="button" data-u="later" style="padding:7px 10px;border-radius:14px;border:1px solid #ffffff55;background:transparent;color:#cfe;font:700 11px/1 system-ui,sans-serif;cursor:pointer">LATER</button>';
+    pill.style.cssText="position:fixed;z-index:2147483000;left:50%;top:calc(max(8px,env(safe-area-inset-top)) + 56px);transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:8px 10px 8px 14px;border-radius:22px;border:2px solid #7ff0c5;background:#0d1118f0;color:#eafff7;box-shadow:0 8px 24px #000a;animation:appUpdIn .35s ease-out";
+    var st=document.createElement("style");st.textContent="@keyframes appUpdIn{from{opacity:0;transform:translate(-50%,-14px)}to{opacity:1;transform:translate(-50%,0)}}";document.head.appendChild(st);
+    pill.addEventListener("pointerdown",function(e){e.stopPropagation();},true);
+    pill.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest("[data-u]");if(!b)return;e.preventDefault();e.stopPropagation();if(b.dataset.u==="later"){pill.style.display="none";return;}if(!pending)return;try{sessionStorage.removeItem("rushUpdateTries:"+pending);}catch(_){}fresh(pending);});
+    window.addEventListener("keydown",function(e){if(e.code==="KeyU"&&pending&&pill&&pill.style.display!=="none"&&!e.repeat){try{sessionStorage.removeItem("rushUpdateTries:"+pending);}catch(_){}fresh(pending);}});
+    document.body.appendChild(pill);}
   function seen(sha,reason){if(sha)showTag(sha);if(!sha||sha===mine)return;pending=sha;if(inMenu()||reason==="resume"||reason==="load")fresh(sha);else showPill();}
   function viaPage(reason){return fetch(location.pathname+"?vcheck="+Date.now(),{cache:"no-store",credentials:"same-origin"}).then(function(r){return r.ok?r.text():"";}).then(function(t){var n=/BUILD_SHA:([0-9a-f]{7,40})/.exec(t.slice(0,300));if(n)seen(n[1],reason);});}
   function check(reason){var now=Date.now();if(reason!=="load"&&reason!=="resume"&&now-lastCheck<10000)return;lastCheck=now;

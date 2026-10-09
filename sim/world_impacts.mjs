@@ -67,11 +67,19 @@ export function addScorch(x,y,radius){
 }
 function layGroundDecal(i,d){q.setFromUnitVectors(Z,n.fromArray(terrainNormalAt(d.x,d.y)));q.multiply(new THREE.Quaternion().setFromAxisAngle(Z,d.spin));p.set(d.x,d.y,staticGroundHeightAt(d.x,d.y)+.03);s.set(d.size,d.size,d.size);m4.compose(p,q,s);decals.setMatrixAt(i,m4);}
 function relayGround(){if(decals){for(const[i,d]of groundDecals)layGroundDecal(i,d);decals.instanceMatrix.needsUpdate=true;}for(let k=0;k<SCORCHES;k++)if(scorchItems[k])layScorch(k);}
-export function addDecal(point,normal,{size=.1,color=0x2a2622,ground=false}={}){
+// A hole in something that moves (a car, a bus, a police drone, a physics body) moves with it:
+// the decal keeps its pose relative to that object and disappears with it — instead of hanging
+// in the air where the car was. Anchors: the hit object's population / physics root.
+const attached=new Map(),anchorM=new THREE.Matrix4(),ZERO_M=new THREE.Matrix4().makeScale(0,0,0);let rootCache=null,rootCacheAt=-Infinity;
+function movingRoot(hit){if(!hit)return null;for(let o=hit.object;o;o=o.parent){const u=o.userData||{};if(u.worldPopulationId||u.worldLifeId||u.gtaDrivableVehicle||u.physicsId||u.airframeId){let r=o;while(r.parent&&!r.parent.isScene&&(r.parent.userData?.worldPopulationId===u.worldPopulationId&&u.worldPopulationId))r=r.parent;return r;}}
+  if(hit.box3d&&!hit.object&&hit.physicsId&&hit.physicsKind&&hit.physicsKind!=="terrain"){const now=performance.now(),scene=bridge()?.threeScene;if(!scene)return null;if(!rootCache||now-rootCacheAt>1000){rootCache=new Map();rootCacheAt=now;scene.traverse(n=>{const id=n.userData?.worldPopulationId||n.userData?.worldLifeId||n.userData?.physicsId;if(id&&!rootCache.has(String(id)))rootCache.set(String(id),n);});}return rootCache.get(String(hit.physicsId))||false;}return null;}
+function shown(o){for(let n=o;n;n=n.parent){if(n.visible===false)return false;if(n.isScene)return true;}return false;}
+function stepAttached(){if(!attached.size||!decals)return;let dirty=false;for(const[i,a]of attached){if(!shown(a.obj)){decals.setMatrixAt(i,ZERO_M);attached.delete(i);dirty=true;continue;}a.obj.updateWorldMatrix(true,false);anchorM.multiplyMatrices(a.obj.matrixWorld,a.local);decals.setMatrixAt(i,anchorM);dirty=true;}if(dirty)decals.instanceMatrix.needsUpdate=true;}
+export function addDecal(point,normal,{size=.1,color=0x2a2622,ground=false,attach=null}={}){
   if(ground&&ensure()&&point){const i=decalCursor++%DECALS,d={x:point.x,y:point.y,size,spin:Math.random()*6.28};decals.count=Math.min(DECALS,decalCursor);groundDecals.set(i,d);layGroundDecal(i,d);decals.setColorAt(i,col.set(color));decals.instanceMatrix.needsUpdate=true;decals.instanceColor.needsUpdate=true;return;}
   if(!ensure()||!point)return;n.copy(normal||Z);if(n.lengthSq()<1e-6)n.copy(Z);n.normalize();
   q.setFromUnitVectors(Z,n);const spin=new THREE.Quaternion().setFromAxisAngle(Z,Math.random()*6.28);q.multiply(spin);
-  p.copy(point).addScaledVector(n,.012);s.set(size,size,size);m4.compose(p,q,s);const i=decalCursor++%DECALS;decals.count=Math.min(DECALS,decalCursor);groundDecals.delete(i);decals.setMatrixAt(i,m4);decals.setColorAt(i,col.set(color));decals.instanceMatrix.needsUpdate=true;decals.instanceColor.needsUpdate=true;
+  p.copy(point).addScaledVector(n,.012);s.set(size,size,size);m4.compose(p,q,s);const i=decalCursor++%DECALS;decals.count=Math.min(DECALS,decalCursor);groundDecals.delete(i);attached.delete(i);decals.setMatrixAt(i,m4);if(attach){attach.updateWorldMatrix(true,false);attached.set(i,{obj:attach,local:new THREE.Matrix4().copy(attach.matrixWorld).invert().multiply(m4)});}decals.setColorAt(i,col.set(color));decals.instanceMatrix.needsUpdate=true;decals.instanceColor.needsUpdate=true;
 }
 export function chipBurst(point,normal,surface="building",count=6,speed=4){
   if(!ensure()||!point)return;if(surface==="building"&&glassAt(point)?.glass){surface="glass";count=Math.min(count,5);}const palette=COLORS[surface]||COLORS.building;n.copy(normal||Z).normalize();
@@ -164,7 +172,8 @@ export function bulletImpact(ray,hit,{routed=false,maxDistance=180,bodyDamage=5,
   if(surface==="animal"){if(hit?.instanceId!=null)globalThis.__ambientAnimals?.kill?.(hit.instanceId);chipBurst(point,normal,"actor",5,2.5);return true;}
   if(surface==="actor"){chipBurst(point,normal,"actor",3,2);return true;}
   if(surface==="building"){const g=glassAt(point);if(g?.glass){addGlassCrack(g,point);chipBurst(point,normal,"glass",5,2.6);return true;}}
-  addDecal(point,normal,{size:surface==="vehicle"?.06:.085,color:surface==="ground"?0x2e2a22:surface==="vehicle"?0x1c1c1c:0x34302a,ground:surface==="ground"});
+  const anchor=surface==="vehicle"?movingRoot(hit):null;/* false: a moving body we cannot follow → no decal rather than one in mid-air */
+  if(anchor!==false)addDecal(point,normal,{size:surface==="vehicle"?.06:.085,color:surface==="ground"?0x2e2a22:surface==="vehicle"?0x1c1c1c:0x34302a,ground:surface==="ground",attach:anchor||null});
   chipBurst(point,normal,surface,surface==="vehicle"?5:6,surface==="vehicle"?5:3.5);
   return true;
 }
@@ -186,7 +195,7 @@ function onExplosion(event){
   // trees: knock over everything in reach, falling away from the blast
   const t=findTrees();if(t){const reach=nuke?Math.min(600,r*1.4):r*.85;for(let i=0;i<t.trunk.count;i++){t.trunk.getMatrixAt(i,m4);p.setFromMatrixPosition(m4);const dist=Math.hypot(p.x-x,p.y-y);if(dist<reach){if(nuke)setTimeout(()=>knockTree(i,x,y,1.4),dist/343*1000);else knockTree(i,x,y,1-dist/reach);}}}
 }
-function frame(now){requestAnimationFrame(frame);const dt=Math.min(.1,(now-lastFrame)/1000);lastFrame=now;stepChips(dt);stepTrees(dt);}
+function frame(now){requestAnimationFrame(frame);const dt=Math.min(.1,(now-lastFrame)/1000);lastFrame=now;stepChips(dt);stepTrees(dt);stepAttached();}
 // shader prewarm: the decal / chip / scorch pools exist (and compile) before the first impact
 if(typeof window!=="undefined")(globalThis.__prewarmFactories??=[]).push(()=>{try{ensure();const sc=bridge()?.threeScene;if(sc)ensureScorch(sc);}catch{}return null;});
 export function installWorldImpacts(){

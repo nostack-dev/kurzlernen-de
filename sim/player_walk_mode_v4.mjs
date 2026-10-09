@@ -25,12 +25,33 @@ const jump={z:0,vz:0,feet:NaN,vx:0,vy:0,queuedAt:-Infinity,airborne:false,snap:t
 // Jetpack (main menu WORLD option): jump again in the air = a thrust burst (≈2.1 g up, strong air
 // control) to get over houses; fuel recharges on the ground. Roofs are floor. Falling fast with
 // fuel left, the pack fires by itself just before touchdown (no splat after a jetpack hop).
-const JET_ACC=21,JET_BURST_S=.85,JET_FUEL_PER_S=.55,JET_RECHARGE_S=5.5,JET_AIR_ACCEL=14,JET_CUSHION_FUEL=.08;
-const jet={fuel:1,burstLeft:0,used:false,groundSince:0,thrusting:false,el:null};
+// a full tank = ~5 s of thrust; keep the jump button held to keep flying, it refills in ~4 s on the ground
+const JET_ACC=21,JET_BURST_S=.6,JET_FUEL_PER_S=.2,JET_RECHARGE_S=4,JET_AIR_ACCEL=14,JET_CUSHION_FUEL=.05;
+const jet={hold:false,fuel:1,burstLeft:0,used:false,groundSince:0,thrusting:false,el:null};
 function jetpackOn(){return globalThis.__arondightWorldOptions?.get?.("jetpack")!==false;}
 function startJet(now){if(!jetpackOn()||jet.fuel<.06||isPlayerDead())return false;jet.burstLeft=JET_BURST_S;jet.used=true;if(jump.vz<0)jump.vz*=.35;window.dispatchEvent(new CustomEvent("arondight:player-jetpack",{detail:{fuel:jet.fuel}}));return true;}
 function jetHud(){if(!jet.el){const v=viewport();if(!v)return;jet.el=document.createElement("div");jet.el.id="jetpackFuel";jet.el.innerHTML="<i></i>";v.appendChild(jet.el);const st=document.createElement("style");st.textContent="#jetpackFuel{position:absolute;left:50%;bottom:calc(max(64px,env(safe-area-inset-bottom) + 56px));transform:translateX(-50%);width:120px;height:6px;border-radius:3px;background:#0008;border:1px solid #ffffff44;z-index:24;pointer-events:none;opacity:0;transition:opacity .25s}#jetpackFuel.show{opacity:1}#jetpackFuel i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#ff8a3a,#ffd46a);width:100%}#jetpackFuel.thrust i{background:linear-gradient(90deg,#ff5a2a,#fff0a0)}";document.head.appendChild(st);}
   const show=mode==="foot"&&jetpackOn()&&(jet.fuel<.999||jet.thrusting);jet.el.classList.toggle("show",show);jet.el.classList.toggle("thrust",jet.thrusting);jet.el.firstChild.style.width=`${Math.round(jet.fuel*100)}%`;}
+// Moving cars hit the player like a body: a 1.4 t car against an ~80 kg person is an almost
+// one-sided collision, so the person takes the car's approach speed (×(1+e), e≈0.2, mass
+// ratio M/(M+m)); a bumper below the centre of mass scoops the body up (vz ≈ 0.35·s). The car
+// gets the equal and opposite impulse. Slow contact just shoves you out of the way; above
+// ~2 m/s it hurts, ~50 km/h is usually fatal. Box3D drives the cars, the player is kinematic,
+// so this exchange is resolved here, every frame, against every physical car near you.
+const PLAYER_KG=80,CAR_RESTITUTION=.2,PLAYER_R=.3;let carHitAt=-Infinity;
+function carCollisions(now){const R=globalThis.__arondightWorldRigidBodies,eng=R?.engine;if(!eng?.records||isPlayerDead())return;const px=state.position.x,py=state.position.y,feet=Number.isFinite(jump.feet)?jump.feet:state.position.z-EYE_Z;
+  for(const rec of eng.records.values()){if(rec.kind!=="car"&&rec.kind!=="bus"&&!rec.wheels)continue;const h=rec.halfExtents;if(!h)continue;const pose=R.pose?.(rec.id);if(!pose?.position)continue;const c=pose.position,dx=px-c[0],dy=py-c[1];if(dx*dx+dy*dy>(h[0]+h[1]+2)**2)continue;
+    const top=c[2]+h[2]+.15,bottom=c[2]-h[2]-.6;if(feet>top||feet+1.7<bottom)continue;const yaw=Number(pose.yaw)||0,co=Math.cos(yaw),si=Math.sin(yaw),lx=dx*co+dy*si,ly=-dx*si+dy*co,ex=h[0]+PLAYER_R-Math.abs(lx),ey=h[1]+PLAYER_R-Math.abs(ly);if(ex<=0||ey<=0)continue;
+    // contact normal: the shallow axis of the car's footprint, pointing at the player
+    let nx,ny,depth;if(ex<ey){nx=Math.sign(lx)*co;ny=Math.sign(lx)*si;depth=ex;}else{nx=-Math.sign(ly)*si;ny=Math.sign(ly)*co;depth=ey;}
+    state.position.x+=nx*(depth+.005);state.position.y+=ny*(depth+.005);
+    const v=pose.velocity||[0,0,0],M=Number(rec.massKg)||1400,s=(v[0]-(jump.vx||0))*nx+(v[1]-(jump.vy||0))*ny;if(s<=.4)continue;
+    const dv=(1+CAR_RESTITUTION)*s*M/(M+PLAYER_KG);jump.vx=(jump.vx||0)+nx*dv;jump.vy=(jump.vy||0)+ny*dv;
+    if(s>2){jump.airborne=true;jump.feet=Math.max(jump.feet||feet,feet)+.02;jump.vz=Math.max(jump.vz||0,.35*s);jump.snap=false;cameraMotion.shakeEnergy=Math.min(1,(cameraMotion.shakeEnergy||0)+.25+.05*s);
+      if(now-carHitAt>400){carHitAt=now;playerVitals()?.damage?.(Math.round(100*Math.min(1,Math.max(0,(s-2.5)/14))),"vehicle-impact");window.dispatchEvent(new CustomEvent("arondight:player-hit-by-car",{detail:{speedMps:s,id:rec.id}}));}}
+    R.applyImpulse?.(rec.id,[-nx*PLAYER_KG*dv,-ny*PLAYER_KG*dv,0],{point:[px,py,c[2]]});}}
+addEventListener("keydown",e=>{if(e.code==="Space")jet.hold=true;});addEventListener("keyup",e=>{if(e.code==="Space")jet.hold=false;});addEventListener("blur",()=>{jet.hold=false;});
+let jetPointer=null;addEventListener("pointerdown",e=>{if(e.target?.closest?.("#footJump")){jet.hold=true;jetPointer=e.pointerId;}},true);for(const t of["pointerup","pointercancel"])addEventListener(t,e=>{if(e.pointerId===jetPointer){jet.hold=false;jetPointer=null;}},true);
 function requestJump(){const now=performance.now();if(jump.airborne&&startJet(now))return;jump.queuedAt=now;jump.pending=!jump.airborne;}
 const FIRE_INTERVAL_MS=165;
 const AIM_SCAN_INTERVAL_MS=115;
@@ -253,7 +274,7 @@ function update(now,dt,lookDt=dt){
   if(pad){const move=shapeFirstPersonMove(axis(pad.axes?.[0]),axis(pad.axes?.[1]),firstPersonSettings);forward+=-move.y;strafe+=move.x;sprint=sprint||button(pad,10)>.5;const trigger=button(pad,7)>.5,weaponMode=String(globalThis.__arondightFootWeapons?.mode||"smg");if(trigger&&(weaponMode==="smg"||!state.xboxFire))selectedWeaponFire(now,weaponMode==="smg"?"xbox-auto":"xbox-press");state.xboxFire=trigger;const aBtn=button(pad,0)>.5;if(aBtn&&!state.xboxA)requestJump();state.xboxA=aBtn;/* Y (weapon), X (vehicle), D-pad ↓ (drone) and the rest: shared pad actions */}else{state.xboxFire=false;}if(state.fireHeld&&String(globalThis.__arondightFootWeapons?.mode||"smg")==="smg")selectedWeaponFire(now,"held-auto");applyControllerLook(pad,now,lookDt);
   const magnitude=Math.hypot(forward,strafe);if(magnitude>1){forward/=magnitude;strafe/=magnitude;}const speed=sprint?SPRINT_MPS:WALK_MPS;let dx=(Math.sin(state.yaw)*forward+Math.cos(state.yaw)*strafe)*speed*dt,dy=(Math.cos(state.yaw)*forward-Math.sin(state.yaw)*strafe)*speed*dt;
   if(jump.airborne&&dt>1e-5){const airAcc=jet.thrusting?JET_AIR_ACCEL:AIR_ACCEL,wx=dx/dt-jump.vx,wy=dy/dt-jump.vy,wl=Math.hypot(wx,wy),k=wl>airAcc*dt?airAcc*dt/wl:1;jump.vx+=wx*k;jump.vy+=wy*k;dx=jump.vx*dt;dy=jump.vy*dt;}
-  const from={x:state.position.x,y:state.position.y},to={x:from.x+dx,y:from.y+dy},interiors=globalThis.__buildingInteriors,prevFeet=Number.isFinite(jump.feet)&&!jump.snap?jump.feet:state.position.z-EYE_Z,resolved=unstuckMove(from,to,prevFeet,dt);previousWalkPosition.copy(state.position);state.position.x=Number(resolved.x)||0;state.position.y=Number(resolved.y)||0;
+  const from={x:state.position.x,y:state.position.y},to={x:from.x+dx,y:from.y+dy},interiors=globalThis.__buildingInteriors,prevFeet=Number.isFinite(jump.feet)&&!jump.snap?jump.feet:state.position.z-EYE_Z,resolved=unstuckMove(from,to,prevFeet,dt);previousWalkPosition.copy(state.position);state.position.x=Number(resolved.x)||0;state.position.y=Number(resolved.y)||0;carCollisions(now);
   if(dt>1e-5&&!jump.airborne){jump.vx=(state.position.x-from.x)/dt;jump.vy=(state.position.y-from.y)/dt;}else if(dt>1e-5){if(Math.abs(state.position.x-to.x)>1e-3)jump.vx=(state.position.x-from.x)/dt;if(Math.abs(state.position.y-to.y)>1e-3)jump.vy=(state.position.y-from.y)/dt;}
   const inside=interiors?.feetHeightAt?.(state.position.x,state.position.y,prevFeet),roof=Number.isFinite(inside)?null:roofAt(state.position.x,state.position.y),terrainFeet=standHeightAt(state.position.x,state.position.y)-EYE_Z,ground=Number.isFinite(inside)?inside:roof!==null&&prevFeet>=roof-.3?Math.max(terrainFeet,roof):terrainFeet;
   if(jump.snap||!Number.isFinite(jump.feet)){jump.feet=ground;jump.vz=0;jump.airborne=false;jump.snap=false;}
@@ -261,8 +282,8 @@ function update(now,dt,lookDt=dt){
     if(!jump.airborne){if(prevFeet-ground>LEDGE_DROP_M){jump.airborne=true;jump.vz=0;}else jump.feet=ground;}
     if(!jump.airborne&&(jump.pending||now-jump.queuedAt<JUMP_BUFFER_MS)){jump.airborne=true;jump.vz=JUMP_V;jump.feet=ground;jump.queuedAt=-Infinity;jump.pending=false;window.dispatchEvent(new CustomEvent("arondight:player-jump"));}
     // jetpack thrust (burst, or the automatic landing cushion)
-    if(!jump.airborne){jet.used=false;jet.burstLeft=0;if(!jet.groundSince)jet.groundSince=now;if(now-jet.groundSince>700)jet.fuel=Math.min(1,jet.fuel+dt/JET_RECHARGE_S);}else jet.groundSince=0;
-    jet.thrusting=false;if(jump.airborne&&jetpackOn()&&jet.fuel>0){const burst=jet.burstLeft>0,stopDist=jump.vz<0?jump.vz*jump.vz/(2*(JET_ACC-JUMP_G)):0,cushion=jump.vz<-FALL_SAFE_MPS*.8&&jet.fuel>JET_CUSHION_FUEL&&jump.feet-ground<stopDist+.6;if(burst||cushion){jet.thrusting=true;jet.fuel=Math.max(0,jet.fuel-JET_FUEL_PER_S*dt);if(burst)jet.burstLeft-=dt;}}
+    if(!jump.airborne){jet.used=false;jet.burstLeft=0;if(!jet.groundSince)jet.groundSince=now;if(now-jet.groundSince>400)jet.fuel=Math.min(1,jet.fuel+dt/JET_RECHARGE_S);}else jet.groundSince=0;
+    jet.thrusting=false;if(jump.airborne&&jetpackOn()&&jet.fuel>0){const padA=(()=>{const p=globalThis.__arondightPadBlocked?.()?null:gamepad();return p?button(p,0)>.5:false;})(),burst=jet.burstLeft>0||(jet.used&&(jet.hold||padA)),stopDist=jump.vz<0?jump.vz*jump.vz/(2*(JET_ACC-JUMP_G)):0,cushion=jump.vz<-FALL_SAFE_MPS*.8&&jet.fuel>JET_CUSHION_FUEL&&jump.feet-ground<stopDist+.6;if(burst||cushion){jet.thrusting=true;jet.fuel=Math.max(0,jet.fuel-JET_FUEL_PER_S*dt);if(burst)jet.burstLeft-=dt;}}
     const thrust=jet.thrusting?JET_ACC:0;jetHud();
     if(jump.airborne){const vz0=jump.vz,acc=thrust-JUMP_G;jump.feet+=vz0*dt+.5*acc*dt*dt;jump.vz=vz0+acc*dt;
       if(jump.feet<=ground&&jump.vz<=0){const impact=Math.sqrt(Math.max(0,vz0*vz0+2*JUMP_G*Math.max(0,prevFeet-ground)));jump.feet=ground;jump.vz=0;jump.airborne=false;cameraMotion.shakeEnergy=Math.min(1,(cameraMotion.shakeEnergy||0)+.12+.05*impact);window.dispatchEvent(new CustomEvent("arondight:player-land",{detail:{impactMps:impact}}));

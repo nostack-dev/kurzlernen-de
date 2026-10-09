@@ -102,9 +102,8 @@ function updateImpacts(now){const view=viewport();for(let i=impacts.length-1;i>=
 function fireNuke({clientX,clientY,source="external"}={}){const now=performance.now(),view=viewport();if((performance.now()<(Number(globalThis.__arondightWeaponLockUntil)||0)))return false;if(displayMode!=="nuke"||!isDrone()||globalThis.__arondightDroneDamageModel?.destroyed||view?.dataset.fireArmed!=="1"||now-lastNuke<COOLDOWN_MS)return false;const ray=screenRay(clientX,clientY),scene=bridge()?.threeScene;if(!ray||!scene)return false;lastNuke=now;const target=targetForRay(ray),start=ray.origin.clone().addScaledVector(ray.direction,.45).add(new THREE.Vector3(0,0,-.08));makeWarhead(scene,start,target,now);if(view){view.dataset.droneWeapon="nuke";view.dataset.nukeLaunches=String((Number(view.dataset.nukeLaunches)||0)+1);view.dataset.nukeInput=String(source);view.dataset.nukeTarget=`${target.x.toFixed(2)},${target.y.toFixed(2)},${target.z.toFixed(2)}`;view.dataset.nukeTargetResolver="ground-burst-xy-v1";view.dataset.nukeContract="drone-targeted-fixed-impact-v2";}return true;}
 // On foot: the shoulder-fired nuke ("NUKE" in the weapon cycle). Same warhead and blast as the
 // drone's, fired from the launcher muzzle along the crosshair / tap ray of the camera you see.
-// Like real nuclear recoilless rifles it has a minimum arming range: aimed closer than 200 m it
-// does not fire (you would be inside your own fireball). Aimed at the sky / far away: it flies
-// out to 600 m and bursts over the ground there. 20 s to reload.
+// It always fires, wherever you aim (close means you are in your own fireball). Aimed at the sky
+// or far away: it flies out to 600 m and bursts over the ground there. 20 s to reload.
 const FOOT_NUKE_RELOAD_MS=20000,FOOT_NUKE_MIN_M=200;let lastFootNuke=-Infinity;
 function footRay(clientX,clientY){const camera=bridge()?.presentedCamera?.()||bridge()?.threeCamera,p=logicalPoint(clientX,clientY);if(!camera||!p)return null;ndc.set(p.x/p.width*2-1,1-p.y/p.height*2);raycaster.setFromCamera(ndc,camera);return{origin:raycaster.ray.origin.clone(),direction:raycaster.ray.direction.clone().normalize()};}
 function fireFootNuke({clientX,clientY,source="foot"}={}){const now=performance.now(),view=viewport(),scene=bridge()?.threeScene,walk=globalThis.__arondightWalkMode;
@@ -114,7 +113,7 @@ function fireFootNuke({clientX,clientY,source="foot"}={}){const now=performance.
     // no terrain tile hit: intersect the ground surface itself (two refinements of the height under the ray)
     if((t===null||!Number.isFinite(t))&&ray.direction.z<-1e-4){t=(staticGroundHeightAt(ray.origin.x,ray.origin.y)-ray.origin.z)/ray.direction.z;for(let k=0;k<2;k++){const q=ray.origin.clone().addScaledVector(ray.direction,t);t=(staticGroundHeightAt(q.x,q.y)-ray.origin.z)/ray.direction.z;}if(!(t>0))t=null;}
     target=groundBurstPoint(ray.origin.clone().addScaledVector(ray.direction,t!==null&&t>0?Math.min(t,MAX_RANGE_M):MAX_RANGE_M));}
-  const range=Math.hypot(target.x-ray.origin.x,target.y-ray.origin.y);if(range<FOOT_NUKE_MIN_M){if(view)view.dataset.footNukeState="too-close";window.dispatchEvent(new CustomEvent("arondight:foot-nuke-denied",{detail:{reason:"min-range",rangeM:range,minM:FOOT_NUKE_MIN_M}}));return false;}
+  /* no minimum range: it always fires - point blank means you are inside your own fireball */
   lastFootNuke=now;const muzzle=scene.getObjectByName?.("WALK_GRENADE_MUZZLE_NODE"),start=muzzle?muzzle.getWorldPosition(new THREE.Vector3()):ray.origin.clone().addScaledVector(ray.direction,.6);makeWarhead(scene,start,target,now);
   window.dispatchEvent(new CustomEvent("arondight:weapon-fired",{detail:{weapon:"nuke",source}}));
   if(view){view.dataset.footNukeState="fired";view.dataset.footNukeLaunches=String((Number(view.dataset.footNukeLaunches)||0)+1);view.dataset.nukeTarget=`${target.x.toFixed(1)},${target.y.toFixed(1)},${target.z.toFixed(1)}`;}return true;}

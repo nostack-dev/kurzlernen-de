@@ -70,6 +70,8 @@ function onKey(e){
   if(e.__synthetic||e.metaKey||e.ctrlKey||e.altKey||e.repeat)return;const t=e.target;if(t instanceof Element&&t.closest("input,textarea,select,[contenteditable]"))return;
   // F = E (interact), as in most shooters
   if(e.code==="KeyF"&&!document.querySelector("#zombieRepair:not([hidden])")){e.preventDefault();sendKey("KeyE");return;}
+  // P = multiplayer on / off (find a mate), also in the menu right under RESUME
+  if(e.code==="KeyP"){if(menuOpen()||startScreen())return;e.preventDefault();document.getElementById("mobileGameplayMultiplayer")?.click();return;}
   // G = EMP (the police-drone pulse), like a tactical in shooters
   if(e.code==="KeyG"){if(menuOpen()||startScreen()||dead())return;e.preventDefault();emp();return;}
   if(e.code==="Digit4"){if(menuOpen()||startScreen()||dead())return;e.preventDefault();strike();}
