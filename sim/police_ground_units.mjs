@@ -159,7 +159,7 @@ function exitCar(u,now){
 function stepCop(c,u,player,now,dt,stars){
   const px=player.position.x,py=player.position.y,dx=px-c.x,dy=py-c.y,d=Math.hypot(dx,dy);
   const eye={x:c.x,y:c.y,z:c.z+1.45},aimAt={x:px,y:py,z:(player.position.z||1.68)-.35};
-  if(now-(c.losAt||0)>SIGHT_MS){c.losAt=now;c.los=d<60&&!blocked(eye,aimAt);}
+  if(now-(c.losAt||0)>SIGHT_MS){c.losAt=now;const was=c.los;c.los=d<60&&!blocked(eye,aimAt);if(c.los&&!was)c.nextShot=Math.max(c.nextShot,now+1100+Math.random()*700);}
   let move=null;c.anim="idle";
   if(u.state==="return"){const p=u.pose;if(p){const tx=p.position[0],ty=p.position[1],dd=Math.hypot(tx-c.x,ty-c.y);if(dd<1.9){c.state="in";return;}move=[(tx-c.x)/dd,(ty-c.y)/dd];}}
   else if(!c.los||d>ENGAGE_MAX_M)move=d>.1?[dx/d,dy/d]:null;
@@ -170,10 +170,10 @@ function stepCop(c,u,player,now,dt,stars){
   else{c.speed=0;c.yaw+=angleTo(c.yaw,Math.atan2(dy,dx))*Math.min(1,dt*12);c.anim="aim";}
   // shoot when in range and in sight (also while backing off / closing in)
   if(u.state!=="return"&&c.los&&d<ENGAGE_MAX_M+12&&now>=c.nextShot&&Math.abs(angleTo(c.yaw,Math.atan2(dy,dx)))<.35){
-    c.nextShot=now+Math.max(520,950-stars*70)+Math.random()*420;c.shots++;c.lastShotAt=now;c.anim="aim";
+    c.nextShot=now+Math.max(900,1500-stars*80)+Math.random()*700;c.shots++;c.lastShotAt=now;c.anim="aim";
     const fx=Math.cos(c.yaw),fy=Math.sin(c.yaw),from=new THREE.Vector3(c.x+fx*.45-fy*.12,c.y+fy*.45+fx*.12,c.z+1.38);
-    const hit=Math.random()<wantedPoliceHitChance({stars,distanceM:d,playerSpeedMps:player.speedMps||0})*.85;let to;
-    if(hit){to=new THREE.Vector3(aimAt.x,aimAt.y,aimAt.z);const dmg=Math.max(2,Math.round(wantedPoliceDamage(stars)*.6));const t=playerTarget();if(t?.model?.damage)t.model.damage(dmg,"police-officer");else window.dispatchEvent(new CustomEvent("arondight:player-damage",{detail:{damage:dmg,source:"police-officer"}}));window.dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage:dmg,source:"police-officer",target:"player"}}));}
+    const hit=Math.random()<wantedPoliceHitChance({stars,distanceM:d,playerSpeedMps:player.speedMps||0})*.55;let to;
+    if(hit){to=new THREE.Vector3(aimAt.x,aimAt.y,aimAt.z);const dmg=Math.max(2,Math.round(wantedPoliceDamage(stars)*.4));const t=playerTarget();if(t?.model?.damage)t.model.damage(dmg,"police-officer");else window.dispatchEvent(new CustomEvent("arondight:player-damage",{detail:{damage:dmg,source:"police-officer"}}));window.dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage:dmg,source:"police-officer",target:"player"}}));}
     else{to=new THREE.Vector3(aimAt.x+(Math.random()-.5)*2.4,aimAt.y+(Math.random()-.5)*2.4,aimAt.z+(Math.random()-.6)*1.4);const dir=to.clone().sub(from).normalize();to.copy(from).addScaledVector(dir,d+6);globalThis.__worldImpacts?.bullet?.({origin:from,direction:dir},null,{maxDistance:d+12});}
     c.aim=[to.x,to.y,to.z];tracer(from,to);playShot(from.x,from.y,from.z);
   }

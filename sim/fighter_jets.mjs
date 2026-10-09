@@ -19,7 +19,7 @@ import {VS_FX_EVENT} from "./lan_vs.mjs";
 //    scorch, wall soot, police/people, trees). Peers see the jets and bombs.
 
 export const FIGHTER_JETS_VERSION="low-pass-jets+air-strike-v1";
-const SPEED=255,SOUND=343,ALT_MIN=55,ALT_MAX=85,SPAN=2600,AMBIENT_MIN_S=75,AMBIENT_MAX_S=150,STRIKE_COOLDOWN_MS=30000,BOMB_RADIUS=15,BOMB_DAMAGE=150;
+const SPEED=255,SOUND=343,ALT_MIN=55,ALT_MAX=85,SPAN=2600,AMBIENT_MIN_S=75,AMBIENT_MAX_S=150,STRIKE_COOLDOWN_MS=30000,BOMB_RADIUS=17,BOMB_DAMAGE=170,STICK=10,STICK_LEN=130;
 const bridge=()=>globalThis.__arondightRealWorld||null;
 const walk=()=>globalThis.__arondightWalkMode||null;
 const viewport=()=>document.getElementById("viewport");
@@ -92,7 +92,7 @@ function updateJets(now,dt){
     // close pass: camera trauma + wake on the drone
     const L=listenerPos();if(L){const d=tmp.distanceTo(L);if(d<160&&!j.shook&&j.heardD<170){j.shook=true;addTrauma?.(Math.min(.85,.35+60/d));}}
     // strike run: drop a stick of 4 across the target
-    if(j.strike&&j.dropped<4){const s=j.strike,ahead=s.y-tmp.y;if(ahead<380){for(let k=j.dropped;k<4;k++){const tgt=new THREE.Vector3(s.x+(Math.random()-.5)*6,s.y+(k-1.5)*16,0);tgt.z=groundHeightAt(tgt.x,tgt.y);bomb(tmp.clone().add(new THREE.Vector3(0,-2,-1.2)),tgt,now+k*110);}j.dropped=4;}}
+    if(j.strike&&j.dropped<STICK){const s=j.strike,ahead=s.y-STICK_LEN/2-tmp.y;if(ahead<380){for(let k=j.dropped;k<STICK;k++){const tgt=new THREE.Vector3(s.x+(Math.random()-.5)*5,s.y-STICK_LEN/2+k*STICK_LEN/(STICK-1),0);tgt.z=groundHeightAt(tgt.x,tgt.y);bomb(tmp.clone().add(new THREE.Vector3(0,-2,-1.2)),tgt,now+k*(STICK_LEN/(STICK-1))/SPEED*1000);}j.dropped=STICK;}}
     if(tmp.y>j.y0+2*SPAN){stopJetVoice(j);j.model.parent?.remove(j.model);jets.splice(i,1);}
   }
   for(let i=bombs.length-1;i>=0;i--){const b=bombs[i];const t=(now-b.t0)/b.dur;if(t<0){b.mesh.visible=false;continue;}b.mesh.visible=true;
@@ -123,7 +123,7 @@ function flare(p,now){const m=new THREE.Mesh(new THREE.SphereGeometry(.35,10,8),
 function updateFlares(now){for(let i=flares.length-1;i>=0;i--){const f=flares[i];if(now>f.until){f.g.parent?.remove(f.g);flares.splice(i,1);continue;}f.l.intensity=6+Math.sin(now*.05)*3;requestLight(f.g.position,{color:0xff2a1a,intensity:f.l.intensity,distance:30});}}
 export function callAirStrike(target=null){
   const now=performance.now();if(now-lastStrike<STRIKE_COOLDOWN_MS||!ensureScene())return false;let p=target||aimPoint();if(!p)return false;if(!p.isVector3)p=new THREE.Vector3(+p.x,+p.y,Number.isFinite(+p.z)?+p.z:groundHeightAt(+p.x,+p.y));if(!Number.isFinite(p.x)||!Number.isFinite(p.y))return false;p.z=groundHeightAt(p.x,p.y);lastStrike=now;strikes.push({x:p.x,y:p.y,until:now+9000});
-  flare(p,now);const arrive=now+3500;launch(p.x,p.y,{strike:{x:p.x,y:p.y},offset:0,alt:70,at:arrive-SPAN/SPEED*1000+380/SPEED*1000});
+  flare(p,now);const arrive=now+3500;launch(p.x,p.y,{strike:{x:p.x,y:p.y},offset:0,alt:70,at:arrive-SPAN/SPEED*1000+(380+STICK_LEN/2)/SPEED*1000});
   sendFx({kind:"strike",p:canon(p.x,p.y),t:Date.now()});renderButton();return true;
 }
 
@@ -134,15 +134,38 @@ const canon=(x,y)=>{const o=localOffset();return[+(x+o[0]).toFixed(2),+(y+o[1]).
 const local=(x,y)=>{const o=localOffset();return[x-o[0],y-o[1]];};
 function sendFx(extra){const s=session();if(!s?.sendFx)return;try{s.sendFx({type:"impact",objectId:"fighter-jets",id:`jets-${Date.now().toString(36)}-${serial}`,...extra});}catch{}}
 function onFx(e){const pk=e?.detail?.packet;if(pk?.objectId!=="fighter-jets"||!Array.isArray(pk.p))return;const[x,y]=local(+pk.p[0]||0,+pk.p[1]||0);const now=performance.now();
-  if(pk.kind==="strike"){const p=new THREE.Vector3(x,y,groundHeightAt(x,y));strikes.push({x,y,until:now+9000});ensureScene();flare(p,now);launch(x,y,{strike:{x,y},alt:70,at:now+3500-SPAN/SPEED*1000+380/SPEED*1000,remote:true});}
+  if(pk.kind==="strike"){const p=new THREE.Vector3(x,y,groundHeightAt(x,y));strikes.push({x,y,until:now+9000});ensureScene();flare(p,now);launch(x,y,{strike:{x,y},alt:70,at:now+3500-SPAN/SPEED*1000+(380+STICK_LEN/2)/SPEED*1000,remote:true});}
   else if(pk.kind==="flyover")launch(x,y,{offset:+pk.o||0,alt:+pk.a||70,remote:true});}
 
 // ------------------------------------------------------------ UI
+// ------------------------------------------------------------ targeting: pick the bomb line in view
+// STRIKE arms the run: a red line (the stick of bombs, along the jets' north
+// heading) follows the pointer on the ground; tap/click confirms (radio
+// beeps), STRIKE again / Esc cancels.
+let targeting=false,line=null,overlay=null,aimNow=null;const beepCtx=()=>{try{return getSharedCombatAudioContext({resume:true});}catch{return null;}};
+function beep(freqs,dur=.09,gain=.12){const c=beepCtx();if(!c||c.state!=="running")return;let t=c.currentTime;for(const f of freqs){const o=c.createOscillator(),g=c.createGain();o.type="square";o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain,t+.008);g.gain.setValueAtTime(gain,t+dur-.02);g.gain.linearRampToValueAtTime(0,t+dur);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+dur+.02);t+=dur+.035;}}
+function ensureLine(){if(line?.parent===root)return line;const n=24,g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.BufferAttribute(new Float32Array(n*2*3),3));const idx=[];for(let i=0;i<n-1;i++){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2);}g.setIndex(idx);
+  line=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0xff2a1a,transparent:true,opacity:.8,depthWrite:false,depthTest:false,polygonOffset:true,polygonOffsetFactor:-8,polygonOffsetUnits:-8,side:THREE.DoubleSide}));line.frustumCulled=false;line.renderOrder=6;line.userData.flightFireIgnore=true;line.raycast=()=>{};root.add(line);return line;}
+function layLine(p,now){const m=ensureLine(),a=m.geometry.attributes.position.array,n=a.length/6,w=.9+.25*Math.sin(now*.012);for(let i=0;i<n;i++){const y=p.y-STICK_LEN/2+i*STICK_LEN/(n-1),z=groundHeightAt(p.x,y)+.15;a[i*6]=p.x-w;a[i*6+1]=y;a[i*6+2]=z;a[i*6+3]=p.x+w;a[i*6+4]=y;a[i*6+5]=z;}m.geometry.attributes.position.needsUpdate=true;m.visible=true;}
+function screenGround(clientX,clientY){const b=bridge(),cam=b?.threeCamera,canvas=b?.threeRenderer?.domElement;if(!cam||!canvas)return null;const r=canvas.getBoundingClientRect(),nd=new THREE.Vector2((clientX-r.left)/r.width*2-1,1-(clientY-r.top)/r.height*2);ray.setFromCamera(nd,cam);const o=ray.ray.origin,d=ray.ray.direction;
+  let best=null;const solids=[];b.threeScene.traverse(q=>{if(q.isMesh&&q.name==="WORLD_CITY_CHUNK"&&q.visible)solids.push(q);});ray.far=2500;const h=ray.intersectObjects(solids,false)[0];if(h)best=h.point.clone();const tr=terrainRayDistance?.(o,d,2500);if(Number.isFinite(tr)&&(!best||tr<o.distanceTo(best)))best=o.clone().addScaledVector(d,tr);if(!best)return null;best.z=groundHeightAt(best.x,best.y);return best;}
+function setTargeting(on){
+  if(on&&performance.now()-lastStrike<STRIKE_COOLDOWN_MS){beep([220],.18,.1);return;}targeting=Boolean(on);document.body.classList.toggle("air-strike-targeting",targeting);
+  if(targeting){if(!overlay){overlay=document.createElement("dialog");overlay.id="airStrikeTargeting";overlay.innerHTML="<b>ZIEL WÄHLEN</b><small>Tippen = Bombenlinie bestätigen · STRIKE = abbrechen</small>";document.body.appendChild(overlay);
+      const move=e=>{const p=screenGround(e.clientX,e.clientY);if(p){aimNow=p;layLine(p,performance.now());}};
+      overlay.addEventListener("pointermove",e=>{e.preventDefault();move(e);});overlay.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();move(e);overlay.dataset.down="1";});
+      overlay.addEventListener("pointerup",e=>{e.preventDefault();e.stopPropagation();if(overlay.dataset.down!=="1")return;overlay.dataset.down="0";move(e);if(aimNow&&callAirStrike(aimNow.clone())){beep([880,1175,1568],.08,.12);setTargeting(false);}});}
+    overlay.show?.();overlay.setAttribute("open","");beep([660,990],.07,.1);aimNow=null;if(line)line.visible=false;
+    // start with the line in the middle of the view
+    const b=bridge(),c=b?.threeRenderer?.domElement?.getBoundingClientRect();if(c){const p=screenGround(c.left+c.width/2,c.top+c.height*.55);if(p){aimNow=p;layLine(p,performance.now());}}}
+  else{overlay?.close?.();overlay?.removeAttribute("open");if(line)line.visible=false;}
+  renderButton();
+}
 function mountButton(){
   const view=viewport();if(!view||document.getElementById("airStrikeButton"))return;const b=document.createElement("button");b.id="airStrikeButton";b.type="button";b.setAttribute("aria-label","Call air strike on the aimed spot");b.innerHTML="<span>✈</span><small>STRIKE</small>";
-  b.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();callAirStrike();});view.appendChild(b);
-  const st=document.createElement("style");st.dataset.airStrike="v1";st.textContent=`#airStrikeButton{position:absolute;z-index:22;left:calc(max(12px,var(--solo-safe-left,env(safe-area-inset-left))) + min(25vw,148px)*.5 - 29px);bottom:calc(max(16px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + min(25vw,148px) + 18px);width:58px;height:58px;border-radius:50%;border:2px solid #ffffffbb;background:#0d1118b8;color:#fff;font:800 10px/1 Inter,system-ui,sans-serif;letter-spacing:.06em;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;touch-action:none;pointer-events:auto;overflow:hidden}#airStrikeButton span{font-size:20px;line-height:1}#airStrikeButton[data-ready="0"]{opacity:.55}#airStrikeButton::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:var(--cool,100%);background:#ff7a1a}body.player-driving #airStrikeButton{display:none}`;document.head.appendChild(st);
-  addEventListener("keydown",e=>{if(e.code==="KeyJ"&&!e.repeat&&!e.metaKey&&!e.ctrlKey){callAirStrike();e.preventDefault();}});
+  b.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();setTargeting(!targeting);});view.appendChild(b);
+  const st=document.createElement("style");st.dataset.airStrike="v1";st.textContent=`#airStrikeButton{position:absolute;z-index:22;left:calc(max(12px,var(--solo-safe-left,env(safe-area-inset-left))) + min(25vw,148px)*.5 - 29px);bottom:calc(max(16px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + min(25vw,148px) + 18px);width:58px;height:58px;border-radius:50%;border:2px solid #ffffffbb;background:#0d1118b8;color:#fff;font:800 10px/1 Inter,system-ui,sans-serif;letter-spacing:.06em;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;touch-action:none;pointer-events:auto;overflow:hidden}#airStrikeButton span{font-size:20px;line-height:1}body.air-strike-targeting #airStrikeButton{z-index:41;border-color:#ff3a2a;background:#3a0d08e0}#airStrikeTargeting{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;background:transparent;z-index:40;cursor:crosshair;touch-action:none;color:#fff;font-family:Inter,system-ui,sans-serif}#airStrikeTargeting b{position:absolute;left:50%;top:16%;transform:translateX(-50%);font:900 20px/1 Inter,sans-serif;letter-spacing:.16em;color:#ff4a3a;text-shadow:0 2px 6px #000}#airStrikeTargeting small{position:absolute;left:50%;top:calc(16% + 28px);transform:translateX(-50%);font:600 12px/1.2 Inter,sans-serif;opacity:.85;white-space:nowrap;text-shadow:0 1px 3px #000}#airStrikeButton[data-ready="0"]{opacity:.55}#airStrikeButton::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:var(--cool,100%);background:#ff7a1a}body.player-driving #airStrikeButton{display:none}`;document.head.appendChild(st);
+  addEventListener("keydown",e=>{if(e.code==="KeyJ"&&!e.repeat&&!e.metaKey&&!e.ctrlKey){setTargeting(!targeting);e.preventDefault();}else if(e.code==="Escape"&&targeting){setTargeting(false);}});
 }
 function renderButton(now=performance.now()){const b=document.getElementById("airStrikeButton");if(!b)return;const k=Math.min(1,(now-lastStrike)/STRIKE_COOLDOWN_MS);const r=k>=1?"1":"0";if(b.dataset.ready!==r)b.dataset.ready=r;b.style.setProperty("--cool",`${Math.round(k*100)}%`);}
 

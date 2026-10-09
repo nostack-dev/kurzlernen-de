@@ -270,10 +270,20 @@ function pumpBuild(){
 // inside an already kept one; tile-clipped fragments (side by side) survive.
 // Outlines that have separate building:parts are flagged hide_3d and skipped.
 function pipRing(x,y,ring){let inside=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],c=ring[j];if(((a[1]>y)!==(c[1]>y))&&x<(c[0]-a[0])*(y-a[1])/((c[1]-a[1])||1e-9)+a[0])inside=!inside;}return inside;}
+function insetRing(ring,d){const r=(ring||[]).map(p=>[+p[0],+p[1]]);if(r.length>1&&Math.hypot(r[0][0]-r.at(-1)[0],r[0][1]-r.at(-1)[1])<1e-6)r.pop();const n=r.length;if(n<3)return ring;let a2=0;for(let i=0,j=n-1;i<n;j=i++)a2+=(r[j][0]-r[i][0])*(r[j][1]+r[i][1]);const sgn=a2>0?1:-1;/* >0 = CCW: inward = left */
+  return r.map((c,i)=>{const p=r[(i+n-1)%n],q=r[(i+1)%n];let ax=c[0]-p[0],ay=c[1]-p[1],bx=q[0]-c[0],by=q[1]-c[1];const la=Math.hypot(ax,ay)||1,lb=Math.hypot(bx,by)||1;ax/=la;ay/=la;bx/=lb;by/=lb;let mx=-ay-by,my=ax+bx;const l=Math.hypot(mx,my)||1;mx/=l;my/=l;const k=1/Math.max(.35,(-ay*mx+ax*my));return[c[0]+mx*d*k*sgn,c[1]+my*d*k*sgn];});}
 function dedupeOverlaps(footprints){
   const byId=new Map(),out=[];for(const f of footprints){const id=String(f.key).startsWith("geometry:")?null:String(f.key).split(":")[0];if(!id){out.push(f);continue;}let g=byId.get(id);if(!g){g=[];byId.set(id,g);}g.push(f);}
   for(const g of byId.values()){g.sort((a,b)=>b.area-a.area);const kept=[];for(const f of g){if(kept.some(k=>pipRing(f.center[0],f.center[1],k.outer)))continue;kept.push(f);}out.push(...kept);}
-  return out.sort((a,b)=>a.distance-b.distance);
+  // Across ids: a near-identical second copy (other id / no id) is dropped; a
+  // smaller part standing inside a bigger building is inset by 5 cm so walls
+  // they share are never coplanar (no z-fighting facades).
+  out.sort((a,b)=>b.area-a.area);const final=[];
+  for(const f of out){const r=f.outer||[];let bx0=Infinity,by0=Infinity,bx1=-Infinity,by1=-Infinity;for(const q of r){bx0=Math.min(bx0,q[0]);by0=Math.min(by0,q[1]);bx1=Math.max(bx1,q[0]);by1=Math.max(by1,q[1]);}f._bb=[bx0,by0,bx1,by1];
+    const host=final.find(k=>f.center[0]>=k._bb[0]&&f.center[0]<=k._bb[2]&&f.center[1]>=k._bb[1]&&f.center[1]<=k._bb[3]&&pipRing(f.center[0],f.center[1],k.outer));
+    if(host){if(f.area/Math.max(1e-6,host.area)>.6&&Math.abs((Number(f.base)||0)-(Number(host.base)||0))<.5)continue;f.outer=insetRing(f.outer,.05);}
+    final.push(f);}
+  return final.sort((a,b)=>a.distance-b.distance);
 }
 function features(b){
   if(!b?.map||!b.buildingSourceId)return[];
