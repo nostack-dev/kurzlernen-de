@@ -1,9 +1,9 @@
 {
- "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=ae05cea1ed3d2427bd6fe43d76badd3038f9f4ab",
+ "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=a88a3f4147a837459a66550a82e328be924f70cf",
  "steps": [
   {
    "name": "boot-5s",
-   "ms": 7552,
+   "ms": 11157,
    "draws": [
     [
      "Group",
@@ -66,14 +66,32 @@
      "25dc/0tri/0shadowTri"
     ]
    ],
-   "fps": 12,
+   "fps": 0.5,
    "drawCalls": 1,
    "triangles": 12,
    "lines": 0,
-   "programs": 28,
+   "programs": 38,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#4,5,highp,srgb-linear,fa",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -89,14 +107,6 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#8,9,onBeforeCompile(){}",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1"
@@ -114,7 +124,7 @@
   },
   {
    "name": "menu",
-   "ms": 2734,
+   "ms": 3491,
    "draws": [
     [
      "Group",
@@ -177,14 +187,32 @@
      "25dc/0tri/0shadowTri"
     ]
    ],
-   "fps": 11.8,
+   "fps": 5.6,
    "drawCalls": 1,
    "triangles": 12,
    "lines": 0,
-   "programs": 28,
+   "programs": 38,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#4,5,highp,srgb-linear,fa",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -200,14 +228,6 @@
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
-    "?#lambert,highp,srgb,306,1",
-    "?#6,7,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#8,9,onBeforeCompile(){}",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1"
@@ -225,44 +245,7 @@
   },
   {
    "name": "started",
-   "ms": 17295,
+   "ms": 29492,
    "draws": [
     [
-     "WORLD_GROUND",
-     "64dc/204800tri/0shadowTri"
-    ],
-    [
-     "WORLD_CITY_ROADS",
-     "15dc/52656tri/0shadowTri"
-    ],
-    [
-     "WORLD_CITY_BUILDINGS",
-     "19dc/43391tri/43391shadowTri"
-    ],
-    [
-     "STREET_LAMPS[inst]",
-     "2dc/30420tri/23400shadowTri"
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION[inst]",
-     "1dc/27984tri/27984shadowTri"
-    ],
-    [
-     "WORLD_WATER",
-     "1dc/16090tri/0shadowTri"
-    ],
-    [
-     "WORLD_PROCEDURAL_POPULATION",
-     "38dc/6648tri/6600shadowTri"
-    ],
-    [
-     "WORLD_PROCEDURAL_DECOR[inst]",
-     "6dc/4016tri/0shadowTri"
-    ],
-    [
-     "Group",
-     "64dc/1956tri/1872shadowTri"
-    ],
-    [
-     "LOCAL_HUMAN_VR",
-     "20dc/
+     "WORLD_GROUND"
