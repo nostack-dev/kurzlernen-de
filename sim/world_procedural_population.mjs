@@ -135,7 +135,21 @@ function updateCatAttack(now){const a=catAttack;if(!a)return null;const head=pla
     if(t>=1){globalThis.__arondightPlayerDamageModel?.damage?.(100000,"black-cat");window.dispatchEvent(new CustomEvent("arondight:black-cat-kill"));const v=document.getElementById("viewport");if(v)v.dataset.blackCat="killed-player";catAttack=null;return null;}}
   return a;}
 globalThis.__ambientBirds={poses:()=>records.filter(r=>r.kind==="bird"&&r.group.visible&&!r.deadUntil).map(r=>({id:r.id,x:r.group.position.x,y:r.group.position.y,z:r.group.position.z,sc:r.group.children[0]?.scale.x||1})),kill:id=>{const r=records.find(q=>q.id===id);return r?killRecord(r):false;}};
-globalThis.__ambientAnimals={kill:killAnimal,poses:()=>animalPose.map((p,i)=>p&&!animalDead[i]?{i,...p}:null).filter(Boolean)};
+globalThis.__ambientAnimals={
+  kill:killAnimal,
+  poses:()=>animalPose.map((p,i)=>p&&!animalDead[i]?{i,...p}:null).filter(Boolean),
+  // Hitscan ray selects the ACTUAL Box3D animal collider. Transfer momentum at its 3D impact point.
+  hit({id,point=null,direction=[0,0,1],strength=1}={}){
+    const i=animalPhys.findIndex(a=>a?.id===String(id));
+    if(i<0||!animalPose[i]||animalDead[i])return false;
+    const a=animalPhys[i],len=Math.hypot(...direction)||1;
+    // A configurable gameplay impulse in N*s; mass scaling keeps dogs and cats responsive without teleporting.
+    const impulseNs=Math.min(48,Math.max(9,a.mass*2.8))*Math.max(.2,Math.min(2,Number(strength)||1));
+    const dir=[direction[0]/len,direction[1]/len,direction[2]/len+.27];
+    rigidBodies()?.applyImpulse?.(a.id,dir.map(x=>x*impulseNs),{point:Array.isArray(point)&&point.length===3?point:null});
+    return killAnimal(i);
+  }
+};
 // Dogs and cats are Box3D bodies: they walk (steered toward their wandering path by leg force),
 // a car or a blast throws them, a hard enough hit kills them (the body tumbles on), they right
 // themselves after a stumble. The legs swing in a gait tied to the distance actually covered:
