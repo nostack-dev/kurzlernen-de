@@ -17,8 +17,12 @@ for(const source of [production,hil]){
   assert.match(source,/CONFIG_IDF_TARGET_ESP32S31/,"physical firmware must reject a non-S31 ESP-IDF target");
   assert.doesNotMatch(source,/CONFIG_IDF_TARGET_ESP32S3\b/,"ESP32-S31 must never be silently substituted with ESP32-S3");
 }
-assert.match(workflow,/--preview set-target esp32s31/g);
-assert.equal((workflow.match(/--preview set-target esp32s31/g)||[]).length,2,"both production and HIL builds target real ESP32-S31");
+// the firmware builds run from esp32/ci_build.sh inside the ESP-IDF image (pulled with retries by the workflow)
+const ciBuild=read("esp32/ci_build.sh");
+assert.match(workflow,/bash esp32\/ci_build\.sh/,"the S31 workflow must run the firmware build script");
+assert.match(ciBuild,/--preview set-target esp32s31/,"the firmware build must target the real ESP32-S31");
+assert.match(ciBuild,/^build production Arondight45_DroneFC_S31\.cpp/m,"production firmware must be built");
+assert.match(ciBuild,/^build hil Arondight45_DroneFC_HIL_S31\.cpp/m,"HIL firmware must be built");
 
 assert.match(production,/fc::FirmwareRuntime runtime/);
 assert.match(production,/ulTaskNotifyTake\(pdTRUE, pdMS_TO_TICKS\(5\)\)/,"production must be ICM-DRDY notified");
