@@ -80,22 +80,24 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p generated
-          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
-            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
-              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='web' \
-              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
-              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
-              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
-              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
-              -o generated/flight_core.mjs
-          docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 \
-            em++ sim/Arondight45_DroneFC_SIL_WASM.cpp -std=c++17 -O3 \
-              -s MODULARIZE=1 -s EXPORT_ES6=1 -s ENVIRONMENT='node' \
-              -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1 \
-              -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 \
-              -s EXPORTED_RUNTIME_METHODS='["HEAPU8"]' \
-              -s EXPORTED_FUNCTIONS='["_fc_input_buffer","_fc_output_buffer","_fc_input_size","_fc_output_size","_fc_reset","_fc_process","_fc_protocol_version"]' \
-              -o generated/flight_core_node.mjs
+          FLAGS=(-std=c++17 -O3 -s MODULARIZE=1 -s EXPORT_ES6=1 -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1
+            -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 -s "EXPORTED_RUNTIME_METHODS=[\"HEAPU8\"]"
+            -s "EXPORTED_FUNCTIONS=[\"_fc_input_buffer\",\"_fc_output_buffer\",\"_fc_input_size\",\"_fc_output_size\",\"_fc_reset\",\"_fc_process\",\"_fc_protocol_version\"]")
+          # the emsdk image (pulled with retries); if Docker Hub cannot deliver it, the same emsdk
+          # version installed directly — the build must not depend on one registry being up
+          have_image=0
+          for i in 1 2 3 4; do if docker pull -q emscripten/emsdk:4.0.10; then have_image=1; break; fi; sleep $((i*15)); done
+          if [ "$have_image" = 1 ]; then
+            EMXX=(docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 em++)
+          else
+            git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+            "$RUNNER_TEMP/emsdk/emsdk" install 4.0.10
+            "$RUNNER_TEMP/emsdk/emsdk" activate 4.0.10
+            source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+            EMXX=(em++)
+          fi
+          "${EMXX[@]}" sim/Arondight45_DroneFC_SIL_WASM.cpp "${FLAGS[@]}" -s ENVIRONMENT='web' -o generated/flight_core.mjs
+          "${EMXX[@]}" sim/Arondight45_DroneFC_SIL_WASM.cpp "${FLAGS[@]}" -s ENVIRONMENT='node' -o generated/flight_core_node.mjs
           node tests/sil_wasm_smoke.mjs generated/flight_core_node.mjs
 
       - name: Bundle self-contained Pages
