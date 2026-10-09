@@ -108,7 +108,7 @@ function frame(now){
   // Depth precision: a 1 cm near plane leaves ~25 cm depth steps at 200 m, so
   // ground, roads and facades z-fight. Near is 6 cm on foot (weapon in view)
   // and 25 cm otherwise — 6–25× finer depth everywhere.
-  {const c=b.threeCamera,want=globalThis.__arondightWalkMode?.mode==="foot"?.06:.25;if(c&&Math.abs(c.near-want)>1e-4){c.near=want;c.updateProjectionMatrix();}}
+  {const c=b.threeCamera,want=globalThis.__jetMode?.active?1:globalThis.__arondightWalkMode?.mode==="foot"?.06:.25;if(c&&Math.abs(c.near-want)>1e-4){c.near=want;c.updateProjectionMatrix();}}
   const cam=b.threeCamera;if(!cam||busy||now-lastTry<1500)return;if(Math.hypot(cam.position.x-center[0],cam.position.y-center[1])<REBUILD_MOVE_M&&mesh.visible)return;lastTry=now;center=[Math.round(cam.position.x/10)*10,Math.round(cam.position.y/10)*10];rebuild(b,center[0],center[1]);
 }
 // The view never goes underground: chase / orbit / menu cameras on hills,
