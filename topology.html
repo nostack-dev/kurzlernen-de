@@ -80,6 +80,7 @@ input[type=checkbox]{accent-color:var(--accent);margin:0}
 .more h3:first-child{margin-top:0}
 textarea{width:100%;box-sizing:border-box;height:110px;font:11px var(--mono);background:var(--stage);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px}
 .err{color:var(--accent);font-weight:500}
+.calres{margin-top:6px;font-size:12px}.calres table{width:100%;border-collapse:collapse;font:11.5px/1.4 var(--mono);font-variant-numeric:tabular-nums}.calres td,.calres th{text-align:right;padding:2px 5px;border-bottom:1px solid var(--line)}.calres th{color:var(--muted);font-weight:600}.calres td:first-child,.calres th:first-child{text-align:left}.calres p{margin:4px 0}
 @media (max-width: 860px){
   .app{height:auto;display:block}
   .top{margin-bottom:6px}
@@ -164,12 +165,22 @@ textarea{width:100%;box-sizing:border-box;height:110px;font:11px var(--mono);bac
       <details class="group" id="gGear" hidden>
         <summary>Getriebe</summary>
         <div class="gbody">
-          <p class="note">Ein Motor. Jeder Kreis dreht sich um eine feste Achse, genau U-mal je Motorumdrehung: ganzzahlige Zahnräder auf stillstehenden Plattformen, 1:1-Riemen, in 3D Kegelräder. Kein Teil berührt ein anderes oder das Gezeichnete – wo es eng wird, weicht die Maschine aus.</p>
+          <p class="note">Ein Motor. Jeder Kreis dreht sich genau U-mal pro Zeichnung: ganzzahlige Zahnräder auf stillstehenden Plattformen, in 3D mit Kegelrädern. Kein Teil berührt ein anderes oder das Gezeichnete – wo es eng wird, weicht die Maschine aus.</p>
           <label class="sl">Größe <select id="kSize"><option value="200">200 mm</option><option value="400" selected>400 mm</option><option value="800">800 mm</option><option value="1600">1600 mm</option><option value="3200">3200 mm</option></select><output></output></label>
           <label class="ck"><input type="checkbox" id="cInt" checked> Ganze Zahlen: Längen in mm, Winkel in Grad</label>
           <label class="ck" id="rowWire"><input type="checkbox" id="cWire"> Linie ist fest (Draht, 3D-Druck)</label>
           <div id="parts" class="parts">Noch kein Modell.</div>
           <div class="row"><button id="bParts">Stückliste kopieren</button><button id="bPatch" title="Box3D hat kein Zahnrad-Gelenk – dieser Patch ergänzt es">Box3D-Patch kopieren</button></div>
+          <div id="kitBox" class="more">
+            <h3>Bauen</h3>
+            <p class="note">Bausatz für genau diese Maschine: Zuschnitt zum Lasern (SVG), Zahnräder zum Drucken (STL), Stückliste, Bauanleitung, Motor-Firmware.</p>
+            <div class="row"><button id="bKit" class="primary">Bausatz herunterladen</button></div>
+            <h3>Kalibrieren</h3>
+            <p class="note">Gebaut und gezeichnet? Foto der echten Zeichnung laden – die App sagt, welcher Arm um wie viel nachzustellen ist.</p>
+            <div class="row"><span class="file">Foto der echten Zeichnung …<input type="file" id="fCal" accept="image/*"></span></div>
+            <div id="cal" class="calres" hidden></div>
+          </div>
+          <p class="note" id="kit3d" hidden>Bausatz und Foto-Kalibrierung gibt es für 2D-Maschinen.</p>
         </div>
       </details>
       <details class="group" open>
@@ -1064,9 +1075,11 @@ function makeCore(E, opt){
       const [LA,tA]=pol(P.A), [LB,tB]=pol(P.B); return {k:T.k,az,el,LA,tA,LB,tB}; })};
     return {c:m.c.map(v=>R(v*g)), arms:m.arms.map(a=>({k:a.k, L:R(hyp(a.a)*g), t:R(Math.atan2(a.a[1],a.a[0])/q)}))}; }
   function fromInt(P){ const g=gearMM(), q=DEG*degQ();
-    if(P.terms) return {c:P.c.map(v=>v/g), terms:P.terms.filter(T=>T.LA>=1||T.LB>=1).map(T=>{ const [e1,e2]=basisN(axisOf(T.az*q,T.el*q));
-      const pc=(L,t)=>L>=1?[L/g*Math.cos(t*q),L/g*Math.sin(t*q)]:[0,0]; return termFrom(T.k,pc(T.LA,T.tA),pc(T.LB,T.tB),e1,e2); })};
-    return {c:P.c.map(v=>v/g), arms:P.arms.filter(a=>a.L>=1).map(a=>({k:a.k, a:[a.L/g*Math.cos(a.t*q), a.L/g*Math.sin(a.t*q)]}))}; }
+    if(P.terms) return {c:P.c.map(v=>v/g), terms:P.terms.filter(T=>T.LA>=minL()||T.LB>=minL()).map(T=>{ const [e1,e2]=basisN(axisOf(T.az*q,T.el*q));
+      const pc=(L,t)=>L>=minL()?[L/g*Math.cos(t*q),L/g*Math.sin(t*q)]:[0,0]; return termFrom(T.k,pc(T.LA,T.tA),pc(T.LB,T.tB),e1,e2); })};
+    return {c:P.c.map(v=>v/g), arms:P.arms.filter(a=>a.L>=minL()).map(a=>({k:a.k, a:[a.L/g*Math.cos(a.t*q), a.L/g*Math.sin(a.t*q)]}))}; }
+  // a real machine has no circles below a few millimetres: each one costs a whole layer of parts
+  const minL=()=>opt.minArmMM!=null?opt.minArmMM:3;
   function snapGear(mech){ if(!intDims()) return mech; const o=fromInt(toInt(mech)); if(mech.order) o.order=mech.order.slice(); if(mech.sp) o.sp={...mech.sp}; if(mech.nd!=null) o.nd=mech.nd; return o; }
   function buildGear(mech0){
     const mech=snapGear(mech0), c=mech.c, f=Math.pow(10,opt.torque/25-2);
@@ -1707,6 +1720,372 @@ function makeCore(E, opt){
   return {safeGap,takeBlocked,layout3,partsOf,planGap,planDodge,PART,gearReach,measure,polish,polishStep,build3DGear,toInt,buildGear,gearParts,snapGear,gearbox,gearMM,addCandidates,settle,refineEval,evalMech,SIZE,S,TSIM,WS,KMAX,SUB,exportScene,loadScene,H:TSIM/(S*SUB),CAT,CRANK,HC,CRANK3,frame,toW,quatBasis,armsOf3,body,pt,state,buf,build2D,build3D,stepMachine,penOf,tipOf,simulate,learnStep,blindStep,start,errOf,setDense,reparam,armsCount,cloneM};
 }
 if(typeof module!=='undefined') module.exports={makeCore};
+
+</script>
+<script>
+// Umriss-Motor · Bausatz: from a 2D gear design to a machine you can build, plus calibration from a photo of its drawing.
+// Mechanism (hanging stack, collision-free by construction): base plate on top with the one motor, then arm 1, arm 2, …
+// each one layer lower, the pen at the bottom. Joint j has a stub axle S_j fixed to the tip of arm j-1 (S_1 = the main
+// shaft, arm 1 is clamped on it). Around S_j, on plain bearings, hang a platform that never turns and the hub of arm j.
+// The platform carries a coaxial gearbox: input gear fixed on S_j (k_{j-1} turns per drawing), output gear on arm j's hub
+// (k_j turns): ratio k_j/k_{j-1}, whole-number teeth, module 1. Each platform is kept parallel to the one above by a
+// cross slide (an Oldham coupling for parallel plates): pins of the upper platform run in x slots, the lower platform's
+// centre block runs in a y slot. No belt, no drive shaft along the arms; everything flat is laser cut, gears also print.
+function makeKit(core){
+  const MOD=1, ZMIN=12, FACE=6, PLATE=4, IDLER=12, BL=0.05;            // module 1: laser cuttable and 3D-printable
+  const CRANK_MAX=24, AX=8, LAY=5, PIN=3.2, BLOCK=16, SL=3;              // arms below 24 mm are cranks; axles Ø8, layshafts Ø5, M3 pins; slide plate 3 mm
+  const AL={E:69000, rho:2.7e-3}, PLA={rho:1.24e-3}, PMMA={rho:1.19e-3}; // N/mm², g/mm³
+  const TUBES=[[15,1.5],[20,1.5],[20,2],[25,2],[30,2],[40,2],[50,3]];  // aluminium square tube [side, wall] mm
+  const PEN_G=25, DEFL_MAX=0.5;
+  const cache=new Map();
+  const gcd=(a,b)=>{ a=Math.abs(a); b=Math.abs(b); while(b){ [a,b]=[b,a%b]; } return a; };
+  // Coaxial ("reverted") gear train: input on the axis, a layshaft, output on the same axis as the input.
+  // ratio p/q = (Zin/Za)*(Zb/Zout), Zin+Za = Zb+Zout (same centre distance). Two meshes keep the direction; an idler reverses it.
+  function revertedTrain(p,q){ q=q||1; const d=gcd(p,q)||1; p/=d; q/=d; if(q<0){ p=-p; q=-q; } const key=p+'/'+q;
+    if(cache.has(key)) return cache.get(key);
+    const a=Math.abs(p); let best=null;
+    if(a===q&&p>0) best={direct:true, ratio:1, reach:AX/2+4, idler:false};
+    else for(let S=2*ZMIN;S<=240&&!best;S++){
+      for(let Zin=ZMIN;Zin<=S-ZMIN;Zin++){ const Za=S-Zin;
+        for(let Zout=ZMIN;Zout<=S-ZMIN;Zout++){ const Zb=S-Zout; if(q*Zin*Zb!==a*Za*Zout) continue;
+          const c=Math.max(Zin,Za,Zb,Zout)+0.01*Math.abs(Zin-Zout);
+          if(!best||c<best.c) best={c,Zin,Za,Zb,Zout}; } } }
+    if(best&&!best.direct){ const m=MOD, ax=m*(best.Zin+best.Za)/2; best.a=ax; best.idler=p<0;
+      let reach=ax+m*Math.max(best.Za,best.Zb)/2+m;
+      if(best.idler){ // idler meshes Zb (on the layshaft) and Zout (on the axis)
+        const rb=m*best.Zb/2, ro=m*best.Zout/2, ri=m*IDLER/2, d1=rb+ri, d2=ro+ri, x=(d2*d2-d1*d1+ax*ax)/(2*ax), y=Math.sqrt(Math.max(0,d2*d2-x*x));
+        best.idlerAt=[x,y]; reach=Math.max(reach,Math.hypot(x,y)+ri+m); }
+      best.reach=reach; }
+    if(best){ best.p=p; best.q=q; best.ratio=p/q; }
+    cache.set(key,best); return best; }
+  // involute spur gear outline (counter-clockwise, star-shaped around the centre)
+  function gearPoly(Z,m){ m=m||MOD;
+    const al=20*Math.PI/180, r=m*Z/2, rb=r*Math.cos(al), ra=r+m, rf=r-1.25*m, inv=x=>Math.tan(x)-x;
+    const psiP=Math.PI/(2*Z)-BL/(2*r), psi=rho=>psiP+inv(al)-inv(Math.acos(Math.min(1,rb/rho))), r0=Math.max(rb,rf), F=8, pts=[];
+    for(let j=0;j<Z;j++){ const th=2*Math.PI*j/Z;
+      if(rf<rb) pts.push([rf,th-psi(rb)]);
+      for(let i=0;i<=F;i++){ const rho=r0+(ra-r0)*i/F; pts.push([rho,th-psi(rho)]); }
+      for(let i=F;i>=0;i--){ const rho=r0+(ra-r0)*i/F; pts.push([rho,th+psi(rho)]); }
+      if(rf<rb) pts.push([rf,th+psi(rb)]);
+      const nx=th+2*Math.PI/Z, a0=th+psi(rf<rb?rb:r0), a1=nx-psi(rf<rb?rb:r0); for(let i=1;i<4;i++) pts.push([rf,a0+(a1-a0)*i/4]); }
+    return pts.map(([rho,a])=>[rho*Math.cos(a),rho*Math.sin(a)]); }
+
+  // ---------- the physical machine ----------
+  // Cross slide of arm j (between arm j and the platform below it). Upper platform: two pins (0,±D) in x slots; they reach
+  // down past the gearbox and past arm j, so D clears every gear there and the arm's sweep. Lower platform: a square centre
+  // block (around S_{j+1}) in a y slot. Slide plate size: x ±(L+…), y ±(D+…).
+  function slideOf(L,t,sweep){ let D=sweep+PIN/2+2; const cl=PIN/2+2;
+    if(t&&!t.direct){ const ra=Z=>MOD*Z/2+MOD; D=Math.max(D,Math.max(ra(t.Zin),ra(t.Zout))+cl);
+      const rl=Math.max(ra(t.Za),ra(t.Zb))+cl; if(rl>t.a) D=Math.max(D,Math.sqrt(rl*rl-t.a*t.a));
+      if(t.idler){ const [x,y]=t.idlerAt, ri=ra(IDLER)+cl; for(let it=0;it<400&&Math.min(Math.hypot(x,D-y),Math.hypot(x,D+y))<ri;it++) D+=0.5; } }
+    D=Math.ceil(D); const hx=Math.ceil(L+PIN/2+6), hy=D+Math.ceil(PIN/2+5);
+    return {D, hx:Math.max(hx,Math.ceil(BLOCK/2+6)), hy, slotX:Math.ceil(2*L+PIN+1), slotY:Math.ceil(2*L+BLOCK+1)}; }
+  function design(mech,opt){
+    const P=core.gearParts(mech); if(P.dim!=='2d') return null;
+    const n=P.arms.length, arms=P.arms.map((a,i)=>({nr:i+1, k:a.turns, L:a.lengthMM, deg:a.mountDeg}));
+    const gearG=(Z)=>PLA.rho*Math.PI*(MOD*Z/2)**2*FACE*0.55;
+    const trainG=t=>t.direct?0:gearG(t.Zin)+gearG(t.Za)+gearG(t.Zb)+gearG(t.Zout)+(t.idler?gearG(IDLER):0);
+    // arm j turns k_j; its input S_j turns k_{j-1}; arm 1 sits directly on the main shaft (the motor turns it k_1 times)
+    arms.forEach((A,i)=>{ A.kin=i?arms[i-1].k:A.k; A.train=revertedTrain(A.k,A.kin); A.form=A.L>=CRANK_MAX?'tube':'crank'; if(A.form==='crank') A.crankR=Math.ceil(A.L+AX/2+5); });
+    // arms from the bottom up: each carries everything below it (tube: cantilever deflection; crank: stiff)
+    let below=PEN_G; const plats=[];
+    for(let i=n-1;i>=0;i--){ const A=arms[i], len=A.L+20;
+      // platform below arm i (= platform nr i+1 at its tip) carries arm i+1's gearbox, a centre block and the pins for arm i+1's slide
+      if(i<n-1){ const nx=arms[i+1], R=Math.ceil(Math.max(nx.train.reach||0, nx.slide?nx.slide.D+PIN/2+4:0, BLOCK*0.75, 14));
+        const plateG=PMMA.rho*Math.PI*R*R*PLATE*0.7, hw=12+6+6;   // layshaft, block, pins
+        const Pl={nr:i+1, R, mass:Math.round(plateG+trainG(nx.train)+hw), train:nx.train, k:nx.k, pinsD:nx.slide?nx.slide.D:0}; plats.unshift(Pl); below+=Pl.mass; }
+      if(A.form==='tube'){ let pick=null; for(const [b,w] of TUBES){ const I=(b**4-(b-2*w)**4)/12, area=b*b-(b-2*w)**2, q=AL.rho*area*9.81e-3, W=below*9.81e-3, L=A.L;
+          const d=W*L**3/(3*AL.E*I)+q*L**4/(8*AL.E*I); pick={b,w,deflection:d,mass:AL.rho*area*len}; if(d<=DEFL_MAX) break; }
+        A.tube=pick; below+=pick.mass; }
+      else { const m=PMMA.rho*Math.PI*A.crankR**2*9; A.crankMass=Math.round(m); below+=m; }
+      // the slide of this arm (needs this arm's own gearbox at its top end and the arm's half width)
+      if(i<n-1){ A.slide=slideOf(A.L,A.train,A.tube?Math.hypot(A.L+10,A.tube.b/2):A.crankR); below+=PMMA.rho*(2*A.slide.hx)*(2*A.slide.hy)*SL*0.4; }
+      A.link=i<n-1?'slide':'none'; }
+    // base: main shaft in two ball bearings, arm 1 clamped on it, pins for arm 1's slide
+    const baseR=Math.ceil(Math.max(arms[0].slide?arms[0].slide.D+PIN/2+6:40, 40));
+    const total=Math.round(below+600);                                                    // + base plate, motor, frame
+    // motor: plain bearings ~0.01 Nm per joint and turn rate, reflected to the main shaft (which turns |k_1| times)
+    const k1=Math.abs(arms[0].k), shaftNm=0.05+arms.reduce((s,A)=>s+0.01*Math.abs(A.k),0)*1.5/k1, red=[3,4,5,6].find(r=>shaftNm/r<=0.2)||6;
+    const layer=A=>(A.tube?A.tube.b:9)+2*FACE+PLATE+(A.link==='slide'?SL+4:0)+6;
+    return {sizeMM:P.sizeMM, base:P.base, baseR, n, arms, plats, massG:total, heightMM:Math.round(arms.reduce((s,A)=>s+layer(A),0)+80),
+      motor:{shaftNm:Math.round(shaftNm*100)/100, reduction:red, motorNm:Math.round(shaftNm/red*100)/100, stepsPerTurn:200*16*red, shaftTurns:k1, dir:Math.sign(arms[0].k)}, module:MOD};
+  }
+
+  // ---------- drawings: SVG cut sheets (red = cut, blue = engrave) ----------
+  const f2=v=>Math.round(v*100)/100;
+  const circ=(x,y,r,c)=>`<circle cx="${f2(x)}" cy="${f2(y)}" r="${f2(r)}" class="${c||'cut'}"/>`;
+  const txt=(x,y,s,sz)=>`<text x="${f2(x)}" y="${f2(y)}" font-size="${sz||3}" class="txt">${s}</text>`;
+  const poly=(pts,ox,oy,c)=>`<polygon points="${pts.map(p=>f2(p[0]+ox)+','+f2(p[1]+oy)).join(' ')}" class="${c||'cut'}"/>`;
+  const line=(x1,y1,x2,y2,c)=>`<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" class="${c||'eng'}"/>`;
+  const slot=(cx,cy,len,w,vert)=>{ const r=w/2, h=len/2-r; return vert?`<path d="M${f2(cx-r)},${f2(cy-h)} A${f2(r)},${f2(r)} 0 0 1 ${f2(cx+r)},${f2(cy-h)} L${f2(cx+r)},${f2(cy+h)} A${f2(r)},${f2(r)} 0 0 1 ${f2(cx-r)},${f2(cy+h)} Z" class="cut"/>`
+    :`<path d="M${f2(cx-h)},${f2(cy+r)} A${f2(r)},${f2(r)} 0 0 1 ${f2(cx-h)},${f2(cy-r)} L${f2(cx+h)},${f2(cy-r)} A${f2(r)},${f2(r)} 0 0 1 ${f2(cx+h)},${f2(cy+r)} Z" class="cut"/>`; };
+  const TW=s=>s.length*1.6+2;                                             // label width at 3 mm text
+  // Directions: the drawings show the machine from above, like the app: 0° to the right, positive angles clockwise on screen.
+  function parts(D){ const it=[];
+    const gear=(Z,bore,label)=>{ const r=MOD*Z/2+MOD+1, w=Math.max(2*r,TW(label)); it.push({w,h:2*r+5,draw:(x,y)=>poly(gearPoly(Z),x+w/2,y+r)+circ(x+w/2,y+r,bore/2)+txt(x+1,y+2*r+4,label)}); };
+    D.arms.forEach(A=>{ const t=A.train, K='K'+A.nr;
+      if(!t.direct){ gear(t.Zin,AX,`${K} Zin ${t.Zin}`); gear(t.Za,LAY,`${K} Za ${t.Za}`); gear(t.Zb,LAY,`${K} Zb ${t.Zb}`); gear(t.Zout,AX,`${K} Zout ${t.Zout}`); if(t.idler) gear(IDLER,LAY,`${K} ZR 12`); } });
+    // plates: base (nr 0) and platform p at the tip of arm p; centre hole, layshaft, idler pin, slide pins, 0° line
+    const plate=(nr,R,t,pinsD,label,centre)=>{ it.push({w:Math.max(2*R,TW(label)),h:2*R+5,draw:(x,y)=>{ const cx=x+R, cy=y+R; let s=circ(cx,cy,R)+circ(cx,cy,centre/2)+line(cx+centre/2+1,cy,cx+R-2,cy)+txt(cx+R-11,cy-1,'0°');
+      if(t&&!t.direct){ s+=circ(cx+t.a,cy,LAY/2); if(t.idler) s+=circ(cx+t.idlerAt[0],cy+t.idlerAt[1],LAY/2); }
+      if(pinsD) s+=circ(cx,cy-pinsD,PIN/2)+circ(cx,cy+pinsD,PIN/2);
+      return s+txt(x+1,y+2*R+4,label); }}); };
+    plate(0,D.baseR,D.arms[0].train,D.arms[0].slide?D.arms[0].slide.D:0,'Grundplatte (Mitte: Lager 688 Ø16)',16);
+    D.plats.forEach(Pl=>plate(Pl.nr,Pl.R,Pl.train,Pl.pinsD,'Plattform '+Pl.nr+' (Spitze Arm '+Pl.nr+')',AX));
+    // cross slides: x slots for the upper pins, y slot for the lower platform's centre block, lightening windows
+    D.arms.forEach(A=>{ if(!A.slide) return; const S=A.slide, W=2*S.hx, H=2*S.hy, lab='Kreuzschieber Arm '+A.nr+' (3 mm)';
+      it.push({w:Math.max(W,TW(lab)),h:H+5,draw:(x,y)=>{ const cx=x+W/2, cy=y+S.hy; let s=`<rect x="${f2(x)}" y="${f2(y)}" width="${f2(W)}" height="${f2(H)}" rx="4" class="cut"/>`;
+        s+=slot(cx,cy-S.D,S.slotX,PIN+0.3,false)+slot(cx,cy+S.D,S.slotX,PIN+0.3,false)+`<rect x="${f2(cx-(BLOCK+0.4)/2)}" y="${f2(cy-S.slotY/2)}" width="${f2(BLOCK+0.4)}" height="${f2(S.slotY)}" class="cut"/>`;
+        const wx0=BLOCK/2+6, wx1=S.hx-6, wy=S.D-PIN/2-6; if(wx1-wx0>8&&wy>8) for(const sx of [-1,1]) s+=`<rect x="${f2(sx>0?cx+wx0:cx-wx1)}" y="${f2(cy-wy)}" width="${f2(wx1-wx0)}" height="${f2(2*wy)}" rx="3" class="cut"/>`;
+        return s+line(cx-S.hx+2,cy,cx-BLOCK/2-2,cy)+txt(x+1,y+H+4,lab); }}); });
+    // centre blocks (3 layers 16×16, glued on top of platform p, the lower end of arm p's slide)
+    D.plats.forEach(Pl=>{ for(let q=0;q<3;q++){ const lab='B'+Pl.nr; it.push({w:BLOCK+2,h:BLOCK+6,draw:(x,y)=>`<rect x="${f2(x)}" y="${f2(y)}" width="${BLOCK}" height="${BLOCK}" class="cut"/>`+circ(x+BLOCK/2,y+BLOCK/2,(AX+0.5)/2)+txt(x,y+BLOCK+4,lab)}); } });
+    // cranks (arms below 24 mm): 2 hub plates (centre hole, runs on S_j) + 2 pin plates (S_{j+1} pressed in at distance L)
+    D.arms.forEach(A=>{ if(A.form!=='crank') return; const R=A.crankR;
+      for(const [kind,q] of [['Nabe',0],['Nabe',1],['Zapfen',0],['Zapfen',1]]){ const lab=`Kurbel ${A.nr} ${kind}`; it.push({w:Math.max(2*R,TW(lab)),h:2*R+5,draw:(x,y)=>{ const cx=x+R, cy=y+R;
+        return circ(cx,cy,R)+(kind==='Nabe'?circ(cx,cy,AX/2):circ(cx+A.L,cy,(AX-0.1)/2))+line(cx,cy,cx+A.L,cy)+txt(cx-R+2,cy-2,A.L+' mm',2.5)+txt(x+1,y+2*R+4,lab); }}); } });
+    // tube arms: drilling template (stick on top): root hole Ø8, tip as a slot ±3 mm with 1 mm ticks for calibration
+    D.arms.forEach(A=>{ if(A.form!=='tube') return; const len=A.L+20, h=A.tube.b, lab='Arm '+A.nr+' · '+A.L+' mm · Rohr '+h+'×'+A.tube.w;
+      it.push({w:Math.max(len,TW(lab)),h:h+5,draw:(x,y)=>{ let s=`<rect x="${f2(x)}" y="${f2(y)}" width="${f2(len)}" height="${f2(h)}" class="eng"/>`+circ(x+10,y+h/2,AX/2)+slot(x+10+A.L,y+h/2,AX+6,AX,false);
+        for(let d=-3;d<=3;d++) s+=line(x+10+A.L+d,y+1,x+10+A.L+d,y+(d?2.5:4));
+        return s+txt(x+1,y+h+4,lab); }}); });
+    return it; }
+  function pack(items,W,H){ const sheets=[]; let cur=null, x=0, y=0, rowH=0; const gap=4;
+    items.slice().sort((a,b)=>b.h-a.h).forEach(it=>{ const w=it.w+gap, h=it.h+gap;
+      if(!cur||x+w>W){ x=0; y+=rowH; rowH=0; } if(!cur||y+h>H){ cur=[]; sheets.push(cur); x=0; y=0; rowH=0; }
+      cur.push(it.draw(x+gap,y+gap)); x+=w; rowH=Math.max(rowH,h); });
+    return sheets.map((parts,i)=>`<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}">\n<style>.cut{fill:none;stroke:#ff0000;stroke-width:0.1}.eng{fill:none;stroke:#0000ff;stroke-width:0.1}.txt{fill:#0000ff;font-family:sans-serif}</style>\n<!-- Umriss-Motor Zuschnitt ${i+1}/${sheets.length} · rot = schneiden · blau = gravieren · Maße in mm, Maßstab 1:1 -->\n${parts.join('\n')}\n</svg>\n`); }
+  // assembly templates: one ring per joint – arm j's angle against the 0° line of the plate above it (print at 100 %)
+  function templates(D){ const items=D.arms.map(A=>({w:64,h:72,draw:(x,y)=>{ const cx=x+32, cy=y+32; let s=circ(cx,cy,30,'eng')+circ(cx,cy,4,'eng');
+      for(let d=0;d<360;d+=10){ const a=d*Math.PI/180, r1=d%90?27:24; s+=line(cx+r1*Math.cos(a),cy+r1*Math.sin(a),cx+30*Math.cos(a),cy+30*Math.sin(a)); }
+      const a=A.deg*Math.PI/180; s+=line(cx,cy,cx+30*Math.cos(a),cy+30*Math.sin(a),'cut')+txt(cx+31,cy+1,'0°')+txt(cx-3,cy+36,'90°')+txt(x+2,y+68,'Arm '+A.nr+': '+A.deg+'°',3.5);
+      return s; }}));
+    return pack(items,190,277); }
+
+  // ---------- STL (gears, extruded, with bore) ----------
+  function gearSTL(Z,bore,name){ const O=gearPoly(Z), n=O.length, zt=FACE, tri=[];
+    // the outline is star-shaped (angles never decrease); the bore is its own circle. Faces: zip both rings by angle.
+    const ang=[]; let acc=Math.atan2(O[0][1],O[0][0]); for(let i=0;i<n;i++){ if(i){ let d=Math.atan2(O[i][1],O[i][0])-Math.atan2(O[i-1][1],O[i-1][0]); while(d<-1e-9) d+=2*Math.PI; acc+=d; } ang.push(acc); }
+    const nb=Math.max(24,Math.round(bore*8)), a0=ang[0], I=[], bang=[]; for(let j=0;j<nb;j++){ const t=a0+2*Math.PI*j/nb; I.push([bore/2*Math.cos(t),bore/2*Math.sin(t)]); bang.push(t); }
+    const v=(p,z)=>[p[0],p[1],z], oa=i=>i<n?ang[i]:ang[i-n]+2*Math.PI, ia=j=>j<nb?bang[j]:bang[j-nb]+2*Math.PI;
+    for(let i=0;i<n;i++){ const j=(i+1)%n; tri.push([v(O[i],0),v(O[j],0),v(O[j],zt)],[v(O[i],0),v(O[j],zt),v(O[i],zt)]); }        // outer wall
+    for(let i=0;i<nb;i++){ const j=(i+1)%nb; tri.push([v(I[i],0),v(I[i],zt),v(I[j],zt)],[v(I[i],0),v(I[j],zt),v(I[j],0)]); }    // bore wall
+    for(let i=0,j=0;i<n||j<nb;){ const Oi=O[i%n], Ij=I[j%nb];
+      if(j>=nb||(i<n&&oa(i+1)<=ia(j+1))){ const On=O[(i+1)%n]; tri.push([v(Ij,zt),v(Oi,zt),v(On,zt)],[v(Ij,0),v(On,0),v(Oi,0)]); i++; }
+      else { const In=I[(j+1)%nb]; tri.push([v(Ij,zt),v(Oi,zt),v(In,zt)],[v(Ij,0),v(In,0),v(Oi,0)]); j++; } }
+    const nrm=(a,b,c)=>{ const u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]], w=[c[0]-a[0],c[1]-a[1],c[2]-a[2]], x=[u[1]*w[2]-u[2]*w[1],u[2]*w[0]-u[0]*w[2],u[0]*w[1]-u[1]*w[0]], l=Math.hypot(...x)||1; return x.map(q=>q/l); };
+    // binary STL (mm)
+    const out=new Uint8Array(84+50*tri.length), dv=new DataView(out.buffer); const hdr='umriss-motor '+name; for(let i=0;i<Math.min(80,hdr.length);i++) out[i]=hdr.charCodeAt(i)&127;
+    dv.setUint32(80,tri.length,true); let o=84; for(const t of tri){ for(const q of [nrm(...t),...t]) for(const x of q){ dv.setFloat32(o,x,true); o+=4; } o+=2; } return out; }
+
+  // ---------- parts list, firmware, guide ----------
+  const axleLen=(D,j)=>{ const up=D.arms[j-1], dn=D.arms[j]; return Math.ceil(((up.tube?up.tube.b:9)+SL+4+PLATE+2*FACE+4+(dn.tube?dn.tube.b:6)+6)/5)*5; };
+  const pinLen=(D,A)=>Math.ceil((2*FACE+4+(A.tube?A.tube.b:9)+SL+8)/5)*5;
+  function bom(D){ const rows=[['Teil','Anzahl','Maß / Spezifikation','Hinweis']];
+    const g=new Map(); const add=(k,c,h)=>{ const o=g.get(k)||{c:0,h}; o.c+=c; g.set(k,o); };
+    D.arms.forEach(A=>{ const t=A.train; if(!t.direct){ for(const [Z,b] of [[t.Zin,AX],[t.Za,LAY],[t.Zb,LAY],[t.Zout,AX]]) add('Zahnrad '+Z+'Z Modul 1, 6 mm, Bohrung '+b,1,'stl/zahnrad-'+Z+'z-bohrung'+b+'-…  oder lasern (Acryl 6 mm)'); if(t.idler) add('Zahnrad 12Z Modul 1, 6 mm, Bohrung 5',1,'Zwischenrad');
+        add('Silberstahl Ø5 mm, '+(2*FACE+PLATE+8)+' mm',1,'Vorgelegewelle'); add('Klemmnabe/Flanschnabe Ø5 mm mit Madenschraube',1,'für Zb: Winkel einstellbar'); if(t.idler) add('Silberstahl Ø5 mm, '+(FACE+PLATE+6)+' mm',1,'Zwischenrad-Achse'); }
+      if(A.tube) add('Alu-Vierkantrohr '+A.tube.b+'×'+A.tube.w+' mm',1,'Arm '+A.nr+': '+(A.L+20)+' mm lang, Lochabstand '+A.L+' mm (Spitze Langloch)');
+      if(A.slide){ add('Gewindestange M3 + Muttern',2,'Stifte '+pinLen(D,A)+' mm, Kreuzschieber Arm '+A.nr); } });
+    add('Silberstahl Ø8 mm (h6), Hauptwelle 120 mm',1,'Arm 1 darauf festklemmen');
+    for(let j=1;j<D.n;j++) add('Silberstahl Ø8 mm (h6), Achse '+axleLen(D,j)+' mm',1,'Gelenk '+(j+1)+' (an der Spitze von Arm '+j+')');
+    add('Stellring Ø8 mm',2*D.n+2,'Achsen an den Armspitzen klemmen, Plattformen sichern'); add('Kugellager 688 (8×16×5)',2,'Hauptwelle in der Grundplatte');
+    add('Acryl 6 mm (Zahnräder), Acryl/Sperrholz 4 mm (Platten), 3 mm (Kreuzschieber, Kurbeln, Blöcke)',1,'siehe zuschnitt-*.svg');
+    add('Schrittmotor NEMA 17 (≥ '+Math.max(0.3,D.motor.motorNm)+' Nm)',1,'mit Treiber A4988/TMC2209, Netzteil 12 V'); add('GT2-Riemenrad 20Z + '+20*D.motor.reduction+'Z, Riemen passend',1,'Untersetzung 1:'+D.motor.reduction+' an der Hauptwelle');
+    add('Arduino Nano/Uno + Taster',1,'Firmware im Ordner motor/'); add('Stifthalter mit Feder (Hub ≥ 10 mm)',1,'an der Spitze von Arm '+D.n+', Spitze nach unten'); add('Grundplatte Sperrholz 12 mm + Rahmen (Höhe ≥ '+(D.heightMM+40)+' mm)',1,'Maschine hängt mit der Basis oben');
+    add('Fett / Gleitlack',1,'alle Gleitlager (Achsen in Plattformen, Naben, Zout)');
+    for(const [k,o] of g) rows.push([k,o.c,'',o.h]);
+    return rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\n')+'\n'; }
+  function firmware(D,secs){ return `// Umriss-Motor – ein Motor. Pro Zeichnung dreht die Hauptwelle (Arm 1) ${D.motor.shaftTurns}× ${D.motor.dir<0?'rückwärts (U < 0)':'vorwärts'}.
+// Arduino Uno/Nano + A4988/TMC2209 (16 Mikroschritte). Taster an Pin 7 gegen GND startet eine Zeichnung.
+// Erzeugt für: ${D.n} Kreise, Maschine ${D.sizeMM} mm, Hauptwelle ${D.motor.shaftNm} Nm, Untersetzung 1:${D.motor.reduction}.
+const int STEP_PIN = 3, DIR_PIN = 2, EN_PIN = 8, BUTTON_PIN = 7;
+const long STEPS_PER_TURN = ${D.motor.stepsPerTurn}L;   // 200 Vollschritte × 16 × ${D.motor.reduction}
+const long SHAFT_TURNS = ${D.motor.shaftTurns};          // Umdrehungen der Hauptwelle pro Zeichnung (= |U| von Arm 1)
+const float SECONDS_PER_DRAWING = ${secs};               // langsamer = sauberer
+const bool FORWARD = ${D.motor.dir<0?'false':'true'};   // Richtung von Arm 1 (für die Form egal, nur für den Ablauf)
+
+void setup() {
+  pinMode(STEP_PIN, OUTPUT); pinMode(DIR_PIN, OUTPUT); pinMode(EN_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  digitalWrite(EN_PIN, LOW);                            // Treiber an: hält die Grundstellung
+}
+
+void draw() {
+  const long total = STEPS_PER_TURN * SHAFT_TURNS;
+  const unsigned long interval = (unsigned long)(SECONDS_PER_DRAWING * 1000000.0 / total);
+  digitalWrite(DIR_PIN, FORWARD ? HIGH : LOW);
+  unsigned long next = micros();
+  for (long s = 0; s < total; s++) {
+    while ((long)(micros() - next) < 0) {}
+    digitalWrite(STEP_PIN, HIGH); delayMicroseconds(3); digitalWrite(STEP_PIN, LOW);
+    next += interval;
+  }
+}
+
+void loop() {
+  if (digitalRead(BUTTON_PIN) == LOW) { delay(30); if (digitalRead(BUTTON_PIN) == LOW) draw(); }
+}
+`; }
+  function guide(D,shape){ const A=D.arms, li=s=>'<li>'+s+'</li>', sg=k=>(k>0?'+':'')+k;
+    const rows=A.map(a=>`<tr><td>${a.nr}</td><td>${sg(a.k)}</td><td>${a.L}</td><td>${a.deg}°</td><td>${a.nr===1?'Hauptwelle (Motor)':a.train.direct?'direkt':a.train.Zin+'→'+a.train.Za+' · '+a.train.Zb+'→'+a.train.Zout+(a.train.idler?' + Zwischenrad':'')+' <small>('+sg(a.kin)+' → '+sg(a.k)+')</small>'}</td><td>${a.tube?'Rohr '+a.tube.b+'×'+a.tube.w+', Durchbiegung '+a.tube.deflection.toFixed(2)+' mm':'Kurbel Ø'+2*a.crankR}</td><td>${a.slide?(2*a.slide.hx)+'×'+(2*a.slide.hy):'–'}</td></tr>`).join('');
+    return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Umriss-Motor · Bauanleitung</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem;color:#1d2321}h1,h2{line-height:1.2}table{border-collapse:collapse;width:100%;font-size:13px;display:block;overflow-x:auto}td,th{border-bottom:1px solid #ccd;padding:4px 6px;text-align:left}code{background:#eef;padding:0 3px}small{color:#667}</style></head><body>
+<h1>Umriss-Motor · ${shape}</h1>
+<p>Eine Maschine mit <b>einem Motor</b> und <b>${D.n} Kreisen</b>, die diese Form zeichnet. Jeder Arm dreht sich ganzzahlig oft pro Zeichnung (U); alle Maße sind ganze Millimeter und Grad. Zeichenfläche bis ${D.sizeMM} mm, Bauhöhe ca. ${D.heightMM} mm, Gewicht ca. ${(D.massG/1000).toFixed(1)} kg.</p>
+<h2>Prinzip</h2><ul>${li('Die Maschine <b>hängt</b>: Grundplatte mit Motor oben, darunter Arm 1, Arm 2 … jeweils eine Ebene tiefer, der Stift zeigt nach unten aufs Papier. Jede Ebene hat ihre eigene Höhe – nichts kann sich kreuzen.')}${li('Arm 1 sitzt direkt auf der Hauptwelle; der Motor dreht sie '+D.motor.shaftTurns+'× pro Zeichnung.')}${li('An der Spitze jedes Arms steckt eine <b>Achse</b> fest im Arm. Auf ihr hängen, lose drehbar: eine <b>Plattform, die sich nie dreht</b>, und die Nabe des nächsten Arms.')}${li('Die Plattform trägt ein kleines Getriebe: das Eingangsrad sitzt fest auf der Achse (dreht wie der Arm darüber), das Ausgangsrad treibt den nächsten Arm. So dreht jeder Arm im richtigen ganzzahligen Verhältnis – ohne Riemen und ohne Welle entlang der Arme.')}${li('Damit die Plattformen sich nicht drehen, hängt jede über einen <b>Kreuzschieber</b> an der darüber: zwei Stifte der oberen Platte laufen in x-Schlitzen, der Mittelblock der unteren in einem y-Schlitz (Oldham-Prinzip). Alle Plattformen bleiben parallel zur Grundplatte.')}${li('Drehzahlen sind winzig (eine Zeichnung ≈ '+'1 min): Gleitlager mit etwas Fett reichen überall, nur die Hauptwelle läuft in zwei Kugellagern.')}${li('<b>Richtungen und Winkel wie in der App, von oben gesehen:</b> 0° zeigt nach rechts (0°-Linie der Platten), positive Winkel im Uhrzeigersinn.')}</ul>
+<h2>Arme</h2><table><tr><th>#</th><th>U</th><th>mm</th><th>Winkel</th><th>Getriebe (Zähne, Modul 1)</th><th>Arm</th><th>Kreuzschieber</th></tr>${rows}</table>
+<h2>Fertigung</h2><ol>${li('<code>zuschnitt-*.svg</code> lasern (rot schneiden, blau gravieren), Maßstab 1:1. Beschriftung: <code>K3 Zin 27</code> = Getriebe von Arm 3, Eingangsrad, 27 Zähne (Za/Zb = Vorgelegewelle, Zout = an der Armnabe, ZR = Zwischenrad); <code>B3</code> = Mittelblock von Plattform 3 (3 Lagen kleben).')}${li('<code>stl/</code>: alle Zahnräder zum Drucken, je Datei die benötigte Anzahl im Namen (0,2 mm Schicht, 4 Wände, Bohrungen auf Ø8/Ø5 nachreiben).')}${li('Rohr-Arme: Bohrschablone aufkleben, Wurzel Ø8 bohren, Spitze als <b>Langloch</b> (±3 mm, Striche = 1 mm) – dort wird später die Länge kalibriert.')}${li('Kurbeln (Arme unter '+CRANK_MAX+' mm): je 2 Nabenplatten + 2 Zapfenplatten verkleben; die Achse des nächsten Gelenks in die Zapfenplatten pressen.')}${li('<code>stueckliste.csv</code>: Kaufteile. <code>schablonen-*.svg</code> bei 100 % drucken.')}</ol>
+<h2>Zusammenbau (von oben nach unten)</h2><ol>${li('Grundplatte: Hauptwelle in zwei 688-Lagern, Motor mit 20Z/'+20*D.motor.reduction+'Z-Riemen. Arm 1 mit Stellringen auf die Hauptwelle klemmen.')}${li('Je Gelenk von oben: Achse in die Armspitze (Stellringe oben und unten), Kreuzschieber auflegen (Stifte der oberen Platte in die x-Schlitze, er liegt auf je einer Mutter mit Scheibe an den Stiften), Plattform mit Mittelblock von unten in den y-Schlitz, darunter Zin fest auf die Achse, Vorgelegewelle mit Za (geklebt) und Zb (Klemmnabe, noch lose), Zout mit der Nabe des nächsten Arms verkleben und aufstecken.')}${li('Stifthalter mit Feder an die Spitze des letzten Arms.')}</ol>
+<h2>Grundstellung</h2><p>Motor stromlos, Arm 1 mit der Schablone auf ${A[0].deg}° (gegen die 0°-Linie der Grundplatte). Dann von oben nach unten jeden Arm mit seiner Schablone auf seinen Winkel stellen (gegen die 0°-Linie der Plattform darüber) und <b>erst dann</b> die Klemmnabe von Zb festziehen. Alle Plattformen zeigen mit ihrer 0°-Linie in dieselbe Richtung wie die Grundplatte.</p>
+<h2>Erste Zeichnung</h2><p><code>motor/umriss_motor.ino</code> aufspielen, Papier unterlegen, Stift absenken, Taster drücken. Eine Zeichnung dauert die eingestellte Zeit (Standard 60 s).</p>
+<h2>Kalibrieren</h2><p>Die Zeichnung gerade von oben fotografieren (ganz im Bild, keine anderen dunklen Linien) und in der App unter <i>Getriebe → Foto der echten Zeichnung</i> laden. Die App passt die echte Maschine an das Foto an und sagt, welcher Arm um wie viele Millimeter (Langloch an der Spitze) bzw. Grad (Klemmnabe Zb) nachzustellen ist. Nachstellen, neu zeichnen, wiederholen – meist reicht eine Runde. Ein Foto kann Größe und Drehung der ganzen Zeichnung nicht sehen (die Form stimmt trotzdem); vorgeschlagen werden nur Änderungen deutlich über der Messunsicherheit.</p>
+</body></html>\n`; }
+
+  // ---------- ZIP (stored) ----------
+  const CRC=(()=>{ const t=new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1; t[n]=c>>>0; } return t; })();
+  function crc32(b){ let c=0xFFFFFFFF; for(let i=0;i<b.length;i++) c=CRC[(c^b[i])&255]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+  function zip(files){ const enc=new TextEncoder(), parts=[], cd=[]; let off=0;
+    const u16=v=>[v&255,(v>>>8)&255], u32=v=>[v&255,(v>>>8)&255,(v>>>16)&255,(v>>>24)&255];
+    for(const [name,content] of files){ const nb=enc.encode(name), data=typeof content==='string'?enc.encode(content):content, c=crc32(data);
+      const lh=new Uint8Array([...u32(0x04034b50),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(c),...u32(data.length),...u32(data.length),...u16(nb.length),...u16(0)]);
+      parts.push(lh,nb,data);
+      cd.push(new Uint8Array([...u32(0x02014b50),...u16(20),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(c),...u32(data.length),...u32(data.length),...u16(nb.length),...u16(0),...u16(0),...u16(0),...u16(0),...u32(0),...u32(off)]),nb);
+      off+=lh.length+nb.length+data.length; }
+    const cdLen=cd.reduce((s,a)=>s+a.length,0), end=new Uint8Array([...u32(0x06054b50),...u16(0),...u16(0),...u16(files.length),...u16(files.length),...u32(cdLen),...u32(off),...u16(0)]);
+    const all=parts.concat(cd,[end]), out=new Uint8Array(all.reduce((s,a)=>s+a.length,0)); let p=0; for(const a of all){ out.set(a,p); p+=a.length; } return out; }
+
+  function buildKit(mech,opt,extra){ const D=design(mech,opt); if(!D) return null;
+    const files=[]; const sheets=pack(parts(D),600,400);
+    sheets.forEach((s,i)=>files.push(['umriss-motor/zuschnitt-'+(i+1)+'.svg',s]));
+    templates(D).forEach((s,i)=>files.push(['umriss-motor/schablonen-'+(i+1)+'.svg',s]));
+    // one print file per distinct gear (teeth, bore); how many of each and where they go: parts list and guide
+    const need=new Map(), addG=(Z,b)=>{ const k=Z+'/'+b; need.set(k,(need.get(k)||0)+1); };
+    D.arms.forEach(A=>{ const t=A.train; if(!t.direct){ addG(t.Zin,AX); addG(t.Za,LAY); addG(t.Zb,LAY); addG(t.Zout,AX); if(t.idler) addG(IDLER,LAY); } });
+    for(const [k,cnt] of [...need].sort((x,y)=>parseInt(x[0])-parseInt(y[0]))){ const [Z,b]=k.split('/').map(Number); files.push([`umriss-motor/stl/zahnrad-${Z}z-bohrung${b}-${cnt}x.stl`,gearSTL(Z,b,`gear_${Z}z_bore${b}`)]); }
+    files.push(['umriss-motor/stueckliste.csv','﻿'+bom(D)],['umriss-motor/motor/umriss_motor.ino',firmware(D,(extra&&extra.secs)||60)],['umriss-motor/bauanleitung.html',guide(D,(extra&&extra.shape)||'Form')]);
+    if(extra&&extra.model) files.push(['umriss-motor/modell.json',extra.model]);
+    return {D, zip:zip(files), files:files.map(f=>f[0])}; }
+
+  // ---------- calibration: photo of the real drawing → corrections ----------
+  // dark ink on light paper: every pixel of the largest dark connected region belongs to the drawn line.
+  // The points are unordered (crossings, line width and gaps do not matter); at most ~5000 are kept.
+  function extractCurve(rgba,w,h){ const L=new Float32Array(w*h); for(let i=0;i<w*h;i++) L[i]=0.299*rgba[4*i]+0.587*rgba[4*i+1]+0.114*rgba[4*i+2];
+    const smp=[]; for(let i=0;i<w*h;i+=7) smp.push(L[i]); smp.sort((a,b)=>a-b); const med=smp[smp.length>>1], thr=med*0.6;
+    const m=new Uint8Array(w*h); for(let i=0;i<w*h;i++) if(L[i]<thr) m[i]=1;
+    const lab=new Int32Array(w*h); let best=0,bestId=0,id=0; const st=[];
+    for(let s=0;s<w*h;s++){ if(!m[s]||lab[s]) continue; id++; let n=0; st.push(s); lab[s]=id;
+      while(st.length){ const p=st.pop(); n++; const x=p%w, y=(p-x)/w;
+        for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const X=x+dx, Y=y+dy; if(X<0||Y<0||X>=w||Y>=h) continue; const q=Y*w+X; if(m[q]&&!lab[q]){ lab[q]=id; st.push(q); } } }
+      if(n>best){ best=n; bestId=id; } }
+    if(best<40) return null;
+    const step=Math.max(1,Math.ceil(Math.sqrt(best/5000))), out=[];      // thin out on a grid, keep the mean pixel per cell
+    const cell=new Map(); for(let i=0;i<w*h;i++) if(lab[i]===bestId){ const x=i%w, y=(i-x)/w, key=Math.floor(x/step)+','+Math.floor(y/step); const c=cell.get(key); if(c){ c[0]+=x; c[1]+=y; c[2]++; } else cell.set(key,[x,y,1]); }
+    for(const c of cell.values()) out.push([c[0]/c[2]+0.5,c[1]/c[2]+0.5]); return out; }
+  // small dense real linear solve (Gauss, partial pivoting)
+  function solve(A,b){ const n=b.length; for(let c=0;c<n;c++){ let p=c; for(let r=c+1;r<n;r++) if(Math.abs(A[r][c])>Math.abs(A[p][c])) p=r; [A[c],A[p]]=[A[p],A[c]]; [b[c],b[p]]=[b[p],b[c]];
+      const d=A[c][c]||1e-30; for(let r=c+1;r<n;r++){ const f=A[r][c]/d; if(!f) continue; for(let q=c;q<n;q++) A[r][q]-=f*A[c][q]; b[r]-=f*b[c]; } }
+    const x=new Array(n).fill(0); for(let c=n-1;c>=0;c--){ let s=b[c]; for(let q=c+1;q<n;q++) s-=A[c][q]*x[q]; x[c]=s/(A[c][c]||1e-30); } return x; }
+  // pts: points of the drawn line in photo pixels (any order). The real machine draws c + Σ R_k e^{ikθ}; the design is
+  // c + Σ a_k e^{ikθ}. Fit R to the photo by orthogonal distance (Gauss-Newton, point-to-curve), then read every circle's
+  // build error (length, angle) and return the design change that cancels it. Three things cannot be seen in a photo: the
+  // camera's scale and rotation (s·R_k) and where the motor started (R_k e^{ikφ}); they are chosen so that as few circles
+  // as possible need a change (sparse fit) – a real build error is usually one or two parts.
+  function calibrate(mech,opt,pts){
+    const m=core.snapGear(mech), g=core.gearMM(), K=m.arms.length, ks=m.arms.map(A=>A.k), NT=2048, TAU=2*Math.PI;
+    const a=m.arms.map(A=>[A.a[0]*g,A.a[1]*g]), c0=[m.c[0]*g,m.c[1]*g];
+    const cm=(p,q)=>[p[0]*q[0]-p[1]*q[1],p[0]*q[1]+p[1]*q[0]], cis=t=>[Math.cos(t),Math.sin(t)];
+    const curve=(R,c,th,d)=>{ let x=c[0], y=c[1], dx=0, dy=0, ex=0, ey=0; for(let i=0;i<K;i++){ const k=ks[i], e=cm(R[i],cis(k*th)); x+=e[0]; y+=e[1]; dx-=k*e[1]; dy+=k*e[0]; ex-=k*k*e[0]; ey-=k*k*e[1]; } return d?[x,y,dx,dy,ex,ey]:[x,y]; };
+    const dense=R=>{ const D=[]; for(let n=0;n<NT;n++) D.push(curve(R,c0,n/NT*TAU)); return D; };
+    const D0=dense(a);
+    // arc-length weighted centroid and spread of the design; the same of the photo (ink is spread evenly along the line)
+    let L0=0, mx=0, my=0; const seg=D0.map((p,n)=>{ const q=D0[(n+1)%NT], l=Math.hypot(q[0]-p[0],q[1]-p[1]); L0+=l; mx+=l*p[0]; my+=l*p[1]; return l; }); mx/=L0; my/=L0;
+    let rd=0; D0.forEach((p,n)=>{ rd+=seg[n]*((p[0]-mx)**2+(p[1]-my)**2); }); rd=Math.sqrt(rd/L0);
+    const Np=pts.length; let px=0, py=0; for(const p of pts){ px+=p[0]; py+=p[1]; } px/=Np; py/=Np; let rp=0; for(const p of pts) rp+=(p[0]-px)**2+(p[1]-py)**2; rp=Math.sqrt(rp/Np);
+    // distance grid of the design for the rough orientation search
+    let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; for(const p of D0){ x0=Math.min(x0,p[0]); x1=Math.max(x1,p[0]); y0=Math.min(y0,p[1]); y1=Math.max(y1,p[1]); }
+    const GN=96, pad=0.15*Math.max(x1-x0,y1-y0), gx0=x0-pad, gy0=y0-pad, gs=(Math.max(x1-x0,y1-y0)+2*pad)/GN, grid=new Float32Array(GN*GN), sub=D0.filter((p,n)=>n%4===0);
+    for(let j=0;j<GN;j++) for(let i=0;i<GN;i++){ const X=gx0+(i+0.5)*gs, Y=gy0+(j+0.5)*gs; let b=Infinity; for(const p of sub){ const d=(p[0]-X)**2+(p[1]-Y)**2; if(d<b) b=d; } grid[j*GN+i]=Math.sqrt(b); }
+    const gd=(X,Y)=>{ const i=Math.floor((X-gx0)/gs), j=Math.floor((Y-gy0)/gs); return i<0||j<0||i>=GN||j>=GN?pad*2:grid[j*GN+i]; };
+    const probe=pts.filter((p,i)=>i%Math.max(1,Math.floor(Np/400))===0);
+    let best=null; const sc=rd/rp;
+    for(const mir of [false,true]) for(let deg=0;deg<360;deg+=2){ const z=cis(deg*Math.PI/180); let s=0;
+      for(const p of probe){ const q=[(p[0]-px)*sc,(mir?-1:1)*(p[1]-py)*sc], r=cm(z,q); s+=gd(r[0]+mx,r[1]+my); }
+      if(!best||s<best.s) best={s,mir,deg}; }
+    const toMM=(p,T)=>{ const q=[(p[0]-px),(best.mir?-1:1)*(p[1]-py)], r=cm(T.z,q); return [r[0]+T.t[0],r[1]+T.t[1]]; };
+    let T={z:[sc*Math.cos(best.deg*Math.PI/180),sc*Math.sin(best.deg*Math.PI/180)],t:[mx,my]};
+    // nearest curve parameter for each point: coarse table, then Newton on |f(θ)−p|²
+    const nearest=(R,c,P,D)=>P.map(p=>{ let bi=0, bd=Infinity; for(let n=0;n<NT;n+=2){ const q=D[n], d=(q[0]-p[0])**2+(q[1]-p[1])**2; if(d<bd){ bd=d; bi=n; } }
+      for(let n=bi-2;n<=bi+2;n++){ const q=D[(n+NT)%NT], d=(q[0]-p[0])**2+(q[1]-p[1])**2; if(d<bd){ bd=d; bi=(n+NT)%NT; } }
+      let th=bi/NT*TAU; for(let it=0;it<3;it++){ const f=curve(R,c,th,true), rx=f[0]-p[0], ry=f[1]-p[1], g1=rx*f[2]+ry*f[3], h=f[2]*f[2]+f[3]*f[3]+rx*f[4]+ry*f[5]; if(h>0) th-=Math.max(-0.01,Math.min(0.01,g1/h)); }
+      return th; });
+    // rough photo similarity: point-to-point ICP against the design (closed form per step)
+    for(let it=0;it<15;it++){ const Pq=pts.map(p=>toMM(p,T)), th=nearest(a,c0,Pq,D0), Q=th.map(t=>curve(a,c0,t)), sg=best.mir?-1:1;
+      let ux=0,uy=0,vx=0,vy=0; pts.forEach((p,i)=>{ ux+=p[0]; uy+=sg*p[1]; vx+=Q[i][0]; vy+=Q[i][1]; }); ux/=Np; uy/=Np; vx/=Np; vy/=Np;
+      let nr=0, ni=0, dd=0; pts.forEach((p,i)=>{ const u=[p[0]-ux,sg*p[1]-uy], v=[Q[i][0]-vx,Q[i][1]-vy]; nr+=u[0]*v[0]+u[1]*v[1]; ni+=u[0]*v[1]-u[1]*v[0]; dd+=u[0]*u[0]+u[1]*u[1]; });
+      const z=[nr/dd,ni/dd], off=cm(z,[px-ux,sg*py-uy]); T={z,t:[vx+off[0],vy+off[1]]}; }
+    const P=pts.map(p=>toMM(p,T));
+    const meanDist=(R,c)=>{ const D=dense(R), th=nearest(R,c,P,D); let s=0; P.forEach((p,i)=>{ const q=curve(R,c,th[i]); s+=Math.hypot(q[0]-p[0],q[1]-p[1]); }); return s/Np; };
+    // orthogonal-distance Gauss-Newton (Levenberg damping, Huber weights); free: the unknowns of 'rows' / 'apply'
+    const fit=(R,c,M,rows,apply,iters)=>{ let lm=1e-3, info=null;
+      for(let it=0;it<iters;it++){ const D=dense(R), th=nearest(R,c,P,D);
+        const res=P.map((p,i)=>{ const f=curve(R,c,th[i],true), l=Math.hypot(f[2],f[3])||1, n=[-f[3]/l,f[2]/l]; return {n,d:n[0]*(p[0]-f[0])+n[1]*(p[1]-f[1]),t:th[i],f}; });
+        const ad=res.map(r=>Math.abs(r.d)).sort((x,y)=>x-y), hub=Math.max(1e-3,2.5*ad[ad.length>>1]);
+        const A=Array.from({length:M},()=>new Float64Array(M)), b=new Float64Array(M); let tr=0;
+        for(const r of res){ const w=Math.abs(r.d)<hub?1:hub/Math.abs(r.d), J=rows(r,R,c);
+          for(let x=0;x<M;x++){ if(!J[x]) continue; const wj=w*J[x]; b[x]+=wj*r.d; for(let y=0;y<M;y++) A[x][y]+=wj*J[y]; } }
+        let s2=0, sw=0; for(const r of res){ const w=Math.abs(r.d)<hub?1:hub/Math.abs(r.d); s2+=w*r.d*r.d; sw+=w; } info={A:A.map(r=>Array.from(r)), s2:s2/Math.max(1,sw-M)};
+        for(let x=0;x<M;x++) tr+=A[x][x]; for(let x=0;x<M;x++) A[x][x]+=lm*tr/M+1e-9*tr;
+        const step=apply(solve(A.map(r=>Array.from(r)),Array.from(b)),R,c); lm=Math.max(1e-6,lm*0.3); if(step<1e-4) break; } return info; };
+    // 1) the design as drawn, seen through the camera: only scale/rotation s and shift are free (R = s·a)
+    let Rs=a.map(v=>v.slice()), cs=c0.slice();
+    fit(Rs,cs,4,(r,R,c)=>{ const w=[r.f[0]-c[0],r.f[1]-c[1]]; return [r.n[0]*w[0]+r.n[1]*w[1], -r.n[0]*w[1]+r.n[1]*w[0], r.n[0], r.n[1]]; },
+      (dx,R,c)=>{ const z=[1+dx[0],dx[1]]; for(let i=0;i<K;i++){ const v=cm(R[i],z); R[i][0]=v[0]; R[i][1]=v[1]; } c[0]+=dx[2]; c[1]+=dx[3]; return Math.hypot(dx[0],dx[1])*rd+Math.hypot(dx[2],dx[3]); },25);
+    const errBefore=meanDist(Rs,cs);
+    // 2) the real machine: every circle free
+    const R=Rs.map(v=>v.slice()), c=cs.slice();
+    const FI=fit(R,c,2*K+2,(r)=>{ const J=new Float64Array(2*K+2); for(let i=0;i<K;i++){ const e=cis(ks[i]*r.t); J[2*i]=r.n[0]*e[0]+r.n[1]*e[1]; J[2*i+1]=-r.n[0]*e[1]+r.n[1]*e[0]; } J[2*K]=r.n[0]; J[2*K+1]=r.n[1]; return J; },
+      (dx,R,c)=>{ let st=0; for(let i=0;i<K;i++){ R[i][0]+=dx[2*i]; R[i][1]+=dx[2*i+1]; st=Math.max(st,Math.hypot(dx[2*i],dx[2*i+1])); } c[0]+=dx[2*K]; c[1]+=dx[2*K+1]; return st; },30);
+    const fitErr=meanDist(R,c);
+    // how well the photo pins each circle: covariance of the fit, the three unseeable directions fixed by a penalty
+    const sig=(()=>{ const M=2*K+2, A=FI.A.map(r=>r.slice()); let tr=0; for(let x=0;x<M;x++) tr+=A[x][x];
+      const G=[new Array(M).fill(0),new Array(M).fill(0),new Array(M).fill(0)];
+      for(let i=0;i<K;i++){ const v=R[i]; G[0][2*i]=v[0]; G[0][2*i+1]=v[1]; G[1][2*i]=-v[1]; G[1][2*i+1]=v[0]; G[2][2*i]=-ks[i]*v[1]; G[2][2*i+1]=ks[i]*v[0]; }
+      G[0][2*K]=c[0]; G[0][2*K+1]=c[1]; G[1][2*K]=-c[1]; G[1][2*K+1]=c[0];
+      for(const gv of G){ const n2=gv.reduce((q,v)=>q+v*v,0)||1; for(let x=0;x<M;x++) for(let y=0;y<M;y++) A[x][y]+=tr*gv[x]*gv[y]/n2; }
+      return Array.from({length:K},(_,i)=>{ const e1=new Array(M).fill(0), e2=new Array(M).fill(0); e1[2*i]=1; e2[2*i+1]=1;
+        const x1=solve(A.map(r=>r.slice()),e1), x2=solve(A.map(r=>r.slice()),e2); return Math.sqrt(Math.max(0,FI.s2*(x1[2*i]+x2[2*i+1]))); }); })();
+    // 3) gauge: camera scale/rotation s and motor start φ, chosen so that the build errors are sparse (IRLS, L1)
+    let Rg=R.map(v=>v.slice());
+    for(let it=0;it<80;it++){ const d=Rg.map((v,i)=>[v[0]-a[i][0],v[1]-a[i][1]]), w=d.map(v=>it<40?1/Math.max(0.05,Math.hypot(...v)):1/(v[0]*v[0]+v[1]*v[1]+0.0625));   // L1, then log penalty (≈ fewest parts)
+      // d_k ≈ σ a_k + i φ k a_k : unknowns σr, σi, φ
+      const A=[[0,0,0],[0,0,0],[0,0,0]], b=[0,0,0];
+      for(let i=0;i<K;i++){ const ai=a[i], cols=[[ai[0],ai[1]],[-ai[1],ai[0]],[-ks[i]*ai[1],ks[i]*ai[0]]];
+        for(let x=0;x<3;x++){ b[x]+=w[i]*(cols[x][0]*d[i][0]+cols[x][1]*d[i][1]); for(let y=0;y<3;y++) A[x][y]+=w[i]*(cols[x][0]*cols[y][0]+cols[x][1]*cols[y][1]); } }
+      for(let x=0;x<3;x++) A[x][x]+=1e-9*(A[0][0]+A[1][1]+A[2][2]+1e-12);
+      const [sr,si,ph]=solve(A,b); if(Math.abs(sr)+Math.abs(si)+Math.abs(ph)<1e-10&&it>=40) break;
+      // exact application: R ← R/(1+σ) · e^{−ikφ}
+      const den=(1+sr)**2+si**2, isg=[(1+sr)/den,-si/den]; Rg=Rg.map((v,i)=>cm(cm(v,isg),cis(-ks[i]*ph))); }
+    // build error per circle in the parts' own terms: length (mm) and mounting angle (°)
+    const D2R=Math.PI/180;
+    // only errors clearly above the photo's own scatter count (else a circle would be rebuilt for noise)
+    const big=Rg.map((v,i)=>Math.hypot(v[0]-a[i][0],v[1]-a[i][1])>=Math.max(0.5,5*sig[i]));
+    const polar=(v,i)=>({mm:Math.hypot(v[0]-a[i][0],v[1]-a[i][1]),dL:Math.hypot(...v)-Math.hypot(...a[i]), dDeg:Math.atan2(cm(v,[a[i][0],-a[i][1]])[1],cm(v,[a[i][0],-a[i][1]])[0])/D2R});
+    const full=Rg.map((v,i)=>({...polar(v,i),sig:sig[i]})), err=full.map((e,i)=>big[i]?e:{...e,dL:0,dDeg:0});
+    // corrected design: L−dL, θ−dθ (snapped to whole mm / degrees); what the machine would then draw
+    const nm={c:m.c.slice(), arms:m.arms.map((A,i)=>{ const L=Math.hypot(...A.a)-err[i].dL/g, t=Math.atan2(A.a[1],A.a[0])-err[i].dDeg*D2R; return {k:A.k,a:[L*Math.cos(t),L*Math.sin(t)]}; })};
+    const ns=core.snapGear(nm), I0=core.toInt(m), I1=core.toInt(ns), changes=[];
+    const parts0=core.gearParts(m).arms;
+    I0.arms.forEach((A,i)=>{ const B=I1.arms.find(x=>x.k===A.k); if(B&&(B.L!==A.L||B.t!==A.t)){ const p=parts0.find(x=>x.turns===A.k)||{nr:i+1,lengthMM:A.L,mountDeg:A.t};
+      changes.push({nr:p.nr,k:A.k,lenOld:p.lengthMM,lenNew:p.lengthMM+(B.L-A.L),degOld:p.mountDeg,degNew:Math.round((p.mountDeg+(B.t-A.t)*(opt.degStep||1))*10)/10,dL:err[i].dL,dDeg:err[i].dDeg}); } });
+    // prediction: real errors applied to the corrected (integer) design, compared with the design curve
+    const real=ns.arms.map(B=>{ const i=ks.indexOf(B.k), L=Math.hypot(...B.a)*g+full[i].dL, t=Math.atan2(B.a[1],B.a[0])+full[i].dDeg*D2R; return [L*Math.cos(t),L*Math.sin(t)]; });
+    let left=0; for(let n=0;n<NT;n+=4){ let x=0,y=0; ns.arms.forEach((B,j)=>{ const e=cm(real[j],cis(B.k*n/NT*TAU)); x+=e[0]; y+=e[1]; }); const q=curve(a,[0,0],n/NT*TAU); left+=Math.hypot(x-q[0],y-q[1]); } left/=NT/4;
+    const size=(opt.gearSize||400);
+    return {errMM:errBefore, errPct:errBefore/size*100, fitMM:fitErr, leftMM:left, leftPct:left/size*100, mirrored:best.mir, reversed:false, changes, err, mech:ns, scale:Math.hypot(...T.z), points:Np}; }
+  return {design, buildKit, calibrate, extractCurve, solve, revertedTrain, gearPoly, gearSTL, zip};
+}
+if(typeof module!=='undefined') module.exports={makeKit};
 
 </script>
 <script>
@@ -2372,7 +2751,7 @@ function press(id){ if(id){ if(id.startsWith('p3')) cur3=id; else cur2=id; } for
 for(const id in presets) $(id).onclick=()=>{ press(id); presets[id](); };
 function applyDimUI(){
   $('d2').setAttribute('aria-pressed',String(opt.dim==='2d')); $('dG').setAttribute('aria-pressed',String(opt.gear)); $('d3').setAttribute('aria-pressed',String(opt.dim==='3d'));
-  $('gGear').hidden=!opt.gear; $('rowWire').hidden=opt.dim!=='3d'; if(opt.gear) $('gGear').open=true; partsDirty=true;
+  $('gGear').hidden=!opt.gear; $('rowWire').hidden=opt.dim!=='3d'; $('kitBox').hidden=opt.dim!=='2d'; $('kit3d').hidden=opt.dim==='2d'; $('cal').hidden=true; if(opt.gear) $('gGear').open=true; partsDirty=true;
   $('in2d').hidden=opt.dim!=='2d'; $('in3d').hidden=opt.dim!=='3d'; $('tools2d').hidden=opt.dim!=='2d'; $('tools3d').hidden=opt.dim!=='3d';
   $('hint').textContent=opt.dim==='2d'?hints[opt.tool]:(matchMedia('(pointer: coarse)').matches?'Wischen dreht':'Ziehen dreht · Rad zoomt');
   cv.hidden=opt.dim==='3d'&&!!R3; gl.hidden=!(opt.dim==='3d'&&R3);
@@ -2387,14 +2766,23 @@ $('dG').onclick=()=>{ opt.gear=!opt.gear; if(opt.gear) gearDefault(); applyDimUI
 let partsDirty=true;
 const gbTxt=a=>a.direct?'direkt':a.gearbox.map(([p,q])=>p+':'+q).join(' · ')+(a.idler?' + Zwischenrad':'');
 function partsOf(){ const m=best&&best.mech; return m&&(m.arms||m.terms)?core.gearParts(m):null; }
+let kitCore=null, kitObj=null; const kit=()=>{ if(kitCore!==core){ kitCore=core; kitObj=makeKit(core); } return kitObj; };
+function kitDesign(){ const m=best&&best.mech; if(!m||!m.arms||opt.dim!=='2d') return null; try{ return kit().design(m,opt); }catch(e){ console.warn(e); return null; } }
+const trTxt=t=>t.direct?'direkt':t.Zin+'→'+t.Za+' · '+t.Zb+'→'+t.Zout+(t.idler?' +ZR':'');
 function renderParts(){ partsDirty=false; if(!opt.gear) return; const P=partsOf(), el=$('parts');
   if(!P){ el.textContent='Noch kein Modell.'; return; }
+  const D=P.dim==='2d'?kitDesign():null;
+  if(D){ const sg=v=>(v>0?'+':'')+v;
+    el.innerHTML='<table><thead><tr><th>#</th><th>U</th><th>mm</th><th>Winkel</th><th>Getriebe</th><th>Arm</th></tr></thead><tbody>'+D.arms.map(a=>'<tr><td>'+a.nr+'</td><td>'+sg(a.k)+'</td><td>'+a.L+'</td><td>'+a.deg+'°</td><td>'+(a.nr===1?'Hauptwelle':trTxt(a.train))+'</td><td>'+(a.tube?'Rohr '+a.tube.b:'Kurbel')+'</td></tr>').join('')+'</tbody></table>'+
+      '<p class="note">Hängend gebaut: Grundplatte mit Motor oben, jeder Arm eine Ebene tiefer, Stift unten – nichts kann sich kreuzen. U = Umdrehungen pro Zeichnung · Getriebe = Zähne (Modul 1) auf der stillstehenden Plattform am Fuß des Arms, angetrieben vom Arm darüber · Plattformen bleiben über Kreuzschieber parallel · ca. '+(D.massG/1000).toFixed(1)+' kg, '+D.heightMM+' mm hoch.</p>'; return; }
   const d3=P.dim==='3d', sg=v=>(v>0?'+':'')+v, link=a=>!a.link?'–':a.link==='belt'?'2× Riemen '+a.beltTeethGT2+' Z':'2× Oldham';
   const rows=P.arms.map(a=>'<tr><td>'+a.nr+'</td><td>'+sg(a.turns)+'</td><td>'+a.lengthMM+'</td>'+(d3?'<td>'+a.axisDeg[0]+'° / '+a.axisDeg[1]+'°</td>':'')+'<td>'+a.mountDeg+'°</td>'+(d3?'<td>'+a.spacerMM+'</td>':'')+'<td>'+gbTxt(a)+'</td>'+(d3?'<td>'+(a.bevelAtTip?a.bevelAtTip+'°':'–')+'</td>':'')+'<td>'+link(a)+'</td></tr>').join('');
   el.innerHTML='<table><thead><tr><th>#</th><th>U</th><th>mm</th>'+(d3?'<th>Achse</th>':'')+'<th>Winkel</th>'+(d3?'<th>Abst.</th>':'')+'<th>Getriebe</th>'+(d3?'<th>Kegel</th>':'')+'<th>Verbindung</th></tr></thead><tbody>'+rows+'</tbody></table>'+
     '<p class="note">Ein Motor, 1 Umdrehung pro Zeichnung · Basis ('+P.base.join(', ')+') mm · U = Umdrehungen je Motorumdrehung · Zahnräder Modul '+String(P.module).replace('.',',')+' auf der stillstehenden Plattform am Fuß jedes Arms'+
     (d3?' · Abst. = Abstandshalter entlang der Achse (mm) · Stift-Nadel '+P.needleMM+' mm · Achse = Azimut / Höhe · in der Simulation geprüft: kein Teil berührt ein anderes oder den gezeichneten Draht':' · Arm 1 unten, jeder weitere eine Ebene höher, Zeichenfläche oben: nichts kann sich kreuzen')+'</p>'; }
 function partsCSV(){ const P=partsOf(); if(!P) return ''; const d3=P.dim==='3d';
+  const D=d3?null:kitDesign(); if(D) return ['Nr;Umdrehungen pro Zeichnung;Laenge mm;Winkel Grad;Antrieb von U;Zin;Za;Zb;Zout;Zwischenrad;Arm;Kreuzschieber mm']
+    .concat(D.arms.map(a=>[a.nr,a.k,a.L,a.deg,a.kin].concat(a.train.direct?['','','','','']:[a.train.Zin,a.train.Za,a.train.Zb,a.train.Zout,a.train.idler?'ja':'nein']).concat([a.tube?'Rohr '+a.tube.b+'x'+a.tube.w:'Kurbel R'+a.crankR,a.slide?2*a.slide.hx+'x'+2*a.slide.hy:'']).join(';'))).join('\n');
   return ['Nr;Umdrehungen je Motorumdrehung;Laenge mm;'+(d3?'Achse Azimut Grad;Achse Hoehe Grad;':'')+'Montagewinkel Grad;'+(d3?'Abstandshalter mm;':'Ebene;')+'Getriebe Zaehne (Modul '+P.module+');Zwischenrad;'+(d3?'Kegelrad Grad;':'')+'Verbindung;Riemen Zaehne GT2']
     .concat(P.arms.map(a=>[a.nr,a.turns,a.lengthMM].concat(d3?a.axisDeg:[]).concat([a.mountDeg,d3?a.spacerMM:a.layer,a.direct?'direkt':a.gearbox.map(([p,q])=>p+':'+q).join(' + '),a.idler?'ja':'nein']).concat(d3?[a.bevelAtTip]:[]).concat([a.link==='belt'?'2x GT2-Riemen':a.link==='oldham'?'2x Oldham-Kupplung':'',a.link==='belt'?a.beltTeethGT2:'']).join(';'))).concat(d3?['Stift-Nadel mm;'+P.needleMM]:[]).join('\n'); }
 $('kSize').onchange=e=>{ opt.gearSize=+e.target.value; done=false; send({reeval:true,resume:true}); liveDirty=true; partsDirty=true; updateHud(); };
@@ -2404,6 +2792,38 @@ const copyBtn=(id,label,get)=>{ $(id).onclick=()=>{ const t=get(), b=$(id); if(!
   try{ navigator.clipboard.writeText(t).then(()=>{ b.textContent='Kopiert'; setTimeout(()=>b.textContent=label,1600); },fb); }catch(_){ fb(); } }; };
 copyBtn('bParts','Stückliste kopieren',partsCSV);
 copyBtn('bPatch','Box3D-Patch kopieren',()=>document.getElementById('gear-patch').textContent.trim()+'\n');
+// ---------- Bausatz (ZIP) and calibration from a photo of the real drawing ----------
+const shapeName=()=>({pKnight:'Springer',pStar:'Stern',pHeart:'Herz'}[cur2]||'Eigene Form');
+async function saveFile(fn,data,note){ const dl=await downloadsCap();
+  if(dl){ try{ await dl.save({filename:fn,data}); note('Gespeichert: '+fn); } catch(e){ note(e&&e.code==='declined'?'Speichern abgebrochen.':'Speichern ging hier nicht ('+(e&&e.code||'unbekannt')+').'); } return; }
+  try{ const url=URL.createObjectURL(data instanceof Blob?data:new Blob([data])), a=document.createElement('a'); a.href=url; a.download=fn; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000); note('Heruntergeladen: '+fn); }
+  catch(_){ note('Herunterladen ging hier nicht.'); } }
+$('bKit').onclick=async()=>{ const b=$('bKit'), m=best&&best.mech; if(!m||!m.arms){ b.textContent='Noch kein Modell'; setTimeout(()=>b.textContent='Bausatz herunterladen',1600); return; }
+  b.disabled=true; b.textContent='Erzeuge …'; await new Promise(r=>setTimeout(r,30));
+  try{ const K=kit().buildKit(m,opt,{shape:shapeName(),model:exportModel(),secs:60}); if(!K) throw new Error('kein 2D-Modell');
+    const fn='umriss-motor-bausatz-'+shapeName().toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+K.D.n+'-kreise.zip';
+    await saveFile(fn,new Blob([K.zip],{type:'application/zip'}),t=>{ b.textContent=t.length>28?'Bausatz herunterladen':t; $('ioNote').textContent=t; }); }
+  catch(e){ console.warn(e); $('ioNote').textContent='Bausatz ließ sich nicht erzeugen.'; }
+  b.disabled=false; setTimeout(()=>{ b.textContent='Bausatz herunterladen'; },2500); };
+$('fCal').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; const out=$('cal'); out.hidden=false; out.innerHTML='<p class="note">Lese Foto …</p>';
+  const m=best&&best.mech; if(!m||!m.arms){ out.innerHTML='<p class="err">Erst eine 2D-Getriebemaschine rechnen oder ihr Modell („Datei öffnen …“) laden.</p>'; return; }
+  const url=URL.createObjectURL(f), img=new Image();
+  img.onerror=()=>{ URL.revokeObjectURL(url); out.innerHTML='<p class="err">Das Bild ließ sich nicht öffnen.</p>'; };
+  img.onload=()=>{ URL.revokeObjectURL(url); const sc=Math.min(1,2400/Math.max(img.naturalWidth,img.naturalHeight)), w=Math.max(1,Math.round(img.naturalWidth*sc)), h=Math.max(1,Math.round(img.naturalHeight*sc));
+    const c=document.createElement('canvas'); c.width=w; c.height=h; const x=c.getContext('2d',{willReadFrequently:true}); x.drawImage(img,0,0,w,h);
+    out.innerHTML='<p class="note">Vergleiche mit der Soll-Kurve …</p>';
+    setTimeout(()=>{ try{ const K=kit(), pts=K.extractCurve(x.getImageData(0,0,w,h).data,w,h);
+      if(!pts||pts.length<200){ out.innerHTML='<p class="err">Keine Linie gefunden. Dunkle Linie auf hellem Papier, ganz im Bild, gerade von oben.</p>'; return; }
+      const r=K.calibrate(m,opt,pts), D=kitDesign(), fmt=v=>(Math.round(v*10)/10).toString().replace('.',','), sg=v=>(v>0?'+':v<0?'−':'±')+fmt(Math.abs(v));
+      let html='<p>Abweichung der echten Zeichnung: <b>'+fmt(r.errMM)+' mm</b> ('+fmt(r.errPct)+' %) · nach dem Nachstellen ≈ '+fmt(r.leftMM)+' mm</p>';
+      if(!r.changes.length) html+='<p>Nichts nachzustellen – die Maschine zeichnet im Rahmen der Messgenauigkeit.</p>';
+      else { html+='<table><thead><tr><th>Arm</th><th>Länge</th><th>Winkel</th><th>einstellen auf</th></tr></thead><tbody>'+r.changes.map(c=>{ const dL=c.lenNew-c.lenOld, dD=Math.round((c.degNew-c.degOld)*10)/10, A=D&&D.arms.find(a=>a.nr===c.nr);
+          return '<tr><td>'+c.nr+(A?(A.tube?' (Langloch)':' (Kurbel)'):'')+'</td><td>'+(dL?sg(dL)+' mm':'–')+'</td><td>'+(dD?sg(dD)+'°':'–')+'</td><td>'+(dL?c.lenNew+' mm ':'')+(dD?fmt(c.degNew)+'°':'')+'</td></tr>'; }).join('')+'</tbody></table>';
+        html+='<p class="note">Länge: Achse im Langloch verschieben (Rohr) bzw. Zapfenplatten neu schneiden (Kurbel). Winkel: Klemmnabe von Zb lösen, Arm drehen, festziehen. Dann neu zeichnen und wieder fotografieren.</p>'; }
+      if(r.mirrored) html+='<p class="note">Das Foto war gespiegelt (z. B. von unten oder durchs Papier) – ist berücksichtigt.</p>';
+      html+='<p class="note">'+pts.length+' Bildpunkte · Größe und Drehung der ganzen Zeichnung kann ein Foto nicht prüfen, die Form schon.</p>';
+      out.innerHTML=html; }catch(err){ console.warn(err); out.innerHTML='<p class="err">Auswertung fehlgeschlagen.</p>'; } },30); };
+  img.src=url; };
 $('file').onchange=e=>{ const f=e.target.files[0]; if(!f) return; const url=URL.createObjectURL(f), img=new Image();
   img.onload=()=>{ const c=contourFromImage(img); URL.revokeObjectURL(url);
     if(!c){ $('inNote').innerHTML='<span class="err">Kein klarer Umriss gefunden.</span> Versuch ein Bild mit einfarbigem Hintergrund.'; return; }
