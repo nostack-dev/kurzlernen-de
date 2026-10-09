@@ -845,14 +845,14 @@ addEventListener("focus",()=>{if(soloMode)pollXboxGamepad(performance.now());});
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&soloMode)pollXboxGamepad(performance.now());});
 globalThis.setInterval(()=>{if(soloMode)pollXboxGamepad(performance.now());},16);$("viewport").dataset.gamepadPollLoop="dedicated-60hz-v1";
 async function enterSolo(){
-  soloMode=true;resetPresentationTiming();soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");soloHud.hidden=false;setXboxControlPreference(phoneSettings.xboxControllerEnabled);inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
+  soloMode=true;resetPresentationTiming();soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");syncSoloPresentationOrientation();/* touch mapping needs the orientation now, not at the next resize */soloHud.hidden=false;setXboxControlPreference(phoneSettings.xboxControllerEnabled);inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
   try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}
   try{await screen.orientation?.lock?.("landscape");}catch{}
   resize();
   if(mode==="sim"&&backend&&!running)startRun();
 }
 async function exitSolo(){
-  pendingDisarmReason="SOLO_EXIT";deactivateXboxGamepad();setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();localArm=false;arm=false;localThrottle=0;inputSource=soloPreviousInputSource;ui.inputSource.value=inputSource;soloMode=false;soloHud.hidden=true;raceTrack.setVisible(false);document.body.classList.remove("solo-flight");try{screen.orientation?.unlock?.();}catch{}try{if(document.fullscreenElement)await document.exitFullscreen();}catch{}updateRemoteUI();resize();
+  pendingDisarmReason="SOLO_EXIT";deactivateXboxGamepad();setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();localArm=false;arm=false;localThrottle=0;inputSource=soloPreviousInputSource;ui.inputSource.value=inputSource;soloMode=false;soloHud.hidden=true;raceTrack.setVisible(false);document.body.classList.remove("solo-flight");syncSoloPresentationOrientation();try{screen.orientation?.unlock?.();}catch{}try{if(document.fullscreenElement)await document.exitFullscreen();}catch{}updateRemoteUI();resize();
 }
 $("camSolo").onclick=enterSolo;$("soloExit").onclick=exitSolo;
 function resetSoloSimulation(){flightLogbook.finish("SIM_RESET");const restart=mode==="sim"&&Boolean(backend);stopRun();remoteAutoStarted=false;resetSimulation(mode==="replay"&&realLog.length?realLog[0]:null);if(restart)startRun();}
