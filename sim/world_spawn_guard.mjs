@@ -10,6 +10,7 @@ import "./wanted_police_drones.mjs";
 import "./police_ground_units.mjs";
 import "./fighter_jets.mjs";
 import "./jet_mode.mjs";
+import "./people_impacts.mjs";
 import "./zombie_nights.mjs";
 import "./dynamic_lights.mjs";
 import "./shader_prewarm.mjs";

@@ -36,6 +36,8 @@ function frame(now=performance.now()){
 }
 
 onTerrainChange((_craters,regions)=>{try{engine?.rebuildTerrain?.(regions??null);}catch(error){console.warn("rigid terrain",error);}});
-export const worldRigidBodyRuntime=Object.freeze({upsertBody,setTarget,setDrive,clearTarget,setPose,setGravityScale,removeBody,applyImpulse,pose,raycast,get ready(){return Boolean(ensureEngine());},get engine(){return ensureEngine();}});
+export // every registered body (id, kind, half extents, mass) — e.g. vehicle-vs-pedestrian checks
+function bodies(){const current=ensureEngine();const out=[];for(const b of pendingBodies.values())if(!current||current.records.has(b.id))out.push(b);return out;}
+const worldRigidBodyRuntime=Object.freeze({bodies,upsertBody,setTarget,setDrive,clearTarget,setPose,setGravityScale,removeBody,applyImpulse,pose,raycast,get ready(){return Boolean(ensureEngine());},get engine(){return ensureEngine();}});
 globalThis.__arondightWorldRigidBodies=worldRigidBodyRuntime;
 requestAnimationFrame(frame);

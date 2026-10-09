@@ -6,6 +6,7 @@ export const WANTED_POLICE_MAX_FIRE_RANGE_M=35;
 
 const CRIME_SEVERITY=Object.freeze({
   person:2,
+  "person-hit":1,
   player:2,
   car:1,
   bus:2,
