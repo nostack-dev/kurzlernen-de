@@ -185,8 +185,12 @@ function readInputs(dt){
   if(keys.has("KeyW"))lift+=1;if(keys.has("KeyS"))lift-=1;if(keys.has("KeyA"))yawIn-=1;if(keys.has("KeyD"))yawIn+=1;if(keys.has("ArrowUp"))pitchIn-=1;if(keys.has("ArrowDown"))pitchIn+=1;if(keys.has("ArrowLeft"))rollIn-=1;if(keys.has("ArrowRight"))rollIn+=1;
   // desktop mouse: a rate stick (mouse up = nose up, right = roll right); LMB = gun
   const desk=globalThis.__arondightDesktopInput;if(desk?.active&&desk.locked&&dt>0){const d=desk.takeMouseDelta(),a=1-Math.exp(-dt/.06);mouseStick.x+=(clamp(d.x/dt/1100,-1,1)-mouseStick.x)*a;mouseStick.y+=(clamp(d.y/dt/1100,-1,1)-mouseStick.y)*a;rollIn+=mouseStick.x;pitchIn-=mouseStick.y;firing=Boolean(desk.lmb)||keys.has("Space");}else{mouseStick.x=mouseStick.y=0;}
-  const pad=(navigator.getGamepads?.()||[]).find(g=>g&&g.connected);if(pad&&jet){const ax=a=>Math.abs(a)<.12?0:a;lift+=-ax(pad.axes[1]||0)+((pad.buttons[7]?.value||0)-(pad.buttons[6]?.value||0));yawIn+=ax(pad.axes[0]||0);rollIn+=ax(pad.axes[2]||0);pitchIn+=ax(pad.axes[3]||0);
-    const a=Boolean(pad.buttons[0]?.pressed);if(a!==jet.padFire){firing=a;jet.padFire=a;}const x=Boolean(pad.buttons[2]?.pressed);if(x&&!jet.padBomb)dropBomb();jet.padBomb=x;const b=Boolean(pad.buttons[1]?.pressed);if(b&&!jet.padB)fireRocket();jet.padB=b;const lb=Boolean(pad.buttons[4]?.pressed);if(lb&&!jet.padLB)toggleMode();jet.padLB=lb;const yb=Boolean(pad.buttons[3]?.pressed);if(yb&&!jet.padY){jet.padY=yb;exit();return null;}jet.padY=yb;}
+  // Xbox, Battlefield jet layout: LS ↑↓ throttle/lift, LS ←→ rudder, RS pitch + roll, RT gun,
+  // LT rockets, RB bombs, LB VTOL hover/flight. X exits / ejects and VIEW switches the camera
+  // (both handled by the shared pad actions, same as E and C on the keyboard). Under the
+  // parachute the sticks steer the canopy.
+  const pad=globalThis.__arondightPadBlocked?.()?null:(navigator.getGamepads?.()||[]).find(g=>g&&g.connected);if(pad&&(jet||para)){const ax=a=>Math.abs(a)<.12?0:a;lift+=-ax(pad.axes[1]||0);yawIn+=ax(pad.axes[0]||0);rollIn+=ax(pad.axes[2]||0);pitchIn+=ax(pad.axes[3]||0);
+    if(jet){const rt=(pad.buttons[7]?.value||0)>.4;if(rt!==jet.padFire){firing=rt;jet.padFire=rt;}const lt=(pad.buttons[6]?.value||0)>.5;if(lt&&!jet.padLT)fireRocket();jet.padLT=lt;const rb=Boolean(pad.buttons[5]?.pressed);if(rb&&!jet.padRB)dropBomb();jet.padRB=rb;const lb=Boolean(pad.buttons[4]?.pressed);if(lb&&!jet.padLB)toggleMode();jet.padLB=lb;}}
   return{lift:clamp(lift,-1,1),yawIn:clamp(yawIn,-1,1),pitchIn:clamp(pitchIn,-1,1),rollIn:clamp(rollIn,-1,1)};}
 
 // ------------------------------------------------------------ the flown jet, every frame (the forces run in the physics step)

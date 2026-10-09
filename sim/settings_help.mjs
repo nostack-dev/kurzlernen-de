@@ -72,13 +72,28 @@ function moveHelpWith(row){const h=row.nextElementSibling?.classList.contains("s
 function section(dialog,cls,title){let s=dialog.querySelector(`:scope > section.${cls.split(" ").pop()}`);if(!s){s=document.createElement("section");s.className=cls;s.innerHTML=`<h4>${title}</h4>`;}return s;}
 function placeAfter(anchor,node){if(anchor&&node&&anchor.nextElementSibling!==node)anchor.after(node);return node||anchor;}
 
+// The menu is also the pause menu: every game action that used to sit in the top bar is here,
+// reachable with mouse, touch and the pad (the settings navigator walks these buttons too).
+const GAME_ACTIONS=[
+  ["resume","RESUME",d=>d.close()],
+  ["reset","RESET",d=>{d.close();if(globalThis.__arondightRequestReset)globalThis.__arondightRequestReset();else document.getElementById("soloReset")?.click();}],
+  ["multi","MULTIPLAYER",d=>{d.close();(document.getElementById("mobileGameplayMultiplayer")||document.getElementById("lanVsButton"))?.click();}],
+  ["world","REAL WORLD",d=>{d.close();document.getElementById("soloWorld")?.click();}],
+  ["logbook","LOGBOOK",d=>{d.close();document.getElementById("soloLogbook")?.click();}],
+  ["exit","EXIT TO TITLE",d=>{d.close();document.getElementById("soloExit")?.click();}],
+];
+function gameSection(dialog){let s=dialog.querySelector(":scope > section.game-actions-section");if(s)return s;s=document.createElement("section");s.className="game-actions-section";s.innerHTML=`<div class="game-actions-grid">${GAME_ACTIONS.map(([k,l])=>`<button type="button" data-game-action="${k}">${l}</button>`).join("")}</div>`;
+  s.addEventListener("click",e=>{const b=e.target.closest?.("[data-game-action]");if(!b)return;e.preventDefault();GAME_ACTIONS.find(a=>a[0]===b.dataset.gameAction)?.[2](dialog);});return s;}
 function tidy(dialog){
   if(!dialog.classList.contains("settings-tidy"))dialog.classList.add("settings-tidy");
+  const title=dialog.querySelector(".phone-settings-titlebar h3");if(title&&title.textContent!=="MENU")title.textContent="MENU";
+  const bar=dialog.querySelector(":scope > .phone-settings-titlebar"),game=gameSection(dialog);if(bar&&bar.nextElementSibling!==game)bar.after(game);
   dialog.dataset.settingsHelp=SETTINGS_HELP_VERSION;
   const modes=dialog.querySelector(":scope > section.player-control-modes");
   // 3D VIEW right under the mode switch, so stereo is two taps away.
   const sbs=dialog.querySelector("[data-stereo-sbs]");let view=null;
   if(sbs){view=section(dialog,"player-control-section display-settings-section","3D VIEW");const row=rowOf(sbs);if(row.parentElement!==view){const h=moveHelpWith(row);view.appendChild(row);if(h)view.appendChild(h);}}
+  if(modes&&game.nextElementSibling!==modes)game.after(modes);
   let cursor=placeAfter(modes,view)||modes;
   const profiles=dialog.querySelector(":scope > [data-stacked-control-profiles]");cursor=placeAfter(cursor,profiles);
   const hardware=dialog.querySelector(":scope > section.player-control-hardware");cursor=placeAfter(cursor,hardware);
@@ -108,6 +123,12 @@ html body dialog.phone-settings-dialog .player-mode-grid+.setting-help{margin:8p
 html body dialog.settings-tidy > details.debug-settings-section{margin:18px 0 6px;padding-top:6px;border-top:2px solid #ffffff2b}
 html body dialog.settings-tidy > details.debug-settings-section > summary{cursor:pointer;font:850 13px system-ui,-apple-system,sans-serif;letter-spacing:.08em;color:#8fa9a0;padding:8px 0}
 html body dialog.settings-tidy .world-settings-section label.phone-settings-toggle:not([hidden]){display:flex;align-items:center;justify-content:space-between;gap:16px}
+html body dialog.settings-tidy > section.game-actions-section{margin:6px 0 4px}
+html body dialog.settings-tidy .game-actions-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+html body dialog.settings-tidy .game-actions-grid button{min-height:40px;border-radius:8px;border:1px solid #ffffff33;background:#16202ccc;color:#eaf6ff;font:850 12px/1 system-ui,-apple-system,sans-serif;letter-spacing:.06em;cursor:pointer}
+html body dialog.settings-tidy .game-actions-grid button[data-game-action="resume"]{background:#1d5a43;border-color:#7ff0c5aa}
+html body dialog.settings-tidy .game-actions-grid button[data-game-action="exit"]{background:#4c1f25;border-color:#ff8b9588}
+html body dialog.settings-tidy .game-actions-grid button:focus-visible{outline:3px solid #ffd76a;outline-offset:1px}
 /* Top bar: only what the current mode can use. */
 html body:is(.on-foot-mode,.player-driving,.jet-mode) #soloTopbar :is(#soloArmToolbar,#soloLogbook,#soloCamera,#droneWeaponToggle,#desktopDroneWeaponSwitch,#soloAlt,#soloRangeStatus,#soloState){display:none!important}
 html body.desktop-input:not(:has(#viewport[data-gamepad-connected="1"])) #soloTopbar #soloGamepadStatus{display:none!important}

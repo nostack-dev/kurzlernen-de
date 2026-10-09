@@ -152,7 +152,7 @@ function mountControlSettings({parent,buttonText="SETTINGS",onChange=()=>{},onFi
   button.onclick=()=>openDialog("touch");
   const world=mountSoloWorldSettings({parent,dialog,settingsButton:button});
   const gamepadNavigator=createSettingsGamepadNavigator({dialog,openDialog,closeDialog,getGamepad:()=>findXboxGamepad(navigator.getGamepads?.())});
-  const gamepadHelp=document.getElementById("soloGamepadHelp");if(gamepadHelp)gamepadHelp.textContent="LS MOVE · RS TURN/PITCH · LT/RT ALT −/+ · LB+RS AIM · LB+RB FIRE · A ARM · B KILL · X CAM · Y RESET · VIEW EXIT · MENU SETTINGS";
+  const gamepadHelp=document.getElementById("soloGamepadHelp");if(gamepadHelp)gamepadHelp.textContent="LS MOVE · RS TURN/PITCH · LT/RT ALT −/+ · RB FIRE · A ARM · Y WEAPON · VIEW CAM · ↓ ON FOOT · ↑ STRIKE · MENU";
   render();
   return{button,dialog,world,gamepadNavigator,get settings(){return{...droneSettings};},get firstPersonSettings(){return{...firstPersonSettings};},get activeProfile(){return activeProfile;},reload(){droneSettings=loadPhoneControlSettings();firstPersonSettings=loadFirstPersonControlSettings();render();return{...droneSettings};}};
 }

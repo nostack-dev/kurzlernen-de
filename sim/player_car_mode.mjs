@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import {findXboxGamepad} from "./xbox_gamepad.mjs";
 import {claimSticks,releaseSticks,sticks} from "./shared_sticks.mjs";
-import {loadPhoneControlSettings} from "./drone_control_settings.mjs";
 import {VEHICLE_CONTROL_SETTINGS_EVENT,loadVehicleControlSettings,normalizeVehicleControlSettings} from "./vehicle_control_settings.mjs";
 
 const ENTER_RADIUS_M=5.2;
@@ -25,7 +24,9 @@ function vehiclePose(){const pose=vehicle?physics()?.pose?.(vehicle.id):null;if(
 function vehicleRoots(){const scene=bridge()?.threeScene,out=[];if(!scene)return out;scene.traverse(node=>{if(!node?.isGroup||node.visible===false)return;const kind=String(node.userData?.worldPopulationKind||""),id=String(node.userData?.worldPopulationId||node.userData?.worldProceduralId||"");if((kind==="car"||node.userData?.gtaDrivableVehicle===true)&&id)out.push({id,root:node});});return out;}
 function nearestVehicle(now=performance.now()){if(active)return vehicle;if(now-lastNearestScan<240)return nearest;lastNearestScan=now;nearest=null;const w=walk();if(w?.mode!=="foot"||!w.position)return null;let best=ENTER_RADIUS_M;for(const record of vehicleRoots()){record.root.getWorldPosition(tmp);const d=Math.hypot(tmp.x-w.position.x,tmp.y-w.position.y);if(d<best){best=d;nearest={...record,distance:d};}}return nearest;}
 function clearFootKeys(){for(const code of["KeyW","KeyA","KeyS","KeyD","ShiftLeft","ShiftRight"])dispatchEvent(new KeyboardEvent("keyup",{code}));}
-function suppressFootGamepad(value){try{if(value)Object.defineProperty(navigator,"getGamepads",{configurable:true,value:()=>[]});else delete navigator.getGamepads;}catch{}}
+// The pad is no longer blacked out for every other module while driving (that killed the menu, exit and
+// reset on the pad); the walker ignores the pad itself while body.player-driving is set.
+function suppressFootGamepad(){}
 function setDrivingUi(value){document.body.classList.toggle("player-driving",value);const modeButton=document.getElementById("playerModeButton");if(modeButton){modeButton.disabled=value;modeButton.style.opacity=value?".45":"";}const view=viewport();if(view){view.dataset.playerDriveMode=value?"vehicle":"off";view.dataset.playerControlMode=value?"vehicle":(walk()?.mode||"drone");}}
 function enter(record=nearestVehicle()){
   if(active||playerDead()||walk()?.mode!=="foot"||!record?.id)return false;const engine=physics();let pose=engine?.pose?.(record.id),root=record.root||vehicleRoots().find(item=>item.id===record.id)?.root||null;if(!pose?.position&&root&&typeof engine?.upsertBody==="function"){root.getWorldPosition(tmp);const q=root.quaternion,yaw=quaternionYaw([q.x,q.y,q.z,q.w]);engine.upsertBody({id:record.id,kind:"car",position:[tmp.x,tmp.y,Math.max(.42,tmp.z+.42)],yaw,halfExtents:[1.78,.82,.42],massKg:1420});pose=engine.pose?.(record.id);}if(!pose?.position)return false;
@@ -34,11 +35,12 @@ function enter(record=nearestVehicle()){
 function exit({forced=false}={}){
   if(!active)return false;const pose=vehiclePose(),id=vehicle?.id,root=vehicle?.root;if(pose?.position){const sideX=-Math.sin(heading),sideY=Math.cos(heading),x=pose.position[0]+sideX*2.15,y=pose.position[1]+sideY*2.15;walk()?.setPose?.({x,y,yaw:Math.PI/2-heading,pitch:0});}if(root){delete root.userData.playerDriven;restoreBodyVisibility(root);}if(id&&pose?.position){const park={id,x:pose.position[0],y:pose.position[1],yaw:quaternionYaw(pose.rotation)};globalThis.__arondightProceduralPopulation?.parkAt?.(id,park);window.dispatchEvent(new CustomEvent("arondight:car-parked",{detail:park}));}physics()?.setDrive?.(id,null);physics()?.clearTarget?.(id);camHeading=null;active=false;vehicle=null;commandSpeed=0;touchSteer=touchPedal=touchLookX=touchLookY=0;camLookYaw=camLookPitch=0;handbrake=false;suppressFootGamepad(false);setDrivingUi(false);releaseSticks(carSticks);if(cockpit)cockpit.visible=false;window.dispatchEvent(new CustomEvent("arondight:vehicle-mode",{detail:{active:false,id,forced}}));return true;
 }
-function sampleGamepad(){if(loadPhoneControlSettings().xboxControllerEnabled===false)return null;return findXboxGamepad(nativeGetGamepads());}
+// Xbox in the car: LS steer, RT gas, LT brake / reverse, RS look, B handbrake; X exits, VIEW camera (shared pad actions).
+function sampleGamepad(){if(globalThis.__arondightPadBlocked?.())return null;return findXboxGamepad(nativeGetGamepads());}
 function button(pad,index){const b=pad?.buttons?.[index];return clamp(typeof b==="number"?b:(b?.value??(b?.pressed?1:0)),0,1);}
 function axis(value,dead=.08){const v=clamp(value,-1,1),a=Math.abs(v);return a<=dead?0:Math.sign(v)*(a-dead)/(1-dead);}
 const carSticks={name:"car",labels:{move:"LENKEN / GAS",look:"UMSCHAUEN"}};
-function controls(){let steer=(keys.has("KeyD")?1:0)-(keys.has("KeyA")?1:0)+touchSteer+sticks.move.x,pedal=(keys.has("KeyW")?1:0)-(keys.has("KeyS")?1:0)+touchPedal-sticks.move.y,lookX=touchLookX+sticks.look.x,lookY=touchLookY-sticks.look.y,brake=handbrake||keys.has("Space");const pad=sampleGamepad();if(pad){steer+=axis(pad.axes?.[0]);pedal+=-axis(pad.axes?.[1],.08)+button(pad,7)-button(pad,6);lookX+=axis(pad.axes?.[2],.08);lookY+=-axis(pad.axes?.[3],.08);brake=brake||button(pad,1)>.55;}return{steer:clamp(steer,-1,1)*settings.steeringSensitivityPercent/100,pedal:clamp(pedal,-1,1)*settings.throttleSensitivityPercent/100,lookX:clamp(lookX,-1,1),lookY:clamp(lookY,-1,1),brake};}
+function controls(){let steer=(keys.has("KeyD")?1:0)-(keys.has("KeyA")?1:0)+touchSteer+sticks.move.x,pedal=(keys.has("KeyW")?1:0)-(keys.has("KeyS")?1:0)+touchPedal-sticks.move.y,lookX=touchLookX+sticks.look.x,lookY=touchLookY-sticks.look.y,brake=handbrake||keys.has("Space");const pad=sampleGamepad();if(pad){steer+=axis(pad.axes?.[0]);pedal+=button(pad,7)-button(pad,6);lookX+=axis(pad.axes?.[2],.08);lookY+=-axis(pad.axes?.[3],.08);brake=brake||button(pad,1)>.55;}return{steer:clamp(steer,-1,1)*settings.steeringSensitivityPercent/100,pedal:clamp(pedal,-1,1)*settings.throttleSensitivityPercent/100,lookX:clamp(lookX,-1,1),lookY:clamp(lookY,-1,1),brake};}
 // Driving input only requests wheel motor torque, steering angle and brakes.
 // Chassis motion, suspension, grip, collisions, roll/pitch and flips are Box3D outcomes.
 let camHeading=null,camLookYaw=0,camLookPitch=0,camSmoothInit=false;const camSmoothPos=new THREE.Vector3(),camSmoothQ=new THREE.Quaternion();

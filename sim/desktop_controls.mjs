@@ -42,6 +42,8 @@ function setDesktop(next){
 }
 function releaseAll(){keys.clear();lmb=rmb=false;dronePx.x=dronePx.y=0;droneRate.x=droneRate.y=0;jetDelta.x=jetDelta.y=0;Object.assign(droneSample,{active:false,fire:false,arm:false,camera:false,heightAxis:0});droneSample.left={x:0,y:0};droneSample.right={x:0,y:0};endLook();}
 
+let wantMenu=false;
+function openMenu(){const d=document.querySelector("dialog.phone-settings-dialog");if(d?.open)return;wantMenu=true;if(locked())document.exitPointerLock?.();(document.querySelector("#soloTopbar .phone-settings-button")||document.querySelector(".phone-settings-button"))?.click();}
 function requestLock(){
   const v=viewport();if(!v?.requestPointerLock)return;
   // the OS pointer speed curve stays on (like the desktop cursor the player is used to): raw counts felt dead on small, slow moves
@@ -69,7 +71,7 @@ function droneFire(pressed){
   droneSample.fire=Boolean(pressed);
 }
 
-function onPointerDown(event){
+function onPointerDown(event){if(event.pointerType==="mouse")document.body.classList.remove("pad-input");
   if(event.pointerType==="touch"||event.pointerType==="pen"){setDesktop(false);return;}
   if(event.pointerType!=="mouse"||!mouseMeansDesktop())return;
   // A click on a touch UI button (dock, HUD) must land first: switching now would hide the
@@ -116,7 +118,9 @@ const DRONE_KEYS=new Set(["KeyW","KeyA","KeyS","KeyD","Space","ShiftLeft","Shift
 function onKeyDown(event){
   if(event.metaKey||event.ctrlKey||event.altKey)return;
   const target=event.target;if(target instanceof Element&&target.closest("input,textarea,select,[contenteditable]"))return;
-  setDesktop(true);
+  if(event.__synthetic!=="pad"){setDesktop(true);document.body.classList.remove("pad-input");}
+  // TAB / M: the pause menu (settings + all game actions), the mouse is freed for it
+  if((event.code==="Tab"||event.code==="KeyM")&&!event.repeat&&event.__synthetic!=="pad"&&inGame()&&!playerDown()){event.preventDefault();openMenu();return;}
   // dead: R / Enter respawns (the mouse is captured, the RESET button cannot be clicked)
   if((event.code==="KeyR"||event.code==="Enter")&&!event.repeat&&playerDown()){const hud=document.getElementById("vsRespawnHud");if(hud&&!hud.hidden)hud.querySelector("button")?.click();else globalThis.__arondightRequestReset?.();event.preventDefault();event.stopImmediatePropagation();return;}
   if(!inGame())return;const mode=gameMode();
@@ -143,10 +147,10 @@ function tick(){
 
 let hintEl=null,playEl=null,lastHint="";
 const HINTS={
-  foot:"WASD move · SHIFT sprint · SPACE jump · LMB fire · 1-3 / Q / WHEEL weapon · E vehicle · V drone · J strike · ESC mouse",
-  drone:"WASD fly · SPACE / SHIFT up / down · MOUSE turn · RMB look · LMB fire · R arm · C camera · 1-3 / Q weapon · V on foot",
-  car:"W / S gas / brake · A / D steer · SPACE handbrake · MOUSE look · C camera · E exit",
-  jet:"W / S throttle · A / D rudder · MOUSE pitch / roll · LMB / SPACE gun · R rocket · B bomb · V hover / flight · C camera · E exit",
+  foot:"WASD move · SHIFT sprint · SPACE jump (2× jetpack) · LMB fire · 1-3 / Q / WHEEL weapon · F vehicle · V drone · 4 strike · ESC menu",
+  drone:"WASD fly · SPACE / SHIFT up / down · MOUSE turn · RMB look · LMB fire · R arm · C camera · 1-3 / Q weapon · V on foot · ESC menu",
+  car:"W / S gas / brake · A / D steer · SPACE handbrake · MOUSE look · C camera · F exit · ESC menu",
+  jet:"W / S throttle · A / D rudder · MOUSE pitch / roll · LMB / SPACE gun · R rocket · B bomb · V hover / flight · C camera · F exit / eject · ESC menu",
 };
 function installUi(){
   if(document.querySelector("style[data-desktop-controls]"))return;
@@ -154,7 +158,14 @@ function installUi(){
 html body.desktop-input #viewport #footHud #footMove,html body.desktop-input #viewport #footHud #footLook,html body.desktop-input #viewport #footHud #footFire,html body.desktop-input #viewport #footHud #footJump,html body.desktop-input #viewport #footHud #footLookZone{display:none!important;pointer-events:none!important}
 body.desktop-input #footMove,body.desktop-input #footLook,body.desktop-input #footJump,body.desktop-input #footFire,body.desktop-input #footLookZone,
 body.desktop-input #soloLeft,body.desktop-input #soloRight,body.desktop-input #soloHeightPad,body.desktop-input .vehicle-stick,
-body.desktop-input #vehicleCamButton,body.desktop-input #footWeaponToggle,body.desktop-input #droneWeaponToggle,body.desktop-input #vehicleBrakeButton,body.desktop-input #jetHud .jet-btns,body.desktop-input #mobileGameplayDock{display:none!important;pointer-events:none!important}
+body.desktop-input #vehicleCamButton,body.desktop-input #footWeaponToggle,body.desktop-input #droneWeaponToggle,body.desktop-input #vehicleBrakeButton,body.desktop-input #jetHud .jet-btns{display:none!important;pointer-events:none!important}
+/* same HUD as mobile; the key sits on each dock button */
+body.desktop-input #mobileGameplayDock button::after{display:inline-block;margin-left:6px;padding:1px 4px;border:1px solid #ffffff55;border-radius:3px;font:800 9px/1.2 system-ui,sans-serif;letter-spacing:.04em;opacity:.8}
+html body.desktop-input.mobile-gameplay-compact.solo-flight #mobileGameplayDock{width:min(calc(100% - 300px),470px)}
+html body.desktop-input #airStrikeButton{display:none!important}
+/* the last used device owns the help line: keys or pad */
+html body.pad-input #desktopKeyHints{display:none!important}html body.pad-input #mobileGameplayDock button::after{display:none}
+body.desktop-input #mobileGameplayMode::after{content:"V"}body.desktop-input #mobileGameplayWeapon::after{content:"Q"}body.desktop-input #mobileGameplaySettings::after{content:"ESC"}
 #desktopKeyHints{position:absolute;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:30;max-width:min(94vw,980px);padding:6px 12px;border-radius:6px;background:#0b0f16a8;color:#dfe7f2;font:600 11px/1.35 Inter,system-ui,sans-serif;letter-spacing:.04em;text-align:center;pointer-events:none;display:none;white-space:normal}
 body.desktop-input.solo-flight #desktopKeyHints{display:block}
 #desktopClickToPlay{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:31;padding:14px 22px;border-radius:8px;background:#0b0f16d0;border:1px solid #ffffff44;color:#fff;font:800 15px/1.2 Inter,system-ui,sans-serif;letter-spacing:.12em;text-align:center;pointer-events:none;display:none}
@@ -165,7 +176,7 @@ body.desktop-input.solo-flight #desktopClickToPlay.show{display:block}`;
 function ensureEls(){
   const v=viewport();if(!v)return false;
   if(!hintEl){hintEl=document.createElement("div");hintEl.id="desktopKeyHints";v.appendChild(hintEl);}
-  if(!playEl){playEl=document.createElement("div");playEl.id="desktopClickToPlay";playEl.innerHTML="CLICK TO PLAY<small>mouse + keyboard · ESC releases the mouse</small>";v.appendChild(playEl);}
+  if(!playEl){playEl=document.createElement("div");playEl.id="desktopClickToPlay";playEl.innerHTML="CLICK TO PLAY<small>mouse + keyboard · ESC / TAB = menu</small>";v.appendChild(playEl);}
   return true;
 }
 const WEAPON_NAMES={smg:"SMG",glock:"PISTOL",grenade:"GRENADE LAUNCHER",gun:"GUN",missile:"MISSILE",nuke:"NUKE"};
@@ -182,7 +193,11 @@ export function installDesktopControls(){
   window.addEventListener("wheel",onWheel,{capture:true,passive:false});
   window.addEventListener("keydown",onKeyDown);window.addEventListener("keyup",onKeyUp);
   window.addEventListener("contextmenu",event=>{if(locked()||(desktop&&gameplayTarget(event.target)))event.preventDefault();},{capture:true});
-  document.addEventListener("pointerlockchange",()=>{if(!locked()){lmb=false;rmb=false;droneFire(false);endLook();keys.clear();}syncOverlay();});
+  // ESC (the browser's own mouse release) opens the pause menu, like any shooter: no
+  // "press ESC, then hunt for a button" dance. Closing the menu with a click captures the
+  // mouse again right away.
+  document.addEventListener("pointerlockchange",()=>{if(!locked()){lmb=false;rmb=false;droneFire(false);endLook();keys.clear();if(desktop&&inGame()&&!playerDown()&&!wantMenu)setTimeout(()=>{if(!locked()&&inGame()&&!playerDown())openMenu();},0);}wantMenu=false;syncOverlay();});
+  document.addEventListener("close",e=>{if(desktop&&e.target?.matches?.("dialog.phone-settings-dialog")&&inGame())requestLock();},true);
   window.addEventListener("blur",releaseAll);
   window.addEventListener("arondight:player-death",()=>{if(locked())document.exitPointerLock?.();});
   globalThis.__arondightDesktopDroneInput=droneSample;

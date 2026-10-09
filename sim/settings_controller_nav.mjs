@@ -21,7 +21,8 @@ export function createSettingsGamepadNavigator({dialog,openDialog,closeDialog,ge
     if(!pad){previous.fill(false);stickLatchX=stickLatchY=0;requestAnimationFrame(frame);return;}
     const pressed=previous.map((_,index)=>buttonPressed(pad,index)),edge=index=>pressed[index]&&!previous[index];
     const menuEdge=edge(SETTINGS_GAMEPAD_BUTTON.MENU),viewEdge=edge(SETTINGS_GAMEPAD_BUTTON.VIEW),resetEdge=edge(SETTINGS_GAMEPAD_BUTTON.Y),backEdge=edge(SETTINGS_GAMEPAD_BUTTON.B)||viewEdge;
-    if(!dialog.open){if(menuEdge){latchFlightRelease();openDialog?.("gamepad");}else if(viewEdge)clickSoloAction("#soloExit","gamepadExitCount");else if(resetEdge)clickSoloAction("#soloReset","gamepadResetCount");}
+    // closed: only MENU opens it. VIEW is the camera and Y the weapon (pad_actions.mjs); exit and reset live in the menu.
+    if(!dialog.open){if(menuEdge){latchFlightRelease();openDialog?.("gamepad");}}
     else{
       if(backEdge){latchFlightRelease();closeDialog?.("gamepad");}
       else{
