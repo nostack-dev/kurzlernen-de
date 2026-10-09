@@ -43,6 +43,7 @@ h1{font-family:var(--display);font-weight:700;font-size:1.25rem;margin:0;letter-
 .big b{color:var(--accent);font-weight:700}
 .small{font-family:var(--mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 .hint{position:absolute;right:10px;bottom:7px;font-size:11px;color:var(--muted);pointer-events:none;text-align:right;max-width:60%}
+.turbo{position:absolute;inset:auto 12px 34px 12px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted);pointer-events:none}
 .engine{position:absolute;right:10px;top:7px;font-family:var(--mono);font-size:10px;color:var(--muted);pointer-events:none}
 details.group{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:0 10px;min-width:0}
 details.group[open]{padding-bottom:10px}
@@ -104,6 +105,7 @@ textarea{width:100%;box-sizing:border-box;height:110px;font:11px var(--mono);bac
       </div>
       <div class="engine">Box3D · erincatto/box3d</div>
       <div class="hint" id="hint">Ziehen: Arm greifen</div>
+      <div class="turbo" id="turboNote" hidden></div>
     </div>
 
     <div class="side">
@@ -114,6 +116,7 @@ textarea{width:100%;box-sizing:border-box;height:110px;font:11px var(--mono);bac
             <button id="bRun" class="primary">Pause</button>
             <button id="bRestart">Von vorn</button>
             <button id="bReset">Zurücksetzen</button>
+            <button id="bTurbo" title="Ohne Vorschau, alle Kerne">Turbo</button>
           </div>
           <div class="row">
             <button id="mLearn" aria-pressed="true">Aus Spur lernen</button>
@@ -781,7 +784,26 @@ function makeCore(E, opt){
       chains:[{arms,crank:h[c.masterBody]}], c:c.joints.length?sc.bodies[c.joints[0].body].position.slice():[0,0,0], gain:c.gain, pen:{b:h[sc.pen.body],l:sc.pen.localPoint}};
     return M;
   }
-  return {SIZE,S,TSIM,WS,KMAX,SUB,exportScene,loadScene,H:TSIM/(S*SUB),CAT,CRANK,HC,CRANK3,frame,toW,quatBasis,armsOf3,body,pt,state,buf,build2D,build3D,stepMachine,penOf,tipOf,simulate,learnStep,blindStep,start,errOf,setDense,reparam,armsCount,cloneM};
+
+  // ---------- building blocks for parallel search (Turbo): each is independent and can run on its own core ----------
+  function addCandidates(best,tS,mode,P){
+    const R=residuals(best,tS,mode), cands=[];
+    if(mode==='3d'){ const used=new Set(best.mech.terms.map(t=>t.k));
+      for(let k=1;k<=KMAX;k++){ if(used.has(k)) continue; const p=proj3(R[0].res,k); cands.push({k,C:p,g:Math.hypot(...p[0],...p[1])}); } }
+    else for(const r of R){ const used=new Set(chainsOf(best.mech,mode)[r.ch].arms.map(a=>a.k)), sc=r.dims===1?2:1;
+      for(let k=(r.dims===1?1:-KMAX);k<=KMAX;k++){ if(!k||used.has(k)) continue; const p=proj(r.res,k,r.dims); cands.push({ch:r.ch,k,a:[sc*p[0],sc*p[1]],g:Math.hypot(p[0],p[1])*sc}); } }
+    cands.sort((a,b)=>b.g-a.g);
+    return cands.slice(0,P).map(cd=>{ const m=cloneM(best.mech,mode); if(mode==='3d') m.terms.push({k:cd.k,C:cd.C}); else chainsOf(m,mode)[cd.ch].arms.push({k:cd.k,a:cd.a}); return m; });
+  }
+  // add-and-settle: simulate a candidate, then let it re-settle a few rounds; returns the best it found
+  function settle(mech,tS,mode,baseErr){
+    let m=mech, tr=simulate(m,mode), e=errOf(tr,tS), n=1, et=1;
+    for(let r=0;r<8 && !(e<baseErr) && et>0.1;r++){ const m2=refine({mech:m,trace:tr},tS,mode,et); const tr2=simulate(m2,mode), e2=errOf(tr2,tS); n++; if(e2<e){ m=m2; tr=tr2; e=e2; } else et*=0.5; }
+    return {mech:m,trace:tr,err:e,evals:n};
+  }
+  function refineEval(best,tS,mode,eta){ const m=refine(best,tS,mode,eta), tr=simulate(m,mode); return {mech:m,trace:tr,err:errOf(tr,tS),evals:1}; }
+  function evalMech(mech,tS,mode){ const tr=simulate(mech,mode); return {mech,trace:tr,err:errOf(tr,tS),evals:1}; }
+  return {addCandidates,settle,refineEval,evalMech,SIZE,S,TSIM,WS,KMAX,SUB,exportScene,loadScene,H:TSIM/(S*SUB),CAT,CRANK,HC,CRANK3,frame,toW,quatBasis,armsOf3,body,pt,state,buf,build2D,build3D,stepMachine,penOf,tipOf,simulate,learnStep,blindStep,start,errOf,setDense,reparam,armsCount,cloneM};
 }
 if(typeof module!=='undefined') module.exports={makeCore};
 
@@ -913,11 +935,11 @@ const workerMain=function(self){
 };
 let wk, threaded=true;
 // in-page stand-in for a Worker: same code, same messages, runs in small slices between frames
-function localWorker(){
+function localWorker(main){
   const ls=[], w={onmessage:null, addEventListener:(t,f)=>ls.push(f), removeEventListener:(t,f)=>{ const i=ls.indexOf(f); if(i>=0) ls.splice(i,1); }, terminate(){}};
   const scope={CHUNK:12, onmessage:null, postMessage:m=>setTimeout(()=>{ if(w.onmessage) w.onmessage({data:m}); ls.slice().forEach(f=>f({data:m})); },0)};
   w.postMessage=m=>setTimeout(()=>scope.onmessage&&scope.onmessage({data:m}),0);
-  workerMain(scope); return w;
+  (main||workerMain)(scope); return w;
 }
 try{
   const src=makeCore.toString()+'\n('+workerMain.toString()+')(self);';
@@ -1105,9 +1127,9 @@ function loop(now){
   const dt=Math.min(1/20,(now-lastT)/1000); lastT=now;
   if(!broken){ try{
     if(best && live && liveT>=TSIM && (queue.length||liveDirty)) rebuildLive(true);
-    if(live) stepLive(dt);
+    if(live && !turbo.on) stepLive(dt);
     if(opt.dim==='3d' && autoRot && !drag3) yaw+=dt*0.25;
-    draw(); if((frame++&7)===0) drawChart();
+    if(!turbo.on) draw(); if((frame++&7)===0) drawChart();
   }catch(e){ broken=true; fail(e); } }
   requestAnimationFrame(loop);
 }
@@ -1115,7 +1137,7 @@ function loop(now){
 // ---------- Eingabe ----------
 function load2D(pts){ last2d=pts; opt.dim='2d'; ensureCore(); const n=normalize(resample(pts,1024)); tDraw=n; tS=resample(n,S); applyDimUI(); go(); }
 function load3D(pts){ opt.dim='3d'; ensureCore(); const n=normalize(resample(pts,1024)); tDraw=n; tS=resample(n,S); applyDimUI(); go(); }
-function go(){ try{ opt.run=true; if(R3){ R3.bodies=[]; R3.pen=null; } if(live){ E.worldFree(live.w); live=null; } trail=[]; ghost=[]; restart(); broken=false; }catch(e){ broken=true; fail(e); } }
+function go(){ try{ stopTurbo(false); opt.run=true; if(R3){ R3.bodies=[]; R3.pen=null; } if(live){ E.worldFree(live.w); live=null; } trail=[]; ghost=[]; restart(); broken=false; }catch(e){ broken=true; fail(e); } }
 const presets={pKnight:()=>load2D(knight()),pStar:()=>load2D(star()),pHeart:()=>load2D(heart()),
   p3Tre:()=>load3D(trefoil()),p3Heart:()=>load3D(heart3()),p3Tor:()=>load3D(torus()),p3Seam:()=>load3D(seam()),p3Sph:()=>load3D(onSphere(last2d))};
 let cur2='pKnight', cur3='p3Tre';
@@ -1177,6 +1199,90 @@ gl.addEventListener('wheel',e=>{ e.preventDefault(); camR=Math.max(12,Math.min(6
 const send=(extra)=>wk.postMessage({cmd:'opt',opt:wopt(),...extra});
 function physChanged(){ done=false; send({reeval:true,resume:true}); }
 let deb; const later=f=>{ clearTimeout(deb); deb=setTimeout(f,150); };
+
+// ================= Turbo: headless, all cores =================
+// No preview, no live physics. A pool of workers (one Box3D instance each) evaluates the independent
+// candidates of every step in parallel: several step sizes, several new circles, several physics variants.
+const poolMain=function(self){
+  let E,core,opt={};
+  self.onmessage=async e=>{ const m=e.data;
+    try{
+      if(m.cmd==='init'){ E=(await WebAssembly.instantiate(m.wasm,{})).instance.exports; E.init(); E.jointHertz(1e5); opt=m.opt; core=makeCore(E,opt); self.postMessage({type:'ready'}); return; }
+      if(m.cmd==='job'){ Object.assign(opt,m.opt); if(core.S!==opt.res) core=makeCore(E,opt);
+        const r = m.op==='settle' ? core.settle(m.mech,m.tS,m.dim,m.base) : m.op==='refine' ? core.refineEval({mech:m.mech,trace:m.trace},m.tS,m.dim,m.eta) : core.evalMech(m.mech,m.tS,m.dim);
+        self.postMessage({type:'job',id:m.id,res:{mech:r.mech,trace:r.trace,err:r.err,evals:r.evals}}); }
+    }catch(err){ self.postMessage({type:'job',id:m.id,error:String(err&&err.message||err)}); }
+  };
+};
+const turbo={on:false, pool:null, N:0, T:null};
+async function makePool(){
+  const want=Math.max(1,Math.min(8,(navigator.hardwareConcurrency||4)-1)), ws=[];
+  for(let i=0;i<want;i++){ let w; try{ if(!threaded) throw 0; w=new Worker(URL.createObjectURL(new Blob([makeCore.toString()+'\n('+poolMain.toString()+')(self);'],{type:'text/javascript'}))); }catch(_){ w=localWorker(poolMain); i=want; }
+    ws.push(w); }
+  await Promise.all(ws.map(w=>new Promise((res,rej)=>{ const h=e=>{ if(e.data.type==='ready'){ w.removeEventListener('message',h); res(); } }; w.addEventListener('message',h); w.postMessage({cmd:'init',wasm:bin.buffer.slice(0),opt:wopt()}); setTimeout(()=>rej(new Error('Rechenkern startet nicht')),8000); })));
+  let nextId=1; const pending=new Map();
+  for(const w of ws) w.addEventListener('message',e=>{ const m=e.data; if(m.type!=='job') return; const p=pending.get(m.id); if(p){ pending.delete(m.id); m.error?p.rej(new Error(m.error)):p.res(m.res); } });
+  const free=ws.slice(), queue=[];
+  const pump=()=>{ while(free.length&&queue.length){ const w=free.pop(), j=queue.shift(); const id=nextId++;
+    pending.set(id,{res:r=>{ free.push(w); j.res(r); pump(); }, rej:e=>{ free.push(w); j.rej(e); pump(); }}); w.postMessage({...j.job,cmd:'job',id}); } };
+  return {N:ws.length, run:jobs=>Promise.all(jobs.map(job=>new Promise((res,rej)=>{ queue.push({job,res,rej}); pump(); })))};
+}
+const baseJob=extra=>({opt:wopt(),dim:opt.dim,tS,...extra});
+const pick=rs=>rs.reduce((a,b)=>b.err<a.err?b:a);
+async function turboLoop(){
+  const T=turbo.T, P=turbo.pool, N=P.N;
+  while(turbo.on){
+    T.iter++; const nArms=core.armsCount(T.best.mech,opt.dim);
+    if(T.needArm && nArms<opt.maxArms){
+      const cands=core.addCandidates(T.best,tS,opt.dim,Math.max(2,N));
+      const rs=await P.run(cands.map(m=>baseJob({op:'settle',mech:m,base:T.best.err}))); if(!turbo.on) break;
+      T.evals+=rs.reduce((a,r)=>a+r.evals,0); const b=pick(rs);
+      if(b.err<T.best.err){ T.best=b; T.stall=0; T.stage=''; } else T.stall++;
+      T.needArm=false;
+    } else {
+      const etas=[1,.5,.75,.3,.15,.6,.08,.9].slice(0,Math.max(2,N));
+      const rs=await P.run(etas.map(e=>baseJob({op:'refine',mech:T.best.mech,trace:T.best.trace,eta:e}))); if(!turbo.on) break;
+      T.evals+=rs.length; const b=pick(rs);
+      if(b.err<T.best.err){ const g=(T.best.err-b.err)/T.best.err; T.best=b; if(g<0.03) T.needArm=true; } else T.needArm=true;
+    }
+    if(T.stall>3){
+      let won=false;
+      if(opt.autoPhys){ const vars=[['gearGain',v=>v*2],['gearGain',v=>v/2],['torque',v=>Math.min(100,v+10)],['torque',v=>Math.max(0,v-10)],['fly',v=>Math.min(64,v*2)],['fly',v=>Math.max(.5,v/2)]];
+        const rs=await P.run(vars.map(([k,f])=>({...baseJob({op:'eval',mech:T.best.mech}),opt:{...wopt(),[k]:f(opt[k])}}))); if(!turbo.on) break;
+        T.evals+=rs.length; let bi=-1; rs.forEach((r,i)=>{ if(r.err<T.best.err-1e-6&&(bi<0||r.err<rs[bi].err)) bi=i; });
+        if(bi>=0){ const [k,f]=vars[bi]; opt[k]=f(opt[k]); T.best=rs[bi]; won=true; T.stage={gearGain:'Kopplung',torque:'Motor',fly:'Schwungrad'}[k]+' → '+(Math.round(opt[k]*100)/100); } }
+      if(!won && opt.autoPrec && opt.inner<256){ opt.inner*=2; const [r]=await P.run([baseJob({op:'eval',mech:T.best.mech})]); T.best=r; won=true; T.stage='Präzision → '+opt.inner; }
+      if(won){ T.stall=0; T.needArm=true; syncPhysUI(); } else { T.done=true; break; }
+    }
+    hist.push(T.best.err); if(hist.length>600) hist.splice(1,1);
+    turboHud();
+  }
+  turboHud();
+  if(T.done) stopTurbo(true);
+}
+function syncPhysUI(){ $('kPrec').value=Math.log2(opt.inner); $('oPrec').textContent=opt.inner; $('kTq').value=opt.torque; $('oTq').textContent=opt.torque;
+  $('kFly').value=Math.min(40,Math.max(1,Math.round(opt.fly))); $('oFly').textContent=(Math.round(opt.fly*10)/10)+'×'; }
+function turboHud(){ const T=turbo.T; if(!T) return; const dt=(performance.now()-T.t0)/1000;
+  $('hErr').textContent=fmt(T.best.err); $('hArms').textContent=core.armsCount(T.best.mech,opt.dim); $('hIt').textContent=T.iter; $('hEvals').textContent=T.evals;
+  $('hState').textContent=(T.done?'Turbo fertig':'Turbo · '+turbo.pool.N+(turbo.pool.N>1?' Kerne':' Kern'))+' · '+Math.round(T.evals/Math.max(dt,0.001))+' Sim/s · '+Math.round(dt)+' s';
+  $('hPrec').textContent=opt.inner+' Unterschritte · '+S+' Messpunkte · Kopplung '+(Math.round(opt.gearGain*10)/10)+' · Motor '+opt.torque+' · Schwungrad '+(Math.round(opt.fly*10)/10)+'×'+(T.stage?' · zuletzt: '+T.stage:''); }
+async function startTurbo(){
+  if(turbo.on||!best) return;
+  turbo.on=true; $('bTurbo').setAttribute('aria-pressed','true'); $('bTurbo').textContent='Turbo stoppen';
+  opt.run=false; send({}); $('turboNote').hidden=false; $('turboNote').textContent='Turbo startet …';
+  try{ if(!turbo.pool) turbo.pool=await makePool(); }catch(e){ turbo.on=false; fail(e); return; }
+  const [r]=await turbo.pool.run([baseJob({op:'eval',mech:best.mech})]);
+  turbo.T={best:r, needArm:false, stall:0, evals:1, iter:0, t0:performance.now(), stage:'', done:false};
+  $('turboNote').textContent='Turbo: keine Vorschau, alle Kerne rechnen. Stoppen übernimmt das Modell in die Vorschau.';
+  turboLoop().catch(e=>{ turbo.on=false; fail(e); });
+}
+function stopTurbo(resume){
+  if(!turbo.on&&!(turbo.T&&turbo.T.done)) return;
+  const T=turbo.T; turbo.on=false; $('bTurbo').setAttribute('aria-pressed','false'); $('bTurbo').textContent='Turbo'; $('turboNote').hidden=true;
+  if(resume&&T){ turbo.T=null; opt.run=true; const h=hist.slice(); restart(T.best.mech); hist=h; }
+  else turbo.T=null;
+}
+$('bTurbo').onclick=()=>{ if(turbo.on) stopTurbo(true); else startTurbo(); };
 $('bRun').onclick=()=>{ if(done){ done=false; opt.run=true; send({resume:true}); } else { opt.run=!opt.run; send({}); } updateHud(); };
 $('bRestart').onclick=go;
 $('bReset').onclick=()=>{ Object.assign(opt,DEF); autoRot=false; yaw=0.75; pitch=0.38; camR=27;
