@@ -53,7 +53,7 @@ function refreshColors(force=false,now=performance.now()){
 }
 
 function makeMarker(record){
-  const view=viewport();if(!view)return null;const el=document.createElement("div");el.className="vs-player-marker";el.dataset.peerId=record.id;el.innerHTML='<i></i><strong>ENEMY</strong><small></small>';el.style.setProperty("--vs-player-color",cssColor(record.color));view.appendChild(el);return el;
+  const view=viewport();if(!view)return null;const el=document.createElement("div");el.className="vs-player-marker";el.dataset.peerId=record.id;el.innerHTML='<i class="vpm-arrow"></i><span class="vpm-tag"><strong>P</strong><small></small></span><b class="vpm-hp"><u></u></b>';el.style.setProperty("--vs-player-color",cssColor(record.color));view.appendChild(el);return el;
 }
 
 function createPeerMesh(record){
@@ -97,14 +97,27 @@ function setPrimaryCompatibility(record){
   b.vsPeerHealth=record.health;b.vsPeerDead=record.dead;
 }
 
+// Where is my mate? A marker in the mate's colour floats above their head (walking, driving) or
+// their drone; off screen it sits at the edge and its arrow points the way to turn. Distance and
+// health on it. Projected with the camera as it was presented (the walk / car / jet views exist
+// only while drawing), so it never jumps between the drone camera and the player's view.
 function renderMarker(r,camera,view,now){
   const marker=r.marker;if(!marker||!r.mesh||now-r.lastPoseMs>STALE_MS){if(marker)marker.hidden=true;return;}
-  const rect=view.getBoundingClientRect();if(rect.width<1||rect.height<1){marker.hidden=true;return;}
-  r.mesh.getWorldPosition(tempPosition);camera.getWorldPosition(tempCamera);tempProjected.copy(tempPosition).project(camera);tempCameraSpace.copy(tempPosition).applyMatrix4(camera.matrixWorldInverse);
-  const inFront=tempCameraSpace.z<0;let nx=tempProjected.x,ny=tempProjected.y;if(!inFront){nx=-nx;ny=-ny;}
-  const marginX=Math.min(42,rect.width*.08),marginY=Math.min(34,rect.height*.11),halfW=Math.max(1,rect.width/2-marginX),halfH=Math.max(1,rect.height/2-marginY),sx0=nx*rect.width/2,sy0=-ny*rect.height/2,scale=Math.min(1,halfW/Math.max(1,Math.abs(sx0)),halfH/Math.max(1,Math.abs(sy0))),x=rect.width/2+sx0*scale,y=rect.height/2+sy0*scale,onScreen=inFront&&Math.abs(tempProjected.x)<.96&&Math.abs(tempProjected.y)<.90&&tempProjected.z>-1&&tempProjected.z<1;
-  marker.hidden=false;marker.classList.toggle("offscreen",!onScreen);marker.classList.toggle("dead",r.dead);marker.style.transform=`translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,-50%)`;
-  const own=bridge()?.airframeFor?.(bridge()?.threeScene)||bridge()?.airframe,distance=own?.position?own.position.distanceTo(tempPosition):0,index=Math.max(1,participantIds().indexOf(r.id)+1);marker.querySelector("strong").textContent=r.dead?`P${index} DOWN`:`P${index}`;marker.querySelector("small").textContent=r.dead?"WAITING RESET":`${r.health} HP · ${distance<100?distance.toFixed(0):Math.round(distance)}m`;
+  const w=view.clientWidth,h=view.clientHeight;if(w<1||h<1){marker.hidden=true;return;}
+  const anchored=globalThis.__arondightRemoteAnchor?.(r.id,tempPosition);if(!anchored){r.mesh.getWorldPosition(tempPosition);tempPosition.z+=.45;}
+  camera.updateMatrixWorld?.();camera.getWorldPosition(tempCamera);tempProjected.copy(tempPosition).project(camera);tempCameraSpace.copy(tempPosition).applyMatrix4(camera.matrixWorldInverse);
+  const inFront=tempCameraSpace.z<0;let nx=tempProjected.x,ny=tempProjected.y;if(!inFront){nx=-nx;ny=-ny;if(Math.abs(nx)<.02&&Math.abs(ny)<.02)ny=-1;}
+  const onScreen=inFront&&Math.abs(tempProjected.x)<.97&&Math.abs(tempProjected.y)<.93;
+  const margin=Math.min(46,w*.07),halfW=Math.max(1,w/2-margin),halfH=Math.max(1,h/2-margin);let sx=nx*w/2,sy=-ny*h/2;
+  if(!onScreen){const k=Math.min(halfW/Math.max(1e-3,Math.abs(sx)),halfH/Math.max(1e-3,Math.abs(sy)));sx*=k;sy*=k;}
+  const x=w/2+sx,y=h/2+sy,distance=tempPosition.distanceTo(tempCamera),index=Math.max(1,participantIds().indexOf(r.id)+1);
+  marker.hidden=false;marker.classList.toggle("offscreen",!onScreen);marker.classList.toggle("dead",r.dead);marker.classList.toggle("near",onScreen&&distance<6);
+  const scale=onScreen?Math.max(.82,Math.min(1.15,1.25-distance/160)):1;
+  marker.style.transform=`translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,${onScreen?"-100%":"-50%"}) scale(${scale.toFixed(3)})`;
+  marker.style.setProperty("--vpm-angle",`${(Math.atan2(sy,sx)*180/Math.PI-90).toFixed(1)}deg`);
+  const strong=marker.querySelector("strong"),small=marker.querySelector("small"),bar=marker.querySelector(".vpm-hp u");
+  const name=r.dead?`P${index} DOWN`:`P${index}`,dist=distance<10?`${distance.toFixed(1)} m`:distance<1000?`${Math.round(distance)} m`:`${(distance/1000).toFixed(1)} km`;
+  if(strong.textContent!==name)strong.textContent=name;if(small.textContent!==dist)small.textContent=dist;if(bar)bar.style.width=`${Math.max(0,Math.min(100,r.health))}%`;
 }
 
 function ensureFxPools(){
@@ -276,11 +289,21 @@ function updateHud(){
 
 function render(now=performance.now()){
   raf=requestAnimationFrame(render);const dt=Math.min(.05,Math.max(0,(now-lastRender)/1000||0));lastRender=now;updateSessionHooks();updateIdentity();reconcilePeers();flushAuthorityHits(now);
-  const b=bridge(),camera=b?.threeCamera,view=viewport();if(!b?.threeScene||!camera||!view)return;document.body.classList.toggle("vs-multiplayer",peers.size>0);refreshColors(false,now);
+  const b=bridge(),camera=b?.presentedCamera?.()||b?.threeCamera,view=viewport();if(!b?.threeScene||!camera||!view)return;document.body.classList.toggle("vs-multiplayer",peers.size>0);refreshColors(false,now);
   for(const r of peers.values()){if(r.id===primaryId&&b.vsPeerMesh){r.mesh=b.vsPeerMesh;setPrimaryCompatibility(r);}else if(!r.mesh)r.mesh=createPeerMesh(r);if(!r.mesh)continue;const sample=r.timeline.sample(now);if(sample&&!r.dead&&now-r.lastPoseMs<=STALE_MS){r.mesh.position.set(...sample.p);r.mesh.quaternion.set(...sample.q);r.mesh.visible=true;}else if(r.dead||now-r.lastPoseMs>STALE_MS)r.mesh.visible=false;renderMarker(r,camera,view,now);}
   scanLocalFx(now);renderFx(now,dt);syncLegacyLocalState();updateHud();
 }
 
 export function installVsMultiplayer(){
-  if(installed)return;installed=true;globalThis.__arondightVsMultiplayer={reportLocalDamage,resetLevelHealth,blastHit,get connected(){return Boolean(session()&&peers.size>0);},get authority(){return authorityId;},get self(){return selfId;}};style=document.createElement("style");style.textContent=`body.vs-multiplayer #vsEnemyMarker{display:none!important}.vs-player-marker{--vs-player-color:#fff;position:absolute;z-index:14;left:0;top:0;min-width:38px;padding:2px 5px 2px 12px;border-radius:7px;background:#071522a6;color:#fff;font:800 8px/1.05 system-ui,-apple-system,sans-serif;letter-spacing:.02em;pointer-events:none;box-shadow:0 0 0 1px color-mix(in srgb,var(--vs-player-color) 36%,transparent)}.vs-player-marker i{position:absolute;left:4px;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:var(--vs-player-color);box-shadow:0 0 5px var(--vs-player-color)}.vs-player-marker strong{display:block;font-size:7px;color:var(--vs-player-color)}.vs-player-marker small{display:block;font-size:7px;opacity:.76}.vs-player-marker.offscreen{opacity:.68}.vs-player-marker.dead{opacity:.58}`;document.head.appendChild(style);globalThis.addEventListener(VS_PEER_EVENT,onPeerEvent);globalThis.addEventListener(VS_POSE_EVENT,onPoseEvent);globalThis.addEventListener(VS_GAME_EVENT,onGameEvent);globalThis.addEventListener(VS_FX_EVENT,onFxEvent);raf=requestAnimationFrame(render);
+  if(installed)return;installed=true;globalThis.__arondightVsMultiplayer={reportLocalDamage,resetLevelHealth,blastHit,get connected(){return Boolean(session()&&peers.size>0);},get authority(){return authorityId;},get self(){return selfId;}};style=document.createElement("style");style.textContent=`body.vs-multiplayer #vsEnemyMarker{display:none!important}.vs-player-marker{--vs-player-color:#fff;--vpm-angle:180deg;position:absolute;z-index:14;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;color:#fff;font-family:system-ui,-apple-system,sans-serif;filter:drop-shadow(0 1px 2px #000c);transform-origin:50% 100%;will-change:transform}
+.vs-player-marker .vpm-tag{display:flex;align-items:baseline;gap:6px;padding:3px 8px;border-radius:8px;background:#060b10b8;border:1.5px solid var(--vs-player-color);white-space:nowrap}
+.vs-player-marker strong{font:900 13px/1 system-ui,-apple-system,sans-serif;letter-spacing:.06em;color:var(--vs-player-color)}
+.vs-player-marker small{font:800 11.5px/1 system-ui,-apple-system,sans-serif;opacity:.92;font-variant-numeric:tabular-nums}
+.vs-player-marker .vpm-hp{display:block;width:44px;height:3px;border-radius:2px;background:#ffffff30;overflow:hidden}.vs-player-marker .vpm-hp u{display:block;height:100%;background:var(--vs-player-color)}
+.vs-player-marker .vpm-arrow{order:3;width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:12px solid var(--vs-player-color)}
+.vs-player-marker.offscreen{transform-origin:50% 50%}.vs-player-marker.offscreen .vpm-hp{display:none}
+.vs-player-marker.offscreen .vpm-arrow{position:absolute;left:50%;top:50%;margin:-6px 0 0 -9px;transform:rotate(var(--vpm-angle)) translateY(30px)}
+.vs-player-marker.offscreen .vpm-tag{border-radius:999px}
+.vs-player-marker.near .vpm-tag small{display:none}
+.vs-player-marker.dead{filter:grayscale(1) drop-shadow(0 1px 2px #000c);opacity:.75}`;document.head.appendChild(style);globalThis.addEventListener(VS_PEER_EVENT,onPeerEvent);globalThis.addEventListener(VS_POSE_EVENT,onPoseEvent);globalThis.addEventListener(VS_GAME_EVENT,onGameEvent);globalThis.addEventListener(VS_FX_EVENT,onFxEvent);raf=requestAnimationFrame(render);
 }

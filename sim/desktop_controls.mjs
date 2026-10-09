@@ -122,7 +122,7 @@ function onKeyDown(event){
   // TAB / M: the pause menu (settings + all game actions), the mouse is freed for it
   if((event.code==="Tab"||event.code==="KeyM")&&!event.repeat&&event.__synthetic!=="pad"&&inGame()&&!playerDown()){event.preventDefault();openMenu();return;}
   // dead: R / Enter respawns (the mouse is captured, the RESET button cannot be clicked)
-  if((event.code==="KeyR"||event.code==="Enter")&&!event.repeat&&playerDown()){const hud=document.getElementById("vsRespawnHud");if(hud&&!hud.hidden)hud.querySelector("button")?.click();else globalThis.__arondightRequestReset?.();event.preventDefault();event.stopImmediatePropagation();return;}
+  if((event.code==="KeyR"||event.code==="Enter")&&!event.repeat&&playerDown()){event.preventDefault();event.stopImmediatePropagation();if(globalThis.__arondightRespawnReady&&!globalThis.__arondightRespawnReady())return;const hud=document.getElementById("vsRespawnHud");if(hud&&!hud.hidden)hud.querySelector("button")?.click();else globalThis.__arondightRequestReset?.();event.preventDefault();event.stopImmediatePropagation();return;}
   if(!inGame())return;const mode=gameMode();
   if(/^Digit[1-3]$/.test(event.code)&&(mode==="foot"||mode==="drone")){selectWeapon(Number(event.code.slice(5))-1);event.preventDefault();return;}
   if(event.code==="Digit5"&&mode==="foot"){selectWeapon(3);event.preventDefault();return;} /* 5 = NUKE (4 is the air strike) */

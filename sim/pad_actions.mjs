@@ -37,7 +37,7 @@ function switchFootDrone(){const m=mode();if(m!=="foot"&&m!=="drone")return;walk
 function camera(){const m=mode();if(m==="drone")document.getElementById("soloCamera")?.click();else if(m==="car"||m==="jet")sendKey("KeyC");}
 function strike(){const j=globalThis.__fighterJets;if(!j)return;if(j.targeting)j.confirm?.();else j.target?.(true);}
 function emp(){const w=globalThis.__arondightWantedSystem;if(w?.triggerEmp)w.triggerEmp();else document.getElementById("wantedEmpButton")?.click();}
-function respawn(){const hud=document.getElementById("vsRespawnHud");if(hud&&!hud.hidden){hud.querySelector("button")?.click();return;}globalThis.__arondightRequestReset?.();}
+function respawn(){if(globalThis.__arondightRespawnReady&&!globalThis.__arondightRespawnReady())return;const hud=document.getElementById("vsRespawnHud");if(hud&&!hud.hidden){hud.querySelector("button")?.click();return;}globalThis.__arondightRequestReset?.();}
 function enablePadPlay(){if(autoEnabled)return;autoEnabled=true;const box=document.querySelector("[data-xbox-controller]");if(box&&!box.checked){box.click();}}
 // title screen: D-pad / stick moves between START, WORLD and the world switches, A presses, B backs out
 function titleNav(edge){const panel=document.getElementById("worldOptionsPanel"),inPanel=panel&&!panel.hidden,scope=inPanel?panel:document.getElementById("gameMenu");

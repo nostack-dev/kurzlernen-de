@@ -8,8 +8,9 @@ const world=file("sim/real_world_bootstrap.mjs"),ui=file("sim/game_exit_button.m
 const between=(s,a,b)=>{const p=s.indexOf(a),q=s.indexOf(b,p+a.length);assert(p>=0&&q>p,"missing function "+a);return s.slice(p,q);};
 
 assert.match(lan,/packet\.type==="spawn-anchor"/);
-assert.match(presentation,/RESPAWN_RADIUS_MIN_M=5/);
-assert.match(presentation,/RESPAWN_RADIUS_MAX_M=15/);
+assert.match(presentation,/RESPAWN_RADIUS_MIN_M=1\.5/);
+assert.match(presentation,/RESPAWN_RADIUS_MAX_M=5/);
+assert.match(presentation,/RESPAWN_COOLDOWN_MS=3000/);
 assert.match(ui,/#viewport #mobileGameplayMultiplayer\{display:flex!important/);
 assert.match(world,/const first=!this\.vsConnected/);
 assert.match(world,/if\(first\)this\.resetVsCombat\(true\)/);
