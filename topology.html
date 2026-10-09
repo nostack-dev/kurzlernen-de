@@ -45,6 +45,7 @@ h1{font-family:var(--display);font-weight:700;font-size:1.25rem;margin:0;letter-
 .small{font-family:var(--mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 .hint{position:absolute;right:10px;bottom:7px;font-size:11px;color:var(--muted);pointer-events:none;text-align:right;max-width:60%}
 .turbo{position:absolute;inset:auto 12px 34px 12px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted);pointer-events:none}
+.gear-tip{position:absolute;z-index:6;pointer-events:none;max-width:min(280px,80%);padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--fg);box-shadow:0 3px 15px #0002;font:11px/1.5 var(--mono);white-space:pre-line}
 .engine{position:absolute;right:10px;top:7px;font-family:var(--mono);font-size:10px;color:var(--muted);pointer-events:none}
 details.group{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:0 10px;min-width:0}
 details.group[open]{padding-bottom:10px}
@@ -118,6 +119,7 @@ textarea{width:100%;box-sizing:border-box;height:110px;font:11px var(--mono);bac
       <div class="engine">Box3D · erincatto/box3d</div>
       <div class="hint" id="hint">Ziehen: Arm greifen</div>
       <div class="turbo" id="turboNote" hidden></div>
+      <div class="gear-tip" id="gearTip" hidden></div>
     </div>
 
     <div class="side">
@@ -2134,9 +2136,108 @@ function polyline(pts,k,o,closed){ const T=R3.T, g=new T.BufferGeometry().setFro
 function dashed(k){ const T=R3.T, g=new T.BufferGeometry(); g.setAttribute('position',new T.BufferAttribute(new Float32Array(6),3)); const L=new T.LineSegments(g,new T.LineDashedMaterial({color:col(k),dashSize:0.25,gapSize:0.18,transparent:true,opacity:.8})); return L; }
 function setSeg(L,a,b){ const p=L.geometry.attributes.position.array; p.set([a[0],a[1],a[2],b[0],b[1],b[2]]); L.geometry.attributes.position.needsUpdate=true; L.computeLineDistances(); L.geometry.computeBoundingSphere(); }
 function clearGroup(g){ while(g.children.length){ const c=g.children.pop(); c.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); }); } }
+// Zahnradprofile: echter Teilkreisdurchmesser aus Zahnzahl × Modul, alle Zahnräder teilen denselben Modul.
+// Die physikalische Kopplung bleibt in den Box3D-Gear-Joints; sichtbare Zwischenräder folgen deren exakten Raten.
+const gearTip=$('gearTip'),gears2=[];
+function gearRadius(teeth){return Math.max(.01,teeth*core.PART.mod/(2*core.gearMM()));}
+function gearTooltip(item,x,y){
+  if(!item||!opt.gear){gearTip.hidden=true;return;}
+  gearTip.textContent=item.description;gearTip.hidden=false;
+  gearTip.style.left=Math.min(Math.max(8,x+14),Math.max(8,cv.parentElement.clientWidth-295))+'px';
+  gearTip.style.top=Math.min(Math.max(8,y+12),Math.max(8,cv.parentElement.clientHeight-110))+'px';
+}
+function gearProfile(teeth,thickness){
+  const T=R3.T,n=Math.max(8,Math.round(teeth)),pitch=gearRadius(n),mod=core.PART.mod/core.gearMM();
+  const root=Math.max(.008,pitch-.55*mod),top=pitch+.75*mod;
+  const sh=new T.Shape();
+  for(let i=0;i<n;i++)for(let j=0;j<6;j++){
+    const t=(i+(j+.5)/6)*2*Math.PI/n;
+    const r=j===1||j===2||j===3?top:root;
+    const x=Math.cos(t)*r,y=Math.sin(t)*r;
+    if(i===0&&j===0)sh.moveTo(x,y);else sh.lineTo(x,y);
+  }
+  sh.closePath();
+  const hole=new T.Path(),shaftR=Math.min(root*.35,Math.max(.008,mod*.6));hole.absarc(0,0,shaftR,0,Math.PI*2,true);sh.holes.push(hole);
+  const geo=new T.ExtrudeGeometry(sh,{depth:thickness,bevelEnabled:false,curveSegments:4,steps:1});
+  geo.translate(0,0,-thickness/2);geo.computeVertexNormals();
+  return geo;
+}
+function renderGearPairs3D(){
+  if(!R3||!live||live.mode!=='gear3')return;
+  const T=R3.T,th=Math.max(.025,core.PART.armT/core.gearMM());
+  const wheelMat=mat('accent',{metalness:.55,roughness:.32,side:T.DoubleSide});
+  const driverMat=mat('ring',{metalness:.35,roughness:.4,side:T.DoubleSide});
+  const gearGeometryCache=new Map(),geometry=z=>{
+    if(!gearGeometryCache.has(z))gearGeometryCache.set(z,gearProfile(z,th));
+    return gearGeometryCache.get(z);
+  };
+  R3.gearVisuals=[];
+  live.arms.forEach((a,i)=>{
+    const gearbox=core.gearbox(a.k),stages=gearbox.stages;
+    const body=R3.bodies.find(b=>b.b===a.b)?.obj;
+    if(!body)return;
+    const axis=new T.Vector3(...(a.n||[0,0,1])).normalize();
+    const perp=new T.Vector3(1,0,0).addScaledVector(axis,-axis.x);
+    if(perp.lengthSq()<.01)perp.set(0,1,0).addScaledVector(axis,-axis.y);
+    perp.normalize();
+    const bodyLabel='Box3D Körper '+String(a.b)+' · Gelenk '+String(a.g);
+    const offset=th*1.6;
+    if(!stages.length){
+      const m=new T.Mesh(geometry(24),wheelMat);m.position.z=.018;
+      m.userData.gearTip='Arm '+(i+1)+' · Direktantrieb 1:1\n24 Z · Modul '+core.PART.mod+'\n'+bodyLabel;
+      body.add(m);R3.gearVisuals.push({mesh:m,tip:m.userData.gearTip});
+      return;
+    }
+    let rate=1;
+    stages.forEach(([zDriver,zOutput],stage)=>{
+      const offsetZ=(stage-(stages.length-1)*.5)*offset;
+      const outRate=-rate*zDriver/zOutput,shift=gearRadius(zDriver)+gearRadius(zOutput);
+      const driver=new T.Mesh(geometry(zDriver),driverMat);
+      driver.userData.gearTip='Arm '+(i+1)+' · Stufe '+(stage+1)+' Antrieb\n'+zDriver+' Z → '+zOutput+' Z · '+zDriver+':'+zOutput+'\nEingang '+rate.toFixed(2)+' U/Motor-U · Plattform '+(i||'Basis');
+      R3.stat.add(driver);
+      R3.gearVisuals.push({mesh:driver,tip:driver.userData.gearTip,kinematic:true,arm:a,offset:perp.clone().multiplyScalar(shift).addScaledVector(axis,offsetZ),axis,rate});
+      const out=new T.Mesh(geometry(zOutput),wheelMat);
+      out.userData.gearTip='Arm '+(i+1)+' · Stufe '+(stage+1)+' Abtrieb\n'+zDriver+' Z → '+zOutput+' Z · '+zDriver+':'+zOutput+'\nGesamtübersetzung '+(a.k>0?'+':'')+a.k+':1 · '+bodyLabel+(gearbox.idler?'\nRichtungswechsel mit Zwischenrad':'');
+      if(stage===stages.length-1){
+        out.position.z=offsetZ;body.add(out);
+        R3.gearVisuals.push({mesh:out,tip:out.userData.gearTip});
+      }else{
+        R3.stat.add(out);
+        R3.gearVisuals.push({mesh:out,tip:out.userData.gearTip,kinematic:true,arm:a,offset:axis.clone().multiplyScalar(offsetZ),axis,rate:outRate});
+      }
+      rate=outRate;
+    });
+  });
+}
+function updateGearPairs3D(){
+  if(!R3?.gearVisuals?.length||!live||live.mode!=='gear3')return;
+  const T=R3.T,Z=new T.Vector3(0,0,1),quat=new T.Quaternion(),rot=new T.Quaternion();
+  const q=core.state(live.master).q;
+  const rel=new T.Quaternion(...q).multiply(R3.gearMasterStart.clone().invert());
+  const masterAngle=2*Math.atan2(rel.x*live.masterN[0]+rel.y*live.masterN[1]+rel.z*live.masterN[2],rel.w);
+  for(const wheel of R3.gearVisuals){
+    if(!wheel.kinematic)continue;
+    const {mesh,arm,axis,offset,rate}=wheel,origin=core.state(arm.b).p;
+    mesh.position.set(origin[0]+offset.x,origin[1]+offset.y,origin[2]+offset.z);
+    mesh.quaternion.copy(quat.setFromUnitVectors(Z,axis)).premultiply(rot.setFromAxisAngle(axis,rate*masterAngle));
+  }
+}
+function hoverGear3D(x,y){
+  if(!R3?.gearVisuals?.length||!opt.gear||!gl.offsetWidth){gearTip.hidden=true;return;}
+  const rect=gl.getBoundingClientRect(),p=new R3.T.Vector3(),sc=new R3.T.Vector3();
+  let best=null,dist=24;
+  R3.scene.updateMatrixWorld(true);
+  for(const part of R3.gearVisuals){
+    part.mesh.getWorldPosition(p);sc.copy(p).project(R3.camera);
+    if(sc.z< -1||sc.z>1)continue;
+    const dx=(sc.x*.5+.5)*rect.width-x,dy=(-sc.y*.5+.5)*rect.height-y,d=Math.hypot(dx,dy);
+    if(d<dist){dist=d;best=part;}
+  }
+  gearTooltip(best?{description:best.tip}:null,x,y);
+}
 // static parts: cube, target curve, machine planes; dynamic parts: one mesh per Box3D body
 function buildScene3D(){
-  if(!R3) return; const T=R3.T, {scene}=R3; clearGroup(R3.stat); clearGroup(R3.dyn); R3.bodies=[]; R3.links=[];
+  if(!R3) return; const T=R3.T, {scene}=R3; clearGroup(R3.stat); clearGroup(R3.dyn); R3.bodies=[]; R3.links=[]; R3.gearVisuals=[];
   scene.background=col('stage'); scene.add(R3.stat); scene.add(R3.dyn);
   const box=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(SIZE,SIZE,SIZE)),lineMat('line')); R3.stat.add(box);
   R3.stat.add(polyline(tDraw,'muted',{transparent:true,opacity:.45},true));
@@ -2159,6 +2260,7 @@ function buildScene3D(){
       const tooth=new T.Mesh(new T.BoxGeometry(r*0.5,Math.max(0.02,r*0.2),Math.max(0.035,r*0.4)),mat('accent')); tooth.position.x=r; g.add(tooth); }
     if(a.len>0.03){ const ring=new T.LineLoop(new T.BufferGeometry().setFromPoints(Array.from({length:72},(_,i)=>new T.Vector3(a.len*Math.cos(i/72*2*Math.PI),a.len*Math.sin(i/72*2*Math.PI),0))),lineMat('ring',{transparent:true,opacity:.55})); ring.userData.ring=true; ring.visible=opt.rings; g.add(ring); }
     add(a.b,g); }
+  renderGearPairs3D(); R3.gearMasterStart=new T.Quaternion(...core.state(live.master).q);
   // gear machine in 3D: each platform's gearbox as the flat disc the clearance check uses, its spacer post, the base gearbox, the pen needle
   const Yv=new T.Vector3(0,1,0), u=1/core.gearMM(), boxH=core.PART.boxH*u;
   const discMesh=(R,dir,len)=>{ const g=new T.Group(), d=new T.Vector3(...dir).normalize();
@@ -2196,6 +2298,7 @@ function draw3D(){
   const cp=Math.cos(pitch); R3.camera.position.set(camT[0]+camR*cp*Math.sin(yaw), camT[1]+camR*Math.sin(pitch), camT[2]+camR*cp*Math.cos(yaw)); R3.camera.lookAt(camT[0],camT[1],camT[2]);
   for(const {b,obj} of R3.bodies){ const s=core.state(b); obj.position.set(s.p[0],s.p[1],s.p[2]); obj.quaternion.set(s.q[0],s.q[1],s.q[2],s.q[3]); }
   if(live&&R3.pen){ const p=core.penOf(live); R3.pen.position.set(p[0],p[1],p[2]); }
+  updateGearPairs3D();
   fillTrail(R3.trail,trail);
   R3.renderer.render(R3.scene,R3.camera);
 }
@@ -2325,7 +2428,8 @@ function up(){ if(drag3){ drag3=null; autoRot=false; cv.style.cursor='grab'; } g
     if(s.length>15){ press(null); $('inNote').textContent='Gezeichnete Form übernommen.'; load2D(s); setTool('drag'); } } }
 cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
 gl.addEventListener('pointerdown',e=>{ gl.setPointerCapture(e.pointerId); drag3={x:e.clientX,y:e.clientY,yaw,pitch}; gl.style.cursor='grabbing'; });
-gl.addEventListener('pointermove',e=>{ if(!drag3) return; yaw=drag3.yaw-(e.clientX-drag3.x)*0.008; pitch=Math.max(-1.2,Math.min(1.35,drag3.pitch+(e.clientY-drag3.y)*0.008)); });
+gl.addEventListener('pointermove',e=>{if(!drag3){hoverGear3D(e.offsetX,e.offsetY);return;}gearTip.hidden=true;yaw=drag3.yaw-(e.clientX-drag3.x)*0.008; pitch=Math.max(-1.2,Math.min(1.35,drag3.pitch+(e.clientY-drag3.y)*0.008)); });
+gl.addEventListener('pointerleave',()=>{gearTip.hidden=true;});
 const up3=()=>{ if(drag3){ drag3=null; autoRot=false; gl.style.cursor='grab'; } };
 gl.addEventListener('pointerup',up3); gl.addEventListener('pointercancel',up3);
 gl.addEventListener('wheel',e=>{ e.preventDefault(); camR=Math.max(12,Math.min(400,camR*(1+Math.sign(e.deltaY)*0.08))); },{passive:false});
