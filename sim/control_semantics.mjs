@@ -8,7 +8,7 @@ export const MAX_GAME_CLEARANCE_RATE_MPS=5.0;
 export const GAME_CLEARANCE_RATE_DEADBAND=0.08;
 export const MIN_GAME_HORIZONTAL_SPEED_KMH=5;
 export const MAX_GAME_HORIZONTAL_SPEED_KMH=90;
-export const DEFAULT_GAME_HORIZONTAL_SPEED_KMH=36;
+export const DEFAULT_GAME_HORIZONTAL_SPEED_KMH=90;
 export const GAME_STATE_STICK_DEADBAND=0.035;
 export const GAME_STATE_STICK_EXPO=0.25;
 // UI/transport range mirrors the FC's hardware-side GAME clearance envelope.
