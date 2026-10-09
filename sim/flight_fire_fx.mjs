@@ -112,7 +112,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
     if(!sceneHit)return false;
     if(sceneHit.physicsKind==="animal"&&sceneHit.physicsId){
       const dir=raycaster.ray.direction,p=sceneHit.point;
-      const hit=globalThis.__ambientAnimals?.hit?.({id:sceneHit.physicsId,point:[p.x,p.y,p.z],direction:[dir.x,dir.y,dir.z],strength:1});
+      const hit=globalThis.__ambientAnimals?.hit?.({id:sceneHit.physicsId,point:[p.x,p.y,p.z],origin:[raycaster.ray.origin.x,raycaster.ray.origin.y,raycaster.ray.origin.z],direction:[dir.x,dir.y,dir.z],strength:1});
       if(hit){viewport.dataset.fireAnimalHits=String((Number(viewport.dataset.fireAnimalHits)||0)+1);hitConfirmSound();return true;}
     }
     if(sceneHit.box3d){
