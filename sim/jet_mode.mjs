@@ -132,7 +132,8 @@ function updateVoice(){if(!voice)startVoice();if(!voice)return;const t=voice.c.c
 // ------------------------------------------------------------ camera
 const camLook=new THREE.Vector3();
 const provider={isActive:()=>active||Boolean(base?.isActive?.()),apply:args=>active?applyCamera(args):base?.apply?.(args)};let base=null,installedOn=null;
-function ensureProvider(){const b=bridge();if(!b||typeof b.attachPresentationCameraProvider!=="function")return;if(installedOn===b&&b.presentationCameraProvider===provider)return;const cur=b.presentationCameraProvider;if(!cur||cur===provider)return;base=cur;b.attachPresentationCameraProvider(provider);installedOn=b;}
+// install once: other modes wrap us afterwards (a chain), never re-wrap them (that would loop)
+function ensureProvider(){const b=bridge();if(!b||typeof b.attachPresentationCameraProvider!=="function"||installedOn===b)return;const cur=b.presentationCameraProvider;if(!cur||cur===provider)return;base=cur;b.attachPresentationCameraProvider(provider);installedOn=b;}
 function applyCamera({camera,now}){
   if(!jet)return{active:false};const m=ensureModel();m.position.copy(jet.p);m.quaternion.copy(jet.q);const fl=m.userData.flame;if(fl){fl.scale.set(1,(.4+throttle*1.1+(jet.ab?1.2:0))*(.9+Math.random()*.2),1);fl.material.opacity=jet.ab?.95:.35+throttle*.4;}if(m.userData.glow)m.userData.glow.intensity=0;
   fwd.copy(Y).applyQuaternion(jet.q);upv.copy(Z).applyQuaternion(jet.q);const b=bridge(),ly=(Number(b?.lookYawDeg)||0)*Math.PI/180,lp=(Number(b?.lookPitchDeg)||0)*Math.PI/180;
