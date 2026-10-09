@@ -219,7 +219,7 @@ function applySpawnAnchor(packet,peerId,attempt=0){
   const members=participantIds(),slot=Math.max(1,members.indexOf(selfId)),angle=slot*2.399963229728653,rad=7+(slot%3)*3;
   const sx=x+Math.cos(angle)*rad,sy=y+Math.sin(angle)*rad;
   spawnedFrom.add(peerId);
-  globalThis.__arondightSpawnAt(sx,sy,{slot:0,n:1,startMode:false});
+  globalThis.__arondightSpawnAt(sx,sy,{slot:0,n:1,startMode:false,spawnRadiusOnly:true});
   const view=viewport();if(view){view.dataset.vsSpawnRadiusM=rad.toFixed(1);view.dataset.vsSpawnOwner=peerId;view.dataset.vsSpawnFrame=packet.f||"local-metric";}
   setTimeout(()=>bridge()?.updateVsPose?.(),220);
 }
