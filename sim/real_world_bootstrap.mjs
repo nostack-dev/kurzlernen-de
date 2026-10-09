@@ -244,7 +244,13 @@ class RealWorldBridge{
   // Hooks that run with the final camera pose immediately before the frame is
   // drawn (first-person aim + presented-camera snapshot for exact touch rays).
   addPreRenderHook(fn){if(typeof fn==="function")(this.preRenderHooks??=new Set()).add(fn);return()=>this.preRenderHooks?.delete(fn);}
-  runPreRenderHooks(scene,camera){if(!this.preRenderHooks?.size)return;const now=performance.now();for(const fn of this.preRenderHooks){try{fn(scene,camera,now);}catch(error){console.warn("pre-render hook failed",error);}}}
+  // The camera pose the player actually sees. Walk, car, jet and free-look poses exist on the
+  // shared camera only while it is drawn (they are restored after the draw), so anything that
+  // asks "what does the player see / where does this screen point hit" between frames
+  // (spawn visibility, strike targeting, AI line of sight) must use this copy, not threeCamera.
+  capturePresentedCamera(camera){if(!camera?.isPerspectiveCamera)return;const v=this.viewCamera??=new THREE.PerspectiveCamera();v.position.copy(camera.position);v.quaternion.copy(camera.quaternion);v.up.copy(camera.up);v.fov=camera.fov;v.aspect=camera.userData?.monoCamera?.aspect||camera.aspect;v.near=camera.near;v.far=camera.far;v.zoom=camera.zoom;v.updateProjectionMatrix();v.updateMatrixWorld(true);this.viewCameraAt=performance.now();}
+  presentedCamera(){return this.viewCamera||this.threeCamera||null;}
+  runPreRenderHooks(scene,camera){this.capturePresentedCamera(camera);if(!this.preRenderHooks?.size)return;const now=performance.now();for(const fn of this.preRenderHooks){try{fn(scene,camera,now);}catch(error){console.warn("pre-render hook failed",error);}}}
   attachPresentationCameraProvider(provider){this.presentationCameraProvider=provider&&typeof provider.isActive==="function"&&typeof provider.apply==="function"?provider:null;}
   constrainCameraToPhysics(anchor,camera){
     if(typeof this.cameraCollisionResolver!=="function"||!anchor||!camera?.position)return false;let result=null;try{result=this.cameraCollisionResolver([anchor.x,anchor.y,anchor.z],[camera.position.x,camera.position.y,camera.position.z]);}catch{return false;}const position=result?.position;if(Array.isArray(position)&&position.length===3&&position.every(Number.isFinite))camera.position.set(...position);const viewport=$("viewport");if(viewport){viewport.dataset.cameraCollision=result?.collided?"blocked":"clear";viewport.dataset.cameraCollisionHitDistanceM=Number(result?.hitDistanceM||0).toFixed(3);}return Boolean(result?.collided);
@@ -474,7 +480,7 @@ class RealWorldBridge{
   renderFrame(renderer,scene,camera){
     this.attachThree(renderer,scene,camera);this.updateVsPose();
     const provider=this.presentationCameraProvider,providerActive=Boolean(provider?.isActive()),viewport=$("viewport");
-    if(!providerActive){if(viewport)viewport.dataset.presentationCameraMode=viewport.dataset.cameraMode||"follow";if(!this.active){this.applyLookCamera(scene,camera);return false;}this.syncBuildingCollisions();this.renderReal(scene,camera);return true;}
+    if(!providerActive){if(viewport)viewport.dataset.presentationCameraMode=viewport.dataset.cameraMode||"follow";if(!this.active){this.applyLookCamera(scene,camera);this.capturePresentedCamera(camera);return false;}this.syncBuildingCollisions();this.renderReal(scene,camera);return true;}
     const basePosition=this.cameraScratchOuterPosition.copy(camera.position),baseQuaternion=this.cameraScratchOuterQuaternion.copy(camera.quaternion),baseUp=this.cameraScratchOuterUp.copy(camera.up),baseFov=camera.fov;
     try{const presentation=provider.apply({camera,scene,now:performance.now()}),owned=Boolean(presentation?.active);if(viewport)viewport.dataset.presentationCameraMode=owned?String(presentation.mode||"player"):viewport.dataset.cameraMode||"follow";if(!owned)throw Error("Active presentation camera provider did not supply a camera pose");if(!this.active){this.runPreRenderHooks(scene,camera);renderer.render(scene,camera);return true;}this.syncBuildingCollisions();this.renderReal(scene,camera,{cameraMode:String(presentation.mode||"player"),skipFreeLook:true});return true;}
     finally{camera.position.copy(basePosition);camera.quaternion.copy(baseQuaternion);camera.up.copy(baseUp);if(camera.fov!==baseFov){camera.fov=baseFov;camera.updateProjectionMatrix();}camera.updateMatrixWorld();}

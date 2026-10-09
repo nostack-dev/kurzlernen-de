@@ -2,7 +2,7 @@ import "./impact_explosion_overlay.mjs";
 
 export const AUDIO_SETTINGS_KEY="arondight45AudioSettingsV1";
 export const AUDIO_SETTINGS_EVENT="arondight45-audio-settings-change";
-export const AUDIO_MIX_VERSION=4;
+export const AUDIO_MIX_VERSION=5;
 export const DEFAULT_AUDIO_SETTINGS=Object.freeze({soundEnabled:true,droneVolume:50,shotsVolume:82,fxVolume:72,footstepsVolume:30,vehicleVolume:58,ambientVolume:46,musicEnabled:true,musicVolume:32,mixVersion:AUDIO_MIX_VERSION});
 const clampPercent=value=>Math.max(0,Math.min(100,Math.round(Number(value)||0)));
 export function normalizeAudioSettings(value={}){
@@ -21,6 +21,9 @@ export function normalizeAudioSettings(value={}){
 }
 function migrateAudioSettings(value={}){
   if(Number(value?.mixVersion)>=AUDIO_MIX_VERSION)return normalizeAudioSettings(value);
+  // v4 -> v5: on foot the drone was muted by broadcasting droneVolume:0, which the mixer then
+  // saved with the next slider move. A 0 % drone volume from v4 is that bug, not a choice.
+  if(Number(value?.mixVersion)===4)return normalizeAudioSettings({...value,droneVolume:Number(value.droneVolume)===0?DEFAULT_AUDIO_SETTINGS.droneVolume:value.droneVolume,mixVersion:AUDIO_MIX_VERSION});
   // v3 -> v4 adds the separate music track; the effect mix is kept as-is.
   if(Number(value?.mixVersion)===3)return normalizeAudioSettings({...value,mixVersion:AUDIO_MIX_VERSION});
   return normalizeAudioSettings({...value,
