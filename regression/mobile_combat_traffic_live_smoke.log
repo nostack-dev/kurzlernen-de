@@ -1,13 +1,8 @@
-file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45
-            this.#timeoutError = new TimeoutError(`Waiting failed: ${options.timeout}ms exceeded`);
-                                 ^
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:19
+  if(modeFoot.route!=="walk-api-direct-v1"||modeFoot.mode!=="foot")throw new Error(`mobile first-person direct route failed: ${JSON.stringify(modeFoot)}`);
+                                                                         ^
 
-TimeoutError: Waiting failed: 8000ms exceeded
-    at new WaitTask (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45:34)
-    at IsolatedWorld.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Realm.js:22:26)
-    at CdpFrame.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Frame.js:584:43)
-    at CdpFrame.<anonymous> (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/decorators.js:101:27)
-    at CdpPage.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Page.js:1439:37)
-    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:17:14
+Error: mobile first-person direct route failed: {"mode":"foot","button":"ON FOOT"}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_combat_traffic_live_smoke.mjs:19:74
 
 Node.js v22.23.3
