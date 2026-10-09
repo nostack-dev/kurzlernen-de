@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import {VsPoseTimeline} from "./vs_pose_sync.mjs";
+import {VsPoseTimeline,poseMatchesVsFrame} from "./vs_pose_sync.mjs";
 import {VS_PEER_EVENT,VS_POSE_EVENT,VS_GAME_EVENT,VS_FX_EVENT} from "./lan_vs.mjs";
 
 const VISUAL_SCALE=1;// other players' drones at their true size (a 12x drone sank half into the ground); the player marker keeps them readable
@@ -11,7 +11,7 @@ const TRACER_SCAN_MS=600;
 const AUTHORITY_SETTLE_MS=420;
 const PALETTE=[0x29d6ff,0xff6b35,0x8cf43f,0xff4fd8,0xffd83d,0x9b7bff,0x24e6a1,0xff405f,0x43a8ff,0xff9f1c,0x7ce7ff,0xd6ff4b];
 
-const peers=new Map(),health=new Map(),confirmedHealth=new Set(),seenHits=new Set(),seenStates=new Set();
+const peers=new Map(),health=new Map(),confirmedHealth=new Set(),seenHits=new Set(),seenStates=new Set(),spawnedFrom=new Set();
 const tempPosition=new THREE.Vector3(),tempCamera=new THREE.Vector3(),tempProjected=new THREE.Vector3(),tempCameraSpace=new THREE.Vector3(),tempDir=new THREE.Vector3(),tempQuat=new THREE.Quaternion(),axisY=new THREE.Vector3(0,1,0);
 const remoteTracers=[],remoteExplosions=[],localTracerMeshes=[],localImpactMeshes=[],pendingAuthorityHits=[];
 const tracerWasVisible=new WeakMap(),impactWasVisible=new WeakMap();
@@ -86,7 +86,10 @@ function posePosition(pose){
   const b=bridge();if(Array.isArray(pose?.g)&&pose.g.length===2&&Number.isFinite(b?.originLon)&&Number.isFinite(b?.originLat)){const earth=6378137,lat0=b.originLat*Math.PI/180,north=(Number(pose.g[1])-b.originLat)*Math.PI/180*earth,east=(Number(pose.g[0])-b.originLon)*Math.PI/180*earth*Math.max(.01,Math.cos(lat0));return[east,north,Number(pose.p?.[2])||0];}return canonicalToLocal(pose?.p);
 }
 
-function onPoseEvent(event){updateIdentity();const{peerId,pose}=event.detail||{};if(!peerId||!pose)return;const r=recordFor(peerId);if(!r)return;const p=posePosition(pose),packet={...pose,p};if(r.timeline.push(packet,performance.now()))r.lastPoseMs=performance.now();}
+function onPoseEvent(event){updateIdentity();const{peerId,pose}=event.detail||{};if(!peerId||!pose)return;const r=recordFor(peerId);if(!r)return;const b=bridge();if(!poseMatchesVsFrame(pose,b?.vsSharedOrigin)||Array.isArray(pose.g)&&!(b?.active&&Number.isFinite(b.originLon)&&Number.isFinite(b.originLat)))return;
+  const p=posePosition(pose),previous=r.timeline.snapshots.at(-1);
+  if(previous&&Math.hypot(p[0]-previous.p[0],p[1]-previous.p[1],p[2]-previous.p[2])>35)r.timeline.reset();
+  const packet={...pose,p};if(r.timeline.push(packet,performance.now()))r.lastPoseMs=performance.now();}
 
 function setPrimaryCompatibility(record){
   const b=bridge();if(!b||record.id!==primaryId)return;
@@ -182,8 +185,43 @@ function reportLocalDamage(amount,source="world"){updateIdentity();const s=sessi
 function blastHit(target,damage){updateIdentity();const id=String(target||""),s=session();if(!id||id===selfId||!s?.sendGame||!(damage>=1))return false;const packet={type:"hit-request",id:packetId("blast"),shooter:selfId,target:id,damage:clamp(Math.round(damage),1,100)};if(authorityId===selfId)authorityHit(packet);else if(authorityId)s.sendGame(packet,{target:authorityId});return true;}
 // Level reset agreed by everybody: the authority gives every player full HP.
 function resetLevelHealth(){updateIdentity();if(!selfId||authorityId!==selfId)return false;for(const id of participantIds()){const state={type:"respawn",playerId:id,hp:100};applyRespawn(state);session()?.sendGame?.(state);}return true;}
+// A single host-supplied canonical spawn anchor. Only the joining client moves its own physics body.
+function sendSpawnAnchor(target,attempt=0){
+  if(authorityId!==selfId||!participantIds().includes(target)||target===selfId)return;
+  const s=session(),pose=s?.pendingPose;
+  if(!Array.isArray(pose?.p)||pose.p.length!==3||!pose.p.every(Number.isFinite)){if(attempt<30)setTimeout(()=>sendSpawnAnchor(target,attempt+1),100);return;}
+  const packet={type:"spawn-anchor",playerId:target,p:pose.p.slice(),f:String(pose.f||"local-metric")};
+  if(Array.isArray(pose.g)&&pose.g.length===2&&pose.g.every(Number.isFinite))packet.g=pose.g.slice();
+  s?.sendGame?.(packet,{target});
+}
+function applySpawnAnchor(packet,peerId,attempt=0){
+  if(!selfId||String(packet.playerId)!==selfId||peerId!==authorityId||spawnedFrom.has(peerId))return;
+  const b=bridge();if(!b)return;
+  let x,y;
+  if(Array.isArray(packet.g)){
+    if(!b.active||!Number.isFinite(b.originLon)||!Number.isFinite(b.originLat)){
+      if(attempt<40)setTimeout(()=>applySpawnAnchor(packet,peerId,attempt+1),100);return;
+    }
+    const R=6378137,lat=b.originLat*Math.PI/180;
+    x=(packet.g[0]-b.originLon)*Math.PI/180*R*Math.max(.01,Math.cos(lat));
+    y=(packet.g[1]-b.originLat)*Math.PI/180*R;
+  }else{
+    if(packet.f&&packet.f!=="local-metric"&&packet.f!==String(viewport()?.dataset?.vsSharedFrame||"local-metric")){
+      if(attempt<40)setTimeout(()=>applySpawnAnchor(packet,peerId,attempt+1),100);return;
+    }
+    x=packet.p[0];y=packet.p[1];
+  }
+  if(!Number.isFinite(x)||!Number.isFinite(y)||typeof globalThis.__arondightSpawnAt!=="function")return;
+  const members=participantIds(),slot=Math.max(1,members.indexOf(selfId)),angle=slot*2.399963229728653,rad=7+(slot%3)*3;
+  const sx=x+Math.cos(angle)*rad,sy=y+Math.sin(angle)*rad;
+  spawnedFrom.add(peerId);
+  globalThis.__arondightSpawnAt(sx,sy,{slot:0,n:1,startMode:false});
+  const view=viewport();if(view){view.dataset.vsSpawnRadiusM=rad.toFixed(1);view.dataset.vsSpawnOwner=peerId;view.dataset.vsSpawnFrame=packet.f||"local-metric";}
+  setTimeout(()=>bridge()?.updateVsPose?.(),220);
+}
 function onGameEvent(event){
   updateIdentity();const packet=event.detail?.packet,peerId=String(event.detail?.peerId||"");if(!packet)return;
+  if(packet.type==="spawn-anchor"){applySpawnAnchor(packet,peerId);return;}
   if(packet.type==="hit-request"){if(authorityId===selfId&&peerId&&String(packet.shooter||"")===peerId)authorityHit({...packet,shooter:peerId});return;}
   if(packet.type==="state"){
     if(packet.report){if(authorityId===selfId&&peerId&&String(packet.playerId||"")===peerId){const hp=clamp(Math.round(Number(packet.hp)||0),0,100);health.set(peerId,hp);confirmedHealth.add(peerId);sendState(peerId,hp,hp<=0,"",packetId("authoritative-report"));}return;}
@@ -198,7 +236,7 @@ function onFxEvent(event){
 }
 
 function onPeerEvent(event){
-  const detail=event.detail||{},id=String(detail.peerId||"");if(detail.type==="join"){recordFor(id);refreshColors(true);}else if(detail.type==="leave")removePeer(id);updateIdentity();if(detail.type==="join"){if(authorityId===selfId)sendSnapshotTo(id);else reportLocalState();}else if(detail.type==="leave"&&authorityId!==selfId)reportLocalState();
+  const detail=event.detail||{},id=String(detail.peerId||"");if(detail.type==="join"){recordFor(id);refreshColors(true);}else if(detail.type==="leave")removePeer(id);updateIdentity();if(detail.type==="join"){if(authorityId===selfId){sendSnapshotTo(id);sendSpawnAnchor(id);}else reportLocalState();}else if(detail.type==="leave"&&authorityId!==selfId)reportLocalState();
 }
 
 function targetFromHit(hit){
@@ -219,7 +257,7 @@ function scanLocalFx(now){
   for(const mesh of localImpactMeshes){const visible=Boolean(mesh.visible),was=Boolean(impactWasVisible.get(mesh));impactWasVisible.set(mesh,visible);if(!visible||was)continue;mesh.getWorldPosition(tempPosition);s.sendFx({type:"impact",id:packetId("impact"),p:localToCanonical([tempPosition.x,tempPosition.y,tempPosition.z]),playerId:selfId});}
 }
 
-function updateSessionHooks(){const s=session();if(s===lastSession)return;lastSession=s;installBridgeHooks();updateIdentity();reconcilePeers();refreshColors(true);lastManualRespawns=Number(viewport()?.dataset.vsManualRespawns||0);}
+function updateSessionHooks(){const s=session();if(s===lastSession)return;lastSession=s;spawnedFrom.clear();installBridgeHooks();updateIdentity();reconcilePeers();refreshColors(true);lastManualRespawns=Number(viewport()?.dataset.vsManualRespawns||0);}
 
 function syncLegacyLocalState(){
   const b=bridge(),view=viewport();if(!b||!selfId)return;const hp=localHealth(),dead=hp<=0,manual=Number(view?.dataset.vsManualRespawns||0);
