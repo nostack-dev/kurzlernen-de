@@ -32,8 +32,11 @@ ${R} :is(#soloClearance,#soloRaceHud,#soloHeightPad,.solo-height-pad,#playerVita
 ${R} :is(#soloHud,#playerVitalsHud,#footHud,#vehicleHud,#wantedHud,#soloClearance,.solo-height-pad,#soloHeightPad) *{color:inherit;text-shadow:0 1px 0 rgba(0,0,0,.3)!important;background-image:none!important}
 ${R} :is(#playerVitalsHud,#soloClearance,.solo-height-pad,#soloHeightPad) :is(b,strong,output,[data-value]){color:var(--ui-accent)!important}
 /* Joysticks: soft white rings */
-${R} :is(.foot-stick .ring,.solo-ring){border:1.5px solid rgba(255,255,255,.35)!important;background:rgba(10,13,18,.18)!important;background-image:none!important;box-shadow:none!important}
-${R} :is(.foot-stick .knob,.solo-knob,.solo-height-knob){background:rgba(242,244,247,.7)!important;background-image:none!important;border:1px solid rgba(255,255,255,.9)!important;box-shadow:0 1px 3px rgba(0,0,0,.4)!important}
+${R} :is(.foot-stick .ring,.solo-ring){border:1.5px solid rgba(255,255,255,.2)!important;background:transparent!important;background-image:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+${R} :is(.foot-stick .knob,.solo-knob){background:rgba(255,255,255,.16)!important;background-image:none!important;border:1.5px solid rgba(255,255,255,.42)!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+${R} :is(.foot-stick,.solo-stick).stick-live :is(.ring,.solo-ring){border-color:rgba(255,255,255,.5)!important}
+${R} :is(.foot-stick,.solo-stick).stick-live :is(.knob,.solo-knob){background:rgba(255,255,255,.34)!important;border-color:rgba(255,255,255,.75)!important}
+${R} .solo-height-knob{background:rgba(242,244,247,.7)!important;background-image:none!important;border:1px solid rgba(255,255,255,.9)!important;box-shadow:0 1px 3px rgba(0,0,0,.4)!important}
 ${R} :is(.foot-stick,.solo-stick),${R} :is(.foot-stick,.solo-stick) *{color:#f2f4f7!important;font-family:var(--ui-font)!important;font-weight:600!important;letter-spacing:.06em!important;text-shadow:0 1px 1px rgba(0,0,0,.5)!important}
 ${R} #footMove.sprinting .ring{border-color:var(--ui-accent)!important;box-shadow:none!important}
 /* Settings dialog */

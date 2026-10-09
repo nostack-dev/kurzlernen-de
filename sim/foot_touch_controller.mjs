@@ -64,6 +64,7 @@ function onDown(event){
   else{const hand=chooseFireHand(event.clientX,event.clientY);if(hand<0){setData("walkGlockExtraTouch","ignored-third-fire-pointer");return claim(event);}const entry={kind:"fire",x:event.clientX,y:event.clientY,lastShot:now,hand};pointers.set(event.pointerId,entry);fire(entry.x,entry.y,"screen-touch-hold-start",entry.hand);setData("walkFirePointerActive","1");setData("walkFirePointerId",event.pointerId);setData("walkFireHand",entry.hand);setData("walkFireHands",fireHands().join(","));setData("walkGlockTriggerModel","screen-half-owns-pistol-v4");setData("walkHoldFire","screen-pointer-owned-smg-v1");setData("walkScreenTouch","fire-only-v1");}
   // Keep the established input contracts that the live regression checks.
   setData("walkTouchContract","drone-normalized-pointer-origin-v2");setData("walkStickSemantics","drone-normalizedPointer-v1");setData("walkMultiTouchMoveIsolation","pointer-id-owned-v1");setData("walkAimStickCoordinates","drone-normalizedPointer-v2");setData("walkWeaponTouchVector","screen-ray+hand-anchor-v1");
+  {const e=pointers.get(event.pointerId);if(e&&(e.kind==="move"||e.kind==="look"))e.el.classList.add("stick-live");}
   setData("footTouch",FOOT_TOUCH_VERSION);setData("footTouchPointers",pointers.size);ensureLoop();claim(event);
 }
 function updateMove(entry,event){const axes=stickAxes(entry,event);entry.axes=axes;const sprint=axes.m>=SPRINT_AT&&axes.y<-.35;walk()?.setTouchMove?.(axes.x,axes.y,{sprint});paintKnob(entry,axes);entry.el.classList.toggle("sprinting",sprint);setData("walkTouchSprint",sprint?"1":"0");}
@@ -80,7 +81,7 @@ function onMove(event){
 }
 function release(id,reason){
   const entry=pointers.get(id);if(!entry)return;pointers.delete(id);
-  if(entry.kind==="move"||entry.kind==="look")endPointerDrag(entry.el,id);
+  if(entry.kind==="move"||entry.kind==="look"){endPointerDrag(entry.el,id);entry.el.classList.remove("stick-live");}
   if(entry.kind==="move"){walk()?.setTouchMove?.(0,0,{sprint:false});paintKnob(entry,{x:0,y:0});entry.el.classList.remove("sprinting");setData("walkTouchSprint","0");}
   else if(entry.kind==="look"){walk()?.endTouchLook?.("touch-stick");paintKnob(entry,{x:0,y:0});}
   else{window.dispatchEvent(new CustomEvent("arondight:foot-aim",{detail:{clientX:entry.x,clientY:entry.y,phase:"end",hand:entry.hand}}));const hands=fireHands();setData("walkFirePointerActive",hands.length?"1":"0");setData("walkFireHands",hands.join(","));setData("walkFirePointerRelease",reason);}

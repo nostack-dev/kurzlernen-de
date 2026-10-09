@@ -3,7 +3,8 @@
 // move stick. So the weapon switch is a round button just left of the look / right stick, and
 // "get in" (car, jet) sits above JUMP at the right edge — no reaching into the middle or the
 // top of the screen mid-fight. Positions follow the sticks (layout, safe areas, rotation).
-export const THUMB_LAYOUT_VERSION="thumb-reach-v1";
+export const THUMB_LAYOUT_VERSION="thumb-reach-v2";
+const STICK_PX=176,CATCH_PX=38;
 let btn=null,lastKey="",installed=false;
 const $=id=>document.getElementById(id);
 // rectangles in the viewport's own (unrotated) coordinates: in portrait the viewport is turned by
@@ -16,6 +17,13 @@ function ensure(){const v=$("viewport");if(!v)return null;if(btn?.isConnected)re
 #thumbWeapon{position:absolute;z-index:23;display:none;width:60px;height:60px;margin:0;padding:0;border-radius:50%;border:2px solid #ffffffaa;background:#2a1d0cd0;color:#fff;touch-action:none;box-shadow:0 6px 16px #0007;flex-direction:column;align-items:center;justify-content:center;gap:1px}
 #thumbWeapon b{font:900 18px/1 system-ui,sans-serif}#thumbWeapon small{font:800 8.5px/1 system-ui,sans-serif;letter-spacing:.06em;max-width:54px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 html body #viewport #thumbWeapon{border-radius:50%!important;padding:0!important}#thumbWeapon.show{display:flex}#thumbWeapon:active{transform:scale(.94);background:#4a3212e0}
+/* sticks: big, nearly invisible, and they catch the thumb well outside the drawn ring (the touch
+   is relative to where it lands, so a wide catch area costs no precision) */
+html body:not(.desktop-input) #viewport :is(#footMove,#footLook,#soloLeft,#soloRight){width:${STICK_PX}px!important;height:${STICK_PX}px!important;overflow:visible!important}
+html body:not(.desktop-input) #viewport :is(#footMove,#footLook,#soloLeft,#soloRight)::before{content:"";position:absolute;border-radius:40%;background:transparent;pointer-events:auto}
+html body:not(.desktop-input) #viewport :is(#footMove,#soloLeft)::before{top:-${CATCH_PX*2}px;right:-${CATCH_PX*2}px;bottom:-${CATCH_PX}px;left:-${CATCH_PX}px}
+html body:not(.desktop-input) #viewport :is(#footLook,#soloRight)::before{top:-${CATCH_PX}px;right:-${CATCH_PX}px;bottom:-${CATCH_PX}px;left:-${CATCH_PX}px}
+html body:not(.desktop-input) #viewport :is(#footMove,#footLook,#soloLeft,#soloRight)>span{opacity:0!important}
 html body.mobile-gameplay-compact:not(.desktop-input) #viewport #footHud #footWeaponToggle,html body.mobile-gameplay-compact:not(.desktop-input) #viewport #footWeaponToggle,html body.mobile-gameplay-compact:not(.desktop-input) #footWeaponToggle{display:none!important}`;document.head.appendChild(st);
   btn.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();$("mobileGameplayWeapon")?.click();setTimeout(sync,60);},{capture:true});
   btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();});return btn;}
@@ -26,9 +34,17 @@ function sync(){
   // weapon: left of the right stick, at its centre height (where the thumb rolls to naturally)
   place(b,stick.left-60-14,stick.top+stick.height/2-30+8);b.classList.add("show");
   const label=String($("mobileGameplayWeapon")?.textContent||"").replace(/^WEAPON\s*·\s*/i,"").trim();if(label!==lastKey){lastKey=label;b.querySelector("small").textContent=label;}
+  // drone: the altitude pad sits right of the (bigger) left stick, never on it
+  const ls=visibleRect($("soloLeft")),clr=$("soloClearance"),cr=visibleRect(clr);if(ls&&cr&&cr.left<ls.right+10){clr.style.setProperty("right","auto","important");clr.style.setProperty("transform","none","important");const v=$("viewport"),off=cr.left-(clr.offsetLeft||0);clr.style.setProperty("left",`${Math.round(ls.right+10-off)}px`,"important");}
+  // JUMP: on the arc just up-left of the look stick, where the right thumb rolls off it
+  const jumpEl=$("footJump"),jr=visibleRect(jumpEl);if(jumpEl&&jr){const cx=stick.left+stick.width/2,cy=stick.top+stick.height/2,r=stick.width/2+12+jr.width/2,a=125*Math.PI/180;
+    jumpEl.style.setProperty("transform","none","important");jumpEl.style.setProperty("right","auto","important");jumpEl.style.setProperty("bottom","auto","important");place(jumpEl,cx+Math.cos(a)*r-jr.width/2,cy-Math.sin(a)*r-jr.height/2);}
   // get in (car / jet): above JUMP at the right edge
   const jump=visibleRect($("footJump"));for(const id of["enterCarButton","enterJetButton"]){const el=$(id),r=visibleRect(el);if(!el||!r)continue;const right=stick.right,top=(jump?jump.top:stick.top)-r.height-10;
     el.style.setProperty("transform","none","important");el.style.setProperty("right","auto","important");el.style.setProperty("bottom","auto","important");place(el,right-r.width,top);}
 }
-export function installThumbLayout(){if(installed||typeof document==="undefined")return;installed=true;const loop=()=>{try{sync();}catch(e){console.warn("thumb layout",e);}setTimeout(loop,200);};loop();addEventListener("resize",()=>setTimeout(sync,50));}
+const live=new Map();
+function liveDown(e){if(e.pointerType==="mouse")return;const el=e.target instanceof Element?e.target.closest("#footMove,#footLook,#soloLeft,#soloRight"):null;if(!el)return;live.set(e.pointerId,el);el.classList.add("stick-live");}
+function liveUp(e){const el=live.get(e.pointerId);if(!el)return;live.delete(e.pointerId);if(![...live.values()].includes(el))el.classList.remove("stick-live");}
+export function installThumbLayout(){if(installed||typeof document==="undefined")return;installed=true;addEventListener("pointerdown",liveDown,{capture:true,passive:true});addEventListener("pointerup",liveUp,{capture:true,passive:true});addEventListener("pointercancel",liveUp,{capture:true,passive:true});const loop=()=>{try{sync();}catch(e){console.warn("thumb layout",e);}setTimeout(loop,200);};loop();addEventListener("resize",()=>setTimeout(sync,50));}
 installThumbLayout();
