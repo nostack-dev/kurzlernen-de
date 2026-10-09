@@ -1000,6 +1000,7 @@ Object.defineProperties(simulatorDiagnostics,{
   box3dColliderDebugEnabled:{get:()=>box3dColliderDebugEnabled,enumerable:true},
   box3dColliderDebugPrisms:{get:()=>box3dColliderDebugEnabled?box3dColliderDebugDraw.activePrismCount:0,enumerable:true},
   fcState:{get:()=>latest.state,enumerable:true},
+  pose:{get:()=>{const t=physics.state();return{x:t.x,y:t.y,z:t.z,vx:t.vx,vy:t.vy,vz:t.vz,attitude:[...t.attitude],motors:[...(latest.motors||[])]};},enumerable:false},
   runEpoch:{get:()=>runEpoch,enumerable:true},
 });
 Object.freeze(simulatorDiagnostics);

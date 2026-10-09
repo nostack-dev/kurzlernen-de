@@ -11,7 +11,7 @@ function viewport(){return document.getElementById("viewport");}
 function bridge(){return globalThis.__arondightRealWorld||null;}
 function walk(){return globalThis.__arondightWalkMode||null;}
 function drive(){return globalThis.__arondightVehicleDrive||null;}
-function isDrone(){return walk()?.mode!=="foot"&&!drive()?.active;}
+function isDrone(){return walk()?.mode!=="foot"&&!drive()?.active&&!globalThis.__jetMode?.active;}
 function clamp(v,a,b){return Math.max(a,Math.min(b,Number(v)||0));}
 function easeOut(t){t=clamp(t,0,1);return 1-Math.pow(1-t,3);}
 function smooth(t){t=clamp(t,0,1);return t*t*(3-2*t);}

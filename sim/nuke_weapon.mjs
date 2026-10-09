@@ -29,7 +29,7 @@ function viewport(){return document.getElementById("viewport");}
 function bridge(){return globalThis.__arondightRealWorld||null;}
 function walk(){return globalThis.__arondightWalkMode||null;}
 function drive(){return globalThis.__arondightVehicleDrive||null;}
-function isDrone(){return walk()?.mode!=="foot"&&!drive()?.active;}
+function isDrone(){return walk()?.mode!=="foot"&&!drive()?.active&&!globalThis.__jetMode?.active;}
 function clamp(v,a,b){return Math.max(a,Math.min(b,Number(v)||0));}
 function persistedMode(){try{const value=localStorage.getItem(STORAGE_KEY);return ["gun","missile","nuke"].includes(value)?value:null;}catch{return null;}}
 function saveMode(value){try{localStorage.setItem(STORAGE_KEY,value);}catch{}}

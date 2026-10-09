@@ -24,8 +24,8 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,Number(v)||0));}
 function loadMode(key,fallback,allowed){try{const value=localStorage.getItem(key);return allowed.includes(value)?value:fallback;}catch{return fallback;}}
 function saveMode(key,value){try{localStorage.setItem(key,value);}catch{}}
 function effectiveVisible(node){for(let n=node;n;n=n.parent)if(n.visible===false)return false;return true;}
-function isFoot(){return walk()?.mode==="foot"&&!drive()?.active;}
-function isDrone(){return walk()?.mode!=="foot"&&!drive()?.active;}
+function isFoot(){return walk()?.mode==="foot"&&!drive()?.active&&!globalThis.__jetMode?.active;}
+function isDrone(){return walk()?.mode!=="foot"&&!drive()?.active&&!globalThis.__jetMode?.active;}
 function audioShot(gain=.22){if(!audioSettings.soundEnabled||audioSettings.shotsVolume<=0)return;const ctx=getSharedCombatAudioContext({resume:true});if(ctx)playCombatAudio(ctx,"shot",{gain:gain*audioSettings.shotsVolume/100,minIntervalMs:28});}
 
 try{if(localStorage.getItem(IMAGERY_KEY)===null)localStorage.setItem(IMAGERY_KEY,"0");}catch{}

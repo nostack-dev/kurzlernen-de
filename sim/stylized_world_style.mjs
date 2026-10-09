@@ -166,7 +166,7 @@ function updateDayNight(now,scene,renderer){
   const key=sunUp>.02?sunV:moonDir;if(SUN_DIR.dot(key)<.99996)SUN_DIR.copy(key); // move the shadow-casting light in 0.5° steps: no texel crawl / flicker between steps
   if(sun){const low=1-smooth(.05,.45,h);if(sunUp>.02){tmpC.copy(C_SUN_NOON).lerp(C_SUN_LOW,low);sun.color.copy(tmpC);sun.intensity=2.8*sunUp*(1-.35*low);}else{sun.color.copy(C_MOON);sun.intensity=.62*night;}}
   if(hemi){hemi.color.copy(C_HEMI_DAY).lerp(C_HEMI_NIGHT,night);hemi.groundColor.copy(C_GND_DAY).lerp(C_GND_NIGHT,night);hemi.intensity=.85-.45*night;}
-  if(scene){const dusk=Math.max(0,1-Math.abs(h)*4)*(1-night*.6);if(scene.fog){scene.fog.color.copy(C_FOG_DAY).lerp(C_FOG_DUSK,dusk*.7).lerp(C_FOG_NIGHT,night);scene.fog.density=FOG_DENSITY*(1+.6*night);}
+  if(scene){const dusk=Math.max(0,1-Math.abs(h)*4)*(1-night*.6);if(scene.fog){scene.fog.color.copy(C_FOG_DAY).lerp(C_FOG_DUSK,dusk*.7).lerp(C_FOG_NIGHT,night);scene.fog.density=FOG_DENSITY*(1+.6*night)*(Number(globalThis.__arondightFogScale)||1);}
     if(scene.background?.isColor)scene.background.copy(scene.fog?scene.fog.color:C_FOG_DAY);if(scene.environment)scene.environmentIntensity=.9-.72*night;}
   if(renderer){renderer.toneMappingExposure=1+.38*night;if(now-lastShadowRefresh>220){lastShadowRefresh=now;renderer.shadowMap.needsUpdate=true;}}
   const hours=(theta/(2*Math.PI)*24+6)%24;dayNight.phase=ph;dayNight.night=night;dayNight.sunUp=sunUp;dayNight.isNight=night>.5;dayNight.clock=`${String(Math.floor(hours)).padStart(2,"0")}:${String(Math.floor(hours%1*60)).padStart(2,"0")}`;

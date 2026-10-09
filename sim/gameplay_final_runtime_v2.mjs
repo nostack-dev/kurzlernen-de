@@ -43,8 +43,8 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,Number(v)||0));}
 function loadMode(key,fallback,allowed){try{const value=localStorage.getItem(key);return allowed.includes(value)?value:fallback;}catch{return fallback;}}
 function saveMode(key,value){try{localStorage.setItem(key,value);}catch{}}
 function effectiveVisible(node){for(let n=node;n;n=n.parent)if(n.visible===false)return false;return true;}
-function isFoot(){return walk()?.mode==="foot"&&!drive()?.active;}
-function isDrone(){return walk()?.mode!=="foot"&&!drive()?.active;}
+function isFoot(){return walk()?.mode==="foot"&&!drive()?.active&&!globalThis.__jetMode?.active;}
+function isDrone(){return walk()?.mode!=="foot"&&!drive()?.active&&!globalThis.__jetMode?.active;}
 function audioShot(gain=.22){if(!audioSettings.soundEnabled||audioSettings.shotsVolume<=0)return;const ctx=getSharedCombatAudioContext({resume:true});if(ctx)playCombatAudio(ctx,"shot",{gain:gain*audioSettings.shotsVolume/100,minIntervalMs:28});}
 function audioGrenadeBounce(impactSpeed=8,bounceCount=0){if(!audioSettings.soundEnabled||audioSettings.fxVolume<=0)return;const ctx=getSharedCombatAudioContext({resume:true});if(ctx)playCombatAudio(ctx,"bounce",{gain:clamp(.16+impactSpeed*.018,.16,.44)*audioSettings.fxVolume/100,playbackRate:clamp(.92+bounceCount*.035+.02*Math.min(impactSpeed,10),.88,1.32),minIntervalMs:42});}
 function weaponFired(weapon,intensity,source="runtime",mode=isFoot()?"foot":isDrone()?"drone":"vehicle"){window.dispatchEvent(new CustomEvent("arondight:weapon-fired",{detail:{weapon:String(weapon),intensity:clamp(intensity,0,.8),source:String(source),mode}}));}

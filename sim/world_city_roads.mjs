@@ -107,8 +107,8 @@ function frame(now){
     return;}
   // Rebuild when the player moved far, or when more map tiles have loaded
   // since the last build (the first build often sees only a few tiles).
-  const cam=b.threeCamera;if(!cam||now-lastTry<2500)return;lastTry=now;const moved=Math.hypot(cam.position.x-center[0],cam.position.y-center[1]),count=features(b,"transportation").length+features(b,"park").length+features(b,"landcover").length+features(b,"landuse").length;
-  if(!count)return;if(moved<REBUILD_MOVE_M&&count<=builtCount*1.15+5)return;builtCount=count;center=[cam.position.x,cam.position.y];building=build(b,center[0],center[1]);
+  const cam=b.threeCamera,focus=globalThis.__arondightStreamFocus?.()||cam?.position;if(!cam||!focus||now-lastTry<(globalThis.__jetMode?.active?900:2500))return;lastTry=now;const moved=Math.hypot(focus.x-center[0],focus.y-center[1]),count=features(b,"transportation").length+features(b,"park").length+features(b,"landcover").length+features(b,"landuse").length;
+  if(!count)return;if(moved<REBUILD_MOVE_M&&count<=builtCount*1.15+5)return;builtCount=count;center=[focus.x,focus.y];building=build(b,center[0],center[1]);
 }
 export function installCityRoads(){if(installed||typeof window==="undefined")return;installed=true;onTerrainChange((_c,_r,source)=>{if(source==="roads"){center=[Infinity,Infinity];lastTry=-Infinity;return;}building=null;center=[Infinity,Infinity];builtCount=0;lastTry=-Infinity;if(mesh)mesh.visible=false;});requestAnimationFrame(frame);}
 installCityRoads();

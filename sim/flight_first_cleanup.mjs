@@ -28,7 +28,7 @@ const FIRE_INTERVAL_MS=55;
 function viewport(){return document.getElementById("viewport");}
 function walk(){return globalThis.__arondightWalkMode||null;}
 function footWeapons(){return globalThis.__arondightFootWeapons||null;}
-function isFoot(){return walk()?.mode==="foot"&&document.body.classList.contains("on-foot-mode");}
+function isFoot(){return walk()?.mode==="foot"&&document.body.classList.contains("on-foot-mode")&&!document.body.classList.contains("sticks-claimed");}
 function touchDevice(){return (navigator.maxTouchPoints||0)>0;}
 function interactive(target){return Boolean(target?.closest?.("#worldLookHud,button,input,select,textarea,a,label,dialog,#soloTopbar,.phone-settings-dialog,#footWeaponToggle"));}
 function paintLook(entry,axes){const knob=entry.element.querySelector(".knob");if(knob){knob.style.left=`${50+axes.x*42}%`;knob.style.top=`${50+axes.y*42}%`;}}

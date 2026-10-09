@@ -16,7 +16,7 @@ function viewport(){return document.getElementById("viewport");}
 function bridge(){return globalThis.__arondightRealWorld||null;}
 function walk(){return globalThis.__arondightWalkMode||null;}
 function drive(){return globalThis.__arondightVehicleDrive||null;}
-function isDrone(){return walk()?.mode!=="foot"&&!drive()?.active;}
+function isDrone(){return walk()?.mode!=="foot"&&!drive()?.active&&!globalThis.__jetMode?.active;}
 function clamp(v,a,b){return Math.max(a,Math.min(b,Number(v)||0));}
 function logicalPoint(clientX,clientY){const view=viewport(),screen=view?.getBoundingClientRect();if(!view||!screen)return null;const width=Math.max(1,view.clientWidth),height=Math.max(1,view.clientHeight),cx=Number.isFinite(Number(clientX))?Number(clientX):screen.left+screen.width/2,cy=Number.isFinite(Number(clientY))?Number(clientY):screen.top+screen.height/2,rotated=view.dataset.soloOrientation==="css-landscape",x=rotated?cy-screen.top:cx-screen.left,y=rotated?screen.right-cx:cy-screen.top;return{x:clamp(x,0,width),y:clamp(y,0,height),width,height};}
 function screenRay(clientX,clientY){const camera=bridge()?.threeCamera,p=logicalPoint(clientX,clientY);if(!camera||!p)return null;ndc.set(p.x/p.width*2-1,1-p.y/p.height*2);camera.updateMatrixWorld?.(true);raycaster.setFromCamera(ndc,camera);return{origin:raycaster.ray.origin.clone(),direction:raycaster.ray.direction.clone().normalize(),point:p};}

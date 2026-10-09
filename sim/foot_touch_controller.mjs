@@ -26,7 +26,7 @@ const walk=()=>globalThis.__arondightWalkMode||null;
 const weapons=()=>globalThis.__arondightFootWeapons||null;
 const viewport=()=>document.getElementById("viewport");
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
-function active(){const w=walk();return w?.mode==="foot"&&!w.dead&&!globalThis.__arondightVehicleDrive?.active;}
+function active(){const w=walk();return w?.mode==="foot"&&!w.dead&&!globalThis.__arondightVehicleDrive?.active&&!document.body.classList.contains("sticks-claimed");}
 function setData(key,value){const v=viewport();if(v){const s=String(value);if(v.dataset[key]!==s)v.dataset[key]=s;}}
 
 // Stick axes via the shared helper: it accounts for the CSS quarter turn used

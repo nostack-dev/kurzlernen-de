@@ -95,7 +95,7 @@ function insideBuilding(x,y){
   const prisms=bridge()?.buildingCollisionSnapshot?.prisms||[];for(const p of prisms){const pts=p.points;if(!pts||pts.length<3||p.leveled)continue;let inside=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const xi=+pts[i][0],yi=+pts[i][1],xj=+pts[j][0],yj=+pts[j][1];if(((yi>y)!==(yj>y))&&x<(xj-xi)*(y-yi)/((yj-yi)||1e-9)+xi)inside=!inside;}if(inside)return true;}return false;
 }
 function target(){
-  const list=globalThis.__arondightPlayerVitals?.damageTargets?.()||[],droneMode=walk()?.mode!=="foot"&&!drive()?.active;
+  const list=globalThis.__arondightPlayerVitals?.damageTargets?.()||[],droneMode=walk()?.mode!=="foot"&&!drive()?.active&&!globalThis.__jetMode?.active;
   return list.find(t=>t.kind===(droneMode?"drone":"player"))||list[0]||null;
 }
 function spawnEnemy(type,center){

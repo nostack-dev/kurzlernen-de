@@ -35,7 +35,7 @@ const walk=()=>globalThis.__arondightWalkMode||null;
 const drive=()=>globalThis.__arondightVehicleDrive||null;
 const footWeapons=()=>globalThis.__arondightFootWeapons||null;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
-function isFoot(){return walk()?.mode==="foot"&&!drive()?.active&&!walk()?.dead;}
+function isFoot(){return walk()?.mode==="foot"&&!drive()?.active&&!globalThis.__jetMode?.active&&!walk()?.dead;}
 function setData(key,value){const v=viewport();if(!v)return;const s=String(value);if(v.dataset[key]!==s)v.dataset[key]=s;}
 
 // Called right before the frame is rendered with the final camera pose.
