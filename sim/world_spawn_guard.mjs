@@ -17,6 +17,7 @@ import "./zombie_nights.mjs";
 import "./dynamic_lights.mjs";
 import "./shader_prewarm.mjs";
 import "./street_lamps.mjs";
+import "./cows.mjs";
 import "./world_rigid_body_runtime.mjs";
 import "./walk_ui_layout_hotfix.mjs";
 import "./combat_hit_stack_guard.mjs";

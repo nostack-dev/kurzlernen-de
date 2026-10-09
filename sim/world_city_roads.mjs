@@ -58,19 +58,22 @@ function* build(b,cx,cy){
   const near=(x,y)=>Math.hypot(x-cx,y-cy)<RADIUS_M;
   const h=(x,y)=>groundHeightAt(x,y);
   // areas (parks, woods, pitches, sand): painted into the ground's own colours (no extra triangles)
-  const areas=[];
+  const areas=[],meadows=[];
   for(const layer of["park","landcover","landuse"]){
     for(const f of features(b,layer)){
       const cls=String(f.properties?.class||f.properties?.subclass||layer).toLowerCase();let color=null,z=Z_AREA;
       if(layer==="water"){color=C.water;z=Z_AREA+.012;}else if(/park|garden|grass|meadow|recreation|cemetery|village_green/.test(cls))color=C.park;else if(/wood|forest|scrub/.test(cls))color=C.wood;else if(/pitch|playground|stadium/.test(cls))color=C.pitch;else if(/sand|beach/.test(cls))color=C.sand;
-      if(!color)continue;
+      const pasture=/meadow|grass|farmland|village_green|pasture/.test(cls)&&!/park|garden|cemetery|recreation/.test(cls);
+      if(!color&&!pasture)continue;
       for(const poly of polys(f.geometry)){const outer=(poly[0]||[]).map(p=>project(p[0],p[1]));if(outer.length<3||!outer.some(p=>near(p[0],p[1])))continue;const key=`${layer}:${Math.round(outer[0][0])},${Math.round(outer[0][1])}:${outer.length}`;if(seen.has(key))continue;seen.add(key);
         const v=outer.map(p=>new THREE.Vector2(p[0],p[1])),holes=poly.slice(1).map(r=>r.map(p=>{const m=project(p[0],p[1]);return new THREE.Vector2(m[0],m[1]);}));
-        areas.push({outer,holes:holes.map(r=>r.map(q=>[q.x,q.y])),color});
+        // pastures (meadow, grassland, farmland): where cows graze (cows.mjs); keyed by geo so every player gets the same herd
+        if(pasture){const g0=poly[0][0];meadows.push({key:`${cls}:${(+g0[0]).toFixed(5)},${(+g0[1]).toFixed(5)}:${outer.length}`,cls,outer,holes:holes.map(r=>r.map(q=>[q.x,q.y]))});}
+        if(color)areas.push({outer,holes:holes.map(r=>r.map(q=>[q.x,q.y])),color});
         if(++n%30===0)yield;}
     }
   }
-  globalThis.__worldGround?.setAreas?.(areas);
+  globalThis.__worldGround?.setAreas?.(areas);globalThis.__worldMeadows=meadows;try{window.dispatchEvent(new CustomEvent("arondight:world-meadows",{detail:{count:meadows.length}}));}catch{}
   // roads: sidewalk band, then asphalt, then markings
   const roads=[];
   for(const f of features(b,"transportation")){
