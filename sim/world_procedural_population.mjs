@@ -36,6 +36,7 @@ const EARTH_RADIUS_M=6378137;
 let sceneBoundAt=0;const SPAWN_GRACE_MS=6000;
 const records=[],spawnVisibilityRoots=[],byId=new Map(),routes=[],routeCache=new Map();
 const tmp=new THREE.Vector3(),cameraPos=new THREE.Vector3(),matrix=new THREE.Matrix4(),quat=new THREE.Quaternion(),scale=new THREE.Vector3(1,1,1),decorUp=new THREE.Vector3(0,0,1);
+let animalLegs=null,lastAnimalFrame=0;
 let installed=false,boundScene=null,root=null,decorRoot=null,lightRoot=null,treeTrunks=null,treeCrowns=null,treeGlow=null,lampPoles=null,lampHeads=null,animalBodies=null,animalHeads=null;
 let worldKey="",worldSeed=0,anchorX=0,anchorY=0,lastOriginLon=NaN,lastOriginLat=NaN,lastMaintenance=-Infinity,lastRouteRefresh=-Infinity,lastRouteOrigin="",worldVisibleLatched=false,mapStyledFor=null;
 let hitBridge=null,lastFrame=performance.now(),lastPopulationTick=-Infinity,lastAmbientAnimalTick=-Infinity,forceImageryOff=false,cachedFocusTick=-Infinity,cachedFocus=null,cachedRoutePoolTick=-Infinity,cachedRoutePool=[];
@@ -87,17 +88,19 @@ function makeBird(index){ensureShared();const s=hashText(`bird:${index}`),group=
 
 function mergeParts(list){let n=0;const geos=list.map(([g,x=0,y=0,z=0,rx=0,ry=0,rz=0])=>{const q=g.index?g.toNonIndexed():g;q.rotateX(rx);q.rotateY(ry);q.rotateZ(rz);q.translate(x,y,z);n+=q.attributes.position.count;return q;});const pos=new Float32Array(n*3);let o=0;for(const q of geos){pos.set(q.attributes.position.array,o*3);o+=q.attributes.position.count;q.dispose();}const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.BufferAttribute(pos,3));g.computeVertexNormals();return g;}
 // Dogs and cats (instanced): torso, four legs, tail / head, snout, ears.
-function quadrupedBody(){const B=(x,y,z)=>new THREE.BoxGeometry(x,y,z);return mergeParts([[B(.66,.26,.27),0,0,0],[B(.08,.08,.3),.24,.09,-.2],[B(.08,.08,.3),.24,-.09,-.2],[B(.08,.08,.3),-.24,.09,-.2],[B(.08,.08,.3),-.24,-.09,-.2],[B(.3,.055,.055),-.44,0,.1,0,-.6,0],[B(.16,.16,.2),.3,0,.12,0,.5,0]]);}
+function quadrupedBody(){const B=(x,y,z)=>new THREE.BoxGeometry(x,y,z);return mergeParts([[B(.66,.26,.27),0,0,0],[B(.3,.055,.055),-.44,0,.1,0,-.6,0],[B(.16,.16,.2),.3,0,.12,0,.5,0]]);}
+// one leg, pivot at the hip (legs swing in a real gait instead of sliding under a rigid body)
+function quadrupedLeg(){const g=new THREE.BoxGeometry(.075,.075,.27);g.translate(0,0,-.135);return g;}
 function quadrupedHead(){return mergeParts([[new THREE.DodecahedronGeometry(.15,0),0,0,0],[new THREE.BoxGeometry(.15,.1,.09),.13,0,-.04],[new THREE.ConeGeometry(.045,.11,4),-.02,.08,.14,0,0,0],[new THREE.ConeGeometry(.045,.11,4),-.02,-.08,.14,0,0,0]]);}
 function createDecor(scene){
   const trunk=zCylinder(.1,.15,2.3,7),crown=new THREE.DodecahedronGeometry(.92,0),pole=zCylinder(.035,.055,3.7,6),head=new THREE.SphereGeometry(.11,7,5),animalBody=quadrupedBody(),animalHead=quadrupedHead();
   // Stylized (cel-shaded via stylized_world_style.mjs): brown trunks, leafy crowns.
   const trunkMat=new THREE.MeshStandardMaterial({color:0x5a4030,roughness:.95}),crownMat=new THREE.MeshStandardMaterial({color:0x3f6b2a,roughness:.9}),glowMat=new THREE.MeshBasicMaterial({color:0x5fb04a,transparent:true,opacity:0,depthWrite:false,toneMapped:false}),animalMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.85});
   treeTrunks=new THREE.InstancedMesh(trunk,trunkMat,TREE_COUNT);treeCrowns=new THREE.InstancedMesh(crown,crownMat,TREE_COUNT);treeGlow=new THREE.InstancedMesh(crown,glowMat,TREE_COUNT);
-  animalBodies=new THREE.InstancedMesh(animalBody,animalMat,AMBIENT_ANIMAL_COUNT);animalHeads=new THREE.InstancedMesh(animalHead,animalMat,AMBIENT_ANIMAL_COUNT);paintAnimals(true);
+  animalBodies=new THREE.InstancedMesh(animalBody,animalMat,AMBIENT_ANIMAL_COUNT);animalHeads=new THREE.InstancedMesh(animalHead,animalMat,AMBIENT_ANIMAL_COUNT);animalLegs=new THREE.InstancedMesh(quadrupedLeg(),animalMat,AMBIENT_ANIMAL_COUNT*4);paintAnimals(true);
   lampPoles=new THREE.InstancedMesh(pole,mat(0x4b5358,.55,.35),LAMP_COUNT);lampHeads=new THREE.InstancedMesh(head,new THREE.MeshStandardMaterial({color:0xe4d3a3,roughness:.38,emissive:0x8f6f35,emissiveIntensity:.15}),LAMP_COUNT);
-  decorRoot=new THREE.Group();decorRoot.name="WORLD_PROCEDURAL_DECOR";decorRoot.add(treeGlow,treeTrunks,treeCrowns,animalBodies,animalHeads,lampPoles,lampHeads);
-  for(const m of[treeTrunks,treeCrowns,treeGlow,animalBodies,animalHeads,lampPoles,lampHeads]){m.userData.flightFireIgnore=true;m.userData.neonSkip=true;m.frustumCulled=true;}
+  decorRoot=new THREE.Group();decorRoot.name="WORLD_PROCEDURAL_DECOR";decorRoot.add(treeGlow,treeTrunks,treeCrowns,animalBodies,animalHeads,animalLegs,lampPoles,lampHeads);
+  for(const m of[treeTrunks,treeCrowns,treeGlow,animalBodies,animalHeads,animalLegs,lampPoles,lampHeads]){m.userData.flightFireIgnore=true;m.userData.neonSkip=true;m.frustumCulled=true;}for(const m of[animalBodies,animalHeads,animalLegs])m.frustumCulled=false;/* they move: a stale instance bound would cull them */animalLegs.userData.worldDecorKind="ambient-animal";
   treeCrowns.userData.worldDecorKind="tree-green-mesh";treeGlow.userData.worldDecorKind="tree-halo-off";treeGlow.visible=false;animalBodies.userData.worldDecorKind="ambient-animal";animalHeads.userData.worldDecorKind="ambient-animal";
   scene.add(decorRoot);
 }
@@ -117,7 +120,7 @@ const DOG_COLORS=[0x8a6a4a,0xc49a5a,0x3b2c22,0xe8dcc8,0x6e5a46],CAT_COLORS=[0x8d
 function blackCatActive(){return Math.floor(Date.now()/120000)%2===0;}
 function speciesOf(i){if(i===1&&(blackCatActive()||catAttack))return"black-cat";return i%3===2?"cat":"dog";}
 let paintedBlack=null,catAttack=null;
-function paintAnimals(force=false){if(!animalBodies)return;const bc=speciesOf(1)==="black-cat";if(!force&&bc===paintedBlack)return;paintedBlack=bc;const c=new THREE.Color();for(let i=0;i<AMBIENT_ANIMAL_COUNT;i++){const sp=speciesOf(i),seed=hashText(`animal-color:${i}`);c.set(sp==="black-cat"?0x0d0d0f:sp==="cat"?CAT_COLORS[seed%CAT_COLORS.length]:DOG_COLORS[seed%DOG_COLORS.length]);animalBodies.setColorAt(i,c);animalHeads.setColorAt(i,c);}animalBodies.instanceColor.needsUpdate=true;animalHeads.instanceColor.needsUpdate=true;}
+function paintAnimals(force=false){if(!animalBodies)return;const bc=speciesOf(1)==="black-cat";if(!force&&bc===paintedBlack)return;paintedBlack=bc;const c=new THREE.Color();for(let i=0;i<AMBIENT_ANIMAL_COUNT;i++){const sp=speciesOf(i),seed=hashText(`animal-color:${i}`);c.set(sp==="black-cat"?0x0d0d0f:sp==="cat"?CAT_COLORS[seed%CAT_COLORS.length]:DOG_COLORS[seed%DOG_COLORS.length]);animalBodies.setColorAt(i,c);animalHeads.setColorAt(i,c);if(animalLegs)for(let k=0;k<4;k++)animalLegs.setColorAt(i*4+k,c);}animalBodies.instanceColor.needsUpdate=true;animalHeads.instanceColor.needsUpdate=true;if(animalLegs?.instanceColor)animalLegs.instanceColor.needsUpdate=true;}
 function speciesScale(i,base){const sp=speciesOf(i);return sp==="dog"?base:base*.62;}
 function killAnimal(i){const p=animalPose[i];if(!p||animalDead[i])return false;const sp=speciesOf(i);
   if(sp==="black-cat"){if(!catAttack){catAttack={i,start:performance.now(),x:p.x,y:p.y,z:p.z,yaw:p.yaw,phase:"charge"};playAnimal("hiss");const v=document.getElementById("viewport");if(v)v.dataset.blackCat="charging";}return true;}
@@ -133,8 +136,52 @@ function updateCatAttack(now){const a=catAttack;if(!a)return null;const head=pla
   return a;}
 globalThis.__ambientBirds={poses:()=>records.filter(r=>r.kind==="bird"&&r.group.visible&&!r.deadUntil).map(r=>({id:r.id,x:r.group.position.x,y:r.group.position.y,z:r.group.position.z,sc:r.group.children[0]?.scale.x||1})),kill:id=>{const r=records.find(q=>q.id===id);return r?killRecord(r):false;}};
 globalThis.__ambientAnimals={kill:killAnimal,poses:()=>animalPose.map((p,i)=>p&&!animalDead[i]?{i,...p}:null).filter(Boolean)};
-function updateAmbientAnimals(epoch,now){if(!animalBodies||now-lastAmbientAnimalTick<AMBIENT_ANIMAL_TICK_MS)return;lastAmbientAnimalTick=now;paintAnimals();const attack=updateCatAttack(now);const cx=anchorX,cy=anchorY;for(let i=0;i<AMBIENT_ANIMAL_COUNT;i++){if(attack&&attack.i===i){const sc=.62,y0=attack.yaw;animalPose[i]={x:attack.x,y:attack.y,z:attack.z,yaw:y0,sc};quat.setFromAxisAngle(decorUp,y0);if(attack.phase==="leap")quat.multiply(tmp2q.setFromAxisAngle(tmp2.set(0,1,0),-.5));matrix.compose(tmp.set(attack.x,attack.y,attack.z),quat,scale.set(sc,sc,sc));animalBodies.setMatrixAt(i,matrix);matrix.compose(tmp.set(attack.x+Math.cos(y0)*.43*sc,attack.y+Math.sin(y0)*.43*sc,attack.z+.16*sc),quat,scale.set(sc,sc,sc));animalHeads.setMatrixAt(i,matrix);continue;}const m=animalMotion[i]||(animalMotion[i]=(()=>{const seed=hashText(`${worldSeed}:animal:${i}`);const radius=range(seed,1,13,58);return{radius,omega:range(seed,2,.55,1.45)/radius,phase:range(seed,3,0,Math.PI*2),wobbleOmega:range(seed,4,.12,.3),wobbleRadius:range(seed,5,1.2,3.5),baseScale:range(seed,6,.72,1.18)}})()),a=epoch*m.omega+m.phase,wobble=Math.sin(epoch*m.wobbleOmega+m.phase)*m.wobbleRadius,x=cx+Math.cos(a)*m.radius+Math.cos(a*2.3)*wobble,y=cy+Math.sin(a*.92)*m.radius*.72+Math.sin(a*1.7)*wobble,z=ANIMAL_GROUND_OFFSET_M,prior=animalPose[i],yaw=prior&&Math.hypot(x-prior.x,y-prior.y)>.0001?Math.atan2(y-prior.y,x-prior.x):a+Math.PI/2,sc=speciesScale(i,m.baseScale);const dead=animalDead[i];if(dead){const age=(now-dead.at)/1000;if(age>25){animalDead[i]=null;}else{const fall=Math.min(1,age/.35),gone=age>7;quat.setFromAxisAngle(decorUp,dead.yaw);deadTilt.setFromAxisAngle(tmp2.set(Math.cos(dead.yaw),Math.sin(dead.yaw),0),fall*Math.PI/2);quat.premultiply(deadTilt);const s2=gone?0:dead.sc;const dz=groundHeightAt(dead.x,dead.y)+.12;matrix.compose(tmp.set(dead.x,dead.y,dz),quat,scale.set(s2,s2,s2));animalBodies.setMatrixAt(i,matrix);matrix.compose(tmp.set(dead.x+Math.cos(dead.yaw)*.43*dead.sc,dead.y+Math.sin(dead.yaw)*.43*dead.sc,dz),quat,scale.set(s2,s2,s2));animalHeads.setMatrixAt(i,matrix);continue;}}
-    const gz=groundHeightAt(x,y)+z;animalPose[i]={x,y,z:gz,yaw,sc};quat.setFromAxisAngle(decorUp,yaw);matrix.compose(tmp.set(x,y,gz),quat,scale.set(sc,sc,sc));animalBodies.setMatrixAt(i,matrix);matrix.compose(tmp.set(x+Math.cos(yaw)*.43*sc,y+Math.sin(yaw)*.43*sc,gz+.16*sc),quat,scale.set(sc,sc,sc));animalHeads.setMatrixAt(i,matrix);}animalBodies.instanceMatrix.needsUpdate=true;animalHeads.instanceMatrix.needsUpdate=true;}
+// Dogs and cats are Box3D bodies: they walk (steered toward their wandering path by leg force),
+// a car or a blast throws them, a hard enough hit kills them (the body tumbles on), they right
+// themselves after a stumble. The legs swing in a gait tied to the distance actually covered:
+// walk (lateral sequence) slow, trot (diagonal pairs) faster.
+const animalPhys=[],LEG_HIPS=[[.24,.09],[.24,-.09],[-.24,.09],[-.24,-.09]],GAIT_WALK=[.25,.75,0,.5],GAIT_TROT=[0,.5,.5,0],ANIMAL_TORSO_UP=.11,legQ=new THREE.Quaternion(),legM=new THREE.Matrix4(),bodyM=new THREE.Matrix4(),legY=new THREE.Vector3(0,1,0),hipV=new THREE.Vector3();
+function animalBodyId(i){return`animal-${worldSeed.toString(36)}-${i}`;}
+function dropAnimalBody(i){const a=animalPhys[i];if(a){rigidBodies()?.removeBody?.(a.id);animalPhys[i]=null;}}
+function ensureAnimalBody(i,x,y,yaw,sc){const R=rigidBodies();if(!R?.ready)return null;const id=animalBodyId(i);let a=animalPhys[i];if(a&&a.id===id)return a;if(a)R.removeBody(a.id);
+  const dog=speciesOf(i)==="dog",half=[.33*sc,.13*sc,.25*sc],mass=dog?28*sc*sc*sc:4.5*Math.pow(sc/.62,3),z=groundHeightAt(x,y)+half[2]+.03;
+  // the box slides on its "paws" (low friction): the walking force is the legs' traction; dead, it grinds to a stop
+  if(!R.upsertBody({id,kind:"animal",position:[x,y,z],yaw,halfExtents:half,massKg:mass,wheeled:false,linearDamping:.15,angularDamping:2.5,friction:.12}))return null;
+  a=animalPhys[i]={id,half,mass,sc,lastV:null,gait:Math.random(),pose:null};return a;}
+function drawAnimal(i,pos,q,sc,speed,gait,dead){
+  bodyM.compose(pos,q,scale.set(sc,sc,sc));const trot=speed>2.2,amp=dead?0:Math.min(.55,speed*.38),offs=trot?GAIT_TROT:GAIT_WALK,bob=dead?0:Math.abs(Math.sin(gait*Math.PI*2*2))*.025*Math.min(1,speed);
+  matrix.compose(tmp.set(0,0,ANIMAL_TORSO_UP+bob),legQ.identity(),scale.set(1,1,1)).premultiply(bodyM);animalBodies.setMatrixAt(i,matrix);
+  matrix.compose(tmp.set(.43,0,.16+ANIMAL_TORSO_UP+bob),legQ.identity(),scale.set(1,1,1)).premultiply(bodyM);animalHeads.setMatrixAt(i,matrix);
+  for(let k=0;k<4;k++){const swing=dead?.35*(k<2?1:-1):amp*Math.sin((gait+offs[k])*Math.PI*2);legQ.setFromAxisAngle(legY,swing);legM.compose(hipV.set(LEG_HIPS[k][0],LEG_HIPS[k][1],ANIMAL_TORSO_UP-.1+bob),legQ,scale.set(1,1,1)).premultiply(bodyM);animalLegs.setMatrixAt(i*4+k,legM);}
+}
+function updateAmbientAnimals(epoch,now){if(!animalBodies||now-lastAmbientAnimalTick<AMBIENT_ANIMAL_TICK_MS)return;lastAmbientAnimalTick=now;paintAnimals();const dt=Math.min(.1,Math.max(0,(now-(lastAnimalFrame||now))/1000));lastAnimalFrame=now;const attack=updateCatAttack(now),R=rigidBodies();const cx=anchorX,cy=anchorY;
+  for(let i=0;i<AMBIENT_ANIMAL_COUNT;i++){
+    const m=animalMotion[i]||(animalMotion[i]=(()=>{const seed=hashText(`${worldSeed}:animal:${i}`);const radius=range(seed,1,13,58);return{radius,omega:range(seed,2,.55,1.45)/radius,phase:range(seed,3,0,Math.PI*2),wobbleOmega:range(seed,4,.12,.3),wobbleRadius:range(seed,5,1.2,3.5),baseScale:range(seed,6,.72,1.18)}})()),sc=speciesScale(i,m.baseScale);
+    const pathAt=t=>{const a=t*m.omega+m.phase,w=Math.sin(t*m.wobbleOmega+m.phase)*m.wobbleRadius;return[cx+Math.cos(a)*m.radius+Math.cos(a*2.3)*w,cy+Math.sin(a*.92)*m.radius*.72+Math.sin(a*1.7)*w];};
+    const dead=animalDead[i];
+    if(dead&&(now-dead.at)/1000>25){animalDead[i]=null;dropAnimalBody(i);continue;}
+    if(attack&&attack.i===i){// the black cat's charge is a scripted leap: its body follows it
+      const a=animalPhys[i];if(a)R?.setPose?.(a.id,{position:[attack.x,attack.y,attack.z-ANIMAL_TORSO_UP*.62],yaw:attack.yaw});quat.setFromAxisAngle(decorUp,attack.yaw);if(attack.phase==="leap")quat.multiply(tmp2q.setFromAxisAngle(tmp2.set(0,1,0),-.5));animalPose[i]={x:attack.x,y:attack.y,z:attack.z,yaw:attack.yaw,sc:.62};m.gait=(m.gait||0)+11*dt/.4;drawAnimal(i,tmp2.set(attack.x,attack.y,attack.z-ANIMAL_TORSO_UP*.62),quat,.62,11,m.gait,false);continue;}
+    const [px,py]=pathAt(epoch);const a=ensureAnimalBody(i,px,py,Math.atan2(py-(animalPose[i]?.y??py),px-(animalPose[i]?.x??px)),sc);
+    if(!a){// no physics yet: walk the path
+      const prior=animalPose[i],yaw=prior&&Math.hypot(px-prior.x,py-prior.y)>1e-4?Math.atan2(py-prior.y,px-prior.x):0,gz=groundHeightAt(px,py)+.25*sc,spd=prior&&dt>0?Math.hypot(px-prior.x,py-prior.y)/dt:0;m.gait=(m.gait||0)+spd*dt/(.55*sc);quat.setFromAxisAngle(decorUp,yaw);animalPose[i]={x:px,y:py,z:gz+ANIMAL_TORSO_UP*sc,yaw,sc};if(!dead)drawAnimal(i,tmp2.set(px,py,gz),quat,sc,spd,m.gait,false);continue;}
+    const pose=R.pose(a.id,a.pose);if(!pose)continue;a.pose=pose;const v=pose.velocity,speed=Math.hypot(v[0],v[1]);
+    // a hit that changes its velocity this hard (blast, car) kills it — the body flies on
+    if(a.lastV&&!dead){const dv=Math.hypot(v[0]-a.lastV[0],v[1]-a.lastV[1],v[2]-a.lastV[2]);if(dv>6.5)killAnimal(i);}a.lastV=[v[0],v[1],v[2]];
+    quat.set(pose.rotation[0],pose.rotation[1],pose.rotation[2],pose.rotation[3]);tmp.set(0,0,1).applyQuaternion(quat);
+    if(!animalDead[i]){
+      // steer toward where the path is a moment ahead (trot to catch up when knocked away)
+      const [tx,ty]=pathAt(epoch+1.2),off=Math.hypot(tx-pose.position[0],ty-pose.position[1]),want=Math.min(off>6?3.4:1.6,off*.9);
+      if(tmp.z>.6)R.setTarget?.(a.id,{position:[tx,ty,pose.position[2]],speedMps:want,response:3,maxAccelerationMps2:6});else R.clearTarget?.(a.id);
+      // legs right the body after a stumble (a torque toward upright, damped)
+      const w=pose.angularVelocity||[0,0,0],k=a.mass*9.81*a.half[2]*3,d=a.mass*a.half[2]*a.half[2]*6;R.setForces?.(a.id,{torque:[-tmp.y*k-w[0]*d,tmp.x*k-w[1]*d,0]});
+    }else if(!a.deadGrip){a.deadGrip=true;R.clearTarget?.(a.id);R.setForces?.(a.id,{});R.setFriction?.(a.id,.7);}
+    a.gait+=speed*dt/(.55*sc*(speed>2.2?1.3:1));const yawNow=Math.atan2(2*(quat.w*quat.z+quat.x*quat.y),1-2*(quat.y*quat.y+quat.z*quat.z));
+    // the physics box spans feet to back: the drawn animal stands on the box's bottom
+    tmp2.set(0,0,-a.half[2]+.25*sc).applyQuaternion(quat).add(tmp.set(pose.position[0],pose.position[1],pose.position[2]));
+    const gone=animalDead[i]&&(now-animalDead[i].at)/1000>7;animalPose[i]={x:pose.position[0],y:pose.position[1],z:tmp2.z+ANIMAL_TORSO_UP*sc,yaw:yawNow,sc};
+    drawAnimal(i,tmp2,quat,gone?0.0001:sc,speed,a.gait,Boolean(animalDead[i]));}
+  animalBodies.instanceMatrix.needsUpdate=true;animalHeads.instanceMatrix.needsUpdate=true;animalLegs.instanceMatrix.needsUpdate=true;}
 
 function ensureScene(){const scene=bridge()?.threeScene;if(!scene)return false;if(scene===boundScene&&root)return true;for(const record of records)if(record.id){rigidBodies()?.removeBody?.(record.id);stopWorldCriticalDamage(record.id);}boundScene=scene;sceneBoundAt=performance.now();records.splice(0);byId.clear();routes.splice(0);routeCache.clear();worldKey="";worldSeed=0;lastRouteRefresh=-Infinity;lastRouteOrigin="";root=new THREE.Group();root.name="WORLD_PROCEDURAL_POPULATION";scene.add(root);crowd?.dispose?.();crowd=createCrowd(scene,{capacity:PERSON_COUNT,name:"WORLD_PEOPLE"});createDecor(scene);createLights(scene);for(let i=0;i<CAR_COUNT;i++)records.push(makeCar(i));for(let i=0;i<PERSON_COUNT;i++)records.push(makePerson(i));for(let i=0;i<BUS_COUNT;i++)records.push(makeBus(i));for(let i=0;i<BIRD_COUNT;i++)records.push(makeBird(i));spawnVisibilityRoots.length=0;for(const record of records){record.group.visible=false;root.add(record.group);if(record.kind==="car"||record.kind==="person")spawnVisibilityRoots.push(record.group);}return true;}
 function motionFor(record){const s=record.seed,person=record.kind==="person",bus=record.kind==="bus";if(record.kind==="bird")return{cx:range(s,1,-35,35),cy:range(s,2,-35,35),rx:range(s,3,20,62),ry:range(s,4,16,52),z:range(s,5,9,24),omega:range(s,6,.16,.34),phase:range(s,7,0,Math.PI*2)};return{cx:range(s,1,-42,42),cy:range(s,2,-42,42),hx:person?range(s,3,10,28):bus?range(s,3,44,68):range(s,3,28,58),hy:person?range(s,4,8,24):bus?range(s,4,32,56):range(s,4,22,48),angle:range(s,5,-Math.PI,Math.PI),phase:range(s,6,0,1),speed:person?range(s,7,1.0,1.65):bus?range(s,7,5.0,7.6):range(s,7,7.4,13.2)};}
@@ -147,6 +194,7 @@ function configureWorld(){
   anchorX=east;anchorY=north;if(key===worldKey)return true;
   for(const record of records)if(record.id){rigidBodies()?.removeBody?.(record.id);stopWorldCriticalDamage(record.id);}
   if(key==="training"||worldKey==="training"){routes.splice(0);routeCache.clear();lastRouteOrigin="";}
+  for(let i=0;i<animalPhys.length;i++)dropAnimalBody(i);animalPhys.length=0;
   worldKey=key;worldSeed=hashText(`arondight-world-pop:${key}`);byId.clear();
   if(key==="training"){const seeded=trainingRoutes();routes.splice(0,routes.length,...seeded);for(const route of seeded)routeCache.set(route.key,route);}
   for(const record of records){record.seed=hashText(`${worldSeed}:${record.kind}:${record.index}`);record.id=`${record.kind}-proc-${worldSeed.toString(36)}-${record.index}`;record.motion=key==="training"?trainingMotionFor(record):motionFor(record);record.speed=record.motion.speed||0;record.deadUntil=0;record.physicsRegistered=false;record.physicsPose=null;record.routeKey="";record.streamX=record.streamY=record.streamRebinds=0;record.stalledSince=0;record.lastNudgeAt=0;record.routeDirection=record.seed&1?-1:1;retag(record);byId.set(record.id,record);}
