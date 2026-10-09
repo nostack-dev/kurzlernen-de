@@ -1428,7 +1428,7 @@ function makeCore(E, opt){
   function errOf(tr,tS){ if(!tr||tr.hits) return Infinity; if(!tS) return 0;
     if(opt.warp&&TD) return warpMatch(tr).err;
     let e=0; for(let n=0;n<S;n++){ let d=0; for(let i=0;i<tS[n].length;i++) d+=(tr[n][i]-tS[n][i])**2; e+=Math.sqrt(d); } return e/S/SIZE*100; }
-  function armsCount(m,mode){ return mode==='2d'?m.arms.length:2*m.terms.length; }
+  function armsCount(m,mode){ if(!m) return 0; if(Array.isArray(m.terms)) return 2*m.terms.length; if(Array.isArray(m.arms)) return m.arms.length; if(Array.isArray(m)) return m.reduce((n,ch)=>n+(Array.isArray(ch.arms)?ch.arms.length:0),0); return 0; }
   // complex projection of a 3D residual on e^{-ikt}
   function proj3(res,k){ const re=[0,0,0],im=[0,0,0]; for(let n=0;n<S;n++){ const t=2*Math.PI*k*n/S,c=Math.cos(t),s=Math.sin(t); for(let d=0;d<3;d++){ re[d]+=res[n][d]*c; im[d]-=res[n][d]*s; } } return [mul(re,1/S),mul(im,1/S)]; }
 
@@ -1980,7 +1980,7 @@ function initThree(){
   }catch(e){ return null; }
 }
 R3=initThree();
-const col=k=>new R3.T.Color(C[k]||'#888888');
+const col=k=>{ const v=C[k]||'#888888'; return new R3.T.Color(/^#[0-9a-f]{8}$/i.test(v)?v.slice(0,7):v); };
 function mat(k,o){ const T=R3.T; return new T.MeshStandardMaterial({color:col(k),roughness:.55,metalness:.15,...(o||{})}); }
 function lineMat(k,o){ return new R3.T.LineBasicMaterial({color:col(k),...(o||{})}); }
 function polyline(pts,k,o,closed){ const T=R3.T, g=new T.BufferGeometry().setFromPoints(pts.map(p=>new T.Vector3(p[0],p[1],p[2]))); const L=new (closed?T.LineLoop:T.Line)(g,lineMat(k,o)); return L; }
@@ -2239,7 +2239,7 @@ async function turboLoop(){
       if(won){ T.stall=0; T.needArm=true; T.polished=false; syncPhysUI(); } else { T.done=true; break; }
     }
     hist.push(T.best.err); if(hist.length>600) hist.splice(1,1);
-    if(opt.gear){ best={mech:T.best.mech,err:T.best.err,arms:core.armsCount(T.best.mech,'2d')}; partsDirty=true; }
+    if(opt.gear){ best={mech:T.best.mech,err:T.best.err,arms:core.armsCount(T.best.mech,opt.dim)}; partsDirty=true; }
     turboHud();
   }
   turboHud();
