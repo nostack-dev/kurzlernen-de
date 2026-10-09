@@ -8,8 +8,9 @@ import {requestLight} from "./dynamic_lights.mjs";
 import {getSharedCombatAudioContext,playCombatAudio} from "./combat_audio_bank.mjs";
 import {VS_FX_EVENT} from "./lan_vs.mjs";
 
-// MILITARY. Only when the player really overdoes it — five stars and the
-// heat keeps climbing (or five stars held for a long time) — the army takes
+// MILITARY. Only when the player really overdoes it — five stars held for
+// over a minute while the heat keeps climbing, or a truly extreme rampage —
+// and after a 25 s alert (lose the fifth star to call it off) the army takes
 // over from the police: the police drones turn olive drab, an attack
 // helicopter circles in and works the player with its heavy machine gun,
 // a squad of soldiers advances on foot (rifle bursts from cover range) and a
@@ -20,11 +21,14 @@ import {VS_FX_EVENT} from "./lan_vs.mjs";
 // hits are forwarded to the owner.
 
 export const MILITARY_RESPONSE_VERSION="military-escalation-v1";
-const TRIGGER_HEAT=26,TRIGGER_HOLD_MS=40000,END_STARS=3,SQUAD=4,MAX_SOLDIERS=8,SOLDIER_HP=100,HIT=25,HELI_HP=420,TANK_HP=900;
+// the army is the last resort: five stars held for a long time while the heat
+// keeps piling up (or a truly extreme rampage), then an alert phase in which
+// calming down (losing the fifth star) still calls it off
+const TRIGGER_HEAT=45,TRIGGER_HOLD_MS=75000,TRIGGER_EXTREME_HEAT=70,ALERT_MS=25000,END_STARS=3,SQUAD=4,MAX_SOLDIERS=8,SOLDIER_HP=100,HIT=25,HELI_HP=420,TANK_HP=900;
 const OLIVE=0x4b5634,SOLDIER_COLORS=[0xc8956f,0xa87052,0x7b4a33,0xd2a27e].map(skin=>({shirt:0x55603c,vest:0x3d4530,pants:0x4a5238,boots:0x1d1a16,skin,gloves:0x2a2a24,helmet:0x4b5634}));
 const bridge=()=>globalThis.__arondightRealWorld||null,physics=()=>globalThis.__arondightWorldRigidBodies||null,wanted=()=>globalThis.__arondightWantedSystem||null,viewport=()=>document.getElementById("viewport");
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),angleTo=(a,b)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;};
-let active=false,root=null,sceneRef=null,crowd=null,remoteCrowd=null,since5=0,startedAt=0,nextReinforce=0,serial=0,lastTx=0;
+let active=false,root=null,sceneRef=null,crowd=null,remoteCrowd=null,since5=0,alertAt=0,startedAt=0,nextReinforce=0,serial=0,lastTx=0;
 let helis=[],tanks=[],soldiers=[],tracers=[],shells=[];const remote=new Map(),tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),Y=new THREE.Vector3(0,1,0);
 
 function playerTarget(){return globalThis.__arondightPlayerVitals?.damageTargets?.()?.find?.(t=>t.kind==="drone")||globalThis.__arondightPlayerVitals?.damageTargets?.()?.find?.(t=>t.kind==="player")||null;}
@@ -89,21 +93,30 @@ function render(h,now,dt){const g=h.m.group;g.position.copy(h.p);g.rotation.set(
 let graph=null,graphAt=-Infinity;
 function roadGraph(now){if(graph&&now-graphAt<5000)return graph;const routes=globalThis.__arondightProceduralPopulation?.roads?.()||[];graphAt=now;const nodes=new Map(),key=(x,y)=>`${Math.round(x/2)},${Math.round(y/2)}`,node=(x,y)=>{const k=key(x,y);let n=nodes.get(k);if(!n){n={x,y,adj:[]};nodes.set(k,n);}return n;};for(const r of routes)for(const s of r.segments||[]){const a=node(s.a[0],s.a[1]),b=node(s.a[0]+s.dx,s.a[1]+s.dy);if(a===b)continue;a.adj.push([b,s.d]);b.adj.push([a,s.d]);}graph={nodes:[...nodes.values()]};return graph;}
 function nearestNode(g,x,y){let best=null,bd=Infinity;for(const n of g.nodes){const d=(n.x-x)**2+(n.y-y)**2;if(d<bd){bd=d;best=n;}}return best;}
-function findPath(g,sx,sy,tx,ty){const a=nearestNode(g,sx,sy),b=nearestNode(g,tx,ty);if(!a||!b)return null;if(a===b)return[{x:sx,y:sy},{x:tx,y:ty}];const open=[a],inOpen=new Set([a]),gs=new Map([[a,0]]),from=new Map(),h=n=>Math.hypot(n.x-b.x,n.y-b.y),fs=new Map([[a,h(a)]]),closed=new Set();let it=0;
-  while(open.length&&it++<5000){let bi=0;for(let i=1;i<open.length;i++)if(fs.get(open[i])<fs.get(open[bi]))bi=i;const cur=open[bi];open[bi]=open[open.length-1];open.pop();inOpen.delete(cur);if(cur===b)break;closed.add(cur);for(const[n,w]of cur.adj){if(closed.has(n))continue;const g2=gs.get(cur)+w;if(g2<(gs.get(n)??Infinity)){gs.set(n,g2);fs.set(n,g2+h(n));from.set(n,cur);if(!inOpen.has(n)){open.push(n);inOpen.add(n);}}}}
+function findPath(g,sx,sy,tx,ty,avoid=null){const a=nearestNode(g,sx,sy),b=nearestNode(g,tx,ty);if(!a||!b)return null;if(a===b)return[{x:sx,y:sy},{x:tx,y:ty}];const open=[a],inOpen=new Set([a]),gs=new Map([[a,0]]),from=new Map(),h=n=>Math.hypot(n.x-b.x,n.y-b.y),fs=new Map([[a,h(a)]]),closed=new Set();let it=0;
+  while(open.length&&it++<5000){let bi=0;for(let i=1;i<open.length;i++)if(fs.get(open[i])<fs.get(open[bi]))bi=i;const cur=open[bi];open[bi]=open[open.length-1];open.pop();inOpen.delete(cur);if(cur===b)break;closed.add(cur);for(const[n,w]of cur.adj){if(closed.has(n))continue;let ww=w;if(avoid?.length){const mx=(cur.x+n.x)/2,my=(cur.y+n.y)/2;for(const q of avoid)if(Math.hypot(mx-q.x,my-q.y)<9){ww*=25;break;}}const g2=gs.get(cur)+ww;if(g2<(gs.get(n)??Infinity)){gs.set(n,g2);fs.set(n,g2+h(n));from.set(n,cur);if(!inOpen.has(n)){open.push(n);inOpen.add(n);}}}}
   if(!from.has(b))return null;const path=[{x:tx,y:ty}];for(let n=b;n;n=from.get(n))path.unshift({x:n.x,y:n.y});return path;}
 function pursuitPoint(path,x,y,look){let bi=0,bt=0,bd=Infinity;for(let i=0;i<path.length-1;i++){const a=path[i],b=path[i+1],dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy||1e-6,t=clamp(((x-a.x)*dx+(y-a.y)*dy)/l2,0,1),px=a.x+dx*t,py=a.y+dy*t,d=Math.hypot(x-px,y-py);if(d<bd){bd=d;bi=i;bt=t;}}if(path.length<2)return path[0];let i=bi,t=bt,left=look;while(i<path.length-1){const a=path[i],b=path[i+1],l=Math.hypot(b.x-a.x,b.y-a.y)||1e-6,rest=(1-t)*l;if(rest>=left){const tt=t+left/l;return{x:a.x+(b.x-a.x)*tt,y:a.y+(b.y-a.y)*tt};}left-=rest;i++;t=0;}return path.at(-1);}
 function spawnTank(now,target){const g=roadGraph(now),cands=g.nodes.filter(n=>{const d=Math.hypot(n.x-target.x,n.y-target.y);return d>170&&d<300&&!insideBuilding(n.x,n.y)&&!inView(n.x,n.y,groundHeightAt(n.x,n.y)+2);});const spot=cands[(Math.random()*cands.length)|0];if(!spot)return null;
   const id=`mil-tank-${(++serial).toString(36)}`,z=groundHeightAt(spot.x,spot.y),yaw=Math.atan2(target.y-spot.y,target.x-spot.x);if(!physics()?.upsertBody?.({id,kind:"bus",position:[spot.x,spot.y,z+1.1],yaw,halfExtents:[3.3,1.5,.9],massKg:9200}))return null;
-  const m=buildTank();root.add(m.group);const tk={id,m,hp:TANK_HP,pose:null,path:null,pathAt:0,turret:0,nextShell:now+6000,born:now,recoverUntil:0,recoverStart:0,stuckSince:0,progress:null,state:"advance"};tanks.push(tk);return tk;}
+  const m=buildTank();root.add(m.group);const tk={id,m,hp:TANK_HP,pose:null,path:null,pathAt:0,turret:0,nextShell:now+6000,born:now,recoverUntil:0,recoverStart:0,stuckSince:0,progress:null,fails:0,avoid:[],flippedSince:0,state:"advance"};tanks.push(tk);return tk;}
 function stepTank(tk,t,now,dt){const p=physics()?.pose?.(tk.id,tk.pose);if(!p){tk.dead=true;return;}tk.pose=p;const cx=p.position[0],cy=p.position[1],tp=t.position,d=Math.hypot(tp.x-cx,tp.y-cy),sp=Math.hypot(p.velocity[0],p.velocity[1]);
   const g=tk.m.group,q=p.rotation,off=Number(p.groundOffset)||.9;g.quaternion.set(q[0],q[1],q[2],q[3]);tmp.set(0,0,1).applyQuaternion(g.quaternion);g.position.set(cx-tmp.x*off,cy-tmp.y*off,p.position[2]-tmp.z*off);g.updateMatrixWorld();
   const leaving=tk.state==="leave",goal=leaving?(tk.exit??={x:cx+(cx-tp.x)*3,y:cy+(cy-tp.y)*3}):{x:tp.x,y:tp.y};
   const los=d<160&&!blocked({x:cx,y:cy,z:g.position.z+2.6},{x:tp.x,y:tp.y,z:(tp.z||1.6)});
-  if(!leaving&&los&&d<110){physics()?.clearTarget?.(tk.id);physics()?.setDrive?.(tk.id,{pedal:0,steer:0,handbrake:true});}
-  else{if(!tk.path||now-tk.pathAt>3000){tk.path=findPath(roadGraph(now),cx,cy,goal.x,goal.y)||[{x:cx,y:cy},goal];tk.pathAt=now;}const pt=pursuitPoint(tk.path,cx,cy,Math.max(8,sp*1.2)),herr=angleTo(p.yaw,Math.atan2(pt.y-cy,pt.x-cx));
-    if(now<tk.recoverUntil){if(Math.abs(herr)<.5&&now-tk.recoverStart>600)tk.recoverUntil=0;else{physics()?.clearTarget?.(tk.id);physics()?.setDrive?.(tk.id,{pedal:-.7,steer:-Math.sign(herr||1),handbrake:false,maxReverse:3});}}
-    else{if(sp<.5){tk.stuckSince||=now;if(now-tk.stuckSince>2500){tk.recoverStart=now;tk.recoverUntil=now+2000;tk.stuckSince=0;tk.path=null;}}else tk.stuckSince=0;physics()?.setDrive?.(tk.id,null);physics()?.setTarget?.(tk.id,{position:[pt.x,pt.y,0],yaw:0,speedMps:9});}}
+  // a tank on its side / roof is a wreck: it does not drive or fire any more
+  const upZ=tmp.z;if(upZ<.4){tk.flippedSince||=now;}else tk.flippedSince=0;
+  if(tk.state==="wreck"||(tk.flippedSince&&now-tk.flippedSince>3000)){if(tk.state!=="wreck"){tk.state="wreck";tk.wreckAt=now;physics()?.clearTarget?.(tk.id);physics()?.setDrive?.(tk.id,{pedal:0,steer:0,handbrake:true});}if(now-tk.wreckAt>20000&&d>120&&!inView(cx,cy,g.position.z+2))tk.dead=true;return;}
+  if(!leaving&&los&&d<110){tk.stuckSince=0;tk.progress=null;physics()?.clearTarget?.(tk.id);physics()?.setDrive?.(tk.id,{pedal:0,steer:0,handbrake:true});}
+  else{if(!tk.path||now-tk.pathAt>3000){tk.avoid=tk.avoid.filter(q=>now-q.at<60000);tk.path=findPath(roadGraph(now),cx,cy,goal.x,goal.y,tk.avoid)||[{x:cx,y:cy},goal];tk.pathAt=now;}const pt=pursuitPoint(tk.path,cx,cy,Math.max(8,sp*1.2)),herr=angleTo(p.yaw,Math.atan2(pt.y-cy,pt.x-cx));
+    // recovery: back out (alternating the steer side each attempt so it does not
+    // rock in the same notch); a road piece that blocked it twice is avoided
+    // in the next plan — it really drives around, nothing is teleported
+    if(now<tk.recoverUntil){if(Math.abs(herr)<.5&&now-tk.recoverStart>900)tk.recoverUntil=0;else{const side=(tk.fails%2?1:-1)*Math.sign(herr||1);physics()?.clearTarget?.(tk.id);physics()?.setDrive?.(tk.id,{pedal:-.75,steer:side,handbrake:false,maxReverse:3.5});}}
+    else{tk.progress??={x:cx,y:cy,at:now};if(Math.hypot(cx-tk.progress.x,cy-tk.progress.y)>4){tk.progress={x:cx,y:cy,at:now};if(now-tk.recoverStart>8000)tk.fails=0;}
+      const slow=sp<.5?(tk.stuckSince||=now,now-tk.stuckSince>2500):(tk.stuckSince=0,false),noProgress=now-tk.progress.at>7000;
+      if(slow||noProgress){tk.fails++;if(tk.fails>=2)tk.avoid.push({x:pt.x,y:pt.y,at:now});tk.recoverStart=now;tk.recoverUntil=now+1800+Math.min(3,tk.fails)*500;tk.stuckSince=0;tk.progress=null;tk.path=null;}
+      physics()?.setDrive?.(tk.id,null);physics()?.setTarget?.(tk.id,{position:[pt.x,pt.y,0],yaw:0,speedMps:9});}}
   // turret: slew to the target, main gun every ~7 s with a lead and a miss you can outrun
   const want=Math.atan2(tp.y-cy,tp.x-cx)-p.yaw;tk.turret+=clamp(angleTo(tk.turret,want),-dt*.7,dt*.7);tk.m.turret.rotation.z=tk.turret;
   if(!leaving&&los&&now>tk.nextShell&&Math.abs(angleTo(tk.turret,want))<.06){tk.nextShell=now+6500+Math.random()*2500;const yaw=p.yaw+tk.turret,muzzle=new THREE.Vector3(cx+Math.cos(yaw)*5.8,cy+Math.sin(yaw)*5.8,g.position.z+2);
@@ -150,7 +163,7 @@ function onExplosion(e){const d=e?.detail||{};if(d.kind==="military")return;cons
 function clearAll(hard=false){for(const h of helis)h.m.group.parent?.remove(h.m.group);for(const tk of tanks){physics()?.removeBody?.(tk.id);tk.m.group.parent?.remove(tk.m.group);}for(const s of soldiers)s.proxy?.parent?.remove(s.proxy);helis=[];tanks=[];soldiers=[];shells=[];if(hard){for(const t of tracers)t.mesh.parent?.remove(t.mesh);tracers=[];}for(let i=0;i<MAX_SOLDIERS;i++)crowd?.hide(i);}
 function banner(text){const v=viewport();if(!v)return;let b=document.getElementById("militaryBanner");if(!b){b=document.createElement("div");b.id="militaryBanner";b.style.cssText="position:absolute;left:50%;top:22%;transform:translateX(-50%);z-index:40;padding:10px 18px;border-radius:10px;background:#2c3320e8;border:2px solid #b8c27a;color:#e8f0b8;font:900 16px/1.1 Inter,system-ui,sans-serif;letter-spacing:.12em;pointer-events:none;text-align:center;transition:opacity .4s";v.appendChild(b);}b.textContent=text;b.style.opacity="1";clearTimeout(b._t);b._t=setTimeout(()=>{b.style.opacity="0";},3800);}
 function start(nowMs,t){active=true;startedAt=nowMs;nextReinforce=nowMs+50000;wanted()?.setMilitary?.(true);spawnHeli(nowMs,t.position);spawnSquad(nowMs,t.position,SQUAD);spawnTank(nowMs,t.position);banner("⚠ MILITÄR RÜCKT AN");const v=viewport();if(v)v.dataset.militaryResponse="active";}
-function stop(){active=false;wanted()?.setMilitary?.(false);for(const h of helis)if(h.state!=="down")h.state="leave";for(const tk of tanks)tk.state="leave";banner("MILITÄR ZIEHT AB");const v=viewport();if(v)v.dataset.militaryResponse="withdrawing";}
+function stop(){active=false;wanted()?.setMilitary?.(false);for(const h of helis)if(h.state!=="down")h.state="leave";for(const tk of tanks)if(tk.state!=="wreck")tk.state="leave";banner("MILITÄR ZIEHT AB");const v=viewport();if(v)v.dataset.militaryResponse="withdrawing";}
 
 // ------------------------------------------------------------ multiplayer
 function session(){return bridge()?.vsSession||null;}
@@ -178,9 +191,11 @@ let lastFrame=performance.now();
 function frame(nowMs=performance.now()){requestAnimationFrame(frame);const dt=Math.min(.05,Math.max(0,(nowMs-lastFrame)/1000));lastFrame=nowMs;if(!bridge()?.threeScene||!ensureScene())return;
   const st=wanted()?.state,t=globalThis.__jetMode?.active?null:playerTarget();// a pilot in the jet is out of their reach
   if(st&&t){if(st.stars>=5){since5||=nowMs;}else since5=0;
-    if(!active&&st.stars>=5&&(st.heat>=TRIGGER_HEAT||nowMs-since5>TRIGGER_HOLD_MS))start(nowMs,t);
+    if(!active&&!alertAt&&st.stars>=5&&((st.heat>=TRIGGER_HEAT&&nowMs-since5>TRIGGER_HOLD_MS)||st.heat>=TRIGGER_EXTREME_HEAT)){alertAt=nowMs;banner("⚠ MILITÄR ALARMIERT");const v=viewport();if(v)v.dataset.militaryResponse="alert";}
+    else if(alertAt&&!active&&st.stars<5){alertAt=0;banner("MILITÄR-ALARM AUFGEHOBEN");const v=viewport();if(v)v.dataset.militaryResponse="alert-cancelled";}
+    else if(alertAt&&!active&&nowMs-alertAt>ALERT_MS){alertAt=0;start(nowMs,t);}
     else if(active&&st.stars<=END_STARS)stop();
-    if(active&&nowMs>nextReinforce){nextReinforce=nowMs+45000;if(helis.filter(h=>!h.dead&&h.state!=="down").length<2)spawnHeli(nowMs,t.position);if(soldiers.filter(s=>!s.dead).length<MAX_SOLDIERS-1)spawnSquad(nowMs,t.position,2);if(!tanks.some(k=>!k.dead))spawnTank(nowMs,t.position);}}
+    if(active&&nowMs>nextReinforce){nextReinforce=nowMs+45000;if(helis.filter(h=>!h.dead&&h.state!=="down").length<2)spawnHeli(nowMs,t.position);if(soldiers.filter(s=>!s.dead).length<MAX_SOLDIERS-1)spawnSquad(nowMs,t.position,2);if(!tanks.some(k=>!k.dead&&k.state!=="wreck"))spawnTank(nowMs,t.position);}}
   else if(active&&!t){/* player down: hold fire, they stay */}
   if(t){for(const h of helis)stepHeli(h,t,nowMs,dt);for(const tk of tanks)stepTank(tk,t,nowMs,dt);for(const s of soldiers)stepSoldier(s,t,nowMs,dt);}
   for(let i=helis.length-1;i>=0;i--)if(helis[i].dead){helis[i].m.group.parent?.remove(helis[i].m.group);helis.splice(i,1);}

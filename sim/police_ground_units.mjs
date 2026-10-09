@@ -7,6 +7,7 @@ import {groundHeightAt} from "./terrain_craters.mjs";
 import {spawnWorldPersonRagdoll} from "./world_person_ragdoll.mjs";
 import {getSharedCombatAudioContext,playCombatAudio} from "./combat_audio_bank.mjs";
 import {VS_FX_EVENT} from "./lan_vs.mjs";
+import {startWorldCriticalDamage,accelerateWorldCriticalDamage,stopWorldCriticalDamage} from "./world_critical_damage_fx.mjs";
 
 // GTA-style ground police. With a wanted level, police cruisers come after the
 // player on the road network (A* over the real road graph, then straight at
@@ -27,6 +28,12 @@ export const POLICE_GROUND_VERSION="gta-police-cruisers+officers-v1";
 const MAX_UNITS=3,COPS_PER_UNIT=2,MAX_COPS=MAX_UNITS*COPS_PER_UNIT,REMOTE_COPS=18,COP_HP=100,HIT_DAMAGE=25;
 const RUN_MPS=3.7,STOP_FOOT_M=17,ENGAGE_MIN_M=6,ENGAGE_MAX_M=15,RETURN_M=42,SPAWN_MIN_M=70,SPAWN_MAX_M=125,DESPAWN_M=230;
 const SYNC_MS=100,PATH_MS=1800,SIGHT_MS=300;
+// cruisers can be shot up, blown up and crashed to pieces: ~14 pistol hits,
+// a close explosion or a hard crash. Below a quarter they burn and blow up.
+const CAR_HP=300,CAR_HIT=22,CAR_CRITICAL=.25,CAR_BURN_MS=2600,CRASH_DV=7,CRASH_DMG=16;
+const charred=new THREE.MeshStandardMaterial({color:0x17181a,roughness:1,metalness:.1});
+const charredLight=new THREE.MeshBasicMaterial({color:0x0b0b0c});
+function charCar(car){car.wrecked=true;car.group.traverse(n=>{if(n.isMesh)n.material=n.material?.isMeshBasicMaterial?charredLight:charred;});car.red.material=charredLight;car.blue.material=charredLight;}
 const POLICE_COLORS=[0xc8956f,0xa87052,0x7b4a33,0xd2a27e].map(skin=>({shirt:0x24314f,vest:0x15181e,pants:0x1b2230,boots:0x0f1012,skin,gloves:0x15161a,helmet:0x161c2b,dark:0x111214}));
 const bridge=()=>globalThis.__arondightRealWorld||null;
 const physics=()=>globalThis.__arondightWorldRigidBodies||null;
@@ -85,7 +92,7 @@ function buildCruiser(){
   g.traverse(n=>{n.userData.flightFireIgnore=n!==body&&n.isMesh;});
   return{group:g,body,red,blue,light,wheels};
 }
-function flashLights(c,now,on){const slot=Math.floor(now/110)%6,r=on&&(slot===0||slot===2),b=on&&(slot===3||slot===5);c.red.material.color.setHex(r?0xff1a2a:0x330608);c.blue.material.color.setHex(b?0x2a6bff:0x06102e);if(r||b){c.group.getWorldPosition(lightPos);lightPos.z+=2;requestLight(lightPos,{color:r?0xff2030:0x2a6bff,intensity:14,distance:18});}}
+function flashLights(c,now,on){if(c.wrecked)return;const slot=Math.floor(now/110)%6,r=on&&(slot===0||slot===2),b=on&&(slot===3||slot===5);c.red.material.color.setHex(r?0xff1a2a:0x330608);c.blue.material.color.setHex(b?0x2a6bff:0x06102e);if(r||b){c.group.getWorldPosition(lightPos);lightPos.z+=2;requestLight(lightPos,{color:r?0xff2030:0x2a6bff,intensity:14,distance:18});}}
 const lightPos=new THREE.Vector3();
 function makeProxy(){proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.27,1.2,3,8);g.rotateX(Math.PI/2);g.translate(0,0,.86);return g;})();proxyMat??=Object.assign(new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}),{colorWrite:false,visible:false});
   const m=new THREE.Mesh(proxyGeo,proxyMat);m.name="POLICE_OFFICER_HIT_PROXY";m.userData.hitProxy=true;m.userData.worldPopulationKind="enemy";m.userData.styleSkip=true;m.visible=false;root.add(m);return m;}
@@ -107,10 +114,10 @@ function spawnUnit(player,now){
   if(!physics()?.upsertBody?.({id,kind:"car",position:[spot.x,spot.y,z+.62],yaw,halfExtents:[1.78,.82,.36],massKg:1450}))return null;
   const c=buildCruiser();root.add(c.group);c.group.position.set(spot.x,spot.y,z);c.group.rotation.set(0,0,yaw);
   c.group.userData.policeCruiser=id;
-  const used=new Set(units.flatMap(u=>u.cops.map(cp=>cp.slot)));const cops=[];for(let s=0,k=0;s<MAX_COPS&&k<COPS_PER_UNIT;s++)if(!used.has(s)){cops.push({slot:s,seat:k?-1:1,state:"in",hp:COP_HP,x:spot.x,y:spot.y,z,yaw,speed:0,nextShot:0,shots:0,aim:null,proxy:makeProxy()});k++;}
-  const u={id,car:c,cops,state:"pursuit",path:null,pathAt:-Infinity,wp:0,stuckSince:0,recoverUntil:0,born:now,lights:true,pose:null};units.push(u);return u;
+  const used=new Set(units.flatMap(u=>u.cops.filter(cp=>cp.state!=="dead").map(cp=>cp.slot)));const cops=[];for(let s=0,k=0;s<MAX_COPS&&k<COPS_PER_UNIT;s++)if(!used.has(s)){cops.push({slot:s,seat:k?-1:1,state:"in",hp:COP_HP,x:spot.x,y:spot.y,z,yaw,speed:0,nextShot:0,shots:0,aim:null,proxy:makeProxy()});k++;}
+  const u={id,car:c,cops,hp:CAR_HP,lastVel:null,burnUntil:0,state:"pursuit",path:null,pathAt:-Infinity,wp:0,stuckSince:0,recoverUntil:0,born:now,lights:true,pose:null};units.push(u);return u;
 }
-function removeUnit(u,hard=false){physics()?.removeBody?.(u.id);u.car.group.parent?.remove(u.car.group);for(const c of u.cops){c.proxy?.parent?.remove(c.proxy);if(crowd)crowd.hide(c.slot);}}
+function removeUnit(u,hard=false){stopWorldCriticalDamage(u.id);physics()?.removeBody?.(u.id);u.car.group.parent?.remove(u.car.group);for(const c of u.cops){c.proxy?.parent?.remove(c.proxy);if(crowd)crowd.hide(c.slot);}}
 function carPose(u){const p=physics()?.pose?.(u.id,u.pose);if(p)u.pose=p;return p;}
 function syncCar(u,now){
   const p=carPose(u),g=u.car.group;if(!p)return;const q=p.rotation,off=Number(p.groundOffset)||.6;g.quaternion.set(q[0],q[1],q[2],q[3]);up.set(0,0,1).applyQuaternion(g.quaternion);g.position.set(p.position[0]-up.x*off,p.position[1]-up.y*off,p.position[2]-up.z*off);
@@ -184,10 +191,33 @@ function killCop(c,u,dir=null){
   wanted()?.reportCrime?.({id:`cop-${u.id}-${c.slot}-${Date.now()}`,kind:"police-officer"});
   window.dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{police:true,killed:true,officer:true}}));
 }
+// ---- cruiser damage: shots, explosions, crashes -> burning -> explosion -> wreck
+function damageCar(u,dmg,{remoteFrom=null}={}){
+  if(!u||u.state==="wreck"||!(dmg>0)||u.car.group.userData.playerDriven)return false;u.hp=Math.max(0,u.hp-dmg);
+  if(u.hp<=CAR_HP*CAR_CRITICAL){const now=performance.now();if(!u.burnUntil){const g=u.car.group;u.burnUntil=startWorldCriticalDamage({id:u.id,object:g,kind:"car",offset:[1.2,0,.82],scale:.92,delayMs:CAR_BURN_MS,onExpire:()=>wreckCar(u),seed:u.id})||now+CAR_BURN_MS;}
+    else if(u.hp<=0){u.burnUntil=Math.min(u.burnUntil,now+500);accelerateWorldCriticalDamage(u.id,u.burnUntil);}}
+  return true;}
+function wreckCar(u){
+  if(u.state==="wreck")return;stopWorldCriticalDamage(u.id);const g=u.car.group,p=u.pose;u.state="wreck";u.hp=0;u.lights=false;u.wreckAt=performance.now();
+  // burnt-out: the drivetrain is dead and the brakes seized — it rolls out and stays
+  physics()?.clearTarget?.(u.id);physics()?.setDrive?.(u.id,{pedal:0,steer:0,handbrake:true});
+  charCar(u.car);g.userData.gtaDrivableVehicle=false;delete g.userData.worldPopulationKind;
+  const x=p?.position[0]??g.position.x,y=p?.position[1]??g.position.y,z=(p?.position[2]??g.position.z)+.6;
+  // whoever is still inside does not survive it
+  for(const c of u.cops)if(c.state==="in"){c.x=x;c.y=y;c.z=groundHeightAt(x,y);killCop(c,u,new THREE.Vector3(Math.random()-.5,Math.random()-.5,0).normalize());}
+  if(globalThis.__fighterJets?.blast)globalThis.__fighterJets.blast({x,y,z},{radiusM:7,maxDamage:110,scale:.45,kind:"police-car"});
+  else window.dispatchEvent(new CustomEvent("arondight:world-explosion",{detail:{position:[x,y,z],radiusM:7,maxDamage:110,kind:"police-car",id:`police-car-${u.id}`}}));
+  physics()?.applyImpulse?.(u.id,[0,0,1450*5.5],{point:[x+.9,y+.3,z]});
+  if(!g.userData.playerDriven)wanted()?.reportCrime?.({id:`car-${u.id}`,kind:"police-car",position:[x,y,0]});
+  sendFx({kind:"police-wreck",unit:u.id});
+  window.dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{police:true,killed:true,vehicle:true}}));
+}
+function crashCheck(u){const p=u.pose;if(!p)return;const v=p.velocity;if(u.lastVel){const dv=Math.hypot(v[0]-u.lastVel[0],v[1]-u.lastVel[1],(v[2]-u.lastVel[2])*.5);if(dv>CRASH_DV)damageCar(u,(dv-CRASH_DV)*CRASH_DMG);}u.lastVel=[v[0],v[1],v[2]];}
 // A cruiser without a crew stays where it is: the player can take it.
 function abandon(u){u.state="abandoned";u.lights=false;brake(u);const g=u.car.group;Object.assign(g.userData,{worldPopulationKind:"car",worldPopulationId:u.id,worldProceduralId:u.id,gtaDrivableVehicle:true});}
 function updateUnit(u,player,now,dt,stars){
-  syncCar(u,now);const alive=u.cops.filter(c=>c.state!=="dead");
+  syncCar(u,now);crashCheck(u);const alive=u.cops.filter(c=>c.state!=="dead");
+  if(u.state==="wreck"){for(const c of u.cops)if(c.state==="out"&&player)stepCop(c,u,player,now,dt,stars);return;}
   if(u.state!=="abandoned"&&!alive.length)abandon(u);
   if(u.state==="abandoned"){if(u.car.group.userData.playerDriven){u.lights=true;}return;}
   const p=u.pose;const pd=p&&player?Math.hypot(player.position.x-p.position[0],player.position.y-p.position[1]):Infinity;
@@ -201,7 +231,8 @@ function updateUnit(u,player,now,dt,stars){
 }
 function renderCops(now,dt){
   if(!crowd)return;const shown=new Set();
-  for(const u of units)for(const c of u.cops){if(c.state!=="out"){crowd.hide(c.slot);c.proxy.visible=false;continue;}shown.add(c.slot);
+  const live=new Set();for(const u of units)for(const c of u.cops)if(c.state==="out")live.add(c.slot);
+  for(const u of units)for(const c of u.cops){if(c.state!=="out"){if(!live.has(c.slot))crowd.hide(c.slot);c.proxy.visible=false;continue;}shown.add(c.slot);
     const st=c.anim==="aim"||now-(c.lastShotAt||0)<400?"aim-pistol":c.anim==="run"?"run":c.anim==="walk"?"walk":"idle";
     crowd.set(c.slot,{x:c.x,y:c.y,z:c.z,yaw:c.yaw-Math.PI/2,state:st,speed:c.speed,weapon:"pistol",dt});c.proxy.visible=true;c.proxy.position.set(c.x,c.y,c.z);c.proxy.updateMatrixWorld();}
   crowd.commit();
@@ -209,12 +240,17 @@ function renderCops(now,dt){
 
 // ------------------------------------------------------------ damage in
 function findCop(hit){for(let n=hit?.object;n;n=n.parent){if(n.name==="POLICE_OFFICER_HIT_PROXY"){for(const u of units)for(const c of u.cops)if(c.proxy===n)return{u,c};for(const[peer,r]of remote)for(const ru of r.units.values())for(const rc of ru.cops)if(rc.proxy===n)return{peer,ru,rc};}}return null;}
+function findCar(hit){for(let n=hit?.object;n;n=n.parent){const id=n.userData?.policeCruiser;if(id){const u=units.find(q=>q.id===id);if(u)return{u};for(const[peer,r]of remote){const ru=r.units.get(id);if(ru)return{peer,ru};}return null;}}return null;}
 function hit(h){
+  const car=findCar(h);if(car){if(car.peer){if(!car.ru.wreck)sendFx({kind:"police-car-hit",to:car.peer,unit:car.ru.id,dmg:CAR_HIT});}else{if(car.u.state==="wreck")return true;damageCar(car.u,CAR_HIT);
+      const pt=h?.point,pl=playerTarget()?.position;if(pt&&pl){const dx=pt.x-pl.x,dy=pt.y-pl.y,l=Math.hypot(dx,dy)||1;physics()?.applyImpulse?.(car.u.id,[dx/l*220,dy/l*220,0],{point:[pt.x,pt.y,pt.z]});}}
+    window.dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{police:true,vehicle:true,damage:CAR_HIT}}));return true;}
   const f=findCop(h);if(!f)return false;const pl=playerTarget()?.position,dir=f.c&&pl?new THREE.Vector3(f.c.x-pl.x,f.c.y-pl.y,0).normalize():null;
   if(f.peer){sendFx({kind:"police-hit",to:f.peer,unit:f.ru.id,slot:f.rc.slot,dmg:HIT_DAMAGE});window.dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{police:true,damage:HIT_DAMAGE}}));return true;}
   f.c.hp-=HIT_DAMAGE;window.dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{police:true,damage:HIT_DAMAGE,hp:Math.max(0,f.c.hp),killed:f.c.hp<=0}}));if(f.c.hp<=0)killCop(f.c,f.u,dir);return true;
 }
 function onExplosion(e){const d=e?.detail||{},pos=d.position,x=Array.isArray(pos)?+pos[0]:+pos?.x,y=Array.isArray(pos)?+pos[1]:+pos?.y;if(!Number.isFinite(x))return;const r=Math.max(2,Math.min(60,Number(d.radiusM)||6));
+  const maxD=Math.max(20,Number(d.maxDamage)||120);for(const u of units){if(u.state==="wreck"||!u.pose||d.id===`police-car-${u.id}`)continue;const dd=Math.hypot(u.pose.position[0]-x,u.pose.position[1]-y);if(dd<r+2.5)damageCar(u,maxD*2.4*(1-dd/(r+2.5)));}
   for(const u of units)for(const c of u.cops){if(c.state!=="out")continue;const dd=Math.hypot(c.x-x,c.y-y);if(dd<r){c.hp-=COP_HP*(1-dd/r)*1.6+20;if(c.hp<=0)killCop(c,u,new THREE.Vector3(c.x-x,c.y-y,0).normalize());}}}
 
 // ------------------------------------------------------------ multiplayer
@@ -226,14 +262,16 @@ const toLocal=(x,y)=>{const o=localOffset();return[x-o[0],y-o[1]];};
 function sendFx(extra){const s=session();if(!s?.sendFx)return false;try{return s.sendFx({type:"impact",objectId:"police-ground",id:`pol-${Date.now().toString(36)}-${(serial++).toString(36)}`,p:[0,0,0],playerId:selfId()||undefined,...extra});}catch{return false;}}
 function broadcast(now){
   if(now-lastSync<SYNC_MS)return;lastSync=now;const s=session();const peers=typeof s?.peerCount==="function"?s.peerCount():Number(s?.peerCount)||s?.getPeerIds?.()?.length||0;if(!s?.sendFx||!peers)return;
-  const list=units.map(u=>{const g=u.car.group,[x,y]=toCanon(g.position.x,g.position.y);return[u.id,x,y,+g.position.z.toFixed(2),+g.rotation.z.toFixed(3),u.lights?1:0,u.cops.filter(c=>c.state==="out").map(c=>{const[cx,cy]=toCanon(c.x,c.y);return[c.slot,cx,cy,+c.z.toFixed(2),+c.yaw.toFixed(2),c.anim==="aim"||now-(c.lastShotAt||0)<400?2:c.anim==="run"?1:0,c.shots,c.aim?toCanon(c.aim[0],c.aim[1]).concat(+c.aim[2].toFixed(2)):null];})];});
+  const list=units.map(u=>{const g=u.car.group,[x,y]=toCanon(g.position.x,g.position.y);return[u.id,x,y,+g.position.z.toFixed(2),+g.rotation.z.toFixed(3),u.lights?1:0,u.cops.filter(c=>c.state==="out").map(c=>{const[cx,cy]=toCanon(c.x,c.y);return[c.slot,cx,cy,+c.z.toFixed(2),+c.yaw.toFixed(2),c.anim==="aim"||now-(c.lastShotAt||0)<400?2:c.anim==="run"?1:0,c.shots,c.aim?toCanon(c.aim[0],c.aim[1]).concat(+c.aim[2].toFixed(2)):null];}),u.state==="wreck"?1:0];});
   sendFx({kind:"police-sync",units:list});
 }
 function onFx(event){const pk=event?.detail?.packet,peer=String(event?.detail?.peerId||pk?.playerId||"");if(!pk||pk.objectId!=="police-ground")return;
+  if(pk.kind==="police-car-hit"){if(pk.to&&pk.to!==selfId())return;const u=units.find(x=>x.id===pk.unit);if(u)damageCar(u,Math.min(200,Number(pk.dmg)||CAR_HIT));return;}
+  if(pk.kind==="police-wreck"){for(const r of remote.values()){const ru=r.units.get(String(pk.unit||""));if(ru&&!ru.wreck){ru.wreck=true;rcharCar(u.car);}}return;}
   if(pk.kind==="police-hit"){if(pk.to&&pk.to!==selfId())return;const u=units.find(x=>x.id===pk.unit),c=u?.cops.find(x=>x.slot===pk.slot);if(c&&c.state==="out"){c.hp-=Number(pk.dmg)||HIT_DAMAGE;if(c.hp<=0)killCop(c,u,null);}return;}
   if(pk.kind!=="police-sync"||!Array.isArray(pk.units)||!peer)return;ensureScene();let r=remote.get(peer);if(!r){r={units:new Map(),seen:0};remote.set(peer,r);}r.seen=performance.now();const live=new Set();
-  for(const e of pk.units.slice(0,MAX_UNITS)){const[id,cx,cy,cz,cyaw,lights,cops]=e;if(typeof id!=="string")continue;live.add(id);let ru=r.units.get(id);if(!ru){const car=buildCruiser();root.add(car.group);ru={id,car,cops:[],x:0,y:0,z:0,yaw:0,init:false};r.units.set(id,ru);}
-    const[lx,ly]=toLocal(+cx||0,+cy||0);Object.assign(ru,{tx:lx,ty:ly,tz:+cz||0,tyaw:+cyaw||0,lights:Boolean(lights)});if(!ru.init){ru.x=lx;ru.y=ly;ru.z=ru.tz;ru.yaw=ru.tyaw;ru.init=true;}
+  for(const e of pk.units.slice(0,MAX_UNITS)){const[id,cx,cy,cz,cyaw,lights,cops,wreck]=e;if(typeof id!=="string")continue;live.add(id);let ru=r.units.get(id);if(!ru){const car=buildCruiser();car.group.userData.policeCruiser=id;root.add(car.group);ru={id,car,cops:[],x:0,y:0,z:0,yaw:0,init:false};r.units.set(id,ru);}
+    const[lx,ly]=toLocal(+cx||0,+cy||0);Object.assign(ru,{tx:lx,ty:ly,tz:+cz||0,tyaw:+cyaw||0,lights:Boolean(lights)});if(wreck&&!ru.wreck){ru.wreck=true;rcharCar(u.car);}if(!ru.init){ru.x=lx;ru.y=ly;ru.z=ru.tz;ru.yaw=ru.tyaw;ru.init=true;}
     const keep=new Map(ru.cops.map(c=>[c.slot,c]));ru.cops=(Array.isArray(cops)?cops:[]).slice(0,COPS_PER_UNIT).map(ce=>{const[slot,x,y,z,yaw,anim,shots,aim]=ce;const[ax,ay]=toLocal(+x||0,+y||0);let c=keep.get(slot);if(!c){c={slot,x:ax,y:ay,z:+z||0,yaw:+yaw||0,shots:+shots||0,proxy:makeProxy(),idx:-1};}keep.delete(slot);
       if((+shots||0)>c.shots&&Array.isArray(aim)){const[tx,ty]=toLocal(+aim[0]||0,+aim[1]||0);const from=new THREE.Vector3(c.x+Math.cos(c.yaw)*.45,c.y+Math.sin(c.yaw)*.45,(+z||0)+1.38);tracer(from,new THREE.Vector3(tx,ty,+aim[2]||1));playShot(from.x,from.y,from.z);}
       Object.assign(c,{tx:ax,ty:ay,tz:+z||0,tyaw:+yaw||0,anim:+anim||0,shots:+shots||0});return c;});for(const c of keep.values())c.proxy.parent?.remove(c.proxy);}
@@ -253,12 +291,12 @@ function frame(now=performance.now()){
   requestAnimationFrame(frame);const dt=Math.min(.1,Math.max(0,(now-lastFrame)/1000));lastFrame=now;
   if(!ensureScene())return;const w=wanted()?.state,stars=Number(w?.stars)||0,player=playerTarget();
   // dispatch: one cruiser per star (max 3) while wanted
-  if(player&&stars>0&&w?.phase!=="searching"){const want=Math.min(MAX_UNITS,stars),active=units.filter(u=>u.state!=="abandoned"&&u.state!=="leave").length;if(active<want&&now-(globalThis.__policeLastSpawn||0)>2600){globalThis.__policeLastSpawn=now;spawnUnit(player,now);}}
+  if(player&&stars>0&&w?.phase!=="searching"){const want=Math.min(MAX_UNITS,stars),active=units.filter(u=>u.state!=="abandoned"&&u.state!=="leave"&&u.state!=="wreck").length;if(active<want&&now-(globalThis.__policeLastSpawn||0)>2600){globalThis.__policeLastSpawn=now;spawnUnit(player,now);}}
   for(const u of units)updateUnit(u,player,now,dt,stars);
   // sightings keep the wanted level alive while officers or cruisers see the player
-  if(player&&stars>0&&now-lastSight>600){lastSight=now;const seen=units.some(u=>u.state!=="abandoned"&&(u.cops.some(c=>c.state==="out"&&c.los)||(u.pose&&Math.hypot(player.position.x-u.pose.position[0],player.position.y-u.pose.position[1])<30&&!blocked({x:u.pose.position[0],y:u.pose.position[1],z:1.3},{x:player.position.x,y:player.position.y,z:1.3}))));if(seen)wanted()?.sighting?.(player.position);}
+  if(player&&stars>0&&now-lastSight>600){lastSight=now;const seen=units.some(u=>u.state!=="abandoned"&&(u.state!=="wreck"||u.cops.some(c=>c.state==="out"))&&(u.cops.some(c=>c.state==="out"&&c.los)||(u.pose&&Math.hypot(player.position.x-u.pose.position[0],player.position.y-u.pose.position[1])<30&&!blocked({x:u.pose.position[0],y:u.pose.position[1],z:1.3},{x:player.position.x,y:player.position.y,z:1.3}))));if(seen)wanted()?.sighting?.(player.position);}
   // despawn far / finished units (never one the player is driving)
-  for(let i=units.length-1;i>=0;i--){const u=units[i],p=u.pose,d=p&&player?Math.hypot(player.position.x-p.position[0],player.position.y-p.position[1]):0;if(u.car.group.userData.playerDriven)continue;if(d>DESPAWN_M||(u.state==="leave"&&d>120)||(u.state==="leave"&&now-u.born>90000)){removeUnit(u);units.splice(i,1);}}
+  for(let i=units.length-1;i>=0;i--){const u=units[i],p=u.pose,d=p&&player?Math.hypot(player.position.x-p.position[0],player.position.y-p.position[1]):0;if(u.car.group.userData.playerDriven)continue;if(d>DESPAWN_M||(u.state==="wreck"&&now-u.wreckAt>45000&&d>70&&!u.cops.some(c=>c.state==="out"))||(u.state==="leave"&&d>120)||(u.state==="leave"&&now-u.born>90000)){removeUnit(u);units.splice(i,1);}}
   renderCops(now,dt);renderRemote(now,dt);stepTracers(now);broadcast(now);
   const v=viewport();if(v){const cops=units.reduce((n,u)=>n+u.cops.filter(c=>c.state==="out").length,0);v.dataset.policeGround=`${units.length}c/${cops}o`;}
 }

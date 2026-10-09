@@ -12,6 +12,7 @@ const CRIME_SEVERITY=Object.freeze({
   bus:2,
   "police-drone":3,
   "police-officer":3,
+  "police-car":3,
   bird:0,
 });
 
