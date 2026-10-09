@@ -12,7 +12,9 @@ import * as THREE from "three";
 // from the first frame, so no program is ever recompiled because of lights.
 
 export const DYNAMIC_LIGHTS_VERSION="constant-pool-v1";
-const POOL=3,requests=[];let lights=[],sceneRef=null,hooked=null;
+const MOBILE=typeof navigator!=="undefined"&&/android|iphone|ipad|mobile/i.test(navigator.userAgent||"");
+// street lamps at night, muzzle flashes, blasts, headlights and jetpack flames share the pool
+const POOL=MOBILE?4:6,requests=[];let lights=[],sceneRef=null,hooked=null;
 const tmp=new THREE.Vector3();
 const bridge=()=>globalThis.__arondightRealWorld||null;
 

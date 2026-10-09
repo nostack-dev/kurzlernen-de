@@ -20,6 +20,7 @@ import "./street_lamps.mjs";
 import "./cows.mjs";
 import "./jetpack_audio.mjs";
 import "./hand_grenade.mjs";
+import "./scene_lighting.mjs";
 import "./world_rigid_body_runtime.mjs";
 import "./walk_ui_layout_hotfix.mjs";
 import "./combat_hit_stack_guard.mjs";
