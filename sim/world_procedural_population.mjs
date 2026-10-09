@@ -137,14 +137,41 @@ function updateCatAttack(now){const a=catAttack;if(!a)return null;const head=pla
     if(t>=1){globalThis.__arondightPlayerDamageModel?.damage?.(100000,"black-cat");window.dispatchEvent(new CustomEvent("arondight:black-cat-kill"));const v=document.getElementById("viewport");if(v)v.dataset.blackCat="killed-player";catAttack=null;return null;}}
   return a;}
 globalThis.__ambientBirds={poses:()=>records.filter(r=>r.kind==="bird"&&r.group.visible&&!r.deadUntil).map(r=>({id:r.id,x:r.group.position.x,y:r.group.position.y,z:r.group.position.z,sc:r.group.children[0]?.scale.x||1})),kill:id=>{const r=records.find(q=>q.id===id);return r?killRecord(r):false;}};
+// Killer-cat activation requires a verified hit on its narrow visible torso, not a near-miss,
+// blast, ricochet, generic world impact or an animal collider which was not directly aimed at.
+// This inexpensive check runs only when a Box3D raycast actually reports animal #1.
+function directlyShotBlackCat(i,{origin,point,direction}={}){
+  if(i!==1||speciesOf(i)!=="black-cat"||!Array.isArray(origin)||!Array.isArray(point)||!Array.isArray(direction)||
+     [origin,point,direction].some(v=>v.length!==3||!v.every(Number.isFinite)))return false;
+  const a=animalPhys[i],p=animalPose[i];
+  if(!a||!p)return false;
+  const R=rigidBodies(),physical=R?.pose?.(a.id,a.pose);
+  if(!physical?.position)return false;
+  const [bx,by,bz]=physical.position;
+  // Avoid stale/recycled bodies: Box3D collider must still coincide with the shown cat.
+  if(Math.hypot(bx-p.x,by-p.y)>Math.max(.2,p.sc*.25)||Math.abs(bz-p.z)>Math.max(.35,p.sc*.6))return false;
+  const n=Math.hypot(...direction);if(n<.99||n>1.01)return false;
+  const vx=point[0]-origin[0],vy=point[1]-origin[1],vz=point[2]-origin[2];
+  const t=vx*direction[0]+vy*direction[1]+vz*direction[2];
+  if(t<=0.02||t>650||Math.hypot(vx-direction[0]*t,vy-direction[1]*t,vz-direction[2]*t)>.025)return false;
+  // Genuine line through the animal's drawn body/head: angular radius follows cat's own scale.
+  // The broad box collider alone does not authorize the pursuit.
+  const sx=point[0]-p.x,sy=point[1]-p.y,sz=point[2]-p.z;
+  const ca=Math.cos(p.yaw),sa=Math.sin(p.yaw),lx=sx*ca+sy*sa,ly=-sx*sa+sy*ca;
+  const sc=p.sc||.62;
+  const onTorso=Math.abs(lx)<.33*sc&&Math.abs(ly)<.16*sc&&Math.abs(sz)<.20*sc;
+  const onHead=Math.hypot(lx-.43*sc,ly,sz-.16*sc)<.18*sc;
+  return onTorso||onHead;
+}
 globalThis.__ambientAnimals={
   kill:killAnimal,
   poses:()=>animalPose.map((p,i)=>p&&!animalDead[i]?{i,...p}:null).filter(Boolean),
   // Hitscan ray selects the ACTUAL Box3D animal collider. Transfer momentum at its 3D impact point.
-  hit({id,point=null,direction=[0,0,1],strength=1}={}){
+  hit({id,point=null,origin=null,direction=[0,0,1],strength=1}={}){
     const i=animalPhys.findIndex(a=>a?.id===String(id));
     if(i<0||!animalPose[i]||animalDead[i])return false;
     const a=animalPhys[i],len=Math.hypot(...direction)||1;
+    if(speciesOf(i)==="black-cat"&&!directlyShotBlackCat(i,{origin,point,direction}))return false;
     // A configurable gameplay impulse in N*s; mass scaling keeps dogs and cats responsive without teleporting.
     const impulseNs=Math.min(48,Math.max(9,a.mass*2.8))*Math.max(.2,Math.min(2,Number(strength)||1));
     const dir=[direction[0]/len,direction[1]/len,direction[2]/len+.27];
@@ -210,6 +237,7 @@ function configureWorld(){
   anchorX=east;anchorY=north;if(key===worldKey)return true;
   for(const record of records)if(record.id){rigidBodies()?.removeBody?.(record.id);stopWorldCriticalDamage(record.id);}
   if(key==="training"||worldKey==="training"){routes.splice(0);routeCache.clear();lastRouteOrigin="";}
+  catAttack=null;const view=document.getElementById("viewport");if(view)view.dataset.blackCat="idle";
   for(let i=0;i<animalPhys.length;i++)dropAnimalBody(i);animalPhys.length=0;
   worldKey=key;worldSeed=hashText(`arondight-world-pop:${key}`);byId.clear();
   if(key==="training"){const seeded=trainingRoutes();routes.splice(0,routes.length,...seeded);for(const route of seeded)routeCache.set(route.key,route);}
