@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import {VS_FX_EVENT} from "./lan_vs.mjs";
 import {requestLight} from "./dynamic_lights.mjs";
 import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./audio_settings.mjs";
 import {accelerateCriticalDetonation,criticalDamageProfile,isCriticalDamage} from "./critical_damage_logic.mjs";
@@ -21,6 +22,8 @@ const upAxis=new THREE.Vector3(0,1,0);
 
 const drones=[];
 const seenCrimes=new Map();
+const remoteWanted=new Map(),remotePolice=new Map();
+let lastWantedReplicate=-Infinity,wantedPacketSeq=0;
 const playerPosition=new THREE.Vector3();
 const previousPlayerPosition=new THREE.Vector3();
 const lastKnownPosition=new THREE.Vector3();
@@ -466,20 +469,76 @@ function onCombatKill(event){const detail=event?.detail||{};
 }
 function onPhysicsImpact(event){const detail=event?.detail||{},id=String(detail.id||""),match=id.match(/^police-drone-(\d+)$/),drone=match?drones[Number(match[1])]:null;if(!drone?.active)return;const now=performance.now(),impact=Number(detail.deltaVelocityMps)||0;drone.hitUntil=Math.max(drone.hitUntil,now+90);drone.flash.visible=true;if(drone.empDisabled&&impact>=1.4&&now-drone.empImpactAt>420){drone.empImpactAt=now;drone.hp=0;armPoliceCritical(drone,now,true);}else if(impact>=3.8&&now-drone.lastCollisionDamageAt>520){drone.lastCollisionDamageAt=now;const damage=clamp(Math.round((impact-3.2)*5),3,18);drone.hp=Math.max(0,drone.hp-damage);if(isCriticalDamage("police-drone",drone.hp,POLICE_HP))armPoliceCritical(drone,now,drone.critical||drone.hp===0);}const view=viewport();if(view){view.dataset.wantedPolicePhysicalImpacts=String((Number(view.dataset.wantedPolicePhysicalImpacts)||0)+1);view.dataset.wantedPoliceLastImpactMps=impact.toFixed(2);view.dataset.wantedPoliceLastHp=String(drone.hp);if(drone.empDisabled)view.dataset.wantedEmpCrashImpacts=String((Number(view.dataset.wantedEmpCrashImpacts)||0)+1);}}
 
+// Per-player replication: each client owns its wanted state and simulates ONLY cops pursuing itself.
+// Peers receive read-only cop poses with owner/target IDs, not extra police AI or damaging physics.
+function remotePoliceMesh(owner,unit){
+  const key=owner+":"+unit,existing=remotePolice.get(key);if(existing)return existing;
+  const scene=bridge()?.threeScene;if(!scene)return null;
+  const root=new THREE.Group();root.name="REMOTE_POLICE_"+key;root.userData.wantedOwnerId=owner;root.userData.wantedTargetId=owner;
+  const body=new THREE.Mesh(new THREE.BoxGeometry(.82,.63,.26),new THREE.MeshStandardMaterial({color:0xe5eaf2,metalness:.38,roughness:.38}));
+  const red=new THREE.Mesh(new THREE.BoxGeometry(.16,.17,.07),new THREE.MeshBasicMaterial({color:0xff3845})),blue=new THREE.Mesh(new THREE.BoxGeometry(.16,.17,.07),new THREE.MeshBasicMaterial({color:0x328cff}));
+  red.position.set(.15,-.12,.19);blue.position.set(.15,.12,.19);
+  for(const mesh of[body,red,blue]){mesh.userData.flightFireIgnore=true;mesh.userData.neonSkip=true;mesh.raycast=()=>{};root.add(mesh);}
+  root.visible=false;scene.add(root);
+  const state={owner,unit,root,target:new THREE.Vector3(),lastAt:-Infinity,seq:-Infinity,scene};
+  remotePolice.set(key,state);return state;
+}
+function remotePolicePacket(event){
+  const p=event?.detail?.packet,owner=String(event?.detail?.peerId||"");
+  if(!p||p.type!=="impact"||p.objectId!=="wanted-cop-state"||!owner||p.ownerId!==owner)return;
+  const now=performance.now(),seq=Number(p.seq),unit=Number(p.unit);
+  if(!Number.isInteger(unit)||unit< -1||unit>=MAX_POLICE_DRONES||!Array.isArray(p.p)||p.p.length!==3||!p.p.every(Number.isFinite))return;
+  let x=p.p[0],y=p.p[1],z=p.p[2];const b=bridge();
+  if(Array.isArray(p.g)&&p.g.length===2&&p.g.every(Number.isFinite)){
+    if(!b?.active||!Number.isFinite(b.originLon)||!Number.isFinite(b.originLat))return;
+    const R=6378137;
+    x=(p.g[0]-b.originLon)*Math.PI/180*R*Math.max(.01,Math.cos(b.originLat*Math.PI/180));
+    y=(p.g[1]-b.originLat)*Math.PI/180*R;
+  }
+  const meta=remoteWanted.get(owner);
+  if(meta&&Number.isFinite(seq)&&seq<meta.seq)return;
+  remoteWanted.set(owner,{stars:Math.max(0,Math.min(5,Number(p.stars)||0)),phase:String(p.phase||"clear"),lastAt:now,seq:Number.isFinite(seq)?seq:0});
+  if(unit===-1){for(const state of remotePolice.values())if(state.owner===owner)state.root.visible=false;return;}
+  const state=remotePoliceMesh(owner,unit);if(!state||Number.isFinite(seq)&&seq<state.seq)return;
+  state.seq=Number.isFinite(seq)?seq:state.seq+1;state.lastAt=now;
+  state.target.set(x,y,z);if(!state.root.visible)state.root.position.copy(state.target);
+  state.root.visible=Boolean(p.active)&&Number(p.stars)>0;
+  state.root.rotation.z=Number(p.yaw)||0;
+}
+function replicatePolice(now,dt){
+  const s=bridge()?.vsSession,b=bridge(),id=String(s?.getSelfId?.()||""),peers=s?.getPeerIds?.()||[];
+  if(s?.sendFx&&id&&peers.length&&now-lastWantedReplicate>=350){
+    lastWantedReplicate=now;const list=drones.filter(d=>d.active),point=currentPlayerPosition(),sender=list.length?list:[{index:-1,root:{position:point||new THREE.Vector3(),rotation:{z:0}},active:false}]];
+    for(const d of sender){
+      const p=d.root.position,packet={type:"impact",objectId:"wanted-cop-state",kind:"wanted-cop-state",id:`wc-${++wantedPacketSeq}`,ownerId:id,targetId:id,unit:d.index,seq:wantedPacketSeq,stars,phase,active:!!d.active,p:[p.x,p.y,p.z],yaw:d.root.rotation.z};
+      if(b?.active&&Number.isFinite(b.originLon)&&Number.isFinite(b.originLat)){
+        const R=6378137;packet.g=[b.originLon+p.x/(R*Math.max(.01,Math.cos(b.originLat*Math.PI/180)))*180/Math.PI,b.originLat+p.y/R*180/Math.PI];
+      }else{const o=b?.__vsRespawnLocalOffset;if(Array.isArray(o)&&o.length===2){packet.p[0]+=Number(o[0])||0;packet.p[1]+=Number(o[1])||0;}}
+      s.sendFx(packet);
+    }
+  }
+  for(const [key,state]of remotePolice){
+    if(state.scene!==b?.threeScene||now-state.lastAt>8000){state.root.parent?.remove(state.root);for(const child of state.root.children){child.geometry?.dispose?.();child.material?.dispose?.();}remotePolice.delete(key);continue;}
+    if(now-state.lastAt>1800){state.root.visible=false;continue;}
+    state.root.position.lerp(state.target,1-Math.exp(-Math.max(0,dt)*10));
+  }
+  for(const [id,meta]of remoteWanted)if(now-meta.lastAt>8000)remoteWanted.delete(id);
+  const v=viewport();if(v&&now-lastHudRender>250)v.dataset.wantedByPlayer=JSON.stringify(Object.fromEntries([[String(b?.vsSession?.getSelfId?.()||"local"),stars],...[...remoteWanted].map(([id,m])=>[id,m.stars])]));
+}
 function frame(now=performance.now()){
-  requestAnimationFrame(frame);const dt=clamp((now-lastFrameAt)/1000,0,MAX_FRAME_DT);lastFrameAt=now;if(!ensureScene()){renderHud(0);return;}updateWanted(now,dt);
+  requestAnimationFrame(frame);const dt=clamp((now-lastFrameAt)/1000,0,MAX_FRAME_DT);lastFrameAt=now;if(!ensureScene()){renderHud(0);return;}updateWanted(now,dt);replicatePolice(now,dt);
 }
 
 export function installWantedPoliceDrones(){
   if(installed)return globalThis.__arondightWantedSystem;installed=true;installHud();installPoliceHitApi();
-  addEventListener(WORLD_KILL_EVENT,onWorldKill);addEventListener("arondight:combat-hit-confirm",onCombatKill);addEventListener("arondight:world-physics-impact",onPhysicsImpact);addEventListener(AUDIO_SETTINGS_EVENT,event=>{audioSettings=normalizeAudioSettings(event.detail||loadAudioSettings());});
+  addEventListener(VS_FX_EVENT,remotePolicePacket);addEventListener(WORLD_KILL_EVENT,onWorldKill);addEventListener("arondight:combat-hit-confirm",onCombatKill);addEventListener("arondight:world-physics-impact",onPhysicsImpact);addEventListener(AUDIO_SETTINGS_EVENT,event=>{audioSettings=normalizeAudioSettings(event.detail||loadAudioSettings());});
   const unlock=()=>{audioUnlocked=true;ensureAudio();};addEventListener("pointerdown",unlock,{capture:true,passive:true});addEventListener("keydown",unlock,{capture:true});
   document.addEventListener("click",event=>{const target=event.target instanceof Element?event.target.closest("#reset,#soloReset"):null;if(target)clearWanted("reset");},{capture:true,passive:true});
   // ground police (police_ground_units.mjs) seeing the player keeps the pursuit alive
   const sighting=(position=null)=>{if(stars<=0)return false;const now=performance.now();phase="pursuit";lastContactAt=now;if(position&&Number.isFinite(position.x))lastKnownPosition.set(position.x,position.y,Number(position.z)||0);else{const p=currentPlayerPosition();if(p)lastKnownPosition.copy(p);}return true;};
   // military escalation (military_response.mjs): the same drones in olive drab, light bars dark
   const setMilitary=on=>{if(!materials)return false;materials.body.color.setHex(on?0x4b5634:0xf2f5f6);materials.body.emissive.setHex(on?0x0b0d06:0x20262a);materials.white.color.setHex(on?0x5d6644:0xffffff);materials.red.emissiveIntensity=on?.4:2.6;materials.blue.emissiveIntensity=on?.4:2.8;materials.redHalo.opacity=on?0:.28;materials.blueHalo.opacity=on?0:.30;return true;};
-  const api={reportCrime,clear:clearWanted,triggerEmp,sighting,setMilitary,get state(){return{heat,stars,phase,policeActive:drones.filter(drone=>drone.active).length,policeRetreating:drones.filter(drone=>drone.active&&drone.retreating).length,policeKills,lastContactAt,lastCrimeAt,waveNumber,nextWaveAt,playerSpeedMps,empReadyAt,empDisabled:drones.filter(drone=>drone.active&&drone.empDisabled).length};},get drones(){return drones.slice();}};globalThis.__arondightWantedSystem=api;const view=viewport();if(view)view.dataset.wantedSystem="heat+fair-physics-police-drones-v4";requestAnimationFrame(frame);return api;
+  const api={reportCrime,clear:clearWanted,triggerEmp,sighting,setMilitary,get remoteWanted(){return new Map(remoteWanted);},get state(){return{heat,stars,phase,policeActive:drones.filter(drone=>drone.active).length,policeRetreating:drones.filter(drone=>drone.active&&drone.retreating).length,policeKills,lastContactAt,lastCrimeAt,waveNumber,nextWaveAt,playerSpeedMps,empReadyAt,empDisabled:drones.filter(drone=>drone.active&&drone.empDisabled).length};},get drones(){return drones.slice();}};globalThis.__arondightWantedSystem=api;const view=viewport();if(view)view.dataset.wantedSystem="heat+fair-physics-police-drones-v4";requestAnimationFrame(frame);return api;
 }
 
 installWantedPoliceDrones();
