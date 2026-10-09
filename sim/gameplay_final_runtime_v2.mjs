@@ -27,7 +27,7 @@ const GRENADE_RADIUS_M=GRENADE_BASE_RADIUS_M*GRENADE_VISUAL_SCALE;
 const GRENADE_FLOOR_NORMAL_Z=.58;
 const GRENADE_BLAST_RADIUS_M=8.5;
 const GRENADE_MAX_DAMAGE=125;
-const FOOT_WEAPON_ORDER=Object.freeze(["smg","glock","grenade"]);
+const FOOT_WEAPON_ORDER=Object.freeze(["smg","glock","grenade","nuke"]);
 const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tmp3=new THREE.Vector3(),right=new THREE.Vector3(),forward=new THREE.Vector3(),ndc=new THREE.Vector2();
 const shotCamera=new THREE.PerspectiveCamera(78,16/9,.01,500),shotRaycaster=new THREE.Raycaster(),boxHits=new Box3dHitscanWorld();
 const tracerAxis=new THREE.Vector3(0,1,0),tracerVector=new THREE.Vector3(),grenadeAxis=new THREE.Vector3(0,0,-1),bounceFxAxis=new THREE.Vector3(0,0,1);
@@ -141,7 +141,14 @@ function patchWeaponVisual(){
   let smg=gun.getObjectByName?.("FINAL_SMG_CONVERSION");
   if(!smg){smg=new THREE.Group();smg.name="FINAL_SMG_CONVERSION";const metal=new THREE.MeshStandardMaterial({color:0x222a30,roughness:.38,metalness:.62,depthTest:true,depthWrite:true}),dark=new THREE.MeshStandardMaterial({color:0x101418,roughness:.72,metalness:.15,depthTest:true,depthWrite:true});const add=(geo,mat,pos,rot=[0,0,0])=>{const m=new THREE.Mesh(geo,mat);m.position.set(...pos);m.rotation.set(...rot);m.renderOrder=10000;m.userData.flightFireIgnore=true;m.userData.walkWeaponPart=true;smg.add(m);};add(new THREE.BoxGeometry(.095,.085,.30),metal,[0,.002,-.31]);add(new THREE.CylinderGeometry(.014,.014,.26,10),dark,[0,.005,-.53],[Math.PI/2,0,0]);add(new THREE.BoxGeometry(.055,.18,.08),dark,[0,-.115,-.22],[.28,0,0]);add(new THREE.BoxGeometry(.06,.05,.20),dark,[0,-.015,-.06]);gun.add(smg);}
   smg.visible=footWeapon==="smg";
-  const rightNode=gun.getObjectByName?.(footWeapon==="grenade"?"WALK_GRENADE_MUZZLE_NODE":footWeapon==="glock"?"WALK_GLOCK_MUZZLE_NODE":"WALK_SMG_MUZZLE_NODE"),leftNode=footWeapon==="glock"?scene.getObjectByName?.("WALK_GLOCK_MUZZLE_LEFT"):null;
+  // NUKE: the launcher carries its warhead on the muzzle (a nuclear recoilless rifle); gone while reloading
+  let warhead=gun.getObjectByName?.("FINAL_NUKE_WARHEAD");const muzzleNode=gun.getObjectByName?.("WALK_GRENADE_MUZZLE_NODE");
+  if(!warhead&&muzzleNode){warhead=new THREE.Group();warhead.name="FINAL_NUKE_WARHEAD";const olive=new THREE.MeshStandardMaterial({color:0x56603f,roughness:.55,metalness:.25}),dark=new THREE.MeshStandardMaterial({color:0x22261c,roughness:.6,metalness:.3}),band=new THREE.MeshStandardMaterial({color:0xd9b400,roughness:.5});
+    /* like the M388: a warhead much fatter than the tube, sitting on a stem in the muzzle */const body=new THREE.Mesh(new THREE.SphereGeometry(.14,18,14),olive);body.scale.set(1,1,1.4);body.position.z=-.2;const ring=new THREE.Mesh(new THREE.TorusGeometry(.139,.012,6,24),band);ring.position.z=-.17;const stem=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.12,10),dark);stem.rotation.x=Math.PI/2;stem.position.z=-.03;
+    warhead.add(body,ring,stem);for(let k=0;k<4;k++){const fin=new THREE.Mesh(new THREE.BoxGeometry(.006,.09,.09),dark);fin.position.set(Math.cos(k*Math.PI/2)*.07,Math.sin(k*Math.PI/2)*.07,-.02);fin.rotation.z=k*Math.PI/2;warhead.add(fin);}
+    warhead.traverse(n=>{if(n.isMesh){n.renderOrder=10000;n.userData.flightFireIgnore=true;n.userData.walkWeaponPart=true;}});muzzleNode.add(warhead);}
+  if(warhead)warhead.visible=footWeapon==="nuke"&&!(globalThis.__arondightFootNuke?.readyInMs>0);
+  const rightNode=gun.getObjectByName?.(footWeapon==="grenade"||footWeapon==="nuke"?"WALK_GRENADE_MUZZLE_NODE":footWeapon==="glock"?"WALK_GLOCK_MUZZLE_NODE":"WALK_SMG_MUZZLE_NODE"),leftNode=footWeapon==="glock"?scene.getObjectByName?.("WALK_GLOCK_MUZZLE_LEFT"):null;
   if(rightNode)attachFlash(custom,rightNode,footWeapon==="grenade"?1.45:footWeapon==="glock"?1.7:1);
   if(leftNode)attachFlash(leftFlash,leftNode,1.7);else leftFlash.visible=false;
   gun.userData.finalWeapon=footWeapon;const view=viewport();if(view){view.dataset.walkMuzzleDepth="depth-tested-viewmodel-occlusion-v2";view.dataset.walkWeaponViewmodelAlignment="camera-owned-sights-v2";view.dataset.walkMuzzleAnchor=rightNode?"dedicated-weapon-node-v1":"fallback";view.dataset.walkGlockMuzzleFx=footWeapon==="glock"&&leftNode?"independent-right+left-v3":"single";}
@@ -309,7 +316,7 @@ function installStyle(){if(document.querySelector("style[data-gameplay-final-run
 `;document.head.appendChild(style);}
 
 function installApis(){
-  globalThis.__arondightFootWeapons={get mode(){return footWeapon;},get automatic(){return footWeapon==="smg";},toggle:toggleFootWeapon,setMode:setFootWeapon,fireAt({clientX,clientY,source="external",hand=0,at=null}={}){const t=Number.isFinite(at)?at:performance.now();return footWeapon==="grenade"?launchFootGrenade(clientX,clientY,t,source):footShotAt(clientX,clientY,t,hand);}};
+  globalThis.__arondightFootWeapons={get mode(){return footWeapon;},get automatic(){return footWeapon==="smg";},toggle:toggleFootWeapon,setMode:setFootWeapon,fireAt({clientX,clientY,source="external",hand=0,at=null}={}){const t=Number.isFinite(at)?at:performance.now();return footWeapon==="nuke"?Boolean(globalThis.__arondightFootNuke?.fire?.({clientX,clientY,source})):footWeapon==="grenade"?launchFootGrenade(clientX,clientY,t,source):footShotAt(clientX,clientY,t,hand);}};
   globalThis.__arondightDroneWeapons={get mode(){return droneWeapon;},toggle:toggleDroneWeapon,setMode(mode){if(mode!==droneWeapon&&["gun","missile"].includes(mode))toggleDroneWeapon();return droneWeapon;},fireMissile({clientX,clientY,source="external"}={}){return launchMissile(clientX,clientY,performance.now(),source);}};
 }
 let lastFrame=performance.now(),lastHousekeeping=-Infinity;

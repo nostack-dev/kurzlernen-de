@@ -5,7 +5,7 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
 const shotCamera=new THREE.PerspectiveCamera(78,16/9,.01,500),raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2(),forward=new THREE.Vector3(),target=new THREE.Vector3();
 const localBarrelForward=new THREE.Vector3(0,0,-1),currentBarrelForward=new THREE.Vector3(),shotDirection=new THREE.Vector3(0,1,0),fullAdjust=new THREE.Quaternion(),weightedAdjust=new THREE.Quaternion(),identityQuat=new THREE.Quaternion(),lastAppliedAdjust=new THREE.Quaternion();
 const PISTOL_PARTS=new Set(["WALK_VM_FRAME","WALK_VM_RAIL","WALK_VM_SLIDE","WALK_VM_SLIDE_TOP","WALK_VM_BARREL","WALK_VM_MUZZLE","WALK_VM_EJECTION_PORT","WALK_VM_GRIP","WALK_VM_MAG_BASE","WALK_VM_TRIGGER_GUARD","WALK_VM_TRIGGER","WALK_VM_REAR_SIGHT","WALK_VM_FRONT_SIGHT","WALK_VM_FRONT_DOT"]);
-const WEAPON_NAMES={smg:"MP",glock:"GLOCK",grenade:"WERFER"},WEAPON_ORDER=["smg","glock","grenade"];
+const WEAPON_NAMES={smg:"MP",glock:"GLOCK",grenade:"WERFER",nuke:"NUKE"},WEAPON_ORDER=["smg","glock","grenade","nuke"];
 let installed=false,lastScreenShotAt=-Infinity,lastSwitchAt=-Infinity,lastMode="",lastGun=null,hasAppliedAdjust=false,lastShotClientX=NaN,lastShotClientY=NaN,weaponButton=null,lastButtonMode="";
 
 function viewport(){return document.getElementById("viewport");}
@@ -36,7 +36,7 @@ function ensureGlock(gun){
   group.add(right);gun.add(group);return group;
 }
 function setWeaponModeVisual(gun,mode){
-  const smg=ensureSmg(gun),launcher=ensureGrenadeLauncher(gun),glock=ensureGlock(gun),isSmg=mode==="smg",isGrenade=mode==="grenade",isGlock=mode==="glock";smg.visible=isSmg;launcher.visible=isGrenade;glock.visible=isGlock;const conversion=gun.getObjectByName?.("FINAL_SMG_CONVERSION");if(conversion)conversion.visible=false;
+  const smg=ensureSmg(gun),launcher=ensureGrenadeLauncher(gun),glock=ensureGlock(gun),isSmg=mode==="smg",isGrenade=mode==="grenade"||mode==="nuke",isGlock=mode==="glock";smg.visible=isSmg;launcher.visible=isGrenade;glock.visible=isGlock;const conversion=gun.getObjectByName?.("FINAL_SMG_CONVERSION");if(conversion)conversion.visible=false;
   gun.traverse?.(node=>{if(PISTOL_PARTS.has(node.name))node.visible=false;});
   const flash=gun.getObjectByName?.("FINAL_MUZZLE_FLASH")||gun.getObjectByName?.("WALK_MUZZLE_FLASH");if(flash){flash.traverse?.(node=>{if(node.isMesh&&node.material){node.material.depthTest=true;node.material.depthWrite=false;node.material.needsUpdate=true;}if(node.isMesh)node.renderOrder=9996;});}
   gun.userData.finalWeapon=mode;gun.userData.walkWeaponViewmodel=isGrenade?"boomstick-40mm-v2":isSmg?"volt-smg-epic-v5":"dual-mirrored-matte-black-glock-v3";const view=viewport();if(view){view.dataset.walkWeapon=mode;view.dataset.walkWeaponViewmodel=gun.userData.walkWeaponViewmodel;view.dataset.walkSmgMesh=isSmg?"dedicated-receiver+barrel+magazine+brace-v4":"hidden";view.dataset.walkGrenadeLauncher=isGrenade?"40mm-visible-v1":"hidden";view.dataset.walkWeaponSwitch="single-owner-touch+q+dpad-v4";view.dataset.walkMuzzleOwnership="gameplay-runtime-dual-glock-nodes-v2";view.dataset.walkGlockViewmodel=isGlock?"dual-mirrored-matte-black-v3":"hidden";}

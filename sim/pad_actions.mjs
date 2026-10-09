@@ -32,7 +32,7 @@ function mode(){const b=document.body;if(b.classList.contains("jet-mode"))return
 globalThis.__arondightPadBlocked=()=>menuOpen()||startScreen();
 export function sendKey(code,{hold=60}={}){const opts={code,key:code.replace(/^Key|^Digit/,"").toLowerCase(),bubbles:true,cancelable:true};const down=new KeyboardEvent("keydown",opts);down.__synthetic="pad";dispatchEvent(down);setTimeout(()=>{const up=new KeyboardEvent("keyup",opts);up.__synthetic="pad";dispatchEvent(up);},hold);}
 function cycleWeapon(dir){const m=mode();if(m!=="foot"&&m!=="drone")return;const api=m==="foot"?globalThis.__arondightFootWeapons:globalThis.__arondightDroneWeapons;if(!api)return;
-  if(m==="foot"&&typeof api.setMode==="function"){const order=["smg","glock","grenade"],i=Math.max(0,order.indexOf(String(api.mode)));api.setMode(order[(i+dir+order.length)%order.length]);}else api.toggle?.();}
+  if(m==="foot"&&typeof api.setMode==="function"){const order=["smg","glock","grenade","nuke"],i=Math.max(0,order.indexOf(String(api.mode)));api.setMode(order[(i+dir+order.length)%order.length]);}else api.toggle?.();}
 function switchFootDrone(){const m=mode();if(m!=="foot"&&m!=="drone")return;walk()?.setMode?.(m==="foot"?"drone":"foot",{reason:"pad-dpad-down"});}
 function camera(){const m=mode();if(m==="drone")document.getElementById("soloCamera")?.click();else if(m==="car"||m==="jet")sendKey("KeyC");}
 function strike(){const j=globalThis.__fighterJets;if(!j)return;if(j.targeting)j.confirm?.();else j.target?.(true);}
