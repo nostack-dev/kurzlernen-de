@@ -13,7 +13,7 @@ const wrap=a=>{let x=Number(a)||0;while(x>Math.PI)x-=Math.PI*2;while(x<-Math.PI)
 try{
   await page.goto(url.href,{waitUntil:"load",timeout:45000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&globalThis.__arondightWalkMode&&globalThis.__arondightFootWeapons&&document.querySelector("#mobileGameplayDock"),{timeout:45000});
-  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldTrafficMotion==="forward-collinear-v2"&&document.querySelector("#viewport")?.dataset.worldCrowdDensity==="native+supplemental-passersby-v1",{timeout:12000});
+  await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldTrafficMotion==="forward-collinear-v2"&&document.querySelector("#viewport")?.dataset.worldCrowdDensity==="persistent-pedestrian-agents-v2",{timeout:12000});
 
   await page.click("#mobileGameplayMode");
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.playerMode==="foot"&&document.body.classList.contains("on-foot-mode"),{timeout:8000});
