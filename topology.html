@@ -1216,7 +1216,7 @@ const poolMain=function(self){
 };
 const turbo={on:false, pool:null, N:0, T:null};
 async function makePool(){
-  const want=Math.max(1,Math.min(8,(navigator.hardwareConcurrency||4)-1)), ws=[];
+  const want=Math.max(1,Math.min(16,(navigator.hardwareConcurrency||4)-1)), ws=[];
   for(let i=0;i<want;i++){ let w; try{ if(!threaded) throw 0; w=new Worker(URL.createObjectURL(new Blob([makeCore.toString()+'\n('+poolMain.toString()+')(self);'],{type:'text/javascript'}))); }catch(_){ w=localWorker(poolMain); i=want; }
     ws.push(w); }
   await Promise.all(ws.map(w=>new Promise((res,rej)=>{ const h=e=>{ if(e.data.type==='ready'){ w.removeEventListener('message',h); res(); } }; w.addEventListener('message',h); w.postMessage({cmd:'init',wasm:bin.buffer.slice(0),opt:wopt()}); setTimeout(()=>rej(new Error('Rechenkern startet nicht')),8000); })));
