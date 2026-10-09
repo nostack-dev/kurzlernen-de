@@ -1,16 +1,16 @@
-file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:51
-  if(!(after.shots>before.shots&&after.screen==="fire-only-v1"&&after.fireVector==="touch-screen-ray-v5"&&after.aimSource==="screen-touch"&&after.touchVector==="screen-ray+hand-anchor-v1"))throw new Error(`screen touch did not use the authoritative shot/vector path: ${JSON.stringify({before,after})}`);
-                                                                                                                                                                                                   ^
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:57
+  if(fpvUi.spawnGuard!=="joint-player-cones-v1")throw new Error(`spawn visibility guard is not active: ${JSON.stringify(fpvUi)}`);
+                                                      ^
 
-Error: screen touch did not use the authoritative shot/vector path: {"before":{"yaw":0.7998,"pitch":-0.0009,"shots":9},"after":{"yaw":0.7998,"pitch":-0.0009,"shots":12,"screen":"akimbo-independent-fire-v3","fireVector":"touch-screen-ray-v5","aimSource":"screen-touch","touchVector":"screen-ray+hand-anchor-v1","alignment":"exact-screen-ray-from-hand-anchor-v5","aimWeight":1,"aimErrorDeg":0,"handAnchor":"position-fixed-rotation-only-v1"}}
-    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:51:196
+Error: spawn visibility guard is not active: {"fire":"none","fireContract":"screen-touch-only-hidden-v1","lookZone":"none","contractVisibility":"hidden","contractOpacity":"0","score":"none","dock":["ON FOOT","WEAPON · SMG","SETTINGS"],"buttonLayout":[{"text":"ON FOOT","display":"flex","align":"center","justify":"center","padTop":"0px","padBottom":"0px","lineHeight":"9px"},{"text":"WEAPON · SMG","display":"flex","align":"center","justify":"center","padTop":"0px","padBottom":"0px","lineHeight":"9px"},{"text":"SETTINGS","display":"flex","align":"center","justify":"center","padTop":"0px","padBottom":"0px","lineHeight":"9px"}],"spawnGuard":"registry+joint-player-cones-v2","collision":"box3d-capsule-mover-v2","collisionShape":"capsule","collisionMask":"terrain-walls-only","collisionShots":"pass-through","collisionRadius":"0.28","collisionHeight":"1.72"}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:57:55
 
 Node.js v22.23.3
-file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:51
-  if(!(after.shots>before.shots&&after.screen==="fire-only-v1"&&after.fireVector==="touch-screen-ray-v5"&&after.aimSource==="screen-touch"&&after.touchVector==="screen-ray+hand-anchor-v1"))throw new Error(`screen touch did not use the authoritative shot/vector path: ${JSON.stringify({before,after})}`);
-                                                                                                                                                                                                   ^
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:57
+  if(fpvUi.spawnGuard!=="joint-player-cones-v1")throw new Error(`spawn visibility guard is not active: ${JSON.stringify(fpvUi)}`);
+                                                      ^
 
-Error: screen touch did not use the authoritative shot/vector path: {"before":{"yaw":0.6816,"pitch":-0.0008,"shots":6},"after":{"yaw":0.6816,"pitch":-0.0008,"shots":18,"screen":"akimbo-independent-fire-v3","fireVector":"touch-screen-ray-v5","aimSource":"screen-touch","touchVector":"screen-ray+hand-anchor-v1","alignment":"exact-screen-ray-from-hand-anchor-v5","aimWeight":1,"aimErrorDeg":0,"handAnchor":"position-fixed-rotation-only-v1"}}
-    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:51:196
+Error: spawn visibility guard is not active: {"fire":"none","fireContract":"screen-touch-only-hidden-v1","lookZone":"none","contractVisibility":"hidden","contractOpacity":"0","score":"none","dock":["ON FOOT","WEAPON · SMG","SETTINGS"],"buttonLayout":[{"text":"ON FOOT","display":"flex","align":"center","justify":"center","padTop":"0px","padBottom":"0px","lineHeight":"9px"},{"text":"WEAPON · SMG","display":"flex","align":"center","justify":"center","padTop":"0px","padBottom":"0px","lineHeight":"9px"},{"text":"SETTINGS","display":"flex","align":"center","justify":"center","padTop":"0px","padBottom":"0px","lineHeight":"9px"}],"spawnGuard":"registry+joint-player-cones-v2","collision":"box3d-capsule-mover-v2","collisionShape":"capsule","collisionMask":"terrain-walls-only","collisionShots":"pass-through","collisionRadius":"0.28","collisionHeight":"1.72"}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:57:55
 
 Node.js v22.23.3
