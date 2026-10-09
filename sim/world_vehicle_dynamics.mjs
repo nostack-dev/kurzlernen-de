@@ -11,7 +11,7 @@
 // traffic (an AI driver steers towards its route target and controls speed
 // with the same pedal). Frame: world z up; chassis local x forward, y left.
 
-export const VEHICLE_DYNAMICS_VERSION="box3d-wheel-joint-vehicles-v2.8-gear-state";
+export const VEHICLE_DYNAMICS_VERSION="box3d-wheel-joint-vehicles-v3.0-strut-dampers-no-upright";
 
 // Joint frame: local x -> up (suspension + steering axis), local z -> left
 // (wheel spin axis), local y -> forward. Same frame on chassis and wheel.
@@ -24,7 +24,13 @@ export const VEHICLE_SPECS=Object.freeze({
 });
 export function vehicleSpec(kind){return kind==="bus"?VEHICLE_SPECS.bus:kind==="car"||kind==="vehicle"?VEHICLE_SPECS.car:null;}
 // Static sag the suspension settles at under the vehicle's weight.
-const SAG={car:.06,bus:.08},BODY_DAMPING=.45;
+// Suspension per wheel = the wheel joint (axis guidance, bump stops, spring)
+// + a vertical damper strut: a distance joint from a chassis mount straight
+// above the wheel to the hub, a spring-damper solved implicitly as a soft
+// constraint (stable even though the 22 kg hub reacts faster than a frame).
+// The strut carries the damping and a share of the stiffness, the wheel
+// joint spring the rest of the stiffness with only light damping.
+const SAG={car:.06,bus:.08},BODY_DAMPING=.45,SPRING_ZETA=.06,STRUT_K_SHARE=.15,STRUT_M=.55;
 const sagOf=spec=>spec===VEHICLE_SPECS.bus?SAG.bus:SAG.car;
 // chassis centre height above the ground at rest (wheel radius + axle drop - sag)
 export function vehicleGroundOffset(spec){return spec.radius-spec.attachZ-sagOf(spec);}
@@ -32,10 +38,12 @@ export function vehicleGroundOffset(spec){return spec.radius-spec.attachZ-sagOf(
 // on the joint's effective mass (≈ the light wheel), not on the chassis. Pick
 // them so the spring really carries a quarter of the chassis at the target sag
 // with a well damped body motion, instead of resting on the bump stops.
-export function suspensionTuning(spec){
-  const q=spec.mass/4,m=spec.wheelMass*q/(spec.wheelMass+q),k=q*9.81/sagOf(spec),w=Math.sqrt(k/m),c=2*BODY_DAMPING*Math.sqrt(k*q);
-  return{hertz:w/(2*Math.PI),dampingRatio:c/(2*m*w)};
+export function suspensionTuning(spec,zeta=BODY_DAMPING,kShare=1){
+  const q=spec.mass/4,m=spec.wheelMass*q/(spec.wheelMass+q),k=q*9.81/sagOf(spec)*kShare,w=Math.sqrt(k/m),c=2*zeta*Math.sqrt(q*q*9.81/sagOf(spec));
+  return{hertz:w/(2*Math.PI),dampingRatio:c/(2*m*w),stiffness:k,damping:c};
 }
+// strut: its share of the stiffness, the body damping minus what the wheel joint has
+export function strutTuning(spec){return suspensionTuning(spec,Math.max(0,BODY_DAMPING-SPRING_ZETA),STRUT_K_SHARE);}
 
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
 function rotate(q,v){const[x,y,z,w]=q,[vx,vy,vz]=v,tx=2*(y*vz-z*vy),ty=2*(z*vx-x*vz),tz=2*(x*vy-y*vx);return[vx+w*tx+(y*tz-z*ty),vy+w*ty+(z*tx-x*tz),vz+w*tz+(x*ty-y*tx)];}
@@ -63,19 +71,20 @@ export function attachWheels(physics,record,spec,{category,mask}){
     // allowFastRotation — smooth rolling, no faceted tread bumps or wobble.
     const shape=b3.b3CreateSphereShape(body,sd,{center:[0,0,0],radius:r});
     const jd=b3.b3DefaultWheelJointDef();jd.base.bodyIdA=record.body;jd.base.bodyIdB=body;jd.base.localFrameA={position:local,quaternion:[...FRAME_Q]};jd.base.localFrameB={position:[0,0,0],quaternion:[...FRAME_Q]};jd.base.collideConnected=false;
-    const tune=suspensionTuning(spec);jd.enableSuspensionSpring=true;jd.suspensionHertz=tune.hertz;jd.suspensionDampingRatio=tune.dampingRatio;jd.enableSuspensionLimit=true;jd.lowerSuspensionLimit=spec.suspension.lower;jd.upperSuspensionLimit=spec.suspension.upper;
+    const tune=suspensionTuning(spec,SPRING_ZETA,1-STRUT_K_SHARE);jd.enableSuspensionSpring=true;jd.suspensionHertz=tune.hertz;jd.suspensionDampingRatio=tune.dampingRatio;jd.enableSuspensionLimit=true;jd.lowerSuspensionLimit=spec.suspension.lower;jd.upperSuspensionLimit=spec.suspension.upper;
     jd.enableSpinMotor=true;jd.maxSpinTorque=spec.coast;jd.spinSpeed=0;
     jd.enableSteering=Boolean(front);jd.steeringHertz=9;jd.steeringDampingRatio=.95;jd.maxSteeringTorque=spec.steerTorque;jd.targetSteeringAngle=0;jd.enableSteeringLimit=Boolean(front);jd.lowerSteeringLimit=-spec.steerLock;jd.upperSteeringLimit=spec.steerLock;
     const joint=b3.b3CreateWheelJoint(physics.world,jd);
-    record.wheels.push({body,shape,joint,front:Boolean(front),local});physics.shapeRecords.set(physics.shapeKeyOf(shape),record);
+    // damper strut: chassis mount STRUT_M above the hub -> hub, rest length at
+    // zero suspension travel, soft spring-damper (implicit), free length range.
+    let strut=null;if(typeof b3.b3CreateDistanceJoint==="function"){const st=strutTuning(spec);const dd=b3.b3DefaultDistanceJointDef();dd.base.bodyIdA=record.body;dd.base.bodyIdB=body;dd.base.localFrameA={position:[x,y,spec.attachZ+STRUT_M],quaternion:[0,0,0,1]};dd.base.localFrameB={position:[0,0,0],quaternion:[0,0,0,1]};dd.base.collideConnected=false;
+      dd.length=STRUT_M;dd.enableSpring=true;dd.hertz=st.hertz;dd.dampingRatio=st.dampingRatio;dd.enableLimit=false;dd.minLength=STRUT_M-spec.suspension.upper-.25;dd.maxLength=STRUT_M-spec.suspension.lower+.25;dd.enableMotor=false;
+      try{strut=b3.b3CreateDistanceJoint(physics.world,dd);}catch(error){console.warn("damper strut",error);}}
+    record.wheels.push({body,shape,joint,strut,front:Boolean(front),local});physics.shapeRecords.set(physics.shapeKeyOf(shape),record);
   }
-  // "Keep vehicle upright" (same sample): a soft parallel joint between a static
-  // anchor and the chassis keeps chassis-up parallel to world-up (0.5 Hz,
-  // critically damped) — suspension pitch/roll stays, cars don't tip over.
-  if(typeof b3.b3CreateParallelJoint==="function"&&typeof b3.b3DefaultParallelJointDef==="function"){
-    if(!physics.uprightAnchor||b3.b3Body_IsValid?.(physics.uprightAnchor)===false){const ad=b3.b3DefaultBodyDef();ad.type=b3.b3BodyType.b3_staticBody;physics.uprightAnchor=b3.b3CreateBody(physics.world,ad);}
-    const pj=b3.b3DefaultParallelJointDef();pj.base.bodyIdA=physics.uprightAnchor;pj.base.bodyIdB=record.body;pj.base.localFrameA={position:[0,0,0],quaternion:[0,0,0,1]};pj.base.localFrameB={position:[0,0,0],quaternion:[0,0,0,1]};pj.base.collideConnected=true;pj.hertz=spec.uprightHertz??.5;pj.dampingRatio=1;
-    try{record.uprightJoint=b3.b3CreateParallelJoint(physics.world,pj);}catch(error){console.warn("upright joint",error);}}
+
+  // No "keep upright" constraint to the world: roll, pitch, tipping and flips
+  // come only from mass distribution, tyres, springs and dampers.
   return true;
 }
 export function detachWheels(physics,record){const b3=physics.b3;for(const w of record.wheels||[]){physics.shapeRecords.delete(physics.shapeKeyOf(w.shape));if(b3.b3Body_IsValid(w.body))b3.b3DestroyBody(w.body);}record.wheels=null;}
@@ -127,7 +136,7 @@ export function driveWheeled(physics,record,dt,state=null){
     b3.b3WheelJoint_SetSpinMotorSpeed(j,spinSpeed);b3.b3WheelJoint_SetMaxSpinTorque(j,Math.max(0,torque));
   }
   if(pedal||input.steer||handbrake){b3.b3Body_SetAwake?.(body,true);for(const wheel of record.wheels)b3.b3Body_SetAwake?.(wheel.body,true);}
-  // Upright: the sample's soft parallel joint (attachWheels); no scripted torques.
+
   record.vf=vf;
 }
 // Wheel poses for rendering: position from the wheel body (real suspension
