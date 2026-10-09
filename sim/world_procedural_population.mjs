@@ -221,11 +221,17 @@ function speciesOf(i){if(i===1&&(blackCatActive()||catAttack))return"black-cat";
 let paintedBlack=null,catAttack=null;
 function paintAnimals(force=false){if(!animalBodies)return;const bc=speciesOf(1)==="black-cat";if(!force&&bc===paintedBlack)return;paintedBlack=bc;const c=new THREE.Color();for(let i=0;i<AMBIENT_ANIMAL_COUNT;i++){const sp=speciesOf(i),seed=hashText(`animal-color:${i}`);c.set(sp==="black-cat"?0x0d0d0f:sp==="cat"?CAT_COLORS[seed%CAT_COLORS.length]:DOG_COLORS[seed%DOG_COLORS.length]);animalBodies.setColorAt(i,c);animalHeads.setColorAt(i,c);if(animalLegs)for(let k=0;k<4;k++)animalLegs.setColorAt(i*4+k,c);}animalBodies.instanceColor.needsUpdate=true;animalHeads.instanceColor.needsUpdate=true;if(animalLegs?.instanceColor)animalLegs.instanceColor.needsUpdate=true;}
 function speciesScale(i,base){const sp=speciesOf(i);return sp==="dog"?base:base*.62;}
-function killAnimal(i,{directShot=false}={}){const p=animalPose[i];if(!p||animalDead[i])return false;const sp=speciesOf(i);
+function killAnimal(i,{directShot=false,dir=[0,0,0]}={}){const p=animalPose[i];if(!p||animalDead[i])return false;const sp=speciesOf(i);
   // A stray ray, explosion, vehicle impact, physics jolt or generic kill() NEVER triggers the killer cat.
   // Only the authoritative Box3D raycast against this exact animal's own body may explicitly opt in.
   if(sp==="black-cat"){if(!directShot)return false;if(!catAttack){catAttack={i,start:performance.now(),x:p.x,y:p.y,z:p.z,yaw:p.yaw,phase:"charge"};playAnimal("hiss");const v=document.getElementById("viewport");if(v)v.dataset.blackCat="charging";}return true;}
-  animalDead[i]={at:performance.now(),x:p.x,y:p.y,yaw:p.yaw,sc:p.sc};playAnimal(sp==="cat"?"cat":"dog");window.dispatchEvent(new CustomEvent("arondight:world-kill",{detail:{id:`animal-${i}`,kind:"animal",species:sp,network:false,local:true}}));return true;}
+  animalDead[i]={at:performance.now(),x:p.x,y:p.y,yaw:p.yaw,sc:p.sc};collapseAnimal(i,dir);playAnimal(sp==="cat"?"cat":"dog");window.dispatchEvent(new CustomEvent("arondight:world-kill",{detail:{id:`animal-${i}`,kind:"animal",species:sp,network:false,local:true}}));return true;}
+// Shot dead, an animal does not stay standing: the legs give way and the body rolls over onto
+// its side (the roll a limp body needs to tip over its own edge), away from the shot.
+function collapseAnimal(i,dir=[0,0,0]){const a=animalPhys[i],R=rigidBodies();if(!a||!R?.applyAngularImpulse)return;const pose=R.pose?.(a.id);if(!pose)return;
+  /* the legs stop working at once: no walking force, no righting torque fighting the fall */a.deadGrip=true;R.clearTarget?.(a.id);R.setForces?.(a.id,{});R.setFriction?.(a.id,.7);
+  const q=pose.rotation,yaw=Math.atan2(2*(q[3]*q[2]+q[0]*q[1]),1-2*(q[1]*q[1]+q[2]*q[2])),fx=Math.cos(yaw),fy=Math.sin(yaw),side=(dir[0]*-fy+dir[1]*fx)>=0?1:-1;
+  const w=2*a.half[1],h=2*a.half[2],I=a.mass*(w*w+h*h)/3,L=I*5*side;/* about the edge it tips over: enough to lift the centre of mass over it against the body's damping */R.applyAngularImpulse(a.id,[fx*L,fy*L,0]);}
 function playerHead(){const w=globalThis.__arondightWalkMode;if(w?.mode==="foot"&&w.position)return{x:w.position.x,y:w.position.y,z:w.position.z};const c=bridge()?.presentedCamera?.()||bridge()?.threeCamera;return c?{x:c.position.x,y:c.position.y,z:c.position.z}:null;}
 // The charge: 11 m/s straight at you (faster than you can run), a leap at
 // 1.6 m, then lights out. If you are already dead/gone it gives up.
@@ -268,13 +274,15 @@ globalThis.__ambientAnimals={
   // Hitscan ray selects the ACTUAL Box3D animal collider. Transfer momentum at its 3D impact point.
   hit({id,point=null,origin=null,direction=[0,0,1],strength=1}={}){
     const i=animalPhys.findIndex(a=>a?.id===String(id));
-    if(i<0||!animalPose[i]||animalDead[i])return false;
+    if(i<0||!animalPose[i])return false;
     const a=animalPhys[i],len=Math.hypot(...direction)||1;
     if(speciesOf(i)==="black-cat"&&!directlyShotBlackCat(i,{origin,point,direction}))return false;
     // the bullet's real momentum, at the hit point, along its path (ballistics.mjs); strength = rounds
     const impulseNs=projectileMomentumNs("9mm")*Math.max(1,Math.min(4,Number(strength)||1)),dir=[direction[0]/len,direction[1]/len,direction[2]/len];
     rigidBodies()?.applyImpulse?.(a.id,dir.map(x=>x*impulseNs),{point:Array.isArray(point)&&point.length===3?point:null});
-    return killAnimal(i,{directShot:true});
+    // a body that is already dead still takes every round (it is pushed, not ignored)
+    if(animalDead[i])return true;
+    return killAnimal(i,{directShot:true,dir});
   }
 };
 // Dogs and cats are Box3D bodies: they walk (steered toward their wandering path by leg force),

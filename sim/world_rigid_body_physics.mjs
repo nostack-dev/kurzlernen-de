@@ -74,6 +74,7 @@ export class WorldRigidBodyPhysics{
     const h=createBox3dHuman(this.b3,this.world,{...opts,groupIndex:this.humanGroup,categoryBits:WORLD_PHYSICS_CATEGORIES.vehicle,maskBits:WORLD_PHYSICS_CATEGORIES.terrain|ALL_DYNAMIC|WORLD_PHYSICS_CATEGORIES.projectileQuery});this.humans.set(key,h);return h;}
   human(id){return this.humans?.get(String(id||""))||null;}
   removeHuman(id){const h=this.humans?.get(String(id||""));if(!h)return false;destroyBox3dHuman(this.b3,h);this.humans.delete(String(id));return true;}
+  applyAngularImpulse(id,L){const record=this.records.get(String(id||""));if(!record||!finiteVector(L)||!this.b3.b3Body_IsValid(record.body))return false;this.b3.b3Body_ApplyAngularImpulse(record.body,[...L],true);return true;}
   // a bullet in a ragdoll: its whole momentum goes into the bone it hits, at the hit point (a 2 kg
   // forearm takes a .50 round's 41 N·s as ~20 m/s; the joints hand it on to the rest of the body)
   impulseHumanAt(point,impulse,radius=.9){if(!finiteVector(point)||!finiteVector(impulse)||!this.humans?.size)return false;let best=null,bestD=radius;
