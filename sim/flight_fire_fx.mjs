@@ -123,7 +123,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
       if(!globalThis.__worldImpacts)addThreeDecal(sceneHit);return false;
     }
     const police=Boolean(worldBridge?.registerPoliceHit?.(sceneHit));
-    const population=!police&&Boolean(worldBridge?.registerWorldPopulationHit?.(sceneHit));
+    const population=!police&&Boolean(worldBridge?.registerWorldPopulationHit?.({...sceneHit,playerAction:true}));
     const vsHit=!police&&!population&&Boolean(worldBridge?.registerVsHit?.(sceneHit));
     if(!police&&!population&&!vsHit&&!globalThis.__worldImpacts)addThreeDecal(sceneHit);
     if(police||population||vsHit){viewport.dataset.fireVsHits=String((Number(viewport.dataset.fireVsHits)||0)+1);gamepadCrosshair.classList.remove("hit-confirm");void gamepadCrosshair.offsetWidth;gamepadCrosshair.classList.add("hit-confirm");hitConfirmSound();}
