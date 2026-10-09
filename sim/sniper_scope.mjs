@@ -30,12 +30,12 @@ function mount(){const v=$("viewport");if(!v)return false;
   const dots=[];for(let k=1;k<=4;k++)for(const s of[-1,1]){dots.push(`<i style="left:${s*k*4.2}vmin;top:0"></i>`,`<i style="top:${s*k*4.2}vmin;left:0"></i>`);}
   overlay.innerHTML=`<div class="ss-tube"></div><div class="ss-ring"></div><div class="ss-h"></div><div class="ss-v"></div><div class="ss-dots">${dots.join("")}</div><div class="ss-dot"></div>`;v.appendChild(overlay);
   button=document.createElement("button");button.id="scopeButton";button.type="button";button.setAttribute("aria-label","Scope");button.innerHTML="<b>◎</b>SCOPE";v.appendChild(button);
-  button.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();if(weaponOut("gravity"))globalThis.__arondightGravityGun?.toggleGrab?.();else globalThis.__arondightScopeToggle=!globalThis.__arondightScopeToggle;sync();},{capture:true});
+  button.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();globalThis.__arondightScopeToggle=!globalThis.__arondightScopeToggle;sync();},{capture:true});
   button.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();});
   return true;}
 // beside the weapon switch (thumb_layout.mjs places that one left of the look stick): above it
 function place(){const w=$("thumbWeapon");if(!w||!w.classList.contains("show"))return false;const l=parseFloat(w.style.left),t=parseFloat(w.style.top);if(!Number.isFinite(l)||!Number.isFinite(t))return false;const L=`${Math.round(l-22)}px`,T=`${Math.round(t-64)}px`;if(button.style.left!==L)button.style.setProperty("left",L,"important");if(button.style.top!==T)button.style.setProperty("top",T,"important");return true;}
-function sync(){if(!button)return;const out=sniperOut(),grav=weaponOut("gravity");if(!out&&globalThis.__arondightScopeToggle)globalThis.__arondightScopeToggle=false;const show=(out||grav)&&touchPlay()&&place();button.classList.toggle("show",Boolean(show));
+function sync(){if(!button)return;const out=sniperOut(),grav=false;if(!out&&globalThis.__arondightScopeToggle)globalThis.__arondightScopeToggle=false;const show=(out||grav)&&touchPlay()&&place();button.classList.toggle("show",Boolean(show));
   const on=grav?Boolean(globalThis.__arondightGravityGun?.holding):Boolean(globalThis.__arondightScopeToggle),html=grav?(on?"<b>✋</b>DROP":"<b>⊛</b>GRAB"):"<b>◎</b>SCOPE";if(button.dataset.html!==html){button.dataset.html=html;button.innerHTML=html;}button.classList.toggle("on",on);}
 export function installSniperScope(){if(installed||typeof document==="undefined")return;installed=true;const boot=()=>{if(!mount()){setTimeout(boot,300);return;}const loop=()=>{try{sync();}catch(e){console.warn("sniper scope",e);}setTimeout(loop,150);};loop();};boot();}
 installSniperScope();

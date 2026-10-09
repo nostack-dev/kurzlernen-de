@@ -5,7 +5,7 @@ import "./world_props.mjs";
 import "./player_push.mjs";
 import "./day_night_sync.mjs";
 import "./quit_confirm.mjs";
-import "./gravity_gun.mjs";
+import "./mp_fun_hud.mjs";
 import "./world_options_menu.mjs";
 import "./world_options.mjs";
 import "./pad_actions.mjs";

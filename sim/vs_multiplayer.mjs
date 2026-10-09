@@ -26,6 +26,12 @@ function activeSession(){return session()?.active||session()||null;}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function hashId(id){let h=2166136261;for(const c of String(id||"")){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;}
 function assignments(){const ids=[selfId,...peers.keys()].filter(Boolean).sort(),used=new Set(),out=new Map();for(const id of ids){let i=hashId(id)%PALETTE.length;while(used.has(i))i=(i+1)%PALETTE.length;used.add(i);out.set(id,PALETTE[i]);}return out;}
+// fun loop: score (kills / deaths), health that comes back after a few quiet seconds, a moment of
+// spawn protection — all decided by the authority and seen by everyone
+const SPAWN_PROTECT_MS=2500,REGEN_DELAY_MS=5000,REGEN_HP_PER_S=12,scores=new Map(),protectedUntil=new Map(),lastHurtAt=new Map();let lastRegenAt=0;
+function score(id){let s=scores.get(id);if(!s){s={k:0,d:0};scores.set(id,s);}return s;}
+function emit(type,detail){try{globalThis.dispatchEvent(new CustomEvent(type,{detail}));}catch{}}
+function authorityRegen(now){if(authorityId!==selfId||now-lastRegenAt<500)return;const dt=lastRegenAt?(now-lastRegenAt)/1000:.5;lastRegenAt=now;for(const id of participantIds()){const hp=health.get(id)??100;if(hp<=0||hp>=100)continue;if(now-(lastHurtAt.get(id)||0)<REGEN_DELAY_MS)continue;sendState(id,Math.min(100,Math.round(hp+REGEN_HP_PER_S*dt)),false,"",packetId("regen"));}}
 function colorFor(id){return assignments().get(id)||PALETTE[hashId(id)%PALETTE.length];}
 function cssColor(hex){return`#${Number(hex||0).toString(16).padStart(6,"0")}`;}
 function localOffset(){const b=bridge(),o=b?.__vsRespawnLocalOffset;return !b?.active&&Array.isArray(o)&&o.length===2?[Number(o[0])||0,Number(o[1])||0]:[0,0];}
@@ -141,7 +147,10 @@ function renderFx(now,dt){
 
 function applyState(packet){
   if(!packet)return;const stateKey=`${packet.id}:${packet.playerId}:${packet.hp}:${packet.killed}`;if(seenStates.has(stateKey))return;seenStates.add(stateKey);while(seenStates.size>1024)seenStates.delete(seenStates.values().next().value);
-  const id=String(packet.playerId||""),hp=clamp(Math.round(Number(packet.hp)||0),0,100),killed=Boolean(packet.killed);if(!id)return;health.set(id,hp);confirmedHealth.add(id);
+  const id=String(packet.playerId||""),hp=clamp(Math.round(Number(packet.hp)||0),0,100),killed=Boolean(packet.killed);if(!id)return;const before=health.get(id)??100,wasDeadAny=id===selfId?Boolean(bridge()?.vsLocalDead):Boolean(peers.get(id)?.dead);health.set(id,hp);confirmedHealth.add(id);
+  {const by=String(packet.by||"");if(killed&&!wasDeadAny){const sc=score(id);sc.d++;if(by&&by!==id)score(by).k++;emit("arondight:vs-kill",{victim:id,by,weapon:String(packet.w||""),zone:String(packet.z||""),self:selfId});}
+   if(by===selfId&&id!==selfId&&hp<before)emit("arondight:vs-hitmarker",{killed,zone:String(packet.z||""),damage:before-hp});
+   if(id===selfId&&hp<before&&by&&by!==selfId)emit("arondight:vs-hurt",{by,damage:before-hp});}
   if(id===selfId){const b=bridge();if(b){const wasDead=Boolean(b.vsLocalDead);b.vsLocalHealth=hp;b.vsLocalDead=killed;if(killed&&!wasDead)deaths++;b.updateVsCombatHud?.(true);}return;}
   const r=recordFor(id);if(!r)return;const wasDead=r.dead;r.health=hp;r.dead=killed;if(killed&&!wasDead&&packet.by===selfId){
     kills++;
@@ -150,8 +159,8 @@ function applyState(packet){
   setPrimaryCompatibility(r);
 }
 
-function sendState(playerId,hp,killed,by="",id="",options={}){
-  const s=session(),packet={type:"state",playerId,hp,killed,by,id:id||packetId("state")};applyState(packet);s?.sendGame?.(packet,options);
+function sendState(playerId,hp,killed,by="",id="",options={},extra={}){
+  const s=session(),packet={type:"state",playerId,hp,killed,by,id:id||packetId("state"),...extra};applyState(packet);s?.sendGame?.(packet,options);
   if(killed){const r=playerId===selfId?null:peers.get(playerId),b=bridge(),own=b?.airframeFor?.(b.threeScene)||b?.airframe,p=playerId===selfId?own?.position:r?.mesh?.position;if(p){const fx={type:"explosion",id:`boom-${packet.id}`,p:localToCanonical([p.x,p.y,p.z]),playerId};s?.sendFx?.(fx);if(playerId!==selfId&&playerId!==primaryId)spawnExplosion(fx);}}
 }
 
@@ -182,13 +191,14 @@ function authorityHit(packet,allowQueue=true){
   if(allowQueue&&performance.now()<authoritySettlingUntil){if(!pendingAuthorityHits.some(item=>item.id===packet.id))pendingAuthorityHits.push({...packet});return;}
   seenHits.add(packet.id);while(seenHits.size>512)seenHits.delete(seenHits.values().next().value);
   const target=String(packet.target||""),shooter=String(packet.shooter||"");if(!participantIds().includes(target)||!participantIds().includes(shooter))return;if(!confirmedHealth.has(target))confirmedHealth.add(target);
-  const old=health.get(target)??100;if(old<=0)return;const hp=Math.max(0,old-Math.round(clamp(Number(packet.damage)||25,1,100))),killed=hp===0;health.set(target,hp);sendState(target,hp,killed,shooter,packet.id);
+  if(performance.now()<(protectedUntil.get(target)||0))return; // just respawned: a moment of protection
+  const old=health.get(target)??100;if(old<=0)return;const hp=Math.max(0,old-Math.round(clamp(Number(packet.damage)||25,1,100))),killed=hp===0;health.set(target,hp);lastHurtAt.set(target,performance.now());sendState(target,hp,killed,shooter,packet.id,{},{w:String(packet.w||packet.source||"").slice(0,24),z:String(packet.z||"").slice(0,8)});
 }
 
 function flushAuthorityHits(now){if(authorityId!==selfId||now<authoritySettlingUntil||!pendingAuthorityHits.length)return;for(const id of participantIds())if(!confirmedHealth.has(id)){health.set(id,health.get(id)??100);confirmedHealth.add(id);}const queued=pendingAuthorityHits.splice(0);for(const packet of queued)authorityHit(packet,false);}
 
 function applyRespawn(packet){
-  const id=String(packet?.playerId||"");if(!id)return;health.set(id,100);confirmedHealth.add(id);
+  const id=String(packet?.playerId||"");if(!id)return;health.set(id,100);confirmedHealth.add(id);protectedUntil.set(id,performance.now()+SPAWN_PROTECT_MS);if(id===selfId)emit("arondight:vs-protected",{ms:SPAWN_PROTECT_MS});
   if(id===selfId){const b=bridge();if(b){b.vsLocalHealth=100;b.vsLocalDead=false;b.updateVsCombatHud?.(true);}return;}
   const r=recordFor(id);if(r){r.health=100;r.dead=false;setPrimaryCompatibility(r);}
 }
@@ -259,6 +269,7 @@ function onPeerEvent(event){
 // Damage of one round on a mate: by weapon, times where it lands (head ×2, legs ×0.65). An MP burst
 // needs about eight body hits, the Glock four, the sniper one to the head or body.
 const VS_WEAPON_DAMAGE={smg:13,glock:26,sniper:95,fists:12,gun:13,"5.56":13},VS_ZONE={head:2,torso:1,legs:.65};
+function hitZone(hit){let zone="";for(let n=hit?.object;n&&!zone;n=n.parent)zone=String(n.userData?.vsHitZone||"");return zone;}
 function vsDamage(hit){let zone="";for(let n=hit?.object;n&&!zone;n=n.parent)zone=String(n.userData?.vsHitZone||"");const base=VS_WEAPON_DAMAGE[String(hit?.weapon||"")]??20;return Math.max(1,Math.min(100,Math.round(base*(VS_ZONE[zone]??1))));}
 function targetFromHit(hit){
   for(let node=hit?.object;node;node=node.parent){const id=String(node.userData?.vsPlayerId||"");if(id&&id!==selfId)return id;}
@@ -267,7 +278,7 @@ function targetFromHit(hit){
 
 function installBridgeHooks(){
   const b=bridge();if(!b||b.__vsMultiplayerHooks)return;b.__vsMultiplayerHooks=true;const baseRegister=b.registerVsHit?.bind(b);
-  b.registerVsHit=hit=>{if(b.registerWorldPopulationHit?.(hit))return true;updateIdentity();const target=targetFromHit(hit);if(!target||!session()?.sendGame)return baseRegister?.(hit)||false;const id=packetId("hit"),packet={type:"hit-request",id,shooter:selfId,target,damage:vsDamage(hit)};if(authorityId===selfId)authorityHit(packet);else if(authorityId)session()?.sendGame?.(packet,{target:authorityId});return true;};
+  b.registerVsHit=hit=>{if(b.registerWorldPopulationHit?.(hit))return true;updateIdentity();const target=targetFromHit(hit);if(!target||!session()?.sendGame)return baseRegister?.(hit)||false;const id=packetId("hit"),packet={type:"hit-request",id,shooter:selfId,target,damage:vsDamage(hit),w:String(hit?.weapon||"").slice(0,12),z:hitZone(hit)};if(authorityId===selfId)authorityHit(packet);else if(authorityId)session()?.sendGame?.(packet,{target:authorityId});return true;};
 }
 
 function scanLocalFx(now){
@@ -292,14 +303,14 @@ function updateHud(){
 }
 
 function render(now=performance.now()){
-  raf=requestAnimationFrame(render);const dt=Math.min(.05,Math.max(0,(now-lastRender)/1000||0));lastRender=now;updateSessionHooks();updateIdentity();reconcilePeers();flushAuthorityHits(now);
+  raf=requestAnimationFrame(render);const dt=Math.min(.05,Math.max(0,(now-lastRender)/1000||0));lastRender=now;updateSessionHooks();updateIdentity();reconcilePeers();flushAuthorityHits(now);authorityRegen(now);
   const b=bridge(),camera=b?.presentedCamera?.()||b?.threeCamera,view=viewport();if(!b?.threeScene||!camera||!view)return;document.body.classList.toggle("vs-multiplayer",peers.size>0);refreshColors(false,now);
   for(const r of peers.values()){if(r.id===primaryId&&b.vsPeerMesh){r.mesh=b.vsPeerMesh;setPrimaryCompatibility(r);}else if(!r.mesh)r.mesh=createPeerMesh(r);if(!r.mesh)continue;const sample=r.timeline.sample(now);if(sample&&!r.dead&&now-r.lastPoseMs<=STALE_MS){r.mesh.position.set(...sample.p);r.mesh.quaternion.set(...sample.q);r.mesh.visible=true;}else if(r.dead||now-r.lastPoseMs>STALE_MS)r.mesh.visible=false;renderMarker(r,camera,view,now);}
   scanLocalFx(now);renderFx(now,dt);syncLegacyLocalState();updateHud();
 }
 
 export function installVsMultiplayer(){
-  if(installed)return;installed=true;globalThis.__arondightVsMultiplayer={reportLocalDamage,resetLevelHealth,blastHit,peerDead:id=>Boolean(peers.get(String(id||""))?.dead),get connected(){return Boolean(session()&&peers.size>0);},get authority(){return authorityId;},get self(){return selfId;}};style=document.createElement("style");style.textContent=`body.vs-multiplayer #vsEnemyMarker{display:none!important}.vs-player-marker{--vs-player-color:#fff;--vpm-angle:180deg;position:absolute;z-index:14;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;color:#fff;font-family:system-ui,-apple-system,sans-serif;filter:drop-shadow(0 1px 2px #000c);transform-origin:50% 100%;will-change:transform}
+  if(installed)return;installed=true;globalThis.__arondightVsMultiplayer={reportLocalDamage,resetLevelHealth,blastHit,peerDead:id=>Boolean(peers.get(String(id||""))?.dead),scores:()=>participantIds().map((id,i)=>({id,index:i+1,color:cssColor(colorFor(id)),self:id===selfId,hp:health.get(id)??100,...score(id)})),playerInfo:id=>{const ids=participantIds(),i=ids.indexOf(String(id||""));return i<0?null:{index:i+1,color:cssColor(colorFor(id)),self:id===selfId};},get connected(){return Boolean(session()&&peers.size>0);},get authority(){return authorityId;},get self(){return selfId;}};style=document.createElement("style");style.textContent=`body.vs-multiplayer #vsEnemyMarker{display:none!important}.vs-player-marker{--vs-player-color:#fff;--vpm-angle:180deg;position:absolute;z-index:14;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;color:#fff;font-family:system-ui,-apple-system,sans-serif;filter:drop-shadow(0 1px 2px #000c);transform-origin:50% 100%;will-change:transform}
 .vs-player-marker .vpm-tag{display:flex;align-items:baseline;gap:6px;padding:3px 8px;border-radius:8px;background:#060b10b8;border:1.5px solid var(--vs-player-color);white-space:nowrap}
 .vs-player-marker strong{font:900 13px/1 system-ui,-apple-system,sans-serif;letter-spacing:.06em;color:var(--vs-player-color)}
 .vs-player-marker small{font:800 11.5px/1 system-ui,-apple-system,sans-serif;opacity:.92;font-variant-numeric:tabular-nums}
