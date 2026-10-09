@@ -20,6 +20,7 @@ const geoCache=new Map();
 let DETAIL=1;const seg=(n,min)=>Math.max(min,Math.round(n*DETAIL));
 function geo(key,make){key+=`|d${DETAIL}`;let g=geoCache.get(key);if(!g){g=make();geoCache.set(key,g);}return g;}
 const matCache=new Map();
+const EYE_MAT=new THREE.MeshBasicMaterial({color:0x8dff3c,toneMapped:false}),EYE_GLOW_MAT=new THREE.MeshBasicMaterial({color:0x46ff1e,transparent:true,opacity:.34,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false});
 function mat(color,rough=.8,metal=0){const k=`${color}|${rough}|${metal}`;let m=matCache.get(k);if(!m){m=new THREE.MeshStandardMaterial({color,roughness:rough,metalness:metal});matCache.set(k,m);}return m;}
 function part(parent,g,m,x=0,y=0,z=0){const mesh=new THREE.Mesh(g,m);mesh.position.set(x,y,z);mesh.castShadow=true;parent.add(mesh);return mesh;}
 function joint(parent,x,y,z,name){const j=new THREE.Group();j.name=name;j.position.set(x,y,z);parent.add(j);return j;}
@@ -46,6 +47,8 @@ function buildCharacterAt({outfit,shirt,id}){
   part(head,geo("head",()=>{const g=new THREE.SphereGeometry(.115,seg(10,6),seg(8,4));g.scale(.92,1,1.12);return g;}),M.skin,0,.01,.1);
   if(M.helmet)part(head,geo("helmet",()=>{const g=new THREE.SphereGeometry(.13,seg(10,6),seg(5,3),0,Math.PI*2,0,Math.PI*.55);g.rotateX(Math.PI/2);return g;}),M.helmet,0,0,.13);
   const visor=part(head,boxG(.2,.09,.07),M.dark,0,.1,.11);visor.visible=false; // VR headset
+  // the undead: glowing green eyes (unlit, a soft additive halo around each) — tells them from people at a glance, day or night
+  if(outfit==="zombie"){M.eyes=EYE_MAT;M.eyeGlow=EYE_GLOW_MAT;for(const sx of[-1,1]){part(head,geo("zeye",()=>new THREE.SphereGeometry(.021,seg(8,5),seg(6,4))),M.eyes,sx*.042,.108,.128);const halo=part(head,geo("zeyeglow",()=>new THREE.SphereGeometry(.036,seg(12,6),seg(8,4))),M.eyeGlow,sx*.042,.112,.128);halo.castShadow=false;halo.renderOrder=2;}}
   // arms
   const arms={};for(const s of[-1,1]){const sh=joint(spine,s*.225,0,.44,s<0?"shoulderL":"shoulderR");part(sh,limb(.058,.3),M.shirt);const el=joint(sh,0,0,-.3,s<0?"elbowL":"elbowR");part(el,limb(.05,.27),M.shirt);const wr=joint(el,0,0,-.27,s<0?"wristL":"wristR");part(wr,boxG(.075,.09,.11),M.gloves,0,.01,-.05);arms[s<0?"L":"R"]={sh,el,wr};}
   // legs
@@ -56,29 +59,31 @@ function buildCharacterAt({outfit,shirt,id}){
   const gunL=gun.clone();arms.L.wr.add(gunL);gunL.visible=false;
   const rig={root,pelvis,spine,neck,head,visor,arms,legs,gun,gunL,phase:Math.random()*6,outfit,state:"idle"};
   // colour category of every mesh (instanced crowds recolour per person)
-  const cats=new Map([[M.shirt,"shirt"],[M.vest,"vest"],[M.pants,"pants"],[M.boots,"boots"],[M.skin,"skin"],[M.gloves,"gloves"],[M.dark,"dark"]]);if(M.helmet)cats.set(M.helmet,"helmet");
+  const cats=new Map([[M.shirt,"shirt"],[M.vest,"vest"],[M.pants,"pants"],[M.boots,"boots"],[M.skin,"skin"],[M.gloves,"gloves"],[M.dark,"dark"]]);if(M.helmet)cats.set(M.helmet,"helmet");if(M.eyes){cats.set(M.eyes,"eyes");cats.set(M.eyeGlow,"eyeglow");}
   root.traverse(n=>{n.userData.characterPart=true;if(n.isMesh)n.userData.cat=cats.get(n.material)||"dark";});
   return rig;
 }
 
 const lerp=(a,b,t)=>a+(b-a)*t;
 function set(j,x,y=0,z=0,k=1){j.rotation.x=lerp(j.rotation.x,x,k);j.rotation.y=lerp(j.rotation.y,y,k);j.rotation.z=lerp(j.rotation.z,z,k);}
-// state: idle | walk | run | vr | drive | aim-pistol | aim-akimbo | aim-smg | zombie | dead
+// state: idle | walk | run | vr | drive | aim-pistol | aim-akimbo | aim-smg | zombie | dead | air
+// air: off the ground (jump, jetpack, fall) — no gait: legs hang slightly bent, one a little forward
 // speed m/s for the gait; dt for the cadence and pose blending.
 export function animateCharacter(rig,{state="idle",speed=0,weapon="none",dt=1/60,punch=0}={}){
-  const k=1-Math.exp(-dt*12),moving=speed>.25,run=speed>3.2;rig.phase+=dt*(moving?Math.min(12,4.2+speed*1.9):1.2);
+  const air=state==="air";if(air)speed=0;const k=1-Math.exp(-dt*12),moving=speed>.25,run=speed>3.2;rig.phase+=dt*(moving?Math.min(12,4.2+speed*1.9):1.2);
   const p=rig.phase,swing=moving?Math.sin(p)*Math.min(.75,.3+speed*.09):0,lift=moving?Math.max(0,Math.cos(p))*.35:0,liftO=moving?Math.max(0,-Math.cos(p))*.35:0;
   const{arms,legs,pelvis,spine,head,visor}=rig;rig.state=state;
   pelvis.position.z=lerp(pelvis.position.z,state==="drive"?.52:(.96-(moving?Math.abs(Math.sin(p))*.03:0)),k);
   // legs
   if(state==="drive"){set(legs.L.hip,1.5,0,.06,k);set(legs.R.hip,1.5,0,-.06,k);set(legs.L.kn,-1.45,0,0,k);set(legs.R.kn,-1.45,0,0,k);}
   else if(state==="dead"){set(legs.L.hip,0,0,.1,k);set(legs.R.hip,0,0,-.1,k);set(legs.L.kn,0,0,0,k);set(legs.R.kn,0,0,0,k);}
+  else if(air){const sway=Math.sin(p*.9)*.05;set(legs.L.hip,.32+sway,0,.08,k);set(legs.R.hip,.08-sway,0,-.08,k);set(legs.L.kn,-.55,0,0,k);set(legs.R.kn,-.3,0,0,k);}
   else{const shamble=state==="zombie"?.6:1;set(legs.L.hip,swing*shamble,0,0,k);set(legs.R.hip,-swing*shamble,0,0,k);set(legs.L.kn,-lift*(run?1.6:1.1),0,0,k);set(legs.R.kn,-liftO*(run?1.6:1.1),0,0,k);}
   // torso lean
   set(spine,state==="zombie"?.28:run?.18:state==="drive"?-.12:0,0,0,k);set(head,state==="zombie"?-.2:0,0,state==="zombie"?Math.sin(p*.5)*.15:0,k);
   visor.visible=state==="vr";
   // arms
-  const g=state.startsWith("aim")||((state==="walk"||state==="run"||state==="idle")&&weapon!=="none");
+  const g=state.startsWith("aim")||((state==="walk"||state==="run"||state==="idle"||air)&&weapon!=="none");
   if(state==="vr"){set(arms.L.sh,.55,0,.15,k);set(arms.R.sh,.55,0,-.15,k);set(arms.L.el,1.15,0,0,k);set(arms.R.el,1.15,0,0,k);}
   else if(state==="drive"){set(arms.L.sh,1.0,0,.08,k);set(arms.R.sh,1.0,0,-.08,k);set(arms.L.el,.55,0,0,k);set(arms.R.el,.55,0,0,k);}
   else if(state==="zombie"){const r=Math.sin(p*.7)*.12;set(arms.L.sh,1.45+r,0,.12,k);set(arms.R.sh,1.4-r,0,-.12,k);set(arms.L.el,.15,0,0,k);set(arms.R.el,.2,0,0,k);}

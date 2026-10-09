@@ -179,8 +179,9 @@ function renderRemoteAvatars(now,dt){refreshPeerDrones(now);let visible=0,vr=0,c
   if(r.carMesh)r.carMesh.visible=false;
   r.root.position.x+=(r.target.x-r.root.position.x)*alpha;r.root.position.y+=(r.target.y-r.root.position.y)*alpha;r.jz=(r.jz||0)+((Number(r.lastJz)||0)-(r.jz||0))*Math.min(1,alpha*1.5);r.root.position.z=groundHeightAt(r.root.position.x,r.root.position.y)+(r.jz||0);
   let d=r.yaw-r.root.rotation.z;d=((d+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;r.root.rotation.z+=d*alpha;
-  const speed=Math.hypot(r.velocity.x,r.velocity.y),walking=r.mode==="foot"&&speed>.22;
-  animateCharacter(r.rig,{state:headset?"vr":walking?(speed>3.2?"run":"walk"):"idle",speed:walking?speed:0,weapon:r.mode==="foot"?r.weapon:"none",dt});{const k=now-(r.lastShotAt||-1e9);if(k>=0&&k<120){const kick=Math.sin(Math.PI*k/120)*.22;r.rig.arms.R.sh.rotation.x+=kick;if(r.weapon==="akimbo")r.rig.arms.L.sh.rotation.x+=kick;}}
+  // off the ground (jump / jetpack / fall): no gait and no footsteps, the legs just hang
+  const speed=Math.hypot(r.velocity.x,r.velocity.y),airborne=r.mode==="foot"&&((Number(r.lastJz)||0)>.3||Boolean(r.jet)),walking=r.mode==="foot"&&!airborne&&speed>.22;
+  animateCharacter(r.rig,{state:headset?"vr":airborne?"air":walking?(speed>3.2?"run":"walk"):"idle",speed:walking?speed:0,weapon:r.mode==="foot"?r.weapon:"none",dt});{const k=now-(r.lastShotAt||-1e9);if(k>=0&&k<120){const kick=Math.sin(Math.PI*k/120)*.22;r.rig.arms.R.sh.rotation.x+=kick;if(r.weapon==="akimbo")r.rig.arms.L.sh.rotation.x+=kick;}}
   if(walking&&now-r.lastStep>Math.max(270,Math.min(480,500-speed*22))){r.lastStep=now;playStep(r.root.position,true);}}
   const v=viewport();if(v){v.dataset.vsHumanAvatars=String(remoteAvatars.size);v.dataset.vsHumanAvatarsVisible=String(visible);v.dataset.vsVrAvatars=String(vr);v.dataset.vsRemoteCars=String(cars);v.dataset.vsAvatarModel="articulated-v3";}}
 

@@ -20,8 +20,10 @@ export function createCrowd(scene,{capacity=64,outfit="civilian",name="CROWD"}={
   const group=new THREE.Group();group.name=`${name}_CHARACTERS`;group.userData.flightFireIgnore=true;group.userData.crowdInstanced=true;
   const base=parts.map(p=>p.material.color.getHex());
   const tplMid=buildCharacter({outfit,detail:MID_DETAIL}),partsMid=[];tplMid.root.traverse(n=>{if(n.isMesh)partsMid.push(n);});
-  const makeMeshes=(src,suffix)=>src.map((p,idx)=>{const m=new THREE.InstancedMesh(p.geometry,new THREE.MeshStandardMaterial({color:0xffffff,roughness:p.material.roughness??.8,metalness:p.material.metalness??0}),capacity);
-    m.name=`${name}_${p.userData.cat}${suffix}`;m.userData.cat=p.userData.cat;m.userData.flightFireIgnore=true;m.castShadow=true;m.receiveShadow=false;m.frustumCulled=false;m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);m.raycast=()=>{};
+  // unlit parts (zombie eyes and their glow) keep their own material kind, tinted per instance like the rest
+  const instMaterial=p=>p.material.isMeshBasicMaterial?new THREE.MeshBasicMaterial({color:0xffffff,transparent:p.material.transparent,opacity:p.material.opacity,blending:p.material.blending,depthWrite:p.material.depthWrite,toneMapped:false}):new THREE.MeshStandardMaterial({color:0xffffff,roughness:p.material.roughness??.8,metalness:p.material.metalness??0});
+  const makeMeshes=(src,suffix)=>src.map((p,idx)=>{const m=new THREE.InstancedMesh(p.geometry,instMaterial(p),capacity);
+    m.name=`${name}_${p.userData.cat}${suffix}`;m.userData.cat=p.userData.cat;m.userData.flightFireIgnore=true;m.castShadow=!p.material.isMeshBasicMaterial;m.receiveShadow=false;m.frustumCulled=false;m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);m.raycast=()=>{};
     for(let i=0;i<capacity;i++){m.setMatrixAt(i,ZERO);m.setColorAt(i,col.set(p.material.color));}m.instanceColor.setUsage(THREE.DynamicDrawUsage);m.count=0;group.add(m);return m;});
   const meshes=makeMeshes(parts,""),meshesMid=partsMid.length===parts.length?makeMeshes(partsMid,"_MID"):null;
   // Far people (beyond FAR_M from the camera) are drawn as one simple body

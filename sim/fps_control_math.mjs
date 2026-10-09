@@ -6,20 +6,25 @@ const smoothstep=value=>{const t=clamp(value,0,1);return t*t*(3-2*t);};
 
 export {FPS_DISPLAY_PITCH_LIMIT_RAD,FPS_HORIZONTAL_FOV_DEG,FPS_PITCH_LIMIT_RAD,FPS_WORLD_MAP_MAX_PITCH_DEG,FPS_WORLD_MAP_MIN_PITCH_DEG,fpsPitchRadToWorldMapPitchDeg,fpsVerticalFovDegForAspect};
 
+// Right stick, the way the big console/mobile shooters tune it (CoD "dynamic"): a small radial
+// deadzone, then an anti-deadzone so the view moves the moment the stick leaves the drift zone,
+// a mostly-linear centre (fine corrections are proportional, not swallowed by an expo curve) and
+// a curve that only bends towards the rim for fast turns. The rate ramp is short (≈40 ms).
 export const FPS_CONTROL_PROFILE=Object.freeze({
-  innerDeadzone:.06,
-  outerDeadzone:.98,
+  innerDeadzone:.05,
+  outerDeadzone:.97,
+  antiDeadzone:.045,
   dynamicCurveStrength:.30,
-  yawRateRadS:3.65,
-  pitchRateRadS:3.34,
-  touchStickYawRateRadS:2.70,
-  touchStickPitchRateRadS:2.48,
-  lookAccelerationRate:14,
-  lookReleaseRate:36,
+  yawRateRadS:3.75,
+  pitchRateRadS:3.40,
+  touchStickYawRateRadS:2.90,
+  touchStickPitchRateRadS:2.60,
+  lookAccelerationRate:26,
+  lookReleaseRate:40,
   assistYawWindowRad:7.0*Math.PI/180,
   assistPitchWindowRad:5.6*Math.PI/180,
   assistMaxDistanceM:90,
-  assistSlowdownStrength:.38,
+  assistSlowdownStrength:.30,
   assistCorrectionGain:4.0,
   assistMaxCorrectionRadS:.38,
 });
@@ -31,7 +36,8 @@ export function wrapFpsAngleRad(value){
 export function shapeFpsStick(x,y,profile=FPS_CONTROL_PROFILE){
   const rawX=clamp(x,-1,1),rawY=clamp(y,-1,1),rawMagnitude=Math.min(1,Math.hypot(rawX,rawY)),inner=clamp(profile.innerDeadzone,0,.45),outer=clamp(profile.outerDeadzone,inner+.01,1);
   if(rawMagnitude<=inner)return{x:0,y:0,magnitude:0,rawMagnitude};
-  const normalized=clamp((rawMagnitude-inner)/(outer-inner),0,1),strength=clamp(profile.dynamicCurveStrength,0,.60),powered=Math.pow(normalized,1+strength*1.35),outerBlend=smoothstep((normalized-.72)/.28),curved=clamp(powered+(normalized-powered)*outerBlend,0,1),scale=curved/Math.max(rawMagnitude,1e-9);
+  // linear + cubic blend (k from the look-fineness setting), lifted by the anti-deadzone
+  const n=clamp((rawMagnitude-inner)/(outer-inner),0,1),k=clamp(profile.dynamicCurveStrength,0,.60),anti=clamp(profile.antiDeadzone??0,0,.2),curve=n*(1-k)+n*n*n*k,curved=n>=1?1:clamp(anti+(1-anti)*curve,0,1),scale=curved/Math.max(rawMagnitude,1e-9);
   return{x:rawX*scale,y:rawY*scale,magnitude:curved,rawMagnitude};
 }
 
@@ -60,8 +66,11 @@ export function fpsAimAssist({yawError=0,pitchError=0,distanceM=0,stickMagnitude
   return{active:true,slowdown,correctionYaw,correctionPitch,strength:activation,tracking};
 }
 
-export function fpsTouchLookDelta(dx,dy,{yawPerPx=.00425,pitchPerPx=.00382}={}){
-  const x=Number(dx)||0,y=Number(dy)||0,speed=smoothstep(Math.hypot(x,y)/20),gain=.82+.28*speed;
+// Touch drag: 1:1 with the finger, no deadzone. A slow, careful drag turns at the base rate; a fast
+// swipe gets up to ~1.9x (CoD Mobile style turn acceleration) so a 180 needs no re-grab. speedPxS
+// is the finger speed; without it the per-event distance stands in (legacy callers).
+export function fpsTouchLookDelta(dx,dy,{yawPerPx=.00425,pitchPerPx=.00382,speedPxS=NaN}={}){
+  const x=Number(dx)||0,y=Number(dy)||0,speed=Number.isFinite(speedPxS)?smoothstep((speedPxS-450)/2100):smoothstep(Math.hypot(x,y)/24),gain=1+.9*speed;
   return{yaw:x*yawPerPx*gain,pitch:-y*pitchPerPx*gain,gain};
 }
 

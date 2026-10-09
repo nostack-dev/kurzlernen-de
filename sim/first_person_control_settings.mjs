@@ -4,7 +4,7 @@ export const FIRST_PERSON_CONTROL_SETTINGS_EVENT="arondight:first-person-control
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 const clampFineness=value=>Math.max(1,Math.min(10,Math.round(Number(value)||1)));
 const clampSensitivity=value=>Math.max(50,Math.min(150,Math.round(Number(value)||100)));
-const clampDeadzone=value=>Math.max(2,Math.min(20,Math.round(Number(value)||8)));
+const clampDeadzone=value=>Math.max(2,Math.min(20,Math.round(Number(value)||5)));
 const clampAimAssist=value=>Math.max(0,Math.min(100,Math.round(Number(value)||0)));
 
 export const DEFAULT_FIRST_PERSON_CONTROL_SETTINGS=Object.freeze({
@@ -12,7 +12,7 @@ export const DEFAULT_FIRST_PERSON_CONTROL_SETTINGS=Object.freeze({
   lookFineness:6,
   horizontalLookSensitivityPercent:100,
   verticalLookSensitivityPercent:100,
-  lookDeadzonePercent:6,
+  lookDeadzonePercent:5,
   aimAssistStrengthPercent:55,
   invertMoveHorizontal:false,
   invertLookHorizontal:false,
