@@ -147,14 +147,15 @@ function beforeRender(scene,camera,now=performance.now()){
   const dt=clamp((now-lastFrameMs)/1000,0,.1);lastFrameMs=now;
   let rest=null;{const ray=centerRay();if(ray){if(now-lastRestResolve>REST_RESOLVE_MS){lastRestResolve=now;restDepth=resolveDistance(ray);}rest=restPoint.copy(ray.origin).addScaledVector(ray.direction,restDepth);}}
   // the left pistol takes its rest pose from the right one *before* aiming
-  const left=glock?placeLeftPistol(scene,camera,gun):null;if(!glock&&leftRoot)leftRoot.visible=false;
+  // one Glock (in the right hand) — the left-hand mirror pistol is retired
+  const left=null;if(leftRoot)leftRoot.visible=false;void placeLeftPistol;
   stepAim(hands[0],dt,now,rest);const result=alignSights(gun,hands[0].aim);if(!result)return;kick(gun,hands[0],now);
   if(left){stepAim(hands[1],dt,now,rest);alignSights(left,hands[1].aim,leftParts(left));kick(left,hands[1],now);}
   const h=hands[0];
   setData("walkWeaponController",FIRST_PERSON_CONTROLLER_VERSION);setData("walkWeaponAimMode",h.pointer?"touch-drag":now-h.releasedAt<=RELEASE_HOLD_MS?"shot-hold":"crosshair-rest");
   setData("walkWeaponVectorAlignment","exact-screen-ray-from-hand-anchor-v5");setData("walkWeaponGeometryAlignment","grip-anchor-to-resolved-shot-v6");setData("walkWeaponGeometryVector","grip-to-muzzle-to-shot-point-v1");
   setData("walkWeaponHandAnchor","position-fixed-rotation-only-v1");setData("walkWeaponGripAnchor","grip-world-fixed-v2");setData("walkWeaponAimWeight","1.000");
-  setData("walkWeaponAimErrorDeg",result.errorDeg.toFixed(3));setData("walkWeaponGripAnchorDriftM",result.driftM.toFixed(5));setData("walkGlockAkimbo",glock?"left-hand-mirrored-independent-aim-v4":"off");
+  setData("walkWeaponAimErrorDeg",result.errorDeg.toFixed(3));setData("walkWeaponGripAnchorDriftM",result.driftM.toFixed(5));setData("walkGlockAkimbo","off-single-glock");
 }
 
 // Shot / drag input from the screen-touch owner (flight_first_cleanup) and

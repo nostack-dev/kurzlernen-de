@@ -39,10 +39,8 @@ function fireHands(){return[...pointers.values()].filter(e=>e.kind==="fire").map
 // the right pistol — each finger aims and fires its own gun, alone,
 // alternating or both at once.
 function screenSide(x,y){const v=viewport(),r=v?.getBoundingClientRect();if(!r)return 0;const rotated=v.dataset.soloOrientation==="css-landscape",lx=rotated?y-r.top:x-r.left,w=rotated?r.height:r.width;return lx<w/2?1:0;}
-function chooseFireHand(x,y){
-  if(String(weapons()?.mode||"")!=="glock")return 0;
-  return screenSide(x,y);
-}
+function chooseFireHand(){return 0;}// one Glock: always the right hand
+void screenSide;
 
 function claim(event){event.preventDefault();event.stopImmediatePropagation();}
 // EMP works in every mode and wins over any overlay or later handler: if the

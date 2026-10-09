@@ -31,8 +31,8 @@ function ensureGlock(gun){
   // is a separate, mirrored viewmodel anchored in the left hand by the
   // first-person controller, so each gun aims at its own finger.
   const right=buildGoldenHandCannon();right.name="WALK_GLOCK_RIGHT";right.userData.walkGlockHand="right";
-  // akimbo stance: each pistol well out towards its own screen edge (the left one mirrors this)
-  right.position.x+=.10;right.position.y-=.012;right.rotation.y=-.06;
+  // one pistol in the right hand
+  right.position.x+=.02;right.position.y-=.006;
   group.add(right);gun.add(group);return group;
 }
 function setWeaponModeVisual(gun,mode){
