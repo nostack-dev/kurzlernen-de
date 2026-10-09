@@ -80,7 +80,7 @@ const GAME_ACTIONS=[
   ["reset","RESET",d=>{d.close();if(globalThis.__arondightRequestReset)globalThis.__arondightRequestReset();else document.getElementById("soloReset")?.click();}],
   ["world","REAL WORLD",d=>{d.close();document.getElementById("soloWorld")?.click();}],
   ["logbook","LOGBOOK",d=>{d.close();document.getElementById("soloLogbook")?.click();}],
-  ["exit","EXIT TO TITLE",d=>{d.close();document.getElementById("soloExit")?.click();}],
+  ["exit","EXIT TO TITLE",d=>{d.close();if(globalThis.__arondightQuitConfirm)globalThis.__arondightQuitConfirm.open();else document.getElementById("soloExit")?.click();}],
 ];
 function gameSection(dialog){let s=dialog.querySelector(":scope > section.game-actions-section");if(s)return s;s=document.createElement("section");s.className="game-actions-section";s.innerHTML=`<div class="game-actions-grid">${GAME_ACTIONS.map(([k,l])=>`<button type="button" data-game-action="${k}"${k==="resume"?" autofocus":""}>${l}</button>`).join("")}</div>`;
   s.addEventListener("click",e=>{const b=e.target.closest?.("[data-game-action]");if(!b)return;e.preventDefault();GAME_ACTIONS.find(a=>a[0]===b.dataset.gameAction)?.[2](dialog);});return s;}

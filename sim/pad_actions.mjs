@@ -24,8 +24,8 @@ let installed=false,prev=[],autoEnabled=false;
 const walk=()=>globalThis.__arondightWalkMode||null;
 function padNow(){const pads=navigator.getGamepads?.()||[];for(const p of pads)if(p?.connected&&(p.mapping==="standard"||/xbox|xinput|045e/i.test(String(p.id||""))))return p;return null;}
 function pressed(p,i){const b=p?.buttons?.[i];return Boolean(typeof b==="number"?b>.5:b?.pressed||Number(b?.value)>.5);}
-function menuOpen(){return Boolean(document.querySelector("dialog.phone-settings-dialog[open],#flightLogbookDialog[open],#resetVoteDialog"));}
-function voteDialog(){return document.getElementById("resetVoteDialog");}
+function menuOpen(){return Boolean(document.querySelector("dialog.phone-settings-dialog[open],#flightLogbookDialog[open],#resetVoteDialog,#quitConfirmDialog"));}
+function voteDialog(){return document.getElementById("quitConfirmDialog")||document.getElementById("resetVoteDialog");}
 function startScreen(){const m=document.getElementById("gameMenu");return Boolean(m&&!m.hidden);}
 function dead(){return Boolean(globalThis.__arondightPlayerDamageModel?.dead||globalThis.__arondightRealWorld?.vsLocalDead||document.body.classList.contains("player-dead"));}
 function mode(){const b=document.body;if(b.classList.contains("jet-mode"))return"jet";if(b.classList.contains("player-driving"))return"car";return walk()?.mode==="foot"?"foot":"drone";}
