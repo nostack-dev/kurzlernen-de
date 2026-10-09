@@ -10,7 +10,7 @@ import {spawnWorldCarExplosion} from "./world_car_explosion.mjs";
 import {stopWorldCriticalDamage} from "./world_critical_damage_fx.mjs";
 import {buildTrafficRoute,collectRenderedDrivableRoads,makeBuildingsOpaque} from "./world_traffic_routes.mjs";
 import {syncWorldBuildingDepthOcclusion} from "./world_building_depth_occlusion.mjs";
-import {createPedestrianNetwork,seedRouteAgents,stepAgent,routePointInto,projectOnRoute,agentRandom,shiftAgent,frighten} from "./pedestrian_agents.mjs";
+import {createPedestrianNetwork,seedRouteAgents,stepAgent,routePointInto,projectOnRoute,agentRandom,shiftAgent,frighten,provoke,punchPose} from "./pedestrian_agents.mjs";
 import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 import {projectileMomentumNs} from "./ballistics.mjs";
 
@@ -100,7 +100,7 @@ function makePersonSlot(i){proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.2
   group.name="WORLD_PERSON";group.visible=false;group.userData.worldPopulationKind="person";group.userData.agentDriven=true;/* position owned by the agent: no other module moves it */group.userData.worldPopulationClone=false;group.userData.spawnFarEntryM=PEOPLE_ENTRY_M;return{i,group,agent:null};}
 function updateCrowd(){if(!crowd)return;const now=performance.now(),dt=Math.min(.1,Math.max(.001,(now-crowdLast)/1000));crowdLast=now;const shown=root?.visible!==false;
   // only who is set this frame is drawn (the crowd packs its instances)
-  if(shown)for(const slot of personSlots){const a=slot.agent;if(!a||!slot.group.visible)continue;crowd.set(slot.i,{x:a.x,y:a.y,z:a.z,yaw:a.yaw-Math.PI/2,state:a.v>3.2?"run":a.v>.25?"walk":"idle",speed:a.v,dt});}
+  if(shown)for(const slot of personSlots){const a=slot.agent;if(!a||!slot.group.visible)continue;crowd.set(slot.i,{x:a.x,y:a.y,z:a.z,yaw:a.yaw-Math.PI/2,state:a.state==="fight"?"fight":a.v>3.2?"run":a.v>.25?"walk":"idle",speed:a.v,dt,punch:a.state==="fight"?punchPose(a,now):0});}
   crowd.commit();}
 // people wait at the kerb for a gap in the traffic: no car near the crossing, none coming at it
 pedNet.crossingClear=(x0,y0,x1,y1)=>{const mx=(x0+x1)/2,my=(y0+y1)/2;for(const r of records){if((r.kind!=="car"&&r.kind!=="bus")||!r.group.visible)continue;const g=r.group.position,dx=mx-g.x,dy=my-g.y,d=Math.hypot(dx,dy);if(d>40)continue;
@@ -135,13 +135,15 @@ function peopleNetwork(now,focus){if(now-lastPeopleNet<PEOPLE_NET_MS)return;last
 // how much way is left to the destination: along the streets, plus the walk to the next sidewalk
 function remainingWay(a){if(a.state!=="walk")return 0;let way=0;for(let k=a.li;k<a.legs.length;k++){const leg=a.legs[k];way+=Math.abs(leg.toS-(k===a.li?a.s:leg.fromS));}const leg=a.legs[a.li],route=leg&&pedNet.get(leg.route);if(route){const p=routePointInto(route,a.s,(leg.side||a.side)*a.off,{});way+=Math.hypot(p.x-a.x,p.y-a.y);}return way;}
 function personDistance(a,focus){return focus?Math.hypot(a.x-focus.x,a.y-focus.y):0;}
+// walking into someone (on foot, at more than a stroll) annoys them (pedestrian_agents.mjs provoke)
+function bumpCheck(a,now){const W=globalThis.__arondightWalkMode,J=globalThis.__arondightWalkJump;if(W?.mode!=="foot"||W.dead||!W.position||!J)return;const dx=a.x-W.position.x,dy=a.y-W.position.y,d=Math.hypot(dx,dy);if(d>.75||now-(a.bumpAt||0)<1300)return;const sp=Math.hypot(J.vx||0,J.vy||0);if(sp<1.1)return;const toward=((J.vx||0)*dx+(J.vy||0)*dy)/(d*sp||1);if(toward<.3)return;a.bumpAt=now;const r=provoke(a,now);const v=viewport();if(v)v.dataset.pedestrianBump=r;}
 function updatePeople(now,focus){
   if(!opts.people){if(people.length)clearPeople();return;}
   peopleNetwork(now,focus);noticeShots(now);
   const dtNear=Math.min(.1,Math.max(0,(now-peopleStepAt)/1000));peopleStepAt=now;
   // walk: near / shown people every tick, far unseen people a few times a second (same legs, bigger steps)
   for(const a of people){if(!a.alive||a.knocked)continue;const near=a.slot||personDistance(a,focus)<PEOPLE_FAR_SIM_M;
-    if(near){stepAgent(a,dtNear,now,pedNet);a.simAt=now;}else if(now-a.simAt>=PEOPLE_FAR_SIM_MS){stepAgent(a,Math.min(1,(now-a.simAt)/1000),now,pedNet);a.simAt=now;}}
+    if(near){stepAgent(a,dtNear,now,pedNet);a.simAt=now;if(a.slot)bumpCheck(a,now);}else if(now-a.simAt>=PEOPLE_FAR_SIM_MS){stepAgent(a,Math.min(1,(now-a.simAt)/1000),now,pedNet);a.simAt=now;}}
   if(now-lastPeopleGate>=PEOPLE_GATE_MS){lastPeopleGate=now;gatePeople(now,focus);}
   if(now-lastPeopleSlow>=1000){lastPeopleSlow=now;peopleLifecycle(now,focus);}
   roadPeople.length=0;for(const slot of personSlots){const a=slot.agent;if(a&&a.alive&&!a.knocked)roadPeople.push(a);}
@@ -549,6 +551,10 @@ export function installWorldProceduralPopulation(){if(installed)return;installed
     people(){peopleOut.length=0;let k=0;for(const slot of personSlots){const a=slot.agent;if(!a||!slot.group.visible||!a.alive||a.knocked)continue;const o=peopleOutPool[k]||(peopleOutPool[k]={id:"",x:0,y:0,z:0,yaw:0});k++;o.id=a.id;o.x=a.x;o.y=a.y;o.z=a.z;o.yaw=a.yaw;peopleOut.push(o);}return peopleOut;},
     // a hit that is not (yet) fatal: the person goes down as a ragdoll and gets up again
     knockdown(id,options={}){const a=byId.get(String(id||""));return a?.kind==="person"?knockPerson(a,options):null;},
+    // a fist (player melee): hurts, angers, and three or four of them put a person down (ragdoll)
+    punch(id,{dir=[0,0,0],damage=22}={}){const a=byId.get(String(id||""));if(a?.kind!=="person"||!a.alive||a.knocked)return null;a.hp=(Number.isFinite(a.hp)?a.hp:100)-damage;const now=performance.now();
+      if(a.hp<=0){killPerson(a,{network:true,impulse:[dir[0]*1.6,dir[1]*1.6,.8]});return"dead";}
+      if(a.hp<=35){knockPerson(a,{impulse:[dir[0]*1.8,dir[1]*1.8,.9],damage:0});return"down";}provoke(a,now,{punched:true});return"hit";},
     // every pedestrian with its destination (diagnostics / tests)
     agents(){return people.filter(a=>a.alive).map(a=>({id:a.id,x:a.x,y:a.y,yaw:a.yaw,state:a.state,trip:a.trip,dest:a.dest?{x:a.dest.x,y:a.dest.y}:null,remaining:remainingWay(a.leader||a),route:a.route,home:a.home,shown:Boolean(a.slot?.group.visible),bound:Boolean(a.slot),knocked:Boolean(a.knocked),held:Boolean(a.slot?.group.userData.spawnHeld),companion:Boolean(a.leader),speed:a.v}));},
     // the drawn object of a record (shots resolve a Box3D body id to what the player sees)

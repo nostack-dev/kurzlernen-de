@@ -151,6 +151,15 @@ export function buildGravityGun(){
   return g;
 }
 
+// FISTS: two bare fists with sleeves, held low in a guard; each one jabs forward on a punch
+export function buildFists(){
+  const g=new THREE.Group(),K="walkFistsPart",skin=std(0xc58c66,.75,0),knuckle=std(0xb57a56,.8,0),sleeve=std(0x2c3440,.85,0);
+  for(const side of[-1,1]){const hand=new THREE.Group();hand.name=side<0?"WALK_FIST_L":"WALK_FIST_R";hand.position.set(side*.16,-.02,0);
+    hand.add(box(.085,.075,.1,skin,0,0,0,K),box(.087,.03,.03,knuckle,0,.02,-.05,K),box(.03,.05,.05,skin,-side*.045,-.005,-.02,K),box(.09,.09,.24,sleeve,0,-.01,.17,K));hand.userData.restZ=0;g.add(hand);}
+  g.add(marker("WALK_FISTS_GRIP",.16,-.02,0),marker("WALK_FISTS_REAR_SIGHT",0,.06,0),marker("WALK_FISTS_FRONT_SIGHT",0,.06,-.3),muzzle("WALK_FISTS_MUZZLE_NODE",-.08,0));
+  g.position.set(-.05,-.03,-.02);return g;
+}
+
 export function buildBoomstick(){
   const g=new THREE.Group(),K="walkGrenadePart";
   const olive=std(0x4a5a3a,.6,.2),dark=std(0x1d2024,.7,.15),orange=std(0xff7a1a,.45,.1),yellow=std(0xffd23f,.45,.1),black=std(0x121316,.6,.1),wood=std(0x8a5a3b,.65,0),glowO=glow(0xff8a2a);

@@ -94,6 +94,14 @@ function detach(a,net,now){const L=a.leader;a.leader=null;const route=net.get(L?
 // the motion is still bounded by walking pace, so a person never covers more ground than it could walk.
 export function stepAgent(a,dt,now,net){
   if(dt<=0)return;
+  // angry (bumped into, punched): go for the player and box; calms down after a while or when he is far
+  if(a.fightUntil){const W=globalThis.__arondightWalkMode;if(now<a.fightUntil&&W?.mode==="foot"&&!W.dead&&W.position){const dx=W.position.x-a.x,dy=W.position.y-a.y,d=Math.hypot(dx,dy);
+      if(d<35){turn(a,Math.atan2(dy,dx),dt*3);a.state="fight";if(d>.95){a.v+=clamp(Math.min(2.8,a.speed+1.3)-a.v,-3*dt,2.4*dt);const step=Math.min(d-.9,a.v*dt);a.x+=dx/d*step;a.y+=dy/d*step;}
+        else{a.v=Math.max(0,a.v-5*dt);if(now-(a.lastPunch||0)>(780+agentRandom(a)*380)){a.lastPunch=now;a.punchHand=-(a.punchHand||-1);
+          // a punch of an untrained adult: ~8 % of the player's health, a shove of ~1.5 m/s
+          globalThis.__arondightPlayerDamageModel?.damage?.(8,"punch:pedestrian");W.push?.({x:dx/d*1.5,y:dy/d*1.5,z:0});try{window.dispatchEvent(new CustomEvent("arondight:pedestrian-punch",{detail:{id:a.id}}));}catch{}}}
+        return;}}
+    a.fightUntil=0;a.annoy=0;const route=net.get(a.route)||net.get(a.home);if(route){projectOnRoute(route,a.x,a.y,J);a.route=route.key;a.s=J.s;a.side=J.lateral>=0?1:-1;}a.legs.length=0;a.state="wait";a.waitUntil=now+1200;return;}
   // frightened (a shot, a blast): run away from it, then calm down and find the way again
   if(a.fleeUntil){if(now<a.fleeUntil){a.v+=clamp(a.fleeSpeed-a.v,-3*dt,2.2*dt);a.x+=a.fleeX*a.v*dt;a.y+=a.fleeY*a.v*dt;turn(a,Math.atan2(a.fleeY,a.fleeX),dt*2);a.state="flee";return;}
     a.fleeUntil=0;a.crossing=false;const L=a.leader;a.leader=null;if(L&&L.alive&&!L.removed){a.leader=L;a.state=L.state;return;}const route=net.get(a.route)||net.get(a.home);if(route){projectOnRoute(route,a.x,a.y,J);a.route=route.key;a.s=J.s;a.side=J.lateral>=0?1:-1;}a.legs.length=0;a.state="wait";a.waitUntil=now+800+agentRandom(a)*1500;return;}
@@ -146,5 +154,12 @@ export function makeAgent(id,seed,route,s){
 }
 // something frightening happened at (x,y): run away from it for a few seconds
 export function frighten(a,x,y,now,{ms=5600,strength=1}={}){let dx=a.x-x,dy=a.y-y,d=Math.hypot(dx,dy);if(d<.3){const t=agentRandom(a)*Math.PI*2;dx=Math.cos(t);dy=Math.sin(t);d=1;}a.fleeX=dx/d;a.fleeY=dy/d;a.fleeSpeed=Math.min(3.3,a.speed+1.1+.5*strength); /* an everyday person running away: 2.5-3.3 m/s, not a sprinter */a.fleeUntil=now+ms*(.8+.4*agentRandom(a));}
+// annoyed by the player (bumped, shoved, punched): some people back off, the quick-tempered ones
+// (about half) square up after the second time — a punch makes anyone who stays standing fight back
+export function provoke(a,now,{punched=false}={}){if(!a?.alive||a.knocked)return"none";a.annoy=(a.annoy||0)+(punched?2:1);const hothead=agentRandom(a)>.5;
+  if(a.fightUntil){a.fightUntil=now+20000;return"fight";}if(punched||(hothead&&a.annoy>=2)){a.fightUntil=now+20000;a.leader=null;a.fleeUntil=0;return"fight";}
+  if(a.annoy>=3){const W=globalThis.__arondightWalkMode;if(W?.position)frighten(a,W.position.x,W.position.y,now,{ms:4000});return"flee";}return"annoyed";}
+// a fighter's arm for the animation: + right / - left jab extension 0..1
+export function punchPose(a,now){const t=now-(a.lastPunch||-1e9);if(t>320)return 0;const e=t<110?t/110:1-(t-110)/210;return(a.punchHand||1)*Math.max(0,e);}
 // re-place an agent whose origin frame moved (all coordinates shift together)
 export function shiftAgent(a,dx,dy){a.x+=dx;a.y+=dy;if(a.dest){a.dest.x+=dx;a.dest.y+=dy;}}

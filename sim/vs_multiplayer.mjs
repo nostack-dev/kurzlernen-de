@@ -258,7 +258,7 @@ function onPeerEvent(event){
 
 // Damage of one round on a mate: by weapon, times where it lands (head ×2, legs ×0.65). An MP burst
 // needs about eight body hits, the Glock four, the sniper one to the head or body.
-const VS_WEAPON_DAMAGE={smg:13,glock:26,sniper:95,gun:13,"5.56":13},VS_ZONE={head:2,torso:1,legs:.65};
+const VS_WEAPON_DAMAGE={smg:13,glock:26,sniper:95,fists:12,gun:13,"5.56":13},VS_ZONE={head:2,torso:1,legs:.65};
 function vsDamage(hit){let zone="";for(let n=hit?.object;n&&!zone;n=n.parent)zone=String(n.userData?.vsHitZone||"");const base=VS_WEAPON_DAMAGE[String(hit?.weapon||"")]??20;return Math.max(1,Math.min(100,Math.round(base*(VS_ZONE[zone]??1))));}
 function targetFromHit(hit){
   for(let node=hit?.object;node;node=node.parent){const id=String(node.userData?.vsPlayerId||"");if(id&&id!==selfId)return id;}

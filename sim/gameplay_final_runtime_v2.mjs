@@ -27,7 +27,7 @@ const GRENADE_RADIUS_M=GRENADE_BASE_RADIUS_M*GRENADE_VISUAL_SCALE;
 const GRENADE_FLOOR_NORMAL_Z=.58;
 const GRENADE_BLAST_RADIUS_M=9.5;
 const GRENADE_MAX_DAMAGE=160;
-const FOOT_WEAPON_ORDER=Object.freeze(["smg","glock","sniper","gravity","grenade"]);
+const FOOT_WEAPON_ORDER=Object.freeze(["smg","glock","sniper","gravity","grenade","fists"]);
 const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tmp3=new THREE.Vector3(),right=new THREE.Vector3(),forward=new THREE.Vector3(),ndc=new THREE.Vector2();
 const shotCamera=new THREE.PerspectiveCamera(78,16/9,.01,500),shotRaycaster=new THREE.Raycaster(),boxHits=new Box3dHitscanWorld();
 const tracerAxis=new THREE.Vector3(0,1,0),tracerVector=new THREE.Vector3(),grenadeAxis=new THREE.Vector3(0,0,-1),bounceFxAxis=new THREE.Vector3(0,0,1);
@@ -238,6 +238,7 @@ function footShotAt(clientX,clientY,now=performance.now(),hand=0){
   if(footWeapon==="grenade")return launchFootGrenade(clientX,clientY,now,"foot-screen");
   if(footWeapon==="glock")return glockShotAt(clientX,clientY,now,hand);
   if(footWeapon==="sniper")return sniperShotAt(clientX,clientY,now);
+  if(footWeapon==="fists")return punchAt(clientX,clientY,now);
   if(footWeapon==="gravity"){if(!isFoot()||walk()?.dead||now-lastPunt<350)return false;lastPunt=now;const ray=footRay(clientX,clientY);if(!ray)return false;const hit=nearestGrenadeHit(ray,8);const ok=Boolean(globalThis.__arondightGravityGun?.punt?.({ray,hit}));if(ok)weaponFired("gravity",.35,"foot-screen","foot");return ok;}
   if(!isFoot()||walk()?.dead||now-lastSmg<SMG_INTERVAL_MS-.5)return false;lastSmg=now; // `now` = the round's due time (the hold loop keeps the cadence)
   const ray=footRay(clientX,clientY);if(!ray)return false;const hit=nearestGrenadeHit(ray,180),end=hit?.point?.clone?.()||tmp.copy(ray.origin).addScaledVector(ray.direction,130).clone(),start=footMuzzle(tmp2,ray).clone();showTracer(start,end);{const routed=hit?routeHit(hit):false;if(globalThis.__worldImpacts)globalThis.__worldImpacts.bullet(ray,hit,{routed});else if(hit&&!routed)addFallbackDecal(hit);}flashWeapon(34);audioShot(.18);weaponFired("smg",.14,"foot-screen","foot");
@@ -284,6 +285,17 @@ function sniperShotAt(clientX,clientY,now){
   if(audioSettings.soundEnabled&&audioSettings.shotsVolume>0){const ctx=getSharedCombatAudioContext({resume:true});if(ctx){playCombatAudio(ctx,"pistol",{gain:1.0*audioSettings.shotsVolume/100,playbackRate:.52,minIntervalMs:0});playCombatAudio(ctx,"pistol",{gain:.55*audioSettings.shotsVolume/100,playbackRate:.36,minIntervalMs:0});}}
   weaponFired("sniper",.8,"foot-screen","foot");const view=viewport();if(view){view.dataset.walkWeapon="sniper";view.dataset.walkSniperShots=String((Number(view.dataset.walkSniperShots)||0)+1);}return true;
 }
+// FISTS: a straight punch, 1.8 m reach. A person takes ~22 % (three or four put them down, the
+// first one makes them fight back), a mate 12, loose things and animals get the punch's ~30 N·s.
+const PUNCH_MS=380,PUNCH_REACH_M=1.8,PUNCH_NS=30;let lastPunch=-Infinity;
+function punchAt(clientX,clientY,now){if(!isFoot()||walk()?.dead||now-lastPunch<PUNCH_MS)return false;lastPunch=now;const ray=footRay(clientX,clientY);if(!ray)return false;weaponFired("fists",.15,"foot-screen","foot");
+  const hit=nearestGrenadeHit(ray,PUNCH_REACH_M+.4);{const v=viewport();if(v)v.dataset.walkPunch=hit?`${hit.object?.userData?.worldPopulationKind||hit.physicsKind||hit.object?.name||"?"}@${Number(hit.distance).toFixed(2)}`:"air";}if(!hit||Number(hit.distance)>PUNCH_REACH_M+.4)return true;const d=ray.direction,u=hit.object?.userData||{},kind=String(u.worldPopulationKind||hit.physicsKind||"");
+  let pid="";for(let n=hit.object;n&&!pid;n=n.parent)pid=String(n.userData?.worldPopulationId||n.userData?.worldProceduralId||"");
+  if(kind==="person"&&pid){globalThis.__arondightProceduralPopulation?.punch?.(pid,{dir:[d.x,d.y,d.z],damage:22});}
+  else if(u.vsPlayerId){routeHit({...hit,weapon:"fists"});globalThis.__arondightPlayerPush?.pushMate?.(String(u.vsPlayerId),[d.x*1.6,d.y*1.6,.4],{damage:0,source:"punch"});}
+  else if(hit.physicsId){rigid()?.applyImpulse?.(hit.physicsId,[d.x*PUNCH_NS,d.y*PUNCH_NS,d.z*PUNCH_NS],{point:hit.point?[hit.point.x,hit.point.y,hit.point.z]:null});}
+  if(hit.point){const pt=[hit.point.x,hit.point.y,hit.point.z];queueMicrotask(()=>rigid()?.impulseHumanAt?.(pt,[d.x*PUNCH_NS,d.y*PUNCH_NS,d.z*PUNCH_NS]));}
+  return true;}
 function footBurst(clientX,clientY){return footShotAt(clientX,clientY,performance.now());}
 
 function ensureBlastPool(scene){if(blastScene===scene&&blastPool.length)return;if(blastScene)for(const item of blastPool)item.group.parent?.remove(item.group);blastScene=scene;blastPool=[];const sphere=new THREE.SphereGeometry(.45,10,7),ringGeo=new THREE.RingGeometry(.6,1,24);for(let i=0;i<8;i++){const group=new THREE.Group(),hot=new THREE.Mesh(sphere,new THREE.MeshBasicMaterial({color:0xff9b43,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending})),ring=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:0xffd27a,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending}));ring.rotation.x=Math.PI/2;group.add(hot,ring);group.visible=false;scene.add(group);blastPool.push({group,hot,ring,born:0,until:0});}}

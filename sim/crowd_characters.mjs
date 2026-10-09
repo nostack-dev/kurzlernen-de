@@ -45,13 +45,13 @@ export function createCrowd(scene,{capacity=64,outfit="civilian",name="CROWD"}={
     hide(){},
     // pose & place one person this frame: x,y,z (feet on the ground), yaw,
     // state/speed/weapon like animateCharacter
-    set(i,{x,y,z,yaw=0,state="walk",speed=1.3,weapon="none",dt=1/60,lean=0}){const p=people[i];if(!p)return;
+    set(i,{x,y,z,yaw=0,state="walk",speed=1.3,weapon="none",dt=1/60,lean=0,punch=0}){const p=people[i];if(!p)return;
       const cam=globalThis.__arondightRealWorld?.threeCamera?.position;
       if(cam&&(x-cam.x)**2+(y-cam.y)**2+(z-cam.z)**2>FAR_M*FAR_M){if(farCursor>=capacity)return;const slot=farCursor++;fq.setFromAxisAngle(Z,yaw);fm.compose(fp.set(x,y,z),fq,fs);far.setMatrixAt(slot,fm);
         if(farOwner[slot]!==i){farOwner[slot]=i;far.setColorAt(slot,col.set(p.colors?.shirt??0x777777));farColorDirty=true;}return;}
       const mid=meshesMid&&cam&&(x-cam.x)**2+(y-cam.y)**2+(z-cam.z)**2>NEAR_M*NEAR_M,set=mid?meshesMid:meshes,owner=mid?midOwner:slotOwner;
       if((mid?midCursor:cursor)>=capacity)return;const slot=mid?midCursor++:cursor++;
-      loadRigState(tpl,p.joints);animateCharacter(tpl,{state,speed,weapon,dt});saveRigState(tpl,p.joints);
+      loadRigState(tpl,p.joints);animateCharacter(tpl,{state,speed,weapon,dt,punch});saveRigState(tpl,p.joints);
       tpl.root.position.set(x,y,z);tpl.root.rotation.set(lean,0,yaw);tpl.root.updateMatrixWorld(true);
       for(let k=0;k<parts.length;k++)set[k].setMatrixAt(slot,parts[k].visible&&visibleChain(parts[k])?parts[k].matrixWorld:ZERO);
       if(owner[slot]!==i){owner[slot]=i;const c=p.colors;for(let k=0;k<set.length;k++){const v=c?.[set[k].userData.cat];set[k].setColorAt(slot,col.set(v??base[k]));}if(mid)midColorDirty=true;else colorDirty=true;}},

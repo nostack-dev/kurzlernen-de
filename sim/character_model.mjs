@@ -65,7 +65,7 @@ const lerp=(a,b,t)=>a+(b-a)*t;
 function set(j,x,y=0,z=0,k=1){j.rotation.x=lerp(j.rotation.x,x,k);j.rotation.y=lerp(j.rotation.y,y,k);j.rotation.z=lerp(j.rotation.z,z,k);}
 // state: idle | walk | run | vr | drive | aim-pistol | aim-akimbo | aim-smg | zombie | dead
 // speed m/s for the gait; dt for the cadence and pose blending.
-export function animateCharacter(rig,{state="idle",speed=0,weapon="none",dt=1/60}={}){
+export function animateCharacter(rig,{state="idle",speed=0,weapon="none",dt=1/60,punch=0}={}){
   const k=1-Math.exp(-dt*12),moving=speed>.25,run=speed>3.2;rig.phase+=dt*(moving?Math.min(12,4.2+speed*1.9):1.2);
   const p=rig.phase,swing=moving?Math.sin(p)*Math.min(.75,.3+speed*.09):0,lift=moving?Math.max(0,Math.cos(p))*.35:0,liftO=moving?Math.max(0,-Math.cos(p))*.35:0;
   const{arms,legs,pelvis,spine,head,visor}=rig;rig.state=state;
@@ -83,11 +83,13 @@ export function animateCharacter(rig,{state="idle",speed=0,weapon="none",dt=1/60
   else if(state==="drive"){set(arms.L.sh,1.0,0,.08,k);set(arms.R.sh,1.0,0,-.08,k);set(arms.L.el,.55,0,0,k);set(arms.R.el,.55,0,0,k);}
   else if(state==="zombie"){const r=Math.sin(p*.7)*.12;set(arms.L.sh,1.45+r,0,.12,k);set(arms.R.sh,1.4-r,0,-.12,k);set(arms.L.el,.15,0,0,k);set(arms.R.el,.2,0,0,k);}
   else if(state==="dead"){set(arms.L.sh,.2,0,.5,k);set(arms.R.sh,.2,0,-.5,k);set(arms.L.el,0,0,0,k);set(arms.R.el,0,0,0,k);}
+  // fists up: a boxing guard, and a straight jab with the hand given by punch (+ right, - left), 0..1 extension
+  else if(state==="fight"||weapon==="fists"){const r=Math.max(0,punch),l=Math.max(0,-punch),kk=Math.max(k,.55);set(arms.L.sh,1.05+.5*l,0,.28-.2*l,kk);set(arms.L.el,1.75-1.65*l,0,0,kk);set(arms.R.sh,1.05+.5*r,0,-.28+.2*r,kk);set(arms.R.el,1.75-1.65*r,0,0,kk);}
   else if(g&&weapon==="akimbo"){set(arms.L.sh,1.45,0,.12,k);set(arms.R.sh,1.45,0,-.12,k);set(arms.L.el,.08,0,0,k);set(arms.R.el,.08,0,0,k);}
   else if(g&&weapon==="smg"){set(arms.R.sh,1.1,0,-.2,k);set(arms.R.el,.3,0,0,k);set(arms.L.sh,1.25,0,.42,k);set(arms.L.el,.6,0,0,k);}
   else if(g&&weapon==="pistol"){set(arms.R.sh,1.48,0,-.05,k);set(arms.R.el,.05,0,0,k);set(arms.L.sh,1.38,0,.32,k);set(arms.L.el,.3,0,0,k);}
   else{set(arms.L.sh,-swing*.6,0,.06,k);set(arms.R.sh,swing*.6,0,-.06,k);set(arms.L.el,.25+(moving?.2:0),0,0,k);set(arms.R.el,.25+(moving?.2:0),0,0,k);}
-  rig.gun.visible=weapon!=="none"&&state!=="vr"&&state!=="drive"&&state!=="dead"&&state!=="zombie";rig.gunL.visible=rig.gun.visible&&weapon==="akimbo";
+  rig.gun.visible=weapon!=="none"&&weapon!=="fists"&&state!=="fight"&&state!=="vr"&&state!=="drive"&&state!=="dead"&&state!=="zombie";rig.gunL.visible=rig.gun.visible&&weapon==="akimbo";
 }
 
 // Joint state of a rig as a flat array (instanced crowds keep one per person
