@@ -69,19 +69,29 @@ function syncWorldButton(){
   button.textContent=bridge.loading?"WORLD…":bridge.active?"WORLD ✓":"WORLD";
 }
 
+// The game starts on foot, first person, with the pistol. `?start=drone`
+// (or `?start=foot`) picks the start mode explicitly, e.g. for flight tests.
+const STARTUP_MODE=(()=>{try{const m=new URLSearchParams(location.search).get("start");return m==="drone"?"drone":"foot";}catch{return"foot";}})();
+const STARTUP_FOOT_WEAPON="glock";
+const STARTUP_CONTRACT="foot-pistol-fresh-v1";
 function normalizeStartupPlayerState(){
-  try{localStorage.setItem(PLAYER_MODE_KEY,"drone");}catch{}
+  try{localStorage.setItem(PLAYER_MODE_KEY,STARTUP_MODE);}catch{}
   const viewport=$("viewport"),playerDead=Boolean(globalThis.__arondightPlayerDamageModel?.dead),droneDead=Boolean(globalThis.__arondightDroneDamageModel?.destroyed),combatDead=Boolean(bridge?.vsLocalDead);
   if(playerDead||droneDead||combatDead){
     $("soloReset")?.click();
     if(bridge){bridge.vsLocalDead=false;bridge.vsLocalHealth=100;bridge.vsLocalPoseSample=null;bridge.updateVsCombatHud?.(true);}
   }
-  const mode=globalThis.__arondightWalkMode?.setMode?.("drone",{persist:false,reason:"startup-default"});
   if(viewport){
-    viewport.dataset.autoStartupPlayerMode=String(mode||globalThis.__arondightWalkMode?.mode||"drone");
     viewport.dataset.autoStartupDeathReset=(playerDead||droneDead||combatDead)?"1":"0";
-    viewport.dataset.autoStartupContract="drone-fpv-fresh-v1";
+    viewport.dataset.autoStartupContract=STARTUP_CONTRACT;
   }
+}
+function applyStartupPlayerMode(){
+  const walk=globalThis.__arondightWalkMode,weapons=globalThis.__arondightFootWeapons;
+  if(STARTUP_MODE==="foot")weapons?.setMode?.(STARTUP_FOOT_WEAPON);
+  const mode=walk?.setMode?.(STARTUP_MODE,{persist:false,reason:"startup-default"});
+  const viewport=$("viewport");
+  if(viewport){viewport.dataset.autoStartupPlayerMode=String(mode||walk?.mode||STARTUP_MODE);viewport.dataset.autoStartupFootWeapon=String(weapons?.mode||"");}
 }
 
 function launchDefaultFlight(){
@@ -89,7 +99,8 @@ function launchDefaultFlight(){
   $("camFpv")?.click();
   const cameraButton=$("soloCamera");if(cameraButton)cameraButton.textContent="FPV";
   $("camSolo")?.click();
-  const viewport=$("viewport");if(viewport)viewport.dataset.autoFlightStart="fpv";
+  applyStartupPlayerMode();
+  const viewport=$("viewport");if(viewport)viewport.dataset.autoFlightStart=STARTUP_MODE==="foot"?"foot":"fpv";
 }
 
 function discardFailedWorldMap(){

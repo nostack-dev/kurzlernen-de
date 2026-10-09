@@ -139,7 +139,7 @@ jobs:
           PY
           test "$(wc -c < drone_simulator.html)" -gt 100000
           grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" drone_simulator.html
-          grep -q "drone-fpv-fresh-v1" drone_simulator.html
+          grep -q "foot-pistol-fresh-v1" drone_simulator.html
           rm -rf generated
 
       - name: Build ORCL minute feed
@@ -265,7 +265,7 @@ jobs:
               "https://kurzlernen.de/drone_simulator.html?ci=${GH_SHA}-${attempt}" -o /tmp/arondight45-live.html \
               && test "$(wc -c < /tmp/arondight45-live.html)" -gt 100000 \
               && grep -q "ARONDIGHT45_BUILD_SHA:${GH_SHA}" /tmp/arondight45-live.html \
-              && grep -q "drone-fpv-fresh-v1" /tmp/arondight45-live.html; then
+              && grep -q "foot-pistol-fresh-v1" /tmp/arondight45-live.html; then
               fetched=1
               break
             fi

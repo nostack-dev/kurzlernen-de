@@ -1,7 +1,7 @@
 import puppeteer from "puppeteer-core";
 
 const base=process.argv[2]||"http://127.0.0.1:4174";
-const simulatorUrl=base.includes("drone_simulator.html")?base:`${base.replace(/\/$/,"")}/drone_simulator.html`;
+const simulatorUrl=base.includes("drone_simulator.html")?base:`${base.replace(/\/$/,"")}/drone_simulator.html`+"?start=drone"; // the drone solo layout; the game itself starts on foot (mobile_startup_live_smoke)
 const executablePath=process.env.CHROME_BIN;
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
 const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader"]});
