@@ -6,6 +6,7 @@ import {addTrauma} from "./camera_shake.mjs";
 import {getSharedCombatAudioContext,playCombatAudio} from "./combat_audio_bank.mjs";
 import {VS_FX_EVENT} from "./lan_vs.mjs";
 import {claimSticks,releaseSticks,sticks} from "./shared_sticks.mjs";
+import {buildCharacter} from "./character_model.mjs";
 
 // JET — a VTOL fighter (Harrier-style) that stands next to you at the start.
 // Walk up to it, EINSTEIGEN, and it is yours:
@@ -27,7 +28,7 @@ import {claimSticks,releaseSticks,sticks} from "./shared_sticks.mjs";
 //   * multiplayer: the pilot IS the player — the regular player pose carries
 //     the jet (pm:"jet"), peers see one person: the jet, then the chute.
 
-export const JET_MODE_VERSION="vtol-jet-mode-v2-parked-shared-sticks";
+export const JET_MODE_VERSION="vtol-jet-mode-v3-box3d-forces";
 const MASS=12000,DRY_N=105000,AB_N=185000,AREA=24,CD0=.024,G=9.81,REBASE_M=6000,SOUND=340,STALL=50,GEAR_H=2.05,ENTER_M=9;
 const bridge=()=>globalThis.__arondightRealWorld||null,viewport=()=>document.getElementById("viewport"),walk=()=>globalThis.__arondightWalkMode||null;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -60,7 +61,7 @@ function ensureModel(){if(model?.parent===root)return model;model=newJetModel();
   cone=new THREE.Mesh(new THREE.ConeGeometry(5.5,9,24,1,true),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide}));cone.rotation.x=Math.PI;cone.position.y=-1;cone.userData.flightFireIgnore=true;cone.raycast=()=>{};model.add(cone);return model;}
 let chute=null;
 function makeChute(){const c=new THREE.Group();c.name="PILOT_CHUTE";const canopy=new THREE.Mesh(new THREE.SphereGeometry(3.4,16,8,0,Math.PI*2,0,Math.PI/2.4),new THREE.MeshStandardMaterial({color:0xff7a1a,roughness:.8,side:THREE.DoubleSide}));canopy.position.z=6.2;canopy.scale.z=.55;
-  const pilot=new THREE.Mesh(new THREE.CapsuleGeometry(.28,1.1,3,8),new THREE.MeshStandardMaterial({color:0x4a5038,roughness:.8}));pilot.rotation.x=Math.PI/2;pilot.position.z=.8;const lines=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([0,1,2,3].flatMap(i=>{const a=i*Math.PI/2;return[new THREE.Vector3(0,0,1.4),new THREE.Vector3(Math.cos(a)*3,Math.sin(a)*3,5.7)];})),new THREE.LineBasicMaterial({color:0xdddddd}));
+  const rig=buildCharacter({outfit:"player"}),pilot=rig.root;rig.gun.visible=false;rig.gunL.visible=false;for(const s of["L","R"]){rig.arms[s].sh.rotation.set(2.75,0,s==="L"?.32:-.32);rig.arms[s].el.rotation.set(.25,0,0);}rig.legs.L.hip.rotation.x=.15;rig.legs.R.hip.rotation.x=-.1;rig.legs.L.kn.rotation.x=-.2;pilot.position.z=-.3;const lines=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([0,1,2,3].flatMap(i=>{const a=i*Math.PI/2;return[new THREE.Vector3(0,0,1.45),new THREE.Vector3(Math.cos(a)*3,Math.sin(a)*3,5.7)];})),new THREE.LineBasicMaterial({color:0xdddddd}));
   c.add(canopy,pilot,lines);c.userData.canopy=canopy;c.traverse(n=>{n.userData.flightFireIgnore=true;n.raycast=()=>{};});root.add(c);return c;}
 function ensureChute(){if(chute?.parent===root)return chute;chute=makeChute();return chute;}
 
@@ -75,13 +76,25 @@ function maybeSpawnPad(now){if(spawnPad||!ensureScene())return;const a=startAnch
 function nearestParked(){const w=walk();if(w?.mode!=="foot"||!w.position||w.dead)return null;let best=null,bd=ENTER_M;for(const p of parked){const d=Math.hypot(p.x-w.position.x,p.y-w.position.y);if(d<bd){bd=d;best=p;}}return best;}
 
 // ------------------------------------------------------------ enter / exit
+// The jet is a Box3D rigid body (one box: fuselage + gear, real mass and
+// inertia). Thrust, wing lift, drag, side force and the control torques are
+// forces/torques on that body (rigid runtime setForces); gravity, contacts
+// with the terrain, buildings and other vehicles are Box3D. No pose is ever
+// written while flying.
+const physics=()=>globalThis.__arondightWorldRigidBodies||null;
+const HALF=[2.6,6.8,1.05],MODEL_LIFT=1.0,WING_S=26,SIDE_S=9,CL_ALPHA=4.3,CL_MAX=1.25;
+const INERTIA=[MASS/12*((2*HALF[1])**2+(2*HALF[2])**2),MASS/12*((2*HALF[0])**2+(2*HALF[2])**2),MASS/12*((2*HALF[0])**2+(2*HALF[1])**2)];
+let bodySerial=0;const bodyPos=new THREE.Vector3(),omega=new THREE.Vector3(),omegaB=new THREE.Vector3(),rightv=new THREE.Vector3(),force=new THREE.Vector3(),torque=new THREE.Vector3(),qinv=new THREE.Quaternion(),prevV=new THREE.Vector3();
+function createBody(x,y,z,heading,v=null){const id=`player-jet-${(++bodySerial).toString(36)}`;const ok=physics()?.upsertBody?.({id,kind:"aircraft",position:[x,y,z],yaw:heading,halfExtents:HALF,massKg:MASS,linearDamping:0,angularDamping:.25,wheeled:false});if(!ok)return null;if(v)physics()?.setPose?.(id,{position:[x,y,z],velocity:[v.x,v.y,v.z]});return id;}
+function readBody(j){const pose=physics()?.pose?.(j.id,j.pose);if(!pose)return false;j.pose=pose;j.q.set(pose.rotation[0],pose.rotation[1],pose.rotation[2],pose.rotation[3]);bodyPos.set(pose.position[0],pose.position[1],pose.position[2]);j.v.set(pose.velocity[0],pose.velocity[1],pose.velocity[2]);omega.set(...(pose.angularVelocity||[0,0,0]));upv.copy(Z).applyQuaternion(j.q);j.p.copy(bodyPos).addScaledVector(upv,MODEL_LIFT);return true;}
 function enter(p=nearestParked()){
   if(active||!p||!ensureScene())return false;if(globalThis.__arondightVehicleDrive?.active)return false;
+  const g=groundHeightAt(p.x,p.y),id=createBody(p.x,p.y,g+HALF[2]+.06,p.heading);if(!id)return false;
   parked.splice(parked.indexOf(p),1);p.model.parent?.remove(p.model);
-  const g=groundHeightAt(p.x,p.y);jet={p:new THREE.Vector3(p.x,p.y,g+GEAR_H),q:yawQuat(p.heading),v:new THREE.Vector3(),g:1,ab:false,landed:true,wb:0,rpm:0,born:performance.now()};
-  throttle=0;camMode="cockpit";camInit=false;para=null;active=true;ensureModel().visible=true;startVoice();
+  jet={id,pose:null,p:new THREE.Vector3(p.x,p.y,g+GEAR_H),q:yawQuat(p.heading),v:new THREE.Vector3(),g:1,ab:false,landed:true,wb:0,mode:"hover",rpm:0,born:performance.now(),onGround:true,weapon:"gun"};
+  throttle=0;camMode="cockpit";camInit=false;para=null;active=true;ensureModel().visible=true;startVoice();prevV.set(0,0,0);
   const cam=bridge()?.threeCamera;if(cam)baseFar=cam.far;
-  claimSticks({name:"jet",labels:{move:"SCHUB / GIER",look:"KNÜPPEL",fire:"GUN"},onFire:v=>{firing=Boolean(v)&&active&&!para;}});
+  claimSticks({name:"jet",labels:{move:"STEIGEN / SCHUB",look:"KNÜPPEL",fire:"KANONE"},onFire:v=>{firing=Boolean(v)&&active&&!para;}});
   document.body.classList.add("jet-mode");renderButtons();window.dispatchEvent(new CustomEvent("arondight:vehicle-mode",{detail:{active:true,jet:true}}));return true;
 }
 function finish(x,y,heading){// back on foot at (x,y)
@@ -90,74 +103,85 @@ function finish(x,y,heading){// back on foot at (x,y)
   const cam=bridge()?.threeCamera;if(cam&&baseFar){cam.far=baseFar;cam.updateProjectionMatrix();}farGround.hide();globalThis.__arondightFogScale=1;
   renderButtons();window.dispatchEvent(new CustomEvent("arondight:vehicle-mode",{detail:{active:false,jet:true}}));if(spawnPad&&!parked.some(p=>p.pad))respawnAt=performance.now()+25000;}
 function exit(){
-  if(!active||!jet||para)return false;const g=groundHeightAt(jet.p.x,jet.p.y),alt=jet.p.z-g,h=headingOf(jet.q);
-  if(jet.landed||(alt<GEAR_H+1.5&&jet.v.length()<6)){// step out: the jet stays parked right here
-    if(model){model.parent?.remove(model);model=null;cone=null;}const px=jet.p.x,py=jet.p.y;park(px,py,h);jet=null;finish(px+Math.cos(h)*5,py+Math.sin(h)*5,h);return true;}
-  // EJECT: the seat takes the pilot, the empty jet flies on and goes down
-  ghosts.push({p:jet.p.clone(),v:jet.v.clone(),q:jet.q.clone(),m:model});model=null;cone=null;
-  upv.copy(Z).applyQuaternion(jet.q);para={p:jet.p.clone().addScaledVector(upv,2.5),v:jet.v.clone().multiplyScalar(.25).addScaledVector(upv,alt>20?22:10),t:performance.now()};jet=null;ensureChute().visible=true;firing=false;
+  if(!active||!jet||para)return false;const h=headingOf(jet.q);
+  if(jet.landed||(jet.onGround&&jet.v.length()<4)){// step out: the jet stays parked right here
+    physics()?.removeBody?.(jet.id);if(model){model.parent?.remove(model);model=null;cone=null;}const px=jet.p.x,py=jet.p.y;park(px,py,h);jet=null;finish(px+Math.cos(h)*5,py+Math.sin(h)*5,h);return true;}
+  // EJECT: the seat takes the pilot; the empty jet keeps its body — no thrust, no controls — and goes down under real physics
+  physics()?.setForces?.(jet.id,{});ghosts.push({id:jet.id,m:model,v:jet.v.clone(),pose:null});model=null;cone=null;
+  upv.copy(Z).applyQuaternion(jet.q);para={p:jet.p.clone().addScaledVector(upv,2.8),v:jet.v.clone().addScaledVector(upv,jet.p.z-groundHeightAt(jet.p.x,jet.p.y)>20?22:12),t:performance.now()};jet=null;ensureChute().visible=true;firing=false;
   try{const c=getSharedCombatAudioContext();if(c?.state==="running")playCombatAudio(c,"explosion",{gain:.35,playbackRate:1.6});}catch{}addTrauma?.(.5);stopVoice();return true;
 }
-function crash(){const p=jet.p.clone();p.z=Math.max(p.z,groundHeightAt(p.x,p.y));globalThis.__fighterJets?.blast?.(p);addTrauma?.(1);if(model){model.parent?.remove(model);model=null;cone=null;}const h=headingOf(jet.q);jet=null;
+function crash(){const p=jet.p.clone();p.z=Math.max(p.z,groundHeightAt(p.x,p.y));physics()?.removeBody?.(jet.id);globalThis.__fighterJets?.blast?.(p);addTrauma?.(1);if(model){model.parent?.remove(model);model=null;cone=null;}const h=headingOf(jet.q);jet=null;
   try{globalThis.__arondightPlayerVitals?.damageTargets?.()?.find?.(t=>t.kind==="player")?.model?.damage?.(45);}catch{}finish(p.x+12,p.y+12,h);}
+function toggleMode(){if(!jet)return;jet.mode=jet.mode==="hover"?"flight":"hover";if(jet.mode==="flight")throttle=Math.max(throttle,.85);try{const c=getSharedCombatAudioContext();if(c?.state==="running")playCombatAudio(c,"bounce",{gain:.25,playbackRate:.4});}catch{}renderButtons();}
 
 // ------------------------------------------------------------ input
 function readInputs(){
   const m=sticks.move,l=sticks.look;let lift=-m.y,yawIn=m.x,pitchIn=l.y,rollIn=l.x;// pitchIn + = stick pulled back = nose up
   if(keys.has("KeyW"))lift+=1;if(keys.has("KeyS"))lift-=1;if(keys.has("KeyA"))yawIn-=1;if(keys.has("KeyD"))yawIn+=1;if(keys.has("ArrowUp"))pitchIn-=1;if(keys.has("ArrowDown"))pitchIn+=1;if(keys.has("ArrowLeft"))rollIn-=1;if(keys.has("ArrowRight"))rollIn+=1;
   const pad=(navigator.getGamepads?.()||[]).find(g=>g&&g.connected);if(pad&&jet){const ax=a=>Math.abs(a)<.12?0:a;lift+=-ax(pad.axes[1]||0)+((pad.buttons[7]?.value||0)-(pad.buttons[6]?.value||0));yawIn+=ax(pad.axes[0]||0);rollIn+=ax(pad.axes[2]||0);pitchIn+=ax(pad.axes[3]||0);
-    const a=Boolean(pad.buttons[0]?.pressed);if(a!==jet.padFire){firing=a;jet.padFire=a;}const x=Boolean(pad.buttons[2]?.pressed);if(x&&!jet.padBomb)dropBomb();jet.padBomb=x;const yb=Boolean(pad.buttons[3]?.pressed);if(yb&&!jet.padY){jet.padY=yb;exit();return{lift:0,yawIn:0,pitchIn:0,rollIn:0};}jet.padY=yb;}
+    const a=Boolean(pad.buttons[0]?.pressed);if(a!==jet.padFire){firing=a;jet.padFire=a;}const x=Boolean(pad.buttons[2]?.pressed);if(x&&!jet.padBomb)dropBomb();jet.padBomb=x;const b=Boolean(pad.buttons[1]?.pressed);if(b&&!jet.padB)fireRocket();jet.padB=b;const lb=Boolean(pad.buttons[4]?.pressed);if(lb&&!jet.padLB)toggleMode();jet.padLB=lb;const yb=Boolean(pad.buttons[3]?.pressed);if(yb&&!jet.padY){jet.padY=yb;exit();return{lift:0,yawIn:0,pitchIn:0,rollIn:0};}jet.padY=yb;}
   return{lift:clamp(lift,-1,1),yawIn:clamp(yawIn,-1,1),pitchIn:clamp(pitchIn,-1,1),rollIn:clamp(rollIn,-1,1)};}
 
-// ------------------------------------------------------------ flight model
+// ------------------------------------------------------------ flight model (forces on the Box3D body)
+function toBody(out,v){return out.copy(v).applyQuaternion(qinv.copy(jet.q).invert());}
 function step(dt,now){
-  const j=jet,inp=readInputs();if(!jet)return;j.rpm=Math.min(1,j.rpm+dt/1.8);
-  fwd.copy(Y).applyQuaternion(j.q);upv.copy(Z).applyQuaternion(j.q);const s=j.v.length(),fs=j.v.dot(fwd),h=j.p.z,dens=rho(h);
-  // jet-borne ↔ wing-borne: the nozzles follow the airspeed
-  const wbTarget=j.landed?0:fs>66?1:fs<46?0:j.wb,wbWas=j.wb;j.wb+=clamp(wbTarget-j.wb,-dt*.7,dt*.7);if(wbWas<.5&&j.wb>=.5)throttle=Math.max(throttle,.82);
-  const wb=j.wb,hov=1-wb;if(wb>.5)throttle=clamp(throttle+inp.lift*dt*.6,0,1);
-  // through the transition the stick that pushed you forward must not dive you: hold the nose level until the stick is released once
-  if(wbWas<.5&&j.wb>=.5&&inp.pitchIn<-.15)j.latch=true;if(j.latch&&Math.abs(inp.pitchIn)<.15)j.latch=false;if(wb<.05)j.latch=false;
-  const pitchW=j.latch?0:inp.pitchIn;
-  const lift=clamp((s/72)**2,0,1)*clamp(dens/1.225*1.6,.35,1);
-  // attitude: jet-borne = attitude command (tilt translates), wing-borne = rates
-  if(hov>0){eul.setFromQuaternion(j.q,"ZXY");eulT.set(inp.pitchIn>0?inp.pitchIn*.38:inp.pitchIn*.12,inp.rollIn*.45,eul.z-inp.yawIn*1.4*dt,"ZXY");qt.setFromEuler(eulT);j.q.slerp(qt,(1-Math.exp(-dt*6))*hov);}
-  if(wb>0){if(j.latch||wb<.98){eul.setFromQuaternion(j.q,"ZXY");qd.setFromAxisAngle(X,(.06-eul.x)*4*dt*wb);j.q.multiply(qd);}const pitchRate=pitchW*Math.min(1.25,9*G/Math.max(60,s))*Math.max(lift,.25),rollRate=inp.rollIn*3.1*clamp(s/90,.35,1),yawRate=-inp.yawIn*.35;
-    qd.setFromAxisAngle(X,pitchRate*dt*wb);j.q.multiply(qd);qd.setFromAxisAngle(Y,rollRate*dt*wb);j.q.multiply(qd);qd.setFromAxisAngle(Z,yawRate*dt*wb);j.q.multiply(qd);
-    if(s<STALL&&wb>.9){const t=1-s/STALL;tmp.copy(Y).applyQuaternion(j.q);qd.setFromAxisAngle(X,-(.9*t)*dt*(tmp.z>-.9?1:0));j.q.multiply(qd);}}
-  j.q.normalize();fwd.copy(Y).applyQuaternion(j.q);upv.copy(Z).applyQuaternion(j.q);
-  if(j.landed){// standing on the gear: upright, still; the left stick lifts off
-    j.q.copy(yawQuat(headingOf(j.q)));j.v.set(0,0,0);j.p.z=groundHeightAt(j.p.x,j.p.y)+GEAR_H;if(inp.lift>.15&&j.rpm>.6)j.landed=false;else return;}
-  const mach=machOf(s),ab=wb>.5&&throttle>.86;j.ab=ab;const eng=(ab?DRY_N+(AB_N-DRY_N)*(throttle-.86)/.14:DRY_N*throttle/.86)*Math.pow(dens/1.225,.7)*j.rpm;
-  const acc=tmp.set(0,0,-G);acc.addScaledVector(fwd,eng/MASS*wb);
-  // jet-borne: vertical speed hold through the nozzles; push = nozzles aft
-  if(hov>0){// sinking flares automatically close to the ground (a soft, sure touchdown)
-    const agl=j.p.z-GEAR_H-groundHeightAt(j.p.x,j.p.y),vzT=Math.max(inp.lift>0?inp.lift*16:inp.lift*13,-(Math.max(0,agl)*.9+1.2)),aV=clamp(5.5*(vzT-j.v.z),-11,24),th=(G+aV)/Math.max(.45,upv.z);acc.addScaledVector(upv,th*hov*j.rpm);
-    const push=Math.max(0,-inp.pitchIn);acc.addScaledVector(fwd,push*10*hov);const damp=(push>.2?.02:.35)*hov;acc.x-=j.v.x*damp;acc.y-=j.v.y*damp;}
-  const brake=wb>.5&&throttle<=.001&&inp.lift<-.4?.09:0;// stick held down at idle = speed brake
-  const drag=.5*dens*s*s*AREA*(cdOf(mach)+brake+.06*(1-lift)*Math.abs(inp.pitchIn));if(s>.01)acc.addScaledVector(j.v,-drag/MASS/s);
-  const liftG=lift*(1+Math.max(0,inp.pitchIn)*(Math.min(9,(s*s)/(G*160))-1)*.9);acc.addScaledVector(upv,G*liftG*wb*(upv.z>0?1:.6));
-  j.v.addScaledVector(acc,dt);
-  const sp=j.v.length();if(wb>.3){tmp2.copy(fwd).multiplyScalar(sp);j.v.lerp(tmp2,1-Math.exp(-dt*2.4*lift*wb));}
-  const before=j.dir;j.dir=sp>1?j.v.clone().normalize():null;if(before&&j.dir){j.g=1+before.angleTo(j.dir)/Math.max(dt,1e-3)*sp/G;}else j.g=1;
-  j.p.addScaledVector(j.v,dt);
-  const m2=machOf(j.v.length());if(m2>=1&&machWas<1){boom();coneUntil=now+1600;}machWas=m2;if(cone){const k=coneUntil>now?Math.min(1,(coneUntil-now)/600):Math.max(0,1-Math.abs(m2-1)/.05)*.5;cone.material.opacity=.45*k;cone.scale.setScalar(.8+Math.min(.6,Math.max(0,m2-.95)*2));}
+  const j=jet;if(!readBody(j)){crash();return;}const inp=readInputs();if(!jet)return;j.rpm=Math.min(1,j.rpm+dt/1.8);
+  fwd.copy(Y).applyQuaternion(j.q);upv.copy(Z).applyQuaternion(j.q);rightv.copy(X).applyQuaternion(j.q);
+  const s=j.v.length(),dens=rho(j.p.z),gz=groundHeightAt(bodyPos.x,bodyPos.y),agl=bodyPos.z-HALF[2]-gz;j.onGround=agl<.25;
+  // collision: a velocity change the forces did not make = we hit something
+  if(now-j.born>800){const expected=tmp.copy(j.lastForce||force).multiplyScalar(dt/MASS);expected.z-=G*dt;const jump=tmp2.copy(j.v).sub(prevV).sub(expected).length();if(jump>13||(j.onGround&&upv.z<.25)){crash();return;}}prevV.copy(j.v);
+  // nozzles: down = jet-borne (hover), aft = wing-borne (flight)
+  j.wb+=clamp((j.mode==="flight"?1:0)-j.wb,-dt*.45,dt*.45);const phi=j.wb;
+  if(j.mode==="flight")throttle=clamp(throttle+inp.lift*dt*.55,0,1);
+  const vh=s>.5?tmp.copy(j.v).multiplyScalar(1/s):tmp.set(0,0,0),q=.5*dens*s*s;
+  // wing: lift ⟂ airflow from the angle of attack, induced + parasitic drag, side force from sideslip
+  const vf=j.v.dot(fwd),vu=j.v.dot(upv),vr=j.v.dot(rightv),alpha=Math.atan2(-vu,Math.max(.5,vf))+.035/* wing incidence */,beta=s>1?Math.asin(clamp(vr/s,-1,1)):0;
+  let CL=clamp(CL_ALPHA*alpha,-CL_MAX,CL_MAX);if(Math.abs(alpha)>.32)CL*=Math.max(.3,1-(Math.abs(alpha)-.32)*3);
+  force.set(0,0,0);
+  if(s>1){const liftDir=tmp2.copy(upv).addScaledVector(vh,-upv.dot(vh));if(liftDir.lengthSq()>1e-6){liftDir.normalize();force.addScaledVector(liftDir,q*WING_S*CL);}
+    const brake=phi>.5&&throttle<=.001&&inp.lift<-.4?.09:0,gear=j.landed||s<75?.02:0;force.addScaledVector(vh,-q*(WING_S*(cdOf(machOf(s))+.11*CL*CL+brake+gear)+.5));force.addScaledVector(rightv,-q*SIDE_S*2.5*beta);}
+  const wingCarry=clamp(Math.abs(q*WING_S*CL)/(MASS*G),0,1);
+  // engine: flight thrust along the nose; jet-borne thrust along the body's up, holding the commanded climb/sink rate (auto flare near the ground)
+  const ab=phi>.5&&throttle>.86;j.ab=ab;const T=(ab?DRY_N+(AB_N-DRY_N)*(throttle-.86)/.14:DRY_N*throttle/.86)*Math.pow(dens/1.225,.7)*j.rpm;
+  
+  // below wing-borne speed part of the thrust stays vectored down (STOVL): the wings take over as they start to carry
+  const support=Math.max(1-phi,s<85?(1-wingCarry)*clamp((85-s)/25,0,1):0);
+  force.addScaledVector(fwd,T*phi*(1-.45*Math.min(1,support)));
+  if(support>0){const vzT=Math.max(inp.lift>0?inp.lift*16:inp.lift*13,j.mode==="hover"?-(Math.max(0,agl)*.9+1.2):-30),vzCmd=j.mode==="hover"?vzT:Math.max(vzT,0)*0,aV=clamp(5.5*((j.mode==="hover"?vzCmd:0)-j.v.z),-11,24),Th=clamp(MASS*(G+aV)/Math.max(.4,upv.z),0,MASS*G*1.9)*j.rpm;force.addScaledVector(upv,Th*support);
+    // jet-borne: puffer-jet translation and drag-free hover hold
+    if(j.mode==="hover"){const push=Math.max(0,-inp.pitchIn);force.addScaledVector(fwd,MASS*push*9);const damp=(push>.2?.02:.35)*MASS*(1-phi);force.x-=j.v.x*damp;force.y-=j.v.y*damp;}}
+  j.lastForce=(j.lastForce||new THREE.Vector3()).copy(force);
+  // control torques: hover = attitude hold (tilt from the stick, heading from the rudder), flight = rate command; the body's inertia makes it real
+  toBody(omegaB,omega);const target=tmp2.set(0,0,0);
+  if(phi<1){eul.setFromQuaternion(j.q,"ZXY");j.heading=(j.heading??eul.z)-inp.yawIn*1.3*dt;if(Math.abs(angleTo(j.heading,eul.z))>.6)j.heading=eul.z;const pitchT=inp.pitchIn>0?inp.pitchIn*.38:inp.pitchIn*.12,rollT=inp.rollIn*.45;
+    target.x+=(pitchT-eul.x)*4*(1-phi);target.y+=(rollT-eul.y)*4*(1-phi);target.z+=angleTo(eul.z,j.heading)*3*(1-phi);}
+  if(phi>0){const lift=clamp(s/90,.25,1),gLim=Math.min(1.25,9*G/Math.max(60,s));target.x+=inp.pitchIn*gLim*lift*phi;// fly-by-wire: stick released = hold a level flight path (pitch toward γ = 0, more when banked)
+    if(s>40&&Math.abs(inp.pitchIn)<.1){const gamma=Math.asin(clamp(j.v.z/s,-1,1)),bank=Math.acos(clamp(upv.z,0,1));target.x+=(-gamma*1.6+(1/Math.max(.35,Math.cos(bank))-1)*.08)*phi;}target.y+=inp.rollIn*3*lift*phi;target.z+=(-inp.yawIn*.35-beta*1.2*Math.min(1,s/60))*phi;j.heading=undefined;}
+  if(j.onGround){target.x=-omegaB.x;target.y=-omegaB.y;}
+  torque.set((target.x-omegaB.x)*6*INERTIA[0],(target.y-omegaB.y)*6*INERTIA[1],(target.z-omegaB.z)*5*INERTIA[2]).applyQuaternion(j.q);
+  physics()?.setForces?.(j.id,{force:[force.x,force.y,force.z],torque:[torque.x,torque.y,torque.z]});
+  // telemetry
+  const dir=s>1?tmp.copy(j.v).normalize():null;if(j.dir&&dir){j.g=1+j.dir.angleTo(dir)/Math.max(dt,1e-3)*s/G;}else j.g=1;j.dir=dir?dir.clone():null;
+  j.landed=j.onGround&&s<1.2&&inp.lift<=.15&&j.mode==="hover";
+  const m2=machOf(s);if(m2>=1&&machWas<1){boom();coneUntil=now+1600;}machWas=m2;if(cone){const k=coneUntil>now?Math.min(1,(coneUntil-now)/600):Math.max(0,1-Math.abs(m2-1)/.05)*.5;cone.material.opacity=.45*k;cone.scale.setScalar(.8+Math.min(.6,Math.max(0,m2-.95)*2));}
   if(Math.abs(m2-1)<.06)addTrauma?.(.04);
-  // ground / buildings: a gentle touchdown lands, anything else crashes
-  const gz=groundHeightAt(j.p.x,j.p.y),hs=Math.hypot(j.v.x,j.v.y);
-  if(j.p.z<gz+GEAR_H){if(j.v.z>-7.5&&hs<28&&upv.z>.8){j.p.z=gz+GEAR_H;j.landed=true;j.v.set(0,0,0);j.wb=0;throttle=0;}else{crash();return;}}
-  if(now-j.born>600&&hitsBuilding(j.p)){crash();return;}
-  if(Math.hypot(j.p.x,j.p.y)>REBASE_M)rebase(j.p.x,j.p.y);
+  if(Math.hypot(bodyPos.x,bodyPos.y)>REBASE_M)rebase(bodyPos.x,bodyPos.y);
   if(firing)gun(now);
 }
-function stepPara(dt){const c=para,inp=readInputs(),age=(performance.now()-c.t)/1000;c.v.z-=G*dt;if(age>1.1){c.v.z+=(-6.5-c.v.z)*Math.min(1,dt*1.6);c.v.x+=(inp.rollIn*4-c.v.x)*Math.min(1,dt*.8);c.v.y+=(-inp.pitchIn*4-c.v.y)*Math.min(1,dt*.8);}
-  c.p.addScaledVector(c.v,dt);const ch=ensureChute();ch.visible=true;ch.position.copy(c.p);ch.userData.canopy.visible=age>1.1;const gz=groundHeightAt(c.p.x,c.p.y);
+const angleTo=(a,b)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;};
+function stepPara(dt){const c=para,inp=readInputs(),age=(performance.now()-c.t)/1000;c.v.z-=G*dt;c.v.x*=1-.25*dt;c.v.y*=1-.25*dt;if(age>1.1){c.v.z+=(-6.5-c.v.z)*Math.min(1,dt*1.6);c.v.x+=(inp.rollIn*4-c.v.x)*Math.min(1,dt*.8);c.v.y+=(-inp.pitchIn*4-c.v.y)*Math.min(1,dt*.8);}
+  c.p.addScaledVector(c.v,dt);const ch=ensureChute();ch.visible=true;ch.position.copy(c.p);ch.userData.canopy.visible=age>1.1;ch.rotation.z=Math.atan2(c.v.y,c.v.x)-Math.PI/2;const gz=groundHeightAt(c.p.x,c.p.y);
   if(c.p.z<=gz+.2||(age>1.5&&hitsBuilding(c.p))){ch.visible=false;finish(c.p.x,c.p.y,Math.atan2(-c.v.x,c.v.y||1));}}
-function stepGhosts(dt){for(let i=ghosts.length-1;i>=0;i--){const g=ghosts[i];g.v.z-=G*.55*dt;g.v.multiplyScalar(1-.05*dt);g.p.addScaledVector(g.v,dt);qd.setFromAxisAngle(Y,.6*dt);g.q.multiply(qd);if(g.m){g.m.position.copy(g.p);g.m.quaternion.copy(g.q);}
-  const gz=groundHeightAt(g.p.x,g.p.y);if(g.p.z<=gz+1||hitsBuilding(g.p)){g.p.z=Math.max(g.p.z,gz);globalThis.__fighterJets?.blast?.(g.p.clone());g.m?.parent?.remove(g.m);ghosts.splice(i,1);}}}
+// the empty jet after an eject: its body falls under Box3D until it hits something
+function stepGhosts(dt){for(let i=ghosts.length-1;i>=0;i--){const g=ghosts[i],pose=physics()?.pose?.(g.id,g.pose);if(!pose){g.m?.parent?.remove(g.m);ghosts.splice(i,1);continue;}g.pose=pose;const v=tmp.set(...pose.velocity),q=qd.set(...pose.rotation);upv.copy(Z).applyQuaternion(q);
+  if(g.m){g.m.position.set(...pose.position).addScaledVector(upv,MODEL_LIFT);g.m.quaternion.copy(q);}const hitJump=tmp2.copy(v).sub(g.v);hitJump.z+=G*dt;g.v.copy(v);
+  if(hitJump.length()>9){const p=new THREE.Vector3(...pose.position);physics()?.removeBody?.(g.id);globalThis.__fighterJets?.blast?.(p);g.m?.parent?.remove(g.m);ghosts.splice(i,1);}}}
 function rebase(dx,dy){const b=bridge();if(!b?.active||!Number.isFinite(b.originLon)||!Number.isFinite(b.originLat))return;const[lon,lat]=metersToLngLat(b.originLon,b.originLat,dx,dy);
   b.originLon=lon;b.originLat=lat;b.lastMapSyncMs=-Infinity;b.lastMapView=null;b.lastViewportSize="";b.minimapLastQueryMs=-Infinity;b.minimapLastDrawMs=-Infinity;b.buildingCollisionDirty=true;b.clearBuildingCollisions?.();try{b.map?.jumpTo?.({center:[lon,lat]});}catch{}
-  const shift=o=>{if(o){o.x-=dx;o.y-=dy;}};shift(jet?.p);shift(para?.p);for(const bb of bombs)shift(bb.p);for(const g of ghosts)shift(g.p);for(const p of parked){p.x-=dx;p.y-=dy;placeParked(p);}if(spawnPad){spawnPad.x-=dx;spawnPad.y-=dy;}farGround.invalidate();
+  const shiftBody=id=>{const p=physics()?.pose?.(id);if(p)physics()?.setPose?.(id,{position:[p.position[0]-dx,p.position[1]-dy,p.position[2]],velocity:[...p.velocity],angularVelocity:[...(p.angularVelocity||[0,0,0])]});};
+  if(jet){shiftBody(jet.id);jet.p.x-=dx;jet.p.y-=dy;}for(const g of ghosts)shiftBody(g.id);
+  const shift=o=>{if(o){o.x-=dx;o.y-=dy;}};shift(para?.p);for(const bb of bombs)shift(bb.p);for(const r of rockets)shift(r.p);for(const p of parked){p.x-=dx;p.y-=dy;placeParked(p);}if(spawnPad){spawnPad.x-=dx;spawnPad.y-=dy;}farGround.invalidate();
   const v=viewport();if(v){v.dataset.jetRebases=String((Number(v.dataset.jetRebases)||0)+1);v.dataset.worldLongitude=String(lon);v.dataset.worldLatitude=String(lat);}}
 
 // ------------------------------------------------------------ weapons
@@ -171,6 +195,14 @@ const tracerPool=[];function tracer(a,b){let t=tracerPool.find(x=>!x.m.visible);
   tmp.subVectors(b,a);const len=tmp.length();t.m.position.copy(a).addScaledVector(tmp,.5);t.m.quaternion.setFromUnitVectors(Y,tmp.normalize());t.m.scale.set(1,len,1);t.m.visible=true;t.until=performance.now()+45;}
 function dropBomb(){if(!active||!jet||jet.landed||(jet.lastBomb&&performance.now()-jet.lastBomb<450))return;jet.lastBomb=performance.now();const m=new THREE.Mesh(new THREE.CapsuleGeometry(.25,1.4,3,8),new THREE.MeshStandardMaterial({color:0x3b4135,roughness:.6}));m.userData.flightFireIgnore=true;m.raycast=()=>{};root.add(m);
   bombs.push({m,p:jet.p.clone().addScaledVector(Z.clone().applyQuaternion(jet.q),-1.2),v:jet.v.clone()});try{const c=getSharedCombatAudioContext();if(c?.state==="running")playCombatAudio(c,"bounce",{gain:.4,playbackRate:.5});}catch{}}
+// unguided rockets from the wing pods: fast, straight, a real blast where they hit
+const rockets=[];let rocketSide=1;
+function fireRocket(){if(!active||!jet||jet.onGround||(jet.lastRocket&&performance.now()-jet.lastRocket<350))return;jet.lastRocket=performance.now();fwd.copy(Y).applyQuaternion(jet.q);rightv.copy(X).applyQuaternion(jet.q);rocketSide=-rocketSide;
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,1.4,6),new THREE.MeshBasicMaterial({color:0xfff0c0}));m.userData.flightFireIgnore=true;m.raycast=()=>{};const fl=new THREE.Mesh(new THREE.SphereGeometry(.25,6,4),new THREE.MeshBasicMaterial({color:0xffa040,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));fl.position.y=-.8;m.add(fl);root.add(m);
+  rockets.push({m,p:jet.p.clone().addScaledVector(rightv,rocketSide*2.2).addScaledVector(Z.clone().applyQuaternion(jet.q),-.4),v:jet.v.clone().addScaledVector(fwd,260),life:5});try{const c=getSharedCombatAudioContext();if(c?.state==="running")playCombatAudio(c,"explosion",{gain:.25,playbackRate:1.8});}catch{}}
+function stepRockets(dt){for(let i=rockets.length-1;i>=0;i--){const r=rockets[i],prev=r.p.clone();r.v.z-=G*.15*dt;r.p.addScaledVector(r.v,dt);r.life-=dt;r.m.position.copy(r.p);r.m.quaternion.setFromUnitVectors(Y,tmp.copy(r.v).normalize());const gz=groundHeightAt(r.p.x,r.p.y);
+  const d=tmp.copy(r.v).normalize(),rt=globalThis.__arondightWorldRigidBodies?.raycast?.([prev.x,prev.y,prev.z],[d.x,d.y,d.z],prev.distanceTo(r.p)+.5);let hit=rt?.point?new THREE.Vector3(...rt.point):null;if(!hit&&(r.p.z<=gz+.2||hitsBuilding(r.p)))hit=r.p.clone().setZ(Math.max(r.p.z,gz));
+  if(hit||r.life<=0){if(hit)globalThis.__fighterJets?.blast?.(hit,{radiusM:8,maxDamage:120,scale:.55,kind:"jet-rocket"});r.m.parent?.remove(r.m);rockets.splice(i,1);}}}
 function stepBombs(dt){for(let i=bombs.length-1;i>=0;i--){const b=bombs[i];b.v.z-=G*dt;b.v.multiplyScalar(1-.04*dt);b.p.addScaledVector(b.v,dt);b.m.position.copy(b.p);if(b.v.lengthSq()>1)b.m.quaternion.setFromUnitVectors(Z,tmp.copy(b.v).normalize().negate());const gz=groundHeightAt(b.p.x,b.p.y);
   if(b.p.z<=gz+.3||hitsBuilding(b.p)){b.p.z=Math.max(b.p.z,gz);globalThis.__fighterJets?.blast?.(b.p.clone());b.m.parent?.remove(b.m);bombs.splice(i,1);}}}
 function boom(){try{const c=getSharedCombatAudioContext();if(c?.state==="running"){playCombatAudio(c,"explosion",{gain:.9,playbackRate:.55});setTimeout(()=>playCombatAudio(c,"explosion",{gain:.6,playbackRate:.62}),120);}}catch{}addTrauma?.(.6);sendFx({kind:"jet-boom",p:canon(jet.p)});}
@@ -223,19 +255,19 @@ function applyCamera({camera,now}){
 function ui(){
   const view=viewport();if(!view)return;
   if(!document.getElementById("jetHud")){const h=document.createElement("div");h.id="jetHud";h.innerHTML=`<div class="jet-read"><b data-k="spd">0</b><small>KM/H</small><b data-k="mach">M 0.00</b><b data-k="alt">0</b><small>M</small><b data-k="g">1.0 G</b><b data-k="mode">HOVER</b></div><div class="jet-thr"><i></i><span>SCHUB</span></div>
-<div class="jet-btns"><button type="button" data-a="bomb">BOMBE</button><button type="button" data-a="cam">CAM</button><button type="button" data-a="exit">EJECT</button></div>`;view.appendChild(h);
+<div class="jet-btns"><button type="button" data-a="mode">⇄ FLUG</button><button type="button" data-a="rocket">RAKETE</button><button type="button" data-a="bomb">BOMBE</button><button type="button" data-a="cam">CAM</button><button type="button" data-a="exit">EJECT</button></div>`;view.appendChild(h);
     const st=document.createElement("style");st.dataset.jetMode="v2";st.textContent=`#jetHud{display:none;position:absolute;inset:0;z-index:31;pointer-events:none;font-family:Inter,system-ui,sans-serif;color:#fff}body.jet-mode #jetHud{display:block}
-html body.jet-mode #soloLeft,html body.jet-mode #soloRight,html body.jet-mode #soloClearance,html body.jet-mode .solo-action,html body.jet-mode #vehicleHud,html body.jet-mode #airStrikeButton,html body.jet-mode #enterCarButton,html body.jet-mode #zombieRepair,html body.jet-mode #viewport #footHud #footWeaponToggle,html body.jet-mode #viewport #footWeaponToggle,html body.jet-mode #droneWeaponToggle,html body.jet-mode #viewport #footHud #footJump{display:none!important}
+html body.jet-mode #soloLeft,html body.jet-mode #soloRight,html body.jet-mode #soloClearance,html body.jet-mode .solo-action,html body.jet-mode #vehicleHud,html body.jet-mode #airStrikeButton,html body.jet-mode #enterCarButton,html body.jet-mode #zombieRepair,html body.jet-mode #viewport #footHud #footWeaponToggle,html body.jet-mode #viewport #footWeaponToggle,html body.jet-mode #droneWeaponToggle,html body.jet-mode #viewport #footHud #footJump,html body.jet-mode #viewport #mobileGameplayDock #mobileGameplayWeapon,html body.jet-mode #viewport #mobileGameplayDock #mobileGameplayMode,html body.jet-mode #playerModeButton{display:none!important}#jetHud .jet-btns [data-a=mode]{border-color:#7fd3ff}#jetHud .jet-btns [data-a=mode][data-flight="1"]{background:#1d4c6be0}
 #jetHud .jet-read{position:absolute;left:50%;top:max(56px,calc(var(--solo-safe-top,env(safe-area-inset-top)) + 50px));transform:translateX(-50%);display:flex;gap:10px;align-items:baseline;font:800 18px/1 "Barlow Condensed",Inter,sans-serif;text-shadow:0 2px 4px #000;white-space:nowrap}#jetHud .jet-read small{font:700 10px/1 Inter;opacity:.7;margin-left:-6px}#jetHud [data-k=mach][data-super="1"]{color:#ffb27a}#jetHud [data-k=mode]{font-size:13px;padding:3px 6px;border:1.5px solid #ffffffaa;border-radius:6px}
 #jetHud .jet-thr{position:absolute;left:calc(max(12px,var(--solo-safe-left,env(safe-area-inset-left))) + min(25vw,148px) + 26px);bottom:calc(max(16px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 8px);width:12px;height:min(25vw,148px);border-radius:6px;background:#0d1118b8;border:1.5px solid #ffffff88;overflow:hidden}#jetHud .jet-thr i{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(#ff7a1a,#f4d27a 25%,#8fa0ad)}#jetHud .jet-thr span{display:none}
 #jetHud .jet-btns{position:absolute;left:50%;transform:translateX(-50%);bottom:max(16px,var(--solo-safe-bottom,env(safe-area-inset-bottom)));display:flex;gap:8px;pointer-events:auto}#jetHud .jet-btns button{height:42px;min-width:62px;padding:0 10px;border-radius:12px;border:2px solid #ffffffaa;background:#0d1118c8;color:#fff;font:900 12px/1 Inter;letter-spacing:.08em;touch-action:none}#jetHud .jet-btns [data-a=exit]{border-color:#ff5a4a}
 #enterJetButton{position:absolute;z-index:30;left:50%;transform:translateX(-50%);bottom:calc(max(14px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 118px);min-width:170px;height:46px;padding:0 18px;border-radius:14px;font:900 15px/1 "Nunito","Trebuchet MS",system-ui,sans-serif;letter-spacing:.06em;color:#0f2433;background:#7fd3ff;border:2.5px solid #fff;box-shadow:0 4px 0 #2d86b5;pointer-events:auto;touch-action:manipulation}body.jet-mode #enterJetButton{display:none!important}html body.jet-mode #viewport #footHud #footFire{display:block!important;pointer-events:auto!important}`;document.head.appendChild(st);
-    for(const btn of h.querySelectorAll(".jet-btns button")){const a=btn.dataset.a;btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(a==="bomb")dropBomb();else if(a==="cam"){camMode=camMode==="chase"?"cockpit":"chase";camInit=false;}else if(a==="exit")exit();});}}
+    for(const btn of h.querySelectorAll(".jet-btns button")){const a=btn.dataset.a;btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(a==="bomb")dropBomb();else if(a==="rocket")fireRocket();else if(a==="mode")toggleMode();else if(a==="cam"){camMode=camMode==="chase"?"cockpit":"chase";camInit=false;}else if(a==="exit")exit();});}}
   if(!document.getElementById("enterJetButton")){const b=document.createElement("button");b.id="enterJetButton";b.type="button";b.hidden=true;b.textContent="✈ JET EINSTEIGEN";b.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();enter();});view.appendChild(b);}
 }
-function renderButtons(){const b=document.getElementById("enterJetButton");if(b){const show=!active&&Boolean(nearestParked())&&!globalThis.__arondightVehicleDrive?.active;if(b.hidden===show)b.hidden=!show;}const e=document.querySelector('#jetHud [data-a=exit]');if(e){const t=!jet||jet.landed?"AUSSTEIGEN":"EJECT";if(e.textContent!==t)e.textContent=t;const hide=Boolean(para);if(e.hidden!==hide)e.hidden=hide;}}
+function renderButtons(){const b=document.getElementById("enterJetButton");if(b){const show=!active&&Boolean(nearestParked())&&!globalThis.__arondightVehicleDrive?.active;if(b.hidden===show)b.hidden=!show;}const mb=document.querySelector('#jetHud [data-a=mode]');if(mb&&jet){const t=jet.mode==='flight'?'⇄ SCHWEBEN':'⇄ FLUG';if(mb.textContent!==t)mb.textContent=t;mb.dataset.flight=jet.mode==='flight'?'1':'0';}const e=document.querySelector('#jetHud [data-a=exit]');if(e){const t=!jet||jet.landed?"AUSSTEIGEN":"EJECT";if(e.textContent!==t)e.textContent=t;const hide=Boolean(para);if(e.hidden!==hide)e.hidden=hide;}}
 function renderHud(){const h=document.getElementById("jetHud");if(!h)return;if(para){h.querySelector('[data-k=mode]').textContent="FALLSCHIRM";return;}if(!jet)return;const s=jet.v.length(),m=machOf(s);h.querySelector('[data-k=spd]').textContent=String(Math.round(s*3.6));const mb=h.querySelector('[data-k=mach]');mb.textContent=`M ${m.toFixed(2)}`;mb.dataset.super=m>=1?"1":"0";h.querySelector('[data-k=alt]').textContent=String(Math.max(0,Math.round(jet.p.z-GEAR_H-groundHeightAt(jet.p.x,jet.p.y))));h.querySelector('[data-k=g]').textContent=`${(jet.g||1).toFixed(1)} G`;
-  h.querySelector('[data-k=mode]').textContent=jet.landed?"GELANDET":jet.wb>.5?(jet.ab?"FLUG · AB":"FLUG"):"HOVER";h.querySelector(".jet-thr i").style.height=`${Math.round((jet.wb>.5?throttle:(1-jet.wb)*.6*jet.rpm)*100)}%`;}
+  h.querySelector('[data-k=mode]').textContent=jet.landed?"GELANDET":jet.mode==="flight"?(jet.wb<.95?"ÜBERGANG":jet.ab?"FLUG · AB":"FLUG"):"SCHWEBEN";h.querySelector(".jet-thr i").style.height=`${Math.round((jet.wb>.5?throttle:(1-jet.wb)*.6*jet.rpm)*100)}%`;}
 
 // ------------------------------------------------------------ multiplayer: the player pose carries the jet (player_vehicle_runtime_v2)
 function session(){return bridge()?.vsSession||null;}
@@ -265,12 +297,12 @@ function frame(now=performance.now()){
         const w=walk(),h=jet?headingOf(jet.q):0;w?.setPose?.({x:p.x,y:p.y,yaw:walkYawOf(h),pitch:0});
         const alt=p.z-groundHeightAt(p.x,p.y);globalThis.__arondightFogScale=clamp(1-(alt-80)/1400,.14,1);farGround.update(p,v,now);}
       if(jet&&!para)updateVoice();renderHud();}}
-  if(bombs.length)stepBombs(dt);if(ghosts.length)stepGhosts(dt);for(const t of tracerPool)if(t.m.visible&&performance.now()>t.until)t.m.visible=false;if(remote.size)renderRemote(dt);
+  if(bombs.length)stepBombs(dt);if(rockets.length)stepRockets(dt);if(ghosts.length)stepGhosts(dt);for(const t of tracerPool)if(t.m.visible&&performance.now()>t.until)t.m.visible=false;if(remote.size)renderRemote(dt);
   const v=viewport();if(v)v.dataset.jetMode=active?(para?"chute":jet?`${jet.landed?"landed":jet.wb>.5?"flight":"hover"}/M${machOf(jet.v.length()).toFixed(2)}/${Math.round(jet.p.z)}m`:"on"):`off/${parked.length}p`;
 }
 export function installJetMode(){if(globalThis.__jetMode||typeof window==="undefined")return globalThis.__jetMode;
   addEventListener("keydown",e=>{if(e.metaKey||e.ctrlKey)return;if(!active){if(e.code==="KeyE"&&!e.repeat&&nearestParked()&&!globalThis.__arondightVehicleDrive?.active){if(enter()){e.preventDefault();e.stopImmediatePropagation();}}return;}
-    if(["KeyW","KeyS","KeyA","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)){keys.add(e.code);e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="Space"){firing=!para;e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyB"){dropBomb();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyC"){camMode=camMode==="chase"?"cockpit":"chase";camInit=false;e.stopImmediatePropagation();}else if(e.code==="KeyE"&&!e.repeat){exit();e.preventDefault();e.stopImmediatePropagation();}},{capture:true});
+    if(["KeyW","KeyS","KeyA","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)){keys.add(e.code);e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="Space"){firing=!para;e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyB"){dropBomb();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyR"){fireRocket();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyV"&&!e.repeat){toggleMode();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyC"){camMode=camMode==="chase"?"cockpit":"chase";camInit=false;e.stopImmediatePropagation();}else if(e.code==="KeyE"&&!e.repeat){exit();e.preventDefault();e.stopImmediatePropagation();}},{capture:true});
   addEventListener("keyup",e=>{keys.delete(e.code);if(e.code==="Space")firing=false;},{capture:true});addEventListener(VS_FX_EVENT,onFx);
   addEventListener("arondight:world-reset",()=>{if(active){if(model){model.parent?.remove(model);model=null;}jet=null;para=null;finish(walk()?.position?.x||0,walk()?.position?.y||0,0);}for(const p of parked.splice(0))p.model.parent?.remove(p.model);spawnPad=null;firstSeen=0;respawnAt=0;});
   globalThis.__arondightStreamFocus=()=>{if(!active)return null;const p=para?para.p:jet?.p,v=para?para.v:jet?.v;return p?{x:p.x+(v?.x||0)*1.5,y:p.y+(v?.y||0)*1.5,z:p.z}:null;};
