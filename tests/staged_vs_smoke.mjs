@@ -74,7 +74,7 @@ assert.equal(fireSource.includes('viewport.dataset.vsPeerHitboxScale="1"'),false
 assert.equal(fireSource.includes("integrateProjectile("),false,"damage must not depend on a long-lived projectile integration loop");
 assert.ok(fireSource.includes("registerVsHit?.(sceneHit)"),"VS hitscan damage must route immediately from the trigger ray");
 const presentationSource=readFileSync(new URL("../sim/vs_combat_presentation.mjs",import.meta.url),"utf8");
-for(const marker of ["RESPAWN_RADIUS_MIN_M=12","RESPAWN_RADIUS_MAX_M=30","RESET SIM TO RESPAWN NEARBY","WAITING FOR RESET","vsRespawnLocalOffset","vsManualRespawns","MOBILE_WORLD_COLLISION_SYNC_MS=1400"])
+for(const marker of ["RESPAWN_RADIUS_MIN_M=5","RESPAWN_RADIUS_MAX_M=15","RESET SIM TO RESPAWN NEARBY","WAITING FOR RESET","vsRespawnLocalOffset","vsManualRespawns","MOBILE_WORLD_COLLISION_SYNC_MS=1400"])
   assert.ok(presentationSource.includes(marker),`VS death/respawn/performance contract missing: ${marker}`);
 const multiplayerSource=readFileSync(new URL("../sim/vs_multiplayer.mjs",import.meta.url),"utf8");
 for(const marker of ["MAX_PLAYERS=9","PALETTE=[","vsPlayerId","hit-request","authorityHit","AUTHORITY_SETTLE_MS","confirmedHealth","report:true","MATES ${peers.size} ✓","flightFireTracer","flightFireImpact","vsRemoteShot","vsRemoteExplosion"])
