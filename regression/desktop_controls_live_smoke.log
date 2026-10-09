@@ -1,13 +1,8 @@
-file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45
-            this.#timeoutError = new TimeoutError(`Waiting failed: ${options.timeout}ms exceeded`);
-                                 ^
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/desktop_controls_live_smoke.mjs:14
+  if(initial.groupDisplay==="none"||initial.groupWidth<150||initial.buttons.map(b=>b.text).join(",")!=="GUN,ROCKETS")throw new Error(`desktop weapon selector is not visibly exposed: ${JSON.stringify(initial)}`);
+                                                                                                                           ^
 
-TimeoutError: Waiting failed: 45000ms exceeded
-    at new WaitTask (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45:34)
-    at IsolatedWorld.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Realm.js:22:26)
-    at CdpFrame.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Frame.js:584:43)
-    at CdpFrame.<anonymous> (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/decorators.js:101:27)
-    at CdpPage.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Page.js:1439:37)
-    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/desktop_controls_live_smoke.mjs:12:14
+Error: desktop weapon selector is not visibly exposed: {"groupDisplay":"none","groupWidth":0,"buttons":[{"text":"GUN","pressed":"true","display":"inline-flex"},{"text":"ROCKETS","pressed":"false","display":"inline-flex"}],"stop":{"text":"STOP","display":"flex","align":"center","justify":"center","textAlign":"center"}}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/desktop_controls_live_smoke.mjs:14:124
 
 Node.js v22.23.3
