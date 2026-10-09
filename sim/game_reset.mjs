@@ -40,7 +40,8 @@ function spawnAt(bx,by,{slot=0,n=1,startMode=true}={}){
   let frames=0;const run=()=>{if(++frames<4){requestAnimationFrame(run);return;}
     const w=globalThis.__arondightWalkMode;if(startMode&&typeof globalThis.__arondightApplyStartMode==="function")globalThis.__arondightApplyStartMode();else if(w?.mode!=="foot")w?.setMode?.("foot",{persist:false,reason:"respawn"});
     if(w?.mode!=="foot"||!w.setPose)return;const a=slot/Math.max(1,n)*Math.PI*2+.4,r=slot===0?0:SLOT_R+(slot>5?SLOT_R:0),cx=bx+Math.cos(a)*r,cy=by+Math.sin(a)*r;let x=cx,y=cy;
-    for(let k=0;k<48&&w.canWalkTo&&!w.canWalkTo(x,y);k++){const aa=k*2.399,rr=1.5+k*.9;x=cx+Math.cos(aa)*rr;y=cy+Math.sin(aa)*rr;}
+    if(n>1){let found=false;for(let k=0;k<80;k++){const rr=k===0?r:5+(k%11),aa=k===0?a:a+k*2.399963229728653;const tx=bx+Math.cos(aa)*rr,ty=by+Math.sin(aa)*rr;if(!w.canWalkTo||w.canWalkTo(tx,ty)){x=tx;y=ty;found=true;break;}}if(!found){setData("gameResetSpawn","blocked-5-15m");return;}}
+    else for(let k=0;k<48&&w.canWalkTo&&!w.canWalkTo(x,y);k++){const aa=k*2.399,rr=1.5+k*.9;x=cx+Math.cos(aa)*rr;y=cy+Math.sin(aa)*rr;}
     w.setPose({x,y,yaw:Number(w.yaw)||0,pitch:0});globalThis.__arondightPlayerVehicleRuntime?.teleportDrone?.({x,y,yaw:Number(w.yaw)||0});
     setData("gameResetSpawn",`${x.toFixed(1)},${y.toFixed(1)}`);};
   requestAnimationFrame(run);
@@ -48,8 +49,14 @@ function spawnAt(bx,by,{slot=0,n=1,startMode=true}={}){
 globalThis.__arondightSpawnAt=spawnAt;
 function spawnAtStart(slot=0,n=1){const base=bridge()?.startPointLocal?.()||[0,0];spawnAt(base[0],base[1],{slot,n});}
 function commitReset(meet,order){
-  void meet;const ids=(order||[]).map(String),me=selfId(),slot=Math.max(0,ids.indexOf(me)),n=Math.max(1,ids.length);
-  fullLocalReset();globalThis.__arondightVsMultiplayer?.resetLevelHealth?.(ids);document.getElementById("soloReset")?.click();spawnAtStart(slot,n);
+  const ids=(order||[]).map(String),me=selfId(),slot=Math.max(0,ids.indexOf(me)),n=Math.max(1,ids.length);
+  const b=bridge(),geo=Array.isArray(meet)&&meet.length===2&&meet.every(Number.isFinite)&&b?.active&&Number.isFinite(b.originLon)&&Number.isFinite(b.originLat);
+  let base=null;
+  if(geo){const R=6378137,lat=b.originLat*Math.PI/180;base=[(meet[0]-b.originLon)*Math.PI/180*R*Math.max(.01,Math.cos(lat)),(meet[1]-b.originLat)*Math.PI/180*R];}
+  else if(Array.isArray(meet?.p)&&meet.p.length>=2&&meet.p.slice(0,2).every(Number.isFinite)&&(!meet.f||meet.f===String(viewport()?.dataset?.vsSharedFrame||"local-metric")))base=meet.p;
+  fullLocalReset();globalThis.__arondightVsMultiplayer?.resetLevelHealth?.(ids);document.getElementById("soloReset")?.click();
+  if(base)spawnAt(base[0],base[1],{slot,n});else spawnAtStart(slot,n);
+  setData("gameResetMeetSource",base?"shared-anchor":"fallback-local");
   setData("gameResetMode","multiplayer-full-vote");setData("gameResetSlot",`${slot}/${n}`);
 }
 function prompt(from,vid){
@@ -67,7 +74,7 @@ function onFx(event){const pk=event?.detail?.packet;if(pk?.objectId!=="reset-vot
   else if(pk.kind==="cancel")document.getElementById("resetVoteDialog")?.remove();}
 function finishVote(ok,label=""){if(!vote)return;clearTimeout(vote.timer);const v=vote;vote=null;
   if(!ok){send({kind:"cancel",vid:v.vid});flash(v.button,label||"KEINE EINIGUNG");setData("gameResetVote","rejected");return;}
-  const order=[selfId(),...v.peers].sort(),meet=globalThis.__arondightVsMeetingPoint?.();send({kind:"commit",vid:v.vid,meet,order});commitReset(meet,order);setData("gameResetVote","accepted");}
+  const order=[selfId(),...v.peers].sort(),meet=globalThis.__arondightVsMeetingPoint?.()||(()=>{const s=session(),p=s?.pendingPose;return Array.isArray(p?.p)?{p:p.p.slice(),f:String(p.f||"local-metric")}:null;})();send({kind:"commit",vid:v.vid,meet,order});commitReset(meet,order);setData("gameResetVote","accepted");}
 function startVote(button){const list=peers();if(vote)return;const vid=`v${Date.now().toString(36)}`;vote={vid,peers:list,answers:new Map(),button,timer:setTimeout(()=>finishVote(false,"KEINE ANTWORT"),VOTE_MS+1500)};send({kind:"request",vid});flash(button,"ABSTIMMUNG…");setData("gameResetVote","pending");}
 function flash(button,text){if(!button)return;const original=button.dataset.resetLabel||button.textContent;button.dataset.resetLabel=original;button.textContent=text;clearTimeout(button.__resetFlash);button.__resetFlash=setTimeout(()=>{button.textContent=button.dataset.resetLabel;},900);}
 function setData(key,value){const v=viewport();if(v)v.dataset[key]=String(value);}
