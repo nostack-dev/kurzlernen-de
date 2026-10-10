@@ -9,6 +9,7 @@
  */
 
 #include "Arondight45_FirmwareRuntime.hpp"
+#include "Arondight45_FlowNav.hpp"
 
 #include <array>
 #include <atomic>
@@ -19,6 +20,9 @@
 extern "C" {
 #include "sdkconfig.h"
 #include "driver/gpio.h"
+#include "driver/i2c_master.h"
+#include "nvs.h"
+#include "nvs_flash.h"
 #include "driver/mcpwm_prelude.h"
 #include "driver/spi_master.h"
 #include "driver/uart.h"
@@ -65,6 +69,17 @@ extern "C" {
 #ifndef FC_NAV_UART_NUM
 #define FC_NAV_UART_NUM UART_NUM_0
 #endif
+#ifndef FC_PIN_MAG_SDA
+// Compass of the GPS module (QMC5883L 0x0D or QMC5883P 0x2C). -1 = no compass: on-board
+// FlowNav then never reports a heading and GAME stays fail-closed unless a NAV1 module is used.
+#define FC_PIN_MAG_SDA 14
+#endif
+#ifndef FC_PIN_MAG_SCL
+#define FC_PIN_MAG_SCL 15
+#endif
+#ifndef FC_FLOWNAV_RESET
+#define FC_FLOWNAV_RESET 0   // 1: forget the stored flow/compass calibration at boot
+#endif
 #ifndef FC_PIN_M1
 #define FC_PIN_M1 4
 #endif
@@ -103,6 +118,23 @@ std::array<uint8_t, 25> sbus_frame_snapshot{};
 uint32_t sbus_generation{};
 hwcontract::NavigationWireFrame navigation_frame_snapshot{};
 uint32_t navigation_generation{};
+// On-board FlowNav inputs (MSP v2 flow + range on the NAV UART, compass on I2C). Flow
+// displacement is summed until the flight task takes it, so no sample's motion is lost.
+struct PendingFlow { int32_t dx{}, dy{}; uint8_t quality{255}; uint64_t us{}; bool any{}; };
+PendingFlow pending_flow{};
+flownav::RangeSample range_snapshot{};
+uint32_t range_generation{};
+flownav::V3f mag_snapshot{};
+uint64_t mag_us{};
+uint32_t mag_generation{};
+i2c_master_dev_handle_t mag_dev{};
+bool mag_is_p{};
+// calibration handed from the flight task to the (slow) flash writer
+struct StoredFlowNav { uint32_t magic{0x31564e46u}; uint16_t version{1}; flownav::FlowCalibration flow{}; flownav::MagCalibration mag{}; int32_t sense{}; };
+StoredFlowNav store_pending{};
+std::atomic<bool> store_dirty{false};
+StoredFlowNav store_loaded{};
+bool store_valid{};
 spi_device_handle_t imu{};
 mcpwm_timer_handle_t motor_timer{};
 std::array<mcpwm_cmpr_handle_t, 4> motor_comparators{};
@@ -352,10 +384,28 @@ void navigation_task(void*) {
 #if FC_PIN_NAV_RX >= 0
     hwcontract::NavigationWireParser parser;
     hwcontract::NavigationWireFrame frame{};
+    flownav::MspV2Parser msp;
+    flownav::MspFrame msp_frame{};
     uint8_t bytes[64];
     for (;;) {
         const int count = uart_read_bytes(kNavUart, bytes, sizeof(bytes), pdMS_TO_TICKS(20));
         for (int i = 0; i < count; ++i) {
+            if (msp.feed(bytes[i], msp_frame)) {
+                const uint64_t t = now_us64();
+                flownav::FlowSample flow{};
+                flownav::RangeSample range{};
+                if (flownav::decode_flow(msp_frame, t, flow)) {
+                    portENTER_CRITICAL(&wire_mux);
+                    pending_flow.dx += flow.dx; pending_flow.dy += flow.dy;
+                    pending_flow.quality = std::min(pending_flow.quality, flow.quality);
+                    pending_flow.us = t; pending_flow.any = true;
+                    portEXIT_CRITICAL(&wire_mux);
+                } else if (flownav::decode_range(msp_frame, t, range)) {
+                    portENTER_CRITICAL(&wire_mux);
+                    range_snapshot = range; ++range_generation;
+                    portEXIT_CRITICAL(&wire_mux);
+                }
+            }
             if (!parser.feed(bytes[i], frame)) continue;
             // Do not decode here. Bad CRC/version/sequence must reach exactly the
             // same FirmwareRuntime validation path as browser SIL and S31 HIL.
@@ -368,6 +418,104 @@ void navigation_task(void*) {
 #else
     vTaskDelete(nullptr);
 #endif
+}
+
+esp_err_t mag_init() {
+#if FC_PIN_MAG_SDA >= 0 && FC_PIN_MAG_SCL >= 0
+    i2c_master_bus_config_t bus{};
+    bus.i2c_port = I2C_NUM_0;
+    bus.sda_io_num = static_cast<gpio_num_t>(FC_PIN_MAG_SDA);
+    bus.scl_io_num = static_cast<gpio_num_t>(FC_PIN_MAG_SCL);
+    bus.clk_source = I2C_CLK_SRC_DEFAULT;
+    bus.glitch_ignore_cnt = 7;
+    bus.flags.enable_internal_pullup = true;
+    i2c_master_bus_handle_t handle{};
+    HW_TRY(i2c_new_master_bus(&bus, &handle), "mag i2c bus");
+    for (const uint8_t address : {flownav::kQmc5883lAddress, flownav::kQmc5883pAddress}) {
+        if (i2c_master_probe(handle, address, 20) != ESP_OK) continue;
+        i2c_device_config_t dev{};
+        dev.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+        dev.device_address = address;
+        dev.scl_speed_hz = 400000;
+        HW_TRY(i2c_master_bus_add_device(handle, &dev, &mag_dev), "mag device");
+        mag_is_p = address == flownav::kQmc5883pAddress;
+        if (mag_is_p) {
+            const uint8_t mode[2] = {0x0A, 0xCF};   // continuous, 200 Hz, OSR 8 / 8
+            const uint8_t cfg[2] = {0x0B, 0x08};    // set/reset on, ±8 G
+            HW_TRY(i2c_master_transmit(mag_dev, cfg, 2, 20), "qmc5883p config");
+            HW_TRY(i2c_master_transmit(mag_dev, mode, 2, 20), "qmc5883p mode");
+        } else {
+            const uint8_t period[2] = {0x0B, 0x01};  // set/reset period
+            const uint8_t ctrl[2] = {0x09, 0x1D};    // continuous, 200 Hz, ±8 G, OSR 512
+            HW_TRY(i2c_master_transmit(mag_dev, period, 2, 20), "qmc5883l period");
+            HW_TRY(i2c_master_transmit(mag_dev, ctrl, 2, 20), "qmc5883l control");
+        }
+        ESP_LOGI(kTag, "compass QMC5883%c at 0x%02x", mag_is_p ? 'P' : 'L', address);
+        return ESP_OK;
+    }
+    ESP_LOGW(kTag, "no compass found: on-board FlowNav reports no heading (GAME needs a NAV1 module)");
+#endif
+    return ESP_OK;
+}
+
+void mag_task(void*) {
+    for (;;) {
+        if (mag_dev) {
+            const uint8_t reg = mag_is_p ? 0x01 : 0x00;
+            uint8_t raw[6]{};
+            flownav::V3f m{};
+            if (i2c_master_transmit_receive(mag_dev, &reg, 1, raw, sizeof(raw), 10) == ESP_OK && flownav::decode_qmc(raw, m)) {
+                portENTER_CRITICAL(&wire_mux);
+                mag_snapshot = m; mag_us = now_us64(); ++mag_generation;
+                portEXIT_CRITICAL(&wire_mux);
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+void load_flownav_store() {
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        (void)nvs_flash_erase();
+        err = nvs_flash_init();
+    }
+    if (err != ESP_OK) return;
+    nvs_handle_t handle{};
+    if (nvs_open("flownav", NVS_READWRITE, &handle) != ESP_OK) return;
+#if FC_FLOWNAV_RESET
+    (void)nvs_erase_key(handle, "cal");
+    (void)nvs_commit(handle);
+#else
+    StoredFlowNav stored{};
+    size_t size = sizeof(stored);
+    if (nvs_get_blob(handle, "cal", &stored, &size) == ESP_OK && size == sizeof(stored) &&
+        stored.magic == StoredFlowNav{}.magic && stored.version == StoredFlowNav{}.version) {
+        store_loaded = stored;
+        store_valid = true;
+        ESP_LOGI(kTag, "FlowNav calibration loaded: flow=%d compass=%d sense=%d",
+                 stored.flow.ready, stored.mag.ready, static_cast<int>(stored.sense));
+    }
+#endif
+    nvs_close(handle);
+}
+
+// writes a new calibration to flash outside the flight loop (a flash write stalls for ms)
+void store_task(void*) {
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(500));
+        if (!store_dirty.exchange(false) || armed.load(std::memory_order_acquire)) continue;
+        StoredFlowNav copy{};
+        portENTER_CRITICAL(&wire_mux);
+        copy = store_pending;
+        portEXIT_CRITICAL(&wire_mux);
+        nvs_handle_t handle{};
+        if (nvs_open("flownav", NVS_READWRITE, &handle) != ESP_OK) continue;
+        if (nvs_set_blob(handle, "cal", &copy, sizeof(copy)) == ESP_OK) (void)nvs_commit(handle);
+        nvs_close(handle);
+        ESP_LOGI(kTag, "FlowNav calibration stored: flow=%d compass=%d sense=%d",
+                 copy.flow.ready, copy.mag.ready, static_cast<int>(copy.sense));
+    }
 }
 
 void snapshot_wire(std::array<uint8_t, 25>& sbus, uint32_t& sbus_gen,
@@ -388,6 +536,19 @@ void flight_task(void*) {
     uint64_t last_us = 0;
     uint32_t consumed_sbus_generation = 0;
     uint32_t consumed_navigation_generation = 0;
+    // On-board NAV1 producer (flow + lidar + compass). An external NAV1 module, when it
+    // talks, always wins; FlowNav only fills in while none has been heard for 0.5 s.
+    flownav::FlowNav flow_nav;
+    if (store_valid) {
+        if (store_loaded.flow.ready) flow_nav.set_flow_calibration(store_loaded.flow);
+        if (store_loaded.mag.ready) flow_nav.set_mag_calibration(store_loaded.mag);
+        if (store_loaded.sense == 1 || store_loaded.sense == -1) flow_nav.set_heading_sense(store_loaded.sense);
+    }
+    uint64_t external_nav_us = 0, last_cal_check_us = 0;
+    uint32_t consumed_range_generation = 0, consumed_mag_generation = 0;
+    std::array<int16_t, 3> attitude_cdeg{};
+    bool stored_flow = store_valid && store_loaded.flow.ready, stored_mag = store_valid && store_loaded.mag.ready,
+         stored_sense = store_valid && store_loaded.sense != 0;
 
     for (;;) {
         const uint32_t notifications = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(5));
@@ -423,8 +584,56 @@ void flight_task(void*) {
             hardware.navigation_frame = navigation_frame;
             hardware.navigation_present = true;
             consumed_navigation_generation = nav_gen;
+            external_nav_us = now;
         }
+
+        // ---- on-board FlowNav (only while no external NAV1 module is talking)
+        {
+            const bool disarmed = !armed.load(std::memory_order_acquire);
+            fc::Imu imu{};
+            if (hwcontract::decode_icm42688_registers(imu_registers.data(), imu))
+                flow_nav.add_gyro(imu.g.x, imu.g.y, dt_us * 1e-6f, attitude_cdeg[0] * 0.01f,
+                                  attitude_cdeg[1] * 0.01f, attitude_cdeg[2] * 0.01f);
+            PendingFlow flow{};
+            flownav::RangeSample range{};
+            flownav::V3f mag{};
+            uint64_t mag_t = 0;
+            uint32_t range_gen = 0, mag_gen = 0;
+            portENTER_CRITICAL(&wire_mux);
+            flow = pending_flow; pending_flow = PendingFlow{};
+            range = range_snapshot; range_gen = range_generation;
+            mag = mag_snapshot; mag_t = mag_us; mag_gen = mag_generation;
+            portEXIT_CRITICAL(&wire_mux);
+            bool fresh = false;
+            if (range_gen != consumed_range_generation) { flow_nav.add_range(range); consumed_range_generation = range_gen; fresh = true; }
+            if (flow.any) { flow_nav.add_flow(flownav::FlowSample{flow.quality, flow.dx, flow.dy, flow.us}, disarmed); fresh = true; }
+            if (mag_gen != consumed_mag_generation) { flow_nav.add_mag(mag, mag_t, disarmed); consumed_mag_generation = mag_gen; }
+            if (fresh && (!external_nav_us || now - external_nav_us > 500000)) {
+                hwcontract::NavigationWireFrame produced{};
+                if (flow_nav.build(now, produced)) {
+                    hardware.navigation_frame = produced;
+                    hardware.navigation_present = true;
+                }
+            }
+            // learn and keep the calibrations (hand-held, disarmed), once a second
+            if (disarmed && now - last_cal_check_us > 1000000) {
+                last_cal_check_us = now;
+                if (!flow_nav.flow_calibration().ready) (void)flow_nav.try_flow_calibration();
+                const bool f = flow_nav.flow_calibration().ready, m = flow_nav.mag_calibration().ready, h = flow_nav.heading_sense() != 0;
+                if ((f && !stored_flow) || (m && !stored_mag) || (h && !stored_sense)) {
+                    StoredFlowNav next{};
+                    next.flow = flow_nav.flow_calibration(); next.mag = flow_nav.mag_calibration(); next.sense = flow_nav.heading_sense();
+                    portENTER_CRITICAL(&wire_mux);
+                    store_pending = next;
+                    portEXIT_CRITICAL(&wire_mux);
+                    store_dirty.store(true);
+                    stored_flow = f; stored_mag = m; stored_sense = h;
+                }
+            }
+        }
+
         const fc::RuntimeOutput output = runtime.step(hardware);
+        attitude_cdeg = output.attitude_cdeg;
 
         if (output.fault != fc::kFaultNone) fatal(fc::Runtime::fault_name(output.fault));
         armed.store(output.armed, std::memory_order_release);
@@ -478,6 +687,8 @@ extern "C" void app_main() {
     ESP_ERROR_CHECK(hw::motor_init());
     ESP_ERROR_CHECK(hw::sbus_init());
     ESP_ERROR_CHECK(hw::navigation_init());
+    hw::load_flownav_store();
+    ESP_ERROR_CHECK(hw::mag_init());
 
 #if CONFIG_FREERTOS_NUMBER_OF_CORES > 1
     constexpr BaseType_t kFlightCore = 1;
@@ -499,5 +710,11 @@ extern "C" void app_main() {
     ESP_ERROR_CHECK(created == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
     created = xTaskCreatePinnedToCore(hw::navigation_task, "nav", 4096, nullptr,
                                      11, nullptr, kServiceCore);
+    ESP_ERROR_CHECK(created == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
+    created = xTaskCreatePinnedToCore(hw::mag_task, "mag", 3072, nullptr,
+                                     9, nullptr, kServiceCore);
+    ESP_ERROR_CHECK(created == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
+    created = xTaskCreatePinnedToCore(hw::store_task, "store", 4096, nullptr,
+                                     2, nullptr, kServiceCore);
     ESP_ERROR_CHECK(created == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
 }

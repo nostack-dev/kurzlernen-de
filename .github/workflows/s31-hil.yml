@@ -13,6 +13,8 @@ on:
       - "esp32/Arondight45_HIL_Protocol.hpp"
       - "esp32/Arondight45_DroneFC_S31.cpp"
       - "esp32/Arondight45_DroneFC_HIL_S31.cpp"
+      - "esp32/Arondight45_FlowNav.hpp"
+      - "esp32/ci_build.sh"
       - "sim/**"
       - "tests/**"
       - "tools/s31_hil_bridge.mjs"
@@ -29,6 +31,8 @@ on:
       - "esp32/Arondight45_HIL_Protocol.hpp"
       - "esp32/Arondight45_DroneFC_S31.cpp"
       - "esp32/Arondight45_DroneFC_HIL_S31.cpp"
+      - "esp32/Arondight45_FlowNav.hpp"
+      - "esp32/ci_build.sh"
       - "sim/**"
       - "tests/**"
       - "tools/s31_hil_bridge.mjs"
@@ -58,6 +62,10 @@ jobs:
           ASAN_OPTIONS=detect_leaks=1 /tmp/hil-tests
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 sim/Arondight45_DroneFC_SIL_WASM.cpp -o /tmp/sil-host-tests
           /tmp/sil-host-tests
+          g++ -std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -Iesp32 tests/flow_nav_test.cpp -o /tmp/flow-nav-tests
+          /tmp/flow-nav-tests
+          clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/flow_nav_test.cpp -o /tmp/flow-nav-clang
+          /tmp/flow-nav-clang
           clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/drone_fc_core_test.cpp -o /tmp/fc-core-clang
           /tmp/fc-core-clang
           clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state-control-clang
