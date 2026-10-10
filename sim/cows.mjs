@@ -52,7 +52,7 @@ function rebuildHerds(){const list=globalThis.__worldMeadows,f=focus();if(!Array
   for(const{m}of cand){const n=Math.max(2,Math.min(7,Math.round(m.area/4000)+Math.floor(hash(m.key)*2)));for(let i=0;i<n&&next.length<MAX_COWS;i++){const key=`${m.key}#${i}`,old=keep.get(key);if(old){old.m=m;next.push(old);continue;}
       const coat=COATS[Math.floor(hash(`${key}:coat`)*COATS.length)];next.push({key,i,m,coat:coat[0],color:new THREE.Color(coat[0]),hp:100,dead:deadKeys.has(key),body:null,flee:null,off:[0,0],nextMoo:performance.now()+8000+hash(`${key}:moo`)*30000,phase:hash(key)*6,x:0,y:0,yaw:0,walking:false});}
     if(next.length>=MAX_COWS)break;}
-  for(const c of cows)if(!next.includes(c)&&c.body){rigid()?.removeBody?.(c.body);c.body=null;}
+  for(const c of cows)if(!next.includes(c)){dropLiveBody(c);if(c.body){rigid()?.removeBody?.(c.body);c.body=null;}}
   cows.length=0;cows.push(...next);for(const c of cows)if(c.dead&&!c.body)c.hidden=true;
   const v=document.getElementById("viewport");if(v){v.dataset.cows=String(cows.length);v.dataset.cowsVersion=COWS_VERSION;}}
 
@@ -61,22 +61,35 @@ function pathPose(c,t){const k=Math.floor(t/PERIOD_MS),A=spot(c.m,`${c.key}:${k}
   return{x:A[0]+dx*u,y:A[1]+dy*u,yaw:d>.2?Math.atan2(dy,dx):hash(`${c.key}:${k}:yaw`)*Math.PI*2,walking:u<1&&d>.2};}
 
 // ------------------------------------------------------------------ physics & damage
-function kill(c,impulse,{net=true}={}){if(c.dead)return;c.dead=true;c.hp=0;deadKeys.add(c.key);const R=rigid();moo([c.x,c.y,1.4],.8);
+function kill(c,impulse,{net=true}={}){if(c.dead)return;c.dead=true;c.hp=0;deadKeys.add(c.key);const R=rigid();dropLiveBody(c);moo([c.x,c.y,groundHeightAt(c.x,c.y)+1.4],1,{pain:true});
   if(R?.upsertBody){const id=`cow-${hash(c.key).toString(36).slice(2,10)}`;if(R.upsertBody({id,kind:"prop",position:[c.x,c.y,groundHeightAt(c.x,c.y)+1.12],yaw:c.yaw,halfExtents:[.82,.34,.38],massKg:COW_MASS,wheeled:false,friction:.7,restitution:.05,linearDamping:.05,angularDamping:.3,sleep:true})){c.body=id;R.applyImpulse?.(id,impulse,{point:[c.x,c.y,groundHeightAt(c.x,c.y)+1.45]});}}
   if(net)sendDeath(c,impulse);window.dispatchEvent(new CustomEvent("arondight:world-kill",{detail:{id:c.key,kind:"animal",species:"cow",network:false}}));}
 function scare(c,x,y,ms=4500){if(c.dead)return;const dx=c.x-x,dy=c.y-y,d=Math.hypot(dx,dy)||1;c.flee={until:performance.now()+ms,vx:dx/d*2.8,vy:dy/d*2.8};}
-function hurt(c,dmg,dir,src){if(c.dead)return;c.hp-=dmg;if(c.hp<=0){const k=Math.min(4,1+dmg/120);kill(c,[dir[0]*COW_MASS*k,dir[1]*COW_MASS*k,COW_MASS*1.2]);}else{scare(c,c.x-dir[0],c.y-dir[1]);moo([c.x,c.y,1.4],.6);}}
-function onTracer(e){const d=e.detail||{},a=d.start,b=d.end;if(!Array.isArray(a)||!Array.isArray(b)||!cows.length)return;const dx=b[0]-a[0],dy=b[1]-a[1],dz=b[2]-a[2],L2=dx*dx+dy*dy+dz*dz;if(L2<.01)return;const len=Math.sqrt(L2);let best=null,bt=2;
-  for(const c of cows){if(c.dead||c.hidden)continue;const cz=groundHeightAt(c.x,c.y)+1.15,t=Math.max(0,Math.min(1,((c.x-a[0])*dx+(c.y-a[1])*dy+(cz-a[2])*dz)/L2)),px=a[0]+dx*t-c.x,py=a[1]+dy*t-c.y,pz=a[2]+dz*t-cz,along=Math.abs(px*Math.cos(c.yaw)+py*Math.sin(c.yaw)),side=Math.hypot(-px*Math.sin(c.yaw)+py*Math.cos(c.yaw),pz);if(along<.95&&side<.42&&t<bt){bt=t;best=c;}}
-  if(best)hurt(best,DAMAGE[String(d.weapon||"smg")]??16,[dx/len,dy/len],"shot");
-  // a near miss still startles the herd
+function hurt(c,dmg,dir,src){if(c.dead)return;c.hp-=dmg;const z=groundHeightAt(c.x,c.y)+1.4;if(c.hp<=0){const k=Math.min(4,1+dmg/120);kill(c,[dir[0]*COW_MASS*k,dir[1]*COW_MASS*k,COW_MASS*1.2]);}else{
+  // a hit rocks the 600 kg animal a step aside (a punch more than a round), then it bolts
+  const shove=src==="fists"?.35:.12;c.off[0]+=dir[0]*shove;c.off[1]+=dir[1]*shove;c.flinchAt=performance.now();c.flinchDir=[dir[0],dir[1]];scare(c,c.x-dir[0]*3,c.y-dir[1]*3,5500);moo([c.x,c.y,z],.9,{pain:true});}}
+// live cows are real Box3D bodies (driven along their grazing path every frame): every weapon's ray
+// and every car hits them like anything else; the hit routes back here
+const liveIds=new Map();
+function liveIdOf(c){return`cowl-${hash(c.key).toString(36).slice(2,10)}`;}
+function dropLiveBody(c){if(!c.liveBody)return;rigid()?.removeBody?.(c.liveBody);liveIds.delete(c.liveBody);c.liveBody=null;}
+function syncLiveBody(c,f,vx,vy){const R=rigid();if(!R?.upsertBody)return;const near=f&&Math.hypot(c.x-f.x,c.y-f.y)<90;if(!near||c.dead||c.hidden){dropLiveBody(c);return;}const z=groundHeightAt(c.x,c.y)+1.12;
+  if(!c.liveBody){const id=liveIdOf(c);if(R.upsertBody({id,kind:"cow",position:[c.x,c.y,z],yaw:c.yaw,halfExtents:[.8,.33,.36],massKg:COW_MASS,wheeled:false,gravityScale:0,friction:.6,restitution:.05,linearDamping:.2,angularDamping:2,sleep:false})){c.liveBody=id;liveIds.set(id,c);}else return;}
+  R.setPose?.(c.liveBody,{position:[c.x,c.y,z],yaw:c.yaw,velocity:[vx,vy,0],angularVelocity:[0,0,0]});}
+export function hitCow({id,point=null,direction=[1,0,0],weapon="smg",damage=null}={}){const c=liveIds.get(String(id||""));if(!c||c.dead)return false;const now=performance.now();if(now-(c.lastHitAt||-1e9)<40)return true;c.lastHitAt=now; /* one round = one hit (a shot's ray segments may report the same body twice) */const d=Math.hypot(direction[0],direction[1])||1,dir=[direction[0]/d,direction[1]/d];
+  const dmg=Number.isFinite(damage)?damage:weapon==="fists"?6:DAMAGE[String(weapon).split(":")[0]]??16;
+  if(point&&weapon!=="fists")globalThis.__worldImpacts?.chips?.(new THREE.Vector3(point[0],point[1],point[2]),new THREE.Vector3(-dir[0],-dir[1],0),"actor",7,3);thud(point||[c.x,c.y,groundHeightAt(c.x,c.y)+1.1],weapon==="fists");
+  hurt(c,dmg,dir,weapon==="fists"?"fists":"shot");const v=document.getElementById("viewport");if(v)v.dataset.cowHits=String((Number(v.dataset.cowHits)||0)+1);return true;}
+function thud(pos,soft){const a=globalThis.__sharedAudioContext;if(!a||a.state!=="running")return;try{const t=a.currentTime,o=a.createOscillator(),g=a.createGain();o.type="sine";o.frequency.setValueAtTime(soft?90:140,t);o.frequency.exponentialRampToValueAtTime(45,t+.12);g.gain.setValueAtTime(soft?.4:.28,t);g.gain.exponentialRampToValueAtTime(.001,t+.16);o.connect(g).connect(a.destination);o.start(t);o.stop(t+.18);}catch{}}
+// a shot that passes near the herd startles it (hits themselves come through the cow bodies)
+function onTracer(e){const d=e.detail||{},a=d.start,b=d.end;if(!Array.isArray(a)||!Array.isArray(b)||!cows.length)return;const len=Math.hypot(b[0]-a[0],b[1]-a[1]);
   const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2;for(const c of cows)if(!c.dead&&Math.hypot(c.x-mx,c.y-my)<len/2+12)scare(c,a[0],a[1],3000);}
 function onExplosion(e){const d=e.detail||{},p=d.position;if(!Array.isArray(p))return;const r=Math.max(4,Number(d.radiusM)||8);for(const c of cows){if(c.dead)continue;const dx=c.x-p[0],dy=c.y-p[1],dist=Math.hypot(dx,dy);if(dist<r*.75){const k=COW_MASS*(7*(1-dist/r)+2)/(dist||1);kill(c,[dx*k,dy*k,COW_MASS*5*(1-dist/r)+COW_MASS]);}else if(dist<r*4)scare(c,p[0],p[1]);}}
 let lastCarCheck=0;
 function checkCars(now){if(now-lastCarCheck<66||!cows.length)return;lastCarCheck=now;const R=rigid(),recs=R?.engine?.records;if(!recs)return;
   for(const[id,rec]of recs){if(rec.kind!=="car"&&rec.kind!=="bus")continue;const p=R.pose(id);if(!p?.position)continue;const v=p.velocity||[0,0,0],sp=Math.hypot(v[0],v[1]),hl=rec.kind==="bus"?4.05:1.88,hw=rec.kind==="bus"?1.25:.86,c0=Math.cos(p.yaw),s0=Math.sin(p.yaw);
     for(const c of cows){if(c.dead||c.hidden)continue;const dx=c.x-p.position[0],dy=c.y-p.position[1];if(dx*dx+dy*dy>40)continue;const u=dx*c0+dy*s0,w=-dx*s0+dy*c0;if(Math.abs(u)>hl+.55||Math.abs(w)>hw+.45)continue;const m=Number(rec.massKg)||1400,share=COW_MASS/(m+COW_MASS);
-      if(sp>3){const lost=sp*share;R.applyImpulse?.(id,[-v[0]/sp*m*lost,-v[1]/sp*m*lost,0]);if(sp>8)kill(c,[v[0]*COW_MASS*1.1,v[1]*COW_MASS*1.1,COW_MASS*Math.min(6,sp*.35)]);else{c.off[0]+=v[0]/sp*1.2;c.off[1]+=v[1]/sp*1.2;scare(c,p.position[0],p.position[1]);moo([c.x,c.y,1.4],.9);}}
+      if(sp>3){const lost=sp*share;R.applyImpulse?.(id,[-v[0]/sp*m*lost,-v[1]/sp*m*lost,0]);if(sp>8)kill(c,[v[0]*COW_MASS*1.1,v[1]*COW_MASS*1.1,COW_MASS*Math.min(6,sp*.35)]);else{c.off[0]+=v[0]/sp*1.2;c.off[1]+=v[1]/sp*1.2;scare(c,p.position[0],p.position[1]);moo([c.x,c.y,groundHeightAt(c.x,c.y)+1.4],.9,{pain:true});}}
       else{const d=Math.hypot(dx,dy)||1;c.off[0]+=dx/d*.08;c.off[1]+=dy/d*.08;}}}}
 // multiplayer: deaths travel, the others drop the same cow
 function session(){const s=bridge()?.vsSession;return s?.sendFx?s:s?.active?.sendFx?s.active:null;}
@@ -84,10 +97,10 @@ function sendDeath(c,impulse){const s=session();if(!s)return;try{s.sendFx({type:
 function onFx(e){const pk=e?.detail?.packet;if(pk?.objectId!=="pasture-cow"||!pk.cow)return;deadKeys.add(String(pk.cow));const c=cows.find(k=>k.key===pk.cow);if(c&&!c.dead)kill(c,Array.isArray(pk.imp)?pk.imp:[0,0,COW_MASS],{net:false});}
 
 // ------------------------------------------------------------------ moo (synthesized, in 3-D)
-function moo(pos,k=1){const a=globalThis.__sharedAudioContext;if(!a||a.state!=="running")return;const now=performance.now();if(now-lastMoo<2500&&k<.7)return;lastMoo=now;
+function moo(pos,k=1,{pain=false}={}){const a=globalThis.__sharedAudioContext;if(!a||a.state!=="running")return;const now=performance.now();if(!pain&&now-lastMoo<2500&&k<.7)return;if(pain&&now-lastMoo<350)return;lastMoo=now;
   try{const cam=bridge()?.presentedCamera?.()||bridge()?.threeCamera;const t=a.currentTime,pan=a.createPanner();pan.panningModel="equalpower";pan.distanceModel="inverse";pan.refDistance=5;pan.rolloffFactor=1.2;if(pan.positionX){pan.positionX.value=pos[0];pan.positionY.value=pos[1];pan.positionZ.value=pos[2];}
     if(cam&&a.listener.positionX){a.listener.positionX.value=cam.position.x;a.listener.positionY.value=cam.position.y;a.listener.positionZ.value=cam.position.z;}
-    const g=a.createGain(),dur=1.1+Math.random()*.6,f0=105+Math.random()*30;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.32*k,t+.18);g.gain.setValueAtTime(.3*k,t+dur*.7);g.gain.linearRampToValueAtTime(0,t+dur);
+    const g=a.createGain(),dur=pain?.55+Math.random()*.25:1.1+Math.random()*.6,f0=(105+Math.random()*30)*(pain?1.45:1);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.32*k,t+.18);g.gain.setValueAtTime(.3*k,t+dur*.7);g.gain.linearRampToValueAtTime(0,t+dur);
     const f1=a.createBiquadFilter(),f2=a.createBiquadFilter();f1.type="bandpass";f1.frequency.setValueAtTime(380,t);f1.frequency.linearRampToValueAtTime(720,t+dur*.4);f1.Q.value=4;f2.type="lowpass";f2.frequency.value=1400;
     for(const det of[0,7]){const o=a.createOscillator();o.type="sawtooth";o.frequency.setValueAtTime(f0*.9,t);o.frequency.linearRampToValueAtTime(f0,t+.25);o.frequency.linearRampToValueAtTime(f0*.82,t+dur);o.detune.value=det;o.connect(f1);o.start(t);o.stop(t+dur+.05);}
     f1.connect(f2).connect(g).connect(pan).connect(a.destination);}catch{}}
@@ -104,12 +117,14 @@ function frame(){requestAnimationFrame(frame);const now=performance.now(),dt=Mat
       let x=base.x+c.off[0],y=base.y+c.off[1];if(!inPasture(c.m,x,y)&&inPasture(c.m,base.x,base.y)){c.off[0]*=.9;c.off[1]*=.9;x=base.x+c.off[0];y=base.y+c.off[1];}
       const running=Boolean(c.flee),moving=running||base.walking,yaw=running?Math.atan2(c.flee.vy,c.flee.vx):base.yaw;let dy=yaw-c.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));c.yaw+=dy*Math.min(1,dt*(running?6:2.2));c.x=x;c.y=y;c.walking=moving;
       c.phase+=dt*(running?7:moving?3.2:0);Q.setFromAxisAngle(Z,c.yaw);M.compose(P.set(x,y,groundHeightAt(x,y)+(running?Math.abs(Math.sin(c.phase))*.05:0)),Q,S);
-      if(f&&now>c.nextMoo){c.nextMoo=now+15000+Math.random()*30000;if(Math.hypot(x-f.x,y-f.y)<35)moo([x,y,1.4],.7);}}
+      {const ft=(now-(c.flinchAt||-1e9))/260;if(ft<1){const k=Math.sin(ft*Math.PI)*.12,fd=c.flinchDir||[0,0],side=-fd[0]*Math.sin(c.yaw)+fd[1]*Math.cos(c.yaw);M.multiply(L.makeRotationX(side*k));}} // the hit rocks the body sideways for a moment
+      {const vx=running?c.flee.vx:base.walking?Math.cos(c.yaw)*WALK_MPS:0,vy=running?c.flee.vy:base.walking?Math.sin(c.yaw)*WALK_MPS:0;syncLiveBody(c,f,vx,vy);}
+      if(f&&now>c.nextMoo){c.nextMoo=now+15000+Math.random()*30000;if(Math.hypot(x-f.x,y-f.y)<35)moo([x,y,groundHeightAt(x,y)+1.4],.7);}}
     bodyMesh.setMatrixAt(n,M);bodyMesh.setColorAt(n,c.color);
     const graze=!c.dead&&!c.walking,headPitch=c.dead?.2:graze?.95+.08*Math.sin(now/600+c.phase):.12;L.makeTranslation(.86,0,1.36).multiply(R1.makeRotationY(headPitch));headMesh.setMatrixAt(n,L.premultiply(M));headMesh.setColorAt(n,c.color);
     const amp=c.dead?0:c.flee?.6:c.walking?.32:0;for(let k=0;k<4;k++){const hx=k<2?.6:-.58,hy=k%2?.2:-.2,sw=amp*Math.sin(c.phase+(k===0||k===3?0:Math.PI));L.makeTranslation(hx,hy,HIP_Z).multiply(R1.makeRotationY(sw));legMesh.setMatrixAt(n*4+k,L.premultiply(M));legMesh.setColorAt(n*4+k,c.color);}
     n++;}
   bodyMesh.count=headMesh.count=n;legMesh.count=n*4;for(const m of[bodyMesh,headMesh,legMesh]){m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true;}}
 export function installCows(){if(installed||typeof window==="undefined")return;installed=true;addEventListener("arondight:foot-tracer",onTracer);addEventListener("arondight:world-explosion",onExplosion);addEventListener(VS_FX_EVENT,onFx);addEventListener("arondight:world-meadows",()=>{herdsFor="";});
-  globalThis.__arondightCows={list:()=>cows,version:COWS_VERSION,rebuild:()=>{herdsFor="";lastHerdCheck=0;}};requestAnimationFrame(frame);}
+  globalThis.__arondightCows={hit:hitCow,list:()=>cows,version:COWS_VERSION,rebuild:()=>{herdsFor="";lastHerdCheck=0;}};requestAnimationFrame(frame);}
 installCows();

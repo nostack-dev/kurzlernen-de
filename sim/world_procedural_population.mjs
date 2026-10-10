@@ -298,6 +298,16 @@ globalThis.__ambientAnimals={
     // a body that is already dead still takes every round (it is pushed, not ignored)
     if(animalDead[i])return true;
     return killAnimal(i,{directShot:true,dir});
+  },
+  // a fist: the punch's real momentum goes into the animal (a cat flies, a dog staggers), it yelps;
+  // a dog takes three, a cat two before it stays down
+  punch({id,point=null,direction=[1,0,0],momentumNs=30}={}){
+    const i=animalPhys.findIndex(a=>a?.id===String(id));if(i<0||!animalPose[i])return false;const a=animalPhys[i],len=Math.hypot(...direction)||1,dir=[direction[0]/len,direction[1]/len,Math.max(.25,direction[2]/len)];
+    rigidBodies()?.applyImpulse?.(a.id,dir.map(x=>x*momentumNs),{point:Array.isArray(point)&&point.length===3?point:null});
+    if(animalDead[i])return true;const sp=speciesOf(i);if(sp==="black-cat")return killAnimal(i,{directShot:true,dir});
+    a.punches=(a.punches||0)+1;try{playAnimal(sp==="cat"?"cat":"dog");}catch{}
+    if(a.punches>=(sp==="cat"?2:3)){a.punches=0;return killAnimal(i,{directShot:true,dir});}
+    const v=document.getElementById("viewport");if(v)v.dataset.animalPunches=String((Number(v.dataset.animalPunches)||0)+1);return true;
   }
 };
 // Dogs and cats are Box3D bodies: they walk (steered toward their wandering path by leg force),
@@ -569,7 +579,7 @@ export function installWorldProceduralPopulation(){if(installed)return;installed
       if(a.hp<=0){killPerson(a,{network:true,impulse:[dir[0]/hd*1.8*k,dir[1]/hd*1.8*k,.8]});return"dead";}
       if(a.hp<=35){knockPerson(a,{impulse:[dir[0]/hd*2*k,dir[1]/hd*2*k,.9],damage:0});return"down";}
       // the punch lands with its momentum: a ~75 kg person rocks back a step (staggers)
-      const step=Math.min(.6,.22*k);a.x+=dir[0]/hd*step;a.y+=dir[1]/hd*step;a.v=0;provoke(a,now,{punched:true});say(a,"angry");return"hit";},
+      const step=Math.min(.6,.22*k);a.x+=dir[0]/hd*step;a.y+=dir[1]/hd*step;a.v=0;const r=provoke(a,now,{punched:true});say(a,r==="fight"?"angry":"scared");return"hit";},
     // every pedestrian with its destination (diagnostics / tests)
     agents(){return people.filter(a=>a.alive).map(a=>({id:a.id,x:a.x,y:a.y,yaw:a.yaw,state:a.state,trip:a.trip,dest:a.dest?{x:a.dest.x,y:a.dest.y}:null,remaining:remainingWay(a.leader||a),route:a.route,home:a.home,shown:Boolean(a.slot?.group.visible),bound:Boolean(a.slot),knocked:Boolean(a.knocked),held:Boolean(a.slot?.group.userData.spawnHeld),companion:Boolean(a.leader),speed:a.v}));},
     // the drawn object of a record (shots resolve a Box3D body id to what the player sees)

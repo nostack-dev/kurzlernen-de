@@ -154,11 +154,17 @@ export function makeAgent(id,seed,route,s){
 }
 // something frightening happened at (x,y): run away from it for a few seconds
 export function frighten(a,x,y,now,{ms=5600,strength=1}={}){let dx=a.x-x,dy=a.y-y,d=Math.hypot(dx,dy);if(d<.3){const t=agentRandom(a)*Math.PI*2;dx=Math.cos(t);dy=Math.sin(t);d=1;}a.fleeX=dx/d;a.fleeY=dy/d;a.fleeSpeed=Math.min(3.3,a.speed+1.1+.5*strength); /* an everyday person running away: 2.5-3.3 m/s, not a sprinter */a.fleeUntil=now+ms*(.8+.4*agentRandom(a));}
-// annoyed by the player (bumped, shoved, punched): some people back off, the quick-tempered ones
-// (about half) square up after the second time — a punch makes anyone who stays standing fight back
-export function provoke(a,now,{punched=false}={}){if(!a?.alive||a.knocked)return"none";a.annoy=(a.annoy||0)+(punched?2:1);const hothead=agentRandom(a)>.5;
-  if(a.fightUntil){a.fightUntil=now+20000;return"fight";}if(punched||(hothead&&a.annoy>=2)){a.fightUntil=now+20000;a.leader=null;a.fleeUntil=0;return"fight";}
-  if(a.annoy>=3){const W=globalThis.__arondightWalkMode;if(W?.position)frighten(a,W.position.x,W.position.y,now,{ms:4000});return"flee";}return"annoyed";}
+// annoyed by the player (bumped, shoved, punched). Everyone has a temper (fixed per person):
+// most people are fearful (they back off when bumped and run when hit), about a quarter run at
+// once, and only a few (~15 %) are aggressive and square up — a punch makes those fight back.
+export function temperOf(a){if(a.temper===undefined){const r=agentRandom(a);a.temper=r<.15?"aggressive":r<.4?"runner":"fearful";}return a.temper;}
+export function provoke(a,now,{punched=false}={}){if(!a?.alive||a.knocked)return"none";a.annoy=(a.annoy||0)+(punched?2:1);const temper=temperOf(a),W=globalThis.__arondightWalkMode;
+  if(a.fightUntil){a.fightUntil=now+20000;return"fight";}
+  if(temper==="aggressive"&&(punched||a.annoy>=2)){a.fightUntil=now+20000;a.leader=null;a.fleeUntil=0;return"fight";}
+  const run=ms=>{if(W?.position)frighten(a,W.position.x,W.position.y,now,{ms,strength:punched?1.6:1});return"flee";};
+  if(temper==="runner")return run(punched?7000:4500);
+  if(punched||a.annoy>=3)return run(punched?5500:4000);
+  return"annoyed";}
 // a fighter's arm for the animation: + right / - left jab extension 0..1
 export function punchPose(a,now){const t=now-(a.lastPunch||-1e9);if(t>320)return 0;const e=t<110?t/110:1-(t-110)/210;return(a.punchHand||1)*Math.max(0,e);}
 // re-place an agent whose origin frame moved (all coordinates shift together)

@@ -109,6 +109,7 @@ function updateTracers(now){for(const group of tracerPool){if(!group.visible)con
   for(const f of impactPool){if(!f.visible)continue;const t=(now-f.userData.born)/110;if(t>=1){f.visible=false;continue;}f.scale.setScalar(.06+.22*t);f.material.opacity=.95*(1-t);}}
 let lastRoute="";
 function routeHit(hit){if(!hit)return false;
+  if(hit.physicsKind==="cow"&&hit.physicsId){const p=hit.point,dir=shotRaycaster.ray.direction;return Boolean(globalThis.__arondightCows?.hit?.({id:hit.physicsId,point:p?[p.x,p.y,p.z]:null,direction:[dir.x,dir.y,dir.z],weapon:String(hit.weapon||footWeapon||"smg")}));}
   if(hit.physicsKind==="animal"&&hit.physicsId){
     const p=hit.point,dir=shotRaycaster.ray.direction;
     return Boolean(globalThis.__ambientAnimals?.hit?.({id:hit.physicsId,point:p?[p.x,p.y,p.z]:null,origin:[shotRaycaster.ray.origin.x,shotRaycaster.ray.origin.y,shotRaycaster.ray.origin.z],direction:[dir.x,dir.y,dir.z],strength:1}));
@@ -311,12 +312,17 @@ function sniperShotAt(clientX,clientY,now){
 // stagger, loose things and animals fly, a mate gets shoved); people take 16 / 24 (+combo):
 // four or five clean punches put someone down (ragdoll), the first makes them fight back.
 const FIST_RECOVER_MS=[300,250],COMBO_MS=430,PUNCH_REACH_M=1.8,PUNCH_NS=[40,26],PUNCH_DMG=[24,16];const lastFist=[-Infinity,-Infinity];let lastPunch=-Infinity;
-function punchAt(clientX,clientY,now,hand=0){const h=hand===1?1:0;if(!isFoot()||walk()?.dead||now-lastFist[h]<FIST_RECOVER_MS[h])return false;const combo=now-lastFist[1-h]<COMBO_MS;lastFist[h]=now;lastPunch=now;const ray=footRay(clientX,clientY);if(!ray)return false;
+function punchAt(clientX,clientY,now,hand=0){const h=hand===1?1:0;if(!isFoot()||walk()?.dead||now-lastFist[h]<FIST_RECOVER_MS[h])return false;const combo=now-lastFist[1-h]<COMBO_MS;lastFist[h]=now;lastPunch=now;let ray=footRay(clientX,clientY);if(!ray)return false;
   weaponFired("fists",h?.12:.18,"foot-screen","foot",{hand:h,combo});const NS=PUNCH_NS[h]*(combo?1.2:1),dmg=Math.round(PUNCH_DMG[h]*(combo?1.35:1));
-  const hit=nearestGrenadeHit(ray,PUNCH_REACH_M+.4);{const v=viewport();if(v){v.dataset.walkPunch=hit?`${hit.object?.userData?.worldPopulationKind||hit.physicsKind||hit.object?.name||"?"}@${Number(hit.distance).toFixed(2)}`:"air";v.dataset.walkPunchHand=h?"left":"right";v.dataset.walkPunchCombo=combo?"1":"0";}}if(!hit||Number(hit.distance)>PUNCH_REACH_M+.4)return true;const d=ray.direction,u=hit.object?.userData||{},kind=String(u.worldPopulationKind||hit.physicsKind||"");
+  let hit=nearestGrenadeHit(ray,PUNCH_REACH_M+.4);
+  // nothing at fist height: a low punch / kick at something small in front (a dog, a cat)
+  if(!hit||Number(hit.distance)>PUNCH_REACH_M+.4){const o=ray.origin,f=new THREE.Vector3(ray.direction.x,ray.direction.y,0);if(f.lengthSq()>1e-6){f.normalize();const tgt=new THREE.Vector3(o.x+f.x*1.1,o.y+f.y*1.1,groundHeightAt(o.x+f.x*1.1,o.y+f.y*1.1)+.3),low=new THREE.Ray(o.clone(),tgt.sub(o).normalize()),h2=nearestGrenadeHit(low,PUNCH_REACH_M+.6);if(h2&&(h2.physicsKind==="animal"||h2.physicsKind==="cow"||h2.object?.userData?.worldPopulationKind==="person")){hit=h2;ray=low;}}}
+  {const v=viewport();if(v){v.dataset.walkPunch=hit?`${hit.object?.userData?.worldPopulationKind||hit.physicsKind||hit.object?.name||"?"}@${Number(hit.distance).toFixed(2)}`:"air";v.dataset.walkPunchHand=h?"left":"right";v.dataset.walkPunchCombo=combo?"1":"0";}}if(!hit||Number(hit.distance)>PUNCH_REACH_M+.4)return true;const d=ray.direction,u=hit.object?.userData||{},kind=String(u.worldPopulationKind||hit.physicsKind||"");
   let pid="";for(let n=hit.object;n&&!pid;n=n.parent)pid=String(n.userData?.worldPopulationId||n.userData?.worldProceduralId||"");
   punchThud(h,combo);
   if(kind==="person"&&pid){globalThis.__arondightProceduralPopulation?.punch?.(pid,{dir:[d.x,d.y,d.z],damage:dmg,momentumNs:NS});}
+  else if(hit.physicsKind==="animal"&&hit.physicsId){globalThis.__ambientAnimals?.punch?.({id:hit.physicsId,point:hit.point?[hit.point.x,hit.point.y,hit.point.z]:null,direction:[d.x,d.y,d.z],momentumNs:NS});}
+  else if(hit.physicsKind==="cow"&&hit.physicsId){globalThis.__arondightCows?.hit?.({id:hit.physicsId,point:hit.point?[hit.point.x,hit.point.y,hit.point.z]:null,direction:[d.x,d.y,d.z],weapon:"fists",damage:Math.round(dmg*.4)});}
   else if(u.vsPlayerId){routeHit({...hit,weapon:"fists"});const dv=NS/80;globalThis.__arondightPlayerPush?.pushMate?.(String(u.vsPlayerId),[d.x*dv*3,d.y*dv*3,.35],{damage:0,source:"punch"});}
   else if(hit.physicsId){rigid()?.applyImpulse?.(hit.physicsId,[d.x*NS,d.y*NS,d.z*NS],{point:hit.point?[hit.point.x,hit.point.y,hit.point.z]:null});}
   if(hit.point){const pt=[hit.point.x,hit.point.y,hit.point.z];queueMicrotask(()=>rigid()?.impulseHumanAt?.(pt,[d.x*NS,d.y*NS,d.z*NS]));}

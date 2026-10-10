@@ -112,6 +112,7 @@ export function installFlightFireFx({viewport,scene,camera,worldBridge=null,isEn
   }
   function routeHit(sceneHit){
     if(!sceneHit)return false;
+    if(sceneHit.physicsKind==="cow"&&sceneHit.physicsId){const dir=raycaster.ray.direction,p=sceneHit.point;if(globalThis.__arondightCows?.hit?.({id:sceneHit.physicsId,point:p?[p.x,p.y,p.z]:null,direction:[dir.x,dir.y,dir.z],weapon:"gun"})){hitConfirmSound();return true;}}
     if(sceneHit.physicsKind==="animal"&&sceneHit.physicsId){
       const dir=raycaster.ray.direction,p=sceneHit.point;
       const hit=globalThis.__ambientAnimals?.hit?.({id:sceneHit.physicsId,point:[p.x,p.y,p.z],origin:[raycaster.ray.origin.x,raycaster.ray.origin.y,raycaster.ray.origin.z],direction:[dir.x,dir.y,dir.z],strength:1});

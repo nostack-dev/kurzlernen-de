@@ -134,10 +134,22 @@ export function buildSniperRifle(){
 }
 
 // FISTS: two bare fists with sleeves, held low in a guard; each one jabs forward on a punch
+// Bare-knuckle boxer's hands as seen from the eyes: a closed fist (palm block, four curled fingers
+// with the knuckle row in front, thumb folded across), white hand wraps over knuckles and wrist,
+// the forearm running back towards the bottom corner of the view and the sleeve cuff behind it.
+// Each hand is its own group (WALK_FIST_L / _R): the punch animation extends and turns it.
 export function buildFists(){
-  const g=new THREE.Group(),K="walkFistsPart",skin=std(0xc58c66,.75,0),knuckle=std(0xb57a56,.8,0),sleeve=std(0x2c3440,.85,0);
+  const g=new THREE.Group(),K="walkFistsPart",skin=std(0xc58c66,.72,0),shade=std(0xa9714f,.8,0),tape=std(0xe9e4d8,.9,0),sleeve=std(0x2c3440,.85,0),cuff=std(0x1d232c,.9,0);
+  const cyl=(r0,r1,len,mat,x,y,z,rx=0)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r0,r1,len,10),mat);m.rotation.x=Math.PI/2+rx;m.position.set(x,y,z);return tag(m,K);};
   for(const side of[-1,1]){const hand=new THREE.Group();hand.name=side<0?"WALK_FIST_L":"WALK_FIST_R";hand.position.set(side*.16,-.02,0);
-    hand.add(box(.085,.075,.1,skin,0,0,0,K),box(.087,.03,.03,knuckle,0,.02,-.05,K),box(.03,.05,.05,skin,-side*.045,-.005,-.02,K),box(.09,.09,.24,sleeve,0,-.01,.17,K));hand.userData.restZ=0;g.add(hand);}
+    hand.add(box(.08,.068,.084,skin,0,0,0,K));                                            // palm / back of the hand
+    for(let f=0;f<4;f++){const x=(f-1.5)*.0205,y=.004-(Math.abs(f-1.5))*.003;hand.add(box(.019,.03,.032,shade,x,y+.012,-.05,K),box(.018,.026,.028,skin,x,y-.016,-.046,K));} // knuckle row + curled middle segments
+    hand.add(box(.084,.034,.022,tape,0,.013,-.036,K));                                     // wrap over the knuckles
+    const thumb=box(.05,.022,.026,skin,-side*.012,-.03,-.034,K);thumb.rotation.y=side*.35;hand.add(thumb); // thumb folded across the fingers
+    hand.add(cyl(.039,.037,.05,tape,0,-.002,.066));                                         // wrist wrap
+    hand.add(cyl(.037,.05,.3,skin,side*.012,-.03,.24,-.12));                                // forearm, back and a little down
+    hand.add(cyl(.058,.062,.16,sleeve,side*.02,-.05,.43,-.12),cyl(.062,.062,.03,cuff,side*.016,-.043,.36,-.12)); // sleeve + cuff
+    hand.userData.restZ=0;g.add(hand);}
   g.add(marker("WALK_FISTS_GRIP",.16,-.02,0),marker("WALK_FISTS_REAR_SIGHT",0,.06,0),marker("WALK_FISTS_FRONT_SIGHT",0,.06,-.3),muzzle("WALK_FISTS_MUZZLE_NODE",-.08,0));
   g.position.set(-.05,-.03,-.02);return g;
 }
