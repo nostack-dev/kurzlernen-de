@@ -73,6 +73,7 @@ function refreshActorCache(scene,physicsReady,now=performance.now()){if(scene===
 // the real scene graph (a cached index can lag seconds behind cars and people being placed).
 function physicsSceneObject(id){const key=String(id||""),scene=bridge()?.threeScene;if(!key||!scene)return null;
   const owned=globalThis.__arondightProceduralPopulation?.object?.(key);if(owned)return owned;
+  {/* police cruisers are Box3D cars too: a round that hits one must reach the police damage model */const u=(globalThis.__policeGroundUnits?.units||[]).find(q=>q?.id===key&&q.car?.group);if(u)return u.car.group;}
   refreshActorCache(scene,Boolean(rigid()?.ready));const cached=actorByPhysicsId.get(key);if(cached&&cached.parent)return cached;
   const now=performance.now();if(now-lastNativeScan<250)return null;lastNativeScan=now;let found=null;const walkAll=scene.traverse?.__nativeTraverse||scene.traverse;walkAll.call(scene,node=>{if(found||!node?.isMesh)return;const u=node.userData||{};if(String(u.worldPopulationId||u.worldProceduralId||"")===key)found=node;});return found;}
 let lastNativeScan=-Infinity;
@@ -274,6 +275,9 @@ function footShotAt(clientX,clientY,now=performance.now(),hand=0){
 // Each pistol has its own trigger and cadence (fast double taps possible).
 // The hand cannon hits a person like six 9 mm rounds (stops anyone), but a vehicle takes it as one
 // round: a car needs several shots before it starts to burn, never a single one.
+// Assault is a crime: a punch or stab that lands on a pedestrian is reported (a kill counts double).
+let assaultSeq=0;
+function reportAssault(id,result,pos){if(!result)return;try{globalThis.__arondightWantedSystem?.reportCrime?.({id:`assault-${id}-${(++assaultSeq).toString(36)}-${Math.round(performance.now())}`,kind:result==="dead"?"person":"person-hit",position:pos||undefined});}catch{}}
 function hitWeight(hit){for(let n=hit?.object;n;n=n.parent){const k=String(n.userData?.worldPopulationKind||n.userData?.worldLifeKind||n.userData?.policeKind||"");if(/car|bus|cruiser|vehicle/.test(k))return 1;if(n.userData?.gtaDrivableVehicle||n.userData?.policeCruiser)return 1;}return /car|bus|cruiser/.test(String(hit?.physicsKind||""))?1:6;}
 function glockShotAt(clientX,clientY,now,hand=0){
   const h=hand===1?1:0;if(!isFoot()||walk()?.dead||now-lastGlock[h]<GLOCK_MIN_INTERVAL_MS)return false;lastGlock[h]=now;
@@ -334,14 +338,14 @@ function punchAt(clientX,clientY,now,hand=0){const h=hand===1?1:0;if(!isFoot()||
   // nothing at fist height: a low punch / kick at something small in front (a dog, a cat)
   if(!hit||Number(hit.distance)>PUNCH_REACH_M+.4){const o=ray.origin,f=new THREE.Vector3(ray.direction.x,ray.direction.y,0);if(f.lengthSq()>1e-6){f.normalize();const tgt=new THREE.Vector3(o.x+f.x*1.1,o.y+f.y*1.1,groundHeightAt(o.x+f.x*1.1,o.y+f.y*1.1)+.3),low=new THREE.Ray(o.clone(),tgt.sub(o).normalize()),h2=nearestGrenadeHit(low,PUNCH_REACH_M+.6);if(h2&&(h2.physicsKind==="animal"||h2.physicsKind==="cow"||h2.object?.userData?.worldPopulationKind==="person")){hit=h2;ray=low;}}}
   {const v=viewport();if(v){v.dataset.walkPunch=hit?`${hit.object?.userData?.worldPopulationKind||hit.physicsKind||hit.object?.name||"?"}@${Number(hit.distance).toFixed(2)}`:"air";v.dataset.walkPunchHand=h?"left":"right";v.dataset.walkPunchCombo=combo?"1":"0";}}if(!hit||Number(hit.distance)>PUNCH_REACH_M+.4){const m=meleeFallback(ray,1.25);if(!m)return true;const d=ray.direction;punchThud(h,combo);
-    if(m.kind==="person")globalThis.__arondightProceduralPopulation?.punch?.(m.id,{dir:[d.x,d.y,d.z],damage:dmg,momentumNs:NS});
+    if(m.kind==="person")reportAssault(m.id,globalThis.__arondightProceduralPopulation?.punch?.(m.id,{dir:[d.x,d.y,d.z],damage:dmg,momentumNs:NS}));
     else if(m.kind==="animal")globalThis.__ambientAnimals?.punch?.({index:m.index,point:[m.point.x,m.point.y,m.point.z],direction:[d.x,d.y,.2],momentumNs:NS});
     else if(m.kind==="cow")globalThis.__arondightCows?.hit?.({id:m.cow.liveBody,point:[m.point.x,m.point.y,m.point.z],direction:[d.x,d.y,d.z],weapon:"fists",damage:Math.round(dmg*.4)});
     {const v=viewport();if(v)v.dataset.walkPunch=`${m.kind}@${m.distance.toFixed(2)}:sweep`;}return true;}
   const d=ray.direction,u=hit.object?.userData||{},kind=String(u.worldPopulationKind||hit.physicsKind||"");
   let pid="";for(let n=hit.object;n&&!pid;n=n.parent)pid=String(n.userData?.worldPopulationId||n.userData?.worldProceduralId||"");
   punchThud(h,combo);
-  if(kind==="person"&&pid){globalThis.__arondightProceduralPopulation?.punch?.(pid,{dir:[d.x,d.y,d.z],damage:dmg,momentumNs:NS});}
+  if(kind==="person"&&pid){reportAssault(pid,globalThis.__arondightProceduralPopulation?.punch?.(pid,{dir:[d.x,d.y,d.z],damage:dmg,momentumNs:NS}));}
   else if(hit.physicsKind==="animal"&&hit.physicsId){globalThis.__ambientAnimals?.punch?.({id:hit.physicsId,point:hit.point?[hit.point.x,hit.point.y,hit.point.z]:null,direction:[d.x,d.y,d.z],momentumNs:NS});}
   else if(hit.physicsKind==="cow"&&hit.physicsId){globalThis.__arondightCows?.hit?.({id:hit.physicsId,point:hit.point?[hit.point.x,hit.point.y,hit.point.z]:null,direction:[d.x,d.y,d.z],weapon:"fists",damage:Math.round(dmg*.4)});}
   else if(u.vsPlayerId){routeHit({...hit,weapon:"fists"});const dv=NS/80;globalThis.__arondightPlayerPush?.pushMate?.(String(u.vsPlayerId),[d.x*dv*3,d.y*dv*3,.35],{damage:0,source:"punch"});}
@@ -357,14 +361,14 @@ function knifeAt(clientX,clientY,now){if(!isFoot()||walk()?.dead||now-lastKnife<
   if(!hit||Number(hit.distance)>KNIFE_REACH_M+.3){const o=ray.origin,f=new THREE.Vector3(ray.direction.x,ray.direction.y,0);if(f.lengthSq()>1e-6){f.normalize();const tgt=new THREE.Vector3(o.x+f.x*1.1,o.y+f.y*1.1,groundHeightAt(o.x+f.x*1.1,o.y+f.y*1.1)+.3),low=new THREE.Ray(o.clone(),tgt.sub(o).normalize()),h2=nearestGrenadeHit(low,KNIFE_REACH_M+.5);if(h2&&(h2.physicsKind==="animal"||h2.physicsKind==="cow"||h2.object?.userData?.worldPopulationKind==="person")){hit=h2;ray=low;}}}
   {const v=viewport();if(v)v.dataset.walkKnife=hit?`${hit.object?.userData?.worldPopulationKind||hit.physicsKind||hit.object?.name||"?"}@${Number(hit.distance).toFixed(2)}`:"air";}
   if(!hit||Number(hit.distance)>KNIFE_REACH_M+.3){const m=meleeFallback(ray,1.2);if(!m)return true;const d=ray.direction,pt=[m.point.x,m.point.y,m.point.z];knifeHit(true);
-    if(m.kind==="person"){globalThis.__arondightProceduralPopulation?.punch?.(m.id,{dir:[d.x,d.y,d.z],damage:KNIFE_DMG,momentumNs:12});globalThis.__arondightBlood?.([pt[0],pt[1],pt[2]+.6]);}
+    if(m.kind==="person"){reportAssault(m.id,globalThis.__arondightProceduralPopulation?.punch?.(m.id,{dir:[d.x,d.y,d.z],damage:KNIFE_DMG,momentumNs:12}));globalThis.__arondightBlood?.([pt[0],pt[1],pt[2]+.6]);}
     else if(m.kind==="animal")globalThis.__ambientAnimals?.punch?.({index:m.index,point:pt,direction:[d.x,d.y,.2],momentumNs:60});
     else if(m.kind==="cow")globalThis.__arondightCows?.hit?.({id:m.cow.liveBody,point:pt,direction:[d.x,d.y,d.z],weapon:"knife",damage:40});
     return true;}
   const d=ray.direction,u=hit.object?.userData||{},kind=String(u.worldPopulationKind||hit.physicsKind||""),pt=hit.point?[hit.point.x,hit.point.y,hit.point.z]:null;
   let pid="";for(let n=hit.object;n&&!pid;n=n.parent)pid=String(n.userData?.worldPopulationId||n.userData?.worldProceduralId||"");
   const flesh=kind==="person"||hit.physicsKind==="animal"||hit.physicsKind==="cow"||Boolean(u.vsPlayerId);knifeHit(flesh);
-  if(kind==="person"&&pid){globalThis.__arondightProceduralPopulation?.punch?.(pid,{dir:[d.x,d.y,d.z],damage:KNIFE_DMG,momentumNs:12});if(pt)globalThis.__arondightBlood?.(pt);}
+  if(kind==="person"&&pid){reportAssault(pid,globalThis.__arondightProceduralPopulation?.punch?.(pid,{dir:[d.x,d.y,d.z],damage:KNIFE_DMG,momentumNs:12}));if(pt)globalThis.__arondightBlood?.(pt);}
   else if(hit.physicsKind==="animal"&&hit.physicsId){globalThis.__ambientAnimals?.hit?.({id:hit.physicsId,point:pt,origin:[ray.origin.x,ray.origin.y,ray.origin.z],direction:[d.x,d.y,d.z],strength:1});}
   else if(hit.physicsKind==="cow"&&hit.physicsId){globalThis.__arondightCows?.hit?.({id:hit.physicsId,point:pt,direction:[d.x,d.y,d.z],weapon:"knife",damage:40});}
   else if(u.vsPlayerId){routeHit({...hit,weapon:"knife"});}

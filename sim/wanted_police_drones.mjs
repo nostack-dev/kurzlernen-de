@@ -204,6 +204,7 @@ function playTone({frequency=700,endFrequency=frequency,duration=.12,gain=.02,ty
 }
 
 function updateSiren(now){
+  if(globalThis.__policeSirens)return;/* positional sirens (police_sirens.mjs) replace the old wanted beeps */
   if(stars<=0||now<nextSirenAt)return;
   nextSirenAt=now+(phase==="searching"?1050:620);sirenHigh=!sirenHigh;
   playTone({frequency:sirenHigh?880:610,endFrequency:sirenHigh?690:830,duration:phase==="searching"? .18:.24,gain:.010+stars*.0015,type:"sine"});

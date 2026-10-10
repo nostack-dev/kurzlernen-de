@@ -129,6 +129,11 @@ function moodFor(result){return result==="fight"?"angry":result==="flee"?"scared
 // runs, between 10 and 22 m only some do (the rest flinch and carry on); they calm down again once
 // it has been quiet for a few seconds (the flight time runs out, then they walk on).
 function noticeShots(now){const v=viewport(),shots=Number(v?.dataset.walkShots)||0;if(seenWalkShots<0||shots<seenWalkShots){seenWalkShots=shots;return;}if(shots===seenWalkShots)return;seenWalkShots=shots;const pos=String(v.dataset.walkPosition||"").split(",").map(Number);if(pos.length>=2&&pos.every(Number.isFinite))shotScare(pos[0],pos[1],now);}
+// Gunfire in the street is a crime when somebody hears it: a witness within ~30 m phones it in.
+// One report per few seconds of shooting (GTA: a short spray costs a star, a rampage keeps adding).
+let lastGunfireCrime=-Infinity,gunfireSeq=0;
+function gunfireWitnessed(x,y,now){if(now-lastGunfireCrime<2600)return;let w=0;for(const a of people){if(!a.alive||a.knocked)continue;if(Math.hypot(a.x-x,a.y-y)<30&&++w>=1)break;}if(!w)return;lastGunfireCrime=now;
+  try{globalThis.__arondightWantedSystem?.reportCrime?.({id:`gunfire-${(++gunfireSeq).toString(36)}-${Math.round(now)}`,kind:"gunfire",severity:1,position:[x,y,0]});}catch{}}
 function shotScare(x,y,now){let nearest=null,nd=Infinity;for(const a of people){if(!a.alive||a.knocked||a.fightUntil)continue;const d=Math.hypot(a.x-x,a.y-y);if(d>16)continue;
     if(d>8){a.shotRoll??=Math.random();if(a.shotRoll>.3)continue;} // only the immediate surroundings: everyone within 8 m, a few up to 16 m
     // an armed gangster does not run from gunfire: he draws and comes for the shooter
@@ -140,7 +145,7 @@ function shotScare(x,y,now){let nearest=null,nd=Infinity;for(const a of people){
 // every round fired is heard: the people right around the shooter react (shotScare), and those
 // near where it strikes duck away from the impact too (a smaller ring)
 let lastShotScare=0;
-if(typeof window!=="undefined"){addEventListener("arondight:weapon-fired",e=>{const d=e?.detail||{};if(d.mode&&d.mode!=="foot")return;if(/fists|knife|hand-grenade|gravity/.test(String(d.weapon||"")))return;const now=performance.now();if(now-lastShotScare<120)return;lastShotScare=now;const W=globalThis.__arondightWalkMode;if(W?.mode==="foot"&&W.position)shotScare(W.position.x,W.position.y,now);});
+if(typeof window!=="undefined"){addEventListener("arondight:weapon-fired",e=>{const d=e?.detail||{};if(d.mode&&d.mode!=="foot")return;if(/fists|knife|hand-grenade|gravity/.test(String(d.weapon||"")))return;const now=performance.now();if(now-lastShotScare<120)return;lastShotScare=now;const W=globalThis.__arondightWalkMode;if(W?.mode==="foot"&&W.position){shotScare(W.position.x,W.position.y,now);gunfireWitnessed(W.position.x,W.position.y,now);}});
   addEventListener("arondight:foot-tracer",e=>{const b=e?.detail?.end;if(!Array.isArray(b))return;const now=performance.now();for(const a of people){if(!a.alive||a.knocked||a.fightUntil)continue;const d=Math.hypot(a.x-b[0],a.y-b[1]);if(d<6.5)frighten(a,b[0],b[1],now,{ms:3500,strength:1.2});}});}
 if(typeof window!=="undefined")addEventListener("arondight:gangster-gunfire",e=>{const p=e?.detail?.position;if(Array.isArray(p))shotScare(p[0],p[1],performance.now());});
 if(typeof window!=="undefined")addEventListener("arondight:world-reset",()=>{worldKey="";lastPopulationTick=-Infinity;const v=document.getElementById("viewport");if(v)v.dataset.worldPopulationReset=String((Number(v.dataset.worldPopulationReset)||0)+1);});

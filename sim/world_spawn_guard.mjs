@@ -23,6 +23,7 @@ import "./hand_grenade.mjs";
 import "./scene_lighting.mjs";
 import "./gps_live_mode.mjs";
 import "./gangsters.mjs";
+import "./police_sirens.mjs";
 import "./car_radio.mjs";
 import "./jogger_chain.mjs";
 import "./guided_missile.mjs";
