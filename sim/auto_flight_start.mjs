@@ -47,14 +47,17 @@ async function playIntroAudio(){
 window.addEventListener("arondight45-audio-settings-change",()=>{if(!introSoundEnabled())stopIntroAudio();});
 document.addEventListener("visibilitychange",()=>{if(document.hidden)stopIntroAudio();});
 
-async function waitForBridge(timeoutMs=120000){
-  const started=performance.now();
-  while(performance.now()-started<timeoutMs){
+// A slow device (or a busy browser) may need longer than any fixed limit: past 90 s the menu says
+// it is still loading and offers a reload, but it keeps waiting and starts as soon as the world is
+// ready — it never declares a load failed that is merely slow.
+async function waitForBridge(slowMs=90000){
+  const started=performance.now();let slow=false;
+  for(;;){
     const bridge=globalThis.__arondightRealWorld,status=$("status")?.textContent||"";
-    if(bridge&&$("camFpv")&&$("camSolo")&&status.includes("SIM ready"))return bridge;
-    await new Promise(resolve=>setTimeout(resolve,20));
+    if(bridge&&$("camFpv")&&$("camSolo")&&status.includes("SIM ready")){if(slow){const st=document.getElementById("gameMenuStatus"),b=document.getElementById("gameMenuStart");if(st)st.textContent="";if(b?.dataset.slowLoad){b.onclick=null;delete b.dataset.slowLoad;b.disabled=true;b.textContent="LOADING";}}return bridge;}
+    if(!slow&&performance.now()-started>slowMs){slow=true;const b=document.getElementById("gameMenuStart"),st=document.getElementById("gameMenuStatus");if(st)st.textContent="STILL LOADING…";if(b&&b.disabled){b.disabled=false;b.textContent="RELOAD";b.onclick=()=>location.reload();b.dataset.slowLoad="1";}}
+    await new Promise(resolve=>setTimeout(resolve,slow?250:20));
   }
-  throw Error("Simulator/WORLD bridge did not become ready");
 }
 
 const bridge=await waitForBridge().catch(error=>{const b=document.getElementById("gameMenuStart"),st=document.getElementById("gameMenuStatus");if(b){b.disabled=false;b.textContent="RETRY";b.onclick=()=>location.reload();}if(st)st.textContent="LOAD FAILED";throw error;});
