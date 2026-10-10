@@ -14,7 +14,7 @@ export const CHANGELOG=Object.freeze([
     "Gangster: wenige Passanten tragen ein Messer, ganz selten eine Pistole – und kommen auf dich zu, statt wegzurennen.",
     "RESET räumt alles auf: Laternen, Kühe, Autos, Passanten, Kisten, Granaten in der Luft.",
     "Explosionsspuren dezenter; Ruß und Löcher verschwinden mit der eingestürzten Wand.",
-    "Raketen im Flug und Leuchtspur werfen echtes Licht; Hauswände verwittern (Flecken, Regenspuren), Asphalt hat Struktur.",
+    "Raketen im Flug und Leuchtspur werfen echtes Licht; Asphalt hat Flicken und Körnung statt einer Einheitsfarbe.",
     "Auto-Innenansicht: die Frontscheibe ist das Bild – schmale Säulen, flaches Armaturenbrett, Motorhaube in Wagenfarbe, Lenkrad unten.",
     "LIVE GPS (Taste L): die Welt folgt deiner echten Position – Joggen, Rad, Auto. Im Multiplayer sehen die anderen dich laufen, Rad fahren (mit Fahrrad) oder im Auto.",
     "Kühe auf den echten Weiden: physisch, treffbar, mit Muhen und Schmerzlaut.",
