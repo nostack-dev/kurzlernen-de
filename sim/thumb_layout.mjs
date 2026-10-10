@@ -5,7 +5,7 @@
 // "get in" (car, jet) sits above JUMP at the right edge — no reaching into the middle or the
 // top of the screen mid-fight. Positions follow the sticks (layout, safe areas, rotation).
 export const THUMB_LAYOUT_VERSION="thumb-reach-v3-low";
-const STICK_PX=176,CATCH_PX=38;
+const STICK_PX=168,CATCH_PX=38; // ~4.5 % smaller than before; the rings sit in the screen corners (tangent to the side and bottom edges)
 let btn=null,lastKey="",installed=false;
 const $=id=>document.getElementById(id);
 // rectangles in the viewport's own (unrotated) coordinates: in portrait the viewport is turned by
@@ -21,11 +21,13 @@ html body #viewport #thumbWeapon{border-radius:50%!important;padding:0!important
 /* sticks: big, nearly invisible, and they catch the thumb well outside the drawn ring (the touch
    is relative to where it lands, so a wide catch area costs no precision) */
 html body:not(.desktop-input) #viewport :is(#footMove,#footLook,#soloLeft,#soloRight){width:${STICK_PX}px!important;height:${STICK_PX}px!important;overflow:visible!important}
+html body:not(.desktop-input) #viewport :is(#footMove,#soloLeft){left:var(--solo-safe-left,env(safe-area-inset-left,0px))!important;right:auto!important;bottom:var(--solo-safe-bottom,env(safe-area-inset-bottom,0px))!important;top:auto!important;transform:none!important}
+html body:not(.desktop-input) #viewport :is(#footLook,#soloRight){right:var(--solo-safe-right,env(safe-area-inset-right,0px))!important;left:auto!important;bottom:var(--solo-safe-bottom,env(safe-area-inset-bottom,0px))!important;top:auto!important;transform:none!important}
 html body:not(.desktop-input) #viewport :is(#footMove,#footLook,#soloLeft,#soloRight)::before{content:"";position:absolute;border-radius:40%;background:transparent;pointer-events:auto}
 html body:not(.desktop-input) #viewport :is(#footMove,#soloLeft)::before{top:-${CATCH_PX*2}px;right:-${CATCH_PX*2}px;bottom:-${CATCH_PX}px;left:-${CATCH_PX}px}
 html body:not(.desktop-input) #viewport :is(#footLook,#soloRight)::before{top:-${CATCH_PX}px;right:-${CATCH_PX}px;bottom:-${CATCH_PX}px;left:-${CATCH_PX}px}
 html body:not(.desktop-input) #viewport :is(#footMove,#footLook,#soloLeft,#soloRight)>span{opacity:0!important}
-html body.thumb-weapon:not(.desktop-input) #mobileGameplayWeapon,html body.mobile-gameplay-compact:not(.desktop-input) #viewport #footHud #footWeaponToggle,html body.mobile-gameplay-compact:not(.desktop-input) #viewport #footWeaponToggle,html body.mobile-gameplay-compact:not(.desktop-input) #footWeaponToggle{display:none!important}`;document.head.appendChild(st);
+html body.thumb-weapon:not(.desktop-input) #viewport #mobileGameplayDock #mobileGameplayWeapon,html body.thumb-weapon:not(.desktop-input) #mobileGameplayDock #mobileGameplayWeapon,html body.mobile-gameplay-compact:not(.desktop-input) #viewport #footHud #footWeaponToggle,html body.mobile-gameplay-compact:not(.desktop-input) #viewport #footWeaponToggle,html body.mobile-gameplay-compact:not(.desktop-input) #footWeaponToggle{display:none!important}`;document.head.appendChild(st);
   btn.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();$("mobileGameplayWeapon")?.click();setTimeout(sync,60);},{capture:true});
   btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();});return btn;}
 function place(el,left,top){const l=`${Math.round(left)}px`,t=`${Math.round(top)}px`;if(el.style.left!==l)el.style.setProperty("left",l,"important");if(el.style.top!==t)el.style.setProperty("top",t,"important");}
@@ -35,16 +37,17 @@ function sync(){
   document.body.classList.add("thumb-weapon"); // the thumb button is THE weapon switch on touch: the dock copy goes
   // low on the screen, out of the shooting area: weapon just below-left of the right stick (the thumb
   // rolls down-left onto it), JUMP left of the stick slightly above its centre line
-  const scx=stick.left+stick.width/2,scy=stick.top+stick.height/2,wa=206*Math.PI/180,wr=stick.width/2+12+30;
+  const scx=stick.left+stick.width/2,scy=stick.top+stick.height/2,wa=198*Math.PI/180,wr=stick.width/2+12+30;
   place(b,scx+Math.cos(wa)*wr-30,scy-Math.sin(wa)*wr-30);b.classList.add("show");
   const label=String($("mobileGameplayWeapon")?.textContent||"").replace(/^WEAPON\s*·\s*/i,"").trim();if(label!==lastKey){lastKey=label;b.querySelector("small").textContent=label;}
   // drone: the altitude pad sits right of the (bigger) left stick, never on it
   const ls=visibleRect($("soloLeft")),clr=$("soloClearance"),cr=visibleRect(clr);if(ls&&cr&&cr.left<ls.right+10){clr.style.setProperty("right","auto","important");clr.style.setProperty("transform","none","important");const v=$("viewport"),off=cr.left-(clr.offsetLeft||0);clr.style.setProperty("left",`${Math.round(ls.right+10-off)}px`,"important");}
   // JUMP: on the arc just up-left of the look stick, where the right thumb rolls off it
-  const jumpEl=$("footJump"),jr=visibleRect(jumpEl);if(jumpEl&&jr){const cx=stick.left+stick.width/2,cy=stick.top+stick.height/2,r=stick.width/2+16+jr.width/2,a=172*Math.PI/180;
-    jumpEl.style.setProperty("transform","none","important");jumpEl.style.setProperty("right","auto","important");jumpEl.style.setProperty("bottom","auto","important");place(jumpEl,cx+Math.cos(a)*r-jr.width/2,cy-Math.sin(a)*r-jr.height/2);}
+  // JUMP: in the same low row, just left of the weapon switch
+  const jumpEl=$("footJump"),jr=visibleRect(jumpEl);if(jumpEl&&jr){const wl=parseFloat(b.style.left),wt=parseFloat(b.style.top);
+    jumpEl.style.setProperty("transform","none","important");jumpEl.style.setProperty("right","auto","important");jumpEl.style.setProperty("bottom","auto","important");place(jumpEl,wl-12-jr.width,wt+30-jr.height/2);}
   // get in (car / jet): above JUMP at the right edge
-  const jump=visibleRect($("footJump"));for(const id of["enterCarButton","enterJetButton"]){const el=$(id),r=visibleRect(el);if(!el||!r)continue;const right=stick.right,top=(jump?jump.top:stick.top)-r.height-10;
+  const jump=visibleRect($("footJump"));for(const id of["enterCarButton","enterJetButton"]){const el=$(id),r=visibleRect(el);if(!el||!r)continue;const right=jump?jump.left+r.width:stick.left-10,top=(jump?jump.top:stick.top)-r.height-10; // above the JUMP / weapon row, clear of the stick
     el.style.setProperty("transform","none","important");el.style.setProperty("right","auto","important");el.style.setProperty("bottom","auto","important");place(el,right-r.width,top);}
 }
 const live=new Map();
