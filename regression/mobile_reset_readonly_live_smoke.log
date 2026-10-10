@@ -1,13 +1,1 @@
-file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45
-            this.#timeoutError = new TimeoutError(`Waiting failed: ${options.timeout}ms exceeded`);
-                                 ^
-
-TimeoutError: Waiting failed: 10000ms exceeded
-    at new WaitTask (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45:34)
-    at IsolatedWorld.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Realm.js:22:26)
-    at CdpFrame.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Frame.js:584:43)
-    at CdpFrame.<anonymous> (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/util/decorators.js:101:27)
-    at CdpPage.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Page.js:1439:37)
-    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_reset_readonly_live_smoke.mjs:25:14
-
-Node.js v22.23.3
+Mobile reset + readonly traffic API regression passed. {"visible":{"display":"flex","visibility":"visible","opacity":1,"width":72,"height":36,"text":"RESET"},"before":{"epoch":1,"sim":3.611999999999713,"mode":"drone","camera":"fpv"},"after":{"epoch":3,"sim":0.1400000000000001,"mode":"foot","camera":"walk","route":"solo-reset-v1","destroyed":false}}
