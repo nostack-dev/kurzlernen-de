@@ -92,26 +92,36 @@ function detach(a,net,now){const L=a.leader;a.leader=null;const route=net.get(L?
   projectOnRoute(route,a.x,a.y,J);a.route=route.key;a.s=J.s;a.side=J.lateral>=0?1:-1;a.legs.length=0;a.state="wait";a.waitUntil=now+500+agentRandom(a)*2500;}
 // One simulation step. dt may be large for far, unseen people (cheap low-rate update):
 // the motion is still bounded by walking pace, so a person never covers more ground than it could walk.
+// a free move (fleeing, fighting) never goes through a wall: blocked straight ahead, it slides along
+// it (the first open direction within ±100°), and a fleeing person keeps that new heading
+function freeMove(a,ux,uy,step,{keep=false}={}){const at=globalThis.__arondightBuildingAt;if(!at||!(step>0)){a.x+=ux*step;a.y+=uy*step;return true;}
+  const r=.3;for(const ang of[0,.5,-.5,1.0,-1.0,1.6,-1.6]){const c=Math.cos(ang),s=Math.sin(ang),dx=ux*c-uy*s,dy=ux*s+uy*c,nx=a.x+dx*step,ny=a.y+dy*step;if(at(nx+dx*r,ny+dy*r))continue;a.x=nx;a.y=ny;if(keep&&ang){a.fleeX=dx;a.fleeY=dy;}return true;}
+  return false;}
 export function stepAgent(a,dt,now,net){
   if(dt<=0)return;
   // angry (bumped into, punched): go for the player and box; calms down after a while or when he is far
-  if(a.fightUntil){const W=globalThis.__arondightWalkMode;if(now<a.fightUntil&&W?.mode==="foot"&&!W.dead&&W.position){const dx=W.position.x-a.x,dy=W.position.y-a.y,d=Math.hypot(dx,dy);
+  if(a.fightUntil){const W=globalThis.__arondightWalkMode,foe=a.foe&&a.foe.alive&&!a.foe.knocked?a.foe:null;if(a.foe&&!foe){a.foe=null;a.fightUntil=0;}
+    // the target: another pedestrian he got into it with, or the player
+    const T=foe?{x:foe.x,y:foe.y,z:foe.z,npc:true}:(W?.mode==="foot"&&!W.dead&&W.position?{x:W.position.x,y:W.position.y,z:W.position.z,npc:false}:null);
+    if(now<a.fightUntil&&T){const dx=T.x-a.x,dy=T.y-a.y,d=Math.hypot(dx,dy);
       const arm=armsOf(a);
       // a gangster with a gun keeps his distance (6-14 m) and fires a cheap pistol: aimed, but a moving target is hard to hit
-      if(arm==="gun"&&d<45){turn(a,Math.atan2(dy,dx),dt*3.4);a.state="fight";const want=d>14?1:d<6?-1:0,top=want>0?2.6:want<0?1.5:0;a.v+=clamp(top-a.v,-3*dt,2.4*dt);if(want)  {const step=a.v*dt*want;a.x+=dx/d*step;a.y+=dy/d*step;}
-        if(now-(a.lastShot||0)>(820+agentRandom(a)*520)&&d<32&&Math.abs(Math.atan2(Math.sin(Math.atan2(dy,dx)-a.yaw),Math.cos(Math.atan2(dy,dx)-a.yaw)))<.3){a.lastShot=now;a.lastPunch=now;a.punchHand=1;try{window.dispatchEvent(new CustomEvent("arondight:pedestrian-shot",{detail:{id:a.id,from:[a.x,a.y,a.z],yaw:a.yaw,distanceM:d,playerSpeedMps:Math.hypot(W.velocity?.x||0,W.velocity?.y||0)}}));}catch{}}
+      if(arm==="gun"&&d<45){turn(a,Math.atan2(dy,dx),dt*3.4);a.state="fight";const want=d>14?1:d<6?-1:0,top=want>0?2.6:want<0?1.5:0;a.v+=clamp(top-a.v,-3*dt,2.4*dt);if(want)freeMove(a,dx/d*want,dy/d*want,a.v*dt);
+        if(now-(a.lastShot||0)>(820+agentRandom(a)*520)&&d<32&&Math.abs(Math.atan2(Math.sin(Math.atan2(dy,dx)-a.yaw),Math.cos(Math.atan2(dy,dx)-a.yaw)))<.3){a.lastShot=now;a.lastPunch=now;a.punchHand=1;try{window.dispatchEvent(new CustomEvent("arondight:pedestrian-shot",{detail:{id:a.id,from:[a.x,a.y,a.z],yaw:a.yaw,distanceM:d,target:T.npc?{id:foe.id,x:T.x,y:T.y,z:T.z}:null,playerSpeedMps:T.npc?0:Math.hypot(W.velocity?.x||0,W.velocity?.y||0)}}));}catch{}}
         return;}
-      if(d<35){turn(a,Math.atan2(dy,dx),dt*3);a.state="fight";if(arm==="knife"&&d>.85&&d<1.6&&now-(a.lastPunch||0)>600)a.v=Math.max(a.v,2.4);if(d>(arm==="knife"?.8:.95)){a.v+=clamp(Math.min(2.8,a.speed+1.3)-a.v,-3*dt,2.4*dt);const step=Math.min(d-.9,a.v*dt);a.x+=dx/d*step;a.y+=dy/d*step;}
+      if(d<35){turn(a,Math.atan2(dy,dx),dt*3);a.state="fight";if(arm==="knife"&&d>.85&&d<1.6&&now-(a.lastPunch||0)>600)a.v=Math.max(a.v,2.4);if(d>(arm==="knife"?.8:.95)){a.v+=clamp(Math.min(2.8,a.speed+1.3)-a.v,-3*dt,2.4*dt);const step=Math.min(d-.9,a.v*dt);freeMove(a,dx/d,dy/d,step);}
         else if(arm==="knife"){a.v=Math.max(0,a.v-5*dt);if(now-(a.lastPunch||0)>(640+agentRandom(a)*300)){a.lastPunch=now;a.punchHand=1;
           // a stab: ~16 % of the player's health
-          globalThis.__arondightPlayerDamageModel?.damage?.(16,"knife:pedestrian");W.push?.({x:dx/d*.6,y:dy/d*.6,z:0});try{window.dispatchEvent(new CustomEvent("arondight:pedestrian-stab",{detail:{id:a.id,at:[W.position.x,W.position.y,W.position.z]}}));}catch{}}}
+          if(T.npc){try{window.dispatchEvent(new CustomEvent("arondight:pedestrian-brawl",{detail:{id:a.id,foeId:foe.id,weapon:"knife",dir:[dx/d,dy/d]}}));}catch{}}
+          else{globalThis.__arondightPlayerDamageModel?.damage?.(16,"knife:pedestrian");W.push?.({x:dx/d*.6,y:dy/d*.6,z:0});try{window.dispatchEvent(new CustomEvent("arondight:pedestrian-stab",{detail:{id:a.id,at:[W.position.x,W.position.y,W.position.z]}}));}catch{}}}}
         else{a.v=Math.max(0,a.v-5*dt);if(now-(a.lastPunch||0)>(780+agentRandom(a)*380)){a.lastPunch=now;a.punchHand=-(a.punchHand||-1);
           // a punch of an untrained adult: ~8 % of the player's health, a shove of ~1.5 m/s
-          globalThis.__arondightPlayerDamageModel?.damage?.(8,"punch:pedestrian");W.push?.({x:dx/d*1.5,y:dy/d*1.5,z:0});try{window.dispatchEvent(new CustomEvent("arondight:pedestrian-punch",{detail:{id:a.id}}));}catch{}}}
+          if(T.npc){try{window.dispatchEvent(new CustomEvent("arondight:pedestrian-brawl",{detail:{id:a.id,foeId:foe.id,weapon:"fists",dir:[dx/d,dy/d]}}));}catch{}}
+          else{globalThis.__arondightPlayerDamageModel?.damage?.(8,"punch:pedestrian");W.push?.({x:dx/d*1.5,y:dy/d*1.5,z:0});}try{window.dispatchEvent(new CustomEvent("arondight:pedestrian-punch",{detail:{id:a.id}}));}catch{}}}
         return;}}
-    a.fightUntil=0;a.annoy=0;const route=net.get(a.route)||net.get(a.home);if(route){projectOnRoute(route,a.x,a.y,J);a.route=route.key;a.s=J.s;a.side=J.lateral>=0?1:-1;}a.legs.length=0;a.state="wait";a.waitUntil=now+1200;return;}
+    a.fightUntil=0;a.annoy=0;a.foe=null;const route=net.get(a.route)||net.get(a.home);if(route){projectOnRoute(route,a.x,a.y,J);a.route=route.key;a.s=J.s;a.side=J.lateral>=0?1:-1;}a.legs.length=0;a.state="wait";a.waitUntil=now+1200;return;}
   // frightened (a shot, a blast): run away from it, then calm down and find the way again
-  if(a.fleeUntil){if(now<a.fleeUntil){a.v+=clamp(a.fleeSpeed-a.v,-3*dt,2.2*dt);a.x+=a.fleeX*a.v*dt;a.y+=a.fleeY*a.v*dt;turn(a,Math.atan2(a.fleeY,a.fleeX),dt*2);a.state="flee";return;}
+  if(a.fleeUntil){if(now<a.fleeUntil){/* the first seconds after a fright are a real sprint (≈4.5 m/s, what an untrained adult manages), then a fast run */const top=now<(a.fleeBurstUntil||0)?Math.max(a.fleeSpeed,4.5):a.fleeSpeed;a.v+=clamp(top-a.v,-3*dt,3.2*dt);if(!freeMove(a,a.fleeX,a.fleeY,a.v*dt,{keep:true})){a.fleeX=-a.fleeX;a.fleeY=-a.fleeY;}turn(a,Math.atan2(a.fleeY,a.fleeX),dt*3);a.state="flee";return;}
     a.fleeUntil=0;a.crossing=false;const L=a.leader;a.leader=null;if(L&&L.alive&&!L.removed){a.leader=L;a.state=L.state;return;}const route=net.get(a.route)||net.get(a.home);if(route){projectOnRoute(route,a.x,a.y,J);a.route=route.key;a.s=J.s;a.side=J.lateral>=0?1:-1;}a.legs.length=0;a.state="wait";a.waitUntil=now+800+agentRandom(a)*1500;return;}
   if(a.leader){const L=a.leader;if(!L.alive||L.removed||L.knocked){detach(a,net,now);return;}
     // companions walk beside / behind their leader, on their own legs (bounded pace, no snapping),
@@ -161,7 +171,7 @@ export function makeAgent(id,seed,route,s){
   routePointInto(route,a.s,a.side*a.off,P);a.x=P.x;a.y=P.y;a.yaw=Math.atan2(P.ty,P.tx)+(seed&2?Math.PI:0);a.waitUntil=0;return a;
 }
 // something frightening happened at (x,y): run away from it for a few seconds
-export function frighten(a,x,y,now,{ms=5600,strength=1}={}){let dx=a.x-x,dy=a.y-y,d=Math.hypot(dx,dy);if(d<.3){const t=agentRandom(a)*Math.PI*2;dx=Math.cos(t);dy=Math.sin(t);d=1;}a.fleeX=dx/d;a.fleeY=dy/d;a.fleeSpeed=Math.min(3.3,a.speed+1.1+.5*strength); /* an everyday person running away: 2.5-3.3 m/s, not a sprinter */a.fleeUntil=now+ms*(.8+.4*agentRandom(a));}
+export function frighten(a,x,y,now,{ms=5600,strength=1}={}){let dx=a.x-x,dy=a.y-y,d=Math.hypot(dx,dy);if(d<.3){const t=agentRandom(a)*Math.PI*2;dx=Math.cos(t);dy=Math.sin(t);d=1;}a.fleeX=dx/d;a.fleeY=dy/d;a.fleeSpeed=Math.min(3.3,a.speed+1.1+.5*strength); /* an everyday person running away: 2.5-3.3 m/s, not a sprinter */a.fleeUntil=now+ms*(.8+.4*agentRandom(a));if(strength>=1.2)a.fleeBurstUntil=now+1500+agentRandom(a)*900;}
 // annoyed by the player (bumped, shoved, punched). Everyone has a temper (fixed per person):
 // most people are fearful (they back off when bumped and run when hit), about a quarter run at
 // once, and only a few (~15 %) are aggressive and square up — a punch makes those fight back.
@@ -171,10 +181,11 @@ export function temperOf(a){if(a.temper===undefined){const r=agentRandom(a);a.te
 export function armsOf(a){if(a.arms===undefined){const t=temperOf(a);let h=Math.imul((agentRandom(a)*4294967296)>>>0^0x9e3779b9,2654435761)>>>0;h^=h>>>15;const r=(h%10000)/10000;a.arms=t!=="aggressive"?"fists":r<.07?"gun":r<.37?"knife":"fists";}return a.arms;}
 // the weapon to draw on the person while fighting (character_model weapons)
 export function fightWeapon(a){if(!a?.fightUntil)return"none";const arm=armsOf(a);return arm==="gun"?"pistol":arm==="knife"?"knife":"none";}
-export function provoke(a,now,{punched=false,shot=false}={}){if(!a?.alive||a.knocked)return"none";a.annoy=(a.annoy||0)+(punched?2:1);const temper=temperOf(a),W=globalThis.__arondightWalkMode;
-  if(a.fightUntil){a.fightUntil=now+20000;return"fight";}
-  if(temper==="aggressive"&&(punched||a.annoy>=2||shot&&armsOf(a)!=="fists")){a.fightUntil=now+20000;a.leader=null;a.fleeUntil=0;return"fight";}
-  const run=ms=>{if(W?.position)frighten(a,W.position.x,W.position.y,now,{ms,strength:punched?1.6:1});return"flee";};
+export function provoke(a,now,{punched=false,shot=false,by=null}={}){if(!a?.alive||a.knocked)return"none";a.annoy=(a.annoy||0)+(punched?2:1);const temper=temperOf(a),W=globalThis.__arondightWalkMode;
+  if(a.fightUntil){a.fightUntil=now+(by?9000:20000);if(by)a.foe=by;return"fight";}
+  if(temper==="aggressive"&&(punched||a.annoy>=2||shot&&armsOf(a)!=="fists")){a.fightUntil=now+(by?9000:20000);a.foe=by||null;a.leader=null;a.fleeUntil=0;return"fight";}
+  const src=by?{x:by.x,y:by.y}:W?.position;
+  const run=ms=>{if(src)frighten(a,src.x,src.y,now,{ms,strength:punched?1.6:1});return"flee";};
   if(temper==="runner")return run(punched?7000:4500);
   if(punched||a.annoy>=3)return run(punched?5500:4000);
   return"annoyed";}

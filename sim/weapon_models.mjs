@@ -142,10 +142,13 @@ export function buildFists(){
   const g=new THREE.Group(),K="walkFistsPart",skin=std(0xc58c66,.72,0),shade=std(0xa9714f,.8,0),tape=std(0xe9e4d8,.9,0),sleeve=std(0x2c3440,.85,0),cuff=std(0x1d232c,.9,0);
   const cyl=(r0,r1,len,mat,x,y,z,rx=0)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r0,r1,len,10),mat);m.rotation.x=Math.PI/2+rx;m.position.set(x,y,z);return tag(m,K);};
   for(const side of[-1,1]){const hand=new THREE.Group();hand.name=side<0?"WALK_FIST_L":"WALK_FIST_R";hand.position.set(side*.16,-.02,0);
-    hand.add(box(.08,.068,.084,skin,0,0,0,K));                                            // palm / back of the hand
-    for(let f=0;f<4;f++){const x=(f-1.5)*.0205,y=.004-(Math.abs(f-1.5))*.003;hand.add(box(.019,.03,.032,shade,x,y+.012,-.05,K),box(.018,.026,.028,skin,x,y-.016,-.046,K));} // knuckle row + curled middle segments
-    hand.add(box(.084,.034,.022,tape,0,.013,-.036,K));                                     // wrap over the knuckles
-    const thumb=box(.05,.022,.026,skin,-side*.012,-.03,-.034,K);thumb.rotation.y=side*.35;hand.add(thumb); // thumb folded across the fingers
+    // a closed fist reads as one compact rounded block: back of the hand, a single rounded knuckle
+    // ridge (no separate finger stubs), the thumb tucked across, a light tape wrap over the knuckles
+    const capsule=(r,len,mat,x,y,z,rz=0,rx=0)=>{const m=new THREE.Mesh(new THREE.CapsuleGeometry(r,len,4,10),mat);m.rotation.set(rx,0,rz);m.position.set(x,y,z);return tag(m,K);};
+    hand.add(capsule(.038,.03,skin,0,.002,-.004,0,Math.PI/2));                              // fist body (rounded, front-back)
+    hand.add(capsule(.026,.048,skin,0,.012,-.045,Math.PI/2));                              // knuckle ridge across the front
+    hand.add(cyl(.0405,.0405,.018,tape,0,.002,.016));                                       // tape band around the hand behind the knuckles
+    hand.add(capsule(.016,.03,shade,-side*.022,-.03,-.03,side*.9,.2));                     // thumb tucked across
     hand.add(cyl(.039,.037,.05,tape,0,-.002,.066));                                         // wrist wrap
     hand.add(cyl(.037,.05,.3,skin,side*.012,-.03,.24,-.12));                                // forearm, back and a little down
     hand.add(cyl(.058,.062,.16,sleeve,side*.02,-.05,.43,-.12),cyl(.062,.062,.03,cuff,side*.016,-.043,.36,-.12)); // sleeve + cuff
