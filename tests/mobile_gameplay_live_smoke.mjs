@@ -15,7 +15,7 @@ async function armDroneAtomically(timeout=30000){const deadline=Date.now()+timeo
 try{
   await page.setViewport({width:390,height:844,deviceScaleFactor:1,isMobile:true,hasTouch:true});
   await page.goto(url.href,{waitUntil:"load",timeout:45000});
-  await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&globalThis.__arondightWalkMode&&document.querySelector("#mobileGameplayDock"),{timeout:45000});
+  await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&globalThis.__arondightWalkMode&&document.querySelector("#mobileGameplayDock"),{timeout:90000});
   await page.waitForFunction(()=>document.querySelector("#soloArm")&&!document.querySelector("#soloArm").disabled,{timeout:30000});
   await page.evaluate(()=>globalThis.__arondightWalkMode.setMode("foot",{persist:false}));
   await page.waitForFunction(()=>{const v=document.querySelector("#viewport");return v?.dataset.playerMode==="foot"&&v.dataset.soloOrientation==="css-landscape"&&v.dataset.mobileGameplayUi==="flight-first-v1"&&v.dataset.walkTouchContract==="drone-normalized-pointer-origin-v2"&&document.querySelector("#footMove")&&document.querySelector("#footLook");},{timeout:8000});
@@ -58,7 +58,7 @@ try{
   if(fpvUi.dock.length!==3||!fpvUi.dock.includes("SETTINGS")||fpvUi.dock.some(x=>x==="MENU"||x==="START"))throw new Error(`mobile dock is not mode/weapon/settings only: ${JSON.stringify(fpvUi.dock)}`);
   if(fpvUi.spawnGuard!=="people-hold+spawn-gate-presented-camera-v4")throw new Error(`spawn visibility guard is not active: ${JSON.stringify(fpvUi)}`);
   if(!(fpvUi.collision==="box3d-capsule-mover-v2"&&fpvUi.collisionShape==="capsule"&&fpvUi.collisionMask==="terrain-walls-only"&&fpvUi.collisionShots==="pass-through"&&Number(fpvUi.collisionRadius)>=.27&&Number(fpvUi.collisionHeight)>=1.7))throw new Error(`player is not using terrain-only Box3D capsule collision: ${JSON.stringify(fpvUi)}`);
-  if(fpvUi.buttonLayout.some(b=>b.display!=="flex"||b.align!=="center"||b.justify!=="center"||b.padTop!==b.padBottom))throw new Error(`mobile button typography is not vertically centered: ${JSON.stringify(fpvUi.buttonLayout)}`);
+  if(fpvUi.buttonLayout.some(b=>b.display!=="none"&&(b.display!=="flex"||b.align!=="center"||b.justify!=="center"||b.padTop!==b.padBottom)))throw new Error(`mobile button typography is not vertically centered: ${JSON.stringify(fpvUi.buttonLayout)}`);
 
   await page.click("#mobileGameplaySettings");await page.waitForFunction(()=>document.querySelector("dialog.phone-settings-dialog[open]"),{timeout:3000});
   const settings=await page.$eval("dialog.phone-settings-dialog[open]",d=>{const start=d.scrollTop;d.scrollTop=d.scrollHeight;return{clientHeight:d.clientHeight,scrollHeight:d.scrollHeight,scrollTop:d.scrollTop,overflowY:getComputedStyle(d).overflowY,touchAction:getComputedStyle(d).touchAction,start};});

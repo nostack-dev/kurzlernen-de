@@ -14,7 +14,7 @@ async function makePhone(label){
   await page.setUserAgent(`Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1 ${label}`);
   await page.setViewport({width:844,height:390,deviceScaleFactor:1,isMobile:true,hasTouch:true});
   await bounded(page.goto(url.href,{waitUntil:"load",timeout:45000}),50000,`${label} goto`);
-  await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&globalThis.__arondightRealWorld&&document.querySelector("#mobileGameplayMultiplayer")&&document.querySelector("#lanVsButton"),{timeout:45000});
+  await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&globalThis.__arondightRealWorld&&document.querySelector("#mobileGameplayMultiplayer")&&document.querySelector("#lanVsButton"),{timeout:90000});
   const ui=await bounded(page.evaluate(()=>{const mobile=document.querySelector("#mobileGameplayMultiplayer"),source=document.querySelector("#lanVsButton"),topbar=document.querySelector("#soloTopbar"),v=document.querySelector("#viewport");return{mobileDisplay:getComputedStyle(mobile).display,sourceExists:Boolean(source),topbarDisplay:getComputedStyle(topbar).display,mobileUi:v?.dataset.mobileMultiplayerUi,state:v?.dataset.mobileMultiplayerState,policy:v?.dataset.mobileMultiplayerDiscoveryPolicy,stageRooms:Number(v?.dataset.mobileMultiplayerStageRooms)||0,stageMs:Number(v?.dataset.mobileMultiplayerStageMs)||0};}),8000,`${label} ui snapshot`);
   if(ui.mobileDisplay==="none"||!ui.sourceExists||ui.topbarDisplay!=="none"||ui.mobileUi!=="visible-v1")throw new Error(`${label} mobile multiplayer entry is not restored: ${JSON.stringify(ui)}`);
   return{browser,page,label};

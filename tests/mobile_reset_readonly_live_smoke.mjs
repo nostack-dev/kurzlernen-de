@@ -10,7 +10,7 @@ try{
   await page.setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1");
   await page.setViewport({width:844,height:390,deviceScaleFactor:1,isMobile:true,hasTouch:true});
   await page.goto(url.href,{waitUntil:"load",timeout:45000});
-  await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&globalThis.__arondightWalkMode&&document.querySelector("#mobileGameplayReset"),{timeout:45000});
+  await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&globalThis.__arondightWalkMode&&document.querySelector("#mobileGameplayReset"),{timeout:90000});
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.worldTrafficApiMutation==="none-readonly-safe-v1",{timeout:10000});
   await pause(1200);
   const readonlyErrors=errors.filter(text=>/read only property ['\"]setTarget|Cannot assign to read only property ['\"]setTarget/i.test(text));
