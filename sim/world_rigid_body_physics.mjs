@@ -2,7 +2,7 @@ import {TerrainTiles} from "./terrain_tiles.mjs";
 import {createTerrainBody,waterAt,waterFlowAt,waterLevelAt,groundHeightAt,terrainRescueZ} from "./terrain_craters.mjs";
 import {vehicleSpec,vehicleUpperBody,vehicleGroundOffset,attachWheels,detachWheels,placeWheels,driveWheeled,wheelPoses} from "./world_vehicle_dynamics.mjs";
 import {createBox3dHuman,destroyBox3dHuman} from "./box3d_human.mjs";
-import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,normalizeBuildingCollisionSnapshot} from "./world_building_collision_physics.mjs";
+import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,updateWorldBuildingCollisionBodies,normalizeBuildingCollisionSnapshot} from "./world_building_collision_physics.mjs";
 
 export const WORLD_PHYSICS_CATEGORIES=Object.freeze({terrain:1n,vehicle:2n,drone:4n,projectileQuery:8n});
 const ALL_DYNAMIC=WORLD_PHYSICS_CATEGORIES.vehicle|WORLD_PHYSICS_CATEGORIES.drone;
@@ -34,7 +34,7 @@ export class WorldRigidBodyPhysics{
     if(this.buildingSnapshot?.prismCount){const snap=this.buildingSnapshot;this.buildingSnapshot={...snap,hash:"__terrain-changed"};this.syncBuildings(snap);}
     if(this.records)this.rescueFromTerrain();
     return this.terrainBodies.length;}
-  syncBuildings(value){const snapshot=normalizeBuildingCollisionSnapshot(value);if(snapshot.hash===this.buildingSnapshot.hash&&snapshot.prismCount===this.buildingSnapshot.prismCount)return false;destroyWorldBuildingCollisionBodies(this.b3,this.buildingState);this.buildingSnapshot=snapshot;this.buildingState=createWorldBuildingCollisionBodies(this.b3,this.world,snapshot,{categoryBits:WORLD_PHYSICS_CATEGORIES.terrain,maskBits:ALL_DYNAMIC|WORLD_PHYSICS_CATEGORIES.projectileQuery,rangefinderCategoryBits:0n,launchExclusionPoint:[Infinity,Infinity]});return true;}
+  syncBuildings(value){const snapshot=normalizeBuildingCollisionSnapshot(value);if(snapshot.hash===this.buildingSnapshot.hash&&snapshot.prismCount===this.buildingSnapshot.prismCount)return false;this.buildingSnapshot=snapshot;this.buildingState=updateWorldBuildingCollisionBodies(this.b3,this.world,this.buildingState,snapshot,{categoryBits:WORLD_PHYSICS_CATEGORIES.terrain,maskBits:ALL_DYNAMIC|WORLD_PHYSICS_CATEGORIES.projectileQuery,rangefinderCategoryBits:0n,launchExclusionPoint:[Infinity,Infinity]});return true;}
   shapeKeyOf(shape){return shapeKey(shape);}
   addBody({id,kind="vehicle",position=[0,0,0],yaw=0,halfExtents=[1,.5,.5],massKg=1000,gravityScale,linearDamping,angularDamping,wheeled=true,hulls=null,inertia=null,friction=null,restitution=null,controller=null,sleep=false}={}){
     // cars and buses are real wheeled vehicles (chassis + 4 wheel joints)

@@ -1,3 +1,4 @@
+import {structuralMutation} from "./dom_mutation_filter.mjs";
 const STORAGE_KEY="arondight45WorldLocationV1";
 const GPS_CHOICE=Object.freeze({kind:"gps",id:"gps",label:"DEVICE GPS"});
 
@@ -113,7 +114,7 @@ function installStyles(){if(document.querySelector("style[data-world-location-se
   `;document.head.appendChild(style);}
 export function installWorldLocationSelector(){
   if(installed)return;installed=true;installStyles();patchBridge();mountIntoWorldCard();mountIntoPhoneSettings();
-  const observer=new MutationObserver(()=>{patchBridge();mountIntoWorldCard();mountIntoPhoneSettings();});observer.observe(document.documentElement,{childList:true,subtree:true});
+  const observer=new MutationObserver(l=>{if(!structuralMutation(l))return;patchBridge();mountIntoWorldCard();mountIntoPhoneSettings();});observer.observe(document.documentElement,{childList:true,subtree:true});
 }
 
 installWorldLocationSelector();

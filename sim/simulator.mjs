@@ -18,7 +18,7 @@ import {findXboxGamepad,isXboxCompatibleGamepad,sampleXboxGamepad} from "./xbox_
 import {StabilizedExternalCameraRig,externalCameraFrame} from "./camera_stabilization.mjs";
 import {StabilizedExternalAirframeVisual,EXTERNAL_AIRFRAME_VISUAL_PROFILES} from "./visual_pose_stabilization.mjs";
 import {renderPlatformProfile,quantizedViewportSize,viewportSizeChanged} from "./render_stability.mjs";
-import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,findClearBuildingLaunchPoint,resolveBox3dCameraPath} from "./world_building_collision_physics.mjs";
+import {normalizeBuildingCollisionSnapshot,createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,updateWorldBuildingCollisionBodies,findClearBuildingLaunchPoint,resolveBox3dCameraPath} from "./world_building_collision_physics.mjs";
 import {Box3dColliderDebugDraw} from "./box3d_collider_debug.mjs";
 import {TerrainTiles} from "./terrain_tiles.mjs";
 import {createTerrainBody,onTerrainChange,TERRAIN_CRATERS_VERSION,staticGroundHeightAt,terrainRescueZ} from "./terrain_craters.mjs";
@@ -439,7 +439,7 @@ class PhysicsModel {
     if(offset<=.01)return false;
     b3.b3Body_SetTransform(this.body,[safe[0],safe[1],staticGroundHeightAt(safe[0],safe[1])+AIRFRAME_SPAWN_Z_M],this.rotation());b3.b3Body_SetLinearVelocity(this.body,[0,0,0]);b3.b3Body_SetAngularVelocity(this.body,[0,0,0]);this.syncPresentationSnapshots();return true;
   }
-  rebuildWorldBuildingCollisions(){if(!this.world)return;destroyWorldBuildingCollisionBodies(b3,this.worldBuildingCollisionState);this.resolveWorldBuildingLaunch();this.worldBuildingCollisionState=createWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,launchExclusionPoint:this.worldBuildingLaunchPoint||[Infinity,Infinity]});this.worldBuildingCollisionRevision++;}
+  rebuildWorldBuildingCollisions(){if(!this.world)return;this.resolveWorldBuildingLaunch();this.worldBuildingCollisionState=updateWorldBuildingCollisionBodies(b3,this.world,this.worldBuildingCollisionState,this.worldBuildingCollisionSnapshot,{categoryBits:COLLISION_TERRAIN,maskBits:COLLISION_AIRFRAME|QUERY_RANGEFINDER|QUERY_CAMERA,launchExclusionPoint:this.worldBuildingLaunchPoint||[Infinity,Infinity]});this.worldBuildingCollisionRevision++;}
   buildGraphics(){
     if(this.group)this.scene.remove(this.group);
     this.group=new THREE.Group();this.group.userData.arondightAirframe=true;this.scene.add(this.group);this.rotors=[];

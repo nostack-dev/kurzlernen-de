@@ -1,3 +1,4 @@
+import {structuralMutation} from "./dom_mutation_filter.mjs";
 let installed=false;
 
 function viewport(){return document.getElementById("viewport");}
@@ -55,7 +56,7 @@ export function installWalkUiLayoutHotfix(){
   // frame. These are layout diagnostics: coalesce them to at most one measure per 500 ms.
   let pending=0;const schedule=()=>{if(pending)return;pending=setTimeout(()=>{pending=0;requestAnimationFrame(measure);},500);};
   addEventListener("resize",schedule,{passive:true});
-  new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true});
+  new MutationObserver(l=>{if(structuralMutation(l))schedule();}).observe(document.documentElement,{childList:true,subtree:true});
   requestAnimationFrame(measure);
 }
 

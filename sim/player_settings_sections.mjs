@@ -2,6 +2,7 @@ import {MIN_GAME_HORIZONTAL_SPEED_KMH,MAX_GAME_HORIZONTAL_SPEED_KMH} from "./con
 import {loadPhoneControlSettings} from "./drone_control_settings.mjs";
 import {loadFirstPersonControlSettings} from "./first_person_control_settings.mjs";
 import {DEFAULT_VEHICLE_CONTROL_SETTINGS,loadVehicleControlSettings,saveVehicleControlSettings} from "./vehicle_control_settings.mjs";
+import {structuralMutation} from "./dom_mutation_filter.mjs";
 
 let installed=false;
 const $=(root,selector)=>root.querySelector(selector);
@@ -35,5 +36,5 @@ function mount(dialog){if(dialog.dataset.stackedControls==="1")return;dialog.dat
   dialog.addEventListener("close",refresh);dialog.addEventListener("toggle",refresh);dialog.querySelector("[data-reset]")?.addEventListener("click",()=>{saveVehicleControlSettings(DEFAULT_VEHICLE_CONTROL_SETTINGS);setTimeout(refresh,0);});setInterval(()=>{if(dialog.open)refresh();},500);refresh();
 }
 function scan(){for(const dialog of document.querySelectorAll("dialog.phone-settings-dialog"))mount(dialog);}
-export function installPlayerSettingsSections(){if(installed)return;installed=true;installStyle();scan();new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});}
+export function installPlayerSettingsSections(){if(installed)return;installed=true;installStyle();scan();new MutationObserver(l=>{if(structuralMutation(l))scan();}).observe(document.documentElement,{childList:true,subtree:true});}
 installPlayerSettingsSections();

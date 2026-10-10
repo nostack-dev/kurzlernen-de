@@ -14,6 +14,7 @@
 // nothing is drawn. Arriving clears it.
 import * as maplibregl from "maplibre-gl";
 import * as THREE from "three";
+import {setText} from "./dom_mutation_filter.mjs";
 
 export const WORLD_MAP_FULL_VERSION="fullscreen-map-search-route-v1";
 const STYLE_URL="https://tiles.openfreemap.org/styles/liberty";
@@ -235,13 +236,13 @@ function guide(now){
   // off the route: ask for a new one (throttled)
   if(route&&la.off>(s.mode==="foot"?45:80))requestRoute();else if(!route&&geo().real&&now-routeAt>15000)requestRoute();
   const tx=la.p[0],ty=la.p[1],bearing=Math.atan2(tx-s.x,ty-s.y)/DEG,rel=((bearing-viewBearing()+540)%360)-180;
-  guideEl.hidden=false;guideEl.querySelector("i").style.transform=`rotate(${rel.toFixed(0)}deg)`;const txt=`${fmtDist(left)} · ${dest.name}`;const sp=guideEl.querySelector("span");if(sp.textContent!==txt)sp.textContent=txt;
+  guideEl.hidden=false;guideEl.querySelector("i").style.transform=`rotate(${rel.toFixed(0)}deg)`;const txt=`${fmtDist(left)} · ${dest.name}`;setText(guideEl.lastChild,txt);
   // AR chevron: on the horizon where the route goes (eye height above the ground there), at the edge when out of view
   const c=cam(),v=viewport();if(!c||!v){arEl.hidden=true;return;}const W=v.clientWidth,H=v.clientHeight;
   const ground=(s.mode==="foot"?s.z-1.6:s.mode==="car"?s.z:0),z=s.mode==="foot"||s.mode==="car"?ground+1.6:s.z-Math.min(40,Math.max(3,(s.z-ground)*.4));
   proj.set(tx,ty,z).project(c);let x=(proj.x*.5+.5)*W,y=(-proj.y*.5+.5)*H;const behind=proj.z>1||Math.abs(rel)>Math.min(80,(c.fov||60)*(W/H)*.5+4);
   let rot=0;if(behind||x<14||x>W-14||y<70||y>H-60){const a=rel*DEG;x=W/2+Math.sin(a)*W*.42;y=clamp(H*.42-Math.cos(a)*H*.3,80,H-90);rot=rel;}
-  arEl.hidden=false;arEl.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;arEl.querySelector("i").style.transform=`rotate(${rot.toFixed(0)}deg)`;const sm=arEl.querySelector("small"),st=behind?"":fmtDist(left);if(sm.textContent!==st)sm.textContent=st;}
+  arEl.hidden=false;arEl.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;arEl.querySelector("i").style.transform=`rotate(${rot.toFixed(0)}deg)`;setText(arEl.lastChild,behind?"":fmtDist(left));}
 let toastEl=null,toastT=0;function toast(text){const v=viewport();if(!v)return;if(!toastEl?.isConnected){toastEl=document.createElement("div");toastEl.style.cssText="position:absolute;left:50%;top:32%;transform:translateX(-50%);z-index:60;padding:10px 18px;border-radius:14px;background:#0b0f14d8;border:1px solid #7fd3ff66;color:#e8f7ff;font:800 14px/1.2 Inter,system-ui,sans-serif;letter-spacing:.06em;pointer-events:none;transition:opacity .5s";v.appendChild(toastEl);}toastEl.textContent=text;toastEl.style.opacity="1";clearTimeout(toastT);toastT=setTimeout(()=>{if(toastEl)toastEl.style.opacity="0";},2600);}
 
 // the minimap draws the route and the pin (called from drawMinimap with its projection)

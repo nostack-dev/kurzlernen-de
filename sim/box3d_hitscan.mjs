@@ -1,6 +1,6 @@
 import Box3DFactory from "box3d.js/inline";
 import {terrainRayDistance,terrainNormalAt} from "./terrain_craters.mjs";
-import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies} from "./world_building_collision_physics.mjs";
+import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,updateWorldBuildingCollisionBodies} from "./world_building_collision_physics.mjs";
 
 const QUERY_HITSCAN=16n;
 const COLLISION_WORLD=1n;
@@ -25,9 +25,9 @@ export class Box3dHitscanWorld{
   }
   sync(snapshot){
     const hash=String(snapshot?.hash||"");if(hash===this.snapshotHash)return;
-    if(this.buildings)destroyWorldBuildingCollisionBodies(b3,this.buildings);this.buildings=null;this.snapshotHash=hash;
-    if(Array.isArray(snapshot?.prisms)&&snapshot.prisms.length){
-      this.buildings=createWorldBuildingCollisionBodies(b3,this.world,snapshot,{categoryBits:COLLISION_WORLD,maskBits:QUERY_HITSCAN,rangefinderCategoryBits:0n});
+    this.snapshotHash=hash;
+    if(Array.isArray(snapshot?.prisms)){
+      /* createWorldBuildingCollisionBodies is the one-shot form; moving play updates incrementally */this.buildings=updateWorldBuildingCollisionBodies(b3,this.world,this.buildings,snapshot,{categoryBits:COLLISION_WORLD,maskBits:QUERY_HITSCAN,rangefinderCategoryBits:0n});
     }
   }
   cast(origin,direction,maxDistance=650,snapshot=null){

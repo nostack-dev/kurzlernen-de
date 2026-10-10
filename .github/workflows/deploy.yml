@@ -114,6 +114,7 @@ jobs:
           ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
           cd "$GITHUB_WORKSPACE"
           node tests/world_building_collision_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
+          node tests/world_building_incremental_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           node tests/world_rigid_body_physics_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           node tests/world_vehicle_dynamics_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
           node tests/ground_safety_net_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs

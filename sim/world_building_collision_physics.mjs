@@ -59,4 +59,24 @@ export function resolveBox3dCameraPath(b3,world,anchor,desired,{queryCategoryBit
   if(!hit)return{position:[...to],collided:false,fraction:1,hitDistanceM:distance,cameraRadiusM:radius};const hitDistance=Math.max(0,Math.min(distance,fraction*distance)),margin=Math.max(.005,Number(clearanceM)||.035),safeDistance=Math.max(0,hitDistance-margin),safeScale=safeDistance/distance;return{position:[from[0]+delta[0]*safeScale,from[1]+delta[1]*safeScale,from[2]+delta[2]*safeScale],collided:true,fraction,hitDistanceM:hitDistance,cameraRadiusM:radius};
 }
 
-export function destroyWorldBuildingCollisionBodies(b3,state){if(state?.body&&b3.b3Body_IsValid(state.body))b3.b3DestroyBody(state.body);}
+export function destroyWorldBuildingCollisionBodies(b3,state){if(state?.body&&b3.b3Body_IsValid(state.body))b3.b3DestroyBody(state.body);if(state?.entries)for(const e of state.entries.values())if(e?.body&&b3.b3Body_IsValid(e.body))b3.b3DestroyBody(e.body);}
+// Incremental variant for a moving player: the nearby-building set changes every few hundred ms when
+// you drive or fly fast, but most prisms stay the same. Rebuilding every hull of every house (in three
+// Box3D worlds) each time was the biggest CPU cost of a jet flight. Here each prism is its own static
+// body, keyed by its exact geometry: unchanged houses keep their hulls, only new ones are built and
+// gone ones destroyed.
+function prismBodyKey(prism,e){let k=`${prism.buildingKey||""}|${e.toFixed(2)}|${(+prism.base).toFixed(2)}|${(+prism.top).toFixed(2)}|`;for(const p of prism.points)k+=`${p[0].toFixed(2)},${p[1].toFixed(2)};`;return k;}
+export function updateWorldBuildingCollisionBodies(b3,world,prev,value,{categoryBits=1n,maskBits=6n,rangefinderCategoryBits=4n}={}){
+  const snapshot=normalizeBuildingCollisionSnapshot(value);if(prev?.body&&!prev.entries){destroyWorldBuildingCollisionBodies(b3,prev);prev=null;}
+  const old=prev?.entries||new Map(),next=new Map(),activePrisms=[];let shapeCount=0,built=0;
+  if(world&&snapshot.prisms.length){
+    const shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.68;shapeDef.baseMaterial.restitution=.025;shapeDef.filter={categoryBits:BigInt(categoryBits),maskBits:BigInt(maskBits)&~BigInt(rangefinderCategoryBits),groupIndex:0};
+    const groundByKey=new Map();for(const prism of snapshot.prisms){const k=prism.buildingKey;if(!k)continue;let list=groundByKey.get(k);if(!list){list=[];groundByKey.set(k,list);}for(const p of prism.points)list.push(p);}
+    for(const[k,pts]of groundByKey)groundByKey.set(k,buildingGroundBase(pts));
+    for(const prism of snapshot.prisms){const e=prism.buildingKey&&groundByKey.has(prism.buildingKey)?groundByKey.get(prism.buildingKey):buildingGroundBase(prism.points);let key=prismBodyKey(prism,e);while(next.has(key))key+="#";
+      let entry=old.get(key);if(entry&&b3.b3Body_IsValid(entry.body)){old.delete(key);}
+      else{entry=null;const vertices=[];for(const height of[prism.base+e,prism.top+e])for(const point of prism.points)vertices.push(point[0],point[1],height);const hull=b3.b3CreateHull(vertices);if(!hull)continue;const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_staticBody;bodyDef.position=[0,0,0];const body=b3.b3CreateBody(world,bodyDef);try{b3.b3CreateHullShape(body,shapeDef,hull);}finally{b3.b3DestroyHull(hull);}entry={body};built++;}
+      next.set(key,entry);activePrisms.push(prism);shapeCount++;}}
+  for(const e of old.values())if(e?.body&&b3.b3Body_IsValid(e.body))b3.b3DestroyBody(e.body);
+  return{body:null,entries:next,shapeCount,built,kept:shapeCount-built,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze(activePrisms),...snapshot};
+}

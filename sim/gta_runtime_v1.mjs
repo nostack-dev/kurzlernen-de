@@ -3,6 +3,7 @@ import {loadFirstPersonControlSettings,saveFirstPersonControlSettings,DEFAULT_FI
 import {loadAudioSettings} from "./audio_settings.mjs";
 import {findXboxGamepad} from "./xbox_gamepad.mjs";
 import {groundHeightAt} from "./terrain_craters.mjs";
+import {structuralMutation} from "./dom_mutation_filter.mjs";
 
 const CAR_SETTINGS_KEY="arondight45VehicleControlsV1";
 const CAMERA_CLEARANCE=.22;
@@ -140,7 +141,7 @@ function patchSettingsDialog(dialog){
   dialog.insertBefore(modes,anchor);dialog.insertBefore(fps,anchor);dialog.insertBefore(car,anchor);renderModeCards(modes);const v=viewport();if(v){v.dataset.settingsControlLayout="stacked-drone-first-person-vehicle-v1";v.dataset.settingsModeSeparation="control-modes-vs-input-controls-v1";}
 }
 function renderModeCards(section=document.querySelector(".gta-mode-section")){if(!section)return;const mode=vehicleMode?"vehicle":walk()?.mode||"drone";for(const b of section.querySelectorAll("button[data-mode]"))b.dataset.active=b.dataset.mode===mode?"1":"0";}
-function patchSettings(){for(const d of document.querySelectorAll("dialog.phone-settings-dialog[data-control-profiles]"))patchSettingsDialog(d);if(settingsObserver)return;settingsObserver=new MutationObserver(()=>{for(const d of document.querySelectorAll("dialog.phone-settings-dialog[data-control-profiles]"))patchSettingsDialog(d);});settingsObserver.observe(document.body,{childList:true,subtree:true});}
+function patchSettings(){for(const d of document.querySelectorAll("dialog.phone-settings-dialog[data-control-profiles]"))patchSettingsDialog(d);if(settingsObserver)return;settingsObserver=new MutationObserver(l=>{if(!structuralMutation(l))return;for(const d of document.querySelectorAll("dialog.phone-settings-dialog[data-control-profiles]"))patchSettingsDialog(d);});settingsObserver.observe(document.body,{childList:true,subtree:true});}
 
 function installInput(){addEventListener("keydown",e=>{if(!vehicleMode)return;if(["KeyW","KeyA","KeyS","KeyD"].includes(e.code)){keyState.add(e.code);e.preventDefault();e.stopPropagation();}if(e.code==="KeyF"||e.code==="KeyV"){setVehicleMode(false);e.preventDefault();e.stopPropagation();}},{capture:true});addEventListener("keyup",e=>keyState.delete(e.code),{capture:true});addEventListener("pointerdown",()=>ensureAudio(true),{capture:true,passive:true});}
 function expose(){globalThis.__arondightGtaRuntime={get mode(){return vehicleMode?"vehicle":walk()?.mode||"drone";},get vehicleState(){return{...vehicleState};},get car(){return drivable;},enterVehicle:()=>setVehicleMode(true),exitVehicle:()=>setVehicleMode(false),setMode(mode){if(mode==="vehicle")return setVehicleMode(true);if(vehicleMode)setVehicleMode(false);walk()?.setMode?.(mode==="foot"?"foot":"drone");return true;}};}

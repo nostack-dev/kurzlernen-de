@@ -10,6 +10,7 @@ import {buildCharacter} from "./character_model.mjs";
 import {JET_SPEC,createAirframe,airframeStep,setFlightMode} from "./jet_flight_dynamics.mjs";
 import {WORLD_PHYSICS_CATEGORIES} from "./world_rigid_body_physics.mjs";
 import {startWorldCriticalDamage,stopWorldCriticalDamage} from "./world_critical_damage_fx.mjs";
+import {setText} from "./dom_mutation_filter.mjs";
 
 // JET — a VTOL fighter (Harrier / F-35B style) that stands next to you at the start.
 //
@@ -340,23 +341,25 @@ function renderButtons(){const b=document.getElementById("enterJetButton");if(b)
 let city=null,cityBusy=false,cityAt=-Infinity,cityFrom=null;const hudP=new THREE.Vector3();
 async function lookupCity(lon,lat){cityBusy=true;cityAt=performance.now();try{const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=de&lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}`,{signal:AbortSignal.timeout?.(8000)});if(r.ok){const j=await r.json(),a=j.address||{},name=j.name||a.city||a.town||a.village||a.municipality;if(name&&Number.isFinite(+j.lon)&&Number.isFinite(+j.lat))city={name:String(name).toUpperCase(),lon:+j.lon,lat:+j.lat};}}catch{}finally{cityBusy=false;}}
 function screenOf(x,y,z,W,H){const c=bridge()?.presentedCamera?.()||bridge()?.threeCamera;if(!c)return null;hudP.set(x,y,z).project(c);const front=hudP.z<1;let sx=(hudP.x*.5+.5)*W,sy=(-hudP.y*.5+.5)*H;if(!front){sx=W-sx;sy=H-sy;}return{x:sx,y:sy,front};}
-function renderCityCue(h){const v=viewport(),svg=h.querySelector(".jet-svg");if(!v||!svg)return;const W=v.clientWidth,H=v.clientHeight;if(svg.dataset.vb!==`${W}x${H}`){svg.dataset.vb=`${W}x${H}`;svg.setAttribute("viewBox",`0 0 ${W} ${H}`);}
-  const p=para?para.p:jet?.p;const line=svg.querySelector(".jet-city-line"),dot=svg.querySelector(".jet-city-dot"),fpm=svg.querySelector(".jet-fpm"),nameEl=h.querySelector("[data-k=city]"),dEl=h.querySelector("[data-k=cityd]");
+const svgCache=new Map();function svgEl(svg,sel){let e=svgCache.get(sel);if(!e||!e.isConnected){e=svg.querySelector(sel);svgCache.set(sel,e);}return e;}
+function renderCityCue(h){const v=viewport(),svg=svgEl(h,".jet-svg");if(!v||!svg)return;const W=v.clientWidth,H=v.clientHeight;if(svg.dataset.vb!==`${W}x${H}`){svg.dataset.vb=`${W}x${H}`;svg.setAttribute("viewBox",`0 0 ${W} ${H}`);}
+  const p=para?para.p:jet?.p;const line=svgEl(svg,".jet-city-line"),dot=svgEl(svg,".jet-city-dot"),fpm=svgEl(svg,".jet-fpm"),nameEl=hk(h,"city"),dEl=hk(h,"cityd");
   // flight path marker: where the jet is actually going
   if(jet&&!para&&jet.v.length()>15){const t=screenOf(jet.p.x+jet.v.x*4,jet.p.y+jet.v.y*4,jet.p.z+jet.v.z*4,W,H);if(t?.front){fpm.setAttribute("transform",`translate(${t.x.toFixed(1)},${t.y.toFixed(1)})`);fpm.style.display="";}else fpm.style.display="none";}else fpm.style.display="none";
-  const g=p?geoOf(p.x,p.y):null;if(!g){line.style.display=dot.style.display="none";if(nameEl.textContent)nameEl.textContent=dEl.textContent="";return;}
+  const g=p?geoOf(p.x,p.y):null;if(!g){line.style.display=dot.style.display="none";setText(nameEl,"");setText(dEl,"");return;}
   const now=performance.now();if(!cityBusy&&(now-cityAt>25000||!cityFrom||Math.hypot(p.x-cityFrom.x,p.y-cityFrom.y)>1500)){cityFrom={x:p.x,y:p.y};lookupCity(g[0],g[1]);}
   if(!city){line.style.display=dot.style.display="none";return;}const m=lngLatToLocal(city.lon,city.lat);if(!m){line.style.display=dot.style.display="none";return;}
-  const dist=Math.hypot(m[0]-p.x,m[1]-p.y),gz=groundHeightAt(m[0],m[1]);if(nameEl.textContent!==city.name)nameEl.textContent=city.name;const dt=dist<600?"ÜBER DEM ZENTRUM":`${(dist/1000).toFixed(dist>=10000?0:1).replace(".",",")} KM`;if(dEl.textContent!==dt)dEl.textContent=dt;
+  const dist=Math.hypot(m[0]-p.x,m[1]-p.y),gz=groundHeightAt(m[0],m[1]);setText(nameEl,city.name);const dt=dist<600?"ÜBER DEM ZENTRUM":`${(dist/1000).toFixed(dist>=10000?0:1).replace(".",",")} KM`;setText(dEl,dt);
   const t=screenOf(m[0],m[1],gz+20,W,H);if(!t||dist<600){line.style.display=dot.style.display="none";return;}
   let x=t.x,y=t.y;const cx=W/2,cy=H/2;if(!t.front||x<0||x>W||y<0||y>H){const dx=x-cx,dy=y-cy,k=Math.min((W*.46)/Math.max(1,Math.abs(dx)),(H*.42)/Math.max(1,Math.abs(dy)));x=cx+dx*k;y=cy+dy*k;}
   // the line runs from the centre ring (r 26) toward the town; the dot sits on the town centre
   const L=Math.hypot(x-cx,y-cy)||1,sx=cx+(x-cx)/L*26,sy=cy+(y-cy)/L*26;line.setAttribute("x1",sx.toFixed(1));line.setAttribute("y1",sy.toFixed(1));line.setAttribute("x2",x.toFixed(1));line.setAttribute("y2",y.toFixed(1));dot.setAttribute("cx",x.toFixed(1));dot.setAttribute("cy",y.toFixed(1));line.style.display=L>34?"":"none";dot.style.display="";}
-function renderHud(){const h=document.getElementById("jetHud");if(!h)return;try{renderCityCue(h);}catch{}if(para){h.querySelector('[data-k=mode]').textContent="FALLSCHIRM";return;}if(!jet)return;const af=jet.af,T=af.tele||{},s=jet.v.length(),m=machOf(s);
-  h.querySelector('[data-k=spd]').textContent=String(Math.round(s*3.6));const mb=h.querySelector('[data-k=mach]');mb.textContent=`M ${m.toFixed(2)}`;mb.dataset.super=m>=1?"1":"0";h.querySelector('[data-k=alt]').textContent=String(Math.round(Number(T.agl)||0));h.querySelector('[data-k=g]').textContent=`${(Number(T.nz)||1).toFixed(1)} G`;
-  const aoa=h.querySelector('[data-k=aoa]'),a=s>20?(Number(T.alpha)||0)*57.3:0;aoa.textContent=`α ${Math.round(a)}°`;aoa.dataset.high=a>19?"1":"0";
-  const ab=af.mode==="flight"&&af.lever>.86;h.querySelector('[data-k=mode]').textContent=af.landed?"GELANDET":af.mode==="flight"?(Math.cos(af.nozzle)<.95?"ÜBERGANG":ab?"FLUG · AB":"FLUG"):(s>30?"BREMSEN":"SCHWEBEN");
-  const hp=h.querySelector('[data-k=hp]'),pct=Math.round(jet.hp/HP_MAX*100);hp.textContent=jet.burning?`FEUER ${pct}`:`HP ${pct}`;hp.dataset.low=pct<40?"1":"0";
+const hudCache=new Map();function hk(h,k){let e=hudCache.get(k);if(!e||!e.isConnected){e=h.querySelector(`[data-k=${k}]`);hudCache.set(k,e);}return e;}
+function renderHud(){const h=document.getElementById("jetHud");if(!h)return;try{renderCityCue(h);}catch{}if(para){setText(hk(h,'mode'),"FALLSCHIRM");return;}if(!jet)return;const af=jet.af,T=af.tele||{},s=jet.v.length(),m=machOf(s);
+  setText(hk(h,'spd'),String(Math.round(s*3.6)));const mb=hk(h,'mach');mb.textContent=`M ${m.toFixed(2)}`;mb.dataset.super=m>=1?"1":"0";setText(hk(h,'alt'),String(Math.round(Number(T.agl)||0)));setText(hk(h,'g'),`${(Number(T.nz)||1).toFixed(1)} G`);
+  const aoa=hk(h,'aoa'),a=s>20?(Number(T.alpha)||0)*57.3:0;aoa.textContent=`α ${Math.round(a)}°`;aoa.dataset.high=a>19?"1":"0";
+  const ab=af.mode==="flight"&&af.lever>.86;setText(hk(h,'mode'),af.landed?"GELANDET":af.mode==="flight"?(Math.cos(af.nozzle)<.95?"ÜBERGANG":ab?"FLUG · AB":"FLUG"):(s>30?"BREMSEN":"SCHWEBEN"));
+  const hp=hk(h,'hp'),pct=Math.round(jet.hp/HP_MAX*100);hp.textContent=jet.burning?`FEUER ${pct}`:`HP ${pct}`;hp.dataset.low=pct<40?"1":"0";
   h.querySelector(".jet-thr i").style.height=`${Math.round((af.mode==="flight"?af.lever:clamp(af.thrust/JET_SPEC.thrustMax,0,1))*100)}%`;}
 
 // ------------------------------------------------------------ multiplayer

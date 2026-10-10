@@ -34,7 +34,7 @@ function placeModeSwitch(){
 }
 function sync(){
   const b=ensure(),multi=$("mobileGameplayMultiplayer");
-  if(b){const visible=inGame();if(b.hidden===visible)b.hidden=!visible;if(multi){multi.classList.remove("split-left");multi.classList.toggle("hud-after-exit",visible);}}
+  if(b){const visible=inGame();if(b.hidden===visible)b.hidden=!visible;if(multi){multi.classList.remove("split-left");multi.classList.toggle("hud-after-exit",visible);/* MULTI starts right after EXIT, whatever EXIT's width (desktop shows a key hint) */if(visible&&b.offsetWidth){const l=`${b.offsetLeft+b.offsetWidth+6}px`;if(multi.style.getPropertyValue("left")!==l)multi.style.setProperty("left",l,"important");const st=$("mobileGameplayMultiplayerStatus");if(st&&st.style.getPropertyValue("left")!==l)st.style.setProperty("left",l,"important");}}}
   try{placeModeSwitch();}catch{}
   setTimeout(sync,250);
 }
