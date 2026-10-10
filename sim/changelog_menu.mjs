@@ -16,7 +16,7 @@ export const CHANGELOG=Object.freeze([
     "Explosionsspuren dezenter; Ruß und Löcher verschwinden mit der eingestürzten Wand.",
     "Raketen im Flug und Leuchtspur werfen echtes Licht; einfarbige Flächen haben eine feine Struktur.",
     "Auto-Innenansicht: viel mehr Frontscheibe, flaches Armaturenbrett, Lenkrad unten.",
-    "LIVE GPS (Taste L): die Welt folgt deiner echten Position – Joggen, Rad, Auto.",
+    "LIVE GPS (Taste L): die Welt folgt deiner echten Position – Joggen, Rad, Auto. Im Multiplayer sehen die anderen dich laufen, Rad fahren (mit Fahrrad) oder im Auto.",
     "Kühe auf den echten Weiden: physisch, treffbar, mit Muhen und Schmerzlaut.",
     "Passanten haben Temperament: meist ängstlich, manche rennen weg, wenige schlagen zurück; sie schreien, fluchen und beruhigen sich wieder.",
     "Panik nur in der Nähe von Schüssen – nicht mehr die ganze Stadt.",
