@@ -35,8 +35,9 @@ function ensure(){
 }
 function mergeSimple(list){const pos=[],idx=[];let o=0;for(const g of list){const p=g.attributes.position.array;for(let i=0;i<p.length;i++)pos.push(p[i]);const ix=g.index?g.index.array:[...Array(p.length/3).keys()];for(const i of ix)idx.push(i+o);o+=p.length/3;}const out=new THREE.BufferGeometry();out.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));out.setIndex(idx);out.computeVertexNormals();return out;}
 // roads: [{cls,w,pts:[[x,y],...]}]
+let lastRoads=null,lastCx=0,lastCy=0;
 export function setLampRoads(roads,cx=0,cy=0){
-  if(!ensure())return;const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),p=new THREE.Vector3(),s=new THREE.Vector3(1,1,1),Z=new THREE.Vector3(0,0,1),sp=new THREE.Vector3();let n=0;const seen=new Set();
+  if(!ensure())return;lastRoads=roads;lastCx=cx;lastCy=cy;const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),p=new THREE.Vector3(),s=new THREE.Vector3(1,1,1),Z=new THREE.Vector3(0,0,1),sp=new THREE.Vector3();let n=0;const seen=new Set();
   const list=roads.filter(r=>!/path|track/.test(r.cls)).map(r=>({r,d:Math.hypot(r.pts[0][0]-cx,r.pts[0][1]-cy)})).sort((a,b)=>a.d-b.d).map(e=>e.r);
   for(const r of list){let carry=SPACING*.5,side=1;
     for(let i=0;i<r.pts.length-1&&n<MAX;i++){const a=r.pts[i],b=r.pts[i+1],dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy);if(l<.5)continue;const ux=dx/l,uy=dy/l,nx=-uy,ny=ux;
@@ -88,6 +89,8 @@ function sfx(pos,fn){const c=globalThis.__sharedAudioContext;if(!c||c.state!=="r
 function glass(pos){sfx(pos,(c,out,t)=>{const n=c.createBuffer(1,c.sampleRate*.4,c.sampleRate),ch=n.getChannelData(0);for(let i=0;i<ch.length;i++)ch[i]=(Math.random()*2-1)*Math.pow(1-i/ch.length,3)*(Math.random()<.04?3:1);const s=c.createBufferSource(),hp=c.createBiquadFilter();hp.type="highpass";hp.frequency.value=3200;s.buffer=n;s.connect(hp).connect(out);s.start(t);});}
 function clang(pos,k=1){sfx(pos,(c,out,t)=>{for(const f of[180,412,733]){const o=c.createOscillator(),g=c.createGain();o.type="triangle";o.frequency.value=f*(.97+Math.random()*.06);g.gain.setValueAtTime(.32*k,t);g.gain.exponentialRampToValueAtTime(.001,t+.9*k+.2);o.connect(g).connect(out);o.start(t);o.stop(t+1.2);}});}
 function frame(){requestAnimationFrame(frame);if(!group)return;{const now=performance.now();checkCars(now);if(fallen.length)stepFallen();}const night=Number(globalThis.__dayNight?.state?.night)||0,glow=Math.min(1,Math.max(0,(night-.15)/.5));if(Math.abs(glow-lastNight)<.01)return;lastNight=glow;headMat.emissiveIntensity=glow*3.2;poolUniforms.uNight.value=glow;pools.visible=glow>.01;}
+// RESET: every lamp stands and burns again, the fallen posts are gone
+function onReset(){const R=rigid();for(const f of fallen.splice(0)){R?.removeBody?.(f.id);f.mesh.parent?.remove(f.mesh);}broken.clear();if(lastRoads)setLampRoads(lastRoads,lastCx,lastCy);const v=document.getElementById("viewport");if(v)v.dataset.streetLampsBroken="0";}
 export function installStreetLamps(){if(globalThis.__streetLamps||typeof window==="undefined")return;globalThis.__streetLamps={setRoads:setLampRoads,version:STREET_LAMPS_VERSION,lamps:()=>lamps,breakAt(x,y,state=1,dir=[1,0]){const l=near(x,y,3)[0];return l?setState(l,state,{dir}):false;}};
-  addEventListener("arondight:foot-tracer",onTracer);addEventListener("arondight:world-explosion",onExplosion);addEventListener(VS_FX_EVENT,onFx);requestAnimationFrame(frame);}
+  addEventListener("arondight:foot-tracer",onTracer);addEventListener("arondight:world-explosion",onExplosion);addEventListener(VS_FX_EVENT,onFx);addEventListener("arondight:world-reset",onReset);requestAnimationFrame(frame);}
 installStreetLamps();

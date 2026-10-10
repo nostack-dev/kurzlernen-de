@@ -17,12 +17,22 @@ export const WORLD_OPTIONS=Object.freeze([
   {key:"military",label:"MILITARY",help:"Soldiers, tanks and helicopters at high wanted levels."},
   {key:"props",label:"LOOSE OBJECTS",help:"Crates, oil drums, cones and bins lying around — throw them with the gravity gun."},
   {key:"jetpack",label:"JETPACK",help:"Jump twice to fire a short jetpack burst over houses. Recharges."},
+  {key:"droneNuke",label:"DRONE NUKE",help:"The drone carries a nuclear warhead (third weapon after gun and rockets). Multiplayer: the host's setting applies.",def:false,rule:true},
+  {key:"launcherNuke",label:"LAUNCHER NUKE",help:"The rocket launcher on foot fires nukes instead of rockets. Multiplayer: the host's setting applies.",def:false,rule:true},
 ]);
-export const DEFAULT_WORLD_OPTIONS=Object.freeze(Object.fromEntries(WORLD_OPTIONS.map(o=>[o.key,true])));
+export const DEFAULT_WORLD_OPTIONS=Object.freeze(Object.fromEntries(WORLD_OPTIONS.map(o=>[o.key,o.def??true])));
+// Game rules (the nukes): in a multiplayer session the session host's switches apply to
+// everybody (game_rules_sync.mjs sends them); alone, your own. worldRule() is the one to ask.
+export const GAME_RULE_KEYS=Object.freeze(WORLD_OPTIONS.filter(o=>o.rule).map(o=>o.key));
+let hostRules=null;
 let current=load();
 function load(){try{const raw=JSON.parse(localStorage.getItem(WORLD_OPTIONS_KEY)||"{}");return{...DEFAULT_WORLD_OPTIONS,...Object.fromEntries(Object.entries(raw).filter(([k,v])=>k in DEFAULT_WORLD_OPTIONS&&typeof v==="boolean"))};}catch{return{...DEFAULT_WORLD_OPTIONS};}}
-export function worldOption(key){return current[key]!==false;}
+export function worldOption(key){return key in current?current[key]===true:true;}
+export function worldRule(key){if(hostRules&&key in hostRules)return hostRules[key]===true;return worldOption(key);}
+export function setHostRules(rules){const next=rules&&typeof rules==="object"?Object.fromEntries(GAME_RULE_KEYS.filter(k=>typeof rules[k]==="boolean").map(k=>[k,rules[k]])):null;const same=JSON.stringify(next)===JSON.stringify(hostRules);hostRules=next&&Object.keys(next).length?next:null;
+  if(!same&&typeof window!=="undefined")window.dispatchEvent(new CustomEvent(WORLD_OPTIONS_EVENT,{detail:{options:{...current},hostRules:hostRules?{...hostRules}:null,key:"hostRules"}}));}
+export function hostRulesActive(){return Boolean(hostRules);}
 export function setWorldOption(key,value){if(!(key in DEFAULT_WORLD_OPTIONS))return;current={...current,[key]:Boolean(value)};try{localStorage.setItem(WORLD_OPTIONS_KEY,JSON.stringify(current));}catch{}
   if(typeof window!=="undefined")window.dispatchEvent(new CustomEvent(WORLD_OPTIONS_EVENT,{detail:{options:{...current},key,value:Boolean(value)}}));}
 export function worldOptions(){return{...current};}
-if(typeof globalThis!=="undefined")globalThis.__arondightWorldOptions={get:worldOption,set:setWorldOption,all:worldOptions,list:WORLD_OPTIONS,event:WORLD_OPTIONS_EVENT};
+if(typeof globalThis!=="undefined")globalThis.__arondightWorldOptions={get:worldOption,rule:worldRule,setHostRules,get hostRules(){return hostRules?{...hostRules}:null;},set:setWorldOption,all:worldOptions,list:WORLD_OPTIONS,event:WORLD_OPTIONS_EVENT};

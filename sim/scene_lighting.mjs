@@ -3,14 +3,15 @@
 // so no shader ever recompiles because a light appears:
 //   * at dusk and night the nearest street lamps cast warm sodium light onto street, cars and people,
 //   * your car's headlights light the road ahead after dark,
-//   * every round you fire flashes the surroundings for a frame or two,
+//   * every round you fire flashes the surroundings for a frame or two, and its tracer glints along its path,
+//   * rockets in flight light what they pass,
 //   * blasts light up the block (bright, fast decay),
 //   * a burning jetpack throws orange light on the ground below.
 import {requestLight} from "./dynamic_lights.mjs";
 
 export const SCENE_LIGHTING_VERSION="scene-lighting-v1";
 const LAMP_LIGHTS=3,LAMP_RANGE_M=70;
-let installed=false,flashUntil=0,lastLampPick=0,nearLamps=[];
+let installed=false,flashUntil=0,lastLampPick=0,nearLamps=[];const projBuf=[],tracerLights=[];
 const blasts=[];
 const bridge=()=>globalThis.__arondightRealWorld||null;
 function camera(){const b=bridge();return b?.presentedCamera?.()||b?.threeCamera||null;}
@@ -24,9 +25,14 @@ function frame(){requestAnimationFrame(frame);const cam=camera();if(!cam)return;
   if(now<flashUntil){const d=cam.getWorldDirection(cam.position.clone());requestLight([cam.position.x+d.x*.9,cam.position.y+d.y*.9,cam.position.z+d.z*.9-.1],{color:0xffc272,intensity:22,distance:13});}
   // blasts: bright, then a quick fade
   for(let i=blasts.length-1;i>=0;i--){const b=blasts[i],t=(now-b.at)/b.ms;if(t>=1){blasts.splice(i,1);continue;}requestLight(b.p,{color:0xffa04a,intensity:b.peak*(1-t)*(1-t),distance:b.r});}
+  // rockets in flight: their motor lights what they pass (nearest few)
+  const W0=globalThis.__arondightFootWeapons;if(W0?.projectiles){const list=W0.projectiles(projBuf);let k=0;for(const p of list){if(k>=2)break;if(Math.hypot(p.x-cam.position.x,p.y-cam.position.y)>90)continue;requestLight([p.x,p.y,p.z],{color:0xff9a40,intensity:16,distance:10});k++;}}
+  // tracers: a short travelling glint along the round's path (~45 ms)
+  for(let i=tracerLights.length-1;i>=0;i--){const t=tracerLights[i],u=(now-t.at)/45;if(u>=1){tracerLights.splice(i,1);continue;}requestLight([t.a[0]+(t.b[0]-t.a[0])*u,t.a[1]+(t.b[1]-t.a[1])*u,t.a[2]+(t.b[2]-t.a[2])*u],{color:0xffd27a,intensity:7*(1-u),distance:6});}
   // jetpack flame under the player
   const J=globalThis.__arondightJetpack,W=globalThis.__arondightWalkMode;if(J?.thrusting&&W?.position&&W.mode==="foot")requestLight([W.position.x,W.position.y,W.position.z-1.6],{color:0xff8a2a,intensity:14,distance:9});}
 function onFired(e){const d=e?.detail||{};if(d.mode!=="foot"||d.weapon==="fists"||d.weapon==="hand-grenade")return;flashUntil=performance.now()+(d.weapon==="sniper"?90:55);}
+function onTracer(e){const d=e?.detail||{};if(!Array.isArray(d.start)||!Array.isArray(d.end))return;const L=Math.hypot(d.end[0]-d.start[0],d.end[1]-d.start[1],d.end[2]-d.start[2]);if(L<2)return;if(tracerLights.length>=3)tracerLights.shift();tracerLights.push({a:d.start.slice(0,3),b:d.end.slice(0,3),at:performance.now()});}
 function onExplosion(e){const d=e?.detail||{},p=d.position;if(!Array.isArray(p))return;const r=Math.max(6,Number(d.radiusM)||8);if(blasts.length>=4)blasts.shift();blasts.push({p:[p[0],p[1],p[2]+1.5],at:performance.now(),ms:420,peak:220+r*18,r:r*4});}
-export function installSceneLighting(){if(installed||typeof window==="undefined")return;installed=true;addEventListener("arondight:weapon-fired",onFired);addEventListener("arondight:world-explosion",onExplosion);requestAnimationFrame(frame);globalThis.__arondightSceneLighting={version:SCENE_LIGHTING_VERSION};}
+export function installSceneLighting(){if(installed||typeof window==="undefined")return;installed=true;addEventListener("arondight:weapon-fired",onFired);addEventListener("arondight:world-explosion",onExplosion);addEventListener("arondight:foot-tracer",onTracer);addEventListener("arondight:world-reset",()=>{blasts.length=0;flashUntil=0;tracerLights.length=0;});requestAnimationFrame(frame);globalThis.__arondightSceneLighting={version:SCENE_LIGHTING_VERSION};}
 installSceneLighting();

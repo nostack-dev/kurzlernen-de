@@ -33,7 +33,7 @@ function mode(){const b=document.body;if(b.classList.contains("jet-mode"))return
 globalThis.__arondightPadBlocked=()=>menuOpen()||startScreen();
 export function sendKey(code,{hold=60}={}){const opts={code,key:code.replace(/^Key|^Digit/,"").toLowerCase(),bubbles:true,cancelable:true};const down=new KeyboardEvent("keydown",opts);down.__synthetic="pad";dispatchEvent(down);setTimeout(()=>{const up=new KeyboardEvent("keyup",opts);up.__synthetic="pad";dispatchEvent(up);},hold);}
 function cycleWeapon(dir){const m=mode();if(m!=="foot"&&m!=="drone")return;const api=m==="foot"?globalThis.__arondightFootWeapons:globalThis.__arondightDroneWeapons;if(!api)return;
-  if(m==="foot"&&typeof api.setMode==="function"){const order=["smg","glock","sniper","grenade","fists"],i=Math.max(0,order.indexOf(String(api.mode)));api.setMode(order[(i+dir+order.length)%order.length]);}else api.toggle?.();}
+  if(m==="foot"&&typeof api.setMode==="function"){const order=["smg","glock","sniper","grenade","fists","knife"],i=Math.max(0,order.indexOf(String(api.mode)));api.setMode(order[(i+dir+order.length)%order.length]);}else api.toggle?.();}
 function switchFootDrone(){const m=mode();if(m!=="foot"&&m!=="drone")return;walk()?.setMode?.(m==="foot"?"drone":"foot",{reason:"pad-dpad-down"});}
 function camera(){const m=mode();if(m==="drone")document.getElementById("soloCamera")?.click();else if(m==="car"||m==="jet")sendKey("KeyC");}
 function strike(){const j=globalThis.__fighterJets;if(!j)return;if(j.targeting)j.confirm?.();else j.target?.(true);}
@@ -41,8 +41,10 @@ function emp(){const w=globalThis.__arondightWantedSystem;if(w?.triggerEmp)w.tri
 function respawn(){if(globalThis.__arondightRespawnReady&&!globalThis.__arondightRespawnReady())return;const hud=document.getElementById("vsRespawnHud");if(hud&&!hud.hidden){hud.querySelector("button")?.click();return;}globalThis.__arondightRequestReset?.();}
 function enablePadPlay(){if(autoEnabled)return;autoEnabled=true;const box=document.querySelector("[data-xbox-controller]");if(box&&!box.checked){box.click();}}
 // title screen: D-pad / stick moves between START, WORLD and the world switches, A presses, B backs out
-function titleNav(edge){const panel=document.getElementById("worldOptionsPanel"),inPanel=panel&&!panel.hidden,scope=inPanel?panel:document.getElementById("gameMenu");
-  const items=[...(scope?.querySelectorAll("button:not([disabled])")||[])].filter(b=>b.offsetParent!==null&&(inPanel||b.id==="gameMenuStart"||b.id==="gameMenuWorld"));
+function titleNav(edge){const log=document.getElementById("changelogPanel");
+  if(log&&!log.hidden){if(edge(BTN.DOWN)||edge(BTN.UP))globalThis.__arondightChangelogMenu?.scroll?.(edge(BTN.DOWN)?140:-140);else if(edge(BTN.B)||edge(BTN.A))globalThis.__arondightChangelogMenu?.close?.();return;}
+  const panel=document.getElementById("worldOptionsPanel"),inPanel=panel&&!panel.hidden,scope=inPanel?panel:document.getElementById("gameMenu");
+  const items=[...(scope?.querySelectorAll("button:not([disabled])")||[])].filter(b=>b.offsetParent!==null&&(inPanel||b.id==="gameMenuStart"||b.id==="gameMenuWorld"||b.id==="gameMenuChangelog"));
   const cur=items.indexOf(document.activeElement);
   if(edge(BTN.DOWN)||edge(BTN.UP)){const n=items.length;if(!n)return;const i=cur<0?0:(cur+(edge(BTN.DOWN)?1:-1)+n)%n;items[i].focus({preventScroll:false});return;}
   if(edge(BTN.B)&&inPanel){globalThis.__arondightWorldOptionsMenu?.close?.();return;}

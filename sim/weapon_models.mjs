@@ -154,6 +154,18 @@ export function buildFists(){
   g.position.set(-.05,-.03,-.02);return g;
 }
 
+// KNIFE: the right fist (same hand as the boxing fists) gripping a combat knife, blade forward
+export function buildKnife(){
+  const g=buildFists(),left=g.getObjectByName("WALK_FIST_L");if(left)g.remove(left);
+  const hand=g.getObjectByName("WALK_FIST_R");hand.name="WALK_KNIFE_HAND";const K="walkKnifePart",steel=std(0xd5dade,.22,.9),edge=std(0xf2f5f7,.12,.95),grip=std(0x1b1d20,.75,.05),guard=std(0x3a3d42,.4,.7);
+  const knife=new THREE.Group();knife.name="WALK_KNIFE_BLADE";knife.position.set(0,-.004,-.05);
+  knife.add(box(.026,.03,.11,grip,0,0,.0,K));                                                       // grip (inside the fist)
+  knife.add(box(.07,.012,.016,guard,0,0,-.062,K));                                                  // cross guard
+  knife.add(box(.006,.034,.17,steel,0,.002,-.155,K),box(.003,.012,.17,edge,0,-.016,-.155,K));      // blade + bright edge
+  const tip=box(.006,.024,.04,steel,0,-.004,-.25,K);tip.rotation.x=-.45;knife.add(tip);
+  hand.add(knife);g.position.set(-.09,-.03,-.02);return g;
+}
+
 export function buildBoomstick(){
   const g=new THREE.Group(),K="walkGrenadePart";
   const olive=std(0x4a5a3a,.6,.2),dark=std(0x1d2024,.7,.15),orange=std(0xff7a1a,.45,.1),yellow=std(0xffd23f,.45,.1),black=std(0x121316,.6,.1),wood=std(0x8a5a3b,.65,0),glowO=glow(0xff8a2a);

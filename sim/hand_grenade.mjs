@@ -52,7 +52,7 @@ function frame(){requestAnimationFrame(frame);const now=performance.now();
   if(cooking){const held=now-cooking.at;if(!canUse()){cookOff("dropped");return;}if(held>=FUSE_MS){cookOff("cooked-off");return;}const sec=Math.floor(held/1000);if(sec>lastTick-1&&held-lastTick*1000>=0){lastTick=sec+1;tickSound(FUSE_MS-held<1200);}render();}
   // pad: LB held = cooking, released = throw
   const pad=(()=>{if(globalThis.__arondightPadBlocked?.())return null;for(const p of navigator.getGamepads?.()||[])if(p?.connected)return p;return null;})(),lb=Boolean(pad?.buttons?.[4]?.pressed);if(lb&&!padLB&&canUse())pull("pad");else if(!lb&&padLB&&cooking?.source==="pad")release();padLB=lb;}
-export function installHandGrenade(){if(installed||typeof window==="undefined")return;installed=true;
+export function installHandGrenade(){if(installed||typeof window==="undefined")return;installed=true;addEventListener("arondight:world-reset",()=>{cooking=null;carry=MAX_CARRY;regenAt=0;render();});
   addEventListener("keydown",e=>{if(e.code!=="KeyT"||e.repeat||e.metaKey||e.ctrlKey||e.altKey)return;if(pull("keyboard")){keyT=true;e.preventDefault();}});addEventListener("keyup",e=>{if(e.code==="KeyT"&&keyT){keyT=false;if(cooking?.source==="keyboard")release();}});
   setInterval(place,250);requestAnimationFrame(frame);globalThis.__arondightHandGrenade={pull,release,get cooking(){return cooking?{msLeft:Math.max(0,FUSE_MS-(performance.now()-cooking.at)),power:cooking.power}:null;},get carry(){return carry;},version:HAND_GRENADE_VERSION};}
 installHandGrenade();

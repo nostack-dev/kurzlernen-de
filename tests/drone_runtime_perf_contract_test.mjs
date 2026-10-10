@@ -116,7 +116,7 @@ assert.ok(capsule.includes("now-lastTelemetryAt>=250"),"capsule collision teleme
 
 const weapon=files["sim/first_person_weapon_runtime_v3.mjs"];
 assert.ok(weapon.includes("if(mode!==lastMode)")&&!weapon.includes("now-lastVisualSync>1000"),"unchanged weapon materials must not be re-patched every second");
-assert.ok(weapon.includes("mode!==lastButtonMode"),"weapon button DOM must update only when the mode changes");
+assert.ok(weapon.includes("mode!==lastButtonMode")||weapon.includes("key!==lastButtonMode"),"weapon button DOM must update only when the mode changes");
 
 for(const p of ["sim/vs_fx_geo_adapter.mjs","sim/vs_multiplayer_guard.mjs","sim/first_person_fire_contract_v1.mjs"]){
   assert.ok(files[p].includes("setTimeout(maintenance,250)")&&!files[p].includes("requestAnimationFrame(frame)"),`${p} static integration polling must not consume render frames`);

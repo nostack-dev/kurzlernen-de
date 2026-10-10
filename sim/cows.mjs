@@ -125,6 +125,8 @@ function frame(){requestAnimationFrame(frame);const now=performance.now(),dt=Mat
     const amp=c.dead?0:c.flee?.6:c.walking?.32:0;for(let k=0;k<4;k++){const hx=k<2?.6:-.58,hy=k%2?.2:-.2,sw=amp*Math.sin(c.phase+(k===0||k===3?0:Math.PI));L.makeTranslation(hx,hy,HIP_Z).multiply(R1.makeRotationY(sw));legMesh.setMatrixAt(n*4+k,L.premultiply(M));legMesh.setColorAt(n*4+k,c.color);}
     n++;}
   bodyMesh.count=headMesh.count=n;legMesh.count=n*4;for(const m of[bodyMesh,headMesh,legMesh]){m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true;}}
-export function installCows(){if(installed||typeof window==="undefined")return;installed=true;addEventListener("arondight:foot-tracer",onTracer);addEventListener("arondight:world-explosion",onExplosion);addEventListener(VS_FX_EVENT,onFx);addEventListener("arondight:world-meadows",()=>{herdsFor="";});
+// RESET: every cow back on its feet, grazing on its clock path
+function resetCows(){const R=rigid();for(const c of cows){dropLiveBody(c);if(c.body){R?.removeBody?.(c.body);c.body=null;}c.dead=false;c.hidden=false;c.hp=100;c.flee=null;}deadKeys.clear();herdsFor="";}
+export function installCows(){if(installed||typeof window==="undefined")return;installed=true;addEventListener("arondight:foot-tracer",onTracer);addEventListener("arondight:world-explosion",onExplosion);addEventListener(VS_FX_EVENT,onFx);addEventListener("arondight:world-meadows",()=>{herdsFor="";});addEventListener("arondight:world-reset",resetCows);
   globalThis.__arondightCows={hit:hitCow,list:()=>cows,version:COWS_VERSION,rebuild:()=>{herdsFor="";lastHerdCheck=0;}};requestAnimationFrame(frame);}
 installCows();

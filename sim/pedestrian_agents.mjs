@@ -96,7 +96,15 @@ export function stepAgent(a,dt,now,net){
   if(dt<=0)return;
   // angry (bumped into, punched): go for the player and box; calms down after a while or when he is far
   if(a.fightUntil){const W=globalThis.__arondightWalkMode;if(now<a.fightUntil&&W?.mode==="foot"&&!W.dead&&W.position){const dx=W.position.x-a.x,dy=W.position.y-a.y,d=Math.hypot(dx,dy);
-      if(d<35){turn(a,Math.atan2(dy,dx),dt*3);a.state="fight";if(d>.95){a.v+=clamp(Math.min(2.8,a.speed+1.3)-a.v,-3*dt,2.4*dt);const step=Math.min(d-.9,a.v*dt);a.x+=dx/d*step;a.y+=dy/d*step;}
+      const arm=armsOf(a);
+      // a gangster with a gun keeps his distance (6-14 m) and fires a cheap pistol: aimed, but a moving target is hard to hit
+      if(arm==="gun"&&d<45){turn(a,Math.atan2(dy,dx),dt*3.4);a.state="fight";const want=d>14?1:d<6?-1:0,top=want>0?2.6:want<0?1.5:0;a.v+=clamp(top-a.v,-3*dt,2.4*dt);if(want)  {const step=a.v*dt*want;a.x+=dx/d*step;a.y+=dy/d*step;}
+        if(now-(a.lastShot||0)>(820+agentRandom(a)*520)&&d<32&&Math.abs(Math.atan2(Math.sin(Math.atan2(dy,dx)-a.yaw),Math.cos(Math.atan2(dy,dx)-a.yaw)))<.3){a.lastShot=now;a.lastPunch=now;a.punchHand=1;try{window.dispatchEvent(new CustomEvent("arondight:pedestrian-shot",{detail:{id:a.id,from:[a.x,a.y,a.z],yaw:a.yaw,distanceM:d,playerSpeedMps:Math.hypot(W.velocity?.x||0,W.velocity?.y||0)}}));}catch{}}
+        return;}
+      if(d<35){turn(a,Math.atan2(dy,dx),dt*3);a.state="fight";if(arm==="knife"&&d>.85&&d<1.6&&now-(a.lastPunch||0)>600)a.v=Math.max(a.v,2.4);if(d>(arm==="knife"?.8:.95)){a.v+=clamp(Math.min(2.8,a.speed+1.3)-a.v,-3*dt,2.4*dt);const step=Math.min(d-.9,a.v*dt);a.x+=dx/d*step;a.y+=dy/d*step;}
+        else if(arm==="knife"){a.v=Math.max(0,a.v-5*dt);if(now-(a.lastPunch||0)>(640+agentRandom(a)*300)){a.lastPunch=now;a.punchHand=1;
+          // a stab: ~16 % of the player's health
+          globalThis.__arondightPlayerDamageModel?.damage?.(16,"knife:pedestrian");W.push?.({x:dx/d*.6,y:dy/d*.6,z:0});try{window.dispatchEvent(new CustomEvent("arondight:pedestrian-stab",{detail:{id:a.id,at:[W.position.x,W.position.y,W.position.z]}}));}catch{}}}
         else{a.v=Math.max(0,a.v-5*dt);if(now-(a.lastPunch||0)>(780+agentRandom(a)*380)){a.lastPunch=now;a.punchHand=-(a.punchHand||-1);
           // a punch of an untrained adult: ~8 % of the player's health, a shove of ~1.5 m/s
           globalThis.__arondightPlayerDamageModel?.damage?.(8,"punch:pedestrian");W.push?.({x:dx/d*1.5,y:dy/d*1.5,z:0});try{window.dispatchEvent(new CustomEvent("arondight:pedestrian-punch",{detail:{id:a.id}}));}catch{}}}
@@ -158,9 +166,14 @@ export function frighten(a,x,y,now,{ms=5600,strength=1}={}){let dx=a.x-x,dy=a.y-
 // most people are fearful (they back off when bumped and run when hit), about a quarter run at
 // once, and only a few (~15 %) are aggressive and square up — a punch makes those fight back.
 export function temperOf(a){if(a.temper===undefined){const r=agentRandom(a);a.temper=r<.15?"aggressive":r<.4?"runner":"fearful";}return a.temper;}
-export function provoke(a,now,{punched=false}={}){if(!a?.alive||a.knocked)return"none";a.annoy=(a.annoy||0)+(punched?2:1);const temper=temperOf(a),W=globalThis.__arondightWalkMode;
+// what an aggressive one carries (fixed per person): most only fists, some a knife (~30 %), very
+// few a gun (~7 %) — across all people about 1 in 22 carries a knife and 1 in 100 a gun
+export function armsOf(a){if(a.arms===undefined){const t=temperOf(a);let h=Math.imul((agentRandom(a)*4294967296)>>>0^0x9e3779b9,2654435761)>>>0;h^=h>>>15;const r=(h%10000)/10000;a.arms=t!=="aggressive"?"fists":r<.07?"gun":r<.37?"knife":"fists";}return a.arms;}
+// the weapon to draw on the person while fighting (character_model weapons)
+export function fightWeapon(a){if(!a?.fightUntil)return"none";const arm=armsOf(a);return arm==="gun"?"pistol":arm==="knife"?"knife":"none";}
+export function provoke(a,now,{punched=false,shot=false}={}){if(!a?.alive||a.knocked)return"none";a.annoy=(a.annoy||0)+(punched?2:1);const temper=temperOf(a),W=globalThis.__arondightWalkMode;
   if(a.fightUntil){a.fightUntil=now+20000;return"fight";}
-  if(temper==="aggressive"&&(punched||a.annoy>=2)){a.fightUntil=now+20000;a.leader=null;a.fleeUntil=0;return"fight";}
+  if(temper==="aggressive"&&(punched||a.annoy>=2||shot&&armsOf(a)!=="fists")){a.fightUntil=now+20000;a.leader=null;a.fleeUntil=0;return"fight";}
   const run=ms=>{if(W?.position)frighten(a,W.position.x,W.position.y,now,{ms,strength:punched?1.6:1});return"flee";};
   if(temper==="runner")return run(punched?7000:4500);
   if(punched||a.annoy>=3)return run(punched?5500:4000);

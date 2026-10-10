@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import {facadeGlassAt,facadeParams,facadeCutouts} from "./world_city_buildings.mjs";
 import {staticGroundHeightAt} from "./terrain_craters.mjs";
+import {buildingDamage,onDestruction} from "./world_destruction_state.mjs";
 
 // Marks on the real, rendered facades:
 //  * glass cracks — a bullet that hits a window pane leaves a spider-web
@@ -105,6 +106,14 @@ function ensure(){
   cracks?.parent?.remove(cracks);soots?.parent?.remove(soots);breaches?.parent?.remove(breaches);rubbleMesh?.parent?.remove(rubbleMesh);sceneRef=scene;breachCells.clear();
   cracks=makeMesh(CRACK_FS,CRACKS,"WORLD_GLASS_CRACKS",5);soots=makeMesh(SOOT_FS,SOOTS,"WORLD_WALL_SOOT",4);breaches=makeMesh(BREACH_FS,BREACHES,"WORLD_WALL_BREACH",4);breaches.material.transparent=true;scene.add(cracks,soots,breaches);rubbleMesh=makeRubbleMesh();scene.add(rubbleMesh);return true;
 }
+// every wall mark remembers its building and height: when the building comes down below it, the
+// mark goes with the wall (nothing hangs in the air over the rubble)
+const owners=new Map(); // mesh -> Map(slot -> {key,z,size})
+function own(mesh,i,key,z,size){let m=owners.get(mesh);if(!m)owners.set(mesh,m=new Map());if(key)m.set(i,{key,z,size});else m.delete(i);}
+function elevOf(key){const r=globalThis.__arondightCityBuildings?.ranges?.()?.get?.(key);return Number(r?.elev)||0;}
+function pruneDestroyed(){for(const[mesh,m]of owners){let changed=false;for(const[i,o]of m){const d=buildingDamage(o.key);if(!d)continue;if(d.leveled||o.z-o.size*.4>elevOf(o.key)+Number(d.top)){mesh.setMatrixAt(i,ZERO);m.delete(i);changed=true;}}if(changed)mesh.instanceMatrix.needsUpdate=true;}
+  for(const[k,c]of breachCells){if(!owners.get(breaches)?.has(c.i))breachCells.delete(k);}}
+if(typeof window!=="undefined")onDestruction(()=>{try{pruneDestroyed();}catch{}});
 function place(mesh,i,x,y,z,nx,ny,size,seed,strength){
   n.set(nx,ny,0);q.setFromUnitVectors(Z,n);sp.setFromAxisAngle(Z,Math.random()*6.283);q.multiply(sp);p.set(x,y,z);s.set(size,size,size);m4.compose(p,q,s);
   mesh.setMatrixAt(i,m4);mesh.setColorAt(i,col.setRGB(seed,strength,0));mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;
@@ -112,7 +121,7 @@ function place(mesh,i,x,y,z,nx,ny,size,seed,strength){
 // crack on the pane at the hit (w from glassAt); the pane is the outer wall plane
 export function addGlassCrack(w,point,size=.16+Math.random()*.1){
   if(!w||!ensure())return false;const e=w.e,x=e.ax+e.dx*w.u+e.nx*.006,y=e.ay+e.dy*w.u+e.ny*.006;
-  place(cracks,crackCursor++%CRACKS,x,y,point.z,e.nx,e.ny,size,Math.random(),1);return true;
+  const ci=crackCursor++%CRACKS;place(cracks,ci,x,y,point.z,e.nx,e.ny,size,Math.random(),1);own(cracks,ci,w.it?.key||w.key||"",point.z,size);return true;
 }
 // soot on the walls around a blast at (x,y,z) with blast radius r
 export function addWallSoot(x,y,z,r,maxWalls=2){
@@ -121,9 +130,9 @@ export function addWallSoot(x,y,z,r,maxWalls=2){
     for(const e of it.edges){const rx=x-e.ax,ry=y-e.ay,u=rx*e.dx+ry*e.dy,side=rx*e.nx+ry*e.ny;if(side<=.05||u<0||u>e.len)continue;if(side<r*.55)cand.push({it,e,u,d:side});}}
   cand.sort((a,b)=>a.d-b.d);let placed=0;
   for(const c of cand){if(placed>=maxWalls)break;const v=vertical(c.it);if(!v)continue;const e=c.e,px=e.ax+e.dx*c.u,py=e.ay+e.dy*c.u,ground=staticGroundHeightAt(px+e.nx*.3,py+e.ny*.3);
-    let rr=Math.min(r*.42,c.u,e.len-c.u,(v.z1-ground)*.5)*(1-c.d/(r*.55)*.35);if(!(rr>=.45))continue;
+    let rr=Math.min(r*.3,c.u,e.len-c.u,(v.z1-ground)*.5)*(1-c.d/(r*.55)*.35);if(!(rr>=.4))continue;
     const zc=Math.min(Math.max(z,ground+rr*.35),v.z1-rr);if(zc+rr>v.z1+1e-3||zc<ground-rr*.5)continue;
-    place(soots,sootCursor++%SOOTS,px+e.nx*.01,py+e.ny*.01,zc,e.nx,e.ny,rr,Math.random(),Math.max(.45,1-c.d/(r*.55)));placed++;}
+    const si=sootCursor++%SOOTS;place(soots,si,px+e.nx*.01,py+e.ny*.01,zc,e.nx,e.ny,rr,Math.random(),.7*Math.max(.4,1-c.d/(r*.55)));own(soots,si,c.it.key,zc,rr);placed++;}
   return placed;
 }
 // A blast at a wall breaks it open: every patch of wall (2 m cells) keeps its damage, hit again it
@@ -137,7 +146,7 @@ export function addWallBreach(x,y,z,r,strength=1,maxWalls=2){
     const key=`${c.it.key}#${c.ei}#${Math.round(c.u/2)}#${Math.round(zc/2)}`,hit=Math.max(.15,strength*(1-c.d/(r*.5)));let cell=breachCells.get(key);
     if(!cell){cell={i:breachCursor++%BREACHES,level:0,u:c.u,z:zc,seed:Math.random()};for(const[k,o]of breachCells)if(o.i===cell.i)breachCells.delete(k);breachCells.set(key,cell);}
     cell.level=Math.min(1,cell.level+hit*.45);const size=Math.min(r*(.18+.22*cell.level),cell.u+.6,e.len-cell.u+.6,(v.z1-ground)*.6);
-    place(breaches,cell.i,e.ax+e.dx*cell.u+e.nx*.015,e.ay+e.dy*cell.u+e.ny*.015,cell.z,e.nx,e.ny,Math.max(.35,size),cell.seed,cell.level);
+    place(breaches,cell.i,e.ax+e.dx*cell.u+e.nx*.015,e.ay+e.dy*cell.u+e.ny*.015,cell.z,e.nx,e.ny,Math.max(.35,size),cell.seed,cell.level);own(breaches,cell.i,c.it.key,cell.z,Math.max(.35,size));
     spawnRubble(e.ax+e.dx*cell.u+e.nx*.5,e.ay+e.dy*cell.u+e.ny*.5,cell.z,e.nx,e.ny,Math.round(2+5*hit));placed++;}
   return placed;
 }
@@ -153,7 +162,7 @@ function spawnRubble(x,y,z,nx,ny,count){const R=globalThis.__arondightWorldRigid
 function stepRubble(now){rubbleRaf=0;const R=globalThis.__arondightWorldRigidBodies;let live=0;
   for(let i=0;i<RUBBLE;i++){const r=rubble[i];if(!r)continue;if(now>r.until||!R){R?.removeBody?.(r.id);rubble[i]=null;rubbleMesh?.setMatrixAt(i,ZERO);continue;}const pose=R.pose(r.id);if(!pose)continue;live++;const fade=Math.min(1,(r.until-now)/2500);p.set(pose.position[0],pose.position[1],pose.position[2]);q.set(pose.rotation[0],pose.rotation[1],pose.rotation[2],pose.rotation[3]);s.set(r.h[0]*2*fade,r.h[1]*2*fade,r.h[2]*2*fade);m4.compose(p,q,s);rubbleMesh?.setMatrixAt(i,m4);}
   if(rubbleMesh)rubbleMesh.instanceMatrix.needsUpdate=true;if(live)rubbleRaf=requestAnimationFrame(stepRubble);}
-export function clearFacadeMarks(){breachCells.clear();for(let i=0;i<RUBBLE;i++){if(rubble[i])globalThis.__arondightWorldRigidBodies?.removeBody?.(rubble[i].id);rubble[i]=null;rubbleMesh?.setMatrixAt(i,ZERO);}if(rubbleMesh)rubbleMesh.instanceMatrix.needsUpdate=true;for(const m of[cracks,soots,breaches]){if(!m)continue;for(let i=0;i<m.count;i++)m.setMatrixAt(i,ZERO);m.instanceMatrix.needsUpdate=true;}}
+export function clearFacadeMarks(){breachCells.clear();owners.clear();for(let i=0;i<RUBBLE;i++){if(rubble[i])globalThis.__arondightWorldRigidBodies?.removeBody?.(rubble[i].id);rubble[i]=null;rubbleMesh?.setMatrixAt(i,ZERO);}if(rubbleMesh)rubbleMesh.instanceMatrix.needsUpdate=true;for(const m of[cracks,soots,breaches]){if(!m)continue;for(let i=0;i<m.count;i++)m.setMatrixAt(i,ZERO);m.instanceMatrix.needsUpdate=true;}}
 if(typeof window!=="undefined"){window.addEventListener("arondight:world-reset",clearFacadeMarks);
   globalThis.__facadeMarks={glassAt,wallAt,crack:addGlassCrack,soot:addWallSoot,breach:addWallBreach,clear:clearFacadeMarks,version:FACADE_MARKS_VERSION};}
 // shader prewarm: the crack / soot layers exist (and compile) before the first hit

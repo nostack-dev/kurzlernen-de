@@ -57,9 +57,12 @@ function buildCharacterAt({outfit,shirt,id}){
   const gun=new THREE.Group();gun.name="CHARACTER_GUN";arms.R.wr.add(gun);gun.position.set(0,.02,-.09);gun.rotation.x=-Math.PI/2;
   part(gun,boxG(.035,.22,.05),M.dark,0,.08,.02);part(gun,boxG(.03,.05,.1),M.dark,0,.0,-.04);gun.visible=false;
   const gunL=gun.clone();arms.L.wr.add(gunL);gunL.visible=false;
-  const rig={root,pelvis,spine,neck,head,visor,arms,legs,gun,gunL,phase:Math.random()*6,outfit,state:"idle"};
+  // a knife in the right fist (blade pointing forward out of the fist): street gangsters, shown by weapon "knife"
+  M.blade=mat(0xc9ced3,.25,.85);const knife=new THREE.Group();knife.name="CHARACTER_KNIFE";arms.R.wr.add(knife);knife.position.set(0,.0,-.07);knife.rotation.x=-Math.PI/2;
+  part(knife,boxG(.024,.11,.03),M.dark,0,0,0);part(knife,boxG(.006,.17,.028),M.blade,0,.14,.003);knife.visible=false;
+  const rig={root,pelvis,spine,neck,head,visor,arms,legs,gun,gunL,knife,phase:Math.random()*6,outfit,state:"idle"};
   // colour category of every mesh (instanced crowds recolour per person)
-  const cats=new Map([[M.shirt,"shirt"],[M.vest,"vest"],[M.pants,"pants"],[M.boots,"boots"],[M.skin,"skin"],[M.gloves,"gloves"],[M.dark,"dark"]]);if(M.helmet)cats.set(M.helmet,"helmet");if(M.eyes){cats.set(M.eyes,"eyes");cats.set(M.eyeGlow,"eyeglow");}
+  const cats=new Map([[M.shirt,"shirt"],[M.vest,"vest"],[M.pants,"pants"],[M.boots,"boots"],[M.skin,"skin"],[M.gloves,"gloves"],[M.dark,"dark"],[M.blade,"blade"]]);if(M.helmet)cats.set(M.helmet,"helmet");if(M.eyes){cats.set(M.eyes,"eyes");cats.set(M.eyeGlow,"eyeglow");}
   root.traverse(n=>{n.userData.characterPart=true;if(n.isMesh)n.userData.cat=cats.get(n.material)||"dark";});
   return rig;
 }
@@ -89,12 +92,15 @@ export function animateCharacter(rig,{state="idle",speed=0,weapon="none",dt=1/60
   else if(state==="zombie"){const r=Math.sin(p*.7)*.12;set(arms.L.sh,1.45+r,0,.12,k);set(arms.R.sh,1.4-r,0,-.12,k);set(arms.L.el,.15,0,0,k);set(arms.R.el,.2,0,0,k);}
   else if(state==="dead"){set(arms.L.sh,.2,0,.5,k);set(arms.R.sh,.2,0,-.5,k);set(arms.L.el,0,0,0,k);set(arms.R.el,0,0,0,k);}
   // fists up: a boxing guard, and a straight jab with the hand given by punch (+ right, - left), 0..1 extension
+  // knife: guard low with the blade forward; a stab drives the right arm straight out and a little down
+  else if(weapon==="knife"&&(state==="fight"||state==="run"||state==="walk"||state==="idle")&&(state==="fight"||punch)){const r=Math.abs(punch),kk=Math.max(k,.55);set(arms.L.sh,.95,0,.32,kk);set(arms.L.el,1.6,0,0,kk);set(arms.R.sh,.7+.75*r,0,-.18+.1*r,kk);set(arms.R.el,1.35-1.25*r,0,0,kk);}
   else if(state==="fight"||weapon==="fists"){const r=Math.max(0,punch),l=Math.max(0,-punch),kk=Math.max(k,.55);set(arms.L.sh,1.05+.5*l,0,.28-.2*l,kk);set(arms.L.el,1.75-1.65*l,0,0,kk);set(arms.R.sh,1.05+.5*r,0,-.28+.2*r,kk);set(arms.R.el,1.75-1.65*r,0,0,kk);}
   else if(g&&weapon==="akimbo"){set(arms.L.sh,1.45,0,.12,k);set(arms.R.sh,1.45,0,-.12,k);set(arms.L.el,.08,0,0,k);set(arms.R.el,.08,0,0,k);}
   else if(g&&weapon==="smg"){set(arms.R.sh,1.1,0,-.2,k);set(arms.R.el,.3,0,0,k);set(arms.L.sh,1.25,0,.42,k);set(arms.L.el,.6,0,0,k);}
   else if(g&&weapon==="pistol"){set(arms.R.sh,1.48,0,-.05,k);set(arms.R.el,.05,0,0,k);set(arms.L.sh,1.38,0,.32,k);set(arms.L.el,.3,0,0,k);}
   else{set(arms.L.sh,-swing*.6,0,.06,k);set(arms.R.sh,swing*.6,0,-.06,k);set(arms.L.el,.25+(moving?.2:0),0,0,k);set(arms.R.el,.25+(moving?.2:0),0,0,k);}
-  rig.gun.visible=weapon!=="none"&&weapon!=="fists"&&state!=="fight"&&state!=="vr"&&state!=="drive"&&state!=="dead"&&state!=="zombie";rig.gunL.visible=rig.gun.visible&&weapon==="akimbo";
+  if(rig.knife)rig.knife.visible=weapon==="knife"&&state!=="dead"&&state!=="drive"&&state!=="vr"&&state!=="zombie";
+  rig.gun.visible=weapon!=="none"&&weapon!=="fists"&&weapon!=="knife"&&state!=="fight"&&state!=="vr"&&state!=="drive"&&state!=="dead"&&state!=="zombie";rig.gunL.visible=rig.gun.visible&&weapon==="akimbo";
 }
 
 // Joint state of a rig as a flat array (instanced crowds keep one per person

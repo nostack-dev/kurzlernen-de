@@ -91,6 +91,8 @@ function onFx(event){const d=event?.detail?.packet;if(!d||d.kind!==SYNC_KIND||ty
   rigid()?.setPose?.(p.id,{position:[m[0],m[1],z],rotation:d.r,velocity:Array.isArray(d.v)?d.v:[0,0,0],angularVelocity:Array.isArray(d.w)?d.w:[0,0,0]});}
 
 function frame(now){requestAnimationFrame(frame);try{const b=bridge(),sc=b?.threeScene;if(!sc)return;if(sc!==scene){scene=sc;meshes=buildMeshes(sc);}if(globalThis.__arondightWorldOptions?.get?.("props")===false){if(props.size)for(const k of[...cells.keys()])dropCell(k);for(const k of TYPE_KEYS)if(meshes[k])meshes[k].visible=false;return;}maintainCells(now);draw();stream(now);const v=viewport();if(v&&now%1000<17){v.dataset.worldProps=String(props.size);v.dataset.worldPropCells=String(cells.size);}}catch(error){console.warn("world props",error);}}
-export function installWorldProps(){if(installed||typeof window==="undefined")return;installed=true;addEventListener(VS_FX_EVENT,onFx);requestAnimationFrame(frame);
+// RESET: every prop back where the cell hash puts it (the cells come back on the next maintain tick)
+function resetProps(){globalThis.__arondightGravityGun?.drop?.();for(const key of[...cells.keys()]){for(const id of cells.get(key)||[]){rigid()?.removeBody?.(id);props.delete(id);}cells.delete(key);}lastCellsAt=-Infinity;}
+export function installWorldProps(){if(installed||typeof window==="undefined")return;installed=true;addEventListener(VS_FX_EVENT,onFx);addEventListener("arondight:world-reset",resetProps);requestAnimationFrame(frame);
   globalThis.__arondightWorldProps={version:WORLD_PROPS_VERSION,types:PROP_TYPES,get count(){return props.size;},has:id=>props.has(String(id||"")),claim:claimProp,list:()=>[...props.values()].map(p=>({id:p.id,type:p.type,position:p.pose?.position?[...p.pose.position]:null}))};}
 installWorldProps();

@@ -7,7 +7,7 @@
 import * as THREE from "three";
 export const MP_FUN_HUD_VERSION="mp-fun-hud-v1";
 let installed=false,root=null,feed=null,board=null,marker=null,hurt=null,shield=null,lastBoard="";
-const WEAPON_LABEL={smg:"MP",glock:"GLOCK",sniper:"SNIPER",grenade:"GRANATE",fists:"FÄUSTE",gun:"DROHNE","5.56":"DROHNE",missile:"RAKETE",explosion:"EXPLOSION"};
+const WEAPON_LABEL={smg:"MP",glock:"GLOCK",sniper:"SNIPER",grenade:"GRANATE",fists:"FÄUSTE",knife:"MESSER",gun:"DROHNE","5.56":"DROHNE",missile:"RAKETE",explosion:"EXPLOSION"};
 const $=id=>document.getElementById(id);
 const CSS=`
 #mpFunHud{position:absolute;inset:0;pointer-events:none;z-index:16;font-family:Inter,system-ui,sans-serif}

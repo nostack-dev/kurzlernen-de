@@ -10,7 +10,7 @@ import {spawnWorldCarExplosion} from "./world_car_explosion.mjs";
 import {stopWorldCriticalDamage} from "./world_critical_damage_fx.mjs";
 import {buildTrafficRoute,collectRenderedDrivableRoads,makeBuildingsOpaque} from "./world_traffic_routes.mjs";
 import {syncWorldBuildingDepthOcclusion} from "./world_building_depth_occlusion.mjs";
-import {createPedestrianNetwork,seedRouteAgents,stepAgent,routePointInto,projectOnRoute,agentRandom,shiftAgent,frighten,provoke,punchPose} from "./pedestrian_agents.mjs";
+import {createPedestrianNetwork,seedRouteAgents,stepAgent,routePointInto,projectOnRoute,agentRandom,shiftAgent,frighten,provoke,punchPose,armsOf,fightWeapon} from "./pedestrian_agents.mjs";
 import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 import {projectileMomentumNs} from "./ballistics.mjs";
 import {honk,shout} from "./street_voices.mjs";
@@ -101,7 +101,7 @@ function makePersonSlot(i){proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.2
   group.name="WORLD_PERSON";group.visible=false;group.userData.worldPopulationKind="person";group.userData.agentDriven=true;/* position owned by the agent: no other module moves it */group.userData.worldPopulationClone=false;group.userData.spawnFarEntryM=PEOPLE_ENTRY_M;return{i,group,agent:null};}
 function updateCrowd(){if(!crowd)return;const now=performance.now(),dt=Math.min(.1,Math.max(.001,(now-crowdLast)/1000));crowdLast=now;const shown=root?.visible!==false;
   // only who is set this frame is drawn (the crowd packs its instances)
-  if(shown)for(const slot of personSlots){const a=slot.agent;if(!a||!slot.group.visible)continue;crowd.set(slot.i,{x:a.x,y:a.y,z:a.z,yaw:a.yaw-Math.PI/2,state:a.state==="fight"?"fight":a.v>3.2?"run":a.v>.25?"walk":"idle",speed:a.v,dt,punch:a.state==="fight"?punchPose(a,now):0});}
+  if(shown)for(const slot of personSlots){const a=slot.agent;if(!a||!slot.group.visible)continue;crowd.set(slot.i,{x:a.x,y:a.y,z:a.z,yaw:a.yaw-Math.PI/2,state:a.state==="fight"?(a.arms==="gun"?"aim-pistol":"fight"):a.v>3.2?"run":a.v>.25?"walk":"idle",speed:a.v,dt,weapon:fightWeapon(a),punch:a.state==="fight"&&a.arms!=="gun"?punchPose(a,now):0});}
   crowd.commit();}
 // people wait at the kerb for a gap in the traffic: no car near the crossing, none coming at it
 pedNet.crossingClear=(x0,y0,x1,y1)=>{const mx=(x0+x1)/2,my=(y0+y1)/2;for(const r of records){if((r.kind!=="car"&&r.kind!=="bus")||!r.group.visible)continue;const g=r.group.position,dx=mx-g.x,dy=my-g.y,d=Math.hypot(dx,dy);if(d>40)continue;
@@ -131,8 +131,14 @@ function moodFor(result){return result==="fight"?"angry":result==="flee"?"scared
 function noticeShots(now){const v=viewport(),shots=Number(v?.dataset.walkShots)||0;if(seenWalkShots<0||shots<seenWalkShots){seenWalkShots=shots;return;}if(shots===seenWalkShots)return;seenWalkShots=shots;const pos=String(v.dataset.walkPosition||"").split(",").map(Number);if(pos.length>=2&&pos.every(Number.isFinite))shotScare(pos[0],pos[1],now);}
 function shotScare(x,y,now){let nearest=null,nd=Infinity;for(const a of people){if(!a.alive||a.knocked||a.fightUntil)continue;const d=Math.hypot(a.x-x,a.y-y);if(d>22)continue;
     if(d>10){a.shotRoll??=Math.random();if(a.shotRoll>.35)continue;} // a fixed share of the people further out react at all
+    // an armed gangster does not run from gunfire: he draws and comes for the shooter
+    if(d<18&&armsOf(a)!=="fists"&&provoke(a,now,{shot:true})==="fight"){if(a.slot&&Math.random()<.6)say(a,"angry");continue;}
     const already=a.fleeUntil&&now<a.fleeUntil;frighten(a,x,y,now,{ms:4200+(22-d)*120,strength:1-d/30});if(!already&&a.slot&&d<nd){nd=d;nearest=a;}}
   if(nearest&&Math.random()<.45)say(nearest,"scared");}
+// RESET: the population starts over like at the first world show — every car, bus and person
+// fresh and whole, the dead animals back, nothing parked where the player left it
+if(typeof window!=="undefined")addEventListener("arondight:gangster-gunfire",e=>{const p=e?.detail?.position;if(Array.isArray(p))shotScare(p[0],p[1],performance.now());});
+if(typeof window!=="undefined")addEventListener("arondight:world-reset",()=>{worldKey="";lastPopulationTick=-Infinity;const v=document.getElementById("viewport");if(v)v.dataset.worldPopulationReset=String((Number(v.dataset.worldPopulationReset)||0)+1);});
 if(typeof window!=="undefined")addEventListener("arondight:world-explosion",e=>{const pos=e?.detail?.position,x=Array.isArray(pos)?+pos[0]:+pos?.x,y=Array.isArray(pos)?+pos[1]:+pos?.y;if(Number.isFinite(x)&&Number.isFinite(y))frightenAround(x,y,Math.min(90,Math.max(20,(Number(e.detail.radiusM)||6)*5)),performance.now(),1.3);});
 function personRecordFor(a){a.kind="person";a.hp=100;a.gen=0;a.baseId=a.id;a.colors=civilianColors(a.seed);a.slot=null;a.z=0;a.simAt=performance.now();a.deadAt=0;return a;}
 function bindPerson(slot,a){slot.agent=a;a.slot=slot;const u=slot.group.userData;u.worldPopulationId=u.worldProceduralId=a.id;u.spawnHeld=false;u.spawnHandoff=false;crowd?.setColors(slot.i,a.colors);a.z=groundHeightAt(a.x,a.y);slot.group.position.set(a.x,a.y,a.z);slot.group.rotation.set(0,0,a.yaw);slot.group.updateMatrixWorld();}

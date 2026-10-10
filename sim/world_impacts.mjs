@@ -50,7 +50,7 @@ float edge=.78+.12*sin(a*5.+seed*7.)+.07*sin(a*11.+seed*3.)+.05*sin(a*23.+seed);
 float k=r/edge;
 float char=smoothstep(1.,.35,k);float soot=.55+.45*h(floor(p*9.+seed));
 vec3 col=mix(vec3(.05,.045,.04),vec3(.012,.01,.01),char)*soot;
-gl_FragColor=vec4(col,.92*smoothstep(1.,.82,k));}`;
+gl_FragColor=vec4(col,.6*smoothstep(1.,.7,k)*(.75+.25*char));}`; /* softer than a painted disc: the ground still shows through at the rim */
 function ensureScorch(scene){
   if(scorch?.parent===scene)return scorch;const n=SCORCHES*SV,pos=new Float32Array(n*3),info=new Float32Array(n*3),idx=[];
   for(let s0=0;s0<SCORCHES;s0++){const o=s0*SV;for(let j=0;j<SG;j++)for(let i=0;i<SG;i++){const a=o+j*(SG+1)+i,b=a+1,c=a+SG+1,d=c+1;idx.push(a,b,d,a,d,c);}}
@@ -63,7 +63,7 @@ function layScorch(k){const it=scorchItems[k];if(!scorch||!it)return;const pos=s
   scorch.geometry.attributes.position.needsUpdate=true;scorch.geometry.attributes.aInfo.needsUpdate=true;}
 export function addScorch(x,y,radius){
   const scene=bridge()?.threeScene;if(!scene||!Number.isFinite(x)||!Number.isFinite(y))return;ensureScorch(scene);
-  const k=scorchCursor++%SCORCHES;scorchItems[k]={x,y,r:Math.max(.6,Math.min(6,radius)),seed:Math.random()*10};scorch.geometry.setDrawRange(0,Math.min(SCORCHES,scorchCursor)*SG*SG*6);layScorch(k);
+  const k=scorchCursor++%SCORCHES;scorchItems[k]={x,y,r:Math.max(.5,Math.min(4.2,radius*.72)),seed:Math.random()*10};scorch.geometry.setDrawRange(0,Math.min(SCORCHES,scorchCursor)*SG*SG*6);layScorch(k);
 }
 function layGroundDecal(i,d){q.setFromUnitVectors(Z,n.fromArray(terrainNormalAt(d.x,d.y)));q.multiply(new THREE.Quaternion().setFromAxisAngle(Z,d.spin));p.set(d.x,d.y,staticGroundHeightAt(d.x,d.y)+.03);s.set(d.size,d.size,d.size);m4.compose(p,q,s);decals.setMatrixAt(i,m4);}
 function relayGround(){if(decals){for(const[i,d]of groundDecals)layGroundDecal(i,d);decals.instanceMatrix.needsUpdate=true;}for(let k=0;k<SCORCHES;k++)if(scorchItems[k])layScorch(k);}
