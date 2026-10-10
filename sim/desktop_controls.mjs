@@ -47,7 +47,7 @@ function openMenu(){const d=document.querySelector("dialog.phone-settings-dialog
 function requestLock(){
   const v=viewport();if(!v?.requestPointerLock)return;
   // the OS pointer speed curve stays on (like the desktop cursor the player is used to): raw counts felt dead on small, slow moves
-  try{const p=v.requestPointerLock();if(p?.catch)p.catch(()=>{});}catch{}
+  try{/* raw mouse like CoD on PC: no OS pointer acceleration where the browser offers it */const p=v.requestPointerLock({unadjustedMovement:true});if(p?.catch)p.catch(()=>{try{const q=v.requestPointerLock();if(q?.catch)q.catch(()=>{});}catch{}});}catch{try{const q=v.requestPointerLock();if(q?.catch)q.catch(()=>{});}catch{}}
 }
 
 // head look (car, drone with RMB): the shared world look, snapping back when idle

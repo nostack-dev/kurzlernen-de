@@ -11,14 +11,15 @@ export {FPS_DISPLAY_PITCH_LIMIT_RAD,FPS_HORIZONTAL_FOV_DEG,FPS_PITCH_LIMIT_RAD,F
 // a mostly-linear centre (fine corrections are proportional, not swallowed by an expo curve) and
 // a curve that only bends towards the rim for fast turns. The rate ramp is short (≈40 ms).
 export const FPS_CONTROL_PROFILE=Object.freeze({
-  innerDeadzone:.05,
+  innerDeadzone:.05,   // CoD default "right stick min" 5
   outerDeadzone:.97,
   antiDeadzone:.045,
   dynamicCurveStrength:.30,
   yawRateRadS:3.75,
   pitchRateRadS:3.40,
-  touchStickYawRateRadS:2.90,
-  touchStickPitchRateRadS:2.60,
+  touchStickYawRateRadS:4.20,
+  touchStickPitchRateRadS:3.30,
+  responseCurve:"dynamic",
   lookAccelerationRate:26,
   lookReleaseRate:40,
   assistYawWindowRad:7.0*Math.PI/180,
@@ -37,7 +38,7 @@ export function shapeFpsStick(x,y,profile=FPS_CONTROL_PROFILE){
   const rawX=clamp(x,-1,1),rawY=clamp(y,-1,1),rawMagnitude=Math.min(1,Math.hypot(rawX,rawY)),inner=clamp(profile.innerDeadzone,0,.45),outer=clamp(profile.outerDeadzone,inner+.01,1);
   if(rawMagnitude<=inner)return{x:0,y:0,magnitude:0,rawMagnitude};
   // linear + cubic blend (k from the look-fineness setting), lifted by the anti-deadzone
-  const n=clamp((rawMagnitude-inner)/(outer-inner),0,1),k=clamp(profile.dynamicCurveStrength,0,.60),anti=clamp(profile.antiDeadzone??0,0,.2),curve=n*(1-k)+n*n*n*k,curved=n>=1?1:clamp(anti+(1-anti)*curve,0,1),scale=curved/Math.max(rawMagnitude,1e-9);
+  const n=clamp((rawMagnitude-inner)/(outer-inner),0,1),k=clamp(profile.dynamicCurveStrength,0,.60),anti=clamp(profile.antiDeadzone??0,0,.2),curve=profile.responseCurve==="dynamic"?fpsDynamicCurve(n)*(.5+k/.6*.5)+n*(1-(.5+k/.6*.5)):n*(1-k)+n*n*n*k,curved=n>=1?1:clamp(anti+(1-anti)*curve,0,1),scale=curved/Math.max(rawMagnitude,1e-9);
   return{x:rawX*scale,y:rawY*scale,magnitude:curved,rawMagnitude};
 }
 
@@ -66,13 +67,21 @@ export function fpsAimAssist({yawError=0,pitchError=0,distanceM=0,stickMagnitude
   return{active:true,slowdown,correctionYaw,correctionPitch,strength:activation,tracking};
 }
 
-// Touch drag: 1:1 with the finger, no deadzone. A slow, careful drag turns at the base rate; a fast
-// swipe gets up to ~1.9x (CoD Mobile style turn acceleration) so a 180 needs no re-grab. speedPxS
-// is the finger speed; without it the per-event distance stands in (legacy callers).
-export function fpsTouchLookDelta(dx,dy,{yawPerPx=.00425,pitchPerPx=.00382,speedPxS=NaN}={}){
-  const x=Number(dx)||0,y=Number(dy)||0,speed=Number.isFinite(speedPxS)?smoothstep((speedPxS-450)/2100):smoothstep(Math.hypot(x,y)/24),gain=1+.9*speed;
+// Touch drag (Call of Duty Mobile style): the look thumb drives the camera 1:1 — no deadzone, no
+// smoothing, every pixel counts from the first one. Base rate ≈ 0.39°/px horizontal (a relaxed
+// thumb swipe across the right half of a phone turns ~120°), vertical slightly lower. Fast flicks
+// get a gentle boost up to 1.35× (a full 180° without re-grabbing) while slow, careful drags stay
+// exactly linear — CoD Mobile's "fixed speed" feel with a little help for flicks.
+export function fpsTouchLookDelta(dx,dy,{yawPerPx=.0068,pitchPerPx=.0059,speedPxS=NaN}={}){
+  const x=Number(dx)||0,y=Number(dy)||0,speed=Number.isFinite(speedPxS)?smoothstep((speedPxS-700)/2200):smoothstep((Math.hypot(x,y)-14)/30),gain=1+.35*speed;
   return{yaw:x*yawPerPx*gain,pitch:-y*pitchPerPx*gain,gain};
 }
+
+// Controller response curve, CoD "Dynamic": an S-shaped mapping from stick deflection to turn
+// rate — quick off the centre for micro-corrections, a long gentle middle for tracking, and a
+// steep last quarter for fast turns. Monotone cubic Hermite through (0,0) (.3,.24) (.7,.5) (.9,.89) (1,1).
+const DYN=[[0,0,1.0],[.3,.24,.62],[.7,.5,1.1],[.9,.89,1.5],[1,1,1.0]];
+export function fpsDynamicCurve(n){const x=clamp(n,0,1);for(let i=0;i<DYN.length-1;i++){const[a,fa,da]=DYN[i],[b,fb,db]=DYN[i+1];if(x<=b){const h=b-a,t=(x-a)/h,t2=t*t,t3=t2*t;return clamp((2*t3-3*t2+1)*fa+(t3-2*t2+t)*h*da+(-2*t3+3*t2)*fb+(t3-t2)*h*db,0,1);}}return 1;}
 
 export function createFpsCameraMotionState(){
   return{bobPhase:0,bobWeight:0,bobX:0,bobZ:0,bobYaw:0,bobPitch:0,bobRoll:0,recoilPitch:0,recoilYaw:0,recoilRoll:0,shakeEnergy:0,shakePhase:0,shakeX:0,shakeZ:0,shakeYaw:0,shakePitch:0,shakeRoll:0,shotSerial:0};

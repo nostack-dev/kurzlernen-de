@@ -31,7 +31,7 @@ const PASS_SELECTOR="button,input,select,textarea,a,label,dialog,.phone-settings
 const STICK_RADIUS=.42,SPRINT_AT=.9,FIRE_INTERVAL_MS=55,GLOCK_HOLD_MS=170;
 // look: edge-turn starts this far (px) beyond the stick radius and reaches full rate EDGE_RAMP_PX later;
 // the drag origin is pulled along so letting the finger come back stops the turn at once
-const EDGE_START=1.0,EDGE_RAMP_PX=70,CATCH_EXTRA_PX=64,INACTIVE_GRACE_MS=320;
+const EDGE_START=.92,EDGE_RAMP_PX=42,CATCH_EXTRA_PX=64,INACTIVE_GRACE_MS=320;
 
 const pointers=new Map();let installed=false,loop=0,lastLoop=performance.now(),nextPistolHand=0,inactiveSince=0;
 const walk=()=>globalThis.__arondightWalkMode||null;
@@ -54,8 +54,10 @@ function stickNear(x,y){let best=null,bestD=Infinity;for(const id of["footLook",
 function startLook(el,event){const entry={kind:"look",el,rect:el.getBoundingClientRect(),knob:el.querySelector(".knob"),ox:event.clientX,oy:event.clientY,lx:event.clientX,ly:event.clientY,lt:Number(event.timeStamp)||performance.now(),axes:{x:0,y:0,m:0}};walk()?.beginTouchLook?.("touch-stick");paintKnob(entry,entry.axes);return entry;}
 function startMove(el,event){const entry={kind:"move",el,rect:el.getBoundingClientRect(),knob:el.querySelector(".knob")};updateMove(entry,event);return entry;}
 // 1:1 drag look shared by the look stick and a dragged fire finger
-function dragLook(entry,event,source){const t=Number(event.timeStamp)||performance.now(),d=logical(event.clientX-entry.lx,event.clientY-entry.ly),dtMs=Math.max(1,t-entry.lt);entry.lx=event.clientX;entry.ly=event.clientY;entry.lt=t;if(!d.x&&!d.y)return;
-  walk()?.applyTouchLook?.({dx:d.x,dy:d.y,dt:clamp(dtMs/1000,1/240,.05),speedPxS:Math.hypot(d.x,d.y)/dtMs*1000,now:t,source});}
+// every coalesced touch sample is applied (120/240 Hz touch screens deliver several per frame): no lost motion
+function dragLook(entry,event,source){const list=typeof event.getCoalescedEvents==="function"?event.getCoalescedEvents():null,samples=list&&list.length?list:[event];
+  for(const ev of samples){const t=Number(ev.timeStamp)||Number(event.timeStamp)||performance.now(),d=logical(ev.clientX-entry.lx,ev.clientY-entry.ly),dtMs=Math.max(1,t-entry.lt);entry.lx=ev.clientX;entry.ly=ev.clientY;entry.lt=t;if(!d.x&&!d.y)continue;
+    walk()?.applyTouchLook?.({dx:d.x,dy:d.y,dt:clamp(dtMs/1000,1/240,.05),speedPxS:Math.hypot(d.x,d.y)/dtMs*1000,now:t,source});}}
 function lookOffset(entry,event){const R=stickRadiusPx(entry);let o=logical(event.clientX-entry.ox,event.clientY-entry.oy),dist=Math.hypot(o.x,o.y);const cap=R*EDGE_START+EDGE_RAMP_PX;
   if(dist>cap){const pull=(dist-cap)/dist,sx=event.clientX-entry.ox,sy=event.clientY-entry.oy;entry.ox+=sx*pull;entry.oy+=sy*pull;o={x:o.x*(1-pull),y:o.y*(1-pull)};dist=cap;}
   entry.axes={x:o.x/R,y:o.y/R,m:dist/R,edge:clamp((dist-R*EDGE_START)/EDGE_RAMP_PX,0,1)};const shown=Math.min(1,entry.axes.m)/(entry.axes.m||1);paintKnob(entry,{x:entry.axes.x*shown,y:entry.axes.y*shown});}
