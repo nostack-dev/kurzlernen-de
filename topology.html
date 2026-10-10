@@ -80,6 +80,8 @@ input[type=checkbox]{accent-color:var(--accent);margin:0}
 .more h3:first-child{margin-top:0}
 textarea{width:100%;box-sizing:border-box;height:110px;font:11px var(--mono);background:var(--stage);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px}
 .err{color:var(--accent);font-weight:500}
+.sl output{white-space:nowrap}
+.vidbox{position:fixed;inset:0;z-index:50;background:#0008;display:flex;align-items:center;justify-content:center;padding:16px}.vidbox[hidden]{display:none}.vidcard{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:12px;max-width:min(720px,100%);width:100%;display:grid;gap:8px}.vidcard canvas{width:100%;height:auto;border-radius:6px;cursor:crosshair;touch-action:none;background:#000}.vidcard input[type=number]{width:90px}
 .calres{margin-top:6px;font-size:12px}.calres table{width:100%;border-collapse:collapse;font:11.5px/1.4 var(--mono);font-variant-numeric:tabular-nums}.calres td,.calres th{text-align:right;padding:2px 5px;border-bottom:1px solid var(--line)}.calres th{color:var(--muted);font-weight:600}.calres td:first-child,.calres th:first-child{text-align:left}.calres p{margin:4px 0}
 @media (max-width: 860px){
   .app{height:auto;display:block}
@@ -93,12 +95,21 @@ textarea{width:100%;box-sizing:border-box;height:110px;font:11px var(--mono);bac
 }
 </style>
 
+<div class="vidbox" id="vidBox" hidden>
+  <div class="vidcard">
+    <b>Gang aus Video</b>
+    <p class="note" id="vidMsg">Seitlich gefilmt, Laufband oder gerade Strecke, je ein farbiger Aufkleber an Hüfte und Knöchel. Tippe auf die Hüftmarke, dann auf die Knöchelmarke.</p>
+    <canvas id="vidCv"></canvas>
+    <label class="sl">Hüfte–Knöchel <input type="number" id="vidLeg" value="850" min="300" max="1200" step="5"><output>mm</output></label>
+    <div class="row"><button id="vidGo" class="primary" disabled>Auswerten</button><button id="vidCancel">Abbrechen</button></div>
+  </div>
+</div>
 </head>
 <body>
 <div class="app">
   <div class="top">
     <h1>Umriss-Motor</h1>
-    <p class="sub">Bewegung + Takt + Toleranz rein – kleinste Zahnradmaschine mit einem Motor raus: in Box3D gemessen, baubar, per Foto kalibriert.</p>
+    <p class="sub">Gangtrainer und andere Bewegungen mit einem Motor: Bahn + Takt + Toleranz rein – kleinste Zahnradmaschine raus, in Box3D gemessen, baubar, per Foto kalibriert.</p>
     <div class="modes">
       <button id="dG" class="tog" aria-pressed="false" title="Ein Motor, ganzzahlige Zahnräder und Riemen – in 2D und 3D">Getriebe</button>
       <div class="seg" role="group" aria-label="Dimension">
@@ -130,11 +141,17 @@ textarea{width:100%;box-sizing:border-box;height:110px;font:11px var(--mono);bac
           <div id="in2d" class="gbody">
             <div id="taskRow" class="gbody" hidden>
               <div class="row">
-                <button id="kLeg">Laufbein</button>
+                <button id="kGait">Gangtrainer</button>
+                <span class="file">Gang aus Video<input type="file" id="fVid" accept="video/*"></span>
                 <button id="kBead">Kleberaupe</button>
                 <span class="file">Bahn laden<input type="file" id="fPath" accept=".svg,.csv,.txt,image/svg+xml,text/csv"></span>
               </div>
-              <label class="sl">Toleranz <select id="kTol"><option value="0.25">± 0,25 mm</option><option value="0.5" selected>± 0,5 mm</option><option value="1">± 1 mm</option><option value="2">± 2 mm</option><option value="5">± 5 mm</option></select><output></output></label>
+              <div id="gaitRow" class="gbody" hidden>
+                <label class="sl">Schrittlänge <input type="range" id="gL" min="200" max="700" step="10" value="400"><output id="oL">400 mm</output></label>
+                <label class="sl">Fußhub <input type="range" id="gH" min="30" max="200" step="5" value="100"><output id="oH">100 mm</output></label>
+                <label class="sl">Standphase <input type="range" id="gS" min="50" max="70" step="1" value="60"><output id="oS">60 %</output></label>
+              </div>
+              <label class="sl">Toleranz <select id="kTol"><option value="0.25">± 0,25 mm</option><option value="0.5">± 0,5 mm</option><option value="1">± 1 mm</option><option value="2" selected>± 2 mm</option><option value="5">± 5 mm</option></select><output></output></label>
             </div>
             <div class="row">
               <button id="pKnight" aria-pressed="true">Springer</button>
@@ -2005,7 +2022,7 @@ void loop() {
   if (digitalRead(BUTTON_PIN) == LOW) { delay(30); if (digitalRead(BUTTON_PIN) == LOW) draw(); }
 }
 `; }
-  function guide(D,shape){ const A=D.arms, li=s=>'<li>'+s+'</li>', sg=k=>(k>0?'+':'')+k;
+  function guide(D,shape,gait){ const A=D.arms, li=s=>'<li>'+s+'</li>', sg=k=>(k>0?'+':'')+k;
     const rows=A.map(a=>`<tr><td>${a.nr}</td><td>${sg(a.k)}</td><td>${a.L}</td><td>${a.deg}°</td><td>${a.nr===1?'Hauptwelle (Motor)':a.train.direct?'direkt':a.train.Zin+'→'+a.train.Za+' · '+a.train.Zb+'→'+a.train.Zout+(a.train.idler?' + Zwischenrad':'')+' <small>('+sg(a.kin)+' → '+sg(a.k)+')</small>'}</td><td>${a.tube?'Rohr '+a.tube.b+'×'+a.tube.w+', Durchbiegung '+a.tube.deflection.toFixed(2)+' mm':'Kurbel Ø'+2*a.crankR}</td><td>${a.slide?(2*a.slide.hx)+'×'+(2*a.slide.hy):'–'}</td></tr>`).join('');
     return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Umriss-Motor · Bauanleitung</title>
 <style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem;color:#1d2321}h1,h2{line-height:1.2}table{border-collapse:collapse;width:100%;font-size:13px;display:block;overflow-x:auto}td,th{border-bottom:1px solid #ccd;padding:4px 6px;text-align:left}code{background:#eef;padding:0 3px}small{color:#667}</style></head><body>
@@ -2013,6 +2030,7 @@ void loop() {
 <p>Eine Maschine mit <b>einem Motor</b> und <b>${D.n} Kreisen</b>, die diese Form zeichnet. Jeder Arm dreht sich ganzzahlig oft pro Zeichnung (U); alle Maße sind ganze Millimeter und Grad. Zeichenfläche bis ${D.sizeMM} mm, Bauhöhe ca. ${D.heightMM} mm, Gewicht ca. ${(D.massG/1000).toFixed(1)} kg.</p>
 <h2>Prinzip</h2><ul>${li('Die Maschine <b>hängt</b>: Grundplatte mit Motor oben, darunter Arm 1, Arm 2 … jeweils eine Ebene tiefer, der Stift zeigt nach unten aufs Papier. Jede Ebene hat ihre eigene Höhe – nichts kann sich kreuzen.')}${li('Arm 1 sitzt direkt auf der Hauptwelle; der Motor dreht sie '+D.motor.shaftTurns+'× pro Zeichnung.')}${li('An der Spitze jedes Arms steckt eine <b>Achse</b> fest im Arm. Auf ihr hängen, lose drehbar: eine <b>Plattform, die sich nie dreht</b>, und die Nabe des nächsten Arms.')}${li('Die Plattform trägt ein kleines Getriebe: das Eingangsrad sitzt fest auf der Achse (dreht wie der Arm darüber), das Ausgangsrad treibt den nächsten Arm. So dreht jeder Arm im richtigen ganzzahligen Verhältnis – ohne Riemen und ohne Welle entlang der Arme.')}${li('Damit die Plattformen sich nicht drehen, hängt jede über einen <b>Kreuzschieber</b> an der darüber: zwei Stifte der oberen Platte laufen in x-Schlitzen, der Mittelblock der unteren in einem y-Schlitz (Oldham-Prinzip). Alle Plattformen bleiben parallel zur Grundplatte.')}${li('Drehzahlen sind winzig (eine Zeichnung ≈ '+'1 min): Gleitlager mit etwas Fett reichen überall, nur die Hauptwelle läuft in zwei Kugellagern.')}${li('<b>Richtungen und Winkel wie in der App, von oben gesehen:</b> 0° zeigt nach rechts (0°-Linie der Platten), positive Winkel im Uhrzeigersinn.')}</ul>
 <h2>Arme</h2><table><tr><th>#</th><th>U</th><th>mm</th><th>Winkel</th><th>Getriebe (Zähne, Modul 1)</th><th>Arm</th><th>Kreuzschieber</th></tr>${rows}</table>
+${gait?`<h2>Zwei Beine, ein Motor</h2><p>Beide Fußplatten werden von <b>einer durchgehenden Hauptwelle</b> angetrieben: zwei gleiche Maschinen nebeneinander, die zweite um genau eine halbe Periode versetzt. Dafür steht jeder Arm des zweiten Beins um U × 180° weiter – durch die ganzzahligen Übersetzungen bleibt der Versatz für immer exakt.</p><table><tr><th>#</th><th>U</th><th>Bein 1</th><th>Bein 2</th></tr>${A.map(a=>`<tr><td>${a.nr}</td><td>${a.k>0?'+':''}${a.k}</td><td>${a.deg}°</td><td>${Math.round((((a.deg+a.k*180)%360+540)%360-180)*10)/10}°</td></tr>`).join('')}</table><p>Die Fußplatte sitzt fest auf der letzten Plattform (die sich nie dreht) und bleibt deshalb immer waagrecht. Dieser Bausatz zeigt die Bewegung (Kinematik) und dient als Funktionsmodell. Ein Gerät für Patienten braucht eine tragende Konstruktion, Körpergewichtsentlastung, Not-Aus und eine Zulassung als Medizinprodukt.</p>`:''}
 <h2>Fertigung</h2><ol>${li('<code>zuschnitt-*.svg</code> lasern (rot schneiden, blau gravieren), Maßstab 1:1. Beschriftung: <code>K3 Zin 27</code> = Getriebe von Arm 3, Eingangsrad, 27 Zähne (Za/Zb = Vorgelegewelle, Zout = an der Armnabe, ZR = Zwischenrad); <code>B3</code> = Mittelblock von Plattform 3 (3 Lagen kleben).')}${li('<code>stl/</code>: alle Zahnräder zum Drucken, je Datei die benötigte Anzahl im Namen (0,2 mm Schicht, 4 Wände, Bohrungen auf Ø8/Ø5 nachreiben).')}${li('Rohr-Arme: Bohrschablone aufkleben, Wurzel Ø8 bohren, Spitze als <b>Langloch</b> (±3 mm, Striche = 1 mm) – dort wird später die Länge kalibriert.')}${li('Kurbeln (Arme unter '+CRANK_MAX+' mm): je 2 Nabenplatten + 2 Zapfenplatten verkleben; die Achse des nächsten Gelenks in die Zapfenplatten pressen.')}${li('<code>stueckliste.csv</code>: Kaufteile. <code>schablonen-*.svg</code> bei 100 % drucken.')}</ol>
 <h2>Zusammenbau (von oben nach unten)</h2><ol>${li('Grundplatte: Hauptwelle in zwei 688-Lagern, Motor mit 20Z/'+20*D.motor.reduction+'Z-Riemen. Arm 1 mit Stellringen auf die Hauptwelle klemmen.')}${li('Je Gelenk von oben: Achse in die Armspitze (Stellringe oben und unten), Kreuzschieber auflegen (Stifte der oberen Platte in die x-Schlitze, er liegt auf je einer Mutter mit Scheibe an den Stiften), Plattform mit Mittelblock von unten in den y-Schlitz, darunter Zin fest auf die Achse, Vorgelegewelle mit Za (geklebt) und Zb (Klemmnabe, noch lose), Zout mit der Nabe des nächsten Arms verkleben und aufstecken.')}${li('Stifthalter mit Feder an die Spitze des letzten Arms.')}</ol>
 <h2>Grundstellung</h2><p>Motor stromlos, Arm 1 mit der Schablone auf ${A[0].deg}° (gegen die 0°-Linie der Grundplatte). Dann von oben nach unten jeden Arm mit seiner Schablone auf seinen Winkel stellen (gegen die 0°-Linie der Plattform darüber) und <b>erst dann</b> die Klemmnabe von Zb festziehen. Alle Plattformen zeigen mit ihrer 0°-Linie in dieselbe Richtung wie die Grundplatte.</p>
@@ -2041,7 +2059,7 @@ void loop() {
     const need=new Map(), addG=(Z,b)=>{ const k=Z+'/'+b; need.set(k,(need.get(k)||0)+1); };
     D.arms.forEach(A=>{ const t=A.train; if(!t.direct){ addG(t.Zin,AX); addG(t.Za,LAY); addG(t.Zb,LAY); addG(t.Zout,AX); if(t.idler) addG(IDLER,LAY); } });
     for(const [k,cnt] of [...need].sort((x,y)=>parseInt(x[0])-parseInt(y[0]))){ const [Z,b]=k.split('/').map(Number); files.push([`umriss-motor/stl/zahnrad-${Z}z-bohrung${b}-${cnt}x.stl`,gearSTL(Z,b,`gear_${Z}z_bore${b}`)]); }
-    files.push(['umriss-motor/stueckliste.csv','﻿'+bom(D)],['umriss-motor/motor/umriss_motor.ino',firmware(D,(extra&&extra.secs)||60)],['umriss-motor/bauanleitung.html',guide(D,(extra&&extra.shape)||'Form')]);
+    files.push(['umriss-motor/stueckliste.csv','﻿'+bom(D)],['umriss-motor/motor/umriss_motor.ino',firmware(D,(extra&&extra.secs)||60)],['umriss-motor/bauanleitung.html',guide(D,(extra&&extra.shape)||'Form',extra&&extra.gait)]);
     if(extra&&extra.model) files.push(['umriss-motor/modell.json',extra.model]);
     return {D, zip:zip(files), files:files.map(f=>f[0])}; }
 
@@ -2185,7 +2203,17 @@ function makeTasks(){
       pts.push([x,y]); tol.push(T); }
     return {pts,tol}; }
   // T = the tight tolerance the user asks for (mm)
+  // Gait (end-effector gait trainer, foot plate in the sagittal plane, walking direction +x, y up): stance = the foot
+  // stays on the ground and moves back by the step length at constant speed (treadmill belt speed), swing = it lifts
+  // softly (zero vertical speed at toe-off and heel strike), peaks early and comes forward again.
+  const gaitPath=(p,T)=>{ const L=p.L||400, H=p.H||100, s=p.stance||0.6, N=48, segs=[{kind:'line',to:[-L/2,0],dur:s,tol:T}];
+    // x: Hermite curve that leaves and lands with the belt speed (no jerk at toe-off / heel strike), y: soft lift
+    const m=-L*(1-s)/s, hx=u=>{ const u2=u*u, u3=u2*u; return (2*u3-3*u2+1)*(-L/2)+(u3-2*u2+u)*m+(-2*u3+3*u2)*(L/2)+(u3-u2)*m; };
+    for(let j=1;j<=N;j++){ const u=j/N, x=hx(u), y=H*Math.pow(Math.sin(Math.PI*Math.pow(u,0.8)),2); segs.push({kind:'line',to:[x,y],dur:(1-s)/N,tol:Math.max(3*T,Math.min(10,0.08*H))}); }
+    return {start:[L/2,0], segs}; };
   const TASKS={
+    gait:{name:'Gangtrainer (Fußplatte)', what:'Fußplatte eines Gangtrainers für Reha nach Schlaganfall: Standphase am Boden mit konstanter Geschwindigkeit, weich abheben und aufsetzen. Eng: Bodenkontakt. Locker: Schwungphase. Schrittlänge, Hub und Standphase einstellbar – oder den Gang des Patienten aus einem Handyvideo übernehmen. Ein Motor treibt beide Beine, das zweite exakt um eine halbe Periode versetzt.',
+      make:(T,p)=>gaitPath(p||{},T)},
     pick:{name:'Umsetzen (Pick & Place)', what:'Greifer holt ein Teil links und setzt es 100 mm weiter rechts ab: senkrecht hoch, quer, senkrecht runter, je eine Rast. Eng: Greif- und Ablegeposition. Locker: der Weg dazwischen.',
       make:T=>({start:[-50,0], segs:[
         {kind:'dwell',dur:.14,tol:T},{kind:'move',to:[-50,30],dur:.10,tol:Math.max(1.5,3*T)},{kind:'move',to:[50,30],dur:.16,tol:Math.max(6,12*T)},{kind:'move',to:[50,0],dur:.10,tol:Math.max(1.5,3*T)},
@@ -2209,7 +2237,7 @@ function makeTasks(){
   function toMachine(sm,SIZE){ let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; for(const p of sm.pts){ x0=Math.min(x0,p[0]); x1=Math.max(x1,p[0]); y0=Math.min(y0,p[1]); y1=Math.max(y1,p[1]); }
     const ext=Math.max(x1-x0,y1-y0)||1, s=SIZE/ext, cx=(x0+x1)/2, cy=(y0+y1)/2;
     return {tS:sm.pts.map(p=>[(p[0]-cx)*s,-(p[1]-cy)*s]), tolMM:sm.tol.slice(), sizeMM:Math.round(ext*10)/10, centre:[cx,cy]}; }
-  return {TASKS, sample, fromPoints, parseCSV, toMachine};
+  return {TASKS, sample, fromPoints, parseCSV, toMachine, gaitPath};
 }
 if(typeof module!=='undefined') module.exports={makeTasks};
 
@@ -2902,14 +2930,70 @@ function clearTask(){ if(!task&&!opt.tolMM) return; task=null; tolDraw=null; tol
 function shapeTask(pts){ let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; for(const q of pts){ x0=Math.min(x0,q[0]); x1=Math.max(x1,q[0]); y0=Math.min(y0,q[1]); y1=Math.max(y1,q[1]); }
   const k=shapeMM/(Math.max(x1-x0,y1-y0)||1); return {key:'shape', name:'Kontur', what:'Kontur mit gleichmäßiger Geschwindigkeit, überall dieselbe Toleranz. Scharfe Ecken kosten viele Stufen – runde Formen wenige.', pts:pts.map(q=>[q[0]*k,-q[1]*k]), timed:false}; }
 function ensureSizeOption(v){ const sel=$('kSize'), s=String(v); if(![...sel.options].some(o=>o.value===s)){ const o=document.createElement('option'); o.value=s; o.textContent=String(v).replace('.',',')+' mm'; o.dataset.task='1'; sel.appendChild(o); } sel.value=s; }
-function loadTask(t){ task=t; opt.dim='2d'; opt.gear=true; ensureCore(); const T=+$('kTol').value, sc=t.scale||1;
+function loadTask(t){ task=t; try{ window.umrissTask=t; }catch(_){} opt.dim='2d'; opt.gear=true; ensureCore(); const T=+$('kTol').value, sc=t.scale||1;
   const gen=N=>{ const sm=t.make?TK.sample(t.make(T),N):TK.fromPoints(t.pts,T,t.timed,N); return {pts:sm.pts.map(q=>[q[0]*sc,q[1]*sc]),tol:sm.tol}; };
   const dense=gen(1024), sm=gen(S), F=TK.toMachine(dense,core.SIZE), s=core.SIZE/F.sizeMM, map=q=>[(q[0]-F.centre[0])*s,-(q[1]-F.centre[1])*s];
   tDraw=dense.pts.map(map); tolDraw=dense.tol.map(v=>v*s); tS=sm.pts.map(map); opt.tolMM=sm.tol.slice(); tolNow=null; phase='';
   opt.gearSize=F.sizeMM; ensureSizeOption(opt.gearSize); opt.intDims=false; opt.lenStep=0.1; opt.degStep=0.1; opt.minArmMM=0.3;
-  for(const b of ['kLeg','kBead']) $(b).setAttribute('aria-pressed',String(t.key===b)); $('inNote').textContent=t.what; applyDimUI(); go(); }
-const TASKBTN={kLeg:'leg',kBead:'bead'};
-for(const [id,key] of Object.entries(TASKBTN)) $(id).onclick=()=>{ const d=TK.TASKS[key]; press(null); loadTask({key:id,name:d.name,what:d.what,make:d.make}); };
+  for(const b of ['kGait','kBead']) $(b).setAttribute('aria-pressed',String(t.key===b)); $('gaitRow').hidden=t.key!=='kGait'; $('inNote').textContent=t.what; applyDimUI(); go(); }
+// Gangtrainer: the flagship task. Its shape comes from three numbers (or from a video of the patient's own gait)
+const gaitP=()=>({L:+$('gL').value,H:+$('gH').value,stance:+$('gS').value/100});
+const gaitTask=()=>{ const d=TK.TASKS.gait; return {key:'kGait',name:d.name,what:d.what,make:T=>d.make(T,gaitP()),gait:true}; };
+$('kGait').onclick=()=>{ press(null); $('kTol').value='2'; loadTask(gaitTask()); };
+$('kBead').onclick=()=>{ const d=TK.TASKS.bead; press(null); $('kTol').value='0.5'; loadTask({key:'kBead',name:d.name,what:d.what,make:d.make}); };
+for(const [id,o,u] of [['gL','oL',' mm'],['gH','oH',' mm'],['gS','oS',' %']]){ $(id).oninput=e=>{ $(o).textContent=e.target.value+u; }; $(id).onchange=()=>{ if(task&&task.key==='kGait') loadTask(gaitTask()); }; }
+// ---------- Gang aus Video: two coloured markers (hip, ankle) tracked frame by frame, one averaged gait cycle ----------
+let vid=null;
+$('fVid').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; const v=document.createElement('video'); v.muted=true; v.playsInline=true; v.preload='auto'; v.src=URL.createObjectURL(f);
+  vid={v,picks:[],url:v.src,name:f.name}; $('vidBox').hidden=false; $('vidGo').disabled=true; $('vidMsg').textContent='Video wird geladen …';
+  v.onloadeddata=async()=>{ await seekTo(v,Math.min(0.3,v.duration/4)); vidFrame(); $('vidMsg').textContent='Tippe auf die Hüftmarke, dann auf die Knöchelmarke (farbige Aufkleber, seitlich gefilmt).'; };
+  v.onerror=()=>{ $('vidMsg').textContent='Dieses Video kann der Browser nicht öffnen (MP4/H.264 oder WebM gehen).'; }; };
+const seekTo=(v,t)=>new Promise(r=>{ const done=()=>{ v.removeEventListener('seeked',done); r(); }; v.addEventListener('seeked',done); v.currentTime=t; });
+function vidFrame(){ const v=vid.v, c=$('vidCv'), W=Math.min(640,v.videoWidth), H=Math.round(v.videoHeight*W/v.videoWidth); c.width=W; c.height=H; const x=c.getContext('2d',{willReadFrequently:true}); x.drawImage(v,0,0,W,H);
+  vid.picks.forEach((q,i)=>{ x.beginPath(); x.arc(q.x,q.y,9,0,2*Math.PI); x.lineWidth=3; x.strokeStyle=i?'#22d3ee':'#facc15'; x.stroke(); }); return x; }
+$('vidCv').onpointerdown=e=>{ if(!vid||vid.picks.length>=2) return; const c=$('vidCv'), r=c.getBoundingClientRect(), X=(e.clientX-r.left)*c.width/r.width, Y=(e.clientY-r.top)*c.height/r.height;
+  const x=c.getContext('2d',{willReadFrequently:true}), d=x.getImageData(Math.max(0,Math.round(X)-2),Math.max(0,Math.round(Y)-2),5,5).data; let s=[0,0,0]; for(let i=0;i<d.length;i+=4){ s[0]+=d[i]; s[1]+=d[i+1]; s[2]+=d[i+2]; }
+  vid.picks.push({x:X,y:Y,col:s.map(v=>v/(d.length/4))}); vidFrame(); $('vidGo').disabled=vid.picks.length<2; $('vidMsg').textContent=vid.picks.length<2?'Jetzt die Knöchelmarke.':'Bereit. Bein Hüfte–Knöchel eintragen (für den Maßstab), dann auswerten.'; };
+$('vidCancel').onclick=()=>{ $('vidBox').hidden=true; if(vid) URL.revokeObjectURL(vid.url); vid=null; };
+$('vidGo').onclick=async()=>{ const b=$('vidGo'); b.disabled=true; try{ const g=await trackGait(vid,+$('vidLeg').value||850); $('vidBox').hidden=true; URL.revokeObjectURL(vid.url); vid=null; press(null); $('kTol').value='2';
+    const set=(id,o,v,u,lo,hi,st)=>{ const w=Math.min(hi,Math.max(lo,Math.round(v/st)*st)); $(id).value=String(w); $(o).textContent=w+u; return w; };
+    const L=set('gL','oL',g.L,' mm',200,700,10), H=set('gH','oH',g.H,' mm',30,200,5), S=set('gS','oS',g.stance*100,' %',50,70,1);
+    const t=gaitTask(); t.what='Gang aus „'+g.name+'“, gemittelt über '+g.cycles+' Zyklen: Schrittlänge '+L+' mm, Fußhub '+H+' mm, Standphase '+S+' %, '+String(Math.round(g.stride*100)/100).replace('.',',')+' s pro Doppelschritt. Daraus die Fußplattenbahn des Gangtrainers – eng am Boden, locker in der Luft. Feinjustieren mit den Reglern.'; loadTask(t); }
+  catch(err){ $('vidMsg').innerHTML='<span class="err">'+(err&&err.message||err)+'</span>'; b.disabled=false; } };
+// colour tracking: each marker is the centroid of pixels close to its picked colour, searched around its last position
+async function trackGait(V,legMM){ const v=V.v, fps=20, T0=Math.min(0.3,v.duration/4), n=Math.min(300,Math.floor((v.duration-T0)*fps)); if(n<30) throw new Error('Video zu kurz – mindestens 2–3 Schritte filmen.');
+  const c=$('vidCv'), W=c.width, H=c.height, x=c.getContext('2d',{willReadFrequently:true}), pos=V.picks.map(q=>({x:q.x,y:q.y})), tr=[[],[]];
+  for(let i=0;i<n;i++){ await seekTo(v,T0+i/fps); x.drawImage(v,0,0,W,H); const img=x.getImageData(0,0,W,H).data;
+    V.picks.forEach((q,m)=>{ let best=null; for(const R of [40,120,Math.max(W,H)]){ let sx=0,sy=0,cn=0; const x0=Math.max(0,Math.floor(pos[m].x-R)), x1=Math.min(W-1,Math.ceil(pos[m].x+R)), y0=Math.max(0,Math.floor(pos[m].y-R)), y1=Math.min(H-1,Math.ceil(pos[m].y+R));
+        for(let yy=y0;yy<=y1;yy+=1) for(let xx=x0;xx<=x1;xx+=1){ const k=4*(yy*W+xx), d=Math.abs(img[k]-q.col[0])+Math.abs(img[k+1]-q.col[1])+Math.abs(img[k+2]-q.col[2]); if(d<70){ sx+=xx; sy+=yy; cn++; } }
+        if(cn>=4){ best={x:sx/cn,y:sy/cn}; break; } }
+      if(best) pos[m]=best; tr[m].push(best?{x:best.x,y:best.y}:null); });
+    if(i%15===0) $('vidMsg').textContent='Verfolge Marken … '+Math.round(100*i/n)+' %'; }
+  // fill gaps, ankle relative to hip, image y down -> up
+  for(const s of tr){ let last=s.find(q=>q); if(!last) throw new Error('Eine Marke wurde nicht gefunden – kräftigere Farbe, gutes Licht.'); for(let i=0;i<s.length;i++){ if(s[i]) last=s[i]; else s[i]=last; } }
+  // the foot plate moves in the machine's (= camera's) frame: forward position relative to the hip, height above the ground
+  const lens=tr[1].map((a,i)=>Math.hypot(a.x-tr[0][i].x,a.y-tr[0][i].y)).sort((a,b)=>a-b), scale=legMM/lens[Math.floor(0.95*(lens.length-1))];
+  let rel=tr[1].map((a,i)=>[(a.x-tr[0][i].x)*scale,-a.y*scale]);
+  // period from the autocorrelation of the ankle's forward position
+  const xs=rel.map(q=>q[0]), mx=xs.reduce((a,b)=>a+b,0)/xs.length, z=xs.map(v=>v-mx); let bp=0, bv=-Infinity; const ac=l=>{ let s=0; for(let i=0;i+l<z.length;i++) s+=z[i]*z[i+l]; return s/(z.length-l); };
+  const lags=[]; for(let l=Math.round(0.6*fps);l<=Math.min(Math.round(2.5*fps),Math.floor(z.length/2));l++) lags.push([l,ac(l)]);
+  const top=Math.max(...lags.map(q=>q[1])); if(!(top>0)) throw new Error('Kein gleichmäßiger Gang erkannt – mindestens 3 Schritte im Bild.');
+  // the first strong peak is one stride (its multiples correlate too)
+  for(let i=1;i<lags.length-1;i++) if(lags[i][1]>=0.8*top&&lags[i][1]>=lags[i-1][1]&&lags[i][1]>=lags[i+1][1]){ bp=lags[i][0]; bv=lags[i][1]; break; }
+  if(!bp){ const q=lags.reduce((a,b)=>b[1]>a[1]?b:a); bp=q[0]; bv=q[1]; }
+  const a1=ac(bp-1), a3=ac(bp+1), P=bp+0.5*(a1-a3)/(a1-2*bv+a3||1);           // sub-frame period
+  // fold all frames onto one cycle and average (circular bins), then smooth
+  const NB=128, acc=Array.from({length:NB},()=>[0,0,0]); rel.forEach((q,i)=>{ const f=((i/P)%1)*NB, b=Math.floor(f)%NB; acc[b][0]+=q[0]; acc[b][1]+=q[1]; acc[b][2]++; });
+  let cyc=acc.map(a=>a[2]?[a[0]/a[2],a[1]/a[2]]:null); for(let i=0;i<NB;i++) if(!cyc[i]){ let j=1; while(!cyc[(i+j)%NB]&&j<NB) j++; cyc[i]=cyc[(i+j)%NB]; }
+  // a gait cycle is smooth: keep the first 16 harmonics, drop pixel noise
+  { const KH=16, co=[]; for(let k=0;k<=KH;k++){ let ax=0,bx=0,ay=0,by=0; cyc.forEach((q,i)=>{ const t=2*Math.PI*k*i/NB, c=Math.cos(t), s=Math.sin(t); ax+=q[0]*c; bx+=q[0]*s; ay+=q[1]*c; by+=q[1]*s; }); co.push([ax,bx,ay,by].map(v=>v*(k?2:1)/NB)); }
+    cyc=cyc.map((_,i)=>{ let x=0,y=0; co.forEach((c,k)=>{ const t=2*Math.PI*k*i/NB; x+=c[0]*Math.cos(t)+c[1]*Math.sin(t); y+=c[2]*Math.cos(t)+c[3]*Math.sin(t); }); return [x,y]; }); }
+  // walking direction: the foot moves forward fast (swing) and back slowly (stance) – make forward = +x
+  let fwd=0; for(let i=0;i<NB;i++){ const d=cyc[(i+1)%NB][0]-cyc[i][0]; fwd+=d*Math.abs(d); } if(fwd<0) cyc=cyc.map(q=>[-q[0],q[1]]);
+  // the patient's gait as the trainer's three numbers: step length, foot lift, stance share (+ stride time)
+  let y0=Infinity,y1=-Infinity,x0=Infinity,x1=-Infinity; for(const q of cyc){ y0=Math.min(y0,q[1]); y1=Math.max(y1,q[1]); x0=Math.min(x0,q[0]); x1=Math.max(x1,q[0]); }
+  const ground=cyc.filter(q=>q[1]-y0<Math.max(3,0.06*(y1-y0))).length/NB;
+  return {L:x1-x0, H:y1-y0, stance:Math.min(0.7,Math.max(0.5,ground)), stride:P/fps, cycles:Math.floor(n/P), name:V.name}; }
 $('kTol').onchange=()=>{ if(task) loadTask(task); };
 // a path from a file: SVG (first path/shape, at constant speed, units = mm) or CSV x;y[;tol] (one row per time step)
 $('fPath').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; f.text().then(txt=>{ let t=null;
@@ -2939,7 +3023,7 @@ $('d3').onclick=()=>{ if(opt.dim!=='3d'){ opt.dim='3d'; clearTask(); if(opt.gear
 // Getriebe: the same shapes, built as a one-motor machine with whole-number gears (2D and 3D)
 const gearDefault=()=>{ opt.gearSize=opt.dim==='3d'?800:400; $('kSize').value=String(opt.gearSize); };
 $('dG').onclick=()=>{ opt.gear=!opt.gear; if(opt.gear) gearDefault();
-  if(opt.dim==='2d'){ if(opt.gear){ const d=TK.TASKS.leg; press(null); loadTask(task||{key:'kLeg',name:d.name,what:d.what,make:d.make}); } else { clearTask(); press(cur2); load2D(last2d); } return; }
+  if(opt.dim==='2d'){ if(opt.gear){ press(null); loadTask(task||gaitTask()); } else { clearTask(); press(cur2); load2D(last2d); } return; }
   applyDimUI(); go(); };
 // ---------- Getriebe: Größe, ganze Zahlen, Stückliste ----------
 let partsDirty=true;
@@ -2979,7 +3063,7 @@ async function saveFile(fn,data,note){ const dl=await downloadsCap();
   catch(_){ note('Herunterladen ging hier nicht.'); } }
 $('bKit').onclick=async()=>{ const b=$('bKit'), m=best&&best.mech; if(!m||!m.arms){ b.textContent='Noch kein Modell'; setTimeout(()=>b.textContent='Bausatz herunterladen',1600); return; }
   b.disabled=true; b.textContent='Erzeuge …'; await new Promise(r=>setTimeout(r,30));
-  try{ const K=kit().buildKit(m,opt,{shape:shapeName(),model:exportModel(),secs:60}); if(!K) throw new Error('kein 2D-Modell');
+  try{ const K=kit().buildKit(m,opt,{shape:shapeName(),model:exportModel(),secs:60,gait:!!(taskOn()&&task.gait)}); if(!K) throw new Error('kein 2D-Modell');
     const fn='umriss-motor-bausatz-'+shapeName().toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+K.D.n+'-kreise.zip';
     await saveFile(fn,new Blob([K.zip],{type:'application/zip'}),t=>{ b.textContent=t.length>28?'Bausatz herunterladen':t; $('ioNote').textContent=t; }); }
   catch(e){ console.warn(e); $('ioNote').textContent='Bausatz ließ sich nicht erzeugen.'; }
@@ -3243,7 +3327,7 @@ $('fImport').onchange=e=>{ const f=e.target.files[0]; if(!f) return; f.text().th
 
 window.addEventListener('resize',fit);
 try{ new ResizeObserver(()=>fit()).observe(cv.parentElement); }catch(_){}
-fit(); { const d=TK.TASKS.leg; opt.gear=true; opt.dim='2d'; press(null); loadTask({key:'kLeg',name:d.name,what:d.what,make:d.make}); } requestAnimationFrame(loop);
+fit(); { opt.gear=true; opt.dim='2d'; press(null); loadTask(gaitTask()); } requestAnimationFrame(loop);
 })();
 
 </script>
