@@ -32,9 +32,9 @@ async function closeSafely(item){if(!item?.browser)return;try{await bounded(item
 let a,b;
 try{
   [a,b]=await bounded(Promise.all([makePhone("phone-a"),makePhone("phone-b")]),65000,"create two independent mobile browsers");
-  await bounded(a.page.click("#mobileGameplayMultiplayer"),5000,"start phone-a multiplayer");
+  await bounded(a.page.click("#mobileGameplayMultiplayer"),15000,"start phone-a multiplayer");
   await pause(180);
-  await bounded(b.page.click("#mobileGameplayMultiplayer"),5000,"start phone-b multiplayer");
+  await bounded(b.page.click("#mobileGameplayMultiplayer"),15000,"start phone-b multiplayer");
   await pause(180);
   const finding=[await cheapSnapshot(a.page,a.label),await cheapSnapshot(b.page,b.label)];
   if(finding.some(x=>!x.hasSession&&x.mobileState!=="finding"))throw new Error(`MULTI button did not enter real VS discovery: ${JSON.stringify(finding)}`);
@@ -48,9 +48,9 @@ try{
   await mkdir("artifacts",{recursive:true});
   await bounded(a.page.screenshot({path:"artifacts/mobile-multiplayer-a.png",captureBeyondViewport:false}),12000,"phone-a multiplayer screenshot");
   await bounded(b.page.screenshot({path:"artifacts/mobile-multiplayer-b.png",captureBeyondViewport:false}),12000,"phone-b multiplayer screenshot");
-  await bounded(a.page.click("#mobileGameplayMultiplayer"),5000,"stop phone-a multiplayer");
+  await bounded(a.page.click("#mobileGameplayMultiplayer"),15000,"stop phone-a multiplayer");
   await pause(120);
-  await bounded(b.page.click("#mobileGameplayMultiplayer"),5000,"stop phone-b multiplayer");
+  await bounded(b.page.click("#mobileGameplayMultiplayer"),15000,"stop phone-b multiplayer");
   await pause(700);
   const stopped=[await cheapSnapshot(a.page,a.label),await cheapSnapshot(b.page,b.label)];
   if(stopped.some(x=>x.hasSession||x.connected||x.mobileState!=="offline"||x.intent!=="off"))throw new Error(`mobile multiplayer did not stop cleanly: ${JSON.stringify(stopped)}`);

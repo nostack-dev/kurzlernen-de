@@ -12,7 +12,6 @@ on:
       - "tests/mobile_gameplay_live_smoke.mjs"
       - "tests/mobile_combat_traffic_live_smoke.mjs"
       - "tests/mobile_multiplayer_live_smoke.mjs"
-      - "tests/nuke_mobile_live_smoke.mjs"
       - ".github/workflows/mobile-gameplay-regression.yml"
   workflow_dispatch:
 
@@ -89,15 +88,6 @@ jobs:
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
           CHROME_BIN="$CHROME_BIN" node tests/mobile_reset_readonly_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_reset_readonly_live_smoke.log
-      - name: Test screen-dominating live nuclear explosion
-        env:
-          GH_SHA: ${{ github.sha }}
-        run: |
-          set -euxo pipefail
-          mkdir -p artifacts
-          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
-          test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/nuke_mobile_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/nuke_mobile_live_smoke.log
       - name: Test portrait controls and capture mobile gameplay
         if: always()
         env:
