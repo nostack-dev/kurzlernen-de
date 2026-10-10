@@ -16,8 +16,8 @@ const MISSILE_TTL_MS=4200;
 const GRENADE_TTL_MS=5600;
 const GRENADE_FUSE_MS=2800;
 const GRENADE_COOLDOWN_MS=760;
-// 40 mm launcher: the round goes off on contact with anything that lives or moves (people, animals,
-// players, cars, drones); off the ground and off walls it bounces and the fuse decides
+// 40 mm launcher: the round goes off on contact with anything but the ground — buildings, people,
+// animals, players, cars, drones, lamp posts; off the ground it bounces and the fuse decides
 const GRENADE_SPEED_MPS=40;
 const GRENADE_GRAVITY_MPS2=9.81;
 const GRENADE_RESTITUTION=.58;
@@ -198,6 +198,18 @@ function launchFootGrenade(clientX,clientY,now=performance.now(),source="foot-sc
   if(isFoot()&&!walk()?.dead&&grenades.some(g=>!g.hand)){for(let i=grenades.length-1;i>=0;i--)if(!grenades[i].hand)detonateFootGrenade(i,grenades[i].group.position.clone(),"remote");lastGrenade=now-GRENADE_COOLDOWN_MS*.5;try{window.dispatchEvent(new CustomEvent("arondight:grenade-detonator",{detail:{fired:true}}));}catch{}const v=viewport();if(v)v.dataset.walkGrenadeRemoteDetonations=String((Number(v.dataset.walkGrenadeRemoteDetonations)||0)+1);return true;}
   if(!isFoot()||walk()?.dead||now-lastGrenade<GRENADE_COOLDOWN_MS)return false;const ray=footRay(clientX,clientY),scene=bridge()?.threeScene;if(!ray||!scene)return false;lastGrenade=now;const start=footMuzzle(tmp2,ray).clone().addScaledVector(ray.direction,.10),direction=ray.direction.clone().normalize(),group=makeGrenade(scene,start,direction);grenades.push({group,scene,velocity:direction.clone().multiplyScalar(GRENADE_SPEED_MPS),born:now,fuseAt:now+GRENADE_FUSE_MS,bounces:0,nextCollisionAt:0,resting:false,source});flashWeapon(62);audioShot(.34);weaponFired("grenade",.62,source,"foot");const view=viewport();if(view){view.dataset.walkWeapon="grenade";view.dataset.walkGrenadeLaunches=String((Number(view.dataset.walkGrenadeLaunches)||0)+1);view.dataset.walkGrenadeBallistics="spring-orb-floor-bounce+impact-fuse-v3";view.dataset.walkGrenadeFuseMs=String(GRENADE_FUSE_MS);view.dataset.walkGrenadeProjectileSpeedMps=String(GRENADE_SPEED_MPS);view.dataset.walkGrenadeVisualScale=String(GRENADE_VISUAL_SCALE);view.dataset.walkGrenadeShape="round-phosphor-orb-v1";}return true;
 }
+// Street lamp posts and pasture cows are not in the grenade's raycast set: a launcher round that
+// reaches one goes off there too.
+function softTargetNear(p){const lamps=globalThis.__streetLamps?.lamps?.();if(lamps)for(const l of lamps){if(!l||l.state===2)continue;if(Math.abs(l.x-p.x)<.35&&Math.abs(l.y-p.y)<.35&&p.z>l.z&&p.z<l.z+6.4)return true;if(Math.abs(l.hx-p.x)<.45&&Math.abs(l.hy-p.y)<.45&&Math.abs(l.z+6-p.z)<.4)return true;}
+  const cows=globalThis.__arondightCows?.list?.();if(cows)for(const c of cows){if(c.dead||c.hidden)continue;const dx=p.x-c.x,dy=p.y-c.y;if(dx*dx+dy*dy<1.1&&p.z<groundHeightAt(c.x,c.y)+1.7)return true;}return false;}
+// A round that hits a live grenade (launcher round or hand grenade, flying or lying there) sets it
+// off on the spot, whatever its fuse still says. Checked along every shot's flight line (hit radius
+// generous for a fist-sized target).
+const GRENADE_SHOT_HIT_M=.35;
+function shotThroughGrenades(e){const d=e?.detail||{},a=d.start,b=d.end;if(!grenades.length||!Array.isArray(a)||!Array.isArray(b))return;const dx=b[0]-a[0],dy=b[1]-a[1],dz=b[2]-a[2],L2=dx*dx+dy*dy+dz*dz;if(L2<1e-6)return;let best=-1,bt=2;
+  for(let i=0;i<grenades.length;i++){const p=grenades[i].group.position,t=Math.max(0,Math.min(1,((p.x-a[0])*dx+(p.y-a[1])*dy+(p.z-a[2])*dz)/L2)),qx=a[0]+dx*t-p.x,qy=a[1]+dy*t-p.y,qz=a[2]+dz*t-p.z;if(qx*qx+qy*qy+qz*qz<=GRENADE_SHOT_HIT_M*GRENADE_SHOT_HIT_M&&t<bt){bt=t;best=i;}}
+  if(best>=0){const g=grenades[best];detonateFootGrenade(best,g.group.position.clone(),"shot");const v=viewport();if(v)v.dataset.walkGrenadeShotDetonations=String((Number(v.dataset.walkGrenadeShotDetonations)||0)+1);}}
+addEventListener("arondight:foot-tracer",shotThroughGrenades);
 // Hand grenade (hand_grenade.mjs cooks and throws it): same projectile physics as the launcher's
 // round, but a hand grenade never goes off on contact — it bounces and rolls until its fuse burns down.
 function throwHandGrenade({origin,velocity,fuseAt,source="hand-grenade"}={}){const scene=bridge()?.threeScene;if(!scene||!Array.isArray(origin)||!Array.isArray(velocity))return false;const v=new THREE.Vector3(velocity[0],velocity[1],velocity[2]),dir=v.clone().normalize(),group=makeGrenade(scene,new THREE.Vector3(origin[0],origin[1],origin[2]),dir);group.userData.walkHandGrenade=true;const now=performance.now();grenades.push({group,scene,velocity:v,born:now,fuseAt:Number(fuseAt)||now+3500,bounces:0,nextCollisionAt:now+60,resting:false,source,hand:true});return true;}
@@ -234,11 +246,12 @@ function updateFootGrenades(now,dt){
   for(let i=grenades.length-1;i>=0;i--){const g=grenades[i];if(now>=g.fuseAt||now-g.born>GRENADE_TTL_MS){detonateFootGrenade(i,g.group.position.clone(),"fuse");continue;}let removed=false;const substeps=Math.max(1,Math.min(4,Math.ceil(dt/.014))),stepDt=dt/substeps;
     for(let step=0;step<substeps;step++){if(g.resting){const ground=groundHeightAt(g.group.position.x,g.group.position.y)+GRENADE_RADIUS_M;g.group.position.z=ground;break;}g.velocity.z-=GRENADE_GRAVITY_MPS2*stepDt;let speed=g.velocity.length();if(speed<.05){const ground=groundHeightAt(g.group.position.x,g.group.position.y);if(g.group.position.z>ground+GRENADE_RADIUS_M+.08)g.velocity.z=-1.15;else{g.group.position.z=ground+GRENADE_RADIUS_M;g.velocity.set(0,0,0);g.resting=true;break;}speed=g.velocity.length();}
       const direction=tmp3.copy(g.velocity).multiplyScalar(1/Math.max(.001,speed)),travel=Math.max(.001,speed*stepDt);let hit=null;if(now>=g.nextCollisionAt)hit=nearestGrenadeHit({origin:g.group.position,direction},travel+GRENADE_RADIUS_M+.035);
-      if(hit&&Number(hit.distance)<=travel+GRENADE_RADIUS_M+.018){const point=hit.point?.clone?.()||g.group.position.clone().addScaledVector(direction,Math.max(.01,Number(hit.distance)||.01)),normal=grenadeHitNormal(hit,tmp),mode=grenadeImpactMode(hit,normal);if(!g.hand&&(mode==="organic"||mode==="target")){detonateFootGrenade(i,point,mode);removed=true;break;}bounceFootGrenade(g,point,normal,now);continue;}
+      if(hit&&Number(hit.distance)<=travel+GRENADE_RADIUS_M+.018){const point=hit.point?.clone?.()||g.group.position.clone().addScaledVector(direction,Math.max(.01,Number(hit.distance)||.01)),normal=grenadeHitNormal(hit,tmp),mode=grenadeImpactMode(hit,normal);if(!g.hand&&mode!=="floor"){detonateFootGrenade(i,point,mode);removed=true;break;}bounceFootGrenade(g,point,normal,now);continue;}
+      if(!g.hand&&softTargetNear(g.group.position)){detonateFootGrenade(i,g.group.position.clone(),"organic");removed=true;break;}
       tmp2.copy(g.group.position).addScaledVector(direction,travel);const ground=groundHeightAt(tmp2.x,tmp2.y),floorZ=ground+GRENADE_RADIUS_M;if(tmp2.z<=floorZ){tmp2.z=floorZ;const horizontal=Math.hypot(g.velocity.x,g.velocity.y),down=Math.abs(g.velocity.z);if(g.bounces>=3&&down<1.15&&horizontal<1.35){g.group.position.copy(tmp2);g.velocity.set(0,0,0);g.resting=true;break;}bounceFootGrenade(g,tmp2,tmp.set(0,0,1),now);continue;}g.group.position.copy(tmp2);g.group.quaternion.setFromUnitVectors(grenadeAxis,direction);g.group.rotation.z+=stepDt*11;}
     if(removed)continue;const groundNow=groundHeightAt(g.group.position.x,g.group.position.y);if(!g.resting&&g.group.position.z>groundNow+GRENADE_RADIUS_M+.12&&g.velocity.length()<.6)g.velocity.z=Math.min(g.velocity.z,-1.15);
   }
-  const view=viewport();if(view){view.dataset.walkGrenadesActive=String(grenades.length);view.dataset.walkGrenadeAirStallRecovery="gravity+filtered-colliders+separation-v1";view.dataset.walkGrenadeImpactFuse="organic+dynamic-target-bounce-else-v4";view.dataset.walkGrenadeFloorRule="upward-normal-bounces-v1";}
+  const view=viewport();if(view){view.dataset.walkGrenadesActive=String(grenades.length);view.dataset.walkGrenadeAirStallRecovery="gravity+filtered-colliders+separation-v1";view.dataset.walkGrenadeImpactFuse="contact-except-floor-bounce-v5";view.dataset.walkGrenadeFloorRule="upward-normal-bounces-v1";}
 }
 function footShotAt(clientX,clientY,now=performance.now(),hand=0){
   if(footWeapon==="grenade")return launchFootGrenade(clientX,clientY,now,"foot-screen");

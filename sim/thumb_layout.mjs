@@ -25,13 +25,14 @@ html body:not(.desktop-input) #viewport :is(#footMove,#footLook,#soloLeft,#soloR
 html body:not(.desktop-input) #viewport :is(#footMove,#soloLeft)::before{top:-${CATCH_PX*2}px;right:-${CATCH_PX*2}px;bottom:-${CATCH_PX}px;left:-${CATCH_PX}px}
 html body:not(.desktop-input) #viewport :is(#footLook,#soloRight)::before{top:-${CATCH_PX}px;right:-${CATCH_PX}px;bottom:-${CATCH_PX}px;left:-${CATCH_PX}px}
 html body:not(.desktop-input) #viewport :is(#footMove,#footLook,#soloLeft,#soloRight)>span{opacity:0!important}
-html body.mobile-gameplay-compact:not(.desktop-input) #viewport #footHud #footWeaponToggle,html body.mobile-gameplay-compact:not(.desktop-input) #viewport #footWeaponToggle,html body.mobile-gameplay-compact:not(.desktop-input) #footWeaponToggle{display:none!important}`;document.head.appendChild(st);
+html body.thumb-weapon:not(.desktop-input) #mobileGameplayWeapon,html body.mobile-gameplay-compact:not(.desktop-input) #viewport #footHud #footWeaponToggle,html body.mobile-gameplay-compact:not(.desktop-input) #viewport #footWeaponToggle,html body.mobile-gameplay-compact:not(.desktop-input) #footWeaponToggle{display:none!important}`;document.head.appendChild(st);
   btn.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();$("mobileGameplayWeapon")?.click();setTimeout(sync,60);},{capture:true});
   btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();});return btn;}
 function place(el,left,top){const l=`${Math.round(left)}px`,t=`${Math.round(top)}px`;if(el.style.left!==l)el.style.setProperty("left",l,"important");if(el.style.top!==t)el.style.setProperty("top",t,"important");}
 function sync(){
   const b=ensure();if(!b)return;const on=touchPlay(),stick=visibleRect($("footLook"))||visibleRect($("soloRight"));
-  if(!on||!stick){b.classList.remove("show");return;}
+  if(!on||!stick){b.classList.remove("show");document.body.classList.remove("thumb-weapon");return;}
+  document.body.classList.add("thumb-weapon"); // the thumb button is THE weapon switch on touch: the dock copy goes
   // low on the screen, out of the shooting area: weapon just below-left of the right stick (the thumb
   // rolls down-left onto it), JUMP left of the stick slightly above its centre line
   const scx=stick.left+stick.width/2,scy=stick.top+stick.height/2,wa=206*Math.PI/180,wr=stick.width/2+12+30;
