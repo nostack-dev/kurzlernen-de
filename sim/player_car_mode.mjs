@@ -89,18 +89,18 @@ function buildCockpit(){
   const add=(geo,mat,x,y,z,rx=0,ry=0,rz=0,parent=g)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.userData.flightFireIgnore=true;m.castShadow=false;m.receiveShadow=true;parent.add(m);return m;};
   const beam=(a,b,w,h,mat)=>{const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),mid=A.clone().add(B).multiplyScalar(.5),m=add(new THREE.BoxGeometry(w,h,A.distanceTo(B)),mat,mid.x,mid.y,mid.z);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),B.clone().sub(A).normalize());return m;};
   // bonnet: from the windscreen base down to the nose, in the car's paint (seen over the dash)
-  cockpitHood=beam([.86,0,.86],[1.72,0,.7],1.5,.03,paint);cockpitHood.material=paint;
+  cockpitHood=beam([.86,0,.8],[1.72,0,.66],1.5,.03,paint);cockpitHood.material=paint;
   // dashboard: low slab from the windscreen base back towards the driver, rounded front lip
-  add(new THREE.BoxGeometry(.42,1.46,.08),dash,.7,0,.92);
-  add(new THREE.CylinderGeometry(.045,.045,1.46,12),dash,.49,0,.92,0,0,0);
-  add(new THREE.BoxGeometry(.012,1.3,.012),trim,.46,0,.955);
+  add(new THREE.BoxGeometry(.42,1.46,.08),dash,.7,0,.86);
+  add(new THREE.CylinderGeometry(.045,.045,1.46,12),dash,.49,0,.86,0,0,0);
+  add(new THREE.BoxGeometry(.012,1.3,.012),trim,.46,0,.895);
   // instrument binnacle in front of the driver, dials facing the eye
-  add(new THREE.BoxGeometry(.13,.36,.05),dash,.6,.36,.985);
-  const dials=new THREE.Group();dials.position.set(.535,.36,.98);dials.rotation.set(0,-Math.PI/2,0,"YXZ");dials.rotateX(-.4);g.add(dials);
+  add(new THREE.BoxGeometry(.13,.36,.05),dash,.6,.36,.925);
+  const dials=new THREE.Group();dials.position.set(.535,.36,.92);dials.rotation.set(0,-Math.PI/2,0,"YXZ");dials.rotateX(-.4);g.add(dials);
   add(new THREE.PlaneGeometry(.32,.09),face,0,0,0,0,0,0,dials);
   const needle=(dx)=>{add(new THREE.TorusGeometry(.034,.003,6,28),glow,dx,0,.001,0,0,0,dials);const pivot=new THREE.Group();pivot.position.set(dx,0,.002);dials.add(pivot);add(new THREE.BoxGeometry(.003,.029,.002),amber,0,.0145,0,0,0,0,pivot);return pivot;};
   cockpitNeedle=needle(-.075);cockpitRpm=needle(.075);
-  add(new THREE.PlaneGeometry(.18,.1),screen,.6,0,.975,0,-Math.PI/2+.55,0).rotation.order="YXZ";   // centre screen
+  add(new THREE.PlaneGeometry(.18,.1),screen,.6,0,.915,0,-Math.PI/2+.55,0).rotation.order="YXZ";   // centre screen
   // slim A-pillars along the windscreen edges, header rail and thin roof rails
   for(const sy of[-1,1]){beam([.86,sy*.72,.86],[.24,sy*.69,1.39],.05,.055,pillar);beam([.24,sy*.69,1.4],[-.9,sy*.69,1.4],.05,.05,pillar);}
   add(new THREE.BoxGeometry(.06,1.4,.04),pillar,.24,0,1.39);
@@ -108,8 +108,8 @@ function buildCockpit(){
   // door cards with window sills (side windows open above the sill)
   for(const sy of[-1,1]){add(new THREE.BoxGeometry(1.5,.04,.34),card,-.1,sy*.74,.83);add(new THREE.BoxGeometry(1.5,.09,.025),soft,-.1,sy*.715,1.0);}
   // steering column + wheel (axis tilted up towards the driver; rim top at the bottom of the view)
-  const col=add(new THREE.CylinderGeometry(.033,.042,.3,10),soft,.47,.36,.83);col.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(Math.cos(.42),0,-Math.sin(.42)));
-  cockpitWheel=new THREE.Group();cockpitWheel.position.set(.35,.36,.85);cockpitWheel.rotation.set(0,.42,0);g.add(cockpitWheel);
+  const col=add(new THREE.CylinderGeometry(.033,.042,.3,10),soft,.47,.36,.78);col.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(Math.cos(.42),0,-Math.sin(.42)));
+  cockpitWheel=new THREE.Group();cockpitWheel.position.set(.35,.36,.8);cockpitWheel.rotation.set(0,.42,0);g.add(cockpitWheel);
   const spin=new THREE.Group();cockpitWheel.add(spin);cockpitWheel.userData.spin=spin;
   add(new THREE.TorusGeometry(.17,.016,10,40),soft,0,0,0,0,Math.PI/2,0,spin);
   for(const a of[Math.PI/2,Math.PI*7/6,Math.PI*11/6])add(new THREE.BoxGeometry(.014,.16,.03),soft,0,Math.cos(a)*.085,Math.sin(a)*.085,a,0,0,spin);
@@ -124,6 +124,7 @@ function syncCockpit(pose){const root=vehicle?.root;const want=camMode==="cockpi
   cockpit.visible=want;if(!want)return;
   // the car's own body is hidden while you sit in it (restoreHiddenBodies shows it again)
   for(const c of root.children)if(c.isMesh&&c!==cockpit&&c.visible){c.visible=false;hiddenBodies.add(c);}
+  root.userData.playerCockpit=performance.now();   // its wheels are not drawn either (world_procedural_population)
   if(cockpitPaint<0&&cockpitHood){cockpitPaint=paintOf(root);cockpitHood.material.color.setHex(cockpitPaint);}
   const spin=cockpitWheel?.userData?.spin;if(spin)spin.rotation.x=(Number(pose?.steer)||0)*-6.5;
   const sp=clamp(Math.abs(commandSpeed)/42,0,1);if(cockpitNeedle)cockpitNeedle.rotation.z=2.3-sp*4.6;if(cockpitRpm)cockpitRpm.rotation.z=2.3-clamp(.18+sp*.7+(handbrake?0:.08),0,1)*4.6;}

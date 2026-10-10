@@ -523,7 +523,7 @@ function shownInScene(node){for(let o=node;o;o=o.parent){if(o.visible===false)re
 function updateWheelInstances(){
   if(!root)return;if(!wheelMesh){wheelMesh=new THREE.InstancedMesh(wheelGeometry(),vehicleMaterial,4*Math.max(8,records.filter(r=>r.kind==="car"||r.kind==="bus").length));wheelMesh.name="WORLD_VEHICLE_WHEELS";wheelMesh.castShadow=true;wheelMesh.receiveShadow=true;wheelMesh.frustumCulled=false;wheelMesh.userData.flightFireIgnore=true;wheelMesh.raycast=()=>{};root.add(wheelMesh);}
   let n=0;const cap=wheelMesh.instanceMatrix.count;
-  for(const r of records){if((r.kind!=="car"&&r.kind!=="bus")||!shownInScene(r.group)||n+4>cap)continue;const L=WHEEL_LAYOUT[r.kind],k=L.r/.34;ws.set(k,k,k);
+  const nowW=performance.now();for(const r of records){if((r.kind!=="car"&&r.kind!=="bus")||!shownInScene(r.group)||n+4>cap||nowW-(Number(r.group.userData.playerCockpit)||-1e9)<250)continue;const L=WHEEL_LAYOUT[r.kind],k=L.r/.34;ws.set(k,k,k);
     if(r.wheelPoses?.length===4){for(const w of r.wheelPoses){wp.set(w.position[0],w.position[1],w.position[2]);wq.set(w.rotation[0],w.rotation[1],w.rotation[2],w.rotation[3]);wm.compose(wp,wq,ws);wheelMesh.setMatrixAt(n++,wm);}}
     else{r.group.updateMatrixWorld();for(const[x,y]of L.pts){wp.set(x,y,L.r).applyMatrix4(r.group.matrixWorld);wm.compose(wp,r.group.quaternion,ws);wheelMesh.setMatrixAt(n++,wm);}}}
   wheelMesh.count=n;wheelMesh.instanceMatrix.needsUpdate=true;

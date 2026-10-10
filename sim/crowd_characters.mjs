@@ -48,7 +48,7 @@ export function createCrowd(scene,{capacity=64,outfit="civilian",name="CROWD"}={
     // pose & place one person this frame: x,y,z (feet on the ground), yaw,
     // state/speed/weapon like animateCharacter
     set(i,{x,y,z,yaw=0,state="walk",speed=1.3,weapon="none",dt=1/60,lean=0,punch=0}){const p=people[i];if(!p)return;
-      const cam=globalThis.__arondightRealWorld?.threeCamera?.position;
+      const B=globalThis.__arondightRealWorld,cam=(B?.presentedCamera?.()||B?.threeCamera)?.position; /* the camera the player SEES (threeCamera holds the drone pose between frames: on foot, people next to you would be drawn as far boxes) */
       if(cam&&(x-cam.x)**2+(y-cam.y)**2+(z-cam.z)**2>FAR_M*FAR_M){if(farCursor>=capacity)return;const slot=farCursor++;fq.setFromAxisAngle(Z,yaw);fm.compose(fp.set(x,y,z),fq,fs);far.setMatrixAt(slot,fm);
         if(farOwner[slot]!==i){farOwner[slot]=i;far.setColorAt(slot,col.set(p.colors?.shirt??0x777777));farColorDirty=true;}return;}
       const mid=meshesMid&&cam&&(x-cam.x)**2+(y-cam.y)**2+(z-cam.z)**2>NEAR_M*NEAR_M,set=mid?meshesMid:meshes,owner=mid?midOwner:slotOwner;
