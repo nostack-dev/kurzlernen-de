@@ -1,9 +1,9 @@
 {
- "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49",
+ "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0",
  "steps": [
   {
    "name": "boot-5s",
-   "ms": 7672,
+   "ms": 11789,
    "draws": [
     [
      "WORLD_SCORCH_MARKS",
@@ -11,7 +11,7 @@
     ],
     [
      "Group",
-     "50dc/6952tri/1296shadowTri"
+     "50dc/6952tri/680shadowTri"
     ],
     [
      "TRAINING_SHOWCASE_PLAZA",
@@ -94,7 +94,7 @@
      "1dc/0tri/0shadowTri"
     ]
    ],
-   "fps": 12.1,
+   "fps": 0.5,
    "drawCalls": 1,
    "triangles": 12,
    "lines": 0,
@@ -176,7 +176,7 @@
   },
   {
    "name": "menu",
-   "ms": 2671,
+   "ms": 3274,
    "draws": [
     [
      "WORLD_SCORCH_MARKS",
@@ -267,7 +267,7 @@
      "1dc/0tri/0shadowTri"
     ]
    ],
-   "fps": 10.7,
+   "fps": 5.4,
    "drawCalls": 1,
    "triangles": 12,
    "lines": 0,
@@ -349,7 +349,7 @@
   },
   {
    "name": "started",
-   "ms": 16592,
+   "ms": 25000,
    "draws": [
     [
      "WORLD_GROUND",
@@ -440,11 +440,11 @@
      "1dc/168tri/168shadowTri"
     ]
    ],
-   "fps": 8.4,
+   "fps": 4.3,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 173,
+   "programs": 172,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -544,7 +544,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -586,10 +585,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -627,7 +626,7 @@
    "water": "8045/182/222",
    "ground": "satellite-albedo",
    "roads": "990",
-   "bloom": "glow-off-slow-device",
+   "bloom": "quarter-res-two-level-bloom-v3-constant-output",
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
    "terrainShapes": "479",
@@ -638,7 +637,7 @@
   },
   {
    "name": "city-drone",
-   "ms": 4249,
+   "ms": 5361,
    "draws": [
     [
      "WORLD_GROUND",
@@ -729,11 +728,11 @@
      "1dc/168tri/168shadowTri"
     ]
    ],
-   "fps": 8.4,
+   "fps": 4.1,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 173,
+   "programs": 172,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -833,7 +832,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -875,10 +873,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -916,7 +914,7 @@
    "water": "8045/182/222",
    "ground": "satellite-albedo",
    "roads": "990",
-   "bloom": "glow-off-slow-device",
+   "bloom": "quarter-res-two-level-bloom-v3-constant-output",
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
    "terrainShapes": "479",
@@ -927,7 +925,7 @@
   },
   {
    "name": "minimap-expanded",
-   "ms": 3708,
+   "ms": 5016,
    "draws": [
     [
      "WORLD_GROUND",
@@ -1018,11 +1016,11 @@
      "1dc/216tri/216shadowTri"
     ]
    ],
-   "fps": 6.5,
+   "fps": 3.9,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 221,
+   "programs": 218,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -1122,7 +1120,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -1164,10 +1161,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -1203,7 +1200,6 @@
     "?#depth,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -1225,7 +1221,6 @@
     "?#10,11,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -1264,7 +1259,7 @@
   },
   {
    "name": "on-foot",
-   "ms": 5444,
+   "ms": 6528,
    "draws": [
     [
      "WORLD_GROUND",
@@ -1355,11 +1350,11 @@
      "1dc/216tri/216shadowTri"
     ]
    ],
-   "fps": 7,
+   "fps": 3.4,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 221,
+   "programs": 218,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -1459,7 +1454,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -1501,10 +1495,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -1540,7 +1534,6 @@
     "?#depth,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -1562,7 +1555,6 @@
     "?#10,11,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -1601,7 +1593,7 @@
   },
   {
    "name": "foot-touch-move",
-   "ms": 8208,
+   "ms": 13592,
    "draws": [
     [
      "WORLD_GROUND",
@@ -1692,11 +1684,11 @@
      "1dc/216tri/216shadowTri"
     ]
    ],
-   "fps": 6.7,
+   "fps": 3.4,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 221,
+   "programs": 219,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -1796,7 +1788,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -1838,10 +1829,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -1877,7 +1868,6 @@
     "?#depth,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -1899,7 +1889,6 @@
     "?#10,11,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -1918,7 +1907,8 @@
     "?#14,15,highp,srgb-linear,",
     "?#10,12,highp,srgb-linear,",
     "?#10,13,highp,srgb-linear,",
-    "?#10,11,highp,srgb-linear,"
+    "?#10,11,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
@@ -1938,7 +1928,7 @@
   },
   {
    "name": "interior-door",
-   "ms": 4245,
+   "ms": 5412,
    "draws": [
     [
      "WORLD_GROUND",
@@ -1970,7 +1960,7 @@
     ],
     [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "27dc/15444tri/15444shadowTri"
+     "27dc/13260tri/13260shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
@@ -2029,11 +2019,11 @@
      "1dc/336tri/336shadowTri"
     ]
    ],
-   "fps": 3.8,
+   "fps": 1.5,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 222,
+   "programs": 219,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -2133,7 +2123,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -2175,10 +2164,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -2214,7 +2203,6 @@
     "?#depth,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -2236,7 +2224,6 @@
     "?#10,11,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -2256,7 +2243,7 @@
     "?#10,12,highp,srgb-linear,",
     "?#10,13,highp,srgb-linear,",
     "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp"
+    "?#basic,highp,srgb-linear,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
@@ -2276,15 +2263,11 @@
   },
   {
    "name": "interior-inside",
-   "ms": 4486,
+   "ms": 5904,
    "draws": [
     [
      "WORLD_GROUND",
      "64dc/204800tri/0shadowTri"
-    ],
-    [
-     "WORLD_CITY_BUILDINGS",
-     "26dc/89165tri/89159shadowTri"
     ],
     [
      "WORLD_CITY_ROADS",
@@ -2293,6 +2276,10 @@
     [
      "STREET_LAMPS[inst]",
      "2dc/46800tri/36000shadowTri"
+    ],
+    [
+     "WORLD_CITY_BUILDINGS",
+     "20dc/43397tri/43391shadowTri"
     ],
     [
      "BUILDING_INTERIORS[inst]",
@@ -2308,7 +2295,7 @@
     ],
     [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "27dc/14892tri/14892shadowTri"
+     "27dc/13260tri/13260shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
@@ -2367,11 +2354,11 @@
      "1dc/336tri/336shadowTri"
     ]
    ],
-   "fps": 5.2,
+   "fps": 2.7,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 222,
+   "programs": 219,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -2471,7 +2458,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -2513,10 +2499,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -2552,7 +2538,6 @@
     "?#depth,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -2574,7 +2559,6 @@
     "?#10,11,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -2594,12 +2578,12 @@
     "?#10,12,highp,srgb-linear,",
     "?#10,13,highp,srgb-linear,",
     "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp"
+    "?#basic,highp,srgb-linear,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
    "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1182",
+   "cityBuildings": "612",
    "water": "8045/182/222",
    "ground": "satellite-albedo",
    "roads": "990",
@@ -2614,7 +2598,7 @@
   },
   {
    "name": "interior-stairs",
-   "ms": 4592,
+   "ms": 6316,
    "draws": [
     [
      "WORLD_GROUND",
@@ -2626,7 +2610,7 @@
     ],
     [
      "WORLD_CITY_ROADS",
-     "22dc/79380tri/0shadowTri"
+     "15dc/52656tri/0shadowTri"
     ],
     [
      "STREET_LAMPS[inst]",
@@ -2646,7 +2630,7 @@
     ],
     [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "27dc/11016tri/11016shadowTri"
+     "27dc/12108tri/12108shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
@@ -2705,11 +2689,11 @@
      "1dc/360tri/360shadowTri"
     ]
    ],
-   "fps": 4.8,
+   "fps": 2.2,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 222,
+   "programs": 219,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -2809,7 +2793,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -2851,10 +2834,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -2890,7 +2873,6 @@
     "?#depth,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -2912,7 +2894,6 @@
     "?#10,11,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -2932,7 +2913,7 @@
     "?#10,12,highp,srgb-linear,",
     "?#10,13,highp,srgb-linear,",
     "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp"
+    "?#basic,highp,srgb-linear,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
@@ -2940,7 +2921,7 @@
    "cityBuildings": "1182",
    "water": "8045/182/222",
    "ground": "satellite-albedo",
-   "roads": "1433",
+   "roads": "990",
    "bloom": "glow-off-slow-device",
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
@@ -2952,7 +2933,7 @@
   },
   {
    "name": "interior-upper",
-   "ms": 4676,
+   "ms": 6091,
    "draws": [
     [
      "WORLD_GROUND",
@@ -2963,12 +2944,12 @@
      "26dc/89165tri/89159shadowTri"
     ],
     [
-     "WORLD_CITY_ROADS",
-     "22dc/79380tri/0shadowTri"
-    ],
-    [
      "BUILDING_INTERIORS[inst]",
      "13dc/62576tri/0shadowTri"
+    ],
+    [
+     "WORLD_CITY_ROADS",
+     "15dc/52656tri/0shadowTri"
     ],
     [
      "STREET_LAMPS[inst]",
@@ -2984,7 +2965,7 @@
     ],
     [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "27dc/12120tri/12120shadowTri"
+     "27dc/12108tri/12108shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
@@ -3043,11 +3024,11 @@
      "1dc/360tri/360shadowTri"
     ]
    ],
-   "fps": 4.7,
+   "fps": 2.4,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 222,
+   "programs": 219,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -3147,7 +3128,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -3189,10 +3169,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -3228,7 +3208,6 @@
     "?#depth,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -3250,7 +3229,6 @@
     "?#10,11,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -3270,7 +3248,7 @@
     "?#10,12,highp,srgb-linear,",
     "?#10,13,highp,srgb-linear,",
     "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp"
+    "?#basic,highp,srgb-linear,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
@@ -3278,7 +3256,7 @@
    "cityBuildings": "1182",
    "water": "8045/182/222",
    "ground": "satellite-albedo",
-   "roads": "1433",
+   "roads": "990",
    "bloom": "glow-off-slow-device",
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
@@ -3290,7 +3268,7 @@
   },
   {
    "name": "interior-roof",
-   "ms": 4806,
+   "ms": 5923,
    "draws": [
     [
      "WORLD_GROUND",
@@ -3322,7 +3300,7 @@
     ],
     [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "27dc/11568tri/11568shadowTri"
+     "27dc/12108tri/12108shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
@@ -3381,11 +3359,11 @@
      "1dc/360tri/360shadowTri"
     ]
    ],
-   "fps": 5.1,
+   "fps": 2.4,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 222,
+   "programs": 219,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -3485,7 +3463,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -3527,10 +3504,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -3566,7 +3543,6 @@
     "?#depth,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -3588,7 +3564,6 @@
     "?#10,11,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -3608,7 +3583,7 @@
     "?#10,12,highp,srgb-linear,",
     "?#10,13,highp,srgb-linear,",
     "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp"
+    "?#basic,highp,srgb-linear,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
@@ -3628,7 +3603,7 @@
   },
   {
    "name": "nuke-fired",
-   "ms": 5174,
+   "ms": 6750,
    "draws": [
     [
      "WORLD_GROUND",
@@ -3644,7 +3619,7 @@
     ],
     [
      "WORLD_PROCEDURAL_POPULATION[inst]",
-     "1dc/26288tri/26288shadowTri"
+     "1dc/27984tri/27984shadowTri"
     ],
     [
      "NUKE_DEBRIS[inst]",
@@ -3656,15 +3631,15 @@
     ],
     [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "27dc/12672tri/12672shadowTri"
-    ],
-    [
-     "Group",
-     "110dc/11240tri/2552shadowTri"
+     "27dc/12012tri/12012shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
-     "47dc/9708tri/9660shadowTri"
+     "49dc/10388tri/10340shadowTri"
+    ],
+    [
+     "Group",
+     "103dc/9736tri/1872shadowTri"
     ],
     [
      "WORLD_SCORCH_MARKS",
@@ -3684,7 +3659,7 @@
     ],
     [
      "NUKE_TORN_CHUNK",
-     "76dc/2374tri/0shadowTri"
+     "58dc/1714tri/0shadowTri"
     ],
     [
      "LOOSE_PROPS_CONE[inst]",
@@ -3719,11 +3694,11 @@
      "1dc/360tri/360shadowTri"
     ]
    ],
-   "fps": 2.9,
+   "fps": 1.3,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 232,
+   "programs": 226,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -3823,7 +3798,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -3865,10 +3839,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -3904,7 +3878,6 @@
     "?#depth,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -3926,7 +3899,6 @@
     "?#10,11,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -3946,17 +3918,14 @@
     "?#10,12,highp,srgb-linear,",
     "?#10,13,highp,srgb-linear,",
     "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#6,7,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
-    "?#basic,highp,srgb-linear,",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
-    "?#lambert,highp,srgb-linea"
+    "?#basic,highp,srgb-linear,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
@@ -3969,10 +3938,10 @@
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
    "terrainShapes": "479",
-   "nukeDebris": "861",
-   "nukeFlung": "2",
-   "nukeBuildings": "763",
-   "nukeActors": "98",
+   "nukeDebris": "345",
+   "nukeFlung": "0",
+   "nukeBuildings": "748",
+   "nukeActors": "89",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
    "walkMode": "drone",
@@ -3980,7 +3949,7 @@
   },
   {
    "name": "nuke-3s",
-   "ms": 3420,
+   "ms": 4003,
    "draws": [
     [
      "WORLD_GROUND",
@@ -3988,11 +3957,7 @@
     ],
     [
      "WORLD_CITY_BUILDINGS",
-     "27dc/88407tri/88401shadowTri"
-    ],
-    [
-     "WORLD_CITY_ROADS",
-     "25dc/79944tri/0shadowTri"
+     "27dc/87997tri/87991shadowTri"
     ],
     [
      "STREET_LAMPS[inst]",
@@ -4008,23 +3973,23 @@
     ],
     [
      "Group",
-     "129dc/12988tri/5588shadowTri"
+     "131dc/13668tri/6268shadowTri"
     ],
     [
      "WORLD_SCORCH_MARKS",
      "1dc/8000tri/0shadowTri"
     ],
     [
+     "WORLD_PEOPLE_CHARACTERS[inst]",
+     "27dc/7956tri/7956shadowTri"
+    ],
+    [
      "PASTURE_COWS[inst]",
      "3dc/7920tri/7920shadowTri"
     ],
     [
-     "WORLD_PEOPLE_CHARACTERS[inst]",
-     "27dc/5760tri/5760shadowTri"
-    ],
-    [
      "CHARACTER_civilian",
-     "95dc/5280tri/5280shadowTri"
+     "114dc/6336tri/6336shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
@@ -4035,16 +4000,16 @@
      "1dc/2640tri/0shadowTri"
     ],
     [
+     "TOW_SERVICE",
+     "20dc/2496tri/2376shadowTri"
+    ],
+    [
      "LOOSE_PROPS_CONE[inst]",
      "1dc/1680tri/1680shadowTri"
     ],
     [
      "LOOSE_PROPS_DRUM[inst]",
      "1dc/1344tri/1344shadowTri"
-    ],
-    [
-     "NUKE_TORN_CHUNK",
-     "42dc/1290tri/0shadowTri"
     ],
     [
      "LOCAL_HUMAN_VR",
@@ -4069,13 +4034,17 @@
     [
      "STREET_LAMPS",
      "28dc/728tri/560shadowTri"
+    ],
+    [
+     "WORLD_RUBBLE[inst]",
+     "1dc/432tri/432shadowTri"
     ]
    ],
-   "fps": 5.4,
+   "fps": 3.9,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 233,
+   "programs": 230,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -4175,7 +4144,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -4217,10 +4185,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -4256,7 +4224,6 @@
     "?#depth,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -4278,7 +4245,6 @@
     "?#10,11,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -4298,7 +4264,7 @@
     "?#10,12,highp,srgb-linear,",
     "?#10,13,highp,srgb-linear,",
     "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
@@ -4306,26 +4272,26 @@
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
     "?#basic,highp,srgb-linear,",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
     "?#lambert,highp,srgb-linea",
+    "?#sprite,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
     "?#points,highp,srgb-linear"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
    "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1183",
+   "cityBuildings": "1184",
    "water": "8045/182/222",
    "ground": "satellite-albedo",
-   "roads": "1438",
+   "roads": "1433",
    "bloom": "glow-off-slow-device",
    "style": "realistic-pbr-sun-ibl-v4",
    "collisionPrisms": "900",
    "terrainShapes": "479",
    "nukeDebris": "2000",
-   "nukeFlung": "47",
-   "nukeBuildings": "763",
-   "nukeActors": "98",
+   "nukeFlung": "45",
+   "nukeBuildings": "748",
+   "nukeActors": "89",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
    "walkMode": "drone",
@@ -4333,7 +4299,7 @@
   },
   {
    "name": "nuke-8s",
-   "ms": 8135,
+   "ms": 9293,
    "draws": [
     [
      "WORLD_GROUND",
@@ -4341,7 +4307,7 @@
     ],
     [
      "WORLD_CITY_BUILDINGS",
-     "27dc/88149tri/88143shadowTri"
+     "27dc/86929tri/86923shadowTri"
     ],
     [
      "WORLD_CITY_ROADS",
@@ -4361,11 +4327,11 @@
     ],
     [
      "Group",
-     "128dc/12982tri/5588shadowTri"
+     "130dc/13662tri/6268shadowTri"
     ],
     [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "27dc/8076tri/8076shadowTri"
+     "27dc/9684tri/9684shadowTri"
     ],
     [
      "WORLD_SCORCH_MARKS",
@@ -4384,16 +4350,20 @@
      "1dc/2640tri/0shadowTri"
     ],
     [
+     "TOW_SERVICE",
+     "20dc/2496tri/2376shadowTri"
+    ],
+    [
+     "NUKE_TORN_CHUNK",
+     "60dc/2082tri/0shadowTri"
+    ],
+    [
      "LOOSE_PROPS_CONE[inst]",
      "1dc/1680tri/1680shadowTri"
     ],
     [
      "LOOSE_PROPS_DRUM[inst]",
      "1dc/1344tri/1344shadowTri"
-    ],
-    [
-     "TOW_SERVICE",
-     "10dc/1248tri/1188shadowTri"
     ],
     [
      "LOCAL_HUMAN_VR",
@@ -4418,17 +4388,13 @@
     [
      "WORLD_RUBBLE[inst]",
      "1dc/432tri/432shadowTri"
-    ],
-    [
-     "PLAYER_JETS",
-     "11dc/404tri/404shadowTri"
     ]
    ],
-   "fps": 5.8,
+   "fps": 3,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 233,
+   "programs": 230,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -4528,7 +4494,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -4570,10 +4535,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -4609,7 +4574,6 @@
     "?#depth,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -4631,7 +4595,6 @@
     "?#10,11,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -4651,7 +4614,7 @@
     "?#10,12,highp,srgb-linear,",
     "?#10,13,highp,srgb-linear,",
     "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
@@ -4659,15 +4622,15 @@
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
     "?#basic,highp,srgb-linear,",
-    "?#sprite,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
     "?#lambert,highp,srgb-linea",
+    "?#sprite,highp,srgb-linear",
+    "?#sprite,highp,srgb-linear",
     "?#points,highp,srgb-linear"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
    "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1183",
+   "cityBuildings": "1184",
    "water": "8045/182/222",
    "ground": "satellite-albedo",
    "roads": "1438",
@@ -4676,9 +4639,9 @@
    "collisionPrisms": "900",
    "terrainShapes": "479",
    "nukeDebris": "2000",
-   "nukeFlung": "47",
-   "nukeBuildings": "763",
-   "nukeActors": "98",
+   "nukeFlung": "45",
+   "nukeBuildings": "748",
+   "nukeActors": "89",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
    "walkMode": "drone",
@@ -4686,7 +4649,7 @@
   },
   {
    "name": "nuke-16s",
-   "ms": 11232,
+   "ms": 11848,
    "draws": [
     [
      "WORLD_GROUND",
@@ -4694,7 +4657,7 @@
     ],
     [
      "WORLD_CITY_BUILDINGS",
-     "27dc/88149tri/88143shadowTri"
+     "27dc/86671tri/86665shadowTri"
     ],
     [
      "WORLD_CITY_ROADS",
@@ -4709,20 +4672,20 @@
      "1dc/24000tri/0shadowTri"
     ],
     [
-     "WORLD_PROCEDURAL_POPULATION[inst]",
-     "1dc/16960tri/16960shadowTri"
-    ],
-    [
      "WORLD_WATER",
      "1dc/16090tri/0shadowTri"
     ],
     [
+     "WORLD_PROCEDURAL_POPULATION[inst]",
+     "1dc/15264tri/15264shadowTri"
+    ],
+    [
      "Group",
-     "124dc/12022tri/5588shadowTri"
+     "105dc/11900tri/6268shadowTri"
     ],
     [
      "WORLD_PEOPLE_CHARACTERS[inst]",
-     "27dc/8628tri/8628shadowTri"
+     "27dc/9684tri/9684shadowTri"
     ],
     [
      "WORLD_SCORCH_MARKS",
@@ -4734,7 +4697,7 @@
     ],
     [
      "WORLD_PROCEDURAL_POPULATION",
-     "20dc/6624tri/6624shadowTri"
+     "18dc/5944tri/5944shadowTri"
     ],
     [
      "WORLD_PROCEDURAL_DECOR[inst]",
@@ -4765,23 +4728,23 @@
      "1dc/960tri/0shadowTri"
     ],
     [
+     "FIGHTER_JETS",
+     "24dc/828tri/808shadowTri"
+    ],
+    [
      "NUKE_CRATER_CONTOURS",
      "1dc/816tri/0shadowTri"
     ],
     [
      "STREET_LAMPS",
      "28dc/728tri/560shadowTri"
-    ],
-    [
-     "WORLD_RUBBLE[inst]",
-     "1dc/432tri/432shadowTri"
     ]
    ],
-   "fps": 6.1,
+   "fps": 3.4,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 233,
+   "programs": 228,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -4881,7 +4844,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -4923,10 +4885,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -4962,7 +4924,6 @@
     "?#depth,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -4984,7 +4945,6 @@
     "?#10,11,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -5004,23 +4964,21 @@
     "?#10,12,highp,srgb-linear,",
     "?#10,13,highp,srgb-linear,",
     "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
+    "?#points,highp,srgb-linear",
     "?#6,7,highp,srgb-linear,fa",
-    "?#basic,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#basic,highp,srgb-linear,",
-    "?#sprite,highp,srgb-linear",
     "?#sprite,highp,srgb-linear",
     "?#lambert,highp,srgb-linea",
-    "?#points,highp,srgb-linear"
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#sprite,highp,srgb-linear"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
    "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1183",
+   "cityBuildings": "1184",
    "water": "8045/182/222",
    "ground": "satellite-albedo",
    "roads": "1438",
@@ -5029,9 +4987,9 @@
    "collisionPrisms": "900",
    "terrainShapes": "479",
    "nukeDebris": "2000",
-   "nukeFlung": "47",
-   "nukeBuildings": "763",
-   "nukeActors": "98",
+   "nukeFlung": "45",
+   "nukeBuildings": "748",
+   "nukeActors": "89",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
    "walkMode": "drone",
@@ -5039,7 +4997,7 @@
   },
   {
    "name": "nuke-30s",
-   "ms": 16969,
+   "ms": 17848,
    "draws": [
     [
      "WORLD_GROUND",
@@ -5047,7 +5005,7 @@
     ],
     [
      "WORLD_CITY_BUILDINGS",
-     "27dc/88149tri/88143shadowTri"
+     "27dc/86671tri/86665shadowTri"
     ],
     [
      "WORLD_CITY_ROADS",
@@ -5058,10 +5016,6 @@
      "2dc/46644tri/35880shadowTri"
     ],
     [
-     "WORLD_PROCEDURAL_POPULATION[inst]",
-     "1dc/27984tri/27984shadowTri"
-    ],
-    [
      "NUKE_DEBRIS[inst]",
      "1dc/24000tri/0shadowTri"
     ],
@@ -5070,12 +5024,12 @@
      "1dc/16090tri/0shadowTri"
     ],
     [
-     "WORLD_PEOPLE_CHARACTERS[inst]",
-     "27dc/10428tri/10428shadowTri"
+     "WORLD_PROCEDURAL_POPULATION[inst]",
+     "1dc/15264tri/15264shadowTri"
     ],
     [
-     "WORLD_PROCEDURAL_POPULATION",
-     "49dc/10388tri/10340shadowTri"
+     "WORLD_PEOPLE_CHARACTERS[inst]",
+     "27dc/8052tri/8052shadowTri"
     ],
     [
      "WORLD_SCORCH_MARKS",
@@ -5086,6 +5040,14 @@
      "3dc/7920tri/7920shadowTri"
     ],
     [
+     "Group",
+     "95dc/6400tri/6268shadowTri"
+    ],
+    [
+     "WORLD_PROCEDURAL_POPULATION",
+     "18dc/5944tri/5944shadowTri"
+    ],
+    [
      "WORLD_PROCEDURAL_DECOR[inst]",
      "7dc/4016tri/0shadowTri"
     ],
@@ -5094,20 +5056,16 @@
      "1dc/2640tri/0shadowTri"
     ],
     [
-     "TOW_SERVICE",
-     "20dc/2496tri/2376shadowTri"
-    ],
-    [
-     "Group",
-     "64dc/1956tri/1872shadowTri"
-    ],
-    [
      "LOOSE_PROPS_CONE[inst]",
      "1dc/1680tri/1680shadowTri"
     ],
     [
      "LOOSE_PROPS_DRUM[inst]",
      "1dc/1344tri/1344shadowTri"
+    ],
+    [
+     "TOW_SERVICE",
+     "10dc/1248tri/1188shadowTri"
     ],
     [
      "LOCAL_HUMAN_VR",
@@ -5130,11 +5088,11 @@
      "28dc/728tri/560shadowTri"
     ]
    ],
-   "fps": 6.4,
+   "fps": 3.8,
    "drawCalls": 1,
    "triangles": 2,
    "lines": 0,
-   "programs": 229,
+   "programs": 226,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#0,1,highp,srgb-linear,fa",
@@ -5234,7 +5192,6 @@
     "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb,false,,",
@@ -5276,10 +5233,10 @@
     "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
     "?#16,17,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#18,19,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -5315,7 +5272,6 @@
     "?#depth,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -5337,7 +5293,6 @@
     "?#10,11,highp,srgb,false,,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
@@ -5357,19 +5312,19 @@
     "?#10,12,highp,srgb-linear,",
     "?#10,13,highp,srgb-linear,",
     "?#10,11,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
     "?#points,highp,srgb-linear",
-    "?#sprite,highp,srgb-linear",
     "?#lambert,highp,srgb-linea",
+    "?#sprite,highp,srgb-linear",
     "?#sprite,highp,srgb-linear",
     "?#basic,highp,srgb-linear,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "real",
    "mapSync": "data-only-topdown-v1",
-   "cityBuildings": "1183",
+   "cityBuildings": "1184",
    "water": "8045/182/222",
    "ground": "satellite-albedo",
    "roads": "1438",
@@ -5378,9 +5333,9 @@
    "collisionPrisms": "900",
    "terrainShapes": "479",
    "nukeDebris": "2000",
-   "nukeFlung": "0",
-   "nukeBuildings": "763",
-   "nukeActors": "98",
+   "nukeFlung": "45",
+   "nukeBuildings": "748",
+   "nukeActors": "89",
    "droneHp": "100",
    "footTouch": "single-owner-foot-touch-v5-akimbo-screen-halves",
    "walkMode": "drone",
@@ -5388,8 +5343,8 @@
   }
  ],
  "errors": [],
- "domContentLoadedMs": 1206,
- "loadEventMs": 3924,
+ "domContentLoadedMs": 1706,
+ "loadEventMs": 3296,
  "boot": {
   "readyState": "complete",
   "status": "SIM ready: shared production runtime active.",
@@ -5397,32 +5352,32 @@
   "resources": [
    {
     "n": "l,opsz,wght@0,14..32,400..900;1,14..32,700..900&display=swap",
-    "ms": 73,
+    "ms": 82,
     "kb": 1
    },
    {
     "n": "https://kurzlernen.de/drone_simulator.webmanifest",
-    "ms": 35,
+    "ms": 55,
     "kb": 1
    },
    {
-    "n": "https://kurzlernen.de/build.json?t=1791626744946",
-    "ms": 10,
+    "n": "https://kurzlernen.de/build.json?t=1791627292912",
+    "ms": 19,
     "kb": 0
    },
    {
     "n": "https://kurzlernen.de/sim/icons/rush-192.png",
-    "ms": 97,
+    "ms": 67,
     "kb": 19
    },
    {
     "n": "https://kurzlernen.de/sim/icons/rush-192.png",
-    "ms": 93,
+    "ms": 64,
     "kb": 0
    },
    {
     "n": "https://kurzlernen.de/sim/icons/rush-192.png",
-    "ms": 92,
+    "ms": 64,
     "kb": 0
    }
   ]
@@ -5542,183 +5497,167 @@
   "font": "Inter, -apple-system, \"SF Pro Text\", system-ui, \"Segoe UI\", Roboto, sans-serif"
  },
  "attribution": {
-  "baseline": 7.9,
-  "noCitySolids": 10.8,
-  "noCityEdges": 7.9,
-  "noObjectEdges": 8.4,
-  "noGrid": 8.2,
-  "no_WORLD_CITY_ROADS": 8.3,
-  "no_WORLD_GROUND": 8,
-  "no_WORLD_WATER": 7.8,
-  "no_REAL_SKY": 8,
-  "no_WORLD_PROCEDURAL_POPULATION": 7.5,
-  "no_WORLD_PROCEDURAL_DECOR": 7.9,
-  "noShadows": 8.3,
-  "noBloom": 4.9,
-  "halfRes": 6.5,
-  "noMapCanvas": 7.8,
+  "baseline": 3.8,
+  "noCitySolids": 4.9,
+  "noCityEdges": 3.9,
+  "noObjectEdges": 3.8,
+  "noGrid": 3.6,
+  "no_WORLD_CITY_ROADS": 4.1,
+  "no_WORLD_GROUND": 3.4,
+  "no_WORLD_WATER": 3.9,
+  "no_REAL_SKY": 4.1,
+  "no_WORLD_PROCEDURAL_POPULATION": 3.8,
+  "no_WORLD_PROCEDURAL_DECOR": 3.7,
+  "noShadows": 4.1,
+  "noBloom": 0.9,
+  "halfRes": 3.3,
+  "noMapCanvas": 3.1,
   "objectEdges": 0
  },
  "cpuProfiles": {
   "drone": [
    [
     "(idle) :0",
-    74.9
+    66.8
    ],
    [
     "(program) :0",
-    10.7
+    17.5
    ],
    [
-    "updateMatrixWorld drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
-    0.9
+    "drawMinimap drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:11057",
+    0.6
+   ],
+   [
+    "updateMatrixWorld drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:322",
+    0.6
+   ],
+   [
+    "loadGeometry drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
+    0.5
+   ],
+   [
+    "get geometry drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
+    0.4
    ],
    [
     "querySelector :0",
     0.4
    ],
    [
-    "ADe drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10293",
-    0.4
-   ],
-   [
-    "loadGeometry drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4448",
-    0.4
-   ],
-   [
-    "multiplyMatrices drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
-    0.3
-   ],
-   [
-    "(anon) drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4448",
-    0.3
-   ],
-   [
     "(garbage collector) :0",
-    0.2
+    0.4
    ],
    [
-    "N6 drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4448",
-    0.2
+    "O6 drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
+    0.3
    ],
    [
-    "getObjectByProperty drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
-    0.2
+    "SDe drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10293",
+    0.3
    ],
    [
-    "controlBody drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9805",
-    0.2
+    "multiplyMatrices drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:322",
+    0.3
    ],
    [
-    "renderBufferDirect drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4429",
-    0.2
+    "(anon) drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:11057",
+    0.3
    ],
    [
-    "toWireType drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9771",
-    0.2
-   ],
-   [
-    "readSVarint drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4448",
-    0.2
-   ],
-   [
-    "pose drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9805",
-    0.2
-   ],
-   [
-    "KHe drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10746",
-    0.2
-   ],
-   [
-    "traverse drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
-    0.2
-   ],
-   [
-    "(anon) drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:11057",
-    0.1
-   ],
-   [
-    "syt drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9868",
-    0.1
-   ],
-   [
-    "hie drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9889",
-    0.1
-   ],
-   [
-    "now :0",
-    0.1
-   ],
-   [
-    "Wf drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4429",
-    0.1
-   ],
-   [
-    "Eat drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:11030",
-    0.1
-   ],
-   [
-    "wasm-function[795] 003320de:1",
-    0.1
-   ],
-   [
-    "setValue drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4378",
-    0.1
-   ],
-   [
-    "get dead drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9868",
-    0.1
+    "toWireType drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9771",
+    0.3
    ],
    [
     "(anon) :3",
+    0.3
+   ],
+   [
+    "pN drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9805",
+    0.2
+   ],
+   [
+    "readSVarint drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
+    0.2
+   ],
+   [
+    "getObjectByProperty drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:322",
+    0.2
+   ],
+   [
+    "now :0",
+    0.2
+   ],
+   [
+    "Aie drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9889",
+    0.2
+   ],
+   [
+    "q2e drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9805",
+    0.2
+   ],
+   [
+    "s drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4447",
+    0.2
+   ],
+   [
+    "Bct drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9799",
+    0.2
+   ],
+   [
+    "Z0 drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
+    0.2
+   ],
+   [
+    "uGe drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10746",
     0.1
    ],
    [
-    "bufferSubData :0",
+    "capturePresentationCurrent drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10746",
     0.1
    ],
    [
-    "s drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:580",
+    "exchangeSync drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10746",
     0.1
    ],
    [
-    "pct drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9799",
+    "Xf drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4429",
     0.1
    ],
    [
-    "queryRenderedFeatures drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:5242",
+    "imuRaw drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10746",
     0.1
    ],
    [
-    "updateWorldMatrix drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
+    "$Dt drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10746",
     0.1
    ],
    [
-    "fromWireType drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9771",
+    "W2e drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9805",
     0.1
    ],
    [
-    "k8 drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10541",
+    "kq drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4439",
     0.1
    ],
    [
-    "xc drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10584",
+    "traverse drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:322",
     0.1
    ],
    [
-    "ye drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9805",
+    "parkedCheck drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10746",
     0.1
    ],
    [
-    "drawMinimap drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:11057",
+    "HD drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10746",
     0.1
    ],
    [
-    "rSt drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10412",
+    "Qg drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9811",
     0.1
    ],
    [
-    "w drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:677",
+    "mie drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9889",
     0.1
    ],
    [
@@ -5726,65 +5665,85 @@
     0.1
    ],
    [
-    "ar drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4429",
+    "wasm-function[67] 003320de:1",
     0.1
    ],
    [
-    "getElementById :0",
+    "bMt drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10412",
     0.1
    ],
    [
-    "dAt drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9811",
+    "ar drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4429",
     0.1
    ],
    [
-    "Oa drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:626",
+    "bc drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10584",
+    0.1
+   ],
+   [
+    "vMt drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10412",
+    0.1
+   ],
+   [
+    "pose drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9805",
+    0.1
+   ],
+   [
+    "renderReal drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:11057",
+    0.1
+   ],
+   [
+    "getBoundingClientRect :0",
     0.1
    ]
   ],
   "foot": [
    [
     "(idle) :0",
-    80.2
+    80.1
    ],
    [
     "(program) :0",
     5.4
    ],
    [
-    "updateMatrixWorld drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
-    0.8
+    "drawMinimap drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:11057",
+    0.5
+   ],
+   [
+    "updateMatrixWorld drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:322",
+    0.5
+   ],
+   [
+    "(anon) drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:11057",
+    0.5
    ],
    [
     "querySelector :0",
+    0.5
+   ],
+   [
+    "loadGeometry drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
     0.4
    ],
    [
-    "readSVarint drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4448",
+    "readSVarint drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
     0.4
    ],
    [
-    "ADe drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10293",
+    "uGe drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10746",
     0.3
    ],
    [
-    "loadGeometry drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4448",
+    "q2e drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9805",
     0.3
    ],
    [
-    "drawMinimap drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:11057",
+    "O6 drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
     0.3
    ],
    [
-    "traverse drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
-    0.3
-   ],
-   [
-    "get geometry drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4448",
-    0.3
-   ],
-   [
-    "renderBufferDirect drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4429",
+    "get geometry drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
     0.3
    ],
    [
@@ -5792,103 +5751,111 @@
     0.2
    ],
    [
-    "pose drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9805",
-    0.2
-   ],
-   [
-    "k8 drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10541",
-    0.2
-   ],
-   [
-    "syt drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9868",
-    0.2
-   ],
-   [
-    "multiplyMatrices drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
-    0.2
-   ],
-   [
-    "toWireType drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9771",
-    0.2
-   ],
-   [
-    "z2e drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9805",
-    0.2
-   ],
-   [
-    "getObjectByProperty drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
-    0.2
-   ],
-   [
-    "ye drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9805",
-    0.2
-   ],
-   [
-    "KHe drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10746",
-    0.2
-   ],
-   [
-    "m drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:326",
-    0.2
-   ],
-   [
-    "N6 drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4448",
-    0.2
-   ],
-   [
     "(anon) :3",
+    0.2
+   ],
+   [
+    "loadMatchingFeature drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
+    0.2
+   ],
+   [
+    "Aie drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9889",
+    0.2
+   ],
+   [
+    "W2e drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9805",
+    0.2
+   ],
+   [
+    "readVarint drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
+    0.2
+   ],
+   [
+    "SDe drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10293",
+    0.2
+   ],
+   [
+    "traverse drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:322",
+    0.2
+   ],
+   [
+    "Z0 drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
+    0.2
+   ],
+   [
+    "bMt drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10412",
+    0.2
+   ],
+   [
+    "toWireType drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9771",
+    0.2
+   ],
+   [
+    "renderReal drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:11057",
+    0.2
+   ],
+   [
+    "Bct drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9799",
     0.1
    ],
    [
-    "pct drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9799",
+    "multiplyMatrices drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:322",
     0.1
    ],
    [
-    "fill :0",
+    "getObjectByProperty drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:322",
     0.1
    ],
    [
-    "xc drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10584",
+    "wasm-function[795] 003320de:1",
     0.1
    ],
    [
-    "getBoundingClientRect :0",
+    "pose drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9805",
     0.1
    ],
    [
-    "wasm-function[264] 003320de:1",
+    "ar drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4429",
     0.1
    ],
    [
-    "vMe drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9811",
+    "imuRaw drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10746",
     0.1
    ],
    [
-    "wasm-function[753] 003320de:1",
+    "ox drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9879",
     0.1
    ],
    [
-    "render drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4429",
+    "Xf drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4429",
     0.1
    ],
    [
-    "setValue drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4378",
+    "E drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:677",
     0.1
    ],
    [
-    "Act drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9799",
+    "renderBufferDirect drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4429",
     0.1
    ],
    [
-    "_ drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:326",
+    "pN drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9805",
     0.1
    ],
    [
-    "Fwt drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10293",
+    "Qg drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9811",
     0.1
    ],
    [
-    "Cie drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10281",
+    "setTimeout :0",
+    0.1
+   ],
+   [
+    "FGe drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10746",
+    0.1
+   ],
+   [
+    "exchangeSync drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10746",
     0.1
    ],
    [
@@ -5896,149 +5863,173 @@
     0.1
    ],
    [
-    "imuRaw drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10746",
+    "byt drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9868",
     0.1
    ],
    [
-    "Wf drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4429",
+    "Oat drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:11030",
     0.1
    ],
    [
-    "(anon) drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:11057",
+    "wasm-function[251] 003320de:1",
     0.1
    ],
    [
-    "FQe drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:626",
-    0.1
-   ],
-   [
-    "sRe drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10318",
-    0.1
-   ],
-   [
-    "getObjectByName drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
-    0.1
-   ],
-   [
-    "renderReal drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:11057",
+    "a drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:326",
     0.1
    ]
   ],
   "nuke-0-4s": [
    [
     "(idle) :0",
-    47.9
+    24.9
    ],
    [
     "(program) :0",
-    6.3
+    11.6
    ],
    [
-    "$a drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9801",
-    3.7
+    "getProgramParameter :0",
+    5.9
    ],
    [
-    "edt drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9801",
-    3.2
+    "Va drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9801",
+    5.3
+   ],
+   [
+    "mdt drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9801",
+    3.4
    ],
    [
     "(garbage collector) :0",
-    1.9
+    3.2
    ],
    [
-    "gve drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:5265",
+    "Adt drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9801",
     1.5
    ],
    [
-    "traverse drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
+    "(anon) :3",
+    1.3
+   ],
+   [
+    "wasm-function[339] 003320de:1",
+    1.2
+   ],
+   [
+    "wasm-function[113] 003320de:1",
+    1.2
+   ],
+   [
+    "toWireType drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9771",
+    1.2
+   ],
+   [
+    "cs drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9783",
+    1.1
+   ],
+   [
+    "j7e drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10452",
     1
    ],
    [
-    "P drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10318",
+    "sZe drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4439",
+    1
+   ],
+   [
+    "traverse drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:322",
     0.9
    ],
    [
-    "f7e drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10452",
-    0.9
+    "ld drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9801",
+    0.8
    ],
    [
-    "(anon) :3",
-    0.9
-   ],
-   [
-    "updateMatrixWorld drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
+    "loadGeometry drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
     0.7
    ],
    [
-    "fr drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4439",
+    "_ve drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:5265",
+    0.7
+   ],
+   [
+    "P drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10318",
     0.6
    ],
    [
-    "toWireType drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9771",
+    "readSVarint drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
     0.6
-   ],
-   [
-    "cve drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:5265",
-    0.6
-   ],
-   [
-    "ls drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9783",
-    0.5
-   ],
-   [
-    "$Je drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4439",
-    0.5
-   ],
-   [
-    "sd drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:9801",
-    0.5
-   ],
-   [
-    "(anon) drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:11057",
-    0.5
-   ],
-   [
-    "_ drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10541",
-    0.5
-   ],
-   [
-    "convert drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
-    0.5
-   ],
-   [
-    "ADe drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10293",
-    0.4
-   ],
-   [
-    "N6t drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10318",
-    0.4
-   ],
-   [
-    "drawMinimap drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:11057",
-    0.4
-   ],
-   [
-    "now :0",
-    0.4
-   ],
-   [
-    "querySelector :0",
-    0.4
    ],
    [
     "wasm-function[795] 003320de:1",
+    0.6
+   ],
+   [
+    "pve drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:5265",
+    0.5
+   ],
+   [
+    "get geometry drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
+    0.5
+   ],
+   [
+    "wasm-function[153] 003320de:1",
+    0.5
+   ],
+   [
+    "now :0",
+    0.5
+   ],
+   [
+    "TTt drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10452",
     0.4
    ],
    [
-    "Doe drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10309",
+    "e drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10452",
     0.4
    ],
    [
-    "kn drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
+    "O6 drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
+    0.4
+   ],
+   [
+    "o6 drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9783",
+    0.4
+   ],
+   [
+    "Wx drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9783",
+    0.4
+   ],
+   [
+    "iDt drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10746",
     0.3
    ],
    [
-    "Pst drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10974",
+    "drawMinimap drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:11057",
+    0.3
+   ],
+   [
+    "fr drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4439",
+    0.3
+   ],
+   [
+    "Noe drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10309",
+    0.3
+   ],
+   [
+    "wasm-function[438] 003320de:1",
+    0.3
+   ],
+   [
+    "updateMatrixWorld drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:322",
+    0.3
+   ],
+   [
+    "_ drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10541",
+    0.3
+   ],
+   [
+    "write drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9771",
     0.3
    ],
    [
@@ -6046,68 +6037,32 @@
     0.3
    ],
    [
+    "(anon) drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:11057",
+    0.2
+   ],
+   [
     "wasm-to-js :1",
-    0.3
-   ],
-   [
-    "Wf drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4429",
-    0.3
-   ],
-   [
-    "G5t drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10746",
-    0.3
-   ],
-   [
-    "(anon) drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10452",
-    0.3
-   ],
-   [
-    "N6 drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4448",
-    0.3
-   ],
-   [
-    "D drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10541",
     0.2
    ],
    [
-    "setItem :0",
+    "Bh drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10284",
     0.2
    ],
    [
-    "(anon) drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10318",
+    "blast drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:9805",
     0.2
    ],
    [
-    "getObjectByProperty drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:322",
+    "queryIntersectsFeature drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:4448",
     0.2
    ],
    [
-    "readSVarint drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4448",
-    0.2
-   ],
-   [
-    "wasm-function[188] 003320de:1",
-    0.2
-   ],
-   [
-    "projectPoint drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:4448",
-    0.2
-   ],
-   [
-    "wasm-function[850] 003320de:1",
-    0.2
-   ],
-   [
-    "O6t drone_simulator.html?diag-ci=a3aca403d6ae49cd3f38c5e950dccf4bc1ee4e49&menu=1&hq=1:10318",
-    0.2
-   ],
-   [
-    "wasm-function[113] 003320de:1",
+    "step drone_simulator.html?diag-ci=ace40b920a52dcc85edc62be473a63998b95bea0&menu=1&hq=1:10746",
     0.2
    ]
   ]
  },
- "walkMoved": 0.5187556484028963,
+ "walkMoved": 0.5187559284843797,
  "walkSprint": "0",
  "interior": {
   "key": "26295923:-380,1411;187,1033;957,1971;434,2545|-10,1535;-39,1549;-90,1477;-24,1426;19,1484;136,1397;361,1695;579,1949;426,2116;354,2014;361,1993;354,1956;303,1949;237,2007;34,1738;107,1680;114,1637;92,1629;56,1637",
@@ -6120,47 +6075,47 @@
   "door": {
    "x": -1.917888026012915,
    "y": 101.23684821364193,
-   "z": -1.0715427954768144,
+   "z": -1.3400656697149185,
    "where": "door",
    "levels": 6,
    "roof": false,
-   "eyeZ": 1.6799472251318261
+   "eyeZ": 1.8809902212037986
   },
   "inside": {
    "x": 3.930802622656394,
    "y": 97.03770333686425,
-   "z": -1.0715427954768144,
+   "z": -1.3400656697149185,
    "where": "inside",
    "levels": 6,
    "roof": false,
-   "eyeZ": 0.6084572045231855
+   "eyeZ": 0.33993433028508147
   },
   "stairs": {
    "x": 18.4407089034892,
    "y": 81.79037655232543,
-   "z": -0.2775427954768144,
+   "z": -0.5460656697149184,
    "where": "stairs",
    "levels": 6,
    "roof": false,
-   "eyeZ": 1.402457204523181
+   "eyeZ": 1.1339343302850768
   },
   "upper": {
    "x": 21.8497956552832,
    "y": 85.42413872378665,
-   "z": 6.110957204523185,
+   "z": 5.842434330285082,
    "where": "upper",
    "levels": 6,
    "roof": false,
-   "eyeZ": 7.790957204523185
+   "eyeZ": 7.522434330285082
   },
   "roof": {
    "x": 18.4407089034892,
    "y": 81.79037655232543,
-   "z": -0.2775427954768144,
+   "z": -0.5460656697149184,
    "where": "roof",
    "levels": 6,
    "roof": false,
-   "eyeZ": 1.402457204523181
+   "eyeZ": 1.1339343302850768
   }
  },
  "arm": {
@@ -6171,8 +6126,8 @@
   "canDeploy": true
  },
  "nukeRemote": [
-  -325.357088478919,
-  -205.0719702594289,
+  -262.5796785861387,
+  -266.0693927954893,
   0
  ],
  "nukeNewPrograms3s": {
@@ -6186,10 +6141,8 @@
   "NUKE_CRATER_CONTOURS/NUKE_CRATER_CONTOURS|LineBasicMaterial|t1|b1|vc0|s0|fog1|inst0|250": 1,
   "Group/Mesh|MeshLambertMaterial|t1|b1|vc0|s0|fog1|inst0|261": 4,
   "Group/LineSegments2|LineMaterial|t1|b1|vc0|s0|fog0|inst0|248": 21,
-  "Sprite/Sprite|SpriteMaterial|t1|b1|vc0|s0|fog1|inst0|250": 30,
-  "Points/Points|PointsMaterial|t1|b1|vc1|s0|fog1|inst0|253": 1,
-  "NUKE_TORN_CHUNK/Mesh|MeshBasicMaterial|t0|b1|vc0|s2|fog1|inst0|251": 24,
-  "NUKE_TORN_CHUNK/LineSegments|LineBasicMaterial|t1|b1|vc0|s0|fog1|inst0|250": 24
+  "Sprite/Sprite|SpriteMaterial|t1|b1|vc0|s0|fog1|inst0|250": 14,
+  "Points/Points|PointsMaterial|t1|b1|vc1|s0|fog1|inst0|253": 1
  },
  "nukeNewPrograms8s": {
   "WORLD_IMPACT_CHIPS/WORLD_IMPACT_CHIPS|MeshLambertMaterial|t0|b1|vc0|s0|fog1|inst1|261": 1,
@@ -6202,7 +6155,10 @@
   "NUKE_CRATER_CONTOURS/NUKE_CRATER_CONTOURS|LineBasicMaterial|t1|b1|vc0|s0|fog1|inst0|250": 1,
   "Group/Mesh|MeshLambertMaterial|t1|b1|vc0|s0|fog1|inst0|261": 4,
   "Group/LineSegments2|LineMaterial|t1|b1|vc0|s0|fog0|inst0|248": 21,
-  "Sprite/Sprite|SpriteMaterial|t1|b1|vc0|s0|fog1|inst0|250": 30,
-  "Points/Points|PointsMaterial|t1|b1|vc1|s0|fog1|inst0|253": 1
+  "Sprite/Sprite|SpriteMaterial|t1|b1|vc0|s0|fog1|inst0|250": 12,
+  "Sprite/Sprite|SpriteMaterial|t1|b2|vc0|s0|fog1|inst0|250": 2,
+  "Points/Points|PointsMaterial|t1|b1|vc1|s0|fog1|inst0|253": 1,
+  "NUKE_TORN_CHUNK/Mesh|MeshBasicMaterial|t0|b1|vc0|s2|fog1|inst0|251": 11,
+  "NUKE_TORN_CHUNK/LineSegments|LineBasicMaterial|t1|b1|vc0|s0|fog1|inst0|250": 11
  }
 }
