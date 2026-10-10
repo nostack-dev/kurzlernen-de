@@ -17,7 +17,7 @@ try{
 
   await page.click("#mobileGameplayMode");
   await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.playerMode==="foot"&&document.body.classList.contains("on-foot-mode"),{timeout:8000});
-  const modeFoot=await page.$eval("#viewport",v=>({route:v.dataset.mobilePlayerModeRoute,mode:v.dataset.playerMode,button:document.querySelector("#mobileGameplayMode")?.textContent?.trim()}));
+  const modeFoot=await page.$eval("#viewport",v=>({route:v.dataset.mobilePlayerModeRoute,mode:v.dataset.playerMode,button:document.querySelector("#mobileGameplayMode")?.dataset.current}));
   if(modeFoot.route!=="walk-api-direct-v1"||modeFoot.mode!=="foot")throw new Error(`mobile first-person direct route failed: ${JSON.stringify(modeFoot)}`);
 
   await page.evaluate(()=>globalThis.__arondightFootWeapons.setMode("smg"));

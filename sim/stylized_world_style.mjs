@@ -102,7 +102,13 @@ let envTexture=null;
 function buildEnvironment(scene,renderer){
   // every scene (training world, real world, rebuilt worlds) gets the env map
   if(envTexture&&scene.environment!==envTexture){scene.environment=envTexture;scene.environmentIntensity=.9;}
-  if(envReady||!renderer)return;try{const pm=new THREE.PMREMGenerator(renderer),envScene=new THREE.Scene(),g=new THREE.SphereGeometry(10,32,16);g.rotateX(Math.PI/2);const m=new THREE.Mesh(g,skyMaterial(false));envScene.add(m);
+  if(envReady||!renderer)return;try{const pm=new THREE.PMREMGenerator(renderer),envScene=new THREE.Scene(),g=new THREE.SphereGeometry(10,32,16);g.rotateX(Math.PI/2);
+    // the env map is blurred to nothing finer than the sky gradient anyway: a vertex-coloured dome
+    // with the sky's own day/night gradient instead of the full procedural sky shader (that program
+    // took minutes to link on software GL and seconds on weak phones, right at the start)
+    {const pos=g.attributes.position,cols=new Float32Array(pos.count*3),night=Number(skyUniforms.uNight.value)||0,mixc=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t),zen=mixc([0.05,0.2,0.62],[0.012,0.022,0.06],night),hor=mixc([0.52,0.66,0.86],[0.05,0.075,0.13],night),gnd=[0.36,0.39,0.31].map(v=>v*(1-night*.8));
+      for(let i=0;i<pos.count;i++){const z=pos.getZ(i)/10,c=z>=0?mixc(hor,zen,Math.pow(z,.45)):mixc(hor,gnd,Math.min(1,-z*4));cols[i*3]=c[0];cols[i*3+1]=c[1];cols[i*3+2]=c[2];}g.setAttribute("color",new THREE.BufferAttribute(cols,3));}
+    const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide,depthWrite:false}));envScene.add(m);
     const ground=new THREE.Mesh(new THREE.CircleGeometry(9.5,32),new THREE.MeshBasicMaterial({color:0x5b6450}));ground.position.z=-1.2;envScene.add(ground);
     const rt=pm.fromScene(envScene,0,.1,100);envTexture=rt.texture;scene.environment=rt.texture;scene.environmentIntensity=.9;pm.dispose();envReady=true;}catch(error){console.warn("environment",error);envReady=true;}
 }

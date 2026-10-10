@@ -28,7 +28,7 @@ try{
   await page.goto(url.href,{waitUntil:"load",timeout:45000});
   await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&globalThis.__arondightDroneWeapons&&document.querySelector("#mobileGameplayDock"),{timeout:45000});
   await page.evaluate(()=>{globalThis.__arondightDroneDamageModel?.reset?.();globalThis.__arondightPlayerDamageModel?.reset?.();globalThis.__arondightWalkMode?.setMode?.("drone",{persist:false,reason:"nuke-live-regression"});globalThis.__arondightDroneWeapons?.setMode?.("nuke");});
-  await page.waitForFunction(()=>document.querySelector("#mobileGameplayMode")?.textContent==="DRONE"&&document.querySelector("#mobileGameplayWeapon")?.textContent?.trim()==="WEAPON · NUKE"&&globalThis.__arondightDroneDamageModel?.canDeploy===true,{timeout:15000});
+  await page.waitForFunction(()=>document.querySelector("#mobileGameplayMode")?.dataset.current==="drone"&&document.querySelector("#mobileGameplayWeapon")?.textContent?.trim()==="WEAPON · NUKE"&&globalThis.__arondightDroneDamageModel?.canDeploy===true,{timeout:15000});
   const armPrep=await armDroneAtomically();
 
   const beforeShot=await page.$eval("#viewport",v=>({nukeLaunches:Number(v.dataset.nukeLaunches)||0,legacyMissiles:Number(v.dataset.droneMissiles)||0}));

@@ -123,7 +123,7 @@ function onKeyDown(event){
   if(event.__synthetic!=="pad"){setDesktop(true);document.body.classList.remove("pad-input");}
   // TAB / M: the pause menu (settings + all game actions), the mouse is freed for it
   if(event.code==="Escape"&&!event.repeat&&event.__synthetic!=="pad"&&inGame()&&!locked()&&!document.querySelector("dialog[open],#resetVoteDialog,#quitConfirmDialog,#worldOptionsPanel:not([hidden]),#changelogPanel:not([hidden])")){event.preventDefault();globalThis.__arondightQuitConfirm?.open?.();return;}
-  if((event.code==="Tab"||event.code==="KeyM")&&!event.repeat&&event.__synthetic!=="pad"&&inGame()&&!playerDown()){event.preventDefault();openMenu();return;}
+  if(event.code==="Tab"&&!event.repeat&&event.__synthetic!=="pad"&&inGame()&&!playerDown()){event.preventDefault();openMenu();return;}
   // dead: R / Enter respawns (the mouse is captured, the RESET button cannot be clicked)
   if((event.code==="KeyR"||event.code==="Enter")&&!event.repeat&&playerDown()){event.preventDefault();event.stopImmediatePropagation();if(globalThis.__arondightRespawnReady&&!globalThis.__arondightRespawnReady())return;const hud=document.getElementById("vsRespawnHud");if(hud&&!hud.hidden)hud.querySelector("button")?.click();else globalThis.__arondightRequestReset?.();event.preventDefault();event.stopImmediatePropagation();return;}
   if(!inGame())return;const mode=gameMode();
@@ -153,10 +153,10 @@ function tick(){
 
 let hintEl=null,playEl=null,lastHint="";
 const HINTS={
-  foot:"WASD move · SHIFT sprint · SPACE jump (2× jetpack) · LMB fire · RMB aim / scope · 1 MP 2 Glock 3 Sniper 5 Granatwerfer 6 Fäuste (LMB links · RMB rechts) 7 Messer · T halten Granate / Q / WHEEL · F vehicle · V drone · 4 strike · G EMP · P multiplayer · ESC menu",
-  drone:"WASD fly · SPACE / SHIFT up / down · MOUSE turn · RMB look · LMB fire · R arm · C camera · 1-3 / Q weapon · V on foot · ESC menu",
-  car:"W / S gas / brake · A / D steer · SPACE handbrake · MOUSE look · C camera · F exit · ESC menu",
-  jet:"W / S throttle · A / D rudder · MOUSE pitch / roll · LMB / SPACE gun · R rocket · B bomb · V hover / flight · C camera · F exit / eject · ESC menu",
+  foot:"WASD move · SHIFT sprint · SPACE jump (2× jetpack) · LMB fire · RMB aim / scope · 1 MP 2 Glock 3 Sniper 5 Granatwerfer 6 Fäuste (LMB links · RMB rechts) 7 Messer · T halten Granate / Q / WHEEL · F vehicle · V drone · 4 strike · G EMP · P multiplayer · M map · ESC menu",
+  drone:"WASD fly · SPACE / SHIFT up / down · MOUSE turn · RMB look · LMB fire · R arm · C camera · 1-3 / Q weapon · V on foot · M map · ESC menu",
+  car:"W / S gas / brake · A / D steer · SPACE handbrake · MOUSE look · C camera · F exit · M map · ESC menu",
+  jet:"W / S throttle · A / D rudder · MOUSE pitch / roll · LMB / SPACE gun · R rocket · B bomb · V hover / flight · C camera · F exit / eject · M map · ESC menu",
 };
 function installUi(){
   if(document.querySelector("style[data-desktop-controls]"))return;

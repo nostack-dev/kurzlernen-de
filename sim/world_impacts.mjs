@@ -75,15 +75,22 @@ function movingRoot(hit){if(!hit)return null;for(let o=hit.object;o;o=o.parent){
   if(hit.box3d&&!hit.object&&hit.physicsId&&hit.physicsKind&&hit.physicsKind!=="terrain"){const now=performance.now(),scene=bridge()?.threeScene;if(!scene)return null;if(!rootCache||now-rootCacheAt>1000){rootCache=new Map();rootCacheAt=now;scene.traverse(n=>{const id=n.userData?.worldPopulationId||n.userData?.worldLifeId||n.userData?.physicsId;if(id&&!rootCache.has(String(id)))rootCache.set(String(id),n);});}return rootCache.get(String(hit.physicsId))||false;}return null;}
 function shown(o){for(let n=o;n;n=n.parent){if(n.visible===false)return false;if(n.isScene)return true;}return false;}
 function stepAttached(){if(!attached.size||!decals)return;let dirty=false;for(const[i,a]of attached){if(!shown(a.obj)){decals.setMatrixAt(i,ZERO_M);attached.delete(i);dirty=true;continue;}a.obj.updateWorldMatrix(true,false);anchorM.multiplyMatrices(a.obj.matrixWorld,a.local);decals.setMatrixAt(i,anchorM);dirty=true;}if(dirty)decals.instanceMatrix.needsUpdate=true;}
+// Far hits must still read on screen — above all through the sniper scope (narrow field of view):
+// a 5 cm chip 150 m away is a fraction of a pixel. Debris and marks grow with distance / zoom so
+// they never fall below a few pixels (close up nothing changes).
+const visV=new THREE.Vector3();
+export function impactVisibilityScale(point,basePx=3,base=.08){const b=bridge(),c=b?.presentedCamera?.()||b?.threeCamera,v=document.getElementById("viewport");if(!c?.isPerspectiveCamera||!point||!v)return 1;visV.set(point.x,point.y,point.z);const d=c.position.distanceTo(visV);if(!(d>1))return 1;
+  const pxPerM=v.clientHeight/(2*d*Math.tan((c.fov/(c.zoom||1))*Math.PI/360));return Math.max(1,Math.min(14,basePx/(base*pxPerM)));}
 export function addDecal(point,normal,{size=.1,color=0x2a2622,ground=false,attach=null}={}){
+  if(point)size*=Math.min(4,impactVisibilityScale(point,2.2,size));
   if(ground&&ensure()&&point){const i=decalCursor++%DECALS,d={x:point.x,y:point.y,size,spin:Math.random()*6.28};decals.count=Math.min(DECALS,decalCursor);groundDecals.set(i,d);layGroundDecal(i,d);decals.setColorAt(i,col.set(color));decals.instanceMatrix.needsUpdate=true;decals.instanceColor.needsUpdate=true;return;}
   if(!ensure()||!point)return;n.copy(normal||Z);if(n.lengthSq()<1e-6)n.copy(Z);n.normalize();
   q.setFromUnitVectors(Z,n);const spin=new THREE.Quaternion().setFromAxisAngle(Z,Math.random()*6.28);q.multiply(spin);
   p.copy(point).addScaledVector(n,.012);s.set(size,size,size);m4.compose(p,q,s);const i=decalCursor++%DECALS;decals.count=Math.min(DECALS,decalCursor);groundDecals.delete(i);attached.delete(i);decals.setMatrixAt(i,m4);if(attach){attach.updateWorldMatrix(true,false);attached.set(i,{obj:attach,local:new THREE.Matrix4().copy(attach.matrixWorld).invert().multiply(m4)});}decals.setColorAt(i,col.set(color));decals.instanceMatrix.needsUpdate=true;decals.instanceColor.needsUpdate=true;
 }
 export function chipBurst(point,normal,surface="building",count=6,speed=4){
-  if(!ensure()||!point)return;if(surface==="building"&&glassAt(point)?.glass){surface="glass";count=Math.min(count,5);}const palette=COLORS[surface]||COLORS.building;n.copy(normal||Z).normalize();
-  for(let k=0;k<count;k++){const i=chipCursor++%CHIPS,c=chipItems[i];chips.count=Math.min(CHIPS,chipCursor);c.life=rand(.5,1.1);c.p.copy(point).addScaledVector(n,.05);c.v.set(n.x+rand(-.7,.7),n.y+rand(-.7,.7),n.z+rand(-.2,.9)).normalize().multiplyScalar(speed*rand(.5,1.2));c.size=rand(.04,.11)*(surface==="tree"?1.4:1);c.spin=rand(-14,14);c.axis.set(rand(-1,1),rand(-1,1),rand(-1,1)).normalize();c.angle=0;chips.setColorAt(i,col.set(palette[k%palette.length]));}
+  if(!ensure()||!point)return;const vis=impactVisibilityScale(point,3.2,.075);if(vis>1.5){count=Math.min(count+4,14);speed*=Math.min(3,Math.sqrt(vis));}if(surface==="building"&&glassAt(point)?.glass){surface="glass";count=Math.min(count,5);}const palette=COLORS[surface]||COLORS.building;n.copy(normal||Z).normalize();
+  for(let k=0;k<count;k++){const i=chipCursor++%CHIPS,c=chipItems[i];chips.count=Math.min(CHIPS,chipCursor);c.life=rand(.5,1.1);c.p.copy(point).addScaledVector(n,.05);c.v.set(n.x+rand(-.7,.7),n.y+rand(-.7,.7),n.z+rand(-.2,.9)).normalize().multiplyScalar(speed*rand(.5,1.2));c.size=rand(.04,.11)*(surface==="tree"?1.4:1)*vis;c.spin=rand(-14,14);c.axis.set(rand(-1,1),rand(-1,1),rand(-1,1)).normalize();c.angle=0;chips.setColorAt(i,col.set(palette[k%palette.length]));}
   chips.instanceColor.needsUpdate=true;
 }
 function stepChips(dt){
@@ -203,7 +210,7 @@ export function installWorldImpacts(){
   window.addEventListener("arondight:world-explosion",onExplosion);
   window.addEventListener("arondight:world-reset",()=>{trees.clear();groundDecals.clear();scorchItems.fill(null);if(scorch){scorch.geometry.attributes.position.array.fill(0);scorch.geometry.attributes.position.needsUpdate=true;}if(decals){for(let i=0;i<DECALS;i++)decals.setMatrixAt(i,ZERO);decals.instanceMatrix.needsUpdate=true;}});
   onTerrainChange(()=>relayGround());
-  globalThis.__worldImpacts={bullet:bulletImpact,decal:addDecal,scorch:addScorch,chips:chipBurst,knockTree,version:WORLD_IMPACTS_VERSION};
+  globalThis.__worldImpacts={bullet:bulletImpact,decal:addDecal,scorch:addScorch,chips:chipBurst,knockTree,visibility:p=>impactVisibilityScale(p,4,.06),version:WORLD_IMPACTS_VERSION};
   const v=document.getElementById("viewport");if(v)v.dataset.worldImpacts=WORLD_IMPACTS_VERSION;
   requestAnimationFrame(frame);
 }

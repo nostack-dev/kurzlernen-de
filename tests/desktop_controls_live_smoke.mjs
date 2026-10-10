@@ -8,8 +8,8 @@ const browser=await puppeteer.launch({headless:true,executablePath,args:["--no-s
 page.on("pageerror",error=>errors.push(error.message));
 try{
   await page.setViewport({width:1440,height:900,deviceScaleFactor:1});
-  await page.goto(url.href,{waitUntil:"load",timeout:45000});
-  await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&document.body.classList.contains("solo-flight")&&globalThis.__arondightDroneWeapons?.setMode&&document.querySelectorAll("#desktopDroneWeaponSwitch button").length===2,{timeout:45000});
+  await page.goto(url.href,{waitUntil:"load",timeout:120000});
+  await page.waitForFunction(()=>document.querySelector("#status")?.textContent?.includes("SIM ready")&&document.body.classList.contains("solo-flight")&&globalThis.__arondightDroneWeapons?.setMode&&document.querySelectorAll("#desktopDroneWeaponSwitch button").length===2,{timeout:150000,polling:500});
   const initial=await page.evaluate(()=>{const group=document.querySelector("#desktopDroneWeaponSwitch"),buttons=[...group.querySelectorAll("button")],stop=document.querySelector("#soloKill"),ss=getComputedStyle(stop),gr=group.getBoundingClientRect();return{groupDisplay:getComputedStyle(group).display,groupWidth:gr.width,buttons:buttons.map(b=>({text:b.textContent.trim(),pressed:b.getAttribute("aria-pressed"),display:getComputedStyle(b).display})),stop:{text:stop?.textContent?.trim(),display:ss.display,align:ss.alignItems,justify:ss.justifyContent,textAlign:ss.textAlign}};});
   if(initial.buttons.map(b=>b.text).join(",")!=="GUN,ROCKETS")throw new Error(`desktop weapon selector is not visibly exposed: ${JSON.stringify(initial)}`);
   if(!(initial.stop.text==="STOP"&&initial.stop.align==="center"&&initial.stop.justify==="center"&&initial.stop.textAlign==="center"))throw new Error(`STOP control is not compact/centered: ${JSON.stringify(initial.stop)}`);

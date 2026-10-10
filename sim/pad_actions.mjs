@@ -20,7 +20,7 @@
 // hides the touch sticks), and blocks gameplay input while a menu is open.
 export const PAD_ACTIONS_VERSION="unified-pad-actions-v1";
 const BTN={A:0,B:1,X:2,Y:3,LB:4,RB:5,LT:6,RT:7,VIEW:8,MENU:9,L3:10,R3:11,UP:12,DOWN:13,LEFT:14,RIGHT:15};
-let installed=false,prev=[],autoEnabled=false;
+let installed=false,prev=[],autoEnabled=false,viewDownAt=0;
 const walk=()=>globalThis.__arondightWalkMode||null;
 function padNow(){const pads=navigator.getGamepads?.()||[];for(const p of pads)if(p?.connected&&(p.mapping==="standard"||/xbox|xinput|045e/i.test(String(p.id||""))))return p;return null;}
 function pressed(p,i){const b=p?.buttons?.[i];return Boolean(typeof b==="number"?b>.5:b?.pressed||Number(b?.value)>.5);}
@@ -34,7 +34,7 @@ globalThis.__arondightPadBlocked=()=>menuOpen()||startScreen();
 export function sendKey(code,{hold=60}={}){const opts={code,key:code.replace(/^Key|^Digit/,"").toLowerCase(),bubbles:true,cancelable:true};const down=new KeyboardEvent("keydown",opts);down.__synthetic="pad";dispatchEvent(down);setTimeout(()=>{const up=new KeyboardEvent("keyup",opts);up.__synthetic="pad";dispatchEvent(up);},hold);}
 function cycleWeapon(dir){const m=mode();if(m!=="foot"&&m!=="drone")return;const api=m==="foot"?globalThis.__arondightFootWeapons:globalThis.__arondightDroneWeapons;if(!api)return;
   if(m==="foot"&&typeof api.setMode==="function"){const order=["smg","glock","sniper","grenade","fists","knife"],i=Math.max(0,order.indexOf(String(api.mode)));api.setMode(order[(i+dir+order.length)%order.length]);}else api.toggle?.();}
-function switchFootDrone(){const m=mode();if(m!=="foot"&&m!=="drone")return;walk()?.setMode?.(m==="foot"?"drone":"foot",{reason:"pad-dpad-down"});}
+function switchFootDrone(){const b=document.getElementById("mobileGameplayMode");if(b&&!b.disabled&&b.classList.contains("hud-mode-switch")){b.click();return;}const m=mode();if(m!=="foot"&&m!=="drone")return;walk()?.setMode?.(m==="foot"?"drone":"foot",{reason:"pad-dpad-down"});}
 function camera(){const m=mode();if(m==="drone")document.getElementById("soloCamera")?.click();else if(m==="car"||m==="jet")sendKey("KeyC");}
 function strike(){const j=globalThis.__fighterJets;if(!j)return;if(j.targeting)j.confirm?.();else j.target?.(true);}
 function emp(){const w=globalThis.__arondightWantedSystem;if(w?.triggerEmp)w.triggerEmp();else document.getElementById("wantedEmpButton")?.click();}
@@ -56,6 +56,7 @@ function frame(){
   if(now.some(Boolean)){enablePadPlay();if(!document.body.classList.contains("pad-input"))document.body.classList.add("pad-input");}
   try{
     {const v=voteDialog();if(v){if(edge(BTN.A)){(document.activeElement&&v.contains(document.activeElement)?document.activeElement:v.querySelector("[data-yes]"))?.click();}else if(edge(BTN.B))v.querySelector("[data-no]")?.click();else if(edge(BTN.LEFT)||edge(BTN.RIGHT)){const b=[...v.querySelectorAll("button")],i=b.indexOf(document.activeElement);b[(i+1+b.length)%b.length]?.focus();}return;}}
+    if(globalThis.__arondightWorldMap?.isOpen)return; // the map reads the pad itself
     if(menuOpen()){focusMenu();return;}           // the settings navigator owns the pad; make sure something is focused
     if(startScreen()){titleNav(edge);return;}
     if(dead()){if(edge(BTN.A)||edge(BTN.Y))respawn();return;}
@@ -64,7 +65,9 @@ function frame(){
     const m=mode();
     if(edge(BTN.UP))strike();
     if(edge(BTN.DOWN))switchFootDrone();
-    if(edge(BTN.VIEW))camera();
+    // VIEW: tap = camera, hold = fullscreen map (world_map_full.mjs) — the tap acts on release
+    if(now[BTN.VIEW]&&!prev[BTN.VIEW])viewDownAt=performance.now();
+    if(!now[BTN.VIEW]&&prev[BTN.VIEW]&&performance.now()-viewDownAt<400&&!(performance.now()-(Number(globalThis.__arondightSuppressViewTap)||0)<1500))camera();
     if(edge(BTN.X))sendKey("KeyE");
     if(m==="foot"||m==="drone"){if(edge(BTN.Y)||edge(BTN.RIGHT))cycleWeapon(1);else if(edge(BTN.LEFT))cycleWeapon(-1);}
     if((m==="foot"||m==="drone")&&edge(BTN.B))emp();
