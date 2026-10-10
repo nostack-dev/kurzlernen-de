@@ -131,6 +131,16 @@ jobs:
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
           CHROME_BIN="$CHROME_BIN" node tests/mobile_multiplayer_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_multiplayer_live_smoke.log
+      # failure reasons as annotations (readable through the checks API without downloading logs)
+      - name: Annotate failures
+        if: failure()
+        run: |
+          for f in artifacts/*.log; do
+            [ -f "$f" ] || continue
+            msg=$(grep -E "Error|passed|failed|Timeout" "$f" | grep -v "^ *at " | tail -4 | cut -c1-600 | tr '\n' ' ' | sed 's/%/%25/g')
+            [ -n "$msg" ] && echo "::error title=$(basename "$f")::$msg"
+          done
+          true
       - name: Publish diagnostics to the ci-diagnostics branch
         if: always()
         env:
