@@ -2,7 +2,7 @@ file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core
             this.#timeoutError = new TimeoutError(`Waiting failed: ${options.timeout}ms exceeded`);
                                  ^
 
-TimeoutError: Waiting failed: 45000ms exceeded
+TimeoutError: Waiting failed: 150000ms exceeded
     at new WaitTask (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/common/WaitTask.js:45:34)
     at IsolatedWorld.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Realm.js:22:26)
     at CdpFrame.waitForFunction (file:///home/runner/work/kurzlernen-de/kurzlernen-de/node_modules/puppeteer-core/lib/esm/puppeteer/api/Frame.js:584:43)
