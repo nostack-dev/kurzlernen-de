@@ -13,9 +13,8 @@
 //    rim), fast swipes accelerate; held beyond the rim it keeps turning. It
 //    also catches a thumb that lands a little outside the (near-invisible)
 //    ring.
-//  * Anywhere else on the view: fire at the touch point; holding keeps the
-//    MP firing. Dragging that finger turns the view too (like dragging the
-//    fire button in CoD Mobile) and the shots go to the crosshair.
+//  * Anywhere else on the view: fire exactly at the touch point; holding keeps
+//    the MP firing, dragging moves the aim point with the finger.
 // Robustness: a stick never stays "owned" by a finger that is gone — a new
 // finger on it takes over, everything resets when no finger is on the glass,
 // and a short blip of an inactive state (mode event, respawn) no longer drops
@@ -32,7 +31,7 @@ const PASS_SELECTOR="button,input,select,textarea,a,label,dialog,.phone-settings
 const STICK_RADIUS=.42,SPRINT_AT=.9,FIRE_INTERVAL_MS=55,GLOCK_HOLD_MS=170;
 // look: edge-turn starts this far (px) beyond the stick radius and reaches full rate EDGE_RAMP_PX later;
 // the drag origin is pulled along so letting the finger come back stops the turn at once
-const EDGE_START=1.0,EDGE_RAMP_PX=70,CATCH_EXTRA_PX=64,FIRE_DRAG_LOOK_PX=16,INACTIVE_GRACE_MS=320;
+const EDGE_START=1.0,EDGE_RAMP_PX=70,CATCH_EXTRA_PX=64,INACTIVE_GRACE_MS=320;
 
 const pointers=new Map();let installed=false,loop=0,lastLoop=performance.now(),nextPistolHand=0,inactiveSince=0;
 const walk=()=>globalThis.__arondightWalkMode||null;
@@ -92,7 +91,7 @@ function onDown(event){
   // newest finger on a stick takes it over: a finger whose "up" got lost can never block the stick
   if(move){dropOther("move",event.pointerId);pointers.set(event.pointerId,startMove(move,event));}
   else if(look){dropOther("look",event.pointerId);pointers.set(event.pointerId,startLook(look,event));setData("walkTouchLookModel",FOOT_TOUCH_LOOK);}
-  else{const hand=chooseFireHand(event.clientX,event.clientY);if(hand<0){setData("walkGlockExtraTouch","ignored-third-fire-pointer");return claim(event);}const entry={kind:"fire",x:event.clientX,y:event.clientY,sx:event.clientX,sy:event.clientY,lx:event.clientX,ly:event.clientY,lt:Number(event.timeStamp)||now,looking:false,lastShot:now,hand};pointers.set(event.pointerId,entry);fire(entry.x,entry.y,"screen-touch-hold-start",entry.hand);setData("walkFirePointerActive","1");ensureHoldTimer();setData("walkFirePointerId",event.pointerId);setData("walkFireHand",entry.hand);setData("walkFireHands",fireHands().join(","));setData("walkGlockTriggerModel","screen-half-owns-pistol-v4");setData("walkHoldFire","screen-pointer-owned-smg-v1");setData("walkScreenTouch","fire-only-v1");}
+  else{const hand=chooseFireHand(event.clientX,event.clientY);if(hand<0){setData("walkGlockExtraTouch","ignored-third-fire-pointer");return claim(event);}const entry={kind:"fire",x:event.clientX,y:event.clientY,sx:event.clientX,sy:event.clientY,lastShot:now,hand};pointers.set(event.pointerId,entry);fire(entry.x,entry.y,"screen-touch-hold-start",entry.hand);setData("walkFirePointerActive","1");ensureHoldTimer();setData("walkFirePointerId",event.pointerId);setData("walkFireHand",entry.hand);setData("walkFireHands",fireHands().join(","));setData("walkGlockTriggerModel","screen-half-owns-pistol-v4");setData("walkHoldFire","screen-pointer-owned-smg-v1");setData("walkScreenTouch","fire-only-v1");}
   // Keep the established input contracts that the live regression checks.
   setData("walkTouchContract","drone-normalized-pointer-origin-v2");setData("walkStickSemantics","drone-normalizedPointer-v1");setData("walkMultiTouchMoveIsolation","pointer-id-owned-v1");setData("walkAimStickCoordinates","drone-normalizedPointer-v2");setData("walkWeaponTouchVector","screen-ray+hand-anchor-v1");
   {const e=pointers.get(event.pointerId);if(e&&(e.kind==="move"||e.kind==="look"))e.el.classList.add("stick-live");}
@@ -106,11 +105,8 @@ function onMove(event){
   if(entry.kind==="move")updateMove(entry,event);
   else if(entry.kind==="look"){dragLook(entry,event,"touch-stick-drag");lookOffset(entry,event);}
   else{
-    if(!entry.looking&&Math.hypot(event.clientX-entry.sx,event.clientY-entry.sy)>=FIRE_DRAG_LOOK_PX){
-      // CoD-style: a fire finger that drags becomes "fire button + look"; rounds go to the crosshair
-      entry.looking=true;window.dispatchEvent(new CustomEvent("arondight:foot-aim",{detail:{clientX:entry.x,clientY:entry.y,phase:"end",hand:entry.hand}}));const c=centreOf(viewport());if(c){entry.x=c.x;entry.y=c.y;}walk()?.beginTouchLook?.("touch-fire-drag");entry.lx=event.clientX;entry.ly=event.clientY;entry.lt=Number(event.timeStamp)||performance.now();setData("walkFireDragLook","1");}
-    if(entry.looking)dragLook(entry,event,"touch-fire-drag");
-    else{entry.x=event.clientX;entry.y=event.clientY;window.dispatchEvent(new CustomEvent("arondight:foot-aim",{detail:{clientX:entry.x,clientY:entry.y,phase:"move",hand:entry.hand}}));}}
+    // the round always goes exactly where the finger is: dragging a fire finger moves the aim point with it
+    entry.x=event.clientX;entry.y=event.clientY;window.dispatchEvent(new CustomEvent("arondight:foot-aim",{detail:{clientX:entry.x,clientY:entry.y,phase:"move",hand:entry.hand}}));}
   claim(event);
 }
 function release(id,reason){
@@ -118,10 +114,10 @@ function release(id,reason){
   if(entry.kind==="move"||entry.kind==="look"){endPointerDrag(entry.el,id);entry.el.classList.remove("stick-live");}
   if(entry.kind==="move"){walk()?.setTouchMove?.(0,0,{sprint:false});paintKnob(entry,{x:0,y:0});entry.el.classList.remove("sprinting");setData("walkTouchSprint","0");}
   else if(entry.kind==="look"){if(!stillLooking())walk()?.endTouchLook?.("touch-stick");paintKnob(entry,{x:0,y:0});}
-  else{if(entry.looking){if(!stillLooking())walk()?.endTouchLook?.("touch-fire-drag");setData("walkFireDragLook","0");}else window.dispatchEvent(new CustomEvent("arondight:foot-aim",{detail:{clientX:entry.x,clientY:entry.y,phase:"end",hand:entry.hand}}));const hands=fireHands();setData("walkFirePointerActive",hands.length?"1":"0");setData("walkFireHands",hands.join(","));setData("walkFirePointerRelease",reason);}
+  else{window.dispatchEvent(new CustomEvent("arondight:foot-aim",{detail:{clientX:entry.x,clientY:entry.y,phase:"end",hand:entry.hand}}));const hands=fireHands();setData("walkFirePointerActive",hands.length?"1":"0");setData("walkFireHands",hands.join(","));setData("walkFirePointerRelease",reason);}
   setData("footTouchPointers",pointers.size);setData("footTouchLastRelease",reason);
 }
-function stillLooking(){for(const e of pointers.values())if(e.kind==="look"||e.looking)return true;return false;}
+function stillLooking(){for(const e of pointers.values())if(e.kind==="look")return true;return false;}
 function onUp(event){if(!pointers.has(event.pointerId))return;release(event.pointerId,event.type);claim(event);}
 function releaseAll(reason){for(const id of[...pointers.keys()])release(id,reason);nextPistolHand=0;}
 

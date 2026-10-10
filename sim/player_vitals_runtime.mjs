@@ -29,7 +29,7 @@ function markPlayerDeath(source="world"){
 }
 function revivePlayer(){const wasDead=playerDead;playerDead=false;document.body?.classList.remove("player-dead");if(wasDead)announce("arondight:player-revived",{hp:playerHp});}
 
-function damagePlayer(amount=25,source="world"){
+function damagePlayer(amount=25,source="world"){if(globalThis.__arondightGpsLive?.active)return currentPlayerHp(); /* LIVE GPS mirrors real life: the game can't hurt you */
   // The shielded pilot survives the nuke: during the nuke window every
   // damage source (blast, burn, radiation, debris, secondary explosions,
   // falls) is absorbed.
