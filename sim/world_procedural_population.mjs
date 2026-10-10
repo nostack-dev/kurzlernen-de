@@ -125,7 +125,14 @@ function frightenAround(x,y,radius,now,strength=1){let nearest=null,nd=Infinity;
 // a person speaks (street_voices.mjs: rate-limited, spoken + bubble)
 function say(a,mood){if(!a?.alive||a.knocked)return false;return shout([a.x,a.y,Number(a.z)||groundHeightAt(a.x,a.y)],{mood,seed:a.id});}
 function moodFor(result){return result==="fight"?"angry":result==="flee"?"scared":"bump";}
-function noticeShots(now){const v=viewport(),shots=Number(v?.dataset.walkShots)||0;if(seenWalkShots<0||shots<seenWalkShots){seenWalkShots=shots;return;}if(shots===seenWalkShots)return;seenWalkShots=shots;const pos=String(v.dataset.walkPosition||"").split(",").map(Number);if(pos.length>=2&&pos.every(Number.isFinite))frightenAround(pos[0],pos[1],32,now);}
+// Gunfire scares the people right around the shooter, not the whole street: everyone within 10 m
+// runs, between 10 and 22 m only some do (the rest flinch and carry on); they calm down again once
+// it has been quiet for a few seconds (the flight time runs out, then they walk on).
+function noticeShots(now){const v=viewport(),shots=Number(v?.dataset.walkShots)||0;if(seenWalkShots<0||shots<seenWalkShots){seenWalkShots=shots;return;}if(shots===seenWalkShots)return;seenWalkShots=shots;const pos=String(v.dataset.walkPosition||"").split(",").map(Number);if(pos.length>=2&&pos.every(Number.isFinite))shotScare(pos[0],pos[1],now);}
+function shotScare(x,y,now){let nearest=null,nd=Infinity;for(const a of people){if(!a.alive||a.knocked||a.fightUntil)continue;const d=Math.hypot(a.x-x,a.y-y);if(d>22)continue;
+    if(d>10){a.shotRoll??=Math.random();if(a.shotRoll>.35)continue;} // a fixed share of the people further out react at all
+    const already=a.fleeUntil&&now<a.fleeUntil;frighten(a,x,y,now,{ms:4200+(22-d)*120,strength:1-d/30});if(!already&&a.slot&&d<nd){nd=d;nearest=a;}}
+  if(nearest&&Math.random()<.45)say(nearest,"scared");}
 if(typeof window!=="undefined")addEventListener("arondight:world-explosion",e=>{const pos=e?.detail?.position,x=Array.isArray(pos)?+pos[0]:+pos?.x,y=Array.isArray(pos)?+pos[1]:+pos?.y;if(Number.isFinite(x)&&Number.isFinite(y))frightenAround(x,y,Math.min(90,Math.max(20,(Number(e.detail.radiusM)||6)*5)),performance.now(),1.3);});
 function personRecordFor(a){a.kind="person";a.hp=100;a.gen=0;a.baseId=a.id;a.colors=civilianColors(a.seed);a.slot=null;a.z=0;a.simAt=performance.now();a.deadAt=0;return a;}
 function bindPerson(slot,a){slot.agent=a;a.slot=slot;const u=slot.group.userData;u.worldPopulationId=u.worldProceduralId=a.id;u.spawnHeld=false;u.spawnHandoff=false;crowd?.setColors(slot.i,a.colors);a.z=groundHeightAt(a.x,a.y);slot.group.position.set(a.x,a.y,a.z);slot.group.rotation.set(0,0,a.yaw);slot.group.updateMatrixWorld();}
@@ -252,7 +259,8 @@ function playerHead(){const w=globalThis.__arondightWalkMode;if(w?.mode==="foot"
 // 1.6 m, then lights out. If you are already dead/gone it gives up.
 function updateCatAttack(now){const a=catAttack;if(!a)return null;if(!opts.cats){catAttack=null;return null;}const head=playerHead(),dt=Math.min(.05,(now-(a.last||now))/1000);a.last=now;if(!head||globalThis.__arondightPlayerDamageModel?.dead){catAttack=null;return null;}
   const dx=head.x-a.x,dy=head.y-a.y,d=Math.hypot(dx,dy);a.yaw=Math.atan2(dy,dx);
-  if(a.phase==="charge"){const step=Math.min(d,11*dt);a.x+=dx/(d||1)*step;a.y+=dy/(d||1)*step;a.z=groundHeightAt(a.x,a.y)+ANIMAL_GROUND_OFFSET_M+Math.abs(Math.sin(now/55))*.12;if(d<1.6){a.phase="leap";a.leapAt=now;a.fx=a.x;a.fy=a.y;a.fz=a.z;playAnimal("screech");}if(now-a.start>25000){catAttack=null;return null;}}
+  if(a.phase==="charge"){{const t=performance.now();if(t-(a.lastCry||0)>780){a.lastCry=t;a.cries=(a.cries||0)+1;playAnimal(a.cries%2?"yowl":"hiss");}} // it hisses and yowls all the way in
+  const step=Math.min(d,11*dt);a.x+=dx/(d||1)*step;a.y+=dy/(d||1)*step;a.z=groundHeightAt(a.x,a.y)+ANIMAL_GROUND_OFFSET_M+Math.abs(Math.sin(now/55))*.12;if(d<1.6){a.phase="leap";a.leapAt=now;a.fx=a.x;a.fy=a.y;a.fz=a.z;playAnimal("screech");}if(now-a.start>25000){catAttack=null;return null;}}
   else{const t=Math.min(1,(now-a.leapAt)/340);a.x=a.fx+(head.x-a.fx)*t;a.y=a.fy+(head.y-a.fy)*t;const airborne=a.fz+(head.z-.05-a.fz)*t+Math.sin(t*Math.PI)*.55;a.z=Math.max(groundHeightAt(a.x,a.y)+.18,airborne);
     if(t>=1){globalThis.__arondightPlayerDamageModel?.damage?.(100000,"black-cat");window.dispatchEvent(new CustomEvent("arondight:black-cat-kill"));const v=document.getElementById("viewport");if(v)v.dataset.blackCat="killed-player";catAttack=null;return null;}}
   return a;}

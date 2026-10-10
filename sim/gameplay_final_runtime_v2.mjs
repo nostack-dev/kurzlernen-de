@@ -313,7 +313,7 @@ function sniperShotAt(clientX,clientY,now){
 // four or five clean punches put someone down (ragdoll), the first makes them fight back.
 const FIST_RECOVER_MS=[300,250],COMBO_MS=430,PUNCH_REACH_M=1.8,PUNCH_NS=[40,26],PUNCH_DMG=[24,16];const lastFist=[-Infinity,-Infinity];let lastPunch=-Infinity;
 function punchAt(clientX,clientY,now,hand=0){const h=hand===1?1:0;if(!isFoot()||walk()?.dead||now-lastFist[h]<FIST_RECOVER_MS[h])return false;const combo=now-lastFist[1-h]<COMBO_MS;lastFist[h]=now;lastPunch=now;let ray=footRay(clientX,clientY);if(!ray)return false;
-  weaponFired("fists",h?.12:.18,"foot-screen","foot",{hand:h,combo});const NS=PUNCH_NS[h]*(combo?1.2:1),dmg=Math.round(PUNCH_DMG[h]*(combo?1.35:1));
+  weaponFired("fists",h?.12:.18,"foot-screen","foot",{hand:h,combo});punchWhoosh(h,combo);const NS=PUNCH_NS[h]*(combo?1.2:1),dmg=Math.round(PUNCH_DMG[h]*(combo?1.35:1));
   let hit=nearestGrenadeHit(ray,PUNCH_REACH_M+.4);
   // nothing at fist height: a low punch / kick at something small in front (a dog, a cat)
   if(!hit||Number(hit.distance)>PUNCH_REACH_M+.4){const o=ray.origin,f=new THREE.Vector3(ray.direction.x,ray.direction.y,0);if(f.lengthSq()>1e-6){f.normalize();const tgt=new THREE.Vector3(o.x+f.x*1.1,o.y+f.y*1.1,groundHeightAt(o.x+f.x*1.1,o.y+f.y*1.1)+.3),low=new THREE.Ray(o.clone(),tgt.sub(o).normalize()),h2=nearestGrenadeHit(low,PUNCH_REACH_M+.6);if(h2&&(h2.physicsKind==="animal"||h2.physicsKind==="cow"||h2.object?.userData?.worldPopulationKind==="person")){hit=h2;ray=low;}}}
@@ -327,8 +327,12 @@ function punchAt(clientX,clientY,now,hand=0){const h=hand===1?1:0;if(!isFoot()||
   else if(hit.physicsId){rigid()?.applyImpulse?.(hit.physicsId,[d.x*NS,d.y*NS,d.z*NS],{point:hit.point?[hit.point.x,hit.point.y,hit.point.z]:null});}
   if(hit.point){const pt=[hit.point.x,hit.point.y,hit.point.z];queueMicrotask(()=>rigid()?.impulseHumanAt?.(pt,[d.x*NS,d.y*NS,d.z*NS]));}
   return true;}
+// every swing cuts the air: a short whoosh (the jab quicker and lighter than the cross)
+function punchWhoosh(h,combo){const a=globalThis.__sharedAudioContext;if(!a||a.state!=="running")return;try{const t=a.currentTime,dur=h?.14:.2,n=a.createBuffer(1,Math.ceil(a.sampleRate*dur),a.sampleRate),ch=n.getChannelData(0);for(let i=0;i<ch.length;i++){const u=i/ch.length;ch[i]=(Math.random()*2-1)*Math.sin(Math.PI*u)**1.5;}
+  const src=a.createBufferSource(),bp=a.createBiquadFilter(),g=a.createGain();src.buffer=n;bp.type="bandpass";bp.Q.value=1.6;bp.frequency.setValueAtTime(h?700:500,t);bp.frequency.exponentialRampToValueAtTime(h?2600:2000,t+dur*.6);bp.frequency.exponentialRampToValueAtTime(900,t+dur);g.gain.value=(h?.16:.22)*(combo?1.15:1);src.connect(bp).connect(g).connect(a.destination);src.start(t);}catch{}}
 // the punch landing: a dull body thud (heavier for the cross / a combo)
 function punchThud(h,combo){const a=globalThis.__sharedAudioContext;if(!a||a.state!=="running")return;try{const t=a.currentTime,o=a.createOscillator(),g=a.createGain(),n=a.createBufferSource(),buf=a.createBuffer(1,a.sampleRate*.08,a.sampleRate),ch=buf.getChannelData(0);for(let i=0;i<ch.length;i++)ch[i]=(Math.random()*2-1)*(1-i/ch.length);n.buffer=buf;const lp=a.createBiquadFilter();lp.type="lowpass";lp.frequency.value=900;const ng=a.createGain();ng.gain.value=h?.18:.26;n.connect(lp).connect(ng).connect(a.destination);n.start(t);
+  {const sm=a.createBufferSource(),sb=a.createBuffer(1,Math.ceil(a.sampleRate*.035),a.sampleRate),sd=sb.getChannelData(0);for(let i=0;i<sd.length;i++)sd[i]=(Math.random()*2-1)*Math.pow(1-i/sd.length,2);sm.buffer=sb;const hp=a.createBiquadFilter();hp.type="bandpass";hp.frequency.value=1400;hp.Q.value=.9;const sg=a.createGain();sg.gain.value=h?.32:.42;sm.connect(hp).connect(sg).connect(a.destination);sm.start(t);} // the slap of the knuckles
   o.type="sine";o.frequency.setValueAtTime(h?120:95,t);o.frequency.exponentialRampToValueAtTime(45,t+.12);g.gain.setValueAtTime((h?.35:.5)*(combo?1.2:1),t);g.gain.exponentialRampToValueAtTime(.001,t+.16);o.connect(g).connect(a.destination);o.start(t);o.stop(t+.18);}catch{}}
 function footBurst(clientX,clientY){return footShotAt(clientX,clientY,performance.now());}
 

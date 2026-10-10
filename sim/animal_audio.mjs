@@ -2,7 +2,7 @@ import {getSharedCombatAudioContext} from "./combat_audio_bank.mjs";
 import {loadAudioSettings} from "./audio_settings.mjs";
 
 // Procedural animal voices (WebAudio, no samples): bird squawk, dog yelp,
-// cat meow, the black cat's hiss and attack scream. Played on hits/kills and
+// cat meow, the black cat's hiss, yowl and attack scream. Played on hits/kills and
 // by the black cat when it charges.
 export const ANIMAL_AUDIO_VERSION="synth-animal-voices-v1";
 function ctxAndGain(){const s=loadAudioSettings();if(s.soundEnabled===false||Number(s.fxVolume)<=0)return null;const ctx=getSharedCombatAudioContext({resume:true});if(!ctx)return null;const out=ctx.createGain();out.gain.value=.55*Math.max(0,Math.min(1,Number(s.fxVolume??72)/100));out.connect(ctx.destination);return{ctx,out};}
@@ -14,7 +14,10 @@ export function playAnimal(kind){const a=ctxAndGain();if(!a)return false;const{c
   if(kind==="bird"){tone(ctx,out,{type:"square",f0:2600,f1:1400,dur:.12,gain:.18,filter:2600});tone(ctx,out,{type:"square",f0:2900,f1:1100,t0:.13,dur:.16,gain:.16,filter:2400});noise(ctx,out,{t0:.02,dur:.25,gain:.05,f:5000});}
   else if(kind==="dog"){tone(ctx,out,{f0:900,f1:520,dur:.16,gain:.32,filter:1200,fm:60,fmf:38});tone(ctx,out,{f0:1100,f1:380,t0:.18,dur:.3,gain:.24,filter:1100,fm:90,fmf:30});}
   else if(kind==="cat"){tone(ctx,out,{type:"triangle",f0:520,f1:820,dur:.22,gain:.22,filter:1500,fm:25,fmf:7});tone(ctx,out,{type:"triangle",f0:820,f1:430,t0:.2,dur:.35,gain:.2,filter:1300,fm:30,fmf:6});}
-  else if(kind==="hiss"){noise(ctx,out,{dur:.7,gain:.35,f:4200,q:.6});tone(ctx,out,{f0:300,f1:180,dur:.6,gain:.08,filter:600});}
+  // an attacking cat: a long spitting hiss in hard bursts over a low growl
+  else if(kind==="hiss"){for(const[t0,dur,g]of[[0,.42,.55],[.36,.22,.65],[.55,.5,.5]])noise(ctx,out,{t0,dur,gain:g,f:4600,q:.5});noise(ctx,out,{t0:.02,dur:.06,gain:.6,f:2200,q:1.4});tone(ctx,out,{f0:240,f1:170,dur:1,gain:.16,filter:700,fm:40,fmf:23});}
+  // the wild yowl before it jumps: a rising, warbling caterwaul with a growl underneath
+  else if(kind==="yowl"){tone(ctx,out,{f0:300,f1:760,dur:.55,gain:.42,filter:1500,fm:140,fmf:9});tone(ctx,out,{f0:760,f1:380,t0:.5,dur:.7,gain:.4,filter:1300,fm:170,fmf:7});tone(ctx,out,{type:"square",f0:120,f1:90,dur:1.1,gain:.12,filter:500,fm:30,fmf:31});noise(ctx,out,{t0:.9,dur:.35,gain:.25,f:3800});}
   else if(kind==="screech"){tone(ctx,out,{f0:900,f1:1900,dur:.25,gain:.4,filter:1800,fm:220,fmf:44});tone(ctx,out,{f0:1900,f1:600,t0:.24,dur:.45,gain:.38,filter:1600,fm:260,fmf:52});noise(ctx,out,{dur:.6,gain:.25,f:3000});}
   return true;}
 globalThis.__animalAudio={play:playAnimal,version:ANIMAL_AUDIO_VERSION};
