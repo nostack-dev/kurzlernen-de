@@ -1,9 +1,9 @@
 {
- "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=263f6dac8e3d8698d30fd82b4675a022676f8340",
+ "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=db3fc3c4d9a437f1538eebbdf278e6cee5e4162d",
  "steps": [
   {
    "name": "boot-5s",
-   "ms": 10816,
+   "ms": 11249,
    "draws": [
     [
      "WORLD_SCORCH_MARKS",
@@ -90,11 +90,11 @@
      "1dc/0tri/0shadowTri"
     ]
    ],
-   "fps": 0.6,
+   "fps": 0.3,
    "drawCalls": 1,
    "triangles": 12,
    "lines": 0,
-   "programs": 62,
+   "programs": 98,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
@@ -122,6 +122,41 @@
     "?#6,7,onBeforeCompile(){}",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
+    "?#8,9,highp,srgb-linear,fa",
+    "?#8,10,highp,srgb-linear,f",
+    "?#8,11,highp,srgb-linear,f",
+    "?#lambert,highp,srgb-linea",
+    "?#12,13,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#2,3,highp,srgb-linear,fa",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#4,5,highp,srgb-linear,fa",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#8,9,highp,srgb-linear,fa",
+    "?#8,10,highp,srgb-linear,f",
+    "?#8,11,highp,srgb-linear,f",
+    "?#lambert,highp,srgb-linea",
+    "?#12,13,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
@@ -150,14 +185,15 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
+    "?#8,9,highp,srgb,false,,fa",
+    "?#8,10,highp,srgb,false,,f",
+    "?#8,11,highp,srgb,false,,f",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#8,9,highp,srgb-linear,fa",
-    "?#8,10,highp,srgb-linear,f",
-    "?#8,11,highp,srgb-linear,f",
-    "?#lambert,highp,srgb-linea",
-    "?#12,13,highp,srgb-linear,"
+    "?#12,13,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#basic,highp,srgb,false,,",
+    "?#lambert,highp,srgb,306,1"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "training",
@@ -172,7 +208,7 @@
   },
   {
    "name": "menu",
-   "ms": 3433,
+   "ms": 3521,
    "draws": [
     [
      "WORLD_SCORCH_MARKS",
@@ -199,71 +235,4 @@
      "1dc/960tri/0shadowTri"
     ],
     [
-     "LOOSE_PROPS_CONE[inst]",
-     "1dc/768tri/768shadowTri"
-    ],
-    [
-     "WORLD_RUBBLE[inst]",
-     "1dc/432tri/432shadowTri"
-    ],
-    [
-     "WORLD_GLASS_CRACKS[inst]",
-     "1dc/320tri/0shadowTri"
-    ],
-    [
-     "LOOSE_PROPS_BLOCK[inst]",
-     "1dc/216tri/216shadowTri"
-    ],
-    [
-     "LOOSE_PROPS_CRATE[inst]",
-     "1dc/168tri/168shadowTri"
-    ],
-    [
-     "WORLD_WALL_BREACH[inst]",
-     "1dc/128tri/0shadowTri"
-    ],
-    [
-     "WORLD_WALL_SOOT[inst]",
-     "1dc/96tri/0shadowTri"
-    ],
-    [
-     "LOOSE_PROPS_BIN[inst]",
-     "1dc/84tri/84shadowTri"
-    ],
-    [
-     "Mesh",
-     "1dc/12tri/0shadowTri"
-    ],
-    [
-     "NUKE_PREWARM[inst]",
-     "1dc/12tri/0shadowTri"
-    ],
-    [
-     "NUKE_PREWARM",
-     "2dc/2tri/0shadowTri"
-    ],
-    [
-     "MILITARY_SOLDIERS_REMOTE_CHARACTERS[inst]",
-     "53dc/0tri/0shadowTri"
-    ],
-    [
-     "WORLD_PEOPLE_CHARACTERS[inst]",
-     "53dc/0tri/0shadowTri"
-    ],
-    [
-     "WORLD_IMPACT_DECALS[inst]",
-     "1dc/0tri/0shadowTri"
-    ],
-    [
-     "WORLD_IMPACT_CHIPS[inst]",
-     "1dc/0tri/0shadowTri"
-    ]
-   ],
-   "fps": 5.2,
-   "drawCalls": 1,
-   "triangles": 12,
-   "lines": 0,
-   "programs": 62,
-   "programNames": [
-    "?#basic,highp,srgb-linear,",
-    "?#basic,hig
+     "LOOSE_PROPS_CONE[i
