@@ -12,7 +12,7 @@ const audio=readFileSync("sim/nuke_audio.mjs","utf8");
 const vehicleAudio=readFileSync("sim/player_vehicle_runtime_v2.mjs","utf8");
 
 for(const marker of [
-  'const GROUND_BURST_Z=0','groundBurstPoint(hit.point)','nukeTargetResolver="ground-burst-xy-v1"','const BLAST_RADIUS_M=360','export const NUKE_SCALE=3','const SHOCKWAVE_SPEED_MPS=343','const SHOCKWAVE_MAX_M=1560','const MUSHROOM_HEIGHT_M=324','const CINEMATIC_GRACE_MS=4200','const COOLDOWN_MS=4500','"gun","missile","nuke"','droneNukeAllowed()?["gun","missile","nuke"]:["gun","missile"]','api.fireNuke=fireNuke','api.fireMissile=args=>displayMode==="nuke"?fireNuke(args)','kind:"nuke"','whiteout-fireball-shockwave-mushroom-v4','drone-targeted-fixed-impact-v2','shockwave-arrival-v4-map-locked','arondight:nuke-launch','arondight:nuke-shockwave-arrival','cameraDistanceM:cameraDistanceTo(position)'
+  'const GROUND_BURST_Z=0','groundBurstPoint(hit.point)','nukeTargetResolver="ground-burst-xy-v1"','const BLAST_RADIUS_M=360','export const NUKE_SCALE=3','const SHOCKWAVE_SPEED_MPS=343','const SHOCKWAVE_MAX_M=1560','const MUSHROOM_HEIGHT_M=324','const CINEMATIC_GRACE_MS=4200','const COOLDOWN_MS=4500','"gun","missile","guided","nuke"','droneNukeAllowed()?["gun","missile","guided","nuke"]:["gun","missile","guided"]','api.fireNuke=fireNuke','api.fireMissile=args=>displayMode==="nuke"?fireNuke(args)','kind:"nuke"','whiteout-fireball-shockwave-mushroom-v4','drone-targeted-fixed-impact-v2','shockwave-arrival-v4-map-locked','arondight:nuke-launch','arondight:nuke-shockwave-arrival','cameraDistanceM:cameraDistanceTo(position)'
 ]) assert.ok(nuke.includes(marker),`missing nuke contract marker: ${marker}`);
 
 for(const marker of [

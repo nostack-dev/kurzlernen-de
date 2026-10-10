@@ -24,7 +24,7 @@ const MUSIC_HEADROOM=.45,FADE_S=.9;
 let installed=false,element=null,gain=null,context=null,settings=normalizeAudioSettings(loadAudioSettings()),unlocked=false,pauseTimer=0;
 
 function viewport(){return document.getElementById("viewport");}
-function wanted(){return settings.musicEnabled&&settings.musicVolume>0&&!document.hidden;}
+function wanted(){return settings.musicEnabled&&settings.musicVolume>0&&!document.hidden&&!globalThis.__arondightRadioPlaying;} /* the car radio (car_radio.mjs) takes over while it plays */
 function targetLevel(){return wanted()?Math.min(1,settings.musicVolume/100)*MUSIC_HEADROOM:0;}
 function setStatus(state){const view=viewport();if(view){view.dataset.musicPlayer=MUSIC_PLAYER_VERSION;view.dataset.musicState=state;view.dataset.musicLevel=targetLevel().toFixed(3);}}
 
