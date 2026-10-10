@@ -138,6 +138,11 @@ export const FACADE_GLSL=`{
     base=mix(base,base*0.86,pil*aa);
     base=mix(base,glassC,gl);facGlass=gl;facRough=mix(0.9,0.45,clamp(trimM,0.0,1.0));
     base*=mix(0.72,1.0,smoothstep(0.0,2.5,z)); // grime / contact darkening near the ground
+    // weathering, so a plain wall is never one flat colour: soft patches (≈5×6 m value noise) and,
+    // on some window columns, rain streaks running down from the roof edge
+    {vec2 wq=vec2(u*0.2+sdq*37.0,z*0.16);vec2 wi=floor(wq),wf=fract(wq);wf=wf*wf*(3.0-2.0*wf);float wn0=wi.x+wi.y*57.0;
+     float wv=mix(mix(fh(wn0),fh(wn0+1.0),wf.x),mix(fh(wn0+57.0),fh(wn0+58.0),wf.x),wf.y);base*=0.91+0.13*wv;
+     float sx=floor(u*1.4+sdq*13.0);base*=1.0-0.07*step(0.55,fh(sx+3.7))*fh(sx)*smoothstep(H-0.3,H-5.0,z)*(1.0-gl);}
   }else if(u<-1.5){facRough=0.7;}
   else if(abs(wn.z)>=0.5){float t=fract(sin(dot(floor(vWinPos.xy*0.7),vec2(12.99,78.23)))*43758.5);base*=0.88+0.12*t;facRough=0.95;}
   diffuseColor.rgb=base;

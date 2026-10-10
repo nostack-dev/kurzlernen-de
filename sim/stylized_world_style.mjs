@@ -181,16 +181,9 @@ globalThis.__dayNight={get state(){return dayNight;},set(phase){pinned=Number.is
 // ---------------------------------------------------------------- materials
 function realMaterial(mesh,material){
   if(processed.has(material))return;processed.add(material);stripTextures(material);
-  if(material.isMeshStandardMaterial||material.isMeshPhysicalMaterial||material.isMeshLambertMaterial||material.isMeshPhongMaterial){material.envMapIntensity=material.isMeshStandardMaterial?(material.envMapIntensity??1):1;if(material.isMeshStandardMaterial)livelyFlat(material);material.needsUpdate=true;}
+  if(material.isMeshStandardMaterial||material.isMeshPhysicalMaterial||material.isMeshLambertMaterial||material.isMeshPhongMaterial){material.envMapIntensity=material.isMeshStandardMaterial?(material.envMapIntensity??1):1;material.needsUpdate=true;}
 }
-// One-colour surfaces look dead. The cheap fix: a faint, fixed-to-the-object value noise (two
-// octaves, ±6 % brightness, a hint of warm/cool) plus slightly darker undersides (fake bounce
-// occlusion). One shared program variant for all flat materials (same cache key), no textures.
-const FLAT_GLSL_HEAD="varying vec3 vFlatP;varying float vFlatUp;\nfloat fh(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.55);}\nfloat fn3(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(mix(fh(i),fh(i+vec3(1,0,0)),f.x),mix(fh(i+vec3(0,1,0)),fh(i+vec3(1,1,0)),f.x),f.y),mix(mix(fh(i+vec3(0,0,1)),fh(i+vec3(1,0,1)),f.x),mix(fh(i+vec3(0,1,1)),fh(i+vec3(1,1,1)),f.x),f.y),f.z);}\n";
-function livelyFlat(m){if(m.userData.livelyFlat||m.map||m.vertexColors||m.transparent||m.userData.realGround||m.onBeforeCompile&&m.onBeforeCompile!==THREE.Material.prototype.onBeforeCompile)return;m.userData.livelyFlat=true;
-  m.onBeforeCompile=function(shader){shader.vertexShader=shader.vertexShader.replace("void main() {","varying vec3 vFlatP;varying float vFlatUp;\nvoid main() {").replace("#include <begin_vertex>","#include <begin_vertex>\nvFlatP=position;vFlatUp=normalize(mat3(modelMatrix)*objectNormal).z;");
-    shader.fragmentShader=shader.fragmentShader.replace("void main() {",FLAT_GLSL_HEAD+"void main() {").replace("#include <color_fragment>","#include <color_fragment>\n{float n=fn3(vFlatP*2.3)*.65+fn3(vFlatP*9.0)*.35;diffuseColor.rgb*=(.94+.12*n)*mix(vec3(.985,1.0,1.02),vec3(1.02,1.0,.975),n)*(.9+.1*smoothstep(-.6,.3,vFlatUp));}");};
-  m.customProgramCacheKey=function(){return"lively-flat-v1";};}
+
 function materialsOf(mesh){return(Array.isArray(mesh.material)?mesh.material:[mesh.material]).filter(Boolean);}
 function skip(node){for(let n=node;n;n=n.parent){const u=n.userData||{};if(u.nukeWeaponPart||u.styleSkip||u.neonSkip||u.worldBuildingDepthOccluder||u.vsPeerHitProxy||u.vsCombatHitbox)return true;}return false;}
 function isActor(node){for(let n=node;n;n=n.parent){const u=n.userData||{};if(u.worldPopulationId||u.worldLifeId||u.arondightAirframe||u.arondightVisualAirframe||u.localHumanAvatar||u.gtaDrivableVehicle)return true;}return false;}

@@ -96,8 +96,15 @@ function* build(b,cx,cy){
     if(++n%40===0)yield;}
   return{buckets:[...buckets.values()],roads:roads.length};
 }
+// Asphalt is never one flat grey: patches of older/newer tarmac (≈3 m) and fine grain (≈25 cm, faded
+// out with distance so it never shimmers), in world space so it lies still under the car.
+function asphalt(material){const prev=material.onBeforeCompile;material.onBeforeCompile=(shader,renderer)=>{prev?.call(material,shader,renderer);
+  shader.vertexShader=shader.vertexShader.replace("void main() {","varying vec2 vRoadW;\nvoid main() {").replace("#include <begin_vertex>","#include <begin_vertex>\nvRoadW=(modelMatrix*vec4(transformed,1.0)).xy;");
+  shader.fragmentShader=shader.fragmentShader.replace("void main() {","varying vec2 vRoadW;\nfloat rdh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.55);}\nfloat rdn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(rdh(i),rdh(i+vec2(1,0)),f.x),mix(rdh(i+vec2(0,1)),rdh(i+vec2(1,1)),f.x),f.y);}\nvoid main() {")
+    .replace("#include <color_fragment>","#include <color_fragment>\n{vec2 q=mod(vRoadW,4096.0);float big=rdn(q*0.33),fine=rdn(q*4.0),fade=clamp(1.0-length(fwidth(q*4.0))*0.7,0.0,1.0);diffuseColor.rgb*=0.9+0.15*big+0.1*(fine-0.5)*fade;}");};
+  const key=material.customProgramCacheKey;material.customProgramCacheKey=function(){return `${key?key.call(this):""}|asphalt-v1`;};return material;}
 function ensureMesh(scene){
-  if(mesh?.parent===scene)return mesh;material??=patchShockMaterial(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.93,metalness:0,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4,depthWrite:false}));mesh=new THREE.Group();
+  if(mesh?.parent===scene)return mesh;material??=patchShockMaterial(asphalt(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.93,metalness:0,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4,depthWrite:false})));mesh=new THREE.Group();
   mesh.name="WORLD_CITY_ROADS";mesh.receiveShadow=true;mesh.renderOrder=2;/* group order: after the ground (1) — roads do not write depth */mesh.userData.flightFireIgnore=true;mesh.raycast=()=>{};scene.add(mesh);sceneRef=scene;center=[Infinity,Infinity];return mesh;
 }
 function frame(now){
