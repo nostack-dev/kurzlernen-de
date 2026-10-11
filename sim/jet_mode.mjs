@@ -11,7 +11,6 @@ import {JET_SPEC,createAirframe,airframeStep,setFlightMode} from "./jet_flight_d
 import {WORLD_PHYSICS_CATEGORIES} from "./world_rigid_body_physics.mjs";
 import {startWorldCriticalDamage,stopWorldCriticalDamage} from "./world_critical_damage_fx.mjs";
 import {setText} from "./dom_mutation_filter.mjs";
-import {JetSeatCoordinator} from "./jet_seat_coordinator.mjs";
 
 // JET — a VTOL fighter (Harrier / F-35B style) that stands next to you at the start.
 //
@@ -42,8 +41,6 @@ export const JET_MODE_VERSION="vtol-jet-mode-v4-6dof-aero-damage";
 const G=9.81,REBASE_M=6000,SOUND=340,ENTER_M=9,HP_MAX=400,DEBRIS_MS=45000,PAD_RESPAWN_MS=75000,PAD_RADIUS_M=30,MAX_AIRFRAMES=4;
 const bridge=()=>globalThis.__arondightRealWorld||null,viewport=()=>document.getElementById("viewport"),walk=()=>globalThis.__arondightWalkMode||null,physics=()=>globalThis.__arondightWorldRigidBodies||null;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-let passenger=null,heldSeat=null,seatPending=false;
-const seats=new JetSeatCoordinator(()=>session());
 let active=false,jet=null,root=null,sceneRef=null,camMode="cockpit",keys=new Set(),firing=false,lastGun=0,lastFrame=performance.now(),camOff=new THREE.Vector3(),camInit=false,voice=null,serial=0,machWas=0,coneUntil=0,para=null,baseFar=0,spawnPad=null,firstSeen=0,respawnAt=0,airSerial=0;
 const bombs=[],remote=new Map(),peerAir=new Map(),airframes=new Map(),debris=[],mouseStick={x:0,y:0};let padEmptySince=0,debrisSerial=0;
 const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),fwd=new THREE.Vector3(),upv=new THREE.Vector3(),rightv=new THREE.Vector3(),qd=new THREE.Quaternion(),X=new THREE.Vector3(1,0,0),Y=new THREE.Vector3(0,1,0),Z=new THREE.Vector3(0,0,1);
@@ -85,11 +82,11 @@ const TERRAIN_RAY={maskBits:WORLD_PHYSICS_CATEGORIES.terrain};
 function clearance(x,y,limit=40){let best=limit;for(const pr of prisms()){const pts=pr.points;if(!pts||pts.length<3)continue;if(Math.abs(x-pts[0][0])>limit+120||Math.abs(y-pts[0][1])>limit+120)continue;if(wantedPointInRing(x,y,pts))return 0;
   for(let i=0,j=pts.length-1;i<pts.length;j=i++){const a=pts[j],b=pts[i],dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1,t=clamp(((x-a[0])*dx+(y-a[1])*dy)/L2,0,1),d=Math.hypot(x-a[0]-dx*t,y-a[1]-dy*t);if(d<best)best=d;}}return best;}
 // trees, lamps and parked jets are obstacles too (the jet must be able to roll and lift off)
-function obstacleNear(x,y,r,ignoreId=""){for(const A of airframes.values())if(A.id!==ignoreId&&A.state!=="wreck"&&Math.hypot(A.p.x-x,A.p.y-y)<r+6)return true;
+function obstacleNear(x,y,r){for(const A of airframes.values())if(A.state!=="wreck"&&Math.hypot(A.p.x-x,A.p.y-y)<r+6)return true;
   for(const l of globalThis.__streetLamps?.lamps?.()||[]){const lx=Number(l?.x??l?.p?.x??l?.[0]),ly=Number(l?.y??l?.p?.y??l?.[1]);if(Number.isFinite(lx)&&Math.hypot(lx-x,ly-y)<r)return true;}return false;}
 const JET_CLEAR_M=11.5;
-function spotOk(x,y,ignoreId=""){return clearance(x,y,JET_CLEAR_M+2)>=JET_CLEAR_M&&!obstacleNear(x,y,9,ignoreId)&&Math.abs(groundHeightAt(x+6,y)-groundHeightAt(x-6,y))<1.6&&Math.abs(groundHeightAt(x,y+6)-groundHeightAt(x,y-6))<1.6;}
-function freeSpot(x,y,ignoreId=""){for(let k=0;k<90;k++){const a=k*2.399,r=k?6+k*2.4:0,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;if(spotOk(px,py,ignoreId))return{x:px,y:py};}
+function spotOk(x,y){return clearance(x,y,JET_CLEAR_M+2)>=JET_CLEAR_M&&!obstacleNear(x,y,9)&&Math.abs(groundHeightAt(x+6,y)-groundHeightAt(x-6,y))<1.6&&Math.abs(groundHeightAt(x,y+6)-groundHeightAt(x,y-6))<1.6;}
+function freeSpot(x,y){for(let k=0;k<90;k++){const a=k*2.399,r=k?6+k*2.4:0,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;if(spotOk(px,py))return{x:px,y:py};}
   for(let k=0;k<40;k++){const a=k*2.399,r=k?6+k*2.2:0,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r,g=groundHeightAt(px,py);if(!hitsBuilding({x:px,y:py,z:g+2},9))return{x:px,y:py};}return{x,y};}
 function createAirframeBody(x,y,heading,{pad=false,z=null,velocity=null}={}){
   if(!ensureScene()||!physics())return null;const id=`jet-${(++airSerial).toString(36)}-${Date.now().toString(36).slice(-4)}`,af=createAirframe(JET_SPEC);af.pilot=false;af.engineOn=false;af.input.brake=1;
@@ -121,8 +118,7 @@ function damageAirframe(A,amount,source="world"){
   if(A.hp<=0)destroyAirframe(A,source);
 }
 function destroyAirframe(A,source="world"){
-  if(!A||A.state==="wreck")return;
-  if(heldSeat&&heldSeat.aid===A.id){seats.release(heldSeat.owner,A.id,"pilot");heldSeat=null;}const wasPlayer=A===jet,p=A.p.clone(),v=A.v.clone(),q=A.q.clone();A.state="wreck";A.hp=0;A.burning=false;stopWorldCriticalDamage(A.id);
+  if(!A||A.state==="wreck")return;const wasPlayer=A===jet,p=A.p.clone(),v=A.v.clone(),q=A.q.clone();A.state="wreck";A.hp=0;A.burning=false;stopWorldCriticalDamage(A.id);
   A.ignoreBlastUntil=performance.now()+400;sendFx({kind:"jet-destroyed",aid:A.id,g:geoOf(p.x,p.y),p:canon(p),v:[+v.x.toFixed(1),+v.y.toFixed(1),+v.z.toFixed(1)]});
   // the airframe comes apart: its body is gone, the pieces fly under physics
   physics()?.removeBody?.(A.id);airframes.delete(A.id);breakApart(A.model,p,q,v);
@@ -169,71 +165,8 @@ function onRemoteHit(e){const d=e?.detail||{};if(d.owner)sendHit(String(d.owner)
 function onPhysicsImpact(e){const d=e?.detail||{},A=airframes.get(String(d.id||""));if(!A)return;const v=Number(d.approachSpeedMps??d.deltaVelocityMps)||0;if(v>5)damageAirframe(A,Math.pow(v-5,1.7)*4,"impact");if(A===jet&&v>2)addTrauma?.(Math.min(1,v/15));}
 
 // ------------------------------------------------------------ enter / exit
-function nearestRemoteBoardable(){
-  const w=walk(),now=performance.now();if(w?.mode!=="foot"||!w.position||w.dead)return null;
-  let best=null,dist=ENTER_M;
-  for(const [owner,r] of remote){
-    if(!r.landed||r.para||!r.aid||now-r.seen>2500)continue;
-    if(seats.get(owner,r.aid).pilot!==owner)continue;
-    const d=Math.hypot(r.p.x-w.position.x,r.p.y-w.position.y);
-    if(d<dist){dist=d;best={owner,aid:r.aid,p:r.p,q:r.q};}
-  }
-  return best;
-}
-function passengerJetPose(){
-  if(!passenger)return null;
-  const r=remote.get(passenger.owner);
-  if(r&&r.aid===passenger.aid&&performance.now()-r.seen<3500)return {p:r.p,q:r.q,gear:r.gear};
-  const parked=peerAir.get(`${passenger.owner}|${passenger.aid}`);
-  return parked&&performance.now()-parked.seen<3500?{p:parked.p,q:parked.q,gear:true}:null;
-}
-function beginPassenger(target){
-  if(active||passenger||seatPending)return false;
-  seatPending=true;
-  seats.claim(target.owner,target.aid,'passenger').then(result=>{
-    seatPending=false;
-    if(!result.ok)return;
-    const r=remote.get(target.owner),w=walk();
-    if(!r||r.aid!==target.aid||!w?.position||Math.hypot(r.p.x-w.position.x,r.p.y-w.position.y)>ENTER_M+3){
-      seats.release(target.owner,target.aid,'passenger');return;
-    }
-    passenger={owner:target.owner,aid:target.aid};
-    document.body.classList.add('jet-passenger');renderButtons();
-    window.dispatchEvent(new CustomEvent('arondight:vehicle-mode',{detail:{active:true,jet:true,seat:'passenger'}}));
-  });
-  return true;
-}
-function leavePassenger(){
-  if(!passenger)return false;
-  const p=passengerJetPose(),entry=passenger;passenger=null;
-  seats.release(entry.owner,entry.aid,'passenger');document.body.classList.remove('jet-passenger');
-  const pos=p?.p||walk()?.position||new THREE.Vector3(),q=p?.q||new THREE.Quaternion();
-  const h=headingOf(q),agl=pos.z-groundHeightAt(pos.x,pos.y);
-  if(agl>10){ // controlled parachute instead of teleporting to terrain mid-flight
-    para={p:pos.clone().add(new THREE.Vector3(0,0,2)),v:new THREE.Vector3(0,0,0),t:performance.now()};
-    jet=null;active=true;ensureChute().visible=true;document.body.classList.add('jet-mode');
-  }else finish(pos.x+Math.cos(h)*5,pos.y+Math.sin(h)*5,h);
-  window.dispatchEvent(new CustomEvent('arondight:vehicle-mode',{detail:{active:false,jet:true,seat:'passenger'}}));
-  return true;
-}
 function enter(A=nearestParked()){
-  if(active||passenger||seatPending||globalThis.__arondightVehicleDrive?.active)return false;
-  const guest=nearestRemoteBoardable(),w=walk()?.position;
-  if(guest&&(!A||Math.hypot(guest.p.x-w.x,guest.p.y-w.y)<Math.hypot(A.p.x-w.x,A.p.y-w.y)))return beginPassenger(guest);
-  if(!A||A.state!=="parked"||!ensureScene())return false;
-  seatPending=true;const owner=selfId()||'solo';
-  seats.claim(owner,A.id,'pilot').then(result=>{
-    seatPending=false;
-    const current=walk()?.position;
-    if(!result.ok)return;
-    if(active||passenger||A.state!=="parked"||airframes.get(A.id)!==A||!current||Math.hypot(A.p.x-current.x,A.p.y-current.y)>ENTER_M+3){
-      seats.release(owner,A.id,'pilot');return;
-    }
-    heldSeat={owner,aid:A.id};enterPilot(A);
-  });
-  return true;
-}
-function enterPilot(A){
+  if(active||!A||A.state!=="parked"||!ensureScene())return false;if(globalThis.__arondightVehicleDrive?.active)return false;
   jet=A;A.state="flying";A.flown=true;const af=A.af;af.pilot=true;af.engineOn=true;af.input.brake=0;setFlightMode(af,"hover");af.lever=0;
   camMode="cockpit";camInit=false;para=null;active=true;startVoice();
   const cam=bridge()?.threeCamera;if(cam)baseFar=cam.far;
@@ -247,9 +180,7 @@ function finish(x,y,heading){// back on foot at (x,y)
   renderButtons();window.dispatchEvent(new CustomEvent("arondight:vehicle-mode",{detail:{active:false,jet:true}}));}
 function park(A){A.state="parked";const af=A.af;af.pilot=false;af.engineOn=false;af.input={lift:0,yawIn:0,pitchIn:0,rollIn:0,brake:1};setFlightMode(af,"hover");}
 function exit(){
-  if(passenger)return leavePassenger();
-  if(!active||!jet||para)return false;
-  if(heldSeat){seats.release(heldSeat.owner,heldSeat.aid,"pilot");heldSeat=null;}const A=jet,h=headingOf(A.q),af=A.af,speed=A.v.length();
+  if(!active||!jet||para)return false;const A=jet,h=headingOf(A.q),af=A.af,speed=A.v.length();
   if(af.landed||(af.contacts>=2&&speed<4)){// step out: the jet stays parked right here, on its gear
     park(A);jet=null;finish(A.p.x+Math.cos(h)*5,A.p.y+Math.sin(h)*5,h);return true;}
   // EJECT: the seat takes the pilot; the empty jet keeps its body — no pilot, engine winding down — and comes down under physics
@@ -296,26 +227,7 @@ function airframesFrame(now){for(const A of[...airframes.values()]){syncAirframe
 // somewhere) a new one stands there. Left-behind jets stay where they were put — up to a few; then the
 // oldest unused one far from the player (out of sight) is taken away.
 let padCheckAt=0;
-// Preserve the existing airframe ID and physics body. The old placement check counted
-// the pad jet as its own obstacle and recreated it every two seconds while approaching.
-function relocatePadJets(now){
-  if(now<padCheckAt)return;padCheckAt=now+2000;
-  for(const A of airframes.values()){
-    if(!A.pad||A.state!=="parked"||A===jet||A.flown||spotOk(A.p.x,A.p.y,A.id))continue;
-    const w=walk()?.position;
-    if(w&&Math.hypot(w.x-A.p.x,w.y-A.p.y)<40)continue;
-    const mates=globalThis.__arondightVsMultiplayer?.minimapPlayers?.()||[];
-    if(mates.some(p=>Array.isArray(p.p)&&Math.hypot(p.p[0]-A.p.x,p.p[1]-A.p.y)<40))continue;
-    const s=freeSpot(A.p.x,A.p.y,A.id);
-    if(Math.hypot(s.x-A.p.x,s.y-A.p.y)<1)continue;
-    const z=groundHeightAt(s.x,s.y)+JET_SPEC.gearHeight+.04;
-    if(!physics()?.setPose?.(A.id,{position:[s.x,s.y,z],rotation:[A.q.x,A.q.y,A.q.z,A.q.w],velocity:[0,0,0],angularVelocity:[0,0,0]}))continue;
-    syncAirframe(A);
-    if(spawnPad){spawnPad.x=s.x;spawnPad.y=s.y;}
-    const v=viewport();
-    if(v)v.dataset.jetPadRelocated=String((Number(v.dataset.jetPadRelocated)||0)+1);
-  }
-}
+function relocatePadJets(now){if(now<padCheckAt)return;padCheckAt=now+2000;for(const A of[...airframes.values()]){if(!A.pad||A.state!=="parked"||A===jet||A.flown)continue;if(spotOk(A.p.x,A.p.y))continue;const w=walk()?.position,s=freeSpot(A.p.x,A.p.y);if(Math.hypot(s.x-A.p.x,s.y-A.p.y)<1)continue;const h=headingOf(A.q);removeAirframe(A);const B=createAirframeBody(s.x,s.y,h,{pad:true});if(B&&spawnPad){spawnPad.x=s.x;spawnPad.y=s.y;}const v=viewport();if(v)v.dataset.jetPadRelocated=String((Number(v.dataset.jetPadRelocated)||0)+1);void w;}}
 function padFrame(now){
   if(!spawnPad)return;relocatePadJets(now);const occupied=[...airframes.values()].some(A=>A.state!=="wreck"&&Math.hypot(A.p.x-spawnPad.x,A.p.y-spawnPad.y)<PAD_RADIUS_M&&A.p.z-groundHeightAt(A.p.x,A.p.y)<12);
   if(occupied){padEmptySince=0;return;}if(!padEmptySince){padEmptySince=now;return;}if(now-padEmptySince<PAD_RESPAWN_MS)return;
@@ -395,16 +307,7 @@ const farGround=(()=>{let mesh=null,center=null,busy=false,lastTry=0;const TILE=
 
 // ------------------------------------------------------------ camera
 const camLook=new THREE.Vector3(),cockpitEye=new THREE.Vector3(0,3.5,1.42);
-const provider={isActive:()=>active||Boolean(passenger)||Boolean(base?.isActive?.()),apply:args=>active?applyCamera(args):passenger?applyPassengerCamera(args):base?.apply?.(args)};
-function applyPassengerCamera({camera}){
-  const pose=passengerJetPose();if(!pose)return{active:false};
-  const forward=Y.clone().applyQuaternion(pose.q),up=Z.clone().applyQuaternion(pose.q);
-  camera.position.copy(new THREE.Vector3(.48,2.5,1.25)).applyQuaternion(pose.q).add(pose.p);
-  camera.up.copy(up);camera.lookAt(camera.position.clone().add(forward));
-  camera.fov=72;camera.near=.5;camera.far=Math.max(camera.far,20000);
-  camera.updateProjectionMatrix();camera.updateMatrixWorld();return{active:true,mode:'jet-passenger'};
-}
-let base=null,installedOn=null;
+const provider={isActive:()=>active||Boolean(base?.isActive?.()),apply:args=>active?applyCamera(args):base?.apply?.(args)};let base=null,installedOn=null;
 // install once: other modes wrap us afterwards (a chain), never re-wrap them (that would loop)
 function ensureProvider(){const b=bridge();if(!b||typeof b.attachPresentationCameraProvider!=="function"||installedOn===b)return;const cur=b.presentationCameraProvider;if(!cur||cur===provider)return;base=cur;b.attachPresentationCameraProvider(provider);installedOn=b;}
 function applyCamera({camera,now}){
@@ -427,12 +330,11 @@ function ui(){
 html body.jet-mode #soloLeft,html body.jet-mode #soloRight,html body.jet-mode #soloClearance,html body.jet-mode .solo-action,html body.jet-mode #vehicleHud,html body.jet-mode #airStrikeButton,html body.jet-mode #enterCarButton,html body.jet-mode #zombieRepair,html body.jet-mode #viewport #footHud #footWeaponToggle,html body.jet-mode #viewport #footWeaponToggle,html body.jet-mode #droneWeaponToggle,html body.jet-mode #viewport #footHud #footJump,html body.jet-mode #viewport #mobileGameplayDock #mobileGameplayWeapon,html body.jet-mode #viewport #mobileGameplayDock #mobileGameplayMode,html body.jet-mode #playerModeButton{display:none!important}#jetHud .jet-btns [data-a=mode]{border-color:#7fd3ff}#jetHud .jet-btns [data-a=mode][data-flight="1"]{background:#1d4c6be0}
 #jetHud{--hud:#7dff9a;--hud-dim:#7dff9a99}#jetHud .jet-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}#jetHud .jet-svg line,#jetHud .jet-svg circle{stroke:var(--hud);stroke-width:1.4;fill:none;vector-effect:non-scaling-stroke}#jetHud .jet-city-line{stroke-dasharray:6 7;opacity:.55}#jetHud .jet-city-dot{fill:var(--hud)!important;opacity:.8}#jetHud .jet-fpm{opacity:.85}#jetHud .jet-city{position:absolute;left:50%;top:calc(max(8px,var(--solo-safe-top,env(safe-area-inset-top))) + 50px);transform:translateX(-50%);text-align:center;color:var(--hud);text-shadow:0 0 4px #000c,0 1px 2px #000;pointer-events:none;white-space:nowrap}#jetHud .jet-city b{display:block;font:700 13px/1.1 "Barlow Condensed",Inter,system-ui,sans-serif;letter-spacing:.22em}#jetHud .jet-city small{display:block;font:600 10px/1.2 Inter,system-ui,sans-serif;letter-spacing:.12em;opacity:.75}#jetHud .jet-read{position:absolute;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:3px;color:var(--hud);font:700 13px/1 "Barlow Condensed",Inter,system-ui,sans-serif;letter-spacing:.06em;text-shadow:0 0 4px #000c,0 1px 2px #000;pointer-events:none}#jetHud .jet-read b[data-k=spd],#jetHud .jet-read b[data-k=alt]{font-size:22px;padding:3px 6px;border:1.3px solid var(--hud-dim);border-radius:3px;min-width:54px;text-align:center}#jetHud .jet-read small{font:700 9px/1 Inter,system-ui,sans-serif;letter-spacing:.14em;opacity:.7}#jetHud .jet-left{left:calc(max(12px,var(--solo-safe-left,env(safe-area-inset-left))) + min(25vw,148px) + 52px);align-items:flex-end;text-align:right}#jetHud .jet-right{right:calc(max(12px,var(--solo-safe-right,env(safe-area-inset-right))) + min(25vw,148px) + 26px);align-items:flex-start}#jetHud [data-k=mach][data-super="1"]{color:#ffd27a}#jetHud [data-k=hp][data-low="1"]{color:#ff6a5a}#jetHud [data-k=aoa][data-high="1"]{color:#ffd27a}#jetHud .jet-mode-row{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(max(16px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 52px);color:var(--hud);font:700 12px/1 "Barlow Condensed",Inter,system-ui,sans-serif;letter-spacing:.18em;text-shadow:0 0 4px #000c;pointer-events:none}body.jet-mode #navGuide{top:calc(max(8px,var(--solo-safe-top,env(safe-area-inset-top))) + 88px)}html body.jet-mode #viewport #worldLookHud{opacity:.8}#jetHud .jet-thr{position:absolute;left:calc(max(12px,var(--solo-safe-left,env(safe-area-inset-left))) + min(25vw,148px) + 26px);bottom:calc(max(16px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 8px);width:12px;height:min(25vw,148px);border-radius:6px;background:#0d1118b8;border:1.5px solid #ffffff88;overflow:hidden}#jetHud .jet-thr i{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(#ff7a1a,#f4d27a 25%,#8fa0ad)}#jetHud .jet-thr span{display:none}
 #jetHud .jet-btns{position:absolute;left:50%;transform:translateX(-50%);bottom:max(16px,var(--solo-safe-bottom,env(safe-area-inset-bottom)));display:flex;gap:8px;pointer-events:auto}#jetHud .jet-btns button{height:40px;min-width:60px;padding:0 10px;border-radius:10px;border:1.5px solid #7dff9a88;background:#08140cc0;color:#c9ffd6;font:900 12px/1 Inter;letter-spacing:.08em;touch-action:none}#jetHud .jet-btns [data-a=exit]{border-color:#ff5a4a}
-body.jet-passenger :is(#footHud,#soloLeft,#soloRight,#vehicleHud,#footMove,#footFire){display:none!important}body.jet-passenger #enterJetButton{display:block!important}
 #enterJetButton{position:absolute;z-index:30;left:50%;transform:translateX(-50%);bottom:calc(max(14px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + 118px);min-width:170px;height:46px;padding:0 18px;border-radius:14px;font:900 15px/1 "Nunito","Trebuchet MS",system-ui,sans-serif;letter-spacing:.06em;color:#0f2433;background:#7fd3ff;border:2.5px solid #fff;box-shadow:0 4px 0 #2d86b5;pointer-events:auto;touch-action:manipulation}body.jet-mode #enterJetButton{display:none!important}html body.jet-mode #viewport #footHud #footFire{display:block!important;pointer-events:auto!important}`;document.head.appendChild(st);
     for(const btn of h.querySelectorAll(".jet-btns button")){const a=btn.dataset.a;btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(a==="bomb")dropBomb();else if(a==="rocket")fireRocket();else if(a==="mode")toggleMode();else if(a==="cam"){camMode=camMode==="chase"?"cockpit":"chase";camInit=false;}else if(a==="exit")exit();});}}
-  if(!document.getElementById("enterJetButton")){const b=document.createElement("button");b.id="enterJetButton";b.type="button";b.hidden=true;b.textContent="✈ JET EINSTEIGEN";b.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(passenger)leavePassenger();else enter();});view.appendChild(b);}
+  if(!document.getElementById("enterJetButton")){const b=document.createElement("button");b.id="enterJetButton";b.type="button";b.hidden=true;b.textContent="✈ JET EINSTEIGEN";b.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();enter();});view.appendChild(b);}
 }
-function renderButtons(){const b=document.getElementById("enterJetButton");if(b){const show=Boolean(passenger)||(!active&&!seatPending&&Boolean(nearestParked()||nearestRemoteBoardable())&&!globalThis.__arondightVehicleDrive?.active);if(b.hidden===show)b.hidden=!show;const cls=document.body.classList,t=passenger?"✈ JET VERLASSEN":cls.contains("pad-input")?"Ⓧ  ✈ JET EINSTEIGEN":cls.contains("desktop-input")?"F · ✈ JET EINSTEIGEN":"✈ JET EINSTEIGEN";if(b.textContent!==t)b.textContent=t;}
+function renderButtons(){const b=document.getElementById("enterJetButton");if(b){const show=!active&&Boolean(nearestParked())&&!globalThis.__arondightVehicleDrive?.active;if(b.hidden===show)b.hidden=!show;const cls=document.body.classList,t=cls.contains("pad-input")?"Ⓧ  ✈ JET EINSTEIGEN":cls.contains("desktop-input")?"F · ✈ JET EINSTEIGEN":"✈ JET EINSTEIGEN";if(b.textContent!==t)b.textContent=t;}
   const mb=document.querySelector('#jetHud [data-a=mode]');if(mb&&jet){const t=jet.af.mode==='flight'?'⇄ SCHWEBEN':'⇄ FLUG';if(mb.textContent!==t)mb.textContent=t;mb.dataset.flight=jet.af.mode==='flight'?'1':'0';}
   const e=document.querySelector('#jetHud [data-a=exit]');if(e){const landed=jet&&(jet.af.landed||(jet.af.contacts>=2&&jet.v.length()<4));const t=!jet||landed?"AUSSTEIGEN":"EJECT";if(e.textContent!==t)e.textContent=t;const hide=Boolean(para);if(e.hidden!==hide)e.hidden=hide;}}
 // ------------------------------------------------------------ HUD: town below / ahead and a line to its centre
@@ -470,35 +372,13 @@ function sendFx(extra){const s=session();if(!s?.sendFx)return;try{s.sendFx({type
 const pendingHits=new Map();let hitFlushAt=0;
 function sendHit(owner,aid,dmg){if(!owner||!(dmg>0))return;const k=`${owner}|${aid}`;pendingHits.set(k,(pendingHits.get(k)||0)+dmg);if(!hitFlushAt)hitFlushAt=performance.now()+90;}
 function flushHits(now){if(!hitFlushAt||now<hitFlushAt)return;hitFlushAt=0;for(const[k,dmg]of pendingHits){const[target,aid]=k.split("|");sendFx({kind:"jet-hit",target,aid,dmg:+dmg.toFixed(1)});}pendingHits.clear();}
-function poseOut(){if(passenger){
-    const r=passengerJetPose();if(!r)return null;
-    const p=r.p,q=r.q;return{x:p.x,y:p.y,z:p.z,q:[q.x,q.y,q.z,q.w],t:0,ab:0,gear:r.gear?1:0,para:0,geo:geoOf(p.x,p.y),id:passenger.aid,owner:passenger.owner,seat:'passenger',landed:!!r.gear};
-  }if(!active)return null;if(para){const c=para.p;return{x:c.x,y:c.y,z:c.z,q:[0,0,0,1],t:0,ab:0,gear:0,para:1,geo:geoOf(c.x,c.y)};}
-  if(!jet)return null;const af=jet.af;return{x:jet.p.x,y:jet.p.y,z:jet.p.z,q:[jet.q.x,jet.q.y,jet.q.z,jet.q.w],t:+clamp(af.thrust/JET_SPEC.thrustMax,0,1).toFixed(2),ab:af.mode==="flight"&&af.lever>.86?1:0,gear:af.gearDown?1:0,para:0,hp:Math.round(jet.hp),geo:geoOf(jet.p.x,jet.p.y),id:jet.id,owner:selfId()||"solo",seat:"pilot",landed:Boolean(af.landed||af.contacts>=2)};}
+function poseOut(){if(!active)return null;if(para){const c=para.p;return{x:c.x,y:c.y,z:c.z,q:[0,0,0,1],t:0,ab:0,gear:0,para:1,geo:geoOf(c.x,c.y)};}
+  if(!jet)return null;const af=jet.af;return{x:jet.p.x,y:jet.p.y,z:jet.p.z,q:[jet.q.x,jet.q.y,jet.q.z,jet.q.w],t:+clamp(af.thrust/JET_SPEC.thrustMax,0,1).toFixed(2),ab:af.mode==="flight"&&af.lever>.86?1:0,gear:af.gearDown?1:0,para:0,hp:Math.round(jet.hp),geo:geoOf(jet.p.x,jet.p.y)};}
 // every other jet this player owns (parked / ejected / wreck) rides in the pose
 function ownedOut(){const out=[];for(const A of airframes.values()){if(A===jet)continue;const g=geoOf(A.p.x,A.p.y);if(!g)continue;out.push({i:A.id,g:[+g[0].toFixed(7),+g[1].toFixed(7)],z:+A.p.z.toFixed(2),q:[A.q.x,A.q.y,A.q.z,A.q.w].map(v=>+v.toFixed(4)),s:A.state==="wreck"?"w":A.state==="ghost"?"g":"p",gear:A.af.gearDown?1:0});if(out.length>=4)break;}return out;}
 function peer(id,pose){let r=remote.get(id);if(!pose){if(r){r.model.parent?.remove(r.model);r.chute?.parent?.remove(r.chute);remote.delete(id);}return;}if(!ensureScene())return;
   if(!r){r={model:newJetModel({remoteAirframe:{owner:id,id:"flying"}}),chute:null,p:new THREE.Vector3(),q:new THREE.Quaternion(),tp:new THREE.Vector3(),tq:new THREE.Quaternion(),seen:0,init:false};r.model.name="PEER_JET";r.model.traverse(n=>{n.userData.vsPlayerId=id;});root.add(r.model);remote.set(id,r);}
-  r.tp.set(+pose.x||0,+pose.y||0,+pose.z||0);if(Array.isArray(pose.q))r.tq.set(+pose.q[0]||0,+pose.q[1]||0,+pose.q[2]||0,Number.isFinite(+pose.q[3])?+pose.q[3]:1).normalize();r.t=+pose.t||0;r.ab=Number(pose.ab)===1;r.gear=Number(pose.gear)===1;r.para=Number(pose.para)===1;r.landed=Boolean(pose.landed);r.aid=String(pose.aid||"flying");r.seen=performance.now();if(!r.init){r.p.copy(r.tp);r.q.copy(r.tq);r.init=true;}}
-// A passenger is attached to the existing shared aircraft, never a second jet.
-const sharedPassengerVisuals=new Map();
-function peerPassenger(id,owner,aid){
-  id=String(id||'');owner=String(owner||'');aid=String(aid||'');
-  const old=sharedPassengerVisuals.get(id);
-  if(!owner||!aid){if(old){old.model.parent?.remove(old.model);sharedPassengerVisuals.delete(id);}return;}
-  if(old){old.owner=owner;old.aid=aid;return;}
-  const model=buildCharacter({outfit:'player',id}).root;
-  model.name=`JET_PASSENGER_${id}`;model.position.set(.55,2.65,.35);model.scale.setScalar(.75);
-  model.traverse(node=>{node.userData.flightFireIgnore=true;node.raycast=()=>{};});
-  sharedPassengerVisuals.set(id,{id,owner,aid,model});
-}
-function syncPassengerVisuals(){
-  for(const r of sharedPassengerVisuals.values()){
-    const local=airframes.get(r.aid),remoteJet=remote.get(r.owner),remoteParked=peerAir.get(`${r.owner}|${r.aid}`);
-    const host=r.owner===selfId()?local?.model:(remoteJet?.aid===r.aid?remoteJet.model:null)||remoteParked?.model;
-    if(host&&r.model.parent!==host)host.add(r.model);
-  }
-}
+  r.tp.set(+pose.x||0,+pose.y||0,+pose.z||0);if(Array.isArray(pose.q))r.tq.set(+pose.q[0]||0,+pose.q[1]||0,+pose.q[2]||0,Number.isFinite(+pose.q[3])?+pose.q[3]:1).normalize();r.t=+pose.t||0;r.ab=Number(pose.ab)===1;r.gear=Number(pose.gear)===1;r.para=Number(pose.para)===1;r.seen=performance.now();if(!r.init){r.p.copy(r.tp);r.q.copy(r.tq);r.init=true;}}
 function peerAirframes(owner,list){if(!ensureScene())return;const seen=new Set(),now=performance.now();
   for(const e of Array.isArray(list)?list:[]){if(!e?.i||!Array.isArray(e.g))continue;const loc=lngLatToLocal(+e.g[0],+e.g[1]);if(!loc)continue;const key=`${owner}|${e.i}`;seen.add(key);let r=peerAir.get(key);
     if(!r){r={owner,aid:String(e.i),model:newJetModel({remoteAirframe:{owner,id:String(e.i)}}),p:new THREE.Vector3(loc[0],loc[1],+e.z||0),q:new THREE.Quaternion(),tp:new THREE.Vector3(),tq:new THREE.Quaternion(),wreck:false};r.model.name="PEER_JET_AIRFRAME";root.add(r.model);peerAir.set(key,r);}
@@ -520,19 +400,9 @@ function onFx(e){const pk=e?.detail?.packet;if(pk?.objectId!=="player-jet")retur
 // ------------------------------------------------------------ loop
 let lastUi=0;
 function frame(now=performance.now()){
-  seats.tick(now);
   requestAnimationFrame(frame);const dt=Math.min(.05,Math.max(0,(now-lastFrame)/1000));lastFrame=now;if(!bridge()?.threeScene)return;ensureScene();ensureProvider();
   if(now-lastUi>250){lastUi=now;ui();renderButtons();maybeSpawnPad(now);padFrame(now);}
-  airframesFrame(now);syncPassengerVisuals();if(debris.length)debrisFrame(now,dt);
-  if(passenger){
-    const state=seats.get(passenger.owner,passenger.aid);
-    if(state.passenger!==selfId()){leavePassenger();}
-    else{const po=passengerJetPose();if(po){
-      walk()?.setPose?.({x:po.p.x,y:po.p.y,yaw:walkYawOf(headingOf(po.q)),pitch:0});
-      globalThis.__arondightWeaponLockUntil=Math.max(Number(globalThis.__arondightWeaponLockUntil)||0,now+250);
-      farGround.update(po.p,new THREE.Vector3(),now);
-    }}
-  }
+  airframesFrame(now);if(debris.length)debrisFrame(now,dt);
   if(active){globalThis.__arondightWeaponLockUntil=Math.max(Number(globalThis.__arondightWeaponLockUntil)||0,now+250);// foot weapons stay holstered in the cockpit
     if(para)stepPara(dt);else if(jet)flyFrame(dt,now);
     if(active){const p=para?para.p:jet?.p,v=para?para.v:jet?.v;if(p){// the pilot is here: walker pose (streaming, MP, police), haze, far ground
@@ -544,13 +414,13 @@ function frame(now=performance.now()){
 }
 export function installJetMode(){if(globalThis.__jetMode||typeof window==="undefined")return globalThis.__jetMode;
   addEventListener("pointerdown",onTapDown,{capture:true,passive:false});addEventListener("pointermove",onTapMove,{capture:true,passive:true});for(const t of["pointerup","pointercancel"])addEventListener(t,onTapUp,{capture:true,passive:true});
-  addEventListener("keydown",e=>{if(e.metaKey||e.ctrlKey)return;if(!active){if(e.code==="KeyE"&&!e.repeat&&(passenger||nearestParked()||nearestRemoteBoardable())&&!globalThis.__arondightVehicleDrive?.active){if(passenger?leavePassenger():enter()){e.preventDefault();e.stopImmediatePropagation();}}return;}
+  addEventListener("keydown",e=>{if(e.metaKey||e.ctrlKey)return;if(!active){if(e.code==="KeyE"&&!e.repeat&&nearestParked()&&!globalThis.__arondightVehicleDrive?.active){if(enter()){e.preventDefault();e.stopImmediatePropagation();}}return;}
     if(["KeyW","KeyS","KeyA","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)){keys.add(e.code);e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="Space"){keys.add("Space");firing=!para;e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyB"){dropBomb();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyR"){fireRocket();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyV"&&!e.repeat){toggleMode();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyC"){camMode=camMode==="chase"?"cockpit":"chase";camInit=false;e.stopImmediatePropagation();}else if(e.code==="KeyE"&&!e.repeat){exit();e.preventDefault();e.stopImmediatePropagation();}},{capture:true});
   addEventListener("keyup",e=>{keys.delete(e.code);if(e.code==="Space")firing=false;},{capture:true});addEventListener(VS_FX_EVENT,onFx);
   addEventListener("arondight:world-explosion",onExplosion);addEventListener("arondight:physics-body-hit",onBodyHit);addEventListener("arondight:remote-airframe-hit",onRemoteHit);addEventListener("arondight:world-physics-impact",onPhysicsImpact);
-  addEventListener("arondight:world-reset",()=>{if(passenger)leavePassenger();for(const id of sharedPassengerVisuals.keys())peerPassenger(id,null,null);if(heldSeat){seats.release(heldSeat.owner,heldSeat.aid,"pilot");heldSeat=null;}if(active){jet=null;para=null;finish(walk()?.position?.x||0,walk()?.position?.y||0,0);}for(const A of[...airframes.values()])removeAirframe(A);for(const d of debris.splice(0)){if(d.id)physics()?.removeBody?.(d.id);stopWorldCriticalDamage(`${d.id}-fire`);d.group.parent?.remove(d.group);}spawnPad=null;firstSeen=0;padEmptySince=0;});
+  addEventListener("arondight:world-reset",()=>{if(active){jet=null;para=null;finish(walk()?.position?.x||0,walk()?.position?.y||0,0);}for(const A of[...airframes.values()])removeAirframe(A);for(const d of debris.splice(0)){if(d.id)physics()?.removeBody?.(d.id);stopWorldCriticalDamage(`${d.id}-fire`);d.group.parent?.remove(d.group);}spawnPad=null;firstSeen=0;padEmptySince=0;});
   globalThis.__arondightStreamFocus=()=>{if(!active)return null;const p=para?para.p:jet?.p,v=para?para.v:jet?.v;return p?{x:p.x+(v?.x||0)*1.5,y:p.y+(v?.y||0)*1.5,z:p.z}:null;};
-  globalThis.__jetMode={enter,exit,get active(){return active||Boolean(passenger);},get occupantSeat(){return passenger?"passenger":heldSeat?"pilot":null;},get landed(){return Boolean(jet&&(jet.af.landed||(jet.af.contacts>=2&&jet.v.length()<4)));},get parachute(){return Boolean(para);},get cockpit(){return active&&camMode==="cockpit"&&!para;},get pose(){return poseOut();},get pilotPosition(){return para?{x:para.p.x,y:para.p.y,z:para.p.z}:null;},get ownedAirframes(){return ownedOut();},get seats(){return seats.table.snapshot();},peer,peerAirframes,peerPassenger,
+  globalThis.__jetMode={enter,exit,get active(){return active;},get landed(){return Boolean(jet&&(jet.af.landed||(jet.af.contacts>=2&&jet.v.length()<4)));},get parachute(){return Boolean(para);},get cockpit(){return active&&camMode==="cockpit"&&!para;},get pose(){return poseOut();},get pilotPosition(){return para?{x:para.p.x,y:para.p.y,z:para.p.z}:null;},get ownedAirframes(){return ownedOut();},peer,peerAirframes,
     get parked(){return[...airframes.values()].filter(A=>A.state==="parked").map(A=>({x:A.p.x,y:A.p.y,id:A.id,hp:A.hp,pad:Boolean(A.pad)}));},get airframes(){return[...airframes.values()].map(A=>({id:A.id,state:A.state,hp:A.hp,x:A.p.x,y:A.p.y,z:A.p.z}));},
     get state(){return jet?{p:jet.p.clone(),speed:jet.v.length(),mach:machOf(jet.v.length()),throttle:jet.af.lever,thrust:jet.af.thrust,g:jet.af.tele?.nz,mode:jet.af.mode,landed:jet.af.landed,hp:jet.hp,tele:{...jet.af.tele}}:para?{para:true,p:para.p.clone()}:null;},
     damage(id,amount,source="script"){const A=airframes.get(String(id))||(id==="flying"?jet:null);if(A)damageAirframe(A,Number(amount)||0,source);return A?A.hp:null;},

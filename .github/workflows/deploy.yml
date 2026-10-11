@@ -52,26 +52,6 @@ jobs:
           node tests/nuke_weapon_contract_test.mjs
           node tests/combat_audio_bank_test.mjs
           node tests/world_population_runtime_contract_test.mjs
-          node tests/multiplayer_navigation_test.mjs
-          node tests/map_peer_edge_test.mjs
-          node tests/nav_marker_timeline_test.mjs
-          node tests/nav_ar_route_math_test.mjs
-          node tests/nav_ar_turns_test.mjs
-          node tests/nav_route_request_gate_test.mjs
-          node tests/jet_pad_identity_contract_test.mjs
-          node tests/jet_seat_table_test.mjs
-          node tests/jet_seat_coordinator_test.mjs
-          node --check sim/multiplayer_navigation.mjs
-          node --check sim/vs_multiplayer.mjs
-          node --check sim/nav_marker_timeline.mjs
-          node --check sim/jet_mode.mjs
-          node --check sim/jet_seat_table.mjs
-          node --check sim/jet_seat_coordinator.mjs
-          node --check sim/world_map_full.mjs
-          node --check sim/real_world_bootstrap.mjs
-          node --check sim/nav_ar_route_math.mjs
-          node --check sim/nav_route_request_gate.mjs
-          node --check sim/world_map_full.mjs
           node tests/pedestrian_agents_test.mjs
           node tests/drone_world_grounding_contract_test.mjs
           node tests/first_person_controller_contract_test.mjs

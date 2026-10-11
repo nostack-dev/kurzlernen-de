@@ -1,7 +1,5 @@
 import * as THREE from "three";
 import {VsPoseTimeline,poseMatchesVsFrame} from "./vs_pose_sync.mjs";
-import {navPoseFromPacket} from "./multiplayer_navigation.mjs";
-import {NavMarkerTimeline} from "./nav_marker_timeline.mjs";
 import {VS_PEER_EVENT,VS_POSE_EVENT,VS_GAME_EVENT,VS_FX_EVENT} from "./lan_vs.mjs";
 
 const VISUAL_SCALE=1;// other players' drones at their true size (a 12x drone sank half into the ground); the player marker keeps them readable
@@ -75,7 +73,7 @@ function createPeerMesh(record){
 }
 
 function recordFor(id){
-  id=String(id||"");if(!id||id===selfId)return null;let r=peers.get(id);if(!r){r={id,timeline:new VsPoseTimeline(),navTimeline:new NavMarkerTimeline(),mesh:null,marker:null,lastPoseMs:-Infinity,health:health.get(id)??100,dead:(health.get(id)??100)<=0,color:colorFor(id)};peers.set(id,r);if(!health.has(id))health.set(id,100);r.marker=makeMarker(r);refreshColors(true);}return r;
+  id=String(id||"");if(!id||id===selfId)return null;let r=peers.get(id);if(!r){r={id,timeline:new VsPoseTimeline(),mesh:null,marker:null,lastPoseMs:-Infinity,health:health.get(id)??100,dead:(health.get(id)??100)<=0,color:colorFor(id)};peers.set(id,r);if(!health.has(id))health.set(id,100);r.marker=makeMarker(r);refreshColors(true);}return r;
 }
 
 function releaseLegacyPrimary(previousId){
@@ -97,14 +95,7 @@ function posePosition(pose){
 function onPoseEvent(event){updateIdentity();const{peerId,pose}=event.detail||{};if(!peerId||!pose)return;const r=recordFor(peerId);if(!r)return;const b=bridge();if(!poseMatchesVsFrame(pose,b?.vsSharedOrigin)||Array.isArray(pose.g)&&!(b?.active&&Number.isFinite(b.originLon)&&Number.isFinite(b.originLat)))return;
   const p=posePosition(pose),previous=r.timeline.snapshots.at(-1);
   if(previous&&Math.hypot(p[0]-previous.p[0],p[1]-previous.p[1],p[2]-previous.p[2])>35)r.timeline.reset();
-  const received=performance.now(),packet={...pose,p};if(r.timeline.push(packet,received)){
-    r.lastPoseMs=received;
-    r.nav=navPoseFromPacket(pose,{originLon:b?.originLon,originLat:b?.originLat,offset:localOffset()});
-    // Car/jet positions come from cv/cg and jv/jg, not the base drone pose.
-    // Smooth only the navigation marker; leave real entity replication alone.
-    if(r.nav&&(r.nav.mode==="car"||r.nav.mode==="jet"))r.navTimeline.push(r.nav,received);
-    else r.navTimeline.reset();
-  }}
+  const packet={...pose,p};if(r.timeline.push(packet,performance.now()))r.lastPoseMs=performance.now();}
 
 function setPrimaryCompatibility(record){
   const b=bridge();if(!b||record.id!==primaryId)return;
@@ -319,9 +310,7 @@ function render(now=performance.now()){
 }
 
 export function installVsMultiplayer(){
-  if(installed)return;installed=true;globalThis.__arondightVsMultiplayer={reportLocalDamage,resetLevelHealth,blastHit,peerDead:id=>Boolean(peers.get(String(id||""))?.dead),scores:()=>participantIds().map((id,i)=>({id,index:i+1,color:cssColor(colorFor(id)),self:id===selfId,hp:health.get(id)??100,...score(id)})),playerInfo:id=>{const ids=participantIds(),i=ids.indexOf(String(id||""));return i<0?null:{index:i+1,color:cssColor(colorFor(id)),self:id===selfId};},minimapPlayers:()=>{const now=performance.now();return [...peers.values()].filter(r=>r.nav&&now-r.lastPoseMs<=STALE_MS).map(r=>{const vehicle=r.nav.mode==="car"||r.nav.mode==="jet";
-    const sample=vehicle?r.navTimeline.sample(now):r.timeline.sample(now);
-    return{id:r.id,index:Math.max(1,participantIds().indexOf(r.id)+1),color:cssColor(colorFor(r.id)),mode:r.nav.mode,p:sample?.p||r.nav.p,headingRad:vehicle?(sample?.headingRad??r.nav.headingRad):r.nav.headingRad,dead:r.dead};});},get connected(){return Boolean(session()&&peers.size>0);},get authority(){return authorityId;},get self(){return selfId;}};style=document.createElement("style");style.textContent=`body.vs-multiplayer #vsEnemyMarker{display:none!important}.vs-player-marker{--vs-player-color:#fff;--vpm-angle:180deg;position:absolute;z-index:14;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;color:#fff;font-family:system-ui,-apple-system,sans-serif;filter:drop-shadow(0 1px 2px #000c);transform-origin:50% 100%;will-change:transform}
+  if(installed)return;installed=true;globalThis.__arondightVsMultiplayer={reportLocalDamage,resetLevelHealth,blastHit,peerDead:id=>Boolean(peers.get(String(id||""))?.dead),scores:()=>participantIds().map((id,i)=>({id,index:i+1,color:cssColor(colorFor(id)),self:id===selfId,hp:health.get(id)??100,...score(id)})),playerInfo:id=>{const ids=participantIds(),i=ids.indexOf(String(id||""));return i<0?null:{index:i+1,color:cssColor(colorFor(id)),self:id===selfId};},get connected(){return Boolean(session()&&peers.size>0);},get authority(){return authorityId;},get self(){return selfId;}};style=document.createElement("style");style.textContent=`body.vs-multiplayer #vsEnemyMarker{display:none!important}.vs-player-marker{--vs-player-color:#fff;--vpm-angle:180deg;position:absolute;z-index:14;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;color:#fff;font-family:system-ui,-apple-system,sans-serif;filter:drop-shadow(0 1px 2px #000c);transform-origin:50% 100%;will-change:transform}
 .vs-player-marker .vpm-tag{display:flex;align-items:baseline;gap:6px;padding:3px 8px;border-radius:8px;background:#060b10b8;border:1.5px solid var(--vs-player-color);white-space:nowrap}
 .vs-player-marker strong{font:900 13px/1 system-ui,-apple-system,sans-serif;letter-spacing:.06em;color:var(--vs-player-color)}
 .vs-player-marker small{font:800 11.5px/1 system-ui,-apple-system,sans-serif;opacity:.92;font-variant-numeric:tabular-nums}
