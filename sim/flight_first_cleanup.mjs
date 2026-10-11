@@ -1,11 +1,7 @@
 import {normalizedPointer,endPointerDrag} from "./control_semantics.mjs";
 import "./direct_fire_missiles.mjs";
-import "./nuke_weapon.mjs";
-import "./nuke_overkill_fx.mjs";
-import "./nuke_volumetric_cloud_v2.mjs";
-import "./nuke_audio.mjs";
+import "./drone_weapon_modes.mjs";
 import "./nuke_destruction.mjs";
-import "./nuke_hazard_fx.mjs";
 import "./player_shield.mjs";
 import "./game_reset.mjs";
 import "./game_exit_button.mjs";

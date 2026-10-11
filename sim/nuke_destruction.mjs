@@ -351,5 +351,5 @@ function resetWorld(){
   for(const c of craters){c.mesh.parent?.remove(c.mesh);c.mesh.geometry.dispose();c.mesh.material.dispose();}craters.length=0;
   setData("nukeDebrisAlive",0);setData("nukeFlungActors",0);
 }
-export function installNukeDestruction(){if(installed)return;installed=true;window.addEventListener("arondight:nuke-impact",onImpact);window.addEventListener("arondight:world-reset",resetWorld);window.addEventListener("arondight:world-explosion",onWorldExplosion);requestAnimationFrame(frame);}
+export function installNukeDestruction(){if(installed)return;installed=true;window.addEventListener("arondight:world-reset",resetWorld);window.addEventListener("arondight:world-explosion",onWorldExplosion);requestAnimationFrame(frame);}
 installNukeDestruction();

@@ -39,7 +39,7 @@ async function armDroneAtomically(){
     if(state.clicked){try{await page.waitForFunction(()=>document.querySelector("#soloState")?.textContent?.trim()==="ARMED"&&document.querySelector("#viewport")?.dataset.fireArmed==="1",{timeout:9000});return await page.evaluate(()=>({armed:true,clicked:true,disabled:Boolean(document.querySelector("#soloArm")?.disabled),fc:document.querySelector("#soloState")?.textContent?.trim(),canDeploy:Boolean(globalThis.__arondightDroneDamageModel?.canDeploy)}));}catch{}}
     await pause(120);
   }
-  throw new Error(`could not atomically arm healthy drone for NUKE: ${JSON.stringify(await page.evaluate(()=>({destroyed:Boolean(globalThis.__arondightDroneDamageModel?.destroyed),canDeploy:Boolean(globalThis.__arondightDroneDamageModel?.canDeploy),disabled:Boolean(document.querySelector("#soloArm")?.disabled),button:document.querySelector("#soloArm")?.textContent?.trim(),fc:document.querySelector("#soloState")?.textContent?.trim(),mode:globalThis.__arondightWalkMode?.mode})))}`);
+  throw new Error(`could not atomically arm healthy drone for diagnostics: ${JSON.stringify(await page.evaluate(()=>({destroyed:Boolean(globalThis.__arondightDroneDamageModel?.destroyed),canDeploy:Boolean(globalThis.__arondightDroneDamageModel?.canDeploy),disabled:Boolean(document.querySelector("#soloArm")?.disabled),button:document.querySelector("#soloArm")?.textContent?.trim(),fc:document.querySelector("#soloState")?.textContent?.trim(),mode:globalThis.__arondightWalkMode?.mode})))}`);
 }
 
 try{

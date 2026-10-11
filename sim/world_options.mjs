@@ -17,8 +17,6 @@ export const WORLD_OPTIONS=Object.freeze([
   {key:"military",label:"MILITARY",help:"Soldiers, tanks and helicopters at high wanted levels."},
   {key:"props",label:"LOOSE OBJECTS",help:"Crates, oil drums, cones and bins lying around — throw them with the gravity gun."},
   {key:"jetpack",label:"JETPACK",help:"Jump twice to fire a short jetpack burst over houses. Recharges."},
-  {key:"droneNuke",label:"DRONE NUKE",help:"The drone carries a nuclear warhead (third weapon after gun and rockets). Multiplayer: the host's setting applies.",def:false,rule:true},
-  {key:"launcherNuke",label:"LAUNCHER NUKE",help:"The rocket launcher on foot fires nukes instead of rockets. Multiplayer: the host's setting applies.",def:false,rule:true},
 ]);
 export const DEFAULT_WORLD_OPTIONS=Object.freeze(Object.fromEntries(WORLD_OPTIONS.map(o=>[o.key,o.def??true])));
 // Game rules (the nukes): in a multiplayer session the session host's switches apply to
@@ -27,7 +25,7 @@ export const GAME_RULE_KEYS=Object.freeze(WORLD_OPTIONS.filter(o=>o.rule).map(o=
 let hostRules=null;
 let current=load();
 function load(){try{const raw=JSON.parse(localStorage.getItem(WORLD_OPTIONS_KEY)||"{}");return{...DEFAULT_WORLD_OPTIONS,...Object.fromEntries(Object.entries(raw).filter(([k,v])=>k in DEFAULT_WORLD_OPTIONS&&typeof v==="boolean"))};}catch{return{...DEFAULT_WORLD_OPTIONS};}}
-export function worldOption(key){return key in current?current[key]===true:true;}
+export function worldOption(key){return key in current?current[key]===true:false;} // unknown/retired powers fail closed
 export function worldRule(key){if(hostRules&&key in hostRules)return hostRules[key]===true;return worldOption(key);}
 export function setHostRules(rules){const next=rules&&typeof rules==="object"?Object.fromEntries(GAME_RULE_KEYS.filter(k=>typeof rules[k]==="boolean").map(k=>[k,rules[k]])):null;const same=JSON.stringify(next)===JSON.stringify(hostRules);hostRules=next&&Object.keys(next).length?next:null;
   if(!same&&typeof window!=="undefined")window.dispatchEvent(new CustomEvent(WORLD_OPTIONS_EVENT,{detail:{options:{...current},hostRules:hostRules?{...hostRules}:null,key:"hostRules"}}));}

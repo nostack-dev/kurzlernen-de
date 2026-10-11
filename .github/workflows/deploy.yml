@@ -49,7 +49,7 @@ jobs:
           node tests/wanted_system_test.mjs
           node tests/gameplay_fun_logic_test.mjs
           node tests/editor3d_contract_test.mjs
-          node tests/nuke_weapon_contract_test.mjs
+          node tests/non_nuclear_weapons_contract_test.mjs
           node tests/combat_audio_bank_test.mjs
           node tests/world_population_runtime_contract_test.mjs
           node tests/multiplayer_navigation_test.mjs
@@ -89,9 +89,8 @@ jobs:
           node --check sim/player_walk_mode_v4.mjs
           node --check sim/gameplay_final_runtime_v2.mjs
           node --check sim/flight_fire_fx.mjs
-          node --check sim/nuke_weapon.mjs
-          node --check sim/nuke_overkill_fx.mjs
-          node --check sim/nuke_volumetric_cloud_v2.mjs
+          node --check sim/drone_weapon_modes.mjs
+          node --check sim/guided_missile.mjs
           node --check sim/world_procedural_population.mjs
           node --check sim/world_city_roads.mjs
           node --check sim/world_water.mjs
