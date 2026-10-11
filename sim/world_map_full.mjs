@@ -15,6 +15,10 @@
 import * as maplibregl from "maplibre-gl";
 import * as THREE from "three";
 import {setText} from "./dom_mutation_filter.mjs";
+import {groundHeightAt} from "./terrain_craters.mjs";
+import {sampleNavBreadcrumbs,findUpcomingNavTurn} from "./nav_ar_route_math.mjs";
+import {NavRouteRequestGate} from "./nav_route_request_gate.mjs";
+import {locateMapPeer} from "./map_peer_edge.mjs";
 
 export const WORLD_MAP_FULL_VERSION="fullscreen-map-search-route-v1";
 const STYLE_URL="https://tiles.openfreemap.org/styles/liberty";
@@ -23,7 +27,9 @@ const PHOTON="https://photon.komoot.io/api/",NOMINATIM="https://nominatim.openst
 const ROUTER="https://routing.openstreetmap.de";
 const STORE="arondight45NavDestinationV1";
 let installed=false,dlg=null,mapApi=null,mapReady=false,mapFailed=false,canvas=null,ctx2d=null,open=false;
-let view={lon:0,lat:0,zoom:15.5},follow=true,dest=null,route=null,routeFor="",routeAt=-Infinity,routing=false,lastSearch=0,searchSeq=0,suggestions=[],guideEl=null,arEl=null,lastFrame=0;
+const peerMarkers=new Map();
+const routeRequests=new NavRouteRequestGate();
+let view={lon:0,lat:0,zoom:15.5},follow=true,dest=null,route=null,routeFor="",routeAt=-Infinity,routing=false,lastSearch=0,searchSeq=0,suggestions=[],guideEl=null,arEl=null,arTrailEl=null,lastArTrailAt=-Infinity,arTrailCrumbs=[],arTrailSampleRoute=null,arTrailSampleMode="",lastTurnCue=null,requestedProfile="",lastFrame=0;
 const pointers=new Map();let pinch=null,drag=null;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const $=id=>document.getElementById(id);
@@ -47,18 +53,35 @@ function inGame(){return document.body.classList.contains("solo-flight")&&!($("g
 
 // ------------------------------------------------------------ destination + route
 function saveDest(){try{if(dest)localStorage.setItem(STORE,JSON.stringify(dest));else localStorage.removeItem(STORE);}catch{}}
-function setDestination(d){dest=d?{lon:+d.lon,lat:+d.lat,name:String(d.name||"Wegpunkt").slice(0,80),sub:String(d.sub||"").slice(0,80)}:null;route=null;routeFor="";routeAt=-Infinity;saveDest();renderPanel();if(dest)requestRoute(true);window.dispatchEvent(new CustomEvent("arondight:nav-destination",{detail:{destination:dest}}));const v=viewport();if(v)v.dataset.navDestination=dest?`${dest.lat.toFixed(5)},${dest.lon.toFixed(5)}`:"";}
+function setDestination(d){routeRequests.cancel();routing=false;requestedProfile="";lastTurnCue=null;dest=d?{lon:+d.lon,lat:+d.lat,name:String(d.name||"Wegpunkt").slice(0,80),sub:String(d.sub||"").slice(0,80)}:null;route=null;routeFor="";routeAt=-Infinity;saveDest();renderPanel();if(dest)requestRoute(true);window.dispatchEvent(new CustomEvent("arondight:nav-destination",{detail:{destination:dest}}));const v=viewport();if(v)v.dataset.navDestination=dest?`${dest.lat.toFixed(5)},${dest.lon.toFixed(5)}`:"";}
 function profile(){const s=subject();return s?.mode==="foot"?"foot":"car";}
 async function requestRoute(force=false){
-  const s=subject(),o=geo();if(!dest||!s||!o.real||routing)return;const now=performance.now();if(!force&&now-routeAt<10000)return;routeAt=now;routing=true;
-  const [lon,lat]=toLonLat(s.x,s.y),p=profile(),key=`${p}:${dest.lon},${dest.lat}`;
-  try{const url=`${ROUTER}/routed-${p}/route/v1/driving/${lon.toFixed(6)},${lat.toFixed(6)};${dest.lon.toFixed(6)},${dest.lat.toFixed(6)}?overview=full&geometries=geojson`;
-    const r=await fetch(url,{signal:AbortSignal.timeout?.(9000)});if(!r.ok)throw Error(`route ${r.status}`);const j=await r.json(),rt=j?.routes?.[0];
-    if(rt?.geometry?.coordinates?.length>=2&&dest&&`${p}:${dest.lon},${dest.lat}`===key){route={coords:rt.geometry.coordinates,meters:Number(rt.distance)||0,seconds:Number(rt.duration)||0,profile:p};routeFor=key;}
-  }catch{route=null;}finally{routing=false;renderPanel();updateMapRoute();}
+  const s=subject(),o=geo();if(!dest||!s||!o.real||!(s.mode==="foot"||s.mode==="car"))return;
+  const p=profile(),now=performance.now();
+  // Same-profile requests share the pending fetch. A profile/target change
+  // supersedes the old request immediately, even while response.json() runs.
+  if(routing&&requestedProfile===p&&!force)return;
+  if(!force&&!routing&&now-routeAt<10000)return;
+  const [lon,lat]=toLonLat(s.x,s.y),key=`${p}:${dest.lon},${dest.lat}`;
+  const request=routeRequests.begin(key);requestedProfile=p;routing=true;routeAt=now;
+  const controller=request.controller,timeout=setTimeout(()=>controller.abort(),9000);
+  try{
+    const url=`${ROUTER}/routed-${p}/route/v1/driving/${lon.toFixed(6)},${lat.toFixed(6)};${dest.lon.toFixed(6)},${dest.lat.toFixed(6)}?overview=full&geometries=geojson`;
+    const response=await fetch(url,{signal:request.signal});if(!response.ok)throw Error(`route ${response.status}`);
+    const json=await response.json(),rt=json?.routes?.[0],coords=rt?.geometry?.coordinates;
+    if(!routeRequests.owns(request)||!dest||profile()!==p||`${p}:${dest.lon},${dest.lat}`!==key)return;
+    if(!Array.isArray(coords)||coords.length<2||coords.length>100000||!coords.every(q=>Array.isArray(q)&&q.length>=2&&Number.isFinite(q[0])&&Number.isFinite(q[1])))throw Error("invalid routing geometry");
+    route={coords,meters:Number(rt.distance)||0,seconds:Number(rt.duration)||0,profile:p};routeFor=key;
+  }catch{
+    // Never let a cancelled/late response erase the newest route.
+    if(routeRequests.owns(request)){route=null;routeFor="";lastTurnCue=null;}
+  }finally{
+    clearTimeout(timeout);
+    if(routeRequests.finish(request)){routing=false;requestedProfile="";renderPanel();updateMapRoute();}
+  }
 }
 // the polyline the guidance follows (local metres): route if there is one, else straight to the pin
-function pathLocal(){if(!dest)return null;const pts=route?.coords?.map(c=>toLocal(c[0],c[1]))||[];const d=toLocal(dest.lon,dest.lat);if(!pts.length)return[d];const last=pts[pts.length-1];if(Math.hypot(last[0]-d[0],last[1]-d[1])>2)pts.push(d);return pts;}
+function pathLocal(){if(!dest)return null;const s=subject(),validRoadRoute=(s?.mode==="foot"||s?.mode==="car")&&route?.profile===profile();const pts=validRoadRoute?route.coords.map(c=>toLocal(c[0],c[1])):[];const d=toLocal(dest.lon,dest.lat);if(!pts.length)return[d];const last=pts[pts.length-1];if(Math.hypot(last[0]-d[0],last[1]-d[1])>2)pts.push(d);return pts;}
 // nearest point on the path, then `ahead` metres further along it
 function lookahead(s,ahead){const pts=pathLocal();if(!pts)return null;if(pts.length===1)return{p:pts[0],off:0,left:Math.hypot(pts[0][0]-s.x,pts[0][1]-s.y)};
   let best=Infinity,bi=0,bt=0;for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1,t=clamp(((s.x-a[0])*dx+(s.y-a[1])*dy)/L2,0,1),qx=a[0]+dx*t,qy=a[1]+dy*t,d=Math.hypot(s.x-qx,s.y-qy);if(d<best){best=d;bi=i;bt=t;}}
@@ -114,17 +137,25 @@ body.pad-input #worldMapFull .wm-cross{display:block}
 #worldMapFull .wm-pin i{position:absolute;left:-12px;top:-34px;width:24px;height:34px;background:#ff4b5c;clip-path:path("M12 34 C12 34 0 19 0 12 A12 12 0 1 1 24 12 C24 19 12 34 12 34 Z");filter:drop-shadow(0 2px 3px #000a)}
 #worldMapFull .wm-pin i::after{content:"";position:absolute;left:8px;top:8px;width:8px;height:8px;border-radius:50%;background:#fff}
 #worldMapFull .wm-pin[hidden],#worldMapFull .wm-me[hidden]{display:none}
+#worldMapFull .wm-peers{position:absolute;inset:0;pointer-events:none;z-index:2}
+#worldMapFull .wm-peer{position:absolute;left:0;top:0;z-index:2;pointer-events:none;will-change:transform;transform:translate(-100px,-100px);--peer-color:#40dcff}
+#worldMapFull .wm-peer i{position:absolute;left:-9px;top:-11px;width:18px;height:22px;background:var(--peer-color);clip-path:polygon(50% 0,100% 100%,50% 72%,0 100%);filter:drop-shadow(0 1px 2px #000)}
+#worldMapFull .wm-peer b{position:absolute;left:50%;top:13px;transform:translateX(-50%);white-space:nowrap;border:1px solid var(--peer-color);background:#06121bdb;color:#fff;padding:2px 5px;border-radius:6px;font:800 11px/1 system-ui}
+#worldMapFull .wm-peer.offmap i{outline:2px solid #fff9;outline-offset:3px}
+#worldMapFull .wm-peer.dead{opacity:.45;filter:grayscale(1)}
 #worldMapFull .wm-attr{position:absolute;right:max(62px,calc(var(--solo-safe-right,env(safe-area-inset-right)) + 62px));bottom:2px;font:500 9px/1.2 Inter,system-ui;opacity:.55;z-index:2}
 #worldMapFull .wm-attr a{color:#fff}
 /* the map owns the screen: body-level corner buttons (GPS, music, sound) step aside while it is open */
 body.world-map-open>:not(#viewport):not(dialog):not(script):not(style):not(link){visibility:hidden!important}
 #navGuide{position:absolute;left:50%;top:calc(max(8px,var(--solo-safe-top,env(safe-area-inset-top))) + 50px);transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:7px;padding:4px 11px 4px 7px;border-radius:14px;background:#0b0f14a8;border:1px solid #ffffff22;color:#fff;font:700 11.5px/1 Inter,system-ui,sans-serif;letter-spacing:.02em;pointer-events:none;white-space:nowrap;max-width:min(70vw,420px);overflow:hidden;text-overflow:ellipsis;opacity:.86}
-#navGuide[hidden],#navAr[hidden]{display:none}
+#navGuide[hidden],#navAr[hidden],#navArTrail[hidden]{display:none}
 #navGuide i{display:inline-block;width:16px;height:16px;background:#7fd3ff;clip-path:polygon(50% 0,92% 100%,50% 74%,8% 100%);flex:none}
 #navGuide span{overflow:hidden;text-overflow:ellipsis}
 #navAr{position:absolute;left:0;top:0;z-index:29;width:0;height:0;pointer-events:none;will-change:transform;opacity:.72}
 #navAr i{position:absolute;left:-9px;top:-9px;width:18px;height:18px;background:#7fd3ff;clip-path:polygon(50% 0,100% 100%,50% 70%,0 100%);filter:drop-shadow(0 0 2px #0009)}
 #navAr small{position:absolute;left:50%;top:12px;transform:translateX(-50%);font:800 10px/1 Inter,system-ui,sans-serif;color:#dff4ff;text-shadow:0 1px 2px #000;white-space:nowrap}
+#navArTrail{position:absolute;inset:0;z-index:28;pointer-events:none;overflow:hidden}
+#navArTrail i{display:none;position:absolute;left:0;top:0;width:14px;height:19px;margin:-9px 0 0 -7px;background:#7fd3ff;clip-path:polygon(50% 0,100% 100%,50% 72%,0 100%);filter:drop-shadow(0 1px 3px #000);will-change:transform;opacity:.8}
 body.jet-mode #navAr i{background:#7dff9a}body.jet-mode #navGuide i{background:#7dff9a}`;
 
 function ensureStyle(){if(!document.querySelector("style[data-world-map-full]")){const st=document.createElement("style");st.dataset.worldMapFull=WORLD_MAP_FULL_VERSION;st.textContent=CSS;document.head.appendChild(st);}}
@@ -132,7 +163,7 @@ function ensureUi(){
   const v=viewport();if(!v)return null;if(dlg?.isConnected)return dlg;
   ensureStyle();
   dlg=document.createElement("dialog");dlg.id="worldMapFull";dlg.setAttribute("aria-label","Karte");
-  dlg.innerHTML=`<div class="wm-stage"><canvas class="wm-canvas"></canvas><div class="wm-gl"></div></div><div class="wm-me"><i></i></div><div class="wm-pin" hidden><i></i></div><div class="wm-cross"></div>
+  dlg.innerHTML=`<div class="wm-stage"><canvas class="wm-canvas"></canvas><div class="wm-gl"></div></div><div class="wm-me"><i></i></div><div class="wm-pin" hidden><i></i></div><div class="wm-peers"></div><div class="wm-cross"></div>
 <div class="wm-top"><div class="wm-search"><input type="search" enterkeyhint="search" autocomplete="off" spellcheck="false" placeholder="Ziel suchen – Straße Nr., Ort"><div class="wm-sugg" role="listbox"></div></div><button type="button" class="wm-close" aria-label="Karte schließen">✕</button></div>
 <div class="wm-dest" hidden><div><b></b><small></small></div><button type="button" data-clear>ZIEL LÖSCHEN</button></div>
 <div class="wm-side"><button type="button" data-zoom="1" aria-label="Hineinzoomen">+</button><button type="button" data-zoom="-1" aria-label="Herauszoomen">−</button><button type="button" data-me aria-label="Auf mich zentrieren">⌖</button></div>
@@ -193,7 +224,7 @@ function ensureGlMap(){
     mapApi.on("error",()=>{});setTimeout(()=>{if(!mapReady){mapFailed=true;try{mapApi?.remove();}catch{}mapApi=null;}},12000);
   }catch{mapFailed=true;mapApi=null;}}
 function emptyLine(){return{type:"FeatureCollection",features:[]};}
-function updateMapRoute(){if(!mapReady||!mapApi)return;const src=mapApi.getSource?.("nav-route");if(!src)return;const s=subject();let coords=route?.coords?.slice()||[];if(dest){if(!coords.length&&s)coords=[toLonLat(s.x,s.y),[dest.lon,dest.lat]];}src.setData(dest&&coords.length>=2?{type:"FeatureCollection",features:[{type:"Feature",geometry:{type:"LineString",coordinates:coords},properties:{}}]}:emptyLine());}
+function updateMapRoute(){if(!mapReady||!mapApi)return;const src=mapApi.getSource?.("nav-route");if(!src)return;const s=subject();let coords=(s&&(s.mode==="foot"||s.mode==="car")&&route?.profile===profile()?route.coords.slice():[]);if(dest){if(!coords.length&&s)coords=[toLonLat(s.x,s.y),[dest.lon,dest.lat]];}src.setData(dest&&coords.length>=2?{type:"FeatureCollection",features:[{type:"Feature",geometry:{type:"LineString",coordinates:coords},properties:{}}]}:emptyLine());}
 
 // ---------------------------------------------------------------- canvas map (any world)
 function drawCanvas(){
@@ -208,10 +239,36 @@ function drawCanvas(){
   const path=pathLocal();if(path&&s){const pts=[[s.x,s.y],...path];c.strokeStyle="#0b2235";c.lineWidth=9;c.beginPath();pts.forEach((q,i)=>{const [x,y]=P(q[0],q[1]);i?c.lineTo(x,y):c.moveTo(x,y);});c.stroke();c.strokeStyle="#4ab3ff";c.lineWidth=5;c.stroke();}
   if(!geo().real){c.fillStyle="#ffffff88";c.font="600 11px Inter,system-ui,sans-serif";c.textAlign="center";c.fillText("Trainingswelt – Adresssuche nur in der echten Welt (GPS)",w/2,72);c.textAlign="left";}
 }
+// Peer markers use the SAME dataset as the small minimap. DOM elements are
+// reused, so this overlay works identically above MapLibre and fallback canvas.
+function drawPeerMarkers(){
+  const host=dlg?.querySelector('.wm-peers');if(!host)return;
+  const mates=globalThis.__arondightVsMultiplayer?.minimapPlayers?.()||[];
+  const present=new Set(),{w,h}=size();
+  for(const mate of mates){
+    if(!mate?.id||!Array.isArray(mate.p)||mate.p.length<2||!mate.p.slice(0,2).every(Number.isFinite))continue;
+    const id=String(mate.id);present.add(id);
+    let el=peerMarkers.get(id);
+    if(!el){el=document.createElement('div');el.className='wm-peer';el.innerHTML='<i></i><b></b>';host.appendChild(el);peerMarkers.set(id,el);}
+    const [lon,lat]=toLonLat(mate.p[0],mate.p[1]),[px,py]=project(lon,lat);
+    if(!Number.isFinite(px)||!Number.isFinite(py)){el.hidden=true;continue;}
+    const edge=locateMapPeer(px,py,w,h);
+    if(!edge){el.hidden=true;continue;}
+    el.hidden=false;el.classList.toggle('offmap',edge.offmap);el.classList.toggle('dead',!!mate.dead);
+    el.style.setProperty('--peer-color',/^#[0-9a-fA-F]{6}$/.test(mate.color||'')?mate.color:'#40dcff');
+    el.style.transform=`translate(${edge.x.toFixed(1)}px,${edge.y.toFixed(1)}px)`;
+    // Outside the map, the icon points to the player rather than showing the
+    // other player's own flight/walk heading (which is unrelated to the route).
+    const angle=edge.offmap?edge.rotationDeg:(Number(mate.headingRad)||0)*180/Math.PI;
+    el.firstElementChild.style.transform=`rotate(${angle.toFixed(1)}deg)`;
+    el.lastElementChild.textContent=`P${mate.index||'?'}${edge.offmap?' '+edge.arrow:''}`;
+  }
+  for(const [id,el] of peerMarkers)if(!present.has(id)){el.remove();peerMarkers.delete(id);}
+}
 // markers (both renderers)
 function drawMarkers(){const s=subject(),me=dlg.querySelector(".wm-me"),pin=dlg.querySelector(".wm-pin");
   if(s){const [lon,lat]=toLonLat(s.x,s.y),[x,y]=project(lon,lat);me.hidden=false;me.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px) rotate(${viewBearing().toFixed(1)}deg)`;}else me.hidden=true;
-  if(dest){const [x,y]=project(dest.lon,dest.lat);pin.hidden=false;pin.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;}else pin.hidden=true;}
+  if(dest){const [x,y]=project(dest.lon,dest.lat);pin.hidden=false;pin.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;}else pin.hidden=true;drawPeerMarkers();}
 
 function openMap(){if(open)return true;if(!inGame())return false;const d=ensureUi();if(!d)return false;open=true;follow=true;
   const s=subject();if(s){const [lon,lat]=toLonLat(s.x,s.y);view.lon=lon;view.lat=lat;}view.zoom=s?.mode==="jet"?12.5:s?.mode==="drone"&&s.z>120?14.5:16;
@@ -224,21 +281,69 @@ function close(){if(!open)return;open=false;pointers.clear();pinch=drag=null;sug
 function toggle(){return open?(close(),false):openMap();}
 
 // ---------------------------------------------------------------- guidance while playing
-function ensureGuide(){const v=viewport();if(!v)return;ensureStyle();if(!guideEl?.isConnected){guideEl=document.createElement("div");guideEl.id="navGuide";guideEl.hidden=true;guideEl.innerHTML="<i></i><span></span>";v.appendChild(guideEl);}if(!arEl?.isConnected){arEl=document.createElement("div");arEl.id="navAr";arEl.hidden=true;arEl.innerHTML="<i></i><small></small>";v.appendChild(arEl);}}
+function ensureGuide(){const v=viewport();if(!v)return;ensureStyle();if(!guideEl?.isConnected){guideEl=document.createElement("div");guideEl.id="navGuide";guideEl.hidden=true;guideEl.innerHTML="<i></i><span></span>";v.appendChild(guideEl);}if(!arEl?.isConnected){arEl=document.createElement("div");arEl.id="navAr";arEl.hidden=true;arEl.innerHTML="<i></i><small></small>";v.appendChild(arEl);}if(!arTrailEl?.isConnected){arTrailEl=document.createElement("div");arTrailEl.id="navArTrail";arTrailEl.hidden=true;arTrailEl.setAttribute("aria-hidden","true");for(let i=0;i<5;i++)arTrailEl.appendChild(document.createElement("i"));v.appendChild(arTrailEl);}}
 const proj=new THREE.Vector3();
+// Small road-aligned arrows only when an actual routing polyline exists. No fake
+// street path for missing routes or for flying aircraft. 8 Hz route sampling, per-frame camera projection.
+function updateArTrail(now,c,s,validRoadRoute){
+  if(!arTrailEl)return;
+  if(!validRoadRoute){arTrailEl.hidden=true;lastTurnCue=null;arTrailCrumbs=[];arTrailSampleRoute=null;return;}
+  const v=viewport(),W=v?.clientWidth||0,H=v?.clientHeight||0;
+  if(!c||!W||!H||!route?.coords?.length){arTrailEl.hidden=true;lastTurnCue=null;return;}
+  // Route geometry and turn detection are expensive: keep their 125ms throttle.
+  // A camera can turn every frame: cached world points MUST be reprojected each frame.
+  if(now-lastArTrailAt>=125||arTrailSampleRoute!==route||arTrailSampleMode!==s.mode){
+    lastArTrailAt=now;arTrailSampleRoute=route;arTrailSampleMode=s.mode;
+    const path=route.coords.map(q=>toLocal(q[0],q[1]));
+    const spacing=s.mode==="foot"?12:35,first=s.mode==="foot"?7:18;
+    arTrailCrumbs=sampleNavBreadcrumbs(path,[s.x,s.y],{count:5,spacingM:spacing,startM:first});
+    lastTurnCue=findUpcomingNavTurn(path,[s.x,s.y],{scanM:s.mode==="foot"?130:350,windowM:s.mode==="foot"?10:20});
+  }
+  c.updateMatrixWorld(true);let shown=0;
+  for(let i=0;i<arTrailEl.children.length;i++){
+    const el=arTrailEl.children[i],q=arTrailCrumbs[i];if(!q){el.style.display="none";continue;}
+    const z=groundHeightAt(q.p[0],q.p[1])+.65;
+    const world=new THREE.Vector3(q.p[0],q.p[1],z),eye=world.clone().applyMatrix4(c.matrixWorldInverse);
+    if(eye.z>=-.2){el.style.display="none";continue;}
+    const p=world.project(c);
+    if(p.z< -1||p.z>1||Math.abs(p.x)>.92||Math.abs(p.y)>.88){el.style.display="none";continue;}
+    const x=(p.x*.5+.5)*W,y=(-p.y*.5+.5)*H;
+    if(x<12||x>W-12||y<75||y>H-55){el.style.display="none";continue;}
+    const ahead=new THREE.Vector3(q.p[0]+Math.sin(q.bearingRad)*3,q.p[1]+Math.cos(q.bearingRad)*3,z).project(c);
+    const dx=(ahead.x-p.x)*W,dy=-(ahead.y-p.y)*H;
+    const angle=Math.hypot(dx,dy)>1?Math.atan2(dy,dx)*180/Math.PI+90:0;
+    el.style.display="block";el.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px) rotate(${angle.toFixed(1)}deg)`;
+    shown++;
+  }
+  arTrailEl.hidden=shown===0;
+  if(v)v.dataset.navArBreadcrumbs=String(shown);
+}
 function guide(now){
   ensureGuide();if(!guideEl||!arEl)return;const s=subject();
-  if(!dest||!s||open||!inGame()){if(!guideEl.hidden)guideEl.hidden=true;if(!arEl.hidden)arEl.hidden=true;return;}
-  const ahead=s.mode==="foot"?30:s.mode==="car"?70:s.mode==="jet"?900:Math.max(60,s.z*1.5),la=lookahead(s,ahead);if(!la){guideEl.hidden=arEl.hidden=true;return;}
-  const [dx,dy]=[toLocal(dest.lon,dest.lat)[0]-s.x,toLocal(dest.lon,dest.lat)[1]-s.y],direct=Math.hypot(dx,dy),left=route?la.left:direct;
+  if(!dest||!s||open||!inGame()){if(!guideEl.hidden)guideEl.hidden=true;if(!arEl.hidden)arEl.hidden=true;if(arTrailEl)arTrailEl.hidden=true;lastTurnCue=null;return;}
+  const onRoad=s.mode==="foot"||s.mode==="car";
+  // Never leave a car route pending when the player switches to foot (or vice versa).
+  if(onRoad&&((route&&route.profile!==profile())||(routing&&requestedProfile&&requestedProfile!==profile()))){
+    routeRequests.cancel();routing=false;requestedProfile="";route=null;routeFor="";routeAt=-Infinity;lastTurnCue=null;
+  }
+  const validRoadRoute=onRoad&&route?.profile===profile()&&route?.coords?.length>=2;
+  const target=toLocal(dest.lon,dest.lat),ahead=s.mode==="foot"?30:s.mode==="car"?70:s.mode==="jet"?900:Math.max(60,s.z*1.5);
+  const la=validRoadRoute?lookahead(s,ahead):{p:target,off:0,left:Math.hypot(target[0]-s.x,target[1]-s.y)};
+  if(!la){guideEl.hidden=arEl.hidden=true;if(arTrailEl)arTrailEl.hidden=true;return;}
+  const [dx,dy]=[target[0]-s.x,target[1]-s.y],direct=Math.hypot(dx,dy),left=validRoadRoute?la.left:direct;
   // arrived
   if(direct<(s.mode==="foot"?18:s.mode==="car"?30:60)){toast(`ZIEL ERREICHT · ${dest.name}`);setDestination(null);return;}
   // off the route: ask for a new one (throttled)
-  if(route&&la.off>(s.mode==="foot"?45:80))requestRoute();else if(!route&&geo().real&&now-routeAt>15000)requestRoute();
+  if(onRoad&&validRoadRoute&&la.off>(s.mode==="foot"?45:80))requestRoute();else if(onRoad&&!validRoadRoute&&geo().real&&now-routeAt>15000)requestRoute();
   const tx=la.p[0],ty=la.p[1],bearing=Math.atan2(tx-s.x,ty-s.y)/DEG,rel=((bearing-viewBearing()+540)%360)-180;
-  guideEl.hidden=false;guideEl.querySelector("i").style.transform=`rotate(${rel.toFixed(0)}deg)`;const txt=`${fmtDist(left)} · ${dest.name}`;setText(guideEl.lastChild,txt);
+  const c=cam(),v=viewport();
+  updateArTrail(now,c,s,Boolean(validRoadRoute&&la.off<(s.mode==="foot"?45:80)));
+  guideEl.hidden=false;guideEl.querySelector("i").style.transform=`rotate(${rel.toFixed(0)}deg)`;
+  const cue=lastTurnCue&&validRoadRoute&&la.off<(s.mode==="foot"?45:80)?lastTurnCue:null;
+  const upcoming=cue&&cue.distanceM<(s.mode==="foot"?85:260)?`${cue.direction==="left"?"↰":cue.direction==="right"?"↱":"↶"} in ${fmtDist(cue.distanceM)} · `:"";
+  setText(guideEl.lastChild,`${upcoming}${fmtDist(left)} · ${dest.name}`);
   // AR chevron: on the horizon where the route goes (eye height above the ground there), at the edge when out of view
-  const c=cam(),v=viewport();if(!c||!v){arEl.hidden=true;return;}const W=v.clientWidth,H=v.clientHeight;
+  if(!c||!v){arEl.hidden=true;return;}const W=v.clientWidth,H=v.clientHeight;
   const ground=(s.mode==="foot"?s.z-1.6:s.mode==="car"?s.z:0),z=s.mode==="foot"||s.mode==="car"?ground+1.6:s.z-Math.min(40,Math.max(3,(s.z-ground)*.4));
   proj.set(tx,ty,z).project(c);let x=(proj.x*.5+.5)*W,y=(-proj.y*.5+.5)*H;const behind=proj.z>1||Math.abs(rel)>Math.min(80,(c.fov||60)*(W/H)*.5+4);
   let rot=0;if(behind||x<14||x>W-14||y<70||y>H-60){const a=rel*DEG;x=W/2+Math.sin(a)*W*.42;y=clamp(H*.42-Math.cos(a)*H*.3,80,H-90);rot=rel;}

@@ -20,6 +20,7 @@ import {FPS_WORLD_MAP_MAX_PITCH_DEG} from "./camera_pitch_contract.mjs";
 import {fpvTargetDistanceMeters,forwardTarget} from "./world_camera_math.mjs";
 import {LanVsFinder,discoveryRoomKeys} from "./lan_vs.mjs";
 import {VsPoseTimeline,normalizeVsOrigin,chooseCanonicalVsOrigin,poseMatchesVsFrame,vsFrameId,vsOriginKey} from "./vs_pose_sync.mjs";
+import {headingFromQuaternion} from "./multiplayer_navigation.mjs";
 import {applyNeonMapStyle,NEON_BUILDING_EXTRUSION_COLOR} from "./stylized_world_style.mjs";
 import {applyDamageToPrisms,destructionRevision,damagedFeatureIds,onDestruction} from "./world_destruction_state.mjs";
 import {buildingFootprintsFromFeatures,buildingFootprintHash,buildingCollisionPrismsFromFootprints} from "./world_building_collisions.mjs";
@@ -296,6 +297,8 @@ class RealWorldBridge{
   }
   // What the minimap follows: the car you drive, you on foot, or the drone.
   minimapSubject(airframe){
+    const localJet=globalThis.__jetMode,jetPose=localJet?.active?localJet.pose:null;
+    if(jetPose)return{position:{x:jetPose.x,y:jetPose.y,z:jetPose.z},bearing:THREE.MathUtils.radToDeg(headingFromQuaternion(jetPose.q)),mode:"jet"};
     const drive=globalThis.__arondightVehicleDrive,walk=globalThis.__arondightWalkMode;
     const pose=drive?.active?drive.pose:null;if(pose?.position){const q=pose.rotation||[0,0,0,1],h=Math.atan2(2*(q[3]*q[2]+q[0]*q[1]),1-2*(q[1]*q[1]+q[2]*q[2]));return{position:{x:pose.position[0],y:pose.position[1],z:0},bearing:THREE.MathUtils.radToDeg(Math.atan2(Math.cos(h),Math.sin(h))),mode:"car"};}
     if(walk?.mode==="foot"&&walk.position)return{position:walk.position,bearing:THREE.MathUtils.radToDeg(Number(walk.yaw)||0),mode:"foot"};
@@ -324,6 +327,25 @@ class RealWorldBridge{
     // air strikes: flare spots and jets in flight
     for(const mk of globalThis.__fighterJets?.markers?.()||[]){const [mx,my]=projectLocal(mk.x,mk.y);ctx.strokeStyle=mk.kind==="jet"?"#ffffff":"#ff3a2a";ctx.lineWidth=2;ctx.beginPath();if(mk.kind==="jet"){ctx.arc(mx,my,3,0,Math.PI*2);}else{ctx.moveTo(mx-6,my-6);ctx.lineTo(mx+6,my+6);ctx.moveTo(mx+6,my-6);ctx.lineTo(mx-6,my+6);}ctx.stroke();}
     try{globalThis.__arondightWorldMap?.drawOnMinimap?.(ctx,projectLocal);}catch{}
+    // Every remote player, in every mode, with a heading arrow. Clamp distant peers
+    // to the map edge rather than dropping them outside the visible minimap.
+    ctx.save();ctx.font="bold 11px system-ui,sans-serif";ctx.textAlign="center";
+    const mates=globalThis.__arondightVsMultiplayer?.minimapPlayers?.()||[];
+    for(const mate of mates){
+      if(!Array.isArray(mate.p)||mate.p.length<2)continue;
+      const [rawX,rawY]=projectLocal(mate.p[0],mate.p[1]);
+      if(!Number.isFinite(rawX)||!Number.isFinite(rawY))continue;
+      const mx=clamp(rawX,12,w-12),my=clamp(rawY,13,h-14),offscreen=mx!==rawX||my!==rawY;
+      ctx.save();ctx.translate(mx,my);ctx.rotate((Number(mate.headingRad)||0)-rad);
+      ctx.fillStyle=mate.dead?"#777777":mate.color||"#40dcff";
+      ctx.strokeStyle="#081019";ctx.lineWidth=1.8;
+      ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(6,6);ctx.lineTo(0,3);ctx.lineTo(-6,6);ctx.closePath();ctx.fill();ctx.stroke();
+      if(offscreen){ctx.beginPath();ctx.arc(0,0,10,0,Math.PI*2);ctx.stroke();}
+      ctx.restore();
+      ctx.fillStyle="#ffffff";ctx.strokeStyle="#101010";ctx.lineWidth=3;
+      const label="P"+String(mate.index||"?");ctx.strokeText(label,mx,my+20);ctx.fillText(label,mx,my+20);
+    }
+    ctx.restore();
     const airBearing=subject.bearing,rel=(airBearing-miniBearing)*Math.PI/180,cx=w/2,cy=baseY;ctx.save();ctx.translate(cx,cy);ctx.rotate(rel);ctx.fillStyle="#f5b301";ctx.strokeStyle="#111";ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(6,7);ctx.lineTo(0,4);ctx.lineTo(-6,7);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();ctx.fillStyle="#ffffff";ctx.font="600 11px Inter,system-ui,sans-serif";ctx.fillText(Math.abs(miniBearing)<.01?"N↑":"VIEW↑",7,15);ctx.fillStyle="rgba(255,255,255,.9)";ctx.font="600 9px Inter,system-ui,sans-serif";if(subject.mode==="drone")ctx.fillText(`${Math.round(position.z)}m`,7,h-7);if(viewport){viewport.dataset.worldMinimapMode=Math.abs(miniBearing)<.01?"north":"look";viewport.dataset.worldMinimapBearing=miniBearing.toFixed(2);viewport.dataset.worldMinimapFov=this.viewFovDeg.toFixed(1);viewport.dataset.worldMinimapProjection="topdown";viewport.dataset.worldMinimapPitch="0.00";viewport.dataset.worldMinimapRoll="0.00";viewport.dataset.worldMinimapHeightMode="flat-footprints";viewport.dataset.worldMinimapAxisLock=this.minimapAxisLocked?"1":"0";viewport.dataset.worldMinimapAxisLockApplied=!document.fullscreenElement&&this.minimapAxisLocked?"1":"0";viewport.dataset.worldMinimapZoom=(expanded?this.minimapZoom:1).toFixed(2);viewport.dataset.worldMinimapImageryTiles=String(imagery.drawn);viewport.dataset.worldMinimapImageryZoom=String(imagery.zoom);}
   }
   status(text,kind=""){const el=$("realWorldStatus");if(!el)return;el.textContent=text;el.className=`statusline ${kind}`;}
