@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {webcrypto} from "node:crypto";
-import {LanVsSession,LanVsFinder,sameNetworkRoomKey,sameNetworkRoomKeys,proximityRoomKeys,gestureRoomKeys,discoveryRoomKeys,networkMaterialFromCandidate} from "../sim/lan_vs.mjs";
+import {LanVsSession,LanVsFinder,sameNetworkRoomKey,sameNetworkRoomKeys,proximityRoomKeys,gestureRoomKeys,discoveryRoomKeys,publicLobbyRoomKey,networkMaterialFromCandidate} from "../sim/lan_vs.mjs";
 
 function transportHarness(label="peer"){
   const rooms=new Map();let next=1;let callbackArgSeen=false;
@@ -36,10 +36,12 @@ assert.ok(overlap(geoA,geoB).length>=1,"phones tens of metres apart must share a
 const tapA=await gestureRoomKeys({gestureTimeMs:29990,cryptoObj:webcrypto}),tapB=await gestureRoomKeys({gestureTimeMs:30010,cryptoObj:webcrypto}),tapDelayed=await gestureRoomKeys({gestureTimeMs:21000,cryptoObj:webcrypto}),tapEarly=await gestureRoomKeys({gestureTimeMs:1000,cryptoObj:webcrypto});assert.ok(overlap(tapA,tapB).length>=1,"FIND MATE taps across a 30-second bucket boundary must overlap");assert.ok(overlap(tapEarly,tapDelayed).length>=1,"FIND MATE taps staggered by twenty seconds must retain a common rendezvous room");
 const zeroGpsA=await discoveryRoomKeys({fetchFn:fakeFetch("203.0.113.9"),cryptoObj:webcrypto,networkMaterialsFn:async()=>["ipv4:203.0.113.9"],positionFn:async()=>null,gestureTimeMs:10000});
 const zeroGpsB=await discoveryRoomKeys({fetchFn:fakeFetch("198.51.100.44"),cryptoObj:webcrypto,networkMaterialsFn:async()=>["ipv4:198.51.100.44"],positionFn:async()=>null,gestureTimeMs:10500});
-assert.ok(overlap(zeroGpsA,zeroGpsB).some(key=>key.startsWith("tap-")),"0-GPS phones with completely different network identities must retain a zero-touch rendezvous room");
-let geoRequests=0;const discoveredFromGestureGeo=await discoveryRoomKeys({fetchFn:null,cryptoObj:webcrypto,networkMaterialsFn:async()=>[],positionFn:async()=>{geoRequests++;return{coords:{longitude:9.17,latitude:47.66}};},gestureTimeMs:10000});assert.equal(geoRequests,1);assert.ok(discoveredFromGestureGeo.some(key=>key.startsWith("tap-")));
+const canonical=await publicLobbyRoomKey({cryptoObj:webcrypto});
+assert.deepEqual(zeroGpsA,[canonical],"0-GPS first phone must use canonical lobby");
+assert.deepEqual(zeroGpsB,[canonical],"0-GPS second phone must share canonical lobby despite network differences");
+let geoRequests=0;const discoveredFromGestureGeo=await discoveryRoomKeys({fetchFn:null,cryptoObj:webcrypto,networkMaterialsFn:async()=>[],positionFn:async()=>{geoRequests++;return{coords:{longitude:9.17,latitude:47.66}};},gestureTimeMs:10000});assert.equal(geoRequests,0,"canonical lobby must not wait for GPS permission");assert.deepEqual(discoveredFromGestureGeo,[canonical]);
 const completePlan=await discoveryRoomKeys({longitude:9.17,latitude:47.66,fetchFn:fakeFetch("203.0.113.7"),cryptoObj:webcrypto,networkMaterialsFn:async()=>["ipv4:203.0.113.7","ipv6p64:2001:0db8:abcd:0042"],gestureTimeMs:10000});
-const completeGeo=await proximityRoomKeys({longitude:9.17,latitude:47.66,cryptoObj:webcrypto}),completeTap=await gestureRoomKeys({gestureTimeMs:10000,cryptoObj:webcrypto});assert.equal(completePlan.length,8,"full discovery plan must keep two network, four geo and two tap rooms");for(const key of completeGeo)assert.ok(completePlan.includes(key),"all four shifted geo rooms must survive discovery truncation");for(const key of completeTap)assert.ok(completePlan.includes(key),"both tap rendezvous rooms must survive discovery truncation");
+assert.deepEqual(completePlan,[canonical],"GPS, network and gesture inputs must not fragment the canonical public lobby");
 
 const harness=transportHarness();let aPeer=0,bPeer=0,aPose=null,bPose=null,aOrigin=null,bOrigin=null,aCombat=null,bCombat=null,aLeft=0;const diagnostics=[];
 const a=new LanVsSession({loadTransport:harness.loadTransport,transportName:"Test",joinDiagnosticMs:0,onDiagnostic:event=>diagnostics.push(event),onPeer:()=>aPeer++,onPose:p=>aPose=p,onOrigin:o=>aOrigin=o,onCombat:p=>aCombat=p,onLeave:()=>aLeft++}),b=new LanVsSession({loadTransport:harness.loadTransport,transportName:"Test",joinDiagnosticMs:0,onPeer:()=>bPeer++,onPose:p=>bPose=p,onOrigin:o=>bOrigin=o,onCombat:p=>bCombat=p});
