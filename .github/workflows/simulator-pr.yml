@@ -20,5 +20,7 @@ jobs:
         run: python3 tools/validate-simulator.py
       - name: Check patch whitespace
         run: git diff --check HEAD^ HEAD
+      - name: Verify simulator live-smoke assertion invariants
+        run: node tests/ci_smoke_contract_test.mjs
       - name: Verify current live terrain, renderer and update notice
         run: CHROME_BIN="$(command -v google-chrome || command -v chromium)" node tests/simulator_live_regression_smoke.mjs

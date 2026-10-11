@@ -37,7 +37,17 @@ try{
   });
   await oldPage.goto(url.href,{waitUntil:'load',timeout:60000});
   await oldPage.waitForFunction(()=>document.querySelector('#gameMenu')?.hidden&&document.querySelector('#status')?.textContent.includes('SIM ready'),{timeout:90000});
+  // Verify the page truly believes that the old build is installed, before publishing
+  // the new SHA. A missing document build marker would disable update polling entirely.
+  await oldPage.waitForFunction(()=>document.querySelector('#buildTag')?.textContent==='v 0000000 · online 0000000',{timeout:10000});
+  const beforeUpdate=await oldPage.$eval('#buildTag',el=>el.textContent);
+  assert.match(beforeUpdate,/^v 0000000 · online 0000000$/,`old build was not correctly identified: ${beforeUpdate}`);
   updated=true;
+  // The app checks on focus and every 30 s, with a 10 s focus debounce.
+  // Exercise a real supported foreground check after the debounce instead of
+  // depending on the phase of a pre-existing interval timer.
+  await new Promise(resolve=>setTimeout(resolve,10050));
+  await oldPage.evaluate(()=>window.dispatchEvent(new Event('focus')));
   await oldPage.waitForFunction(()=>document.querySelector('#appUpdatePill')?.textContent.includes('UPDATE AVAILABLE')&&getComputedStyle(document.querySelector('#appUpdatePill')).display==='flex',{timeout:45000});
   assert.match(await oldPage.$eval('#buildTag',el=>el.textContent),new RegExp(`v 0000000 · online ${online.slice(0,7)}`));
   await oldPage.close();
