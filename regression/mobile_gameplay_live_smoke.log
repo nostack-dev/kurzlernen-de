@@ -1,16 +1,16 @@
-file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:58
-  if(fpvUi.dock.length!==3||!fpvUi.dock.includes("SETTINGS")||fpvUi.dock.some(x=>x==="MENU"||x==="START"))throw new Error(`mobile dock is not mode/weapon/settings only: ${JSON.stringify(fpvUi.dock)}`);
-                                                                                                                ^
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:59
+  if(fpvUi.modeSwitch.parentId!=="viewport"||!fpvUi.modeSwitch.className.includes("hud-mode-switch")||fpvUi.modeSwitch.display!=="flex"||fpvUi.modeSwitch.width<60||fpvUi.modeSwitch.height<28||fpvUi.modeSwitch.current!=="foot"||fpvUi.modeSwitch.disabled)throw new Error(`thumb-reach MODE switch missing, invisible, or disabled: ${JSON.stringify(fpvUi.modeSwitch)}`);
+                                                                                                                                                                                                                                                                   ^
 
-Error: mobile dock is not mode/weapon/settings only: ["WEAPON · SMG","SETTINGS"]
-    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:58:113
+Error: thumb-reach MODE switch missing, invisible, or disabled: {"parentId":"viewport","display":"flex","width":40,"height":117.140625,"current":"foot","disabled":false,"className":"hud-mode-switch by-stick"}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:59:260
 
 Node.js v22.23.3
-file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:58
-  if(fpvUi.dock.length!==3||!fpvUi.dock.includes("SETTINGS")||fpvUi.dock.some(x=>x==="MENU"||x==="START"))throw new Error(`mobile dock is not mode/weapon/settings only: ${JSON.stringify(fpvUi.dock)}`);
-                                                                                                                ^
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:59
+  if(fpvUi.modeSwitch.parentId!=="viewport"||!fpvUi.modeSwitch.className.includes("hud-mode-switch")||fpvUi.modeSwitch.display!=="flex"||fpvUi.modeSwitch.width<60||fpvUi.modeSwitch.height<28||fpvUi.modeSwitch.current!=="foot"||fpvUi.modeSwitch.disabled)throw new Error(`thumb-reach MODE switch missing, invisible, or disabled: ${JSON.stringify(fpvUi.modeSwitch)}`);
+                                                                                                                                                                                                                                                                   ^
 
-Error: mobile dock is not mode/weapon/settings only: ["WEAPON · SMG","SETTINGS"]
-    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:58:113
+Error: thumb-reach MODE switch missing, invisible, or disabled: {"parentId":"viewport","display":"flex","width":40,"height":117.140625,"current":"foot","disabled":false,"className":"hud-mode-switch by-stick"}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_gameplay_live_smoke.mjs:59:260
 
 Node.js v22.23.3
