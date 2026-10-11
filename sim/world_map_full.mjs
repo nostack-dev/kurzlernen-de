@@ -18,6 +18,7 @@ import {setText} from "./dom_mutation_filter.mjs";
 import {groundHeightAt} from "./terrain_craters.mjs";
 import {sampleNavBreadcrumbs,findUpcomingNavTurn} from "./nav_ar_route_math.mjs";
 import {NavRouteRequestGate} from "./nav_route_request_gate.mjs";
+import {locateMapPeer} from "./map_peer_edge.mjs";
 
 export const WORLD_MAP_FULL_VERSION="fullscreen-map-search-route-v1";
 const STYLE_URL="https://tiles.openfreemap.org/styles/liberty";
@@ -251,12 +252,16 @@ function drawPeerMarkers(){
     if(!el){el=document.createElement('div');el.className='wm-peer';el.innerHTML='<i></i><b></b>';host.appendChild(el);peerMarkers.set(id,el);}
     const [lon,lat]=toLonLat(mate.p[0],mate.p[1]),[px,py]=project(lon,lat);
     if(!Number.isFinite(px)||!Number.isFinite(py)){el.hidden=true;continue;}
-    const x=clamp(px,16,w-16),y=clamp(py,16,h-30),off=x!==px||y!==py;
-    el.hidden=false;el.classList.toggle('offmap',off);el.classList.toggle('dead',!!mate.dead);
+    const edge=locateMapPeer(px,py,w,h);
+    if(!edge){el.hidden=true;continue;}
+    el.hidden=false;el.classList.toggle('offmap',edge.offmap);el.classList.toggle('dead',!!mate.dead);
     el.style.setProperty('--peer-color',/^#[0-9a-fA-F]{6}$/.test(mate.color||'')?mate.color:'#40dcff');
-    el.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
-    el.firstElementChild.style.transform=`rotate(${((Number(mate.headingRad)||0)*180/Math.PI).toFixed(1)}deg)`;
-    el.lastElementChild.textContent=`P${mate.index||'?'}${off?' ↗':''}`;
+    el.style.transform=`translate(${edge.x.toFixed(1)}px,${edge.y.toFixed(1)}px)`;
+    // Outside the map, the icon points to the player rather than showing the
+    // other player's own flight/walk heading (which is unrelated to the route).
+    const angle=edge.offmap?edge.rotationDeg:(Number(mate.headingRad)||0)*180/Math.PI;
+    el.firstElementChild.style.transform=`rotate(${angle.toFixed(1)}deg)`;
+    el.lastElementChild.textContent=`P${mate.index||'?'}${edge.offmap?' '+edge.arrow:''}`;
   }
   for(const [id,el] of peerMarkers)if(!present.has(id)){el.remove();peerMarkers.delete(id);}
 }
