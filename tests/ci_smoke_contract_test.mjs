@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const sim=readFileSync('tests/simulator_live_regression_smoke.mjs','utf8');
+const mobile=readFileSync('tests/mobile_gameplay_live_smoke.mjs','utf8');
+const desktop=readFileSync('tests/desktop_controls_live_smoke.mjs','utf8');
+const updater=readFileSync('drone_simulator.html','utf8');
+assert.ok(sim.includes('globalThis.__arondightRealWorld.activate({coords:{longitude:13.405,latitude:52.52,accuracy:0}})'), 'live smoke must explicitly enter the geographic world');
+assert.ok(sim.includes('state.count>100&&state.maxError<.005'), 'live smoke must retain exact collision-height/geometry assertions');
+assert.ok(sim.includes("assert.deepEqual(errors,[]"), 'live smoke must continue checking browser runtime errors');
+assert.ok(sim.includes('const beforeUpdate=') && sim.includes("new Event('focus')") && sim.includes('UPDATE AVAILABLE'), 'update must be tested from the known previous build through a real foreground version check');
+assert.ok(sim.includes("assert.match(await oldPage.$eval('#buildTag'"), 'online build SHA must be validated');
+assert.ok(updater.includes('window.addEventListener("focus",function(){check("focus");});'), 'production updater must respond to focus event');
+assert.ok(mobile.includes('modeButton?.offsetWidth') && mobile.includes('modeButton?.offsetHeight') && mobile.includes('fpvUi.modeSwitch.layoutWidth<96'), 'mobile mode switch must have a measured nontrivial CSS click target');
+assert.ok(mobile.includes('Math.min(fpvUi.modeSwitch.width,fpvUi.modeSwitch.height)<28'), 'visible rotated touch target must not collapse');
+assert.ok(desktop.includes('initial.buttons.filter(b=>!b.hidden)') && desktop.includes('initial.weapon.width<60'), 'desktop test must validate the visible compact selector and 3 selectable weapons');
+console.log('Simulator PR smoke assertion invariants passed (terrain, update notice, desktop/mobile targets).');
