@@ -1,4 +1,4 @@
-// The game rules of a multiplayer session (drone nuke, launcher nuke) are the host's: the
+// The game rules of a multiplayer session (including friendly fire) are the host's: the
 // session authority sends its switches every few seconds, right when a mate joins and whenever
 // it flips one; everybody else plays by them (world_options.mjs worldRule()). Leaving the
 // session gives you your own switches back. Alone, nothing is sent.
@@ -12,7 +12,7 @@ function mp(){return globalThis.__arondightVsMultiplayer||null;}
 function amAuthority(){const m=mp();return Boolean(m?.connected&&m.authority&&m.authority===m.self);}
 function ownRules(){return Object.fromEntries(GAME_RULE_KEYS.map(k=>[k,worldOption(k)]));}
 function send(){const s=session();if(!s)return;try{s.sendFx({type:"impact",objectId:"game-rules",kind:"world-sync-rules",id:`gr-${Date.now().toString(36)}-${(serial++).toString(36)}`,p:[0,0,0],rules:ownRules()});}catch{}}
-function onFx(e){const pk=e?.detail?.packet;if(pk?.objectId!=="game-rules"||!pk.rules||amAuthority())return;lastHostAt=performance.now();setHostRules(pk.rules);const v=document.getElementById("viewport");if(v)v.dataset.gameRules=`host:${GAME_RULE_KEYS.map(k=>`${k}=${pk.rules[k]?1:0}`).join(",")}`;}
+function onFx(e){const pk=e?.detail?.packet,from=String(e?.detail?.peerId||""),m=mp();if(pk?.objectId!=="game-rules"||!pk.rules||amAuthority()||!m?.connected||!from||from!==m.authority)return;lastHostAt=performance.now();setHostRules(pk.rules);const v=document.getElementById("viewport");if(v)v.dataset.gameRules=`host:${GAME_RULE_KEYS.map(k=>`${k}=${pk.rules[k]?1:0}`).join(",")}`;}
 function tick(){const now=performance.now(),m=mp();
   if(amAuthority()){if(hostRulesActive())setHostRules(null);if(now-lastSent>SEND_MS){lastSent=now;send();}}
   // out of the session (or the host went quiet for long): own rules again

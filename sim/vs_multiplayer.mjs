@@ -201,6 +201,8 @@ function authorityHit(packet,allowQueue=true){
   if(allowQueue&&performance.now()<authoritySettlingUntil){if(!pendingAuthorityHits.some(item=>item.id===packet.id))pendingAuthorityHits.push({...packet});return;}
   seenHits.add(packet.id);while(seenHits.size>512)seenHits.delete(seenHits.values().next().value);
   const target=String(packet.target||""),shooter=String(packet.shooter||"");if(!participantIds().includes(target)||!participantIds().includes(shooter))return;if(!confirmedHealth.has(target))confirmedHealth.add(target);
+  // Host applies the same rule to every player damage request; environment/self damage remains enabled.
+  if(target!==shooter&&!globalThis.__arondightWorldOptions?.rule?.("friendlyFire"))return;
   if(performance.now()<(protectedUntil.get(target)||0))return; // just respawned: a moment of protection
   const old=health.get(target)??100;if(old<=0)return;const hp=Math.max(0,old-Math.round(clamp(Number(packet.damage)||25,1,100))),killed=hp===0;health.set(target,hp);lastHurtAt.set(target,performance.now());sendState(target,hp,killed,shooter,packet.id,{},{w:String(packet.w||packet.source||"").slice(0,24),z:String(packet.z||"").slice(0,8)});
 }
