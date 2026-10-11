@@ -10,6 +10,10 @@ try{
   const response=await page.goto(url.href,{waitUntil:'load',timeout:60000}),html=await response.text();
   await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('SIM ready')&&globalThis.__arondightWalkMode&&globalThis.__terrain,{timeout:90000});
   if(process.env.GH_SHA){const build=await page.evaluate(async()=>await(await fetch('build.json',{cache:'no-store'})).json());assert.equal(build.sha,process.env.GH_SHA);}
+  // Autostart opens the training range. Explicitly load a real geographic world
+  // before asserting its streamed DEM mesh (without requesting anyone's GPS).
+  await page.evaluate(()=>globalThis.__arondightRealWorld.activate({coords:{longitude:13.405,latitude:52.52,accuracy:0}}));
+  await page.waitForFunction(()=>globalThis.__arondightRealWorld.active&&globalThis.__arondightRealWorld.threeScene.getObjectByName('WORLD_GROUND')?.visible,{timeout:30000});
   for(const mode of ['foot','drone','foot']){
     await page.evaluate(m=>globalThis.__arondightWalkMode.setMode(m,{persist:false}),mode);
     await page.waitForFunction(m=>document.querySelector('#viewport')?.dataset.playerMode===m&&globalThis.__arondightRealWorld?.threeScene?.getObjectByName('WORLD_GROUND')?.visible,{timeout:15000},mode);
