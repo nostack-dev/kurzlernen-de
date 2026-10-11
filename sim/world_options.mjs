@@ -37,7 +37,9 @@ export function worldRule(key){
 export function setHostRules(rules){const next=rules&&typeof rules==="object"?Object.fromEntries(GAME_RULE_KEYS.filter(k=>typeof rules[k]==="boolean").map(k=>[k,rules[k]])):null;const same=JSON.stringify(next)===JSON.stringify(hostRules);hostRules=next&&Object.keys(next).length?next:null;
   if(!same&&typeof window!=="undefined")window.dispatchEvent(new CustomEvent(WORLD_OPTIONS_EVENT,{detail:{options:{...current},hostRules:hostRules?{...hostRules}:null,key:"hostRules"}}));}
 export function hostRulesActive(){return Boolean(hostRules);}
-export function setWorldOption(key,value){if(!(key in DEFAULT_WORLD_OPTIONS))return;current={...current,[key]:Boolean(value)};try{localStorage.setItem(WORLD_OPTIONS_KEY,JSON.stringify(current));}catch{}
+export function setWorldOption(key,value){if(!(key in DEFAULT_WORLD_OPTIONS))return;
+  if(GAME_RULE_KEYS.includes(key)&&globalThis.__arondightVsMultiplayer?.connected&&!globalThis.__arondightRulesVote?.isCommitting){globalThis.__arondightRulesVote?.propose(key,Boolean(value));return;}
+  current={...current,[key]:Boolean(value)};try{localStorage.setItem(WORLD_OPTIONS_KEY,JSON.stringify(current));}catch{}
   if(typeof window!=="undefined")window.dispatchEvent(new CustomEvent(WORLD_OPTIONS_EVENT,{detail:{options:{...current},key,value:Boolean(value)}}));}
 export function worldOptions(){return{...current};}
 if(typeof globalThis!=="undefined")globalThis.__arondightWorldOptions={get:worldOption,rule:worldRule,setHostRules,get hostRules(){return hostRules?{...hostRules}:null;},set:setWorldOption,all:worldOptions,list:WORLD_OPTIONS,event:WORLD_OPTIONS_EVENT};

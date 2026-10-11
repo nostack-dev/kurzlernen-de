@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {createBallot,vote} from '../sim/rules_vote_engine.mjs';
+let b=createBallot({id:'one',key:'friendlyFire',value:true,host:'a',members:['c','b','a'],now:100});
+assert.equal(vote(b,'b',true,['a','b','c'],101),'pending');
+assert.equal(vote(b,'c',true,['a','b','c'],102),'approved');
+assert.equal(b.yes.size,3);assert.equal(vote(b,'c',true,['a','b','c'],103),'approved');
+b=createBallot({id:'two',key:'friendlyFire',value:false,host:'a',members:['a','b','c'],now:100});
+assert.equal(vote(b,'outsider',true,['a','b','c'],101),'ignored');
+assert.equal(vote(b,'b',false,['a','b','c'],102),'rejected');
+b=createBallot({id:'three',key:'friendlyFire',value:true,host:'a',members:['a','b','c'],now:100});
+assert.equal(vote(b,'b',true,['a','b','c','d'],101),'cancelled');
+b=createBallot({id:'four',key:'friendlyFire',value:true,host:'a',members:['a','b','c'],now:100});
+assert.equal(vote(b,'b',true,['a','b','c'],30100),'cancelled');
+console.log('Unanimous rules voting contract: pass');
