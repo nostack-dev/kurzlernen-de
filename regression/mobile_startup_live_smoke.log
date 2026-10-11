@@ -1,0 +1,8 @@
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_startup_live_smoke.mjs:16
+  if(state.dock.length!==3||state.dock[0]!=="ON FOOT"||!state.dock.includes("SETTINGS")||state.dock.some(x=>x==="MENU"||x==="START"))throw new Error(`startup HUD regressed: ${JSON.stringify(state)}`);
+                                                                                                                                           ^
+
+Error: startup HUD regressed: {"playerMode":"foot","cameraMode":"walk","fpv":"1","auto":"foot","startup":"foot-pistol-fresh-v1","startupMode":"foot","deathReset":"0","localDead":false,"respawnState":"none","respawnVisible":false,"onFoot":true,"weapon":"glock","dock":["WEAPON · GLOCK","SETTINGS"],"topbar":"none"}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/mobile_startup_live_smoke.mjs:16:140
+
+Node.js v22.23.3
