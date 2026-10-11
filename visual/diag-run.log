@@ -1,9 +1,9 @@
 {
- "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=62f0869ebcd82a0ea4afa181f0256642078ecc14",
+ "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=578190304a292852572615c84263a77b20902aa7",
  "steps": [
   {
    "name": "boot-5s",
-   "ms": 12612,
+   "ms": 11882,
    "draws": [
     [
      "WORLD_SCORCH_MARKS",
@@ -90,11 +90,11 @@
      "1dc/0tri/0shadowTri"
     ]
    ],
-   "fps": 0.2,
+   "fps": 0.3,
    "drawCalls": 1,
    "triangles": 12,
    "lines": 0,
-   "programs": 73,
+   "programs": 54,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
@@ -138,23 +138,6 @@
     "?#basic,highp,srgb,false,,",
     "?#basic,highp,srgb,false,,",
     "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#2,3,highp,srgb-linear,fa",
-    "?#points,highp,srgb-linear",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
     "?#4,5,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
@@ -166,9 +149,7 @@
     "?#8,10,highp,srgb-linear,f",
     "?#8,11,highp,srgb-linear,f",
     "?#lambert,highp,srgb-linea",
-    "?#12,13,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,"
+    "?#12,13,highp,srgb-linear,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "training",
@@ -183,7 +164,7 @@
   },
   {
    "name": "menu",
-   "ms": 3496,
+   "ms": 3513,
    "draws": [
     [
      "WORLD_SCORCH_MARKS",
@@ -258,4 +239,31 @@
      "53dc/0tri/0shadowTri"
     ],
     [
-     "WORL
+     "WORLD_PEOPLE_CHARACTERS[inst]",
+     "53dc/0tri/0shadowTri"
+    ],
+    [
+     "WORLD_IMPACT_DECALS[inst]",
+     "1dc/0tri/0shadowTri"
+    ],
+    [
+     "WORLD_IMPACT_CHIPS[inst]",
+     "1dc/0tri/0shadowTri"
+    ]
+   ],
+   "fps": 5,
+   "drawCalls": 1,
+   "triangles": 12,
+   "lines": 0,
+   "programs": 54,
+   "programNames": [
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp
