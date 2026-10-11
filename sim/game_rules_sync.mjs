@@ -1,22 +1,93 @@
-// The game rules of a multiplayer session (including friendly fire) are the host's: the
-// session authority sends its switches every few seconds, right when a mate joins and whenever
-// it flips one; everybody else plays by them (world_options.mjs worldRule()). Leaving the
-// session gives you your own switches back. Alone, nothing is sent.
+// First joiner decides initial rules. Changing a rule requires unanimous approval
+// from the fixed roster at proposal time; abstention, leave or timeout means no change.
 import {VS_FX_EVENT,VS_PEER_EVENT} from "./lan_vs.mjs";
 import {GAME_RULE_KEYS,worldOption,setHostRules,hostRulesActive,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
-export const GAME_RULES_SYNC_VERSION="host-rules-v1";
-const SEND_MS=4000;let installed=false,lastSent=-Infinity,serial=0,lastHostAt=0;
+import {createBallot,vote} from "./rules_vote_engine.mjs";
+export const GAME_RULES_SYNC_VERSION="unanimous-rules-v1";
+const SEND_MS=4000;let installed=false,lastSent=-Infinity,serial=0,lastHostAt=0,ballot=null,remoteBallot=null,committing=false,epoch=0;
 const bridge=()=>globalThis.__arondightRealWorld||null;
 const session=()=>{const s=bridge()?.vsSession;return s?.sendFx?s:s?.active?.sendFx?s.active:null;};
-function mp(){return globalThis.__arondightVsMultiplayer||null;}
-function amAuthority(){const m=mp();return Boolean(m?.connected&&m.authority&&m.authority===m.self);}
-function ownRules(){return Object.fromEntries(GAME_RULE_KEYS.map(k=>[k,worldOption(k)]));}
-function send(){const s=session();if(!s)return;try{s.sendFx({type:"impact",objectId:"game-rules",kind:"world-sync-rules",id:`gr-${Date.now().toString(36)}-${(serial++).toString(36)}`,p:[0,0,0],rules:ownRules()});}catch{}}
-function onFx(e){const pk=e?.detail?.packet,from=String(e?.detail?.peerId||""),m=mp();if(pk?.objectId!=="game-rules"||!pk.rules||amAuthority()||!m?.connected||!from||from!==m.authority)return;lastHostAt=performance.now();setHostRules(pk.rules);const v=document.getElementById("viewport");if(v)v.dataset.gameRules=`host:${GAME_RULE_KEYS.map(k=>`${k}=${pk.rules[k]?1:0}`).join(",")}`;}
+const mp=()=>globalThis.__arondightVsMultiplayer||null;
+const connected=()=>Boolean(mp()?.connected);
+const host=()=>String(mp()?.authority||"");
+const self=()=>String(mp()?.self||"");
+const amAuthority=()=>connected()&&host()===self();
+const peers=()=>[self(),...(session()?.getPeerIds?.()||[])].filter(Boolean).sort();
+const ownRules=()=>Object.fromEntries(GAME_RULE_KEYS.map(k=>[k,worldOption(k)]));
+function emit(kind,data={},target){const s=session();if(!s)return false;return s.sendFx({type:"impact",objectId:"game-rules",kind,id:`gr-${Date.now().toString(36)}-${(serial++).toString(36)}`,p:[0,0,0],...data},target?{target}:{});}
+function send(){emit("world-sync-rules",{rules:ownRules()});}
+function announce(text){const el=document.getElementById("rulesVoteStatus");if(el)el.textContent=text;}
+function clearBallot(reason){ballot=null;remoteBallot=null;announce(reason);}
+function propose(key,value){
+  if(!connected()||!GAME_RULE_KEYS.includes(key)||typeof value!=="boolean")return false;
+  if(amAuthority())return begin(key,value);
+  return emit("rules-propose",{key,value},host());
+}
+function begin(key,value){
+  if(!amAuthority()||ballot||worldOption(key)===value)return false;
+  const members=peers();if(members.length<2)return false;
+  ballot=createBallot({id:`${self()}-${Date.now()}-${++epoch}`,key,value,host:self(),members});
+  emit("rules-ballot",{ballot:{id:ballot.id,key,value,members:ballot.members,expires:ballot.expires}});
+  announce(`${key}: ${value?'EIN':'AUS'} · Abstimmung 1/${members.length}`);
+  return true;
+}
+function reply(approve){if(!remoteBallot||!connected()||self()===host())return false;
+  const id=remoteBallot.id;remoteBallot=null;announce(approve?'JA gesendet':'NEIN gesendet');return emit("rules-vote",{ballotId:id,approve:Boolean(approve)},host());}
+function onFx(e){const pk=e?.detail?.packet,from=String(e?.detail?.peerId||"");if(pk?.objectId!=="game-rules"||!from||!connected())return;
+  if(pk.kind==="world-sync-rules"){
+    if(from!==host()||amAuthority()||!pk.rules)return;
+    lastHostAt=performance.now();setHostRules(pk.rules);return;
+  }
+  if(pk.kind==="rules-propose"){
+    if(!amAuthority()||!GAME_RULE_KEYS.includes(pk.key)||typeof pk.value!=="boolean"||!peers().includes(from))return;
+    begin(pk.key,pk.value);return;
+  }
+  if(pk.kind==="rules-ballot"){
+    const b=pk.ballot;if(from!==host()||amAuthority()||!b||!GAME_RULE_KEYS.includes(b.key)||typeof b.value!=="boolean"||!Array.isArray(b.members)||b.members.join("|")!==peers().join("|")||b.expires<=Date.now()||b.expires>Date.now()+30000)return;
+    remoteBallot=b;announce(`${b.key}: ${b.value?'EIN':'AUS'}? Deine Stimme fehlt.`);return;
+  }
+  if(pk.kind==="rules-vote"){
+    if(!amAuthority()||!ballot||ballot.id!==pk.ballotId)return;
+    const result=vote(ballot,from,pk.approve,peers());
+    if(result==="approved"){
+      const{key,value}=ballot;ballot=null;committing=true;
+      try{globalThis.__arondightWorldOptions?.set(key,value);}finally{committing=false;}
+      send();emit("rules-result",{ballotId:pk.ballotId,result:"approved"});announce("Einstimmig angenommen");
+    }else if(result==="rejected"||result==="cancelled"){
+      emit("rules-result",{ballotId:pk.ballotId,result});clearBallot("Abgelehnt / abgebrochen");
+    }else if(result==="pending")announce(`${ballot.key}: ${ballot.yes.size}/${ballot.members.length} JA`);
+    return;
+  }
+  if(pk.kind==="rules-result"&&from===host()&&!amAuthority()){
+    remoteBallot=null;announce(pk.result==="approved"?"Angenommen":"Abgelehnt / abgebrochen");
+  }
+}
 function tick(){const now=performance.now(),m=mp();
   if(amAuthority()){if(hostRulesActive())setHostRules(null);if(now-lastSent>SEND_MS){lastSent=now;send();}}
-  // out of the session (or the host went quiet for long): own rules again
-  else if(hostRulesActive()&&(!m?.connected||now-lastHostAt>20000)){setHostRules(null);const v=document.getElementById("viewport");if(v)v.dataset.gameRules="own";}
-  setTimeout(tick,1000);}
-export function installGameRulesSync(){if(installed||typeof window==="undefined")return;installed=true;addEventListener(VS_FX_EVENT,onFx);addEventListener(VS_PEER_EVENT,ev=>{if(ev?.detail?.type==="join")lastSent=-Infinity;});addEventListener(WORLD_OPTIONS_EVENT,ev=>{if(GAME_RULE_KEYS.includes(ev?.detail?.key)&&amAuthority()){lastSent=performance.now();send();}});tick();}
+  else if(hostRulesActive()&&(!m?.connected||now-lastHostAt>20000))setHostRules(null);
+  if(ballot&&(Date.now()>=ballot.expires||peers().join("|")!==ballot.members.join("|"))){emit("rules-result",{ballotId:ballot.id,result:"cancelled"});clearBallot("Abstimmung abgelaufen / Spielerwechsel");}
+  if(remoteBallot&&(!connected()||Date.now()>=remoteBallot.expires||remoteBallot.members.join("|")!==peers().join("|")))clearBallot("Abstimmung abgelaufen / Spielerwechsel");
+  setTimeout(tick,1000);
+}
+function mount(){if(document.getElementById("rulesVoteButton"))return;
+  const button=document.createElement("button");button.id="rulesVoteButton";button.textContent="RULES";button.type="button";
+  button.style.cssText="position:absolute;right:10px;bottom:130px;z-index:25;padding:8px;border-radius:7px;background:#132c24;color:#caffdc;border:1px solid #58b781";
+  const panel=document.createElement("div");panel.id="rulesVotePanel";panel.hidden=true;panel.style.cssText="position:absolute;right:10px;bottom:173px;z-index:26;background:#132026;color:white;padding:12px;border:1px solid #58b781;border-radius:9px;min-width:170px";
+  const label=document.createElement("div");label.textContent="FRIENDLY FIRE";
+  const on=document.createElement("button");on.textContent="EIN";on.onclick=()=>propose("friendlyFire",true);
+  const off=document.createElement("button");off.textContent="AUS";off.onclick=()=>propose("friendlyFire",false);
+  const yes=document.createElement("button");yes.textContent="JA";yes.onclick=()=>reply(true);
+  const no=document.createElement("button");no.textContent="NEIN";no.onclick=()=>reply(false);
+  const status=document.createElement("div");status.id="rulesVoteStatus";status.textContent="Änderungen nur einstimmig";
+  panel.append(label,on,off,document.createElement("hr"),yes,no,status);
+  button.onclick=()=>{panel.hidden=!panel.hidden;};
+  document.getElementById("viewport")?.append(button,panel);
+}
+export function installGameRulesSync(){if(installed||typeof window==="undefined")return;installed=true;
+  addEventListener(VS_FX_EVENT,onFx);
+  addEventListener(VS_PEER_EVENT,()=>{lastSent=-Infinity;if(ballot||remoteBallot)clearBallot("Spielerwechsel: Abstimmung beendet");});
+  addEventListener(WORLD_OPTIONS_EVENT,e=>{if(GAME_RULE_KEYS.includes(e?.detail?.key)&&amAuthority()&&!committing){lastSent=-Infinity;send();}});
+  const initialize=()=>{mount();};if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",initialize,{once:true});else initialize();tick();
+  globalThis.__arondightRulesVote={propose,vote:reply,get ballot(){return ballot;},get remoteBallot(){return remoteBallot;},get isCommitting(){return committing;}};
+}
 installGameRulesSync();
