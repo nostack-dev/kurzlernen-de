@@ -10,9 +10,15 @@ import {
 
 assert.deepEqual(
   readdirSync(".github/workflows").sort(),
-  ["deploy.yml","editor3d-assemble.yml","editor3d-box3d-main-upgrade.yml","editor3d-e2e.yml","editor3d-flicker-fix.yml","editor3d-live.yml","editor3d-mobile-orbit.yml","editor3d-newton-cradle.yml","mobile-gameplay-regression.yml","s31-hil.yml","visual-diagnostics.yml"],
+  ["deploy.yml","editor3d-assemble.yml","editor3d-box3d-main-upgrade.yml","editor3d-e2e.yml","editor3d-flicker-fix.yml","editor3d-live.yml","editor3d-mobile-orbit.yml","editor3d-newton-cradle.yml","mobile-gameplay-regression.yml","s31-hil.yml","simulator-live.yml","simulator-pr.yml","visual-diagnostics.yml"],
   "production tree must contain only the approved Pages, Editor3D, mobile gameplay, visual diagnostics and S31 HIL workflows",
 );
+
+for(const name of ["simulator-pr.yml","simulator-live.yml"]){
+  const ci=readFileSync(`.github/workflows/${name}`,"utf8");
+  assert.match(ci,/contents: read/);
+  assert.doesNotMatch(ci,/(contents|pages|issues): write/,"simulator verification must be read-only");
+}
 
 const near=(a,b,eps=1e-6,msg="")=>assert.ok(Math.abs(a-b)<=eps,`${msg} expected ${b}, got ${a}`);
 
