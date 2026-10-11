@@ -4,7 +4,7 @@ import re
 import subprocess
 
 root = pathlib.Path(__file__).resolve().parents[1]
-workflow = (root / '.github/workflows/deploy.yml').read_text()
+workflow = '\n'.join((root / '.github/workflows' / name).read_text() for name in ['deploy.yml', 's31-hil.yml'])
 commands = []
 for line in workflow.splitlines():
     command = line.strip()
