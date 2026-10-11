@@ -1,0 +1,29 @@
+name: Multiplayer regression
+on:
+  pull_request:
+    paths:
+      - "sim/multiplayer_navigation.mjs"
+      - "sim/vs_multiplayer.mjs"
+      - "sim/jet_mode.mjs"
+      - "sim/real_world_bootstrap.mjs"
+      - "tests/multiplayer_navigation_test.mjs"
+      - "tests/jet_pad_identity_contract_test.mjs"
+      - ".github/workflows/mp-regression.yml"
+  workflow_dispatch:
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Parse modules
+        run: |
+          node --check sim/multiplayer_navigation.mjs
+          node --check sim/vs_multiplayer.mjs
+          node --check sim/jet_mode.mjs
+          node --check sim/real_world_bootstrap.mjs
+      - name: Verify navigation and stable jet identity
+        run: |
+          node tests/multiplayer_navigation_test.mjs
+          node tests/jet_pad_identity_contract_test.mjs
