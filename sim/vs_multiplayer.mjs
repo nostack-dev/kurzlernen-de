@@ -2,6 +2,7 @@ import * as THREE from "three";
 import {VsPoseTimeline,poseMatchesVsFrame} from "./vs_pose_sync.mjs";
 import {navPoseFromPacket} from "./multiplayer_navigation.mjs";
 import {NavMarkerTimeline} from "./nav_marker_timeline.mjs";
+import {groupSpawnCenter} from "./vs_group_spawn.mjs";
 import {VS_PEER_EVENT,VS_POSE_EVENT,VS_GAME_EVENT,VS_FX_EVENT} from "./lan_vs.mjs";
 
 const VISUAL_SCALE=1;// other players' drones at their true size (a 12x drone sank half into the ground); the player marker keeps them readable
@@ -226,8 +227,21 @@ function sendSpawnAnchor(target,attempt=0){
   if(authorityId!==selfId||!participantIds().includes(target)||target===selfId)return;
   const s=session(),pose=s?.pendingPose;
   if(!Array.isArray(pose?.p)||pose.p.length!==3||!pose.p.every(Number.isFinite)){if(attempt<30)setTimeout(()=>sendSpawnAnchor(target,attempt+1),100);return;}
-  const packet={type:"spawn-anchor",playerId:target,p:pose.p.slice(),f:String(pose.f||"local-metric")};
-  if(Array.isArray(pose.g)&&pose.g.length===2&&pose.g.every(Number.isFinite))packet.g=pose.g.slice();
+  // Prefer the largest fresh group in the same shared metre-frame. Faraway peers
+  // (and stale avatars) must not pull a new participant toward their home GPS.
+  const now=performance.now(),candidates=[posePosition(pose)];
+  for(const r of peers.values())if(!r.dead&&now-r.lastPoseMs<3500){
+    const sample=r.nav?.p||r.timeline.sample(now)?.p;
+    if(Array.isArray(sample)&&sample.length>=2&&sample.slice(0,2).every(Number.isFinite))candidates.push(sample);
+  }
+  const group=groupSpawnCenter(candidates)||candidates[0];
+  const selected=group===candidates[0]?pose:null;
+  const packet={type:"spawn-anchor",playerId:target,p:selected?.p?.slice()||group.slice(0,2).concat(Number(pose.p[2])||0),f:selected?.f||String(viewport()?.dataset?.vsSharedFrame||"local-metric")};
+  const b=bridge();
+  if(Number.isFinite(b?.originLon)&&Number.isFinite(b?.originLat)){
+    const R=6378137,lat=b.originLat*Math.PI/180;
+    packet.g=[b.originLon+group[0]/(R*Math.max(.01,Math.cos(lat)))*180/Math.PI,b.originLat+group[1]/R*180/Math.PI];
+  }else if(selected&&Array.isArray(pose.g)&&pose.g.length===2&&pose.g.every(Number.isFinite))packet.g=pose.g.slice();
   s?.sendGame?.(packet,{target});
 }
 function applySpawnAnchor(packet,peerId,attempt=0){
