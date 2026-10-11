@@ -28,7 +28,7 @@ const STORE="arondight45NavDestinationV1";
 let installed=false,dlg=null,mapApi=null,mapReady=false,mapFailed=false,canvas=null,ctx2d=null,open=false;
 const peerMarkers=new Map();
 const routeRequests=new NavRouteRequestGate();
-let view={lon:0,lat:0,zoom:15.5},follow=true,dest=null,route=null,routeFor="",routeAt=-Infinity,routing=false,lastSearch=0,searchSeq=0,suggestions=[],guideEl=null,arEl=null,arTrailEl=null,lastArTrailAt=-Infinity,lastTurnCue=null,requestedProfile="",lastFrame=0;
+let view={lon:0,lat:0,zoom:15.5},follow=true,dest=null,route=null,routeFor="",routeAt=-Infinity,routing=false,lastSearch=0,searchSeq=0,suggestions=[],guideEl=null,arEl=null,arTrailEl=null,lastArTrailAt=-Infinity,arTrailCrumbs=[],arTrailSampleRoute=null,arTrailSampleMode="",lastTurnCue=null,requestedProfile="",lastFrame=0;
 const pointers=new Map();let pinch=null,drag=null;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const $=id=>document.getElementById(id);
@@ -279,20 +279,24 @@ function toggle(){return open?(close(),false):openMap();}
 function ensureGuide(){const v=viewport();if(!v)return;ensureStyle();if(!guideEl?.isConnected){guideEl=document.createElement("div");guideEl.id="navGuide";guideEl.hidden=true;guideEl.innerHTML="<i></i><span></span>";v.appendChild(guideEl);}if(!arEl?.isConnected){arEl=document.createElement("div");arEl.id="navAr";arEl.hidden=true;arEl.innerHTML="<i></i><small></small>";v.appendChild(arEl);}if(!arTrailEl?.isConnected){arTrailEl=document.createElement("div");arTrailEl.id="navArTrail";arTrailEl.hidden=true;arTrailEl.setAttribute("aria-hidden","true");for(let i=0;i<5;i++)arTrailEl.appendChild(document.createElement("i"));v.appendChild(arTrailEl);}}
 const proj=new THREE.Vector3();
 // Small road-aligned arrows only when an actual routing polyline exists. No fake
-// street path for missing routes or for flying aircraft. 8 Hz DOM update cap.
+// street path for missing routes or for flying aircraft. 8 Hz route sampling, per-frame camera projection.
 function updateArTrail(now,c,s,validRoadRoute){
   if(!arTrailEl)return;
-  if(!validRoadRoute){arTrailEl.hidden=true;lastTurnCue=null;return;}
-  if(now-lastArTrailAt<125)return;lastArTrailAt=now;
+  if(!validRoadRoute){arTrailEl.hidden=true;lastTurnCue=null;arTrailCrumbs=[];arTrailSampleRoute=null;return;}
   const v=viewport(),W=v?.clientWidth||0,H=v?.clientHeight||0;
   if(!c||!W||!H||!route?.coords?.length){arTrailEl.hidden=true;lastTurnCue=null;return;}
-  const path=route.coords.map(q=>toLocal(q[0],q[1]));
-  const spacing=s.mode==="foot"?12:35,first=s.mode==="foot"?7:18;
-  const crumbs=sampleNavBreadcrumbs(path,[s.x,s.y],{count:5,spacingM:spacing,startM:first});
-  lastTurnCue=findUpcomingNavTurn(path,[s.x,s.y],{scanM:s.mode==="foot"?130:350,windowM:s.mode==="foot"?10:20});
+  // Route geometry and turn detection are expensive: keep their 125ms throttle.
+  // A camera can turn every frame: cached world points MUST be reprojected each frame.
+  if(now-lastArTrailAt>=125||arTrailSampleRoute!==route||arTrailSampleMode!==s.mode){
+    lastArTrailAt=now;arTrailSampleRoute=route;arTrailSampleMode=s.mode;
+    const path=route.coords.map(q=>toLocal(q[0],q[1]));
+    const spacing=s.mode==="foot"?12:35,first=s.mode==="foot"?7:18;
+    arTrailCrumbs=sampleNavBreadcrumbs(path,[s.x,s.y],{count:5,spacingM:spacing,startM:first});
+    lastTurnCue=findUpcomingNavTurn(path,[s.x,s.y],{scanM:s.mode==="foot"?130:350,windowM:s.mode==="foot"?10:20});
+  }
   c.updateMatrixWorld(true);let shown=0;
   for(let i=0;i<arTrailEl.children.length;i++){
-    const el=arTrailEl.children[i],q=crumbs[i];if(!q){el.style.display="none";continue;}
+    const el=arTrailEl.children[i],q=arTrailCrumbs[i];if(!q){el.style.display="none";continue;}
     const z=groundHeightAt(q.p[0],q.p[1])+.65;
     const world=new THREE.Vector3(q.p[0],q.p[1],z),eye=world.clone().applyMatrix4(c.matrixWorldInverse);
     if(eye.z>=-.2){el.style.display="none";continue;}
