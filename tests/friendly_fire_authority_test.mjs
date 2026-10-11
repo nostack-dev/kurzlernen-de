@@ -18,5 +18,9 @@ assert.equal(worldRule('friendlyFire'),false,'on stale host broadcast guest fail
 globalThis.__arondightVsMultiplayer={connected:true,authority:'host',self:'host'};
 assert.equal(worldRule('friendlyFire'),true,'host uses own setting');
 assert.match(source,/target!==shooter&&!globalThis\.__arondightWorldOptions\?\.rule\?\.\("friendlyFire"\)/,'damage gate must be inside authorityHit');
-assert.match(sync,/from!==m\.authority/,'reject impostor host rules');
+// The rules-vote module wraps the elected authority in host(). Verify BOTH
+// the identity source and the packet-sender gate; never accept a foreign peer.
+assert.match(sync,/const host=\(\)=>String\(mp\(\)\?\.authority\|\|\"\"\)/,'host identity must come from elected multiplayer authority');
+assert.match(sync,/if\(from!==host\(\)\|\|amAuthority\(\)\|\|!pk\.rules\)return/,'reject impostor host rules before applying them');
+assert.match(sync,/lastHostAt=performance\.now\(\);setHostRules\(pk\.rules\)/,'only authenticated host rules may be applied');
 console.log('Friendly fire authority contract passed');
