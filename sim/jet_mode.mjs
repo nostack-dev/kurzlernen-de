@@ -523,7 +523,7 @@ function frame(now=performance.now()){
   seats.tick(now);
   requestAnimationFrame(frame);const dt=Math.min(.05,Math.max(0,(now-lastFrame)/1000));lastFrame=now;if(!bridge()?.threeScene)return;ensureScene();ensureProvider();
   if(now-lastUi>250){lastUi=now;ui();renderButtons();maybeSpawnPad(now);padFrame(now);}
-  airframesFrame(now);if(debris.length)debrisFrame(now,dt);
+  airframesFrame(now);syncPassengerVisuals();if(debris.length)debrisFrame(now,dt);
   if(passenger){
     const state=seats.get(passenger.owner,passenger.aid);
     if(state.passenger!==selfId()){leavePassenger();}
