@@ -8,7 +8,7 @@
 // water, buildings, physics height field, walking, crowds) follows through
 // terrain_craters.mjs.
 
-export const TERRAIN_ELEVATION_VERSION="terrarium-bare-earth-grid-v2";
+export const TERRAIN_ELEVATION_VERSION="terrarium-complete-origin-safe-v3";
 const ZOOM=14,SIZE_M=2600,ELEV_STEP_M=5,RELOAD_MOVE_M=750;
 const TILE_URL=(z,x,y)=>`https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`;
 let grid=null,refHeight=null,loading=false,listeners=new Set(),tileCache=new Map();
@@ -27,7 +27,7 @@ export function setElevationGrid(g){grid=g;for(const fn of listeners){try{fn(gri
 
 function lonLatToTile(lon,lat,z){const n=2**z,x=(lon+180)/360*n,r=lat*Math.PI/180,y=(1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n;return[x,y];}
 function loadTile(x,y){const key=`${x}/${y}`;if(tileCache.has(key))return tileCache.get(key);
-  const p=new Promise(resolve=>{const img=new Image();img.crossOrigin="anonymous";img.decoding="async";let done=false;const finish=v=>{if(!done){done=true;resolve(v);}};
+  const p=new Promise(resolve=>{const img=new Image();img.crossOrigin="anonymous";img.decoding="async";let done=false;const finish=v=>{if(!done){done=true;if(!v)tileCache.delete(key);resolve(v);}};
     img.onload=()=>{try{const c=document.createElement("canvas");c.width=img.width;c.height=img.height;const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(img,0,0);finish({w:img.width,h:img.height,data:ctx.getImageData(0,0,img.width,img.height).data});}catch{finish(null);}};
     img.onerror=()=>finish(null);img.src=TILE_URL(ZOOM,x,y);setTimeout(()=>finish(null),12000);});
   tileCache.set(key,p);if(tileCache.size>24)tileCache.delete(tileCache.keys().next().value);return p;}
@@ -63,26 +63,53 @@ export function bareEarth(h,n,step=ELEV_STEP_M){
   for(let p=0;p<2;p++){boxBlur(h,t,n,1,n,rb);boxBlur(t,h,n,n,1,rb);}
   return h;
 }
+// Never invent heights by carrying the preceding pixel across missing tiles.
+// Incomplete scans keep the last complete surface and retry the failed tile.
+export async function sampleElevationField({x0,y0,n,step=ELEV_STEP_M,unproject,sample,current=()=>true,yieldFrame=()=>new Promise(r=>setTimeout(r,0))}){
+  const h=new Float32Array(n*n);
+  for(let j=0;j<n;j++){
+    if(!current())return null;
+    for(let i=0;i<n;i++){
+      const [lon,lat]=unproject(x0+i*step,y0+j*step),v=sample(lon,lat);
+      if(!Number.isFinite(v))return null;
+      h[j*n+i]=v;
+    }
+    if(j%60===59)await yieldFrame();
+  }
+  return current()?bareEarth(h,n,step):null;
+}
 async function load(cx,cy){
   const b=bridge();if(!b||typeof b.unprojectMeters!=="function")return false;loading=true;const origin=originKey(b);
+  const current=()=>bridge()===b&&originKey(b)===origin;
   try{
     const half=SIZE_M/2,n=Math.round(SIZE_M/ELEV_STEP_M)+1,x0=cx-half,y0=cy-half;
     const[lonA,latA]=b.unprojectMeters(x0,y0+SIZE_M),[lonB,latB]=b.unprojectMeters(x0+SIZE_M,y0);
     const[tx0,ty0]=lonLatToTile(lonA,latA,ZOOM),[tx1,ty1]=lonLatToTile(lonB,latB,ZOOM),ix0=Math.floor(tx0),iy0=Math.floor(ty0),ix1=Math.floor(tx1),iy1=Math.floor(ty1);
     if((ix1-ix0+1)*(iy1-iy0+1)>16)return false;
     const tiles=new Map();await Promise.all([...Array((ix1-ix0+1)*(iy1-iy0+1)).keys()].map(async k=>{const x=ix0+k%(ix1-ix0+1),y=iy0+Math.floor(k/(ix1-ix0+1));tiles.set(`${x}/${y}`,await loadTile(x,y));}));
-    if([...tiles.values()].every(t=>!t))return false;
+    if(!current()||[...tiles.values()].some(t=>!t))return false;
+    // The origin can be far from a joining player. Load its own padded DEM
+    // window, rather than assigning zero metres to whichever player loaded first.
+    const refN=101,refHalf=(refN-1)*ELEV_STEP_M/2;
+    const needReference=refOrigin!==origin||refHeight===null;
+    if(needReference){
+      const [ra,rb]=b.unprojectMeters(-refHalf,refHalf),[rc,rd]=b.unprojectMeters(refHalf,-refHalf);
+      const [rx0,ry0]=lonLatToTile(ra,rb,ZOOM),[rx1,ry1]=lonLatToTile(rc,rd,ZOOM);
+      const pending=[];
+      for(let x=Math.floor(rx0);x<=Math.floor(rx1);x++)for(let y=Math.floor(ry0);y<=Math.floor(ry1);y++)if(!tiles.has(`${x}/${y}`))pending.push(loadTile(x,y).then(t=>tiles.set(`${x}/${y}`,t)));
+      await Promise.all(pending);
+      if(!current()||[...tiles.values()].some(t=>!t))return false;
+    }
     const sample=(lon,lat)=>{const[fx,fy]=lonLatToTile(lon,lat,ZOOM),tx=Math.floor(fx),ty=Math.floor(fy),t=tiles.get(`${tx}/${ty}`);if(!t)return null;const px=Math.min(t.w-1.001,(fx-tx)*t.w),py=Math.min(t.h-1.001,(fy-ty)*t.h),i=px|0,j=py|0,ax=px-i,ay=py-j,o=(j*t.w+i)*4,w=t.w*4;
       return(terrarium(t.data,o)*(1-ax)+terrarium(t.data,o+4)*ax)*(1-ay)+(terrarium(t.data,o+w)*(1-ax)+terrarium(t.data,o+w+4)*ax)*ay;};
-    if(refOrigin!==origin){refHeight=null;refOrigin=origin;}
-    // absolute DEM heights on the grid, then surface model -> bare ground
-    const h=new Float32Array(n*n);let last=null;
-    for(let j=0;j<n;j++){for(let i=0;i<n;i++){const[lon,lat]=b.unprojectMeters(x0+i*ELEV_STEP_M,y0+j*ELEV_STEP_M),v=sample(lon,lat);if(v!==null)last=v;h[j*n+i]=last??NaN;}if(j%60===59)await new Promise(r=>setTimeout(r,0));}
-    {let first=NaN;for(const v of h)if(Number.isFinite(v)){first=v;break;}if(!Number.isFinite(first))return false;for(let k=0;k<h.length;k++)if(!Number.isFinite(h[k]))h[k]=first;}
-    bareEarth(h,n);await new Promise(r=>setTimeout(r,0));
-    if(refHeight===null){const fx=(0-x0)/ELEV_STEP_M,fy=(0-y0)/ELEV_STEP_M;refHeight=fx>=0&&fy>=0&&fx<=n-1&&fy<=n-1?bilinear(h,n,fx,fy):bilinear(h,n,(n-1)/2,(n-1)/2);}
-    for(let k=0;k<h.length;k++)h[k]-=refHeight;
-    if(originKey(bridge())!==origin)return false; // world origin moved while loading: stale
+    const unproject=(x,y)=>b.unprojectMeters(x,y);
+    const h=await sampleElevationField({x0,y0,n,unproject,sample,current});if(!h)return false;
+    let reference=refHeight;
+    if(needReference){const rh=await sampleElevationField({x0:-refHalf,y0:-refHalf,n:refN,unproject,sample,current});if(!rh)return false;reference=bilinear(rh,refN,(refN-1)/2,(refN-1)/2);}
+    if(!current())return false;
+    for(let k=0;k<h.length;k++)h[k]-=reference;
+    // Commit the reference and grid together, only after the entire scan is current.
+    refHeight=reference;refOrigin=origin;
     grid={x0,y0,step:ELEV_STEP_M,n,h,cx,cy,origin};
     const v=document.getElementById("viewport");if(v){let mn=Infinity,mx=-Infinity;for(const z of h){mn=Math.min(mn,z);mx=Math.max(mx,z);}v.dataset.terrainElevation=`${TERRAIN_ELEVATION_VERSION} ref=${refHeight.toFixed(1)}m range=${mn.toFixed(1)}..${mx.toFixed(1)}`;}
     for(const fn of listeners){try{fn(grid);}catch(e){console.warn("elevation listener",e);}}
@@ -96,7 +123,7 @@ function frame(now){
   // the old grid meaningless: drop it at once (flat until the new DEM is in),
   // so nothing is placed against a terrain from somewhere else.
   if(grid&&grid.origin!==originKey(b)){grid=null;failures=0;for(const fn of listeners){try{fn(null);}catch(e){console.warn("elevation listener",e);}}}
-  const p=globalThis.__arondightWalkMode?.mode==="foot"?globalThis.__arondightWalkMode.position:cam.position;
+  const p=globalThis.__arondightStreamFocus?.()||b.presentedCamera?.()?.position||cam.position;
   if(grid&&Math.hypot(p.x-grid.cx,p.y-grid.cy)<RELOAD_MOVE_M)return;if(failures>4&&now-lastTry<60000)return;lastTry=now;
   load(Math.round(p.x/50)*50,Math.round(p.y/50)*50).then(ok=>{failures=ok?0:failures+1;}).catch(()=>{failures++;});
 }

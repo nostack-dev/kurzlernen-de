@@ -90,12 +90,12 @@ export function buildingGroundBase(outer){let m=Infinity;const r=(outer||[]).map
 // height of the road's smoothed centre line, blending back to the natural
 // ground over a few metres. Physics, ground mesh, roads and walkers all read
 // this same height — one truth.
-const RG=24,ROAD_BLEND_M=4.5;let roadGrid=new Map(),roadHash="";
+const RG=24,ROAD_BLEND_M=4.5;let roadGrid=new Map(),roadHash="",roadSource=[];
 const roadKey=(ix,iy)=>ix*73856093^iy*19349663;
-export function setRoadCorridors(roads){
+export function setRoadCorridors(roads,refresh=false){
   const list=(roads||[]).filter(r=>Array.isArray(r?.pts)&&r.pts.length>1&&r.w>0);
-  let hash=String(list.length);for(const r of list){const a=r.pts[0],b=r.pts.at(-1);hash+=`|${Math.round(a[0])},${Math.round(a[1])},${Math.round(b[0])},${Math.round(b[1])},${r.w}`;}
-  if(hash===roadHash)return false;roadHash=hash;const grid=new Map();let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  const hash=JSON.stringify(list.map(r=>[r.w,r.pts]));
+  if(!refresh&&hash===roadHash)return false;roadHash=hash;roadSource=list;const grid=new Map();let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
   for(const r of list){
     // centre line resampled every 5 m, heights smoothed over ±15 m
     const pts=[];for(let i=0;i<r.pts.length-1;i++){const a=r.pts[i],b=r.pts[i+1],l=Math.hypot(b[0]-a[0],b[1]-a[1]),k=Math.max(1,Math.ceil(l/5));for(let s=0;s<k;s++)pts.push([a[0]+(b[0]-a[0])*s/k,a[1]+(b[1]-a[1])*s/k]);}pts.push(r.pts.at(-1));
@@ -179,7 +179,7 @@ const craterRect=c=>[c.x-CRATER_R,c.y-CRATER_R,c.x+CRATER_R,c.y+CRATER_R];
 export function addCrater(x,y){const c={x:Number(x)||0,y:Number(y)||0},rects=[craterRect(c)];craters.push(c);while(craters.length>MAX_CRATERS)rects.push(craterRect(craters.shift()));notify(rects);}
 export function clearCraters(){if(!craters.length)return;const rects=craters.map(craterRect);craters.length=0;notify(rects);}
 export function onTerrainChange(fn){listeners.add(fn);return()=>listeners.delete(fn);}
-onElevationChange(()=>notify());
+onElevationChange(()=>{if(roadSource.length)setRoadCorridors(roadSource,true);notify();});
 // regions: null = everything changed, else [[x0,y0,x1,y1],...] that changed
 function notify(regions=null,source="terrain"){terrainCellCache.clear();for(const fn of listeners){try{fn(terrainCraters(),regions,source);}catch(error){console.warn("terrain listener",error);}}}
 

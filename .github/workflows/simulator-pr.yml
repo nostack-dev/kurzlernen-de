@@ -1,0 +1,22 @@
+name: Simulator PR gates
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  simulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 2
+      - name: Install simulator dependencies
+        run: |
+          npm install --prefix /tmp/simulator-deps --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 mqtt@5.15.2 nostr-tools@2.24.1 qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.3 @trystero-p2p/mqtt@0.25.3 @trystero-p2p/torrent@0.25.3
+          ln -s /tmp/simulator-deps/node_modules node_modules
+      - name: Run deployment-equivalent deterministic gates
+        run: python3 tools/validate-simulator.py
+      - name: Check patch whitespace
+        run: git diff --check HEAD^ HEAD
