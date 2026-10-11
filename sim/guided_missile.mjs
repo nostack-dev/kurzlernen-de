@@ -9,10 +9,12 @@ import * as THREE from "three";
 import {requestLight} from "./dynamic_lights.mjs";
 import {staticGroundHeightAt} from "./terrain_craters.mjs";
 import {wantedLineBlockedByPrisms} from "./wanted_system_logic.mjs";
+import {GUIDED_BALANCE,updatePedestrianDodge} from "./guided_balance.mjs";
 
-export const GUIDED_MISSILE_VERSION="cruise-lock-v1";
-const PICK_PX=70,MAX_RANGE_M=600,CRUISE_MPS=68,TURN_G=9.81*7,TTL_MS=22000,FUZE_M=2.4,BLAST_M=9,BLAST_DMG=160,DIVE_RANGE_M=70,COOLDOWN_MS=1200;
+export const GUIDED_MISSILE_VERSION="balanced-dodge-v2";
+const PICK_PX=70,MAX_RANGE_M=600,CRUISE_MPS=GUIDED_BALANCE.speedMps,TURN_G=9.81*GUIDED_BALANCE.turnG,TTL_MS=22000,FUZE_M=2.4,BLAST_M=GUIDED_BALANCE.blastRadiusM,BLAST_DMG=GUIDED_BALANCE.damage,DIVE_RANGE_M=70,COOLDOWN_MS=GUIDED_BALANCE.cooldownMs;
 let installed=false,lock=null,lockEl=null,lastLaunch=-Infinity,smokePool=null,smokeCursor=0;const missiles=[];
+let guidedWarningEl=null;
 const bridge=()=>globalThis.__arondightRealWorld||null;
 const viewport=()=>document.getElementById("viewport");
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -36,7 +38,14 @@ function pick(clientX,clientY){const c=cam(),p=logicalPoint(clientX,clientY);if(
 function ensureLockEl(){const v=viewport();if(!v)return null;if(lockEl?.isConnected)return lockEl;lockEl=document.createElement("div");lockEl.id="guidedLockBox";lockEl.style.cssText="position:absolute;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;z-index:25;pointer-events:none;display:none;border:2px solid #ff4d3a;box-shadow:0 0 10px #ff4d3a99,inset 0 0 8px #ff4d3a55;border-radius:4px";const tag=document.createElement("div");tag.style.cssText="position:absolute;left:50%;top:-20px;transform:translateX(-50%);white-space:nowrap;font:900 11px/1 system-ui,sans-serif;letter-spacing:.14em;color:#ffdad4;text-shadow:0 1px 2px #000";lockEl.appendChild(tag);v.appendChild(lockEl);return lockEl;}
 function renderLock(now){const el=ensureLockEl();if(!el)return;if(!lock){el.style.display="none";return;}const w=lock.pos(),c=cam(),v=viewport();if(!w||!c||!v){clearLock("lost");el.style.display="none";return;}const s=toScreen(w,c,v.clientWidth,v.clientHeight);if(!s){el.style.display="none";return;}
   const rotated=v.dataset.soloOrientation==="css-landscape";el.style.display="block";el.style.transform=rotated?`translate(${v.clientHeight-s.y}px,${s.x}px)`:`translate(${s.x}px,${s.y}px)`;const pulse=.85+.15*Math.sin(now/90);el.style.opacity=String(pulse);const d=w.distanceTo(c.position);el.firstChild.textContent=`LOCK · ${lock.label} · ${Math.round(d)} m`;}
-function clearLock(reason=""){if(lock){lock=null;const v=viewport();if(v)v.dataset.guidedLock=reason||"none";}}
+function warnLock(target){
+  const v=viewport();if(!v)return;
+  if(!guidedWarningEl?.isConnected){guidedWarningEl=document.createElement('div');guidedWarningEl.id='guidedLockWarning';guidedWarningEl.setAttribute('role','status');guidedWarningEl.style.cssText='position:absolute;top:23%;left:50%;transform:translateX(-50%);z-index:26;pointer-events:none;padding:7px 12px;color:#fff;background:#871d18e8;border:1px solid #ffac84;border-radius:7px;font:800 12px system-ui;letter-spacing:.06em;text-align:center';v.appendChild(guidedWarningEl);}
+  guidedWarningEl.textContent='GUIDED LOCK · '+target.label+' · SPRINT ZUM AUSWEICHEN';
+  guidedWarningEl.hidden=false;
+  window.dispatchEvent(new CustomEvent('arondight:guided-lock-warning',{detail:{targetId:target.id,targetKind:target.kind}}));
+}
+function clearLock(reason=""){if(guidedWarningEl)guidedWarningEl.hidden=true;if(lock){lock=null;const v=viewport();if(v)v.dataset.guidedLock=reason||"none";}}
 // ---------------------------------------------------------------- sound
 function ac(){const a=globalThis.__sharedAudioContext;return a&&a.state==="running"?a:null;}
 function lockTone(){const a=ac();if(!a)return;try{const t=a.currentTime;for(let k=0;k<2;k++){const o=a.createOscillator(),g=a.createGain();o.type="square";o.frequency.value=1760;const s=t+k*.09;g.gain.setValueAtTime(.05,s);g.gain.setValueAtTime(0,s+.05);o.connect(g).connect(a.destination);o.start(s);o.stop(s+.06);}}catch{}}
@@ -56,10 +65,19 @@ function launch(now){const b=bridge(),scene=b?.threeScene,c=cam();if(!lock||!sce
   const group=new THREE.Group();group.name="GUIDED_MISSILE";const body=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.9,10),new THREE.MeshStandardMaterial({color:0xd8dcdf,roughness:.4,metalness:.5})),nose=new THREE.Mesh(new THREE.ConeGeometry(.06,.22,10),new THREE.MeshStandardMaterial({color:0x2e3338,roughness:.5})),flame=new THREE.Mesh(new THREE.ConeGeometry(.05,.5,8),new THREE.MeshBasicMaterial({color:0xffb24a,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
   body.rotation.x=Math.PI/2;nose.rotation.x=-Math.PI/2;nose.position.z=-.56;flame.rotation.x=Math.PI/2;flame.position.z=.7;for(let k=0;k<4;k++){const fin=new THREE.Mesh(new THREE.BoxGeometry(.008,.18,.16),body.material);fin.rotation.z=k*Math.PI/2;fin.position.set(0,0,.36);fin.translateY(.07);group.add(fin);}
   flame.visible=false;group.add(body,nose,flame);group.traverse(n=>{n.userData.flightFireIgnore=true;n.raycast=()=>{};});group.position.copy(start);const dir=tmp.copy(target).sub(start).setZ(0).normalize();group.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1),dir);scene.add(group);ensureSmoke(scene);
-  const cruiseZ=Math.max(start.z+8,target.z+28);missiles.push({group,flame,target:lock,last:target.clone(),vel:dir.clone().multiplyScalar(6).setZ(-3),born:now,ignite:now+320,cruiseZ,voice:null,scene});
+  const cruiseZ=Math.max(start.z+8,target.z+28);missiles.push({group,flame,target:lock,last:target.clone(),vel:dir.clone().multiplyScalar(6).setZ(-3),born:now,ignite:now+320,cruiseZ,voice:null,scene,dodge:{last:target.clone(),seconds:0,lost:false}});
   lastLaunch=now;clearLock("fired");window.dispatchEvent(new CustomEvent("arondight:weapon-fired",{detail:{weapon:"guided-missile",source:"drone",mode:"drone",intensity:.5}}));const v=viewport();if(v)v.dataset.guidedLaunches=String((Number(v.dataset.guidedLaunches)||0)+1);return true;}
 function detonate(i,pos,hit){const m=missiles[i];missiles.splice(i,1);m.scene.remove(m.group);stopVoice(m.voice);window.dispatchEvent(new CustomEvent("arondight:world-explosion",{detail:{position:[pos.x,pos.y,pos.z],radiusM:BLAST_M,maxDamage:BLAST_DMG,kind:"missile",source:"guided-missile",targeted:Boolean(hit)}}));const v=viewport();if(v)v.dataset.guidedLast=hit?"hit":"miss";}
-function step(now,dt){for(let i=missiles.length-1;i>=0;i--){const m=missiles[i],p=m.group.position;const t=m.target.pos();if(t)m.last.copy(t);const goal=m.last;
+function step(now,dt){for(let i=missiles.length-1;i>=0;i--){const m=missiles[i],p=m.group.position;const t=m.target.pos();
+    if(t&&!m.dodge.lost){
+      const pedestrian=m.target.kind==='person'||m.target.kind==='mate';
+      const state=updatePedestrianDodge(m.dodge,{previous:m.dodge.last,current:t,dt,pedestrian});
+      m.dodge.seconds=state.seconds;m.dodge.lost=state.lost;
+      if(state.lost){m.target={...m.target,pos:()=>null};const v=viewport();if(v)v.dataset.guidedCounter='dodge-sprint';}
+      else m.last.copy(t);
+      m.dodge.last=t.clone();
+    }
+    const goal=m.last;
     if(now<m.ignite){m.vel.z-=9.81*dt;p.addScaledVector(m.vel,dt);continue;}/* dropped off the rail, then the motor lights */
     if(!m.voice){m.voice=motorVoice();m.flame.visible=true;}
     const horiz=Math.hypot(goal.x-p.x,goal.y-p.y),diving=horiz<DIVE_RANGE_M||goal.distanceTo(p)<DIVE_RANGE_M;
@@ -76,7 +94,7 @@ function step(now,dt){for(let i=missiles.length-1;i>=0;i--){const m=missiles[i],
 // ---------------------------------------------------------------- input (drone weapon "guided")
 export function press({clientX,clientY,source="external"}={}){const now=performance.now();if(now<(Number(globalThis.__arondightWeaponLockUntil)||0)||globalThis.__arondightDroneDamageModel?.destroyed)return false;const picked=pick(clientX,clientY);
   if(lock&&(!picked||picked.id===lock.id)){if(now-lastLaunch<COOLDOWN_MS)return false;return launch(now);}
-  if(picked){lock=picked;lockTone();const v=viewport();if(v){v.dataset.guidedLock=`${picked.kind}:${picked.id}`;v.dataset.guidedLockInput=source;}return true;}
+  if(picked){lock=picked;lockTone();warnLock(picked);const v=viewport();if(v){v.dataset.guidedLock=`${picked.kind}:${picked.id}`;v.dataset.guidedLockInput=source;}return true;}
   return false;}
 const BLOCKED="#worldLookHud,#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#wantedEmpButton,#droneWeaponToggle,#desktopDroneWeaponSwitch,dialog,button,input,select,textarea,a,label";
 function isDrone(){return globalThis.__arondightWalkMode?.mode!=="foot"&&!globalThis.__arondightVehicleDrive?.active&&!globalThis.__jetMode?.active;}
