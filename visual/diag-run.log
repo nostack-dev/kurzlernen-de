@@ -1,21 +1,21 @@
 {
- "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=408a0aa7f4805e7c601b4cc2a42a6f747d58db00",
+ "url": "https://kurzlernen.de/drone_simulator.html?diag-ci=e46871db216877e966d7668e84f63241027ae9e1",
  "steps": [
   {
    "name": "boot-5s",
-   "ms": 13424,
+   "ms": 10574,
    "draws": [
     [
      "WORLD_SCORCH_MARKS",
      "1dc/8000tri/0shadowTri"
     ],
     [
-     "Group",
-     "50dc/6952tri/1296shadowTri"
-    ],
-    [
      "TRAINING_SHOWCASE_PLAZA",
      "67dc/1968tri/0shadowTri"
+    ],
+    [
+     "Group",
+     "22dc/1344tri/1296shadowTri"
     ],
     [
      "LOOSE_PROPS_DRUM[inst]",
@@ -90,11 +90,11 @@
      "1dc/0tri/0shadowTri"
     ]
    ],
-   "fps": 0.2,
+   "fps": 0.3,
    "drawCalls": 1,
    "triangles": 12,
    "lines": 0,
-   "programs": 62,
+   "programs": 29,
    "programNames": [
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
@@ -115,49 +115,16 @@
     "?#physical,STANDARD,,highp",
     "?#physical,STANDARD,,highp",
     "?#basic,highp,srgb-linear,",
-    "?#lambert,highp,srgb-linea",
-    "?#4,5,highp,srgb-linear,fa",
     "?#basic,highp,srgb-linear,",
     "?#basic,highp,srgb-linear,",
-    "?#6,7,onBeforeCompile(){}",
+    "?#4,5,onBeforeCompile(){}",
     "?#basic,highp,srgb-linear,",
     "?#lambert,highp,srgb-linea",
-    "?#basic,highp,srgb-linear,",
-    "?#basic,highp,srgb-linear,",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,8,highp,srgb-linear,fa",
+    "?#6,9,highp,srgb-linear,fa",
     "?#lambert,highp,srgb-linea",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#2,3,highp,srgb,false,,fa",
-    "?#points,highp,srgb,false,",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#physical,STANDARD,,highp",
-    "?#physical,STANDARD,,highp",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#4,5,highp,srgb,false,,fa",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#basic,highp,srgb,false,,",
-    "?#basic,highp,srgb,false,,",
-    "?#lambert,highp,srgb,306,1",
-    "?#8,9,highp,srgb-linear,fa",
-    "?#8,10,highp,srgb-linear,f",
-    "?#8,11,highp,srgb-linear,f",
-    "?#lambert,highp,srgb-linea",
-    "?#12,13,highp,srgb-linear,"
+    "?#10,11,highp,srgb-linear,"
    ],
    "status": "SIM ready: shared production runtime active.",
    "worldMode": "training",
@@ -172,19 +139,19 @@
   },
   {
    "name": "menu",
-   "ms": 3035,
+   "ms": 3352,
    "draws": [
     [
      "WORLD_SCORCH_MARKS",
      "1dc/8000tri/0shadowTri"
     ],
     [
-     "Group",
-     "50dc/6952tri/1296shadowTri"
-    ],
-    [
      "TRAINING_SHOWCASE_PLAZA",
      "67dc/1968tri/0shadowTri"
+    ],
+    [
+     "Group",
+     "22dc/1344tri/1296shadowTri"
     ],
     [
      "LOOSE_PROPS_DRUM[inst]",
@@ -259,11 +226,44 @@
      "1dc/0tri/0shadowTri"
     ]
    ],
-   "fps": 5.4,
+   "fps": 5.5,
    "drawCalls": 1,
    "triangles": 12,
    "lines": 0,
-   "programs": 62,
+   "programs": 29,
    "programNames": [
     "?#basic,highp,srgb-linear,",
-    "?#basic,hig
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#2,3,highp,srgb-linear,fa",
+    "?#points,highp,srgb-linear",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#physical,STANDARD,,highp",
+    "?#physical,STANDARD,,highp",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#basic,highp,srgb-linear,",
+    "?#4,5,onBeforeCompile(){}",
+    "?#basic,highp,srgb-linear,",
+    "?#lambert,highp,srgb-linea",
+    "?#6,7,highp,srgb-linear,fa",
+    "?#6,8,highp,srgb-linear,fa",
+    "?#6,9,highp,srgb-linear,fa",
+    "?#lambert,highp,srgb-linea",
+    "?#10,11,highp,srgb-linear,"
+   ],
+   "status": "SIM ready: shared production runtime active.",
+   "worldMode": "training",
+   "water": "0/0/0",
+   "bloom": "quarter-res-two-level-bloom-v3-constant-output",
+   "style"
