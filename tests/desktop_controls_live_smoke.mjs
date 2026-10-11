@@ -15,7 +15,6 @@ try{
   if(initial.compact){if(initial.groupDisplay!=="none"||!initial.weapon.text?.startsWith("WEAPON")||initial.weapon.display==="none"||initial.weapon.width<60)throw new Error(`compact weapon control missing: ${JSON.stringify(initial)}`);}
   else if(initial.groupDisplay!=="flex"||initial.groupWidth<150)throw new Error(`desktop selector missing: ${JSON.stringify(initial)}`);
   // Optional legacy features must never become selectable by accident.
-  if(initial.buttons.find(b=>b.text==="NUKE")?.hidden===false)throw new Error(`disabled legacy weapon unexpectedly visible: ${JSON.stringify(initial)}`);
   if(!(initial.stop.text==="STOP"&&initial.stop.align==="center"&&initial.stop.justify==="center"&&initial.stop.textAlign==="center"))throw new Error(`STOP control is not compact/centered: ${JSON.stringify(initial.stop)}`);
   for(const mode of["missile","guided","gun"]){
     if(initial.compact)await page.$eval("#mobileGameplayWeapon",b=>b.click());

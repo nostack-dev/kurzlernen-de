@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 
-const [population,roads,water,ground,buildings,depth,training,organic,cleanup,bank,nukeCloud,nukeFx]=await Promise.all([
+const [population,roads,water,ground,buildings,depth,training,organic,cleanup,bank]=await Promise.all([
   "sim/world_procedural_population.mjs","sim/world_city_roads.mjs","sim/world_water.mjs","sim/world_ground.mjs",
   "sim/world_city_buildings.mjs","sim/world_building_depth_occlusion.mjs","sim/training_test_level_v2.mjs",
   "sim/world_organic_hit_audio.mjs","sim/flight_first_cleanup.mjs","sim/combat_audio_bank.mjs",
-  "sim/nuke_volumetric_cloud_v2.mjs","sim/nuke_overkill_fx.mjs"
 ].map(path=>readFile(path,"utf8")));
 
 for(const marker of ["world-space-fixed-centres-v1","fixed-local-road-network-v1","const cx=anchorX,cy=anchorY","cx=anchorX+m.cx,cy=anchorY+m.cy","record.wheelPoses=pose.wheels||null"])
@@ -26,7 +25,5 @@ assert.ok(cleanup.includes('import "./world_organic_hit_audio.mjs";'),"organic i
 assert.ok(organic.includes('"arondight:world-kill"')&&organic.includes('playCombatAudio(ctx,"crack"'),"organic person/animal/bird crack feedback missing");
 assert.ok(bank.includes("crack:4")&&bank.includes("renderCrack"),"shared PCM bank has no crack samples");
 
-assert.ok(nukeCloud.includes("lit-smoke+brief-ember-core-v3")&&nukeCloud.includes("MeshLambertMaterial"),"nuke mushroom must read as lit smoke");
-assert.ok(nukeFx.includes("depthTest:true")&&nukeFx.includes("world-space-3d-v6-smoke-pressure"),"nuke pressure wave must be depth-tested world geometry");
 
-console.log("Drone world grounding/render contract passed: fixed actors, stable depth layers, harbour test level, organic hit crack, and realistic nuke smoke.");
+console.log("Drone world grounding/render contract passed: fixed actors, stable depth layers, harbour test level, organic hit crack, without nuclear visual effects.");

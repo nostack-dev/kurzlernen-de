@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {readFileSync,existsSync} from 'node:fs';
+const read=p=>readFileSync(p,'utf8');
+const cleanup=read('sim/flight_first_cleanup.mjs'),options=read('sim/world_options.mjs');
+const modes=read('sim/drone_weapon_modes.mjs'),dock=read('sim/gameplay_final_ui_dock.mjs');
+const game=read('sim/gameplay_final_runtime_v2.mjs');
+assert.ok(cleanup.includes('import "./drone_weapon_modes.mjs"'));
+for(const token of ['nuke_weapon','nuke_overkill_fx','nuke_volumetric_cloud_v2','nuke_audio','nuke_hazard_fx'])assert.ok(!cleanup.includes('import "./'+token+'.mjs"'),token);
+assert.ok(!options.includes('key:"droneNuke"')&&!options.includes('key:"launcherNuke"'));
+assert.ok(!dock.includes('data-drone-weapon="nuke"'));
+assert.ok(!game.includes('launcherNuke()')&&!game.includes('__arondightFootNuke?.fire'));
+assert.ok(modes.includes('["gun","missile","guided"]')&&!modes.includes('"nuke"'));
+for(const p of ['sim/nuke_weapon.mjs','sim/nuke_overkill_fx.mjs','sim/nuke_volumetric_cloud_v2.mjs','sim/nuke_audio.mjs','sim/nuke_hazard_fx.mjs','sim/nuke_fx_shared.mjs'])assert.equal(existsSync(p),false,p);
+console.log('Nuclear weapon fully removed; shared explosions retained.');
