@@ -23,6 +23,7 @@ const PHOTON="https://photon.komoot.io/api/",NOMINATIM="https://nominatim.openst
 const ROUTER="https://routing.openstreetmap.de";
 const STORE="arondight45NavDestinationV1";
 let installed=false,dlg=null,mapApi=null,mapReady=false,mapFailed=false,canvas=null,ctx2d=null,open=false;
+const peerMarkers=new Map();
 let view={lon:0,lat:0,zoom:15.5},follow=true,dest=null,route=null,routeFor="",routeAt=-Infinity,routing=false,lastSearch=0,searchSeq=0,suggestions=[],guideEl=null,arEl=null,lastFrame=0;
 const pointers=new Map();let pinch=null,drag=null;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -114,6 +115,12 @@ body.pad-input #worldMapFull .wm-cross{display:block}
 #worldMapFull .wm-pin i{position:absolute;left:-12px;top:-34px;width:24px;height:34px;background:#ff4b5c;clip-path:path("M12 34 C12 34 0 19 0 12 A12 12 0 1 1 24 12 C24 19 12 34 12 34 Z");filter:drop-shadow(0 2px 3px #000a)}
 #worldMapFull .wm-pin i::after{content:"";position:absolute;left:8px;top:8px;width:8px;height:8px;border-radius:50%;background:#fff}
 #worldMapFull .wm-pin[hidden],#worldMapFull .wm-me[hidden]{display:none}
+#worldMapFull .wm-peers{position:absolute;inset:0;pointer-events:none;z-index:2}
+#worldMapFull .wm-peer{position:absolute;left:0;top:0;z-index:2;pointer-events:none;will-change:transform;transform:translate(-100px,-100px);--peer-color:#40dcff}
+#worldMapFull .wm-peer i{position:absolute;left:-9px;top:-11px;width:18px;height:22px;background:var(--peer-color);clip-path:polygon(50% 0,100% 100%,50% 72%,0 100%);filter:drop-shadow(0 1px 2px #000)}
+#worldMapFull .wm-peer b{position:absolute;left:50%;top:13px;transform:translateX(-50%);white-space:nowrap;border:1px solid var(--peer-color);background:#06121bdb;color:#fff;padding:2px 5px;border-radius:6px;font:800 11px/1 system-ui}
+#worldMapFull .wm-peer.offmap i{outline:2px solid #fff9;outline-offset:3px}
+#worldMapFull .wm-peer.dead{opacity:.45;filter:grayscale(1)}
 #worldMapFull .wm-attr{position:absolute;right:max(62px,calc(var(--solo-safe-right,env(safe-area-inset-right)) + 62px));bottom:2px;font:500 9px/1.2 Inter,system-ui;opacity:.55;z-index:2}
 #worldMapFull .wm-attr a{color:#fff}
 /* the map owns the screen: body-level corner buttons (GPS, music, sound) step aside while it is open */
@@ -132,7 +139,7 @@ function ensureUi(){
   const v=viewport();if(!v)return null;if(dlg?.isConnected)return dlg;
   ensureStyle();
   dlg=document.createElement("dialog");dlg.id="worldMapFull";dlg.setAttribute("aria-label","Karte");
-  dlg.innerHTML=`<div class="wm-stage"><canvas class="wm-canvas"></canvas><div class="wm-gl"></div></div><div class="wm-me"><i></i></div><div class="wm-pin" hidden><i></i></div><div class="wm-cross"></div>
+  dlg.innerHTML=`<div class="wm-stage"><canvas class="wm-canvas"></canvas><div class="wm-gl"></div></div><div class="wm-me"><i></i></div><div class="wm-pin" hidden><i></i></div><div class="wm-peers"></div><div class="wm-cross"></div>
 <div class="wm-top"><div class="wm-search"><input type="search" enterkeyhint="search" autocomplete="off" spellcheck="false" placeholder="Ziel suchen – Straße Nr., Ort"><div class="wm-sugg" role="listbox"></div></div><button type="button" class="wm-close" aria-label="Karte schließen">✕</button></div>
 <div class="wm-dest" hidden><div><b></b><small></small></div><button type="button" data-clear>ZIEL LÖSCHEN</button></div>
 <div class="wm-side"><button type="button" data-zoom="1" aria-label="Hineinzoomen">+</button><button type="button" data-zoom="-1" aria-label="Herauszoomen">−</button><button type="button" data-me aria-label="Auf mich zentrieren">⌖</button></div>
@@ -208,10 +215,32 @@ function drawCanvas(){
   const path=pathLocal();if(path&&s){const pts=[[s.x,s.y],...path];c.strokeStyle="#0b2235";c.lineWidth=9;c.beginPath();pts.forEach((q,i)=>{const [x,y]=P(q[0],q[1]);i?c.lineTo(x,y):c.moveTo(x,y);});c.stroke();c.strokeStyle="#4ab3ff";c.lineWidth=5;c.stroke();}
   if(!geo().real){c.fillStyle="#ffffff88";c.font="600 11px Inter,system-ui,sans-serif";c.textAlign="center";c.fillText("Trainingswelt – Adresssuche nur in der echten Welt (GPS)",w/2,72);c.textAlign="left";}
 }
+// Peer markers use the SAME dataset as the small minimap. DOM elements are
+// reused, so this overlay works identically above MapLibre and fallback canvas.
+function drawPeerMarkers(){
+  const host=dlg?.querySelector('.wm-peers');if(!host)return;
+  const mates=globalThis.__arondightVsMultiplayer?.minimapPlayers?.()||[];
+  const present=new Set(),{w,h}=size();
+  for(const mate of mates){
+    if(!mate?.id||!Array.isArray(mate.p)||mate.p.length<2||!mate.p.slice(0,2).every(Number.isFinite))continue;
+    const id=String(mate.id);present.add(id);
+    let el=peerMarkers.get(id);
+    if(!el){el=document.createElement('div');el.className='wm-peer';el.innerHTML='<i></i><b></b>';host.appendChild(el);peerMarkers.set(id,el);}
+    const [lon,lat]=toLonLat(mate.p[0],mate.p[1]),[px,py]=project(lon,lat);
+    if(!Number.isFinite(px)||!Number.isFinite(py)){el.hidden=true;continue;}
+    const x=clamp(px,16,w-16),y=clamp(py,16,h-30),off=x!==px||y!==py;
+    el.hidden=false;el.classList.toggle('offmap',off);el.classList.toggle('dead',!!mate.dead);
+    el.style.setProperty('--peer-color',/^#[0-9a-fA-F]{6}$/.test(mate.color||'')?mate.color:'#40dcff');
+    el.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+    el.firstElementChild.style.transform=`rotate(${((Number(mate.headingRad)||0)*180/Math.PI).toFixed(1)}deg)`;
+    el.lastElementChild.textContent=`P${mate.index||'?'}${off?' ↗':''}`;
+  }
+  for(const [id,el] of peerMarkers)if(!present.has(id)){el.remove();peerMarkers.delete(id);}
+}
 // markers (both renderers)
 function drawMarkers(){const s=subject(),me=dlg.querySelector(".wm-me"),pin=dlg.querySelector(".wm-pin");
   if(s){const [lon,lat]=toLonLat(s.x,s.y),[x,y]=project(lon,lat);me.hidden=false;me.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px) rotate(${viewBearing().toFixed(1)}deg)`;}else me.hidden=true;
-  if(dest){const [x,y]=project(dest.lon,dest.lat);pin.hidden=false;pin.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;}else pin.hidden=true;}
+  if(dest){const [x,y]=project(dest.lon,dest.lat);pin.hidden=false;pin.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;}else pin.hidden=true;drawPeerMarkers();}
 
 function openMap(){if(open)return true;if(!inGame())return false;const d=ensureUi();if(!d)return false;open=true;follow=true;
   const s=subject();if(s){const [lon,lat]=toLonLat(s.x,s.y);view.lon=lon;view.lat=lat;}view.zoom=s?.mode==="jet"?12.5:s?.mode==="drone"&&s.z>120?14.5:16;

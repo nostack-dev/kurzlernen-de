@@ -54,9 +54,14 @@ jobs:
           node tests/world_population_runtime_contract_test.mjs
           node tests/multiplayer_navigation_test.mjs
           node tests/jet_pad_identity_contract_test.mjs
+          node tests/jet_seat_table_test.mjs
+          node tests/jet_seat_coordinator_test.mjs
           node --check sim/multiplayer_navigation.mjs
           node --check sim/vs_multiplayer.mjs
           node --check sim/jet_mode.mjs
+          node --check sim/jet_seat_table.mjs
+          node --check sim/jet_seat_coordinator.mjs
+          node --check sim/world_map_full.mjs
           node --check sim/real_world_bootstrap.mjs
           node tests/pedestrian_agents_test.mjs
           node tests/drone_world_grounding_contract_test.mjs

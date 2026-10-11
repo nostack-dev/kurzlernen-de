@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {JetSeatTable} from '../sim/jet_seat_table.mjs';
+const s=new JetSeatTable();
+assert.equal(s.claim({owner:'A',jetId:'J',player:'B',seat:'passenger'}).ok,false);
+assert.equal(s.claim({owner:'A',jetId:'J',player:'B',seat:'pilot'}).ok,false);
+assert.equal(s.claim({owner:'A',jetId:'J',player:'A',seat:'pilot'}).ok,true);
+assert.equal(s.claim({owner:'A',jetId:'J',player:'B',seat:'passenger'}).ok,true);
+assert.equal(s.claim({owner:'A',jetId:'J',player:'C',seat:'passenger'}).ok,false);
+assert.equal(s.claim({owner:'C',jetId:'K',player:'B',seat:'passenger'}).ok,false);
+let snapshot=s.snapshot(), other=new JetSeatTable();
+assert.equal(other.load(snapshot),true);assert.equal(other.get('A','J').passenger,'B');
+assert.equal(s.release({owner:'A',jetId:'J',player:'B',seat:'pilot'}).ok,false);
+assert.equal(s.release({owner:'A',jetId:'J',player:'A',seat:'pilot'}).ok,true);
+assert.equal(s.get('A','J').passenger,null);
+console.log('JetSeatTable contracts passed');
