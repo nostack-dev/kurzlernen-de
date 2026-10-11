@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {sampleNavBreadcrumbs} from '../sim/nav_ar_route_math.mjs';
+const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-6,`${a} != ${b}`);
+let out=sampleNavBreadcrumbs([[0,0],[0,100]],[0,10],{startM:10,spacingM:20,count:4});
+assert.equal(out.length,4);out.forEach((v,i)=>{close(v.p[0],0);close(v.p[1],20+i*20);close(v.bearingRad,0);});
+out=sampleNavBreadcrumbs([[0,0],[0,50],[50,50]],[0,40],{startM:15,spacingM:15,count:3});
+assert.equal(out.length,3);close(out[0].p[0],5);close(out[0].p[1],50);close(out[0].bearingRad,Math.PI/2);
+close(out[2].p[0],35);close(out[2].leftM,15);
+assert.deepEqual(sampleNavBreadcrumbs([], [0,0]),[]);
+assert.deepEqual(sampleNavBreadcrumbs([[0,0],[0,0]],[0,0]),[]);
+assert.deepEqual(sampleNavBreadcrumbs([[0,0],[0,100]],[0,101]),[]);
+console.log('AR route breadcrumb sampling: pass');

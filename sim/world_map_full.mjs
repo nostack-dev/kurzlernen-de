@@ -15,6 +15,8 @@
 import * as maplibregl from "maplibre-gl";
 import * as THREE from "three";
 import {setText} from "./dom_mutation_filter.mjs";
+import {groundHeightAt} from "./terrain_craters.mjs";
+import {sampleNavBreadcrumbs} from "./nav_ar_route_math.mjs";
 
 export const WORLD_MAP_FULL_VERSION="fullscreen-map-search-route-v1";
 const STYLE_URL="https://tiles.openfreemap.org/styles/liberty";
@@ -24,7 +26,7 @@ const ROUTER="https://routing.openstreetmap.de";
 const STORE="arondight45NavDestinationV1";
 let installed=false,dlg=null,mapApi=null,mapReady=false,mapFailed=false,canvas=null,ctx2d=null,open=false;
 const peerMarkers=new Map();
-let view={lon:0,lat:0,zoom:15.5},follow=true,dest=null,route=null,routeFor="",routeAt=-Infinity,routing=false,lastSearch=0,searchSeq=0,suggestions=[],guideEl=null,arEl=null,lastFrame=0;
+let view={lon:0,lat:0,zoom:15.5},follow=true,dest=null,route=null,routeFor="",routeAt=-Infinity,routing=false,lastSearch=0,searchSeq=0,suggestions=[],guideEl=null,arEl=null,arTrailEl=null,lastArTrailAt=-Infinity,lastFrame=0;
 const pointers=new Map();let pinch=null,drag=null;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const $=id=>document.getElementById(id);
@@ -51,7 +53,7 @@ function saveDest(){try{if(dest)localStorage.setItem(STORE,JSON.stringify(dest))
 function setDestination(d){dest=d?{lon:+d.lon,lat:+d.lat,name:String(d.name||"Wegpunkt").slice(0,80),sub:String(d.sub||"").slice(0,80)}:null;route=null;routeFor="";routeAt=-Infinity;saveDest();renderPanel();if(dest)requestRoute(true);window.dispatchEvent(new CustomEvent("arondight:nav-destination",{detail:{destination:dest}}));const v=viewport();if(v)v.dataset.navDestination=dest?`${dest.lat.toFixed(5)},${dest.lon.toFixed(5)}`:"";}
 function profile(){const s=subject();return s?.mode==="foot"?"foot":"car";}
 async function requestRoute(force=false){
-  const s=subject(),o=geo();if(!dest||!s||!o.real||routing)return;const now=performance.now();if(!force&&now-routeAt<10000)return;routeAt=now;routing=true;
+  const s=subject(),o=geo();if(!dest||!s||!o.real||routing||!(s.mode==="foot"||s.mode==="car"))return;const now=performance.now();if(!force&&now-routeAt<10000)return;routeAt=now;routing=true;
   const [lon,lat]=toLonLat(s.x,s.y),p=profile(),key=`${p}:${dest.lon},${dest.lat}`;
   try{const url=`${ROUTER}/routed-${p}/route/v1/driving/${lon.toFixed(6)},${lat.toFixed(6)};${dest.lon.toFixed(6)},${dest.lat.toFixed(6)}?overview=full&geometries=geojson`;
     const r=await fetch(url,{signal:AbortSignal.timeout?.(9000)});if(!r.ok)throw Error(`route ${r.status}`);const j=await r.json(),rt=j?.routes?.[0];
@@ -59,7 +61,7 @@ async function requestRoute(force=false){
   }catch{route=null;}finally{routing=false;renderPanel();updateMapRoute();}
 }
 // the polyline the guidance follows (local metres): route if there is one, else straight to the pin
-function pathLocal(){if(!dest)return null;const pts=route?.coords?.map(c=>toLocal(c[0],c[1]))||[];const d=toLocal(dest.lon,dest.lat);if(!pts.length)return[d];const last=pts[pts.length-1];if(Math.hypot(last[0]-d[0],last[1]-d[1])>2)pts.push(d);return pts;}
+function pathLocal(){if(!dest)return null;const s=subject(),validRoadRoute=(s?.mode==="foot"||s?.mode==="car")&&route?.profile===profile();const pts=validRoadRoute?route.coords.map(c=>toLocal(c[0],c[1])):[];const d=toLocal(dest.lon,dest.lat);if(!pts.length)return[d];const last=pts[pts.length-1];if(Math.hypot(last[0]-d[0],last[1]-d[1])>2)pts.push(d);return pts;}
 // nearest point on the path, then `ahead` metres further along it
 function lookahead(s,ahead){const pts=pathLocal();if(!pts)return null;if(pts.length===1)return{p:pts[0],off:0,left:Math.hypot(pts[0][0]-s.x,pts[0][1]-s.y)};
   let best=Infinity,bi=0,bt=0;for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1,t=clamp(((s.x-a[0])*dx+(s.y-a[1])*dy)/L2,0,1),qx=a[0]+dx*t,qy=a[1]+dy*t,d=Math.hypot(s.x-qx,s.y-qy);if(d<best){best=d;bi=i;bt=t;}}
@@ -126,12 +128,14 @@ body.pad-input #worldMapFull .wm-cross{display:block}
 /* the map owns the screen: body-level corner buttons (GPS, music, sound) step aside while it is open */
 body.world-map-open>:not(#viewport):not(dialog):not(script):not(style):not(link){visibility:hidden!important}
 #navGuide{position:absolute;left:50%;top:calc(max(8px,var(--solo-safe-top,env(safe-area-inset-top))) + 50px);transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:7px;padding:4px 11px 4px 7px;border-radius:14px;background:#0b0f14a8;border:1px solid #ffffff22;color:#fff;font:700 11.5px/1 Inter,system-ui,sans-serif;letter-spacing:.02em;pointer-events:none;white-space:nowrap;max-width:min(70vw,420px);overflow:hidden;text-overflow:ellipsis;opacity:.86}
-#navGuide[hidden],#navAr[hidden]{display:none}
+#navGuide[hidden],#navAr[hidden],#navArTrail[hidden]{display:none}
 #navGuide i{display:inline-block;width:16px;height:16px;background:#7fd3ff;clip-path:polygon(50% 0,92% 100%,50% 74%,8% 100%);flex:none}
 #navGuide span{overflow:hidden;text-overflow:ellipsis}
 #navAr{position:absolute;left:0;top:0;z-index:29;width:0;height:0;pointer-events:none;will-change:transform;opacity:.72}
 #navAr i{position:absolute;left:-9px;top:-9px;width:18px;height:18px;background:#7fd3ff;clip-path:polygon(50% 0,100% 100%,50% 70%,0 100%);filter:drop-shadow(0 0 2px #0009)}
 #navAr small{position:absolute;left:50%;top:12px;transform:translateX(-50%);font:800 10px/1 Inter,system-ui,sans-serif;color:#dff4ff;text-shadow:0 1px 2px #000;white-space:nowrap}
+#navArTrail{position:absolute;inset:0;z-index:28;pointer-events:none;overflow:hidden}
+#navArTrail i{display:none;position:absolute;left:0;top:0;width:14px;height:19px;margin:-9px 0 0 -7px;background:#7fd3ff;clip-path:polygon(50% 0,100% 100%,50% 72%,0 100%);filter:drop-shadow(0 1px 3px #000);will-change:transform;opacity:.8}
 body.jet-mode #navAr i{background:#7dff9a}body.jet-mode #navGuide i{background:#7dff9a}`;
 
 function ensureStyle(){if(!document.querySelector("style[data-world-map-full]")){const st=document.createElement("style");st.dataset.worldMapFull=WORLD_MAP_FULL_VERSION;st.textContent=CSS;document.head.appendChild(st);}}
@@ -200,7 +204,7 @@ function ensureGlMap(){
     mapApi.on("error",()=>{});setTimeout(()=>{if(!mapReady){mapFailed=true;try{mapApi?.remove();}catch{}mapApi=null;}},12000);
   }catch{mapFailed=true;mapApi=null;}}
 function emptyLine(){return{type:"FeatureCollection",features:[]};}
-function updateMapRoute(){if(!mapReady||!mapApi)return;const src=mapApi.getSource?.("nav-route");if(!src)return;const s=subject();let coords=route?.coords?.slice()||[];if(dest){if(!coords.length&&s)coords=[toLonLat(s.x,s.y),[dest.lon,dest.lat]];}src.setData(dest&&coords.length>=2?{type:"FeatureCollection",features:[{type:"Feature",geometry:{type:"LineString",coordinates:coords},properties:{}}]}:emptyLine());}
+function updateMapRoute(){if(!mapReady||!mapApi)return;const src=mapApi.getSource?.("nav-route");if(!src)return;const s=subject();let coords=(s&&(s.mode==="foot"||s.mode==="car")&&route?.profile===profile()?route.coords.slice():[]);if(dest){if(!coords.length&&s)coords=[toLonLat(s.x,s.y),[dest.lon,dest.lat]];}src.setData(dest&&coords.length>=2?{type:"FeatureCollection",features:[{type:"Feature",geometry:{type:"LineString",coordinates:coords},properties:{}}]}:emptyLine());}
 
 // ---------------------------------------------------------------- canvas map (any world)
 function drawCanvas(){
@@ -253,17 +257,50 @@ function close(){if(!open)return;open=false;pointers.clear();pinch=drag=null;sug
 function toggle(){return open?(close(),false):openMap();}
 
 // ---------------------------------------------------------------- guidance while playing
-function ensureGuide(){const v=viewport();if(!v)return;ensureStyle();if(!guideEl?.isConnected){guideEl=document.createElement("div");guideEl.id="navGuide";guideEl.hidden=true;guideEl.innerHTML="<i></i><span></span>";v.appendChild(guideEl);}if(!arEl?.isConnected){arEl=document.createElement("div");arEl.id="navAr";arEl.hidden=true;arEl.innerHTML="<i></i><small></small>";v.appendChild(arEl);}}
+function ensureGuide(){const v=viewport();if(!v)return;ensureStyle();if(!guideEl?.isConnected){guideEl=document.createElement("div");guideEl.id="navGuide";guideEl.hidden=true;guideEl.innerHTML="<i></i><span></span>";v.appendChild(guideEl);}if(!arEl?.isConnected){arEl=document.createElement("div");arEl.id="navAr";arEl.hidden=true;arEl.innerHTML="<i></i><small></small>";v.appendChild(arEl);}if(!arTrailEl?.isConnected){arTrailEl=document.createElement("div");arTrailEl.id="navArTrail";arTrailEl.hidden=true;arTrailEl.setAttribute("aria-hidden","true");for(let i=0;i<5;i++)arTrailEl.appendChild(document.createElement("i"));v.appendChild(arTrailEl);}}
 const proj=new THREE.Vector3();
+// Small road-aligned arrows only when an actual routing polyline exists. No fake
+// street path for missing routes or for flying aircraft. 8 Hz DOM update cap.
+function updateArTrail(now,c,s,validRoadRoute){
+  if(!arTrailEl)return;
+  if(!validRoadRoute){arTrailEl.hidden=true;return;}
+  if(now-lastArTrailAt<125)return;lastArTrailAt=now;
+  const v=viewport(),W=v?.clientWidth||0,H=v?.clientHeight||0;
+  if(!c||!W||!H||!route?.coords?.length){arTrailEl.hidden=true;return;}
+  const path=route.coords.map(q=>toLocal(q[0],q[1]));
+  const spacing=s.mode==="foot"?12:35,first=s.mode==="foot"?7:18;
+  const crumbs=sampleNavBreadcrumbs(path,[s.x,s.y],{count:5,spacingM:spacing,startM:first});
+  c.updateMatrixWorld(true);let shown=0;
+  for(let i=0;i<arTrailEl.children.length;i++){
+    const el=arTrailEl.children[i],q=crumbs[i];if(!q){el.style.display="none";continue;}
+    const z=groundHeightAt(q.p[0],q.p[1])+.65;
+    const world=new THREE.Vector3(q.p[0],q.p[1],z),eye=world.clone().applyMatrix4(c.matrixWorldInverse);
+    if(eye.z>=-.2){el.style.display="none";continue;}
+    const p=world.project(c);
+    if(p.z< -1||p.z>1||Math.abs(p.x)>.92||Math.abs(p.y)>.88){el.style.display="none";continue;}
+    const x=(p.x*.5+.5)*W,y=(-p.y*.5+.5)*H;
+    if(x<12||x>W-12||y<75||y>H-55){el.style.display="none";continue;}
+    const ahead=new THREE.Vector3(q.p[0]+Math.sin(q.bearingRad)*3,q.p[1]+Math.cos(q.bearingRad)*3,z).project(c);
+    const dx=(ahead.x-p.x)*W,dy=-(ahead.y-p.y)*H;
+    const angle=Math.hypot(dx,dy)>1?Math.atan2(dy,dx)*180/Math.PI+90:0;
+    el.style.display="block";el.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px) rotate(${angle.toFixed(1)}deg)`;
+    shown++;
+  }
+  arTrailEl.hidden=shown===0;
+  if(v)v.dataset.navArBreadcrumbs=String(shown);
+}
 function guide(now){
   ensureGuide();if(!guideEl||!arEl)return;const s=subject();
-  if(!dest||!s||open||!inGame()){if(!guideEl.hidden)guideEl.hidden=true;if(!arEl.hidden)arEl.hidden=true;return;}
-  const ahead=s.mode==="foot"?30:s.mode==="car"?70:s.mode==="jet"?900:Math.max(60,s.z*1.5),la=lookahead(s,ahead);if(!la){guideEl.hidden=arEl.hidden=true;return;}
-  const [dx,dy]=[toLocal(dest.lon,dest.lat)[0]-s.x,toLocal(dest.lon,dest.lat)[1]-s.y],direct=Math.hypot(dx,dy),left=route?la.left:direct;
+  if(!dest||!s||open||!inGame()){if(!guideEl.hidden)guideEl.hidden=true;if(!arEl.hidden)arEl.hidden=true;if(arTrailEl)arTrailEl.hidden=true;return;}
+  const onRoad=s.mode==="foot"||s.mode==="car",validRoadRoute=onRoad&&route?.profile===profile()&&route?.coords?.length>=2;
+  const target=toLocal(dest.lon,dest.lat),ahead=s.mode==="foot"?30:s.mode==="car"?70:s.mode==="jet"?900:Math.max(60,s.z*1.5);
+  const la=validRoadRoute?lookahead(s,ahead):{p:target,off:0,left:Math.hypot(target[0]-s.x,target[1]-s.y)};
+  if(!la){guideEl.hidden=arEl.hidden=true;if(arTrailEl)arTrailEl.hidden=true;return;}
+  const [dx,dy]=[target[0]-s.x,target[1]-s.y],direct=Math.hypot(dx,dy),left=validRoadRoute?la.left:direct;
   // arrived
   if(direct<(s.mode==="foot"?18:s.mode==="car"?30:60)){toast(`ZIEL ERREICHT · ${dest.name}`);setDestination(null);return;}
   // off the route: ask for a new one (throttled)
-  if(route&&la.off>(s.mode==="foot"?45:80))requestRoute();else if(!route&&geo().real&&now-routeAt>15000)requestRoute();
+  if(onRoad&&validRoadRoute&&la.off>(s.mode==="foot"?45:80))requestRoute();else if(onRoad&&!validRoadRoute&&geo().real&&now-routeAt>15000)requestRoute();
   const tx=la.p[0],ty=la.p[1],bearing=Math.atan2(tx-s.x,ty-s.y)/DEG,rel=((bearing-viewBearing()+540)%360)-180;
   guideEl.hidden=false;guideEl.querySelector("i").style.transform=`rotate(${rel.toFixed(0)}deg)`;const txt=`${fmtDist(left)} · ${dest.name}`;setText(guideEl.lastChild,txt);
   // AR chevron: on the horizon where the route goes (eye height above the ground there), at the edge when out of view
@@ -271,6 +308,7 @@ function guide(now){
   const ground=(s.mode==="foot"?s.z-1.6:s.mode==="car"?s.z:0),z=s.mode==="foot"||s.mode==="car"?ground+1.6:s.z-Math.min(40,Math.max(3,(s.z-ground)*.4));
   proj.set(tx,ty,z).project(c);let x=(proj.x*.5+.5)*W,y=(-proj.y*.5+.5)*H;const behind=proj.z>1||Math.abs(rel)>Math.min(80,(c.fov||60)*(W/H)*.5+4);
   let rot=0;if(behind||x<14||x>W-14||y<70||y>H-60){const a=rel*DEG;x=W/2+Math.sin(a)*W*.42;y=clamp(H*.42-Math.cos(a)*H*.3,80,H-90);rot=rel;}
+  updateArTrail(now,c,s,Boolean(validRoadRoute&&la.off<(s.mode==="foot"?45:80)));
   arEl.hidden=false;arEl.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;arEl.querySelector("i").style.transform=`rotate(${rot.toFixed(0)}deg)`;setText(arEl.lastChild,behind?"":fmtDist(left));}
 let toastEl=null,toastT=0;function toast(text){const v=viewport();if(!v)return;if(!toastEl?.isConnected){toastEl=document.createElement("div");toastEl.style.cssText="position:absolute;left:50%;top:32%;transform:translateX(-50%);z-index:60;padding:10px 18px;border-radius:14px;background:#0b0f14d8;border:1px solid #7fd3ff66;color:#e8f7ff;font:800 14px/1.2 Inter,system-ui,sans-serif;letter-spacing:.06em;pointer-events:none;transition:opacity .5s";v.appendChild(toastEl);}toastEl.textContent=text;toastEl.style.opacity="1";clearTimeout(toastT);toastT=setTimeout(()=>{if(toastEl)toastEl.style.opacity="0";},2600);}
 
