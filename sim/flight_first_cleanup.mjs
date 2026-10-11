@@ -1,5 +1,6 @@
 import {normalizedPointer,endPointerDrag} from "./control_semantics.mjs";
 import "./direct_fire_missiles.mjs";
+import "./proximity_voice.mjs";
 import "./drone_weapon_modes.mjs";
 import "./nuke_destruction.mjs";
 import "./player_shield.mjs";
