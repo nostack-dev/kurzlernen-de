@@ -1,0 +1,13 @@
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const source=readFileSync("sim/lan_vs.mjs","utf8");
+assert.ok(source.includes('packet.type==="host-join"'),"join-order packets must be validated");
+assert.ok(source.includes('this.peerJoinedAt.set(peerId,packet.joinedAt)'),"transport-authenticated peer arrival must be recorded");
+assert.ok(source.includes('this.peerJoinedAt.delete(peerId)'),"departed host must be removed");
+assert.ok(!source.includes('this.room?.getAuthorityId?.()'),"transport-generated IDs must not own authority");
+const elect=(self,joinedAt,others)=>[...[[self,joinedAt],...others]].sort((a,b)=>a[1]-b[1]||a[0].localeCompare(b[0]))[0][0];
+assert.equal(elect("zz-old",1000,[["aa-new",2000],["bb-new",3000]]),"zz-old");
+assert.equal(elect("aa-new",2000,[["zz-old",1000],["bb-new",3000]]),"zz-old");
+assert.equal(elect("bb-new",3000,[["zz-old",1000],["aa-new",2000]]),"zz-old");
+assert.equal(elect("aa-new",2000,[["bb-new",3000]]),"aa-new");
+console.log("First joiner host ordering: pass");
