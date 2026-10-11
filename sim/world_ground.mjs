@@ -21,7 +21,7 @@ export const WORLD_GROUND_VERSION="satellite-albedo-ground-v4-mesh-is-collision-
 const CH=8;
 const SIZE_M=1600,CELLS=320,ZOOM=15,REBUILD_MOVE_M=350; // 5 m cells on the 5 m DEM / physics nodes
 const TILE_URL=(z,x,y)=>`https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
-let installed=false,mesh=null,center=[Infinity,Infinity],busy=false,lastTry=-Infinity,tileCache=new Map();
+let installed=false,mesh=null,center=[Infinity,Infinity],colorEpoch=0,lastTry=-Infinity,tileCache=new Map();
 const bridge=()=>globalThis.__arondightRealWorld||null;
 const yieldMain=()=>globalThis.scheduler?.yield?globalThis.scheduler.yield():new Promise(resolve=>setTimeout(resolve,0));
 
@@ -37,16 +37,16 @@ function albedo(r,g,b,out){
   if(B>G&&B>R&&sat>.04){B*=.85;} // haze / water-ish blue cast → calmer
   out[0]=Math.min(.45,R);out[1]=Math.min(.45,G);out[2]=Math.min(.45,B);return out;
 }
-async function sampleColors(b,cx,cy){
+async function sampleColors(b,cx,cy,isCurrent=()=>true){
   const half=SIZE_M/2,[lon0,lat0]=b.unprojectMeters(cx-half,cy+half),[lon1,lat1]=b.unprojectMeters(cx+half,cy-half);
   const [tx0,ty0]=lonLatToTile(lon0,lat0,ZOOM),[tx1,ty1]=lonLatToTile(lon1,lat1,ZOOM),ix0=Math.floor(tx0),iy0=Math.floor(ty0),ix1=Math.floor(tx1),iy1=Math.floor(ty1);
   const nx=ix1-ix0+1,ny=iy1-iy0+1;if(nx*ny>25)return null;
-  const tiles=await Promise.all(Array.from({length:nx*ny},(_,i)=>loadTile(ZOOM,ix0+i%nx,iy0+Math.floor(i/nx))));if(tiles.every(t=>!t))return null;
+  const tiles=await Promise.all(Array.from({length:nx*ny},(_,i)=>loadTile(ZOOM,ix0+i%nx,iy0+Math.floor(i/nx))));if(!isCurrent()||tiles.every(t=>!t))return null;
   // small mosaic: 64 px per tile is enough for 10 m cells
   const P=64,canvas=document.createElement("canvas");canvas.width=nx*P;canvas.height=ny*P;const ctx=canvas.getContext("2d",{willReadFrequently:true});ctx.imageSmoothingQuality="high";
   tiles.forEach((img,i)=>{if(img)ctx.drawImage(img,(i%nx)*P,Math.floor(i/nx)*P,P,P);});let data;try{data=ctx.getImageData(0,0,canvas.width,canvas.height).data;}catch{return null;}
   const colors=new Float32Array((CELLS+1)*(CELLS+1)*3),c=[0,0,0],lin=v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;};
-  for(let j=0;j<=CELLS;j++){for(let i=0;i<=CELLS;i++){const x=cx-half+i/CELLS*SIZE_M,y=cy+half-j/CELLS*SIZE_M,[lon,lat]=b.unprojectMeters(x,y),[tx,ty]=lonLatToTile(lon,lat,ZOOM),px=Math.max(0,Math.min(canvas.width-1,Math.floor((tx-ix0)*P))),py=Math.max(0,Math.min(canvas.height-1,Math.floor((ty-iy0)*P)));
+  for(let j=0;j<=CELLS;j++){if(!isCurrent())return null;for(let i=0;i<=CELLS;i++){const x=cx-half+i/CELLS*SIZE_M,y=cy+half-j/CELLS*SIZE_M,[lon,lat]=b.unprojectMeters(x,y),[tx,ty]=lonLatToTile(lon,lat,ZOOM),px=Math.max(0,Math.min(canvas.width-1,Math.floor((tx-ix0)*P))),py=Math.max(0,Math.min(canvas.height-1,Math.floor((ty-iy0)*P)));
     let r=0,g=0,bb=0,n=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const qx=Math.max(0,Math.min(canvas.width-1,px+dx)),qy=Math.max(0,Math.min(canvas.height-1,py+dy)),o=(qy*canvas.width+qx)*4;if(data[o+3]<10)continue;r+=lin(data[o]);g+=lin(data[o+1]);bb+=lin(data[o+2]);n++;}
     if(!n){r=.12;g=.16;bb=.08;n=1;}albedo(r/n,g/n,bb/n,c);const k=(j*(CELLS+1)+i)*3;colors[k]=c[0];colors[k+1]=c[1];colors[k+2]=c[2];}if((j&7)===7)await yieldMain();}
   return colors;
@@ -97,20 +97,37 @@ function applyHeights(regions=null){if(!mesh||!H)return;const W=CELLS+1,st=SIZE_
     c.geometry.attributes.position.needsUpdate=true;c.geometry.attributes.normal.needsUpdate=true;
     const cx=(pa[0]+pa[(X1*X1-1)*3])/2,cy=(pa[1]+pa[(X1*X1-1)*3+1])/2;c.geometry.boundingSphere=new THREE.Sphere(new THREE.Vector3(cx,cy,(zmin+zmax)/2),Math.hypot(CC*st/2*Math.SQRT2,(zmax-zmin)/2)+40);} // +40 m: nuke heave margin
 }
-async function rebuild(b,cx,cy){
-  busy=true;try{const colors=(await sampleColors(b,cx,cy).catch(()=>null))||fallbackColors(cx,cy);ensureMesh(b.threeScene);mesh.position.set(cx,cy,0);baseColors=Float32Array.from(colors);fullColors=null;paintAreas();if(!areas.length){fullColors=Float32Array.from(colors);distributeColors();}applyHeights();mesh.visible=true;
-    const v=document.getElementById("viewport");if(v){v.dataset.worldGround=WORLD_GROUND_VERSION;v.dataset.worldGroundSource=colors.length&&colors[0]!==.16?"satellite-albedo":"fallback";}}
-  finally{busy=false;}
+function rebuild(b,cx,cy){
+  // Geometry/physics are local. Do not wait for a remote imagery tile before
+  // presenting the heightfield; the camera can change modes while imagery loads.
+  const scene=b.threeScene,groundMesh=ensureMesh(scene),epoch=++colorEpoch;
+  groundMesh.position.set(cx,cy,0);
+  baseColors=fallbackColors(cx,cy);fullColors=null;paintAreas();
+  if(!areas.length){fullColors=Float32Array.from(baseColors);distributeColors();}
+  applyHeights();groundMesh.visible=true;
+  const v=document.getElementById("viewport");
+  if(v){v.dataset.worldGround=WORLD_GROUND_VERSION;v.dataset.worldGroundSource="fallback";}
+  const current=()=>colorEpoch===epoch&&mesh===groundMesh&&b.active&&b.threeScene===scene&&groundMesh.parent===scene;
+  // Albedo is cosmetic. Never let a late result repaint a newer location/world.
+  sampleColors(b,cx,cy,current).then(colors=>{
+    if(!colors||!current())return;
+    baseColors=Float32Array.from(colors);fullColors=null;paintAreas();
+    if(!areas.length){fullColors=Float32Array.from(baseColors);distributeColors();}
+    if(v)v.dataset.worldGroundSource="satellite-albedo";
+  }).catch(error=>{if(current())console.warn("Terrain imagery fallback",error);});
 }
 function frame(now){
-  requestAnimationFrame(frame);const b=bridge();if(!b?.active||!b.threeScene||typeof b.unprojectMeters!=="function"){if(mesh)mesh.visible=false;return;}
-  if(mesh&&mesh.parent!==b.threeScene)mesh=null;ensureMesh(b.threeScene);
+  requestAnimationFrame(frame);const b=bridge();if(!b?.active||!b.threeScene||typeof b.unprojectMeters!=="function"){if(mesh?.visible){mesh.visible=false;++colorEpoch;}lastTry=-Infinity;center=[Infinity,Infinity];return;}
+  if(mesh&&mesh.parent!==b.threeScene){mesh=null;++colorEpoch;lastTry=-Infinity;}ensureMesh(b.threeScene);
   // Depth precision: a 1 cm near plane leaves ~25 cm depth steps at 200 m, so
   // ground, roads and facades z-fight. Near is 6 cm on foot (weapon in view)
   // and 25 cm otherwise — 6–25× finer depth everywhere.
   {const c=b.threeCamera,want=globalThis.__jetMode?.active?(globalThis.__jetMode.cockpit?.5:1):globalThis.__arondightWalkMode?.mode==="foot"?.06:.25;if(c&&Math.abs(c.near-want)>1e-4){c.near=want;c.updateProjectionMatrix();}}
   // stream around the focus (a jet leads it along its flight path), else the camera
-  const cam=b.threeCamera,focus=globalThis.__arondightStreamFocus?.()||cam?.position;if(!cam||!focus||busy||now-lastTry<(globalThis.__jetMode?.active?700:1500))return;if(Math.hypot(focus.x-center[0],focus.y-center[1])<REBUILD_MOVE_M&&mesh.visible)return;lastTry=now;center=[Math.round(focus.x/10)*10,Math.round(focus.y/10)*10];rebuild(b,center[0],center[1]);
+  // The base camera is restored after each foot/car/jet render: its position is NOT the one seen on screen.
+  const cam=b.threeCamera,presented=Number.isFinite(b.viewCameraAt)&&now-b.viewCameraAt<1000?b.presentedCamera?.():null;
+  const focus=globalThis.__arondightStreamFocus?.()||presented?.position||cam?.position;
+  if(!cam||!focus||now-lastTry<(globalThis.__jetMode?.active?700:1500))return;if(Math.hypot(focus.x-center[0],focus.y-center[1])<REBUILD_MOVE_M&&mesh.visible)return;lastTry=now;center=[Math.round(focus.x/10)*10,Math.round(focus.y/10)*10];rebuild(b,center[0],center[1]);
 }
 // The view never goes underground: chase / orbit / menu cameras on hills,
 // in craters or under a heaving shock wave are kept above the visible surface.
