@@ -54,6 +54,8 @@ jobs:
           node tests/world_population_runtime_contract_test.mjs
           node tests/multiplayer_navigation_test.mjs
           node tests/nav_ar_route_math_test.mjs
+          node tests/nav_ar_turns_test.mjs
+          node tests/nav_route_request_gate_test.mjs
           node tests/jet_pad_identity_contract_test.mjs
           node tests/jet_seat_table_test.mjs
           node tests/jet_seat_coordinator_test.mjs
@@ -65,6 +67,7 @@ jobs:
           node --check sim/world_map_full.mjs
           node --check sim/real_world_bootstrap.mjs
           node --check sim/nav_ar_route_math.mjs
+          node --check sim/nav_route_request_gate.mjs
           node --check sim/world_map_full.mjs
           node tests/pedestrian_agents_test.mjs
           node tests/drone_world_grounding_contract_test.mjs
