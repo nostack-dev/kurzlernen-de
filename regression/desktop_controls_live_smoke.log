@@ -1,1 +1,8 @@
-Desktop controls regression passed. {"initial":{"compact":true,"groupDisplay":"none","groupWidth":0,"weapon":{"text":"WEAPON · GUN","display":"flex","width":96},"buttons":[{"text":"GUN","pressed":"true","display":"inline-flex","hidden":false},{"text":"ROCKETS","pressed":"false","display":"inline-flex","hidden":false},{"text":"GUIDED","pressed":"false","display":"inline-flex","hidden":false}],"stop":{"text":"STOP","display":"flex","align":"center","justify":"center","textAlign":"center"}},"emp":{"width":62,"height":36,"display":"flex","align":"center","justify":"center","strong":"EMP","small":"0 IN RANGE · 30 m"}}
+file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/desktop_controls_live_smoke.mjs:15
+  if(initial.compact){if(initial.groupDisplay!=="none"||!initial.weapon.text?.startsWith("WEAPON")||initial.weapon.display==="none"||initial.weapon.width<60)throw new Error(`compact weapon control missing: ${JSON.stringify(initial)}`);}
+                                                                                                                                                                   ^
+
+Error: compact weapon control missing: {"compact":true,"groupDisplay":"none","groupWidth":0,"weapon":{"text":"WEAPON · GUN","display":"none","width":0},"buttons":[{"text":"GUN","pressed":"true","display":"inline-flex","hidden":false},{"text":"ROCKETS","pressed":"false","display":"inline-flex","hidden":false},{"text":"GUIDED","pressed":"false","display":"inline-flex","hidden":false}],"stop":{"text":"STOP","display":"flex","align":"center","justify":"center","textAlign":"center"}}
+    at file:///home/runner/work/kurzlernen-de/kurzlernen-de/tests/desktop_controls_live_smoke.mjs:15:164
+
+Node.js v22.23.3
