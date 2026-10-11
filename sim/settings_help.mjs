@@ -86,9 +86,14 @@ function gameSection(dialog){let s=dialog.querySelector(":scope > section.game-a
   s.addEventListener("click",e=>{const b=e.target.closest?.("[data-game-action]");if(!b)return;e.preventDefault();GAME_ACTIONS.find(a=>a[0]===b.dataset.gameAction)?.[2](dialog);});return s;}
 // WORLD options also in the pause menu (same store as the title screen's WORLD panel)
 function worldSection(dialog){let s=dialog.querySelector(":scope > section.world-options-section");if(s)return s;const api=globalThis.__arondightWorldOptions;if(!api)return null;
-  s=document.createElement("section");s.className="player-control-section world-options-section";s.innerHTML=`<h4>WORLD</h4>${api.list.map(o=>`<label class="phone-settings-toggle"><span>${o.label}</span><input type="checkbox" data-world-option="${o.key}"></label><small class="setting-help" data-help-key="wo:${o.key}">${o.help}</small>`).join("")}`;
-  const sync=()=>{for(const i of s.querySelectorAll("[data-world-option]"))i.checked=api.get(i.dataset.worldOption);};
-  s.addEventListener("change",e=>{const i=e.target.closest?.("[data-world-option]");if(i)api.set(i.dataset.worldOption,i.checked);});addEventListener(api.event,sync);dialog.addEventListener("close",sync);sync();return s;}
+  s=document.createElement("section");s.className="player-control-section world-options-section";s.innerHTML=`<h4>WORLD</h4>${api.list.map(o=>`<label class="phone-settings-toggle"><span>${o.label}</span><input type="checkbox" data-world-option="${o.key}"></label><small class="setting-help" data-help-key="wo:${o.key}">${o.help}</small>`).join("")}<div class="rule-vote-menu"><small class="setting-help" data-rule-vote-status aria-live="polite">Änderungen nur einstimmig</small><div class="rule-vote-actions" data-rule-vote-actions hidden><button type="button" data-rule-vote-choice="yes">ZUSTIMMEN</button><button type="button" data-rule-vote-choice="no">ABLEHNEN</button></div></div>`;
+  const sync=()=>{for(const i of s.querySelectorAll("[data-world-option]"))i.checked=i.dataset.worldOption==="friendlyFire"?api.rule(i.dataset.worldOption):api.get(i.dataset.worldOption);
+    const rules=globalThis.__arondightRulesVote,status=s.querySelector("[data-rule-vote-status]"),actions=s.querySelector("[data-rule-vote-actions]");
+    if(status)status.textContent=rules?.status||"Änderungen nur einstimmig";
+    if(actions)actions.hidden=!rules?.remoteBallot;};
+  s.addEventListener("change",e=>{const i=e.target.closest?.("[data-world-option]");if(i){api.set(i.dataset.worldOption,i.checked);sync();}});
+  s.addEventListener("click",e=>{const button=e.target.closest?.("[data-rule-vote-choice]");if(!button)return;globalThis.__arondightRulesVote?.vote(button.dataset.ruleVoteChoice==="yes");sync();});
+  addEventListener(api.event,sync);addEventListener("arondight:rules-vote-change",sync);dialog.addEventListener("close",sync);sync();return s;}
 // Accordion: every settings section is closed to its header; the menu is a short list
 // (game actions + section names). Click / A opens one section and closes the others. With a
 // pad, ↑↓ walks headers and the items of the open section, LB / RB jump between sections.
@@ -143,6 +148,10 @@ html body dialog.settings-tidy .game-actions-grid button{min-height:40px;border-
 html body dialog.settings-tidy .game-actions-grid button[data-game-action="resume"]{background:#1d5a43;border-color:#7ff0c5aa}
 html body dialog.settings-tidy .game-actions-grid button[data-game-action="exit"]{background:#4c1f25;border-color:#ff8b9588}
 html body dialog.settings-tidy .game-actions-grid button:focus-visible{outline:3px solid #ffd76a;outline-offset:1px}
+html body dialog.settings-tidy .rule-vote-menu{padding:8px 0;border-top:1px solid #ffffff2f}
+html body dialog.settings-tidy .rule-vote-actions{display:flex;gap:8px;margin:8px 0}
+html body dialog.settings-tidy .rule-vote-actions[hidden]{display:none!important}
+html body dialog.settings-tidy .rule-vote-actions button{flex:1;min-height:42px;border-radius:10px;border:1px solid #ffffff4d;background:#24374a;color:#eaf6ff;font:800 12px system-ui,sans-serif}
 html body dialog.settings-tidy section.collapsible:not(.open) > :not(.sec-head){display:none!important}
 html body dialog.settings-tidy section.collapsible{padding-bottom:2px}
 html body dialog.settings-tidy .sec-head{cursor:pointer;display:flex!important;align-items:center;justify-content:space-between;margin:6px 0!important;padding:8px 2px;border-radius:6px}

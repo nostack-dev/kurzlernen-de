@@ -4,7 +4,7 @@ import {VS_FX_EVENT,VS_PEER_EVENT} from "./lan_vs.mjs";
 import {GAME_RULE_KEYS,worldOption,setHostRules,hostRulesActive,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 import {createBallot,vote} from "./rules_vote_engine.mjs";
 export const GAME_RULES_SYNC_VERSION="unanimous-rules-v1";
-const SEND_MS=4000;let installed=false,lastSent=-Infinity,serial=0,lastHostAt=0,ballot=null,remoteBallot=null,committing=false,epoch=0;
+const SEND_MS=4000;let installed=false,lastSent=-Infinity,serial=0,lastHostAt=0,ballot=null,remoteBallot=null,committing=false,epoch=0,statusMessage="Änderungen nur einstimmig";
 const bridge=()=>globalThis.__arondightRealWorld||null;
 const session=()=>{const s=bridge()?.vsSession;return s?.sendFx?s:s?.active?.sendFx?s.active:null;};
 const mp=()=>globalThis.__arondightVsMultiplayer||null;
@@ -16,7 +16,12 @@ const peers=()=>[self(),...(session()?.getPeerIds?.()||[])].filter(Boolean).sort
 const ownRules=()=>Object.fromEntries(GAME_RULE_KEYS.map(k=>[k,worldOption(k)]));
 function emit(kind,data={},target){const s=session();if(!s)return false;return s.sendFx({type:"impact",objectId:"game-rules",kind,id:`gr-${Date.now().toString(36)}-${(serial++).toString(36)}`,p:[0,0,0],...data},target?{target}:{});}
 function send(){emit("world-sync-rules",{rules:ownRules()});}
-function announce(text){const el=document.getElementById("rulesVoteStatus");if(el)el.textContent=text;}
+function announce(text){
+  statusMessage=text;
+  // Rule controls belong exclusively to the title WORLD / in-game pause menus.
+  // Announce state changes; never inject voting controls into the live viewport.
+  if(typeof window!=="undefined")window.dispatchEvent(new CustomEvent("arondight:rules-vote-change",{detail:{text,pending:Boolean(remoteBallot)}}));
+}
 function clearBallot(reason){ballot=null;remoteBallot=null;announce(reason);}
 function propose(key,value){
   if(!connected()||!GAME_RULE_KEYS.includes(key)||typeof value!=="boolean")return false;
@@ -69,25 +74,12 @@ function tick(){const now=performance.now(),m=mp();
   if(remoteBallot&&(!connected()||Date.now()>=remoteBallot.expires||remoteBallot.members.join("|")!==peers().join("|")))clearBallot("Abstimmung abgelaufen / Spielerwechsel");
   setTimeout(tick,1000);
 }
-function mount(){if(document.getElementById("rulesVoteButton"))return;
-  const button=document.createElement("button");button.id="rulesVoteButton";button.textContent="RULES";button.type="button";
-  button.style.cssText="position:absolute;right:10px;bottom:130px;z-index:25;padding:8px;border-radius:7px;background:#132c24;color:#caffdc;border:1px solid #58b781";
-  const panel=document.createElement("div");panel.id="rulesVotePanel";panel.hidden=true;panel.style.cssText="position:absolute;right:10px;bottom:173px;z-index:26;background:#132026;color:white;padding:12px;border:1px solid #58b781;border-radius:9px;min-width:170px";
-  const label=document.createElement("div");label.textContent="FRIENDLY FIRE";
-  const on=document.createElement("button");on.textContent="EIN";on.onclick=()=>propose("friendlyFire",true);
-  const off=document.createElement("button");off.textContent="AUS";off.onclick=()=>propose("friendlyFire",false);
-  const yes=document.createElement("button");yes.textContent="JA";yes.onclick=()=>reply(true);
-  const no=document.createElement("button");no.textContent="NEIN";no.onclick=()=>reply(false);
-  const status=document.createElement("div");status.id="rulesVoteStatus";status.textContent="Änderungen nur einstimmig";
-  panel.append(label,on,off,document.createElement("hr"),yes,no,status);
-  button.onclick=()=>{panel.hidden=!panel.hidden;};
-  document.getElementById("viewport")?.append(button,panel);
-}
+function mount(){announce(statusMessage);}
 export function installGameRulesSync(){if(installed||typeof window==="undefined")return;installed=true;
   addEventListener(VS_FX_EVENT,onFx);
   addEventListener(VS_PEER_EVENT,()=>{lastSent=-Infinity;if(ballot||remoteBallot)clearBallot("Spielerwechsel: Abstimmung beendet");});
   addEventListener(WORLD_OPTIONS_EVENT,e=>{if(GAME_RULE_KEYS.includes(e?.detail?.key)&&amAuthority()&&!committing){lastSent=-Infinity;send();}});
   const initialize=()=>{mount();};if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",initialize,{once:true});else initialize();tick();
-  globalThis.__arondightRulesVote={propose,vote:reply,get ballot(){return ballot;},get remoteBallot(){return remoteBallot;},get isCommitting(){return committing;}};
+  globalThis.__arondightRulesVote={propose,vote:reply,get ballot(){return ballot;},get remoteBallot(){return remoteBallot;},get isCommitting(){return committing;},get status(){return statusMessage;}};
 }
 installGameRulesSync();
