@@ -29,6 +29,9 @@ try{
   // the REAL newly deployed SHA and offer an update during play, without reload.
   const online=process.env.GH_SHA||(await page.evaluate(async()=>await(await fetch('build.json',{cache:'no-store'})).json())).sha;
   const old='0000000000000000000000000000000000000001',oldPage=await browser.newPage();let updated=false;
+  // This tab is an old-build fixture; bypass the already-registered app service
+  // worker so its cached build.json cannot mask the intercepted response.
+  await oldPage.setBypassServiceWorker(true);
   await oldPage.setRequestInterception(true);
   oldPage.on('request',request=>{
     if(request.isNavigationRequest()&&request.resourceType()==='document')return request.respond({status:200,contentType:'text/html',body:html.replace(/ARONDIGHT45_BUILD_SHA:[0-9a-f]{40}/,`ARONDIGHT45_BUILD_SHA:${old}`)});
