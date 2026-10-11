@@ -87,7 +87,11 @@ function removePeer(id){
 }
 
 function reconcilePeers(){
-  const s=session(),ids=typeof s?.getPeerIds==="function"?s.getPeerIds():activeSession()?.getPeerIds?.();if(!Array.isArray(ids)||!ids.length)return;const active=new Set(ids.map(String));for(const id of [...peers.keys()])if(!active.has(id))removePeer(id);for(const id of active)recordFor(id);
+  // [] is authoritative: the last mate left. No session also means no peers.
+  // Only an unavailable/non-array roster is unknown; retain state in that case.
+  const s=session(),ids=s?(typeof s.getPeerIds==="function"?s.getPeerIds():activeSession()?.getPeerIds?.()):[];
+  if(!Array.isArray(ids))return;
+  const active=new Set(ids.map(String).filter(Boolean));for(const id of [...peers.keys()])if(!active.has(id))removePeer(id);for(const id of active)recordFor(id);
 }
 
 function posePosition(pose){
