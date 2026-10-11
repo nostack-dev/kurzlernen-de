@@ -82,11 +82,11 @@ const TERRAIN_RAY={maskBits:WORLD_PHYSICS_CATEGORIES.terrain};
 function clearance(x,y,limit=40){let best=limit;for(const pr of prisms()){const pts=pr.points;if(!pts||pts.length<3)continue;if(Math.abs(x-pts[0][0])>limit+120||Math.abs(y-pts[0][1])>limit+120)continue;if(wantedPointInRing(x,y,pts))return 0;
   for(let i=0,j=pts.length-1;i<pts.length;j=i++){const a=pts[j],b=pts[i],dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1,t=clamp(((x-a[0])*dx+(y-a[1])*dy)/L2,0,1),d=Math.hypot(x-a[0]-dx*t,y-a[1]-dy*t);if(d<best)best=d;}}return best;}
 // trees, lamps and parked jets are obstacles too (the jet must be able to roll and lift off)
-function obstacleNear(x,y,r){for(const A of airframes.values())if(A.state!=="wreck"&&Math.hypot(A.p.x-x,A.p.y-y)<r+6)return true;
+function obstacleNear(x,y,r,ignoreId=""){for(const A of airframes.values())if(A.id!==ignoreId&&A.state!=="wreck"&&Math.hypot(A.p.x-x,A.p.y-y)<r+6)return true;
   for(const l of globalThis.__streetLamps?.lamps?.()||[]){const lx=Number(l?.x??l?.p?.x??l?.[0]),ly=Number(l?.y??l?.p?.y??l?.[1]);if(Number.isFinite(lx)&&Math.hypot(lx-x,ly-y)<r)return true;}return false;}
 const JET_CLEAR_M=11.5;
-function spotOk(x,y){return clearance(x,y,JET_CLEAR_M+2)>=JET_CLEAR_M&&!obstacleNear(x,y,9)&&Math.abs(groundHeightAt(x+6,y)-groundHeightAt(x-6,y))<1.6&&Math.abs(groundHeightAt(x,y+6)-groundHeightAt(x,y-6))<1.6;}
-function freeSpot(x,y){for(let k=0;k<90;k++){const a=k*2.399,r=k?6+k*2.4:0,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;if(spotOk(px,py))return{x:px,y:py};}
+function spotOk(x,y,ignoreId=""){return clearance(x,y,JET_CLEAR_M+2)>=JET_CLEAR_M&&!obstacleNear(x,y,9,ignoreId)&&Math.abs(groundHeightAt(x+6,y)-groundHeightAt(x-6,y))<1.6&&Math.abs(groundHeightAt(x,y+6)-groundHeightAt(x,y-6))<1.6;}
+function freeSpot(x,y,ignoreId=""){for(let k=0;k<90;k++){const a=k*2.399,r=k?6+k*2.4:0,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;if(spotOk(px,py,ignoreId))return{x:px,y:py};}
   for(let k=0;k<40;k++){const a=k*2.399,r=k?6+k*2.2:0,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r,g=groundHeightAt(px,py);if(!hitsBuilding({x:px,y:py,z:g+2},9))return{x:px,y:py};}return{x,y};}
 function createAirframeBody(x,y,heading,{pad=false,z=null,velocity=null}={}){
   if(!ensureScene()||!physics())return null;const id=`jet-${(++airSerial).toString(36)}-${Date.now().toString(36).slice(-4)}`,af=createAirframe(JET_SPEC);af.pilot=false;af.engineOn=false;af.input.brake=1;
@@ -227,7 +227,26 @@ function airframesFrame(now){for(const A of[...airframes.values()]){syncAirframe
 // somewhere) a new one stands there. Left-behind jets stay where they were put — up to a few; then the
 // oldest unused one far from the player (out of sight) is taken away.
 let padCheckAt=0;
-function relocatePadJets(now){if(now<padCheckAt)return;padCheckAt=now+2000;for(const A of[...airframes.values()]){if(!A.pad||A.state!=="parked"||A===jet||A.flown)continue;if(spotOk(A.p.x,A.p.y))continue;const w=walk()?.position,s=freeSpot(A.p.x,A.p.y);if(Math.hypot(s.x-A.p.x,s.y-A.p.y)<1)continue;const h=headingOf(A.q);removeAirframe(A);const B=createAirframeBody(s.x,s.y,h,{pad:true});if(B&&spawnPad){spawnPad.x=s.x;spawnPad.y=s.y;}const v=viewport();if(v)v.dataset.jetPadRelocated=String((Number(v.dataset.jetPadRelocated)||0)+1);void w;}}
+// Preserve the existing airframe ID and physics body. The old placement check counted
+// the pad jet as its own obstacle and recreated it every two seconds while approaching.
+function relocatePadJets(now){
+  if(now<padCheckAt)return;padCheckAt=now+2000;
+  for(const A of airframes.values()){
+    if(!A.pad||A.state!=="parked"||A===jet||A.flown||spotOk(A.p.x,A.p.y,A.id))continue;
+    const w=walk()?.position;
+    if(w&&Math.hypot(w.x-A.p.x,w.y-A.p.y)<40)continue;
+    const mates=globalThis.__arondightVsMultiplayer?.minimapPlayers?.()||[];
+    if(mates.some(p=>Array.isArray(p.p)&&Math.hypot(p.p[0]-A.p.x,p.p[1]-A.p.y)<40))continue;
+    const s=freeSpot(A.p.x,A.p.y,A.id);
+    if(Math.hypot(s.x-A.p.x,s.y-A.p.y)<1)continue;
+    const z=groundHeightAt(s.x,s.y)+JET_SPEC.gearHeight+.04;
+    if(!physics()?.setPose?.(A.id,{position:[s.x,s.y,z],rotation:[A.q.x,A.q.y,A.q.z,A.q.w],velocity:[0,0,0],angularVelocity:[0,0,0]}))continue;
+    syncAirframe(A);
+    if(spawnPad){spawnPad.x=s.x;spawnPad.y=s.y;}
+    const v=viewport();
+    if(v)v.dataset.jetPadRelocated=String((Number(v.dataset.jetPadRelocated)||0)+1);
+  }
+}
 function padFrame(now){
   if(!spawnPad)return;relocatePadJets(now);const occupied=[...airframes.values()].some(A=>A.state!=="wreck"&&Math.hypot(A.p.x-spawnPad.x,A.p.y-spawnPad.y)<PAD_RADIUS_M&&A.p.z-groundHeightAt(A.p.x,A.p.y)<12);
   if(occupied){padEmptySince=0;return;}if(!padEmptySince){padEmptySince=now;return;}if(now-padEmptySince<PAD_RESPAWN_MS)return;
