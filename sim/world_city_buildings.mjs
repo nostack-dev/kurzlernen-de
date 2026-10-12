@@ -309,6 +309,11 @@ export function installCityBuildings(){
   // The live buffers already show the damage instantly; the authoritative
   // rebuild follows ~1.5 s after the last change (not every frame of a wave).
   onDestruction(()=>{lastSyncAt=performance.now()-RESYNC_MS+1500;lastFeatureCount=-1;currentHash="";});
+  // A reset must restore the original city, not leave collapsed live buffers
+  // visible for the ordinary (delayed) destruction rebuild.
+  window.addEventListener("arondight:world-reset",()=>{
+    building=null;lastSyncAt=-Infinity;lastFeatureCount=-1;currentHash="";
+  });
   onElevationChange(()=>{lastSyncAt=-Infinity;lastFeatureCount=-1;currentHash="";});
   // craters / shock-free deformation: buildings follow the new ground (their own pads excluded)
   onTerrainChange((_c,regions,source)=>{if(source==="pads"||source==="roads"||!regions)return;lastSyncAt=-Infinity;lastFeatureCount=-1;currentHash="";});
