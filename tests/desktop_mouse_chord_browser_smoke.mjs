@@ -8,9 +8,11 @@ const state=()=>page.evaluate(()=>({locked:document.pointerLockElement===documen
 try{
   await page.setViewport({width:1100,height:680,deviceScaleFactor:1,hasTouch:false});
   await page.goto(url.href,{waitUntil:'load',timeout:45000});
-  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('SIM ready')&&globalThis.__arondightWalkMode&&globalThis.__arondightDesktopInput&&globalThis.__arondightFootWeapons,{timeout:45000});
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('SIM ready')&&globalThis.__arondightWalkMode&&globalThis.__arondightDesktopInput,{timeout:45000});
   await page.waitForFunction(()=>document.body.classList.contains('solo-flight'),{timeout:12000});
-  await page.evaluate(()=>{globalThis.__arondightWalkMode.setMode('foot',{persist:false});globalThis.__arondightFootWeapons.setMode('smg');});
+  await page.evaluate(()=>globalThis.__arondightWalkMode.setMode('foot',{persist:false}));
+  await page.waitForFunction(()=>globalThis.__arondightFootWeapons?.fireAt,{timeout:12000});
+  await page.evaluate(()=>globalThis.__arondightFootWeapons.setMode('smg'));
   await page.waitForFunction(()=>document.querySelector('#viewport')?.dataset.playerMode==='foot',{timeout:5000});
   // First click captures pointer; the click that captures must never shoot.
   await page.mouse.click(800,370);
