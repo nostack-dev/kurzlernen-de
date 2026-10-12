@@ -97,6 +97,7 @@ jobs:
           node --check sim/flight_fire_fx.mjs
           node --check sim/drone_weapon_modes.mjs
           node tests/guided_counter_contract_test.mjs
+          node tests/drone_missile_api_routing_regression_test.mjs
           node --check sim/guided_balance.mjs
           node --check sim/guided_missile.mjs
           node --check sim/world_procedural_population.mjs
