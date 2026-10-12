@@ -89,6 +89,15 @@ jobs:
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
           CHROME_BIN="$CHROME_BIN" node tests/mobile_hud_no_overlap_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee artifacts/mobile_hud_no_overlap_live_smoke.log
+      - name: Verify SOLO voice mic, mute and gameplay button visibility
+        env:
+          GH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_voice_solo_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?voice-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_voice_solo_live_smoke.log
       - name: Test mobile reset and readonly traffic API
         env:
           GH_SHA: ${{ github.sha }}

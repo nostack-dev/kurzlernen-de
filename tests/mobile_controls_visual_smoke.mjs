@@ -25,9 +25,9 @@ try{
         const overlaps=[];const interactive=['footMove','footLook','footJump','thumbWeapon','mobileGameplayMode','mobileGameplayReset','mobileGameplayMultiplayer','proximityVoicePtt','proximityVoiceMute'];for(let i=0;i<interactive.length;i++)for(let j=i+1;j<interactive.length;j++){const a=items[interactive[i]],c=items[interactive[j]];if(a&&c&&a.x<c.right-3&&a.right>c.x+3&&a.y<c.bottom-3&&a.bottom>c.y+3)overlaps.push([interactive[i],interactive[j]]);}
         return {items,viewport:{x:b.x,y:b.y,w:b.width,h:b.height},overlaps,solo:document.body.classList.contains('solo-flight'),voiceHidden:!items.proximityVoiceBar};
       });
-      if(!g.voiceHidden||g.overlaps.length)failed=true;
+      if(g.voiceHidden||!g.items.proximityVoicePtt||!g.items.proximityVoiceMute||g.overlaps.length)failed=true;
       console.log('Mobile visual '+c.name+': '+JSON.stringify(g));
     }finally{await page.close();}
   }
-  if(failed)throw Error('Mobile HUD controls overlap or voice displays while offline; see screenshots and geometry');
+  if(failed)throw Error('Mobile HUD voice controls must remain visible and nonoverlapping in solo play; see screenshots and geometry');
 }finally{await browser.close();}
