@@ -29,12 +29,17 @@ export function voiceHudPosition({width,height,move=null,look=null,blocked=[],si
   // distance to the thumb's preferred y. No middle-screen fallback.
   const minY=s,maxY=Math.floor(height-h-s);
   const slots=[];
-  for(const [side,x,anchor] of [
+  for(const [side,edge,anchor] of [
     ["left",s,(move?.top??height*.62)-h-8],
     ["right",width-s-w,(look?.top??height*.62)-h-8]
   ]){
-    for(let y=minY;y<=maxY;y+=4)slots.push({x,y,side,rank:Math.abs(y-anchor)});
-    if((maxY-minY)%4)slots.push({x,y:maxY,side,rank:Math.abs(maxY-anchor)});
+    // A vehicle button may occupy the complete outer strip, so try one or
+    // two button-widths inward while remaining strictly in the outer third.
+    for(let inset=0;inset<=2;inset++){
+      const x=edge+(side==="left"?1:-1)*inset*(w+6);
+      for(let y=minY;y<=maxY;y+=4)slots.push({x,y,side,rank:Math.abs(y-anchor)+inset*18});
+      if((maxY-minY)%4)slots.push({x,y:maxY,side,rank:Math.abs(maxY-anchor)+inset*18});
+    }
   }
   slots.sort((a,b)=>a.rank-b.rank||(a.side==="left"?-1:1));
   for(const slot of slots){const found=trySlot(slot);if(found)return found;}
