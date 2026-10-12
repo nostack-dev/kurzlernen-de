@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const desktop=readFileSync('sim/desktop_controls.mjs','utf8');
+const walk=readFileSync('sim/player_walk_mode_v4.mjs','utf8');
+assert.match(desktop,/window\.addEventListener\("mousedown",onMouseDown/,'all mouse buttons use mousedown');
+assert.match(desktop,/window\.addEventListener\("mouseup",onMouseUp/,'separate release tracking');
+assert.match(desktop,/function onMouseDown\(event\)/);
+assert.match(desktop,/if\(event\.button===2\)\{rmb=true;return;\}/,'RMB is independent aim/free-look hold');
+assert.match(desktop,/if\(mode==="drone"\)droneFire\(true\)/,'drone LMB works during RMB');
+assert.match(walk,/selectedWeaponFire\(performance\.now\(\),fistsOut\(\)\?"mouse-fists":"mouse-mousedown"/,'foot shooting uses mouse down for mouse chords');
+assert.match(walk,/e\.button!==0&&\!\(e\.button===2&&fistsOut\(\)\)/,'RMB alone does not fire guns; fists use second hand');
+assert.doesNotMatch(walk,/selectedWeaponFire\(performance\.now\(\),"mouse-pointerlock"\)/,'old first-button-only firing forbidden');
+console.log('Desktop RMB+LMB shooting contract: pass');

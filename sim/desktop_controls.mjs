@@ -84,11 +84,21 @@ function onPointerDown(event){if(event.pointerType==="mouse")document.body.class
     if(!inGame()||!gameplayTarget(event.target)||event.button!==0)return;
     requestLock();consume(event);return; // the capturing click never fires
   }
+  // pointerdown only occurs for the FIRST pressed mouse button. Crucially,
+  // preventDefault() here would suppress compatibility mousedown for the
+  // entire chord (RMB held + LMB), leaving the player unable to shoot.
+  // The mousedown/mouseup pair below owns mouse buttons independently.
+  event.stopImmediatePropagation();
+}
+function onMouseDown(event){
+  if(!locked()||!inGame()||!desktop||event.button!==0&&event.button!==2)return;
   const mode=gameMode();
-  if(mode==="foot"){if(event.button===0)return; /* walk fires from the crosshair */ if(event.button===2)rmb=true; /* aim down sights */ consume(event);return;}
-  if(event.button===0){lmb=true;if(mode==="drone")droneFire(true);}
-  else if(event.button===2){rmb=true;}
-  consume(event);
+  if(event.button===2){rmb=true;return;} // ADS/free look remains held while LMB fires
+  lmb=true;if(mode==="drone")droneFire(true);
+}
+function onMouseUp(event){
+  if(event.button===0){lmb=false;droneFire(false);}
+  else if(event.button===2){rmb=false;endLook();}
 }
 function onPointerUp(event){
   if(event.pointerType!=="mouse")return;
@@ -200,6 +210,8 @@ export function installDesktopControls(){
   installUi();
   setDesktop(Boolean(globalThis.matchMedia?.("(hover: hover) and (pointer: fine)")?.matches));
   window.addEventListener("pointerdown",onPointerDown,{capture:true,passive:false});
+  window.addEventListener("mousedown",onMouseDown,{capture:true,passive:false});
+  window.addEventListener("mouseup",onMouseUp,{capture:true,passive:false});
   window.addEventListener("pointerup",onPointerUp,{capture:true,passive:false});
   window.addEventListener("pointermove",onPointerMove,{capture:true,passive:false});
   window.addEventListener("wheel",onWheel,{capture:true,passive:false});
@@ -214,7 +226,7 @@ export function installDesktopControls(){
   window.addEventListener("blur",releaseAll);
   /* death keeps the mouse captured: R / Enter (or Ⓐ) respawns after the countdown, no cursor in the picture */
   globalThis.__arondightDesktopDroneInput=droneSample;
-  globalThis.__arondightDesktopInput={get active(){return desktop;},get locked(){return locked();},get mode(){return gameMode();},get lmb(){return lmb;},get rmb(){return rmb;},keys,takeMouseDelta(){const d={x:jetDelta.x,y:jetDelta.y};jetDelta.x=jetDelta.y=0;return d;},version:"desktop-mouse-keyboard-v1"};
+  globalThis.__arondightDesktopInput={get active(){return desktop;},get locked(){return locked();},get mode(){return gameMode();},get lmb(){return lmb;},get rmb(){return rmb;},keys,takeMouseDelta(){const d={x:jetDelta.x,y:jetDelta.y};jetDelta.x=jetDelta.y=0;return d;},version:"desktop-independent-mousedown-v2"};
   setInterval(tick,16);
 }
 installDesktopControls();
