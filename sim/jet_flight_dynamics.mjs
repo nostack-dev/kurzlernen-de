@@ -157,7 +157,7 @@ export function airframeStep(af,body,dt,env={}){
     pC+=wFlight*inp.rollIn*s.pMax;qC+=wFlight*qf;rC+=wFlight*rf;
   }
   // body-rate errors -> wanted angular acceleration -> moments (dynamic inversion of the aero model)
-  const p=omegaB[1],qq=omegaB[0],r=-omegaB[2];let wantX=I[0]*4.5*(qC-qq),wantY=I[1]*18*(pC-p),wantZ=-I[2]*3.2*(rC-r);
+  const p=omegaB[1],qq=omegaB[0],r=-omegaB[2];let wantX=I[0]*4.5*(qC-qq),wantY=I[1]*23*(pC-p),wantZ=-I[2]*3.2*(rC-r);
   const beta=V>1?Math.asin(clamp(vb[0]/V,-1,1)):0;wantZ+=-I[2]*wFlight*1.8*beta*Math.min(1,V/60);// sideslip: yaw the nose into the relative wind
   // gyroscopic term (ω × Iω) is part of the body dynamics Box3D integrates: the computer cancels it
   const Iw=[I[0]*omegaB[0],I[1]*omegaB[1],I[2]*omegaB[2]],gyro=cross(omegaB,Iw);wantX+=gyro[0];wantY+=gyro[1];wantZ+=gyro[2];
