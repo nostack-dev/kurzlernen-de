@@ -30,6 +30,12 @@ jobs:
           trap 'kill "$HTTP_PID" 2>/dev/null || true' EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/desktop_mouse_chord_harness_smoke.mjs http://127.0.0.1:4176
+      - name: Verify desktop weapon STOP and EMP controls with real keyboard input
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          CHROME_BIN="$CHROME_BIN" node tests/desktop_controls_live_smoke.mjs https://kurzlernen.de/drone_simulator.html
       - name: F jet boarding and thumb-zone regression tests
         run: |
           set -euo pipefail
