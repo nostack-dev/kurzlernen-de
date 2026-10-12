@@ -18,6 +18,16 @@ jobs:
           ln -s /tmp/simulator-deps/node_modules node_modules
       - name: Run deployment-equivalent deterministic gates
         run: python3 tools/validate-simulator.py
+      - name: Verify RMB held + LMB shoots in Chromium
+        timeout-minutes: 4
+        run: |
+          set -euo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          python3 -m http.server 4176 --bind 127.0.0.1 >/tmp/mouse-chord-pr.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" 2>/dev/null || true' EXIT
+          sleep 1
+          CHROME_BIN="$CHROME_BIN" node tests/desktop_mouse_chord_browser_smoke.mjs http://127.0.0.1:4176/drone_simulator.html
       - name: Check patch whitespace
         run: git diff --check HEAD^ HEAD
       - name: Verify simulator live-smoke assertion invariants
