@@ -27,7 +27,7 @@ jobs:
           HTTP_PID=$!
           trap 'kill "$HTTP_PID" 2>/dev/null || true' EXIT
           sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/desktop_mouse_chord_browser_smoke.mjs http://127.0.0.1:4176/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/desktop_mouse_chord_harness_smoke.mjs http://127.0.0.1:4176
       - name: Check patch whitespace
         run: git diff --check HEAD^ HEAD
       - name: Verify simulator live-smoke assertion invariants
