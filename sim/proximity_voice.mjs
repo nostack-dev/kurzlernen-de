@@ -130,7 +130,7 @@ body.desktop-input.solo-flight.pad-input #proximityVoiceMute::after{content:"R3+
   ptt.addEventListener('pointerdown',e=>e.stopPropagation());ptt.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();toggleMic();});
   const m=document.createElement('button');m.id='proximityVoiceMute';m.type='button';m.textContent='🔈';m.setAttribute('aria-label','Mute voice chat');m.setAttribute('title','Voice mute');m.setAttribute('aria-pressed','false');
   m.onclick=()=>toggleMute();
-  const state=document.createElement('span');state.id='proximityVoiceStatus';state.textContent='PTT halten';state.setAttribute('role','status');state.setAttribute('aria-live','polite');
+  const state=document.createElement('span');state.id='proximityVoiceStatus';state.textContent='MIC AUS';state.setAttribute('role','status');state.setAttribute('aria-live','polite');
   const indicator=document.createElement('span');indicator.id='proximityVoiceSpeaking';indicator.hidden=true;bar.append(ptt,m,state,indicator);view.append(bar);
   const viewportRect=el=>{if(!el||!el.offsetParent||getComputedStyle(el).visibility==='hidden')return null;
     let x=0,y=0,node=el;while(node&&node!==view){x+=node.offsetLeft;y+=node.offsetTop;node=node.offsetParent;}
