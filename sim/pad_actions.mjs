@@ -18,9 +18,10 @@
 //
 // The pad also switches the game to pad play on first use (the XBOX CONTROLLER setting, which
 // hides the touch sticks), and blocks gameplay input while a menu is open.
-export const PAD_ACTIONS_VERSION="unified-pad-actions-jet-priority-v2";
+import {VOICE_PAD_PTT,VOICE_PAD_MUTE,nextVoicePadInput} from "./voice_control_bindings.mjs";
+export const PAD_ACTIONS_VERSION="unified-pad-actions-voice-v3";
 const BTN={A:0,B:1,X:2,Y:3,LB:4,RB:5,LT:6,RT:7,VIEW:8,MENU:9,L3:10,R3:11,UP:12,DOWN:13,LEFT:14,RIGHT:15};
-let installed=false,prev=[],autoEnabled=false,viewDownAt=0;
+let installed=false,prev=[],autoEnabled=false,viewDownAt=0,voicePadState={y:false,latched:false};
 const walk=()=>globalThis.__arondightWalkMode||null;
 function padNow(){const pads=navigator.getGamepads?.()||[];for(const p of pads)if(p?.connected&&(p.mapping==="standard"||/xbox|xinput|045e/i.test(String(p.id||""))))return p;return null;}
 function pressed(p,i){const b=p?.buttons?.[i];return Boolean(typeof b==="number"?b>.5:b?.pressed||Number(b?.value)>.5);}
@@ -51,9 +52,13 @@ function titleNav(edge){const log=document.getElementById("changelogPanel");
   if(edge(BTN.A)){if(cur>=0)items[cur].click();else if(!inPanel)document.getElementById("gameMenuStart")?.click();return;}
   if(edge(BTN.MENU)&&!inPanel)document.getElementById("gameMenuStart")?.click();}
 function frame(){
-  requestAnimationFrame(frame);const p=padNow();document.body.classList.toggle("pad-connected",Boolean(p));if(!p){prev.length=0;return;}
+  requestAnimationFrame(frame);const p=padNow();document.body.classList.toggle("pad-connected",Boolean(p));if(!p){globalThis.__arondightVoiceControls?.setPadTalk?.(false);voicePadState={y:false,latched:false};prev.length=0;return;}
   const now=[];for(let i=0;i<17;i++)now[i]=pressed(p,i);const edge=i=>now[i]&&!prev[i];
   if(now.some(Boolean)){enablePadPlay();if(!document.body.classList.contains("pad-input"))document.body.classList.add("pad-input");}
+  const voiceAllowed=document.body.classList.contains("solo-flight")&&!menuOpen()&&!startScreen()&&!dead()&&!globalThis.__arondightWorldMap?.isOpen;
+  voicePadState=nextVoicePadInput(voicePadState,{r3:now[VOICE_PAD_PTT],y:now[VOICE_PAD_MUTE],allowed:voiceAllowed});
+  if(voicePadState.mute)globalThis.__arondightVoiceControls?.toggleMute?.();
+  globalThis.__arondightVoiceControls?.setPadTalk?.(voicePadState.talk);
   try{
     {const v=voteDialog();if(v){if(edge(BTN.A)){(document.activeElement&&v.contains(document.activeElement)?document.activeElement:v.querySelector("[data-yes]"))?.click();}else if(edge(BTN.B))v.querySelector("[data-no]")?.click();else if(edge(BTN.LEFT)||edge(BTN.RIGHT)){const b=[...v.querySelectorAll("button")],i=b.indexOf(document.activeElement);b[(i+1+b.length)%b.length]?.focus();}return;}}
     if(globalThis.__arondightWorldMap?.isOpen)return; // the map reads the pad itself
@@ -69,7 +74,7 @@ function frame(){
     if(now[BTN.VIEW]&&!prev[BTN.VIEW])viewDownAt=performance.now();
     if(!now[BTN.VIEW]&&prev[BTN.VIEW]&&performance.now()-viewDownAt<400&&!(performance.now()-(Number(globalThis.__arondightSuppressViewTap)||0)<1500))camera();
     if(edge(BTN.X))sendKey("KeyE");
-    if(m==="foot"||m==="drone"){if(edge(BTN.Y)||edge(BTN.RIGHT))cycleWeapon(1);else if(edge(BTN.LEFT))cycleWeapon(-1);}
+    if(m==="foot"||m==="drone"){if((edge(BTN.Y)&&!voicePadState.suppressWeapon)||edge(BTN.RIGHT))cycleWeapon(1);else if(edge(BTN.LEFT))cycleWeapon(-1);}
     if((m==="foot"||m==="drone")&&edge(BTN.B))emp();
   }finally{prev=now;}
 }
