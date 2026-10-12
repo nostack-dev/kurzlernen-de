@@ -46,7 +46,8 @@ body.mobile-gameplay-compact.solo-flight #soloArm,body.mobile-gameplay-compact.s
 body.mobile-gameplay-compact.solo-flight.on-foot-mode #soloKill{display:none!important}
 body.mobile-gameplay-compact.solo-flight #droneWeaponToggle,body.mobile-gameplay-compact.solo-flight #footWeaponToggle{display:none!important}
 @media(max-height:360px){body.mobile-gameplay-compact.solo-flight #mobileGameplayDock{width:min(calc(100% - 160px),300px);gap:3px;padding:3px}body.mobile-gameplay-compact.solo-flight #mobileGameplayDock button,body.mobile-gameplay-compact.solo-flight #mobileGameplayReset,body.mobile-gameplay-compact.solo-flight #mobileGameplayMultiplayer{min-height:32px;padding:0 5px!important;font-size:8px!important}body.mobile-gameplay-compact.solo-flight #mobileGameplayReset{width:64px;top:max(7px,var(--solo-safe-top,env(safe-area-inset-top)))}body.mobile-gameplay-compact.solo-flight #mobileGameplayMultiplayer{width:64px;top:max(7px,var(--solo-safe-top,env(safe-area-inset-top)))}body.mobile-gameplay-compact.solo-flight #mobileGameplayMultiplayerStatus{top:max(44px,calc(var(--solo-safe-top,env(safe-area-inset-top)) + 37px));font-size:7px;max-width:132px}body.mobile-gameplay-compact.solo-flight #soloArm,body.mobile-gameplay-compact.solo-flight #soloKill{bottom:max(12px,var(--solo-safe-bottom,env(safe-area-inset-bottom)))!important}}
-body.mobile-gameplay-compact.solo-flight #mobileGameplayMode.hud-mode-switch{margin-left:-19px!important}\n`;document.head.appendChild(style);
+body.mobile-gameplay-compact.solo-flight #mobileGameplayMode.hud-mode-switch{margin-left:-19px!important}
+`;document.head.appendChild(style);}
 // The mode switch says what you switch TO (never what you are): on foot "TO DRONE", in the drone
 // "GO ON FOOT", in a car "GO ON FOOT" (gets out), in the jet "EJECT" while flying. data-current
 // carries the mode you are in (tests, styling).
