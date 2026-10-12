@@ -8,7 +8,11 @@ assert.doesNotMatch(voice,/Multiplayer nötig/,"SOLO PTT must not reject a micro
 assert.match(voice,/navigator\.mediaDevices\.getUserMedia/,"PTT must ask for microphone permission on demand");
 assert.match(voice,/generation!==inputGeneration/,"Releasing PTT during microphone permission must not leave it recording");
 assert.match(voice,/acquired\.getTracks\(\)\.forEach\(track=>track\.stop\(\)\)/,"Cancelled microphone permissions must release the stream");
-assert.match(voice,/arondight:world-reset[^\n]+stop\(\);\/\* preserve/,"Reset must preserve manual mute");
+assert.match(voice,/arondight:world-reset[^\n]+releasePtt\(\);\/\* preserve/,"Reset must release the mic and preserve manual mute");
 assert.match(voice,/for\(const id of s\.getPeerIds/,"Voice transport sends only to already connected peers");
 assert.match(ui,/toggleMultiplayer\(\)/,"Public discovery stays on explicit MULTI action");
-console.log("SOLO and MULTI share gameplay/voice controls, no SOLO advertising; mic safety and PTT lifetime: pass");
+assert.doesNotMatch(voice,/e\.code==='KeyV'[^\n]*start\(\)/,"V remains foot/drone, never voice");
+assert.match(voice,/VOICE_KEY_PTT/,"Voice has dedicated nonconflicting keyboard PTT");
+assert.match(voice,/VOICE_KEY_MUTE/,"Voice has dedicated keyboard mute");
+assert.match(voice,/globalThis\.__arondightVoiceControls=/,"Shared Xbox and keyboard voice API must exist");
+console.log("SOLO and MULTI share gameplay/voice controls; H/K, R3/R3+Y, microphone lifetime and no public SOLO advertising: pass");
