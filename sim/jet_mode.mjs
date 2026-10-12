@@ -38,7 +38,7 @@ import {JetSeatCoordinator} from "./jet_seat_coordinator.mjs";
 //   * multiplayer: the pilot's pose carries the flying jet; every jet a
 //     player owns (parked / ejected / wreck) rides along in the pose; hits on
 //     another player's jet are sent to its owner, who applies them.
-export const JET_MODE_VERSION="vtol-jet-mode-v4-6dof-aero-damage";
+export const JET_MODE_VERSION="vtol-jet-arcade-rate-v5";
 const G=9.81,REBASE_M=6000,SOUND=340,ENTER_M=9,HP_MAX=400,DEBRIS_MS=45000,PAD_RESPAWN_MS=75000,PAD_RADIUS_M=30,MAX_AIRFRAMES=4;
 const bridge=()=>globalThis.__arondightRealWorld||null,viewport=()=>document.getElementById("viewport"),walk=()=>globalThis.__arondightWalkMode||null,physics=()=>globalThis.__arondightWorldRigidBodies||null;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -264,7 +264,7 @@ function readInputs(dt){
   const m=sticks.move,l=sticks.look;let lift=-m.y,yawIn=m.x,pitchIn=l.y,rollIn=l.x;// pitchIn + = stick pulled back = nose up
   if(keys.has("KeyW"))lift+=1;if(keys.has("KeyS"))lift-=1;if(keys.has("KeyA"))yawIn-=1;if(keys.has("KeyD"))yawIn+=1;if(keys.has("ArrowUp"))pitchIn-=1;if(keys.has("ArrowDown"))pitchIn+=1;if(keys.has("ArrowLeft"))rollIn-=1;if(keys.has("ArrowRight"))rollIn+=1;
   // desktop mouse: a rate stick (mouse up = nose up, right = roll right); LMB = gun
-  const desk=globalThis.__arondightDesktopInput;if(desk?.active&&desk.locked&&dt>0){const d=desk.takeMouseDelta(),a=1-Math.exp(-dt/.06);mouseStick.x+=(clamp(d.x/dt/1100,-1,1)-mouseStick.x)*a;mouseStick.y+=(clamp(d.y/dt/1100,-1,1)-mouseStick.y)*a;rollIn+=mouseStick.x;pitchIn-=mouseStick.y;firing=Boolean(desk.lmb)||keys.has("Space");}else{mouseStick.x=mouseStick.y=0;}
+  const desk=globalThis.__arondightDesktopInput;if(desk?.active&&desk.locked&&dt>0){const d=desk.takeMouseDelta(),a=1-Math.exp(-dt/.025);mouseStick.x+=(clamp(d.x/dt/730,-1,1)-mouseStick.x)*a;mouseStick.y+=(clamp(d.y/dt/730,-1,1)-mouseStick.y)*a;rollIn+=mouseStick.x;pitchIn-=mouseStick.y;firing=Boolean(desk.lmb)||keys.has("Space");}else{mouseStick.x=mouseStick.y=0;}
   // Xbox, Battlefield jet layout: LS ↑↓ throttle/lift, LS ←→ rudder, RS pitch + roll, RT gun,
   // LT rockets, RB bombs, LB VTOL hover/flight. X exits / ejects and VIEW switches the camera
   // (both handled by the shared pad actions, same as E and C on the keyboard). Under the
@@ -410,7 +410,7 @@ function ensureProvider(){const b=bridge();if(!b||typeof b.attachPresentationCam
 function applyCamera({camera,now}){
   const b=bridge(),ly=(Number(b?.lookYawDeg)||0)*Math.PI/180,lp=(Number(b?.lookPitchDeg)||0)*Math.PI/180;
   if(para){const c=para.p;camera.up.set(0,0,1);camera.position.set(c.x,c.y-14,c.z+7);camera.lookAt(c.x,c.y,c.z+2);camera.fov=70;camera.near=.5;camera.far=Math.max(camera.far,20000);camera.updateProjectionMatrix();camera.updateMatrixWorld();return{active:true,mode:"jet-chute"};}
-  if(!jet)return{active:false};syncAirframe(jet);
+  if(!jet)return{active:false};/* airframesFrame synchronizes the Box3D pose once per frame */
   fwd.copy(Y).applyQuaternion(jet.q);upv.copy(Z).applyQuaternion(jet.q);
   if(camMode==="cockpit"){camera.position.copy(cockpitEye).applyQuaternion(jet.q).add(jet.p);camera.up.copy(upv);camLook.copy(camera.position).add(fwd);camera.lookAt(camLook);camera.rotateY(-ly);camera.rotateX(lp);}
   else{const s=jet.v.length(),dist=22+Math.min(14,s/40);tmp.copy(fwd).multiplyScalar(-dist).addScaledVector(upv,6.5);if(ly)tmp.applyAxisAngle(upv,-ly);if(!camInit){camOff.copy(tmp);camInit=true;}camOff.lerp(tmp,1-Math.exp(-((now-(applyCamera.t||now))/1000||1/60)*6));applyCamera.t=now;camera.position.copy(jet.p).add(camOff);camera.up.copy(upv).lerp(Z,.35).normalize();camLook.copy(jet.p).addScaledVector(fwd,30);camera.lookAt(camLook);camera.rotateX(lp*.6);}
