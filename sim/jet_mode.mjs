@@ -490,7 +490,8 @@ function renderCityCue(h){const v=viewport(),svg=svgEl(h,".jet-svg");if(!v||!svg
   // the line runs from the centre ring (r 26) toward the town; the dot sits on the town centre
   const L=Math.hypot(x-cx,y-cy)||1,sx=cx+(x-cx)/L*26,sy=cy+(y-cy)/L*26;line.setAttribute("x1",sx.toFixed(1));line.setAttribute("y1",sy.toFixed(1));line.setAttribute("x2",x.toFixed(1));line.setAttribute("y2",y.toFixed(1));dot.setAttribute("cx",x.toFixed(1));dot.setAttribute("cy",y.toFixed(1));line.style.display=L>34?"":"none";dot.style.display="";}
 const hudCache=new Map();function hk(h,k){let e=hudCache.get(k);if(!e||!e.isConnected){e=h.querySelector(`[data-k=${k}]`);hudCache.set(k,e);}return e;}
-function renderHud(){const h=document.getElementById("jetHud");if(!h)return;try{renderCityCue(h);}catch{}if(para){setText(hk(h,'mode'),"FALLSCHIRM");return;}if(!jet)return;const af=jet.af,T=af.tele||{},s=jet.v.length(),m=machOf(s);
+let lastJetHudAt=-Infinity,lastJetCityAt=-Infinity;
+function renderHud(){const h=document.getElementById("jetHud");if(!h)return;const now=performance.now();if(now-lastJetHudAt<80)return;lastJetHudAt=now;if(now-lastJetCityAt>=240){lastJetCityAt=now;try{renderCityCue(h);}catch{}}if(para){setText(hk(h,'mode'),"FALLSCHIRM");return;}if(!jet)return;const af=jet.af,T=af.tele||{},s=jet.v.length(),m=machOf(s);
   setText(hk(h,'spd'),String(Math.round(s*3.6)));const mb=hk(h,'mach');mb.textContent=`M ${m.toFixed(2)}`;mb.dataset.super=m>=1?"1":"0";setText(hk(h,'alt'),String(Math.round(Number(T.agl)||0)));setText(hk(h,'g'),`${(Number(T.nz)||1).toFixed(1)} G`);
   const aoa=hk(h,'aoa'),a=s>20?(Number(T.alpha)||0)*57.3:0;aoa.textContent=`α ${Math.round(a)}°`;aoa.dataset.high=a>19?"1":"0";
   const ab=af.mode==="flight"&&af.lever>.86;setText(hk(h,'mode'),af.landed?"GELANDET":af.mode==="flight"?(Math.cos(af.nozzle)<.95?"ÜBERGANG":ab?"FLUG · AB":"FLUG"):(s>30?"BREMSEN":"SCHWEBEN"));
