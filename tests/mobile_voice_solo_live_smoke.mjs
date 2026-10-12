@@ -39,13 +39,14 @@ try{
   });
   assert.equal(initial.finder,false,"SOLO must not advertise in public lobby");
   assert.equal(initial.mute,"false","Voice must start unmuted");
-  assert.equal(await page.evaluate(()=>globalThis.__soloVoiceTracks?.length||0),0,"SOLO must never request mic before PTT");
+  assert.equal(await page.evaluate(()=>globalThis.__soloVoiceTracks?.length||0),0,"SOLO must never request mic before explicit mic ON");
   const button=await page.$("#proximityVoicePtt");
   const rect=await button.boundingBox();
-  assert.ok(rect&&rect.width>20&&rect.height>20,"PTT should be touch-reachable");
+  assert.ok(rect&&rect.width>20&&rect.height>20,"MIC toggle must be touch-reachable");
   await page.mouse.move(rect.x+rect.width/2,rect.y+rect.height/2);
   await page.mouse.down();
-  await page.waitForFunction(()=>/PTT · kein Mitspieler verbunden|SPRICHT · PTT/.test(
+  await page.mouse.up();
+  await page.waitForFunction(()=>/MIC LIVE · kein Mitspieler|MIC LIVE · verbunden/.test(
     document.querySelector("#proximityVoiceStatus")?.textContent||""),{timeout:15000});
   const talking=await page.evaluate(()=>({
     status:document.querySelector("#proximityVoiceStatus")?.textContent,
@@ -54,17 +55,21 @@ try{
   }));
   assert.equal(talking.pressed,"true");
   assert.equal(talking.noAdvertising,true);
-  await page.mouse.up();
+  await page.waitForFunction(()=>document.querySelector("#proximityVoicePtt")?.getAttribute("aria-pressed")==="true");
+  assert.equal(await page.evaluate(()=>globalThis.__arondightVoiceControls?.micOn),true,"Mic must stay ON after tap/release");
+  const liveStates=await page.evaluate(()=>(globalThis.__soloVoiceTracks||[]).map(t=>t.readyState));
+  assert.ok(liveStates.some(s=>s==="live"),"Open mic must keep capturing after releasing touch");
+  await page.click("#proximityVoicePtt");
   await page.waitForFunction(()=>document.querySelector("#proximityVoicePtt")?.getAttribute("aria-pressed")==="false");
   const tracks=await page.evaluate(()=>({count:globalThis.__soloVoiceTracks?.length||0,
     states:(globalThis.__soloVoiceTracks||[]).map(track=>track.readyState)}));
-  assert.ok(tracks.count>=1,"PTT never captured microphone audio");
-  assert.ok(tracks.states.every(state=>state==="ended"),"Releasing PTT must shut down all microphone tracks");
+  assert.ok(tracks.count>=1,"MIC toggle never captured microphone audio");
+  assert.ok(tracks.states.every(state=>state==="ended"),"Turning MIC OFF must shut down all microphone tracks");
   await page.click("#proximityVoiceMute");
   assert.equal(await page.$eval("#proximityVoiceMute",e=>e.getAttribute("aria-pressed")),"true");
   await page.evaluate(()=>dispatchEvent(new Event("arondight:world-reset")));
   assert.equal(await page.$eval("#proximityVoiceMute",e=>e.getAttribute("aria-pressed")),"true","World reset must preserve explicit mute choice");
   await page.click("#proximityVoiceMute");
   assert.equal(await page.$eval("#proximityVoiceMute",e=>e.getAttribute("aria-pressed")),"false");
-  console.log("SOLO always-visible voice: PTT captured without public matchmaking; release, mute and reset behavior passed",JSON.stringify({initial,talking}));
+  console.log("SOLO always-visible voice: MIC toggle remains live after touch release; off closes tracks; mute/reset and no advertising passed",JSON.stringify({initial,talking}));
 }finally{await browser.close();}
