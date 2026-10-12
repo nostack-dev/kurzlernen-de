@@ -435,6 +435,9 @@ bottom:calc(max(18px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + min(
 min-width:0!important;width:clamp(126px,22vw,154px)!important;height:40px!important;
 padding:0 8px!important;border-radius:14px!important;font:900 11px/1 system-ui,-apple-system,sans-serif!important;
 }
+@media(max-height:340px){html body.mobile-gameplay-compact.solo-flight:not(.desktop-input) #viewport #enterJetButton{
+bottom:calc(max(18px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + min(25vw,150px) + 35px)!important
+}}
 html body.jet-mode #viewport #footHud #footFire{display:block!important;pointer-events:auto!important}`;document.head.appendChild(st);
     for(const btn of h.querySelectorAll(".jet-btns button")){const a=btn.dataset.a;btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(a==="bomb")dropBomb();else if(a==="rocket")fireRocket();else if(a==="mode")toggleMode();else if(a==="cam"){camMode=camMode==="chase"?"cockpit":"chase";camInit=false;}else if(a==="exit")exit();});}}
   if(!document.getElementById("enterJetButton")){const b=document.createElement("button");b.id="enterJetButton";b.type="button";b.hidden=true;b.textContent="✈ JET EINSTEIGEN";b.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(passenger)leavePassenger();else enter();});view.appendChild(b);}

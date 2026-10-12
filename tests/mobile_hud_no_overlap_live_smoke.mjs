@@ -10,7 +10,7 @@ try {
  await page.setViewport({width:390,height:844,deviceScaleFactor:1,isMobile:true,hasTouch:true});
  await page.goto(url.href,{waitUntil:'load',timeout:45000});
  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('SIM ready')&&document.querySelector('#mobileGameplayMode')&&globalThis.__arondightWalkMode,{timeout:80000});
- for(const [name,width,height] of [['iphone-portrait',390,844],['compact-portrait',360,740],['native-landscape',844,390]]){
+ for(const [name,width,height] of [['iphone-portrait',390,844],['compact-portrait',360,740],['native-landscape',844,390],['safari-bars',844,300]]){
   await page.setViewport({width,height,deviceScaleFactor:1,isMobile:true,hasTouch:true});
   await page.evaluate(()=>globalThis.__arondightWalkMode.setMode('foot',{persist:false}));
   await page.waitForFunction(()=>document.querySelector('#viewport')?.dataset.playerMode==='foot',{timeout:7000});
