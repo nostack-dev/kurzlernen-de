@@ -219,7 +219,14 @@ function syncOverlay(){if(!ensureEls())return;renderHints();playEl.classList.rem
 export function installDesktopControls(){
   if(installed||typeof window==="undefined")return;installed=true;
   installUi();
-  setDesktop(Boolean(globalThis.matchMedia?.("(hover: hover) and (pointer: fine)")?.matches));
+  // Headless Chrome, remote desktops and some browser shells report no fine
+  // primary pointer even with a real keyboard/mouse. If there is no touch
+  // capability, start with desktop controls rather than the thumb-only HUD.
+  // Touch devices still use their primary pointer media query until the first
+  // actual mouse/keyboard action (handled by the listeners below).
+  const finePrimary=Boolean(globalThis.matchMedia?.("(hover: hover) and (pointer: fine)")?.matches);
+  const noTouch=Number(navigator.maxTouchPoints||0)===0;
+  setDesktop(finePrimary||noTouch);
   window.addEventListener("pointerdown",onPointerDown,{capture:true,passive:false});
   window.addEventListener("mousedown",onMouseDown,{capture:true,passive:false});
   window.addEventListener("mouseup",onMouseUp,{capture:true,passive:false});
