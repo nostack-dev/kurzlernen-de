@@ -343,8 +343,9 @@ function frame(now){
   const dt=clamp((now-lastFrame)/1000,0,.05);lastFrame=now;const scene=bridge()?.threeScene;if(scene)ensurePrewarm(scene);
   if(scene&&events.length){let budget=0;while(events.length&&events[0].at<=now&&budget<40){runEvent(scene,events.shift());budget++;}}
   // Rendering already shows damage instantly; the shared state (collision,
-  // map, multiplayer) is committed at most twice a second during a wave.
-  if(pendingCommit&&now-lastCommit>500){pendingCommit=false;lastCommit=now;commitDestruction();}
+  // map, multiplayer) is batched, but at most 150 ms behind the visual damage.
+  // Flush immediately when no more destruction events remain.
+  if(pendingCommit&&(now-lastCommit>150||!events.length)){pendingCommit=false;lastCommit=now;commitDestruction();}
   if(chunks.length)stepChunks(scene,dt);
   const alive=stepDebris(dt);if(flung.length)stepFlung(dt);if(craters.length)stepCraters(now);
   if(alive||flung.length){setData("nukeDebrisAlive",alive);setData("nukeFlungActors",flung.length);}
