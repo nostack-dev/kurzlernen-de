@@ -73,8 +73,23 @@ try{
   const droneUi=await page.evaluate(()=>{const contract=getComputedStyle(document.querySelector("#gameplayContractHud")),v=document.querySelector("#viewport");return{topbar:getComputedStyle(document.querySelector("#soloTopbar")).display,arm:getComputedStyle(document.querySelector("#soloArm")).display,armText:document.querySelector("#soloArm")?.textContent?.trim(),contractVisibility:contract.visibility,contractOpacity:contract.opacity,buttons:[...document.querySelectorAll("#mobileGameplayDock button")].map(b=>b.textContent.trim()),cameraExtra:v?.dataset.fpvViewExtraUpOffsetM||null,missileContract:v?.dataset.droneMissileContract,spawnGuard:v?.dataset.spawnVisibilityGuard};});
   if(droneUi.topbar!=="none"||droneUi.arm==="none"||droneUi.contractVisibility!=="hidden"||Number(droneUi.contractOpacity)!==0||droneUi.buttons.length!==2)throw new Error(`drone HUD is not flight-first: ${JSON.stringify(droneUi)}`);
   if(droneUi.missileContract!=="tap-ray-fixed-after-launch-v1"||droneUi.spawnGuard!=="people-hold+spawn-gate-presented-camera-v4")throw new Error(`drone direct-fire/spawn contracts missing: ${JSON.stringify(droneUi)}`);
-  const armResult=await armDroneAtomically();await pause(250);
-  const missile=await page.evaluate(()=>{const v=document.querySelector("#viewport"),r=v.getBoundingClientRect(),fired=globalThis.__arondightDroneWeapons?.fireMissile?.({clientX:r.left+r.width*.55,clientY:r.top+r.height*.44,source:"mobile-regression"});return{fired:Boolean(fired),guidance:v.dataset.droneMissileGuidance,direction:v.dataset.droneMissileDirection,active:Number(v.dataset.droneActiveMissiles)||0};});
+  // A rocket may only fire when ROCKETS is explicitly selected. Earlier this
+  // test called fireMissile() while GUN was selected and intermittently bypassed
+  // the selection gate when a second module overwrote the weapon API.
+  await page.evaluate(()=>globalThis.__arondightDroneWeapons?.setMode?.("missile"));
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport"),api=globalThis.__arondightDroneWeapons;
+    return api?.displayMode==="missile"&&typeof api.fireMissileDirect==="function"&&v?.dataset.droneMissileContract==="tap-ray-fixed-after-launch-v1";
+  },{timeout:12000});
+  const armResult=await armDroneAtomically();
+  // The FC's ARMED label and the live weapon/fireArmed gate can update in
+  // different ticks. Wait for the actual gate, not an arbitrary sleep.
+  await page.waitForFunction(()=>{const v=document.querySelector("#viewport");
+    return v?.dataset.fireArmed==="1"&&v.dataset.fireCombatLocked==="0"&&
+      performance.now()>=(Number(globalThis.__arondightWeaponLockUntil)||0);
+  },{timeout:12000});
+  const missile=await page.evaluate(()=>{const v=document.querySelector("#viewport"),r=v.getBoundingClientRect(),fired=globalThis.__arondightDroneWeapons?.fireMissile?.({clientX:r.left+r.width*.55,clientY:r.top+r.height*.44,source:"mobile-regression"});return{fired:Boolean(fired),guidance:v.dataset.droneMissileGuidance,direction:v.dataset.droneMissileDirection,
+    active:Number(v.dataset.droneActiveMissiles)||0,selected:globalThis.__arondightDroneWeapons?.displayMode,
+    fireArmed:v.dataset.fireArmed,combatLocked:v.dataset.fireCombatLocked,lockReason:v.dataset.fireLockReason};});
   if(!(missile.fired&&missile.guidance==="fixed-screen-ray-no-homing-v1"&&missile.direction&&missile.active>=1))throw new Error(`missile is not fixed to the launch screen ray: ${JSON.stringify(missile)}`);
   await mkdir("artifacts",{recursive:true});await page.screenshot({path:"artifacts/mobile-gameplay.png",captureBeyondViewport:false});
   console.log(`Flight-first mobile regression passed. ${JSON.stringify({upMove,rightMove,look,movingBeforeFire,movingWhileFiring,movingAfterFireLift,before,after,fpvUi,settings,droneReset,droneUi,armResult,missile})}`);

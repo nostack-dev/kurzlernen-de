@@ -27,7 +27,18 @@ function nearestPhysicalHit(origin,direction,maxDistance){const rb=globalThis.__
 function makeMissile(scene,position,direction){const group=new THREE.Group(),body=new THREE.Mesh(missileBodyGeometry,missileBodyMaterial),tip=new THREE.Mesh(missileTipGeometry,missileTipMaterial);body.rotation.x=Math.PI/2;tip.rotation.x=Math.PI/2;tip.position.z=-.17;for(const node of[body,tip]){node.userData.flightFireIgnore=true;node.userData.directFireMissile=true;}group.userData.flightFireIgnore=true;group.userData.directFireMissile=true;group.add(body,tip);group.position.copy(position);group.quaternion.setFromUnitVectors(axis,direction);scene.add(group);return group;}
 function explode(index,position){const missile=missiles[index];if(!missile)return;missile.scene.remove(missile.group);missiles.splice(index,1);window.dispatchEvent(new CustomEvent("arondight:world-explosion",{detail:{position:[position.x,position.y,position.z],radiusM:BLAST_RADIUS_M,maxDamage:BLAST_MAX_DAMAGE,kind:"missile",source:"fixed-screen-ray",targeted:false}}));const view=viewport();if(view){view.dataset.droneMissileLastDetonation="fixed-screen-ray";view.dataset.droneActiveMissiles=String(missiles.length);}}
 function fireMissile({clientX,clientY,source="external"}={}){const now=performance.now(),view=viewport();if(!isDrone()||globalThis.__arondightDroneDamageModel?.destroyed||now-lastShot<COOLDOWN_MS||view?.dataset.fireArmed!=="1")return false;const ray=screenRay(clientX,clientY),scene=bridge()?.threeScene;if(!ray||!scene)return false;lastShot=now;candidates(scene,true);const hit=nearestHit(ray.origin,ray.direction,MAX_RANGE_M),targetDistance=clamp(Number(hit?.distance)||MAX_RANGE_M,.8,MAX_RANGE_M),start=ray.origin.clone().addScaledVector(ray.direction,.30),group=makeMissile(scene,start,ray.direction);missiles.push({group,scene,direction:ray.direction.clone(),born:now,travelled:0,targetDistance,source});if(view){view.dataset.droneWeapon="missile";view.dataset.droneMissiles=String((Number(view.dataset.droneMissiles)||0)+1);view.dataset.droneMissileGuidance="fixed-screen-ray-no-homing-v1";view.dataset.droneMissileInput=String(source);view.dataset.droneMissileDirection=`${ray.direction.x.toFixed(4)},${ray.direction.y.toFixed(4)},${ray.direction.z.toFixed(4)}`;view.dataset.droneActiveMissiles=String(missiles.length);}return true;}
-function patchApi(){const api=globalThis.__arondightDroneWeapons;if(!api||api===patchedApi)return Boolean(api);api.fireMissile=fireMissile;patchedApi=api;const view=viewport();if(view)view.dataset.droneMissileContract="tap-ray-fixed-after-launch-v1";return true;}
+function patchApi(){
+  const api=globalThis.__arondightDroneWeapons;if(!api)return false;
+  if(api!==patchedApi){
+    // The physical straight-line rocket is a stable capability, not the selected weapon.
+    // Never overwrite the extended GUN / ROCKETS / GUIDED selector's fireMissile router.
+    api.fireMissileDirect=fireMissile;
+    if(!api.__arondightExtendedMissileRouter)api.fireMissile=fireMissile;
+    patchedApi=api;
+  }
+  const view=viewport();if(view)view.dataset.droneMissileContract="tap-ray-fixed-after-launch-v1";
+  return true;
+}
 function frame(now=performance.now()){const dt=clamp((now-lastFrame)/1000,0,.05);lastFrame=now;for(let i=missiles.length-1;i>=0;i--){const m=missiles[i],step=SPEED_MPS*dt;if(now-m.born>TTL_MS||m.travelled>=m.targetDistance-.06){explode(i,m.group.position.clone());continue;}const remaining=Math.max(0,m.targetDistance-m.travelled),travel=Math.min(step,remaining),hit=nearestPhysicalHit(m.group.position,m.direction,travel+.10);if(hit&&Number(hit.distance)<=travel+.06){explode(i,hit.point?.clone?.()||m.group.position.clone());continue;}m.group.position.addScaledVector(m.direction,travel);m.travelled+=travel;m.group.quaternion.setFromUnitVectors(axis,m.direction);}requestAnimationFrame(frame);}
 
 function maintainApi(){patchApi();clearTimeout(apiTimer);apiTimer=setTimeout(maintainApi,250);}
