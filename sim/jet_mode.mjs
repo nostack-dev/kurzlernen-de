@@ -432,8 +432,8 @@ body.jet-passenger :is(#footHud,#soloLeft,#soloRight,#vehicleHud,#footMove,#foot
 html body.mobile-gameplay-compact.solo-flight:not(.desktop-input) #viewport #enterJetButton{
 left:auto!important;right:max(12px,var(--solo-safe-right,env(safe-area-inset-right)))!important;transform:none!important;
 bottom:calc(max(18px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + min(25vw,150px) + 64px)!important;
-min-width:0!important;width:clamp(126px,22vw,154px)!important;height:40px!important;
-padding:0 8px!important;border-radius:14px!important;font:900 11px/1 system-ui,-apple-system,sans-serif!important;
+min-width:54px!important;width:54px!important;height:54px!important;
+padding:0!important;border-radius:50%!important;font:900 24px/1 system-ui,-apple-system,sans-serif!important;
 }
 @media(max-height:340px){html body.mobile-gameplay-compact.solo-flight:not(.desktop-input) #viewport #enterJetButton{
 bottom:calc(max(18px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + min(25vw,150px) + 35px)!important
@@ -442,7 +442,8 @@ html body.jet-mode #viewport #footHud #footFire{display:block!important;pointer-
     for(const btn of h.querySelectorAll(".jet-btns button")){const a=btn.dataset.a;btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(a==="bomb")dropBomb();else if(a==="rocket")fireRocket();else if(a==="mode")toggleMode();else if(a==="cam"){camMode=camMode==="chase"?"cockpit":"chase";camInit=false;}else if(a==="exit")exit();});}}
   if(!document.getElementById("enterJetButton")){const b=document.createElement("button");b.id="enterJetButton";b.type="button";b.hidden=true;b.textContent="✈ JET EINSTEIGEN";b.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(passenger)leavePassenger();else enter();});view.appendChild(b);}
 }
-function renderButtons(){const b=document.getElementById("enterJetButton");if(b){const show=Boolean(passenger)||(!active&&!seatPending&&Boolean(nearestParked()||nearestRemoteBoardable())&&!globalThis.__arondightVehicleDrive?.active);if(b.hidden===show)b.hidden=!show;const cls=document.body.classList,t=passenger?"✈ JET VERLASSEN":cls.contains("pad-input")?"Ⓧ  ✈ JET EINSTEIGEN":cls.contains("desktop-input")?"F · ✈ JET EINSTEIGEN":"✈ JET EINSTEIGEN";if(b.textContent!==t)b.textContent=t;}
+function renderButtons(){const b=document.getElementById("enterJetButton");if(b){const show=Boolean(passenger)||(!active&&!seatPending&&Boolean(nearestParked()||nearestRemoteBoardable())&&!globalThis.__arondightVehicleDrive?.active);if(b.hidden===show)b.hidden=!show;const cls=document.body.classList,touch=cls.contains("mobile-gameplay-compact")&&!cls.contains("desktop-input"),t=touch?(passenger?"↗":"✈"):passenger?"✈ JET VERLASSEN":cls.contains("pad-input")?"Ⓧ  ✈ JET EINSTEIGEN":cls.contains("desktop-input")?"F · ✈ JET EINSTEIGEN":"✈ JET EINSTEIGEN";
+    if(b.textContent!==t)b.textContent=t;b.setAttribute("aria-label",passenger?"Jet verlassen":"In Jet einsteigen");b.title=passenger?"Jet verlassen":"Jet einsteigen";}
   const mb=document.querySelector('#jetHud [data-a=mode]');if(mb&&jet){const t=jet.af.mode==='flight'?'⇄ SCHWEBEN':'⇄ FLUG';if(mb.textContent!==t)mb.textContent=t;mb.dataset.flight=jet.af.mode==='flight'?'1':'0';}
   const e=document.querySelector('#jetHud [data-a=exit]');if(e){const landed=jet&&(jet.af.landed||(jet.af.contacts>=2&&jet.v.length()<4));const t=!jet||landed?"AUSSTEIGEN":"EJECT";if(e.textContent!==t)e.textContent=t;const hide=Boolean(para);if(e.hidden!==hide)e.hidden=hide;}}
 // ------------------------------------------------------------ HUD: town below / ahead and a line to its centre

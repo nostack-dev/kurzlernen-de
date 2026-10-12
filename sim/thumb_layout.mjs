@@ -46,9 +46,24 @@ function sync(){
   // JUMP: in the same low row, just left of the weapon switch
   const jumpEl=$("footJump"),jr=visibleRect(jumpEl);if(jumpEl&&jr){const wl=parseFloat(b.style.left),wt=parseFloat(b.style.top);
     jumpEl.style.setProperty("transform","none","important");jumpEl.style.setProperty("right","auto","important");jumpEl.style.setProperty("bottom","auto","important");place(jumpEl,wl-12-jr.width,wt+30-jr.height/2);}
-  // get in (car / jet): above JUMP at the right edge
-  const jump=visibleRect($("footJump"));for(const id of["enterCarButton","enterJetButton"]){const el=$(id),r=visibleRect(el);if(!el||!r)continue;const right=jump?jump.left+r.width:stick.left-10,top=(jump?jump.top:stick.top)-r.height-10; // above the JUMP / weapon row, clear of the stick
-    el.style.setProperty("transform","none","important");el.style.setProperty("right","auto","important");el.style.setProperty("bottom","auto","important");place(el,right-r.width,top);}
+  // Contextual boarding sits directly above the RIGHT stick, against the edge:
+  // never beside JUMP, where a wide ENTER banner blocks the aiming area.
+  const v=$("viewport"),safe=12;
+  for(const id of["enterCarButton","enterJetButton"]){
+    const el=$(id),r=visibleRect(el);if(!el||!r)continue;
+    const slot=id==="enterJetButton"?1:0;
+    // Both vehicles can be within reach at once: reserve two adjacent round
+    // touch slots, rather than stacking one ENTER button over the other.
+    const x=Math.max(safe,Math.min(v.clientWidth-safe-r.width,stick.right-safe-r.width-slot*(r.width+8)));
+    const y=stick.top-r.height-10;
+    // On exceptionally short screens with no safe gap, never cover a stick or top controls.
+    if(y<54){el.style.setProperty("visibility","hidden","important");continue;}
+    el.style.removeProperty("visibility");
+    el.style.setProperty("transform","none","important");
+    el.style.setProperty("right","auto","important");
+    el.style.setProperty("bottom","auto","important");
+    place(el,x,y);
+  }
 }
 const live=new Map();
 function liveDown(e){if(e.pointerType==="mouse")return;const el=e.target instanceof Element?e.target.closest("#footMove,#footLook,#soloLeft,#soloRight"):null;if(!el)return;live.set(e.pointerId,el);el.classList.add("stick-live");}

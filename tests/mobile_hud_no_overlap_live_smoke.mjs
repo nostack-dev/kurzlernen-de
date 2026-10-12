@@ -21,9 +21,21 @@ try {
     const r=e.getBoundingClientRect();rects[id]={left:r.left,right:r.right,top:r.top,bottom:r.bottom};}
    return{width:innerWidth,height:innerHeight,rects};
   });
-  const pairs=[['mobileGameplayDock','mobileGameplayReset'],['mobileGameplayDock','mobileGameplayMultiplayer'],['mobileGameplayMode','footMove'],['mobileGameplayMode','footLook'],['footMove','footLook'],['footMove','footFire'],['footLook','footFire'],['footJump','footLook'],['footJump','footFire'],['proximityVoiceBar','footMove'],['proximityVoiceBar','footLook'],['enterCarButton','footMove'],['enterJetButton','footLook']];
+  const pairs=[['mobileGameplayDock','mobileGameplayReset'],['mobileGameplayDock','mobileGameplayMultiplayer'],['mobileGameplayMode','footMove'],['mobileGameplayMode','footLook'],['footMove','footLook'],['footMove','footFire'],['footLook','footFire'],['footJump','footLook'],['footJump','footFire'],['proximityVoiceBar','footMove'],['proximityVoiceBar','footLook'],['enterCarButton','footMove'],['enterJetButton','footLook'],['enterCarButton','enterJetButton']];
   const clashes=[];
   for(const [a,b] of pairs){const r=data.rects[a],s=data.rects[b];if(r&&s&&Math.min(r.right,s.right)-Math.max(r.left,s.left)>3&&Math.min(r.bottom,s.bottom)-Math.max(r.top,s.top)>3)clashes.push(a+' / '+b);}
+  // Actual screen geometry on landscape devices: primary touch actions must remain
+  // at the outside edges. In particular, the boarding prompt must not float by JUMP.
+  if(width>height){
+    const side=data.rects.footLook,rightMost=Math.max(data.rects.enterCarButton?.right||0,data.rects.enterJetButton?.right||0);
+    for(const id of ['enterCarButton','enterJetButton']){
+      const r=data.rects[id];if(!r)continue;
+      if(r.left<width*.72)clashes.push(id+' / aiming real estate (too central)');
+      if(side&&r.bottom>side.top-6)clashes.push(id+' / right stick reach');
+      if(r.right>width-4)clashes.push(id+' / right safe margin');
+    }
+    if(rightMost&&rightMost<width*.82)clashes.push('boarding button too far from right thumb');
+  }
   await page.screenshot({path:`artifacts/mobile-hud-${name}.png`});
   console.log(name,JSON.stringify({geometry:data,overlaps:clashes}));
   if(clashes.length)throw Error('Mobile HUD obstruction: '+clashes.join('; '));
