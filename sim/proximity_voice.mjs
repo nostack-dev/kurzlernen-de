@@ -2,7 +2,7 @@
 import {VS_FX_EVENT,VS_PEER_EVENT} from './lan_vs.mjs';
 import {VOICE_RATE,VOICE_RADIUS_M,proximityGain,encodeMuLaw,decodeMuLaw,validVoicePacket} from './voice_codec.mjs';
 import {voiceHudPosition} from './voice_hud_layout.mjs';
-export const PROXIMITY_VOICE_VERSION='ptt-all-game-modes-v4';
+export const PROXIMITY_VOICE_VERSION='ptt-all-game-modes-v5-edge-scanning';
 let stream=null,ctx=null,source=null,processor=null,silent=null,talking=false,muted=false,seq=0,buffer=[],installed=false,inputGeneration=0;
 const lastSeq=new Map(),playheads=new Map();
 const multiplayer=()=>globalThis.__arondightVsMultiplayer;
@@ -97,6 +97,14 @@ body.solo-flight:not(.desktop-input) #viewport #proximityVoiceBar button{width:3
     const h=view.clientHeight,w=view.clientWidth,small=h<=360,size=small?34:38,blocked=[];
     for(const id of ['footMove','footLook','soloLeft','soloRight','footJump','thumbWeapon','mobileGameplayMode','enterCarButton','enterJetButton','mobileGameplayDock','mobileGameplayReset','mobileGameplayMultiplayer','mobileGameplayMultiplayerStatus','soloArm','soloKill','soloClearance','airStrikeButton','handGrenadeBtn','soloExit','gameExitButton','wantedEmpButton','playerVitalsHud','gameplayScorePill','jetpackFuel']){
       const r=viewportRect(document.getElementById(id));if(r)blocked.push(r);
+    }
+    // Score/FLOW are text, but still occupy pixels and should never be
+    // covered by voice controls in compact landscape.
+    for(const selector of ['#sandboxHud .sb-score','#sandboxHud .sb-flow']){
+      const el=document.querySelector(selector);
+      if(el&&getComputedStyle(el).display!=='none'){
+        const r=viewportRect(el);if(r)blocked.push(r);
+      }
     }
     const pos=voiceHudPosition({width:w,height:h,move:viewportRect(document.getElementById('footMove'))||viewportRect(document.getElementById('soloLeft')),look:viewportRect(document.getElementById('footLook'))||viewportRect(document.getElementById('soloRight')),blocked,size});
     bar.hidden=!pos;
