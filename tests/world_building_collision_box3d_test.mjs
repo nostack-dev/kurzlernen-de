@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
 import {resolve} from "node:path";
-import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,findClearBuildingLaunchPoint,resolveBox3dCameraPath} from "../sim/world_building_collision_physics.mjs";
+import {createWorldBuildingCollisionBodies,destroyWorldBuildingCollisionBodies,findClearBuildingLaunchPoint,resolveBox3dCameraPath,updateWorldBuildingCollisionBodies,normalizeBuildingCollisionSnapshot} from "../sim/world_building_collision_physics.mjs";
 import {PLAYER_CAPSULE_RADIUS_M,ensurePlayerQueryAcceptedByTerrain,resolvePlayerCapsuleMove} from "../sim/player_capsule_collision.mjs";
 
 const modulePath=process.argv[2];
@@ -73,6 +73,52 @@ const blocked=makeProbe({position:[1.5,0,1]}),blockedPosition=advance(blocked);a
 
 destroyWorldBuildingCollisionBodies(b3,buildings);assert.equal(b3.b3Body_IsValid(buildings.body),false);
 const clear=makeProbe({position:[1.5,0,1]}),clearPosition=advance(clear);assert.ok(clearPosition[0]>3.5,`destroyed house collider still blocks: ${clearPosition}`);b3.b3DestroyBody(clear);
+// Erin Catto's streamed-world lifecycle: a removed building destroys its
+// body AND its attached shape; a respawn creates a new valid body and hull.
+const filterBuildings=b3.b3DefaultQueryFilter();
+filterBuildings.categoryBits=8n;filterBuildings.maskBits=1n;
+const box=(key,top,points=[[6,-2],[7,-2],[7,-1],[6,-1]])=>({buildingKey:key,base:0,top,points});
+const makeSnapshot=(hash,prisms)=>({hash,footprintCount:prisms.length,prisms});
+const options={categoryBits:1n,maskBits:14n,rangefinderCategoryBits:4n};
+const roofHit=()=>b3.b3World_CastRayClosest(world,[6.5,-1.5,5],[0,0,-7],filterBuildings);
+const born=updateWorldBuildingCollisionBodies(b3,world,null,makeSnapshot("born",[box("test:piece",2)]),options);
+assert.equal(born.shapeCount,1);assert.equal(born.built,1);
+const oldBody=[...born.entries.values()][0].body;
+assert.ok(b3.b3Body_IsValid(oldBody));
+assert.ok(Math.abs(roofHit().fraction-3/7)<.015,"fresh Box3D roof collider is missing");
+const leveled=updateWorldBuildingCollisionBodies(b3,world,born,makeSnapshot("demolished",[]),options);
+assert.equal(leveled.shapeCount,0);
+assert.equal(leveled.entries.size,0);
+assert.equal(b3.b3Body_IsValid(oldBody),false,"demolished building's Box3D body survived");
+assert.ok(Math.abs(roofHit().fraction-5/7)<.015,"demolished collider remains after body destruction");
+const respawn=updateWorldBuildingCollisionBodies(b3,world,leveled,makeSnapshot("respawn",[box("test:new-piece",2)]),options);
+assert.equal(respawn.built,1);
+const respawnBody=[...respawn.entries.values()][0].body;
+assert.ok(b3.b3Body_IsValid(respawnBody));
+assert.ok(Math.abs(roofHit().fraction-3/7)<.015,"respawned building failed to restore its collision hull");
+const partlyDamaged=updateWorldBuildingCollisionBodies(b3,world,respawn,makeSnapshot("partial",[box("test:new-piece",1)]),options);
+assert.equal(partlyDamaged.built,1);
+assert.equal(b3.b3Body_IsValid(respawnBody),false,"original roof hull survived a geometry replacement");
+assert.ok(Math.abs(roofHit().fraction-4/7)<.015,"partial destruction did not rebuild the shortened roof");
+// Subcentimeter shape changes must not hit the old rounded-key cache.
+const beforeFine=[...partlyDamaged.entries.values()][0].body;
+const fine=updateWorldBuildingCollisionBodies(b3,world,partlyDamaged,makeSnapshot("fine",[box("test:new-piece",1.004)]),options);
+assert.equal(fine.built,1);
+assert.equal(b3.b3Body_IsValid(beforeFine),false);
+const afterFine=[...fine.entries.values()][0].body;
+assert.ok(b3.b3Body_IsValid(afterFine));
+// World positions are on the body; Hull vertices must be body-local.
+const distant=updateWorldBuildingCollisionBodies(b3,world,fine,makeSnapshot("shift",[box("shift:piece",3,[[4200,3300],[4201,3300],[4201,3301],[4200,3301]])]),options);
+assert.equal(b3.b3Body_IsValid(afterFine),false);
+const distantBody=[...distant.entries.values()][0].body;
+const bodyPosition=[0,0,0];b3.b3Body_GetPosition(bodyPosition,distantBody);
+assert.ok(Math.abs(bodyPosition[0]-4200)<.01&&Math.abs(bodyPosition[1]-3300)<.01,
+  `streamed building body must be placed at its geometry: ${bodyPosition}`);
+destroyWorldBuildingCollisionBodies(b3,distant);
+assert.equal(b3.b3Body_IsValid(distantBody),false);
+assert.equal(normalizeBuildingCollisionSnapshot({prisms:Array.from({length:600},(_,i)=>box(`large:${i}`,2,[[i,0],[i+.4,0],[i+.4,.4],[i,.4]]))}).prismCount,600,
+  "the physics snapshot must not silently cap 900 source prisms at 512");
+
 b3.b3DestroyWorld(world);
 
 console.log("WORLD Box3D building collision passed: safe outdoor launch, swept camera volume, terrain-only player capsule mover, unrelated wall contact and collider teardown.");
