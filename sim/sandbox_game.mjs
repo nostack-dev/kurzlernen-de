@@ -68,6 +68,10 @@ function ensureHud(){
    Score/FLOW at y=90..138 then occupy the exact same x/y as STRIKE + GRENADE.
    Keep gameplay actions, movement and unobstructed view; score still accumulates
    and is visible again immediately in a larger viewport (or after rotation). */
+/* Multiplayer already supplies its own P1/P2 score and HP in this same
+   corner; layering solo SCORE/FLOW on top produced unreadable double HUD. */
+body.solo-flight.vs-multiplayer #sandboxHud .sb-score,
+body.solo-flight.vs-multiplayer #sandboxHud .sb-flow{display:none!important}
 @media(max-height:340px) and (pointer:coarse){
   body.solo-flight #sandboxHud .sb-score,
   body.solo-flight #sandboxHud .sb-flow{display:none!important}
