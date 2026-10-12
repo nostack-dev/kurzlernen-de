@@ -16,7 +16,7 @@ try {
   await page.waitForFunction(()=>document.querySelector('#viewport')?.dataset.playerMode==='foot',{timeout:7000});
   await page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,600)));
   const data=await page.evaluate(()=>{
-   const ids=['mobileGameplayDock','mobileGameplayReset','mobileGameplayMultiplayer','mobileGameplayMultiplayerStatus','mobileGameplayMode','footMove','footLook','footFire','footJump','thumbWeapon','airStrikeButton','handGrenadeBtn','soloArm','soloKill','proximityVoiceBar','enterCarButton','enterJetButton'],rects={};
+   const ids=['mobileGameplayDock','mobileGameplayReset','mobileGameplayMultiplayer','mobileGameplayMultiplayerStatus','mobileGameplayMode','footMove','footLook','footFire','footJump','thumbWeapon','airStrikeButton','handGrenadeBtn','soloArm','soloKill','proximityVoiceBar','proximityVoicePtt','proximityVoiceMute','enterCarButton','enterJetButton'],rects={};
    for(const id of ids){const e=document.getElementById(id),style=e&&getComputedStyle(e);if(!e||e.hidden||style.display==='none'||style.visibility==='hidden'||!e.getBoundingClientRect().width)continue;
     const r=e.getBoundingClientRect();rects[id]={left:r.left,right:r.right,top:r.top,bottom:r.bottom};}
    // Scores are not buttons; the old test ignored their collision with STRIKE
@@ -28,8 +28,9 @@ try {
    }
    return{width:innerWidth,height:innerHeight,rects};
   });
-  const pairs=[['mobileGameplayDock','mobileGameplayReset'],['mobileGameplayDock','mobileGameplayMultiplayer'],['mobileGameplayMode','footMove'],['mobileGameplayMode','footLook'],['footMove','footLook'],['footMove','footFire'],['footLook','footFire'],['footJump','footLook'],['footJump','footFire'],['proximityVoiceBar','footMove'],['proximityVoiceBar','footLook'],['enterCarButton','footMove'],['enterJetButton','footLook'],['enterCarButton','enterJetButton'],['airStrikeButton','sandboxScore'],['airStrikeButton','sandboxFlow'],['handGrenadeBtn','sandboxScore'],['handGrenadeBtn','sandboxFlow'],['airStrikeButton','handGrenadeBtn'],['thumbWeapon','footLook'],['thumbWeapon','footJump'],['mobileGameplayMultiplayerStatus','sandboxScore'],['mobileGameplayMultiplayerStatus','sandboxFlow']];
+  const pairs=[['mobileGameplayDock','mobileGameplayReset'],['mobileGameplayDock','mobileGameplayMultiplayer'],['mobileGameplayMode','footMove'],['mobileGameplayMode','footLook'],['footMove','footLook'],['footMove','footFire'],['footLook','footFire'],['footJump','footLook'],['footJump','footFire'],['proximityVoiceBar','footMove'],['proximityVoiceBar','footLook'],['enterCarButton','footMove'],['enterJetButton','footLook'],['enterCarButton','enterJetButton'],['proximityVoiceBar','handGrenadeBtn'],['proximityVoiceBar','airStrikeButton'],['proximityVoiceBar','mobileGameplayMultiplayer'],['proximityVoiceBar','mobileGameplayReset'],['airStrikeButton','sandboxScore'],['airStrikeButton','sandboxFlow'],['handGrenadeBtn','sandboxScore'],['handGrenadeBtn','sandboxFlow'],['airStrikeButton','handGrenadeBtn'],['thumbWeapon','footLook'],['thumbWeapon','footJump'],['mobileGameplayMultiplayerStatus','sandboxScore'],['mobileGameplayMultiplayerStatus','sandboxFlow']];
   const clashes=[];
+  for(const id of ['proximityVoiceBar','proximityVoicePtt','proximityVoiceMute'])if(!data.rects[id])clashes.push(id+' hidden during solo gameplay');
   for(const [a,b] of pairs){const r=data.rects[a],s=data.rects[b];if(r&&s&&Math.min(r.right,s.right)-Math.max(r.left,s.left)>3&&Math.min(r.bottom,s.bottom)-Math.max(r.top,s.top)>3)clashes.push(a+' / '+b);}
   // Actual screen geometry on landscape devices: primary touch actions must remain
   // at the outside edges. In particular, the boarding prompt must not float by JUMP.
@@ -46,7 +47,7 @@ try {
   // The aiming area must remain free of permanent action buttons.
   // We intentionally do not count transient hit markers or scene reticles.
   const aim={left:width*.38,right:width*.62,top:height*.27,bottom:height*.72};
-  for(const id of ['mobileGameplayDock','mobileGameplayReset','mobileGameplayMultiplayer','mobileGameplayMode','airStrikeButton','handGrenadeBtn','footJump','thumbWeapon','soloArm','soloKill','enterCarButton','enterJetButton']){
+  for(const id of ['mobileGameplayDock','mobileGameplayReset','mobileGameplayMultiplayer','mobileGameplayMode','proximityVoiceBar','airStrikeButton','handGrenadeBtn','footJump','thumbWeapon','soloArm','soloKill','enterCarButton','enterJetButton']){
     const r=data.rects[id];if(!r)continue;
     if(Math.min(r.right,aim.right)-Math.max(r.left,aim.left)>6&&Math.min(r.bottom,aim.bottom)-Math.max(r.top,aim.top)>6)
       clashes.push(id+' / game aiming region');
@@ -74,12 +75,13 @@ try {
    await page.screenshot({path:`artifacts/mobile-hud-${name}.png`});
    const rects=await page.evaluate(()=>{
      const out={};
-     for(const id of ['soloArm','soloKill','soloClearance','mobileGameplayMode','airStrikeButton','mobileGameplayReset']){
+     for(const id of ['soloArm','soloKill','soloClearance','mobileGameplayMode','airStrikeButton','mobileGameplayReset','proximityVoiceBar','proximityVoicePtt','proximityVoiceMute']){
        const el=document.getElementById(id),s=el&&getComputedStyle(el);if(!el||s.display==='none'||s.visibility==='hidden')continue;
        const r=el.getBoundingClientRect();if(r.width&&r.height)out[id]={left:r.left,right:r.right,top:r.top,bottom:r.bottom};
      }
      return out;
    });
+   if(!rects.proximityVoiceBar||!rects.proximityVoicePtt||!rects.proximityVoiceMute)throw Error(`Drone ${name}: voice controls hidden in solo mode`);
    const aim={left:width*.38,right:width*.62,top:height*.27,bottom:height*.72};
    for(const [id,r] of Object.entries(rects)){
      if(Math.min(r.right,aim.right)-Math.max(r.left,aim.left)>6&&Math.min(r.bottom,aim.bottom)-Math.max(r.top,aim.top)>6)
