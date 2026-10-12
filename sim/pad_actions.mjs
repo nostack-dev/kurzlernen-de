@@ -18,7 +18,7 @@
 //
 // The pad also switches the game to pad play on first use (the XBOX CONTROLLER setting, which
 // hides the touch sticks), and blocks gameplay input while a menu is open.
-export const PAD_ACTIONS_VERSION="unified-pad-actions-v1";
+export const PAD_ACTIONS_VERSION="unified-pad-actions-jet-priority-v2";
 const BTN={A:0,B:1,X:2,Y:3,LB:4,RB:5,LT:6,RT:7,VIEW:8,MENU:9,L3:10,R3:11,UP:12,DOWN:13,LEFT:14,RIGHT:15};
 let installed=false,prev=[],autoEnabled=false,viewDownAt=0;
 const walk=()=>globalThis.__arondightWalkMode||null;
@@ -76,7 +76,17 @@ function frame(){
 function onKey(e){
   if(e.__synthetic||e.metaKey||e.ctrlKey||e.altKey||e.repeat)return;const t=e.target;if(t instanceof Element&&t.closest("input,textarea,select,[contenteditable]"))return;
   // F = E (interact), as in most shooters
-  if(e.code==="KeyF"&&!document.querySelector("#zombieRepair:not([hidden])")){e.preventDefault();sendKey("KeyE");return;}
+  if(e.code==="KeyF"){
+    if(menuOpen()||startScreen()||dead())return;
+    // The repair button exists even when CSS hides it; only actionable repair owns F.
+    const repair=document.getElementById("zombieRepair");
+    if(walk()?.mode==="foot"&&repair?.dataset?.show==="1"&&!repair.disabled&&!repair.closest("[hidden]"))return;
+    e.preventDefault();
+    // A nearby car may capture E before the jet handler. F boards a jet first.
+    const jet=globalThis.__jetMode;
+    if(!globalThis.__arondightVehicleDrive?.active&&walk()?.mode==="foot"&&!jet?.active&&jet?.enter?.())return;
+    sendKey("KeyE");return;
+  }
   // P = multiplayer on / off (find a mate), also in the menu right under RESUME
   if(e.code==="KeyP"){if(menuOpen()||startScreen())return;e.preventDefault();document.getElementById("mobileGameplayMultiplayer")?.click();return;}
   // G = EMP (the police-drone pulse), like a tactical in shooters

@@ -63,7 +63,7 @@ body.solo-flight:not(.desktop-input) #viewport #proximityVoiceBar button{width:3
     if(!document.body.classList.contains('solo-flight')||!multiplayer()?.connected){bar.hidden=true;return;}
     if(document.body.classList.contains('desktop-input')){bar.hidden=false;bar.style.removeProperty('left');bar.style.removeProperty('top');return;}
     const h=view.clientHeight,w=view.clientWidth,small=h<=360,size=small?34:38,blocked=[];
-    for(const id of ['footMove','footLook','soloLeft','soloRight','footJump','thumbWeapon','mobileGameplayMode','mobileGameplayDock','mobileGameplayReset','mobileGameplayMultiplayer','mobileGameplayMultiplayerStatus','soloArm','soloKill','soloClearance','airStrikeButton','wantedEmpButton','playerVitalsHud','gameplayScorePill','jetpackFuel']){
+    for(const id of ['footMove','footLook','soloLeft','soloRight','footJump','thumbWeapon','mobileGameplayMode','enterCarButton','enterJetButton','mobileGameplayDock','mobileGameplayReset','mobileGameplayMultiplayer','mobileGameplayMultiplayerStatus','soloArm','soloKill','soloClearance','airStrikeButton','wantedEmpButton','playerVitalsHud','gameplayScorePill','jetpackFuel']){
       const r=viewportRect(document.getElementById(id));if(r)blocked.push(r);
     }
     const pos=voiceHudPosition({width:w,height:h,move:viewportRect(document.getElementById('footMove'))||viewportRect(document.getElementById('soloLeft')),look:viewportRect(document.getElementById('footLook'))||viewportRect(document.getElementById('soloRight')),blocked,size});
