@@ -52,13 +52,21 @@ function titleNav(edge){const log=document.getElementById("changelogPanel");
   if(edge(BTN.A)){if(cur>=0)items[cur].click();else if(!inPanel)document.getElementById("gameMenuStart")?.click();return;}
   if(edge(BTN.MENU)&&!inPanel)document.getElementById("gameMenuStart")?.click();}
 function frame(){
-  requestAnimationFrame(frame);const p=padNow();document.body.classList.toggle("pad-connected",Boolean(p));if(!p){globalThis.__arondightVoiceControls?.setPadTalk?.(false);voicePadState={y:false,latched:false};prev.length=0;return;}
+  requestAnimationFrame(frame);const p=padNow();document.body.classList.toggle("pad-connected",Boolean(p));if(!p){globalThis.__arondightVoiceControls?.setPadTalk?.(false);voicePadState={y:false,latched:false};const v=document.getElementById("viewport");if(v){v.dataset.voicePadR3="0";v.dataset.voicePadY="0";v.dataset.voicePadChord="0";}prev.length=0;return;}
   const now=[];for(let i=0;i<17;i++)now[i]=pressed(p,i);const edge=i=>now[i]&&!prev[i];
   if(now.some(Boolean)){enablePadPlay();if(!document.body.classList.contains("pad-input"))document.body.classList.add("pad-input");}
   const voiceAllowed=document.body.classList.contains("solo-flight")&&!menuOpen()&&!startScreen()&&!dead()&&!globalThis.__arondightWorldMap?.isOpen;
   voicePadState=nextVoicePadInput(voicePadState,{r3:now[VOICE_PAD_PTT],y:now[VOICE_PAD_MUTE],allowed:voiceAllowed});
   if(voicePadState.mute)globalThis.__arondightVoiceControls?.toggleMute?.();
   globalThis.__arondightVoiceControls?.setPadTalk?.(voicePadState.talk);
+  // State exposed for diagnostics and deterministic input tests. A *released*
+  // frame must be observed before the next R3+Y chord, exactly as on hardware.
+  const voiceView=document.getElementById("viewport");
+  if(voiceView){
+    voiceView.dataset.voicePadR3=now[VOICE_PAD_PTT]?"1":"0";
+    voiceView.dataset.voicePadY=now[VOICE_PAD_MUTE]?"1":"0";
+    voiceView.dataset.voicePadChord=voicePadState.latched?"1":"0";
+  }
   try{
     {const v=voteDialog();if(v){if(edge(BTN.A)){(document.activeElement&&v.contains(document.activeElement)?document.activeElement:v.querySelector("[data-yes]"))?.click();}else if(edge(BTN.B))v.querySelector("[data-no]")?.click();else if(edge(BTN.LEFT)||edge(BTN.RIGHT)){const b=[...v.querySelectorAll("button")],i=b.indexOf(document.activeElement);b[(i+1+b.length)%b.length]?.focus();}return;}}
     if(globalThis.__arondightWorldMap?.isOpen)return; // the map reads the pad itself
