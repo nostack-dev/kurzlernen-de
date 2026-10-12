@@ -63,12 +63,21 @@ try{
  assert.equal(await page.$eval("#proximityVoicePtt",e=>e.getAttribute("aria-pressed")),"false","Mute chord must end PTT");
  assert.equal(await page.evaluate(()=>String(globalThis.__arondightDroneWeapons?.mode??globalThis.__arondightFootWeapons?.mode??"")),weaponBefore,"R3+Y must NOT switch weapon");
  await set(3,false);await set(11,false);
- await page.waitForFunction(()=>document.querySelector("#proximityVoicePtt")?.getAttribute("aria-pressed")==="false");
- // A new R3+Y chord unmutes with no repeated button toggle.
- await set(11,true);await page.waitForFunction(()=>document.querySelector("#proximityVoicePtt")?.getAttribute("aria-pressed")==="false");
+ await page.waitForFunction(()=>{
+   const d=document.querySelector("#viewport")?.dataset;
+   return d?.voicePadR3==="0"&&d?.voicePadY==="0"&&d?.voicePadChord==="0";
+ },{timeout:5000});
+ assert.equal(await page.$eval("#proximityVoicePtt",e=>e.getAttribute("aria-pressed")),"false");
+ // A genuinely observed release frame resets the latch; a new chord unmutes.
+ await set(11,true);
+ await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.voicePadR3==="1",{timeout:5000});
  await set(3,true);
  await page.waitForFunction(()=>document.querySelector("#proximityVoiceMute")?.getAttribute("aria-pressed")==="false",{timeout:12000});
  await set(3,false);await set(11,false);
+ await page.waitForFunction(()=>{
+   const d=document.querySelector("#viewport")?.dataset;
+   return d?.voicePadR3==="0"&&d?.voicePadY==="0"&&d?.voicePadChord==="0";
+ },{timeout:5000});
  await mkdir("artifacts",{recursive:true});
  await page.screenshot({path:"artifacts/desktop-voice-keyboard-xbox.png"});
  console.log("Desktop voice PASSED: clickable labeled controls, H hold, K mute, R3 PTT, R3+Y toggle, no SOLO advertising",JSON.stringify(info));
