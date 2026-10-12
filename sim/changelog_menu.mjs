@@ -3,6 +3,16 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-13",title:"ARCADE JET, Voice Toggle und übersichtlicheres Gameplay",items:[
+    "VOICE: Mikrofon ist jetzt ein echter EIN/AUS-Schalter statt Push-to-Talk. Tippen bzw. H oder Xbox R3 schaltet dauerhaft ein und wieder aus; ohne Freigabe bleibt es aus. Mitspielerpositionen werden für die 70-m-Reichweite korrekt übertragen.",
+    "Die mobilen Voice-Tasten sitzen tiefer an der Daumen-Zone und meiden weiterhin Joysticks, Fahrzeugaktionen und das Sichtfeld.",
+    "Jet-Steuerung reagiert schneller, mit deutlicherem Nick- und Rollverhalten; die Box3D-Kollisionen, Aerodynamik und alle Personen bleiben erhalten.",
+    "Jet-Raketen: erst RAKETE wählen (1), dann auf Ziel tippen bzw. auslösen (2). Danach 2,4 Sekunden Nachladezeit mit Anzeige; kein versehentlicher Geschützschuss während des Abschusses.",
+    "Mobile EJECT ist weg von den Daumentasten und erfordert 650 ms bewusstes Halten. JET-EINSTEIGEN ist leicht nach unten versetzt.",
+    "Die Taste FPS / DRONE ist kürzer und steht weiter links. Die große Karte kann direkt über das ⛶-Symbol aus allen Spielmodi geöffnet werden.",
+    "Der Standard-8-Bit-Song läuft ausschließlich im Titelmenü. Im Spiel bleiben Radio und Effekte. Regelmäßige Düsenjäger sind 15 % leiser.",
+    "Dynamische Physikschritte holen bei schwankenden Mobile-FPS Rückstand auf; die Jet-HUD-Synchronisation wurde entlastet, ohne Weltumfang zu streichen.",
+  ]},
   {date:"2026-10-12",title:"Voice-Chat für Maus, Tastatur und Xbox-Controller",items:[
     "PC: Mikrofon mit H gedrückt halten, Stummschaltung mit K umschalten. Grössere Voice-Felder zeigen die Belegung direkt im HUD und sind mit der Maus bedienbar.",
     "Xbox: rechten Stick (R3) gedrückt halten zum Sprechen, R3 halten und Y drücken zum Stummschalten. Y wechselt dabei keine Waffe.",

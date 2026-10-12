@@ -3,9 +3,9 @@ import {VS_FX_EVENT,VS_PEER_EVENT} from './lan_vs.mjs';
 import {VOICE_RATE,VOICE_RADIUS_M,proximityGain,encodeMuLaw,decodeMuLaw,validVoicePacket} from './voice_codec.mjs';
 import {voiceHudPosition} from './voice_hud_layout.mjs';
 import {VOICE_KEY_PTT,VOICE_KEY_MUTE} from './voice_control_bindings.mjs';
-export const PROXIMITY_VOICE_VERSION='ptt-all-inputs-v6';
-let stream=null,ctx=null,source=null,processor=null,silent=null,talking=false,muted=false,seq=0,buffer=[],installed=false,inputGeneration=0;
-const lastSeq=new Map(),playheads=new Map(),heldInputs=new Set();
+export const PROXIMITY_VOICE_VERSION='mic-toggle-all-inputs-v7';
+let stream=null,ctx=null,source=null,processor=null,silent=null,talking=false,micOn=false,muted=false,seq=0,buffer=[],installed=false,inputGeneration=0;
+const lastSeq=new Map(),playheads=new Map();
 const multiplayer=()=>globalThis.__arondightVsMultiplayer;
 const session=()=>globalThis.__arondightRealWorld?.vsSession;
 const selfPos=()=>{const b=globalThis.__arondightRealWorld,body=document.body;
@@ -21,10 +21,12 @@ const status=message=>{const el=document.getElementById('proximityVoiceStatus');
 function unlockPlayback(){try{if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();void ctx.resume().catch(()=>{});}catch{}}
 function transmit(samples){const s=session();if(!talking||muted||!s?.sendFx)return;const bytes=new Uint8Array(samples.map(encodeMuLaw));let binary='';for(const n of bytes)binary+=String.fromCharCode(n);
   const packet={type:'voice',id:`v-${(seq++).toString(36)}`,seq,data:btoa(binary)};
-  for(const id of s.getPeerIds?.()||[])if(distance(id)<=VOICE_RADIUS_M)s.sendFx(packet,{target:id});
+  for(const id of s.getPeerIds?.()||[])if(distance(id)<=VOICE_RADIUS_M&&s.sendFx(packet,{target:id})){
+    const v=document.getElementById('viewport');if(v){v.dataset.voiceTxPackets=String((Number(v.dataset.voiceTxPackets)||0)+1);v.dataset.voiceTxTarget=id;}
+  }
 }
 function onAudio(e){if(!talking||muted)return;const input=e.inputBuffer.getChannelData(0),stride=e.inputBuffer.sampleRate/VOICE_RATE;for(let index=0;index<input.length;index+=stride){buffer.push(input[Math.floor(index)]);if(buffer.length===640){transmit(buffer);buffer=[];}}}
-async function start(){if(muted||talking)return;
+async function start(){if(muted||talking||!micOn)return;
   // In SOLO the same PTT stays usable; without a peer we capture only while
   // held and never send or advertise. MULTI solely starts public discovery.
   const generation=++inputGeneration;
@@ -35,32 +37,38 @@ async function start(){if(muted||talking)return;
       if(generation!==inputGeneration){acquired.getTracks().forEach(track=>track.stop());return;}
       stream=acquired;
     }
-    if(generation!==inputGeneration)return; // released while awaiting mic permission
+    if(generation!==inputGeneration||!micOn)return; // disabled while awaiting permission
     if(!source){source=ctx.createMediaStreamSource(stream);processor=ctx.createScriptProcessor(2048,1,1);silent=ctx.createGain();silent.gain.value=0;source.connect(processor);processor.connect(silent);silent.connect(ctx.destination);processor.onaudioprocess=onAudio;}
-    talking=true;status(multiplayer()?.connected?'SPRICHT · PTT':'PTT · kein Mitspieler verbunden');
+    talking=true;status(multiplayer()?.connected?'MIC LIVE · verbunden':'MIC LIVE · kein Mitspieler');
   }catch{if(generation===inputGeneration){talking=false;status('Mikrofon nicht freigegeben');}}}
 function stop(){++inputGeneration;talking=false;buffer=[];
   // Push-to-talk is *not* a persistent microphone session. Releasing the
   // button (or resetting) stops browser microphone tracks as well as sends.
   stream?.getTracks().forEach(track=>track.stop());stream=null;
   source?.disconnect();processor?.disconnect();silent?.disconnect();
-  source=processor=silent=null;status(muted?'STUMM':'PTT halten');
+  source=processor=silent=null;status(muted?'STUMM':micOn?'MIC AKTIVIERUNG…':'MIC AUS');
 }
-function mute(){muted=!muted;heldInputs.clear();stop();if(!muted){
+function mute(){muted=!muted;if(muted){micOn=false;stop();}if(!muted){
     // An explicit user tap also unlocks incoming playback on mobile browsers.
     unlockPlayback();
   }return muted;}
 function playing(){return document.body.classList.contains('solo-flight')&&!document.querySelector('dialog[open],#resetVoteDialog,#quitConfirmDialog,#worldMapFull[open]');}
-function setPttHeld(source,held){
-  held=Boolean(held&&playing()&&!muted);
-  const was=heldInputs.has(source);
-  if(held&&!was){heldInputs.add(source);if(heldInputs.size===1)void start();}
-  else if(!held&&was){heldInputs.delete(source);if(!heldInputs.size)stop();}
-  document.getElementById('proximityVoicePtt')?.setAttribute('aria-pressed',String(heldInputs.size>0));
+function syncMicUi(){
+  const button=document.getElementById('proximityVoicePtt');
+  if(button){button.textContent=micOn?'🎙':'🎤';button.setAttribute('aria-pressed',String(micOn));
+    button.setAttribute('aria-label',micOn?'Mikrofon ausschalten':'Mikrofon einschalten');button.title=micOn?'MIC ON · ausschalten':'MIC OFF · einschalten';}
+  document.getElementById('viewport')?.setAttribute('data-voice-mic',micOn?'on':'off');
 }
-function releasePtt(){heldInputs.clear();stop();document.getElementById('proximityVoicePtt')?.setAttribute('aria-pressed','false');}
+function toggleMic(){
+  if(!playing())return false;
+  if(micOn){micOn=false;stop();}
+  else{if(muted){mute();const m=document.getElementById('proximityVoiceMute');if(m){m.textContent='🔈';m.setAttribute('aria-pressed','false');}}
+    micOn=true;void start();}
+  syncMicUi();return micOn;
+}
+function releasePtt(){micOn=false;stop();syncMicUi();}
 function toggleMute(){
-  const value=mute();
+  const value=mute();syncMicUi();
   const button=document.getElementById('proximityVoiceMute');
   if(button){button.textContent=value?'🔇':'🔈';button.setAttribute('aria-pressed',String(value));button.setAttribute('aria-label',value?'Unmute voice chat':'Mute voice chat');}
   document.getElementById('viewport')?.setAttribute('data-voice-muted',value?'1':'0');
@@ -71,7 +79,7 @@ function receive(e){const {peerId,packet}=e.detail||{};if(!peerId||!validVoicePa
   const gain=proximityGain(distance(peerId));if(!gain)return;const previous=lastSeq.get(peerId)??-1;if(packet.seq<=previous)return;lastSeq.set(peerId,packet.seq);
   try{if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();if(ctx.state!=='running')return;
     const raw=atob(packet.data);if(raw.length>800)return;const audio=ctx.createBuffer(1,raw.length,VOICE_RATE),ch=audio.getChannelData(0);for(let i=0;i<raw.length;i++)ch[i]=decodeMuLaw(raw.charCodeAt(i));
-    const src=ctx.createBufferSource(),volume=ctx.createGain();src.buffer=audio;volume.gain.value=gain;src.connect(volume).connect(ctx.destination);
+    const src=ctx.createBufferSource(),volume=ctx.createGain();src.buffer=audio;volume.gain.value=gain;src.connect(volume).connect(ctx.destination);const v=document.getElementById('viewport');if(v){v.dataset.voiceRxPackets=String((Number(v.dataset.voiceRxPackets)||0)+1);v.dataset.voiceRxPeer=peerId;}
     const t=Math.max(ctx.currentTime+.03,Math.min(ctx.currentTime+.15,playheads.get(peerId)||0));src.start(t);playheads.set(peerId,t+audio.duration);
     const indicator=document.getElementById('proximityVoiceSpeaking');if(indicator){indicator.textContent=`🔊 P${(multiplayer()?.playerInfo?.(peerId)?.index)||'?'}`;indicator.hidden=false;setTimeout(()=>{if(indicator.textContent.startsWith('🔊'))indicator.hidden=true;},450);}
   }catch{} }
@@ -102,9 +110,9 @@ body.desktop-input.solo-flight #viewport #proximityVoiceBar button::after{
   color:#e8f6ff;font:850 11px/1 system-ui,sans-serif;letter-spacing:.035em;
   white-space:nowrap
 }
-body.desktop-input.solo-flight:not(.pad-input) #proximityVoicePtt::after{content:"H · TALK"}
+body.desktop-input.solo-flight:not(.pad-input) #proximityVoicePtt::after{content:"H · MIC ON/OFF"}
 body.desktop-input.solo-flight:not(.pad-input) #proximityVoiceMute::after{content:"K · MUTE"}
-body.desktop-input.solo-flight.pad-input #proximityVoicePtt::after{content:"R3 · TALK"}
+body.desktop-input.solo-flight.pad-input #proximityVoicePtt::after{content:"R3 · MIC ON/OFF"}
 body.desktop-input.solo-flight.pad-input #proximityVoiceMute::after{content:"R3+Y · MUTE"}
 #viewport #proximityVoiceBar button:focus-visible{outline:3px solid #ffd76a;outline-offset:2px}
 #proximityVoiceBar #proximityVoiceStatus{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
@@ -118,20 +126,18 @@ body.desktop-input.solo-flight.pad-input #proximityVoiceMute::after{content:"R3+
     if(event.target instanceof Element&&event.target.closest('#mobileGameplayMultiplayer,#lanVsButton'))unlockPlayback();
   },{capture:true});
   const bar=document.createElement('div');bar.id='proximityVoiceBar';bar.hidden=true;
-  const ptt=document.createElement('button');ptt.id='proximityVoicePtt';ptt.type='button';ptt.textContent='🎙';ptt.setAttribute('aria-label','Push to talk: hold to speak');ptt.setAttribute('title','PTT halten');ptt.setAttribute('aria-pressed','false');
-  ptt.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();ptt.setPointerCapture?.(e.pointerId);setPttHeld('pointer',true);});
-  for(const ev of ['pointerup','pointercancel','lostpointercapture'])ptt.addEventListener(ev,()=>setPttHeld('pointer',false));
+  const ptt=document.createElement('button');ptt.id='proximityVoicePtt';ptt.type='button';ptt.textContent='🎤';ptt.setAttribute('aria-label','Mikrofon einschalten');ptt.setAttribute('title','MIC OFF · einschalten');ptt.setAttribute('aria-pressed','false');
+  ptt.addEventListener('pointerdown',e=>e.stopPropagation());ptt.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();toggleMic();});
   const m=document.createElement('button');m.id='proximityVoiceMute';m.type='button';m.textContent='🔈';m.setAttribute('aria-label','Mute voice chat');m.setAttribute('title','Voice mute');m.setAttribute('aria-pressed','false');
   m.onclick=()=>toggleMute();
-  const state=document.createElement('span');state.id='proximityVoiceStatus';state.textContent='PTT halten';state.setAttribute('role','status');state.setAttribute('aria-live','polite');
+  const state=document.createElement('span');state.id='proximityVoiceStatus';state.textContent='MIC AUS';state.setAttribute('role','status');state.setAttribute('aria-live','polite');
   const indicator=document.createElement('span');indicator.id='proximityVoiceSpeaking';indicator.hidden=true;bar.append(ptt,m,state,indicator);view.append(bar);
   const viewportRect=el=>{if(!el||!el.offsetParent||getComputedStyle(el).visibility==='hidden')return null;
     let x=0,y=0,node=el;while(node&&node!==view){x+=node.offsetLeft;y+=node.offsetTop;node=node.offsetParent;}
     if(node!==view)return null;return{left:x,top:y,right:x+el.offsetWidth,bottom:y+el.offsetHeight};};
   const updateLayout=()=>{
     // SOLO and MULTI have the same voice controls; only public discovery differs.
-    if(!document.body.classList.contains('solo-flight')){if(heldInputs.size)releasePtt();bar.hidden=true;return;}
-    if(!playing()&&heldInputs.size)releasePtt();
+    if(!document.body.classList.contains('solo-flight')){if(micOn)releasePtt();bar.hidden=true;return;}
     if(document.body.classList.contains('desktop-input')){bar.hidden=false;bar.style.removeProperty('left');bar.style.removeProperty('top');return;}
     const h=view.clientHeight,w=view.clientWidth,small=h<=360,size=small?34:38,blocked=[];
     for(const id of ['footMove','footLook','soloLeft','soloRight','footJump','thumbWeapon','mobileGameplayMode','enterCarButton','enterJetButton','mobileGameplayDock','mobileGameplayReset','mobileGameplayMultiplayer','mobileGameplayMultiplayerStatus','soloArm','soloKill','soloClearance','airStrikeButton','handGrenadeBtn','soloExit','gameExitButton','wantedEmpButton','playerVitalsHud','gameplayScorePill','jetpackFuel']){
@@ -155,17 +161,18 @@ body.desktop-input.solo-flight.pad-input #proximityVoiceMute::after{content:"R3+
   // V remains the foot/drone shortcut, T the grenade and P multiplayer.
   addEventListener('keydown',e=>{
     if(e.__synthetic||e.repeat||e.ctrlKey||e.altKey||e.metaKey||!playing()||e.target?.closest?.('input,textarea,select,[contenteditable],dialog'))return;
-    if(e.code===VOICE_KEY_PTT){e.preventDefault();setPttHeld('keyboard',true);}
+    if(e.code===VOICE_KEY_PTT){e.preventDefault();toggleMic();}
     else if(e.code===VOICE_KEY_MUTE){e.preventDefault();toggleMute();}
   });
-  addEventListener('keyup',e=>{if(e.code===VOICE_KEY_PTT)setPttHeld('keyboard',false);});
   addEventListener('blur',releasePtt);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)releasePtt();});
   globalThis.__arondightVoiceControls={
-    setPadTalk:held=>setPttHeld('gamepad',held),
+    setPadTalk:held=>{if(held)toggleMic();},
+    toggleMic,
     toggleMute,
     get muted(){return muted;},
-    get talking(){return talking;}
+    get talking(){return talking;},
+    get micOn(){return micOn;}
   };
 }
 export function installProximityVoice(){if(installed||typeof window==='undefined')return;installed=true;addEventListener(VS_FX_EVENT,receive);addEventListener(VS_PEER_EVENT,e=>{if(e.detail?.type==='leave'){lastSeq.delete(e.detail.peerId);playheads.delete(e.detail.peerId);}if(!multiplayer()?.connected&&heldInputs.size)releasePtt();});addEventListener('arondight:world-reset',()=>{releasePtt();/* preserve the player's explicit mute setting */});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();}

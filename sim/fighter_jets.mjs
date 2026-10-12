@@ -72,7 +72,7 @@ function updateJetAudio(jet,now){
   // retarded time: the sound we hear now left the jet when |p(te)-L| = c (now-te)
   let te=now;for(let i=0;i<4;i++){jetPosAt(jet,te,tmp);te=now-tmp.distanceTo(L)/SOUND*1000;}
   jetPosAt(jet,te,tmp);const d=Math.max(8,tmp.distanceTo(L)),dir=tmp2.copy(L).sub(tmp).normalize(),vr=SPEED*dir.y,doppler=Math.max(.45,Math.min(2.6,SOUND/(SOUND-vr)));
-  const started=te>=jet.t0-1500,gain=started?Math.min(1.8,(85/d)**1.35)*.9:0,t=ctx.currentTime;
+  const started=te>=jet.t0-1500,gain=started?Math.min(1.8,(85/d)**1.35)*.9*.85:0,t=ctx.currentTime;
   jet.voice.g.gain.setTargetAtTime(gain,t,.05);jet.voice.src.playbackRate.setTargetAtTime(doppler*(.92+jet.pitch*.16),t,.05);jet.voice.lp.frequency.setTargetAtTime(Math.min(9000,900+60000/d),t,.06);
   jet.heardD=d;
 }

@@ -19,6 +19,7 @@ assert.match(voice,/border-radius:50%!important/,"Voice buttons must be circular
 assert.match(voice,/pointer-events:none/,"Voice container must not steal stick input");
 assert.match(voice,/pointer-events:auto/,"Voice buttons remain usable");
 assert.match(voice,/aria-pressed/,"Voice buttons expose press/mute state");
-assert.match(voice,/pointercancel/,"PTT release must survive touch cancellation");
+assert.match(voice,/toggleMic\(\)/,"Microphone toggles on a deliberate button click instead of hold/release");
+assert.match(voice,/addEventListener\(\x27click\x27/,"Touch microphone switch is a click (no accidental hold)");
 assert.match(voice,/body:not\(\.solo-flight\)/,"Voice hidden outside play");
 console.log("HUD rules menu / voice thumb-safe controls: pass");

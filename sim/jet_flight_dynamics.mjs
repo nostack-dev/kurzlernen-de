@@ -26,7 +26,7 @@
 // maximum moment, thrust has a maximum and a spool time.
 //
 // Body frame: +X right wing, +Y nose, +Z up (world: Z up, gravity -Z).
-export const JET_FLIGHT_DYNAMICS_VERSION="jet-6dof-aero-fbw-gear-v1";
+export const JET_FLIGHT_DYNAMICS_VERSION="jet-6dof-arcade-fbw-responsive-v2";
 const G=9.81;
 export const JET_SPEC=Object.freeze({
   massKg:12000,
@@ -38,16 +38,16 @@ export const JET_SPEC=Object.freeze({
     [-6,-3.2,-.2, -6,-4.2,-.2, -.4,1.6,-.2, -.4,-4,-.2, 6,-3.2,-.2, 6,-4.2,-.2, .4,1.6,-.2, .4,-4,-.2, -6,-3.2,.1, -6,-4.2,.1, -.4,1.6,.1, -.4,-4,.1, 6,-3.2,.1, 6,-4.2,.1, .4,1.6,.1, .4,-4,.1],
   ],
   wingArea:26,span:9.2,chord:3.3,
-  thrustDry:105000,thrustMax:185000,spoolUpS:.45,spoolDownS:.35,
+  thrustDry:105000,thrustMax:185000,spoolUpS:.34,spoolDownS:.3,
   CL0:.1,CLa:4.0,alphaStall:.42,CD0:.022,K:.14,CYb:-.8,gearCD:.02,brakeCD:.15,
   Cm0:0,Cma:-.4,Cmq:-12,Cmde:-.9,
   Clb:-.06,Clp:-.35,Clr:.08,Clda:.14,
   Cnb:.12,Cnr:-.25,Cnp:-.03,Cndr:.07,
-  deMax:.44,daMax:.4,drMax:.5,surfaceRate:4.0,
+  deMax:.48,daMax:.48,drMax:.5,surfaceRate:7.5,
   rcsMax:[70000,45000,150000],nozzleRate:1.0,
   gear:[{p:[0,5.2,-.6],load:.212,steer:true},{p:[1.9,-1.4,-.6],load:.394},{p:[-1.9,-1.4,-.6],load:.394}],
   strutRest:1.6,gearHeight:2.05,strutStatic:.15,strutMax:.4,strutZeta:.6,tyreMu:.8,rollMu:.02,brakeMu:.5,
-  gLimit:9,gPush:3,alphaLimit:.38,pMax:2.4,qMax:1.2,
+  gLimit:9,gPush:3,alphaLimit:.38,pMax:3.4,qMax:1.7,
   hoverSpeed:14,hoverClimb:10,hoverSink:6,hoverTilt:.35,
   wingBorneV:85,hoverLawV:50,transitionNozzle:1.05,brakingNozzle:1.71,
 });
@@ -143,7 +143,7 @@ export function airframeStep(af,body,dt,env={}){
   {// hover / jet-borne
     const h=att.heading,fh=[-Math.sin(h),Math.cos(h)],rh=[Math.cos(h),Math.sin(h)],vF=v[0]*fh[0]+v[1]*fh[1],vR=v[0]*rh[0]+v[1]*rh[1];
     const aF=clamp(1.1*(-inp.pitchIn*s.hoverSpeed-vF),-4,4),aR=clamp(1.1*(inp.rollIn*s.hoverSpeed-vR),-4,4);
-    const tilt=s.hoverTilt*clamp(.25+agl/8,0,1)*clamp((42-V)/20,.12,1),trc=af.mode==="hover",pitchCmd=trc?clamp(-Math.atan(aF/G),-tilt,tilt):.05+inp.pitchIn*.3,rollCmd=trc?clamp(Math.atan(aR/G),-tilt,tilt):inp.rollIn*.5;// transition (flight selected, still slow): attitude command, the nozzles accelerate it// no tail strikes close to the ground
+    const tilt=s.hoverTilt*clamp(.25+agl/8,0,1)*clamp((42-V)/20,.12,1),trc=af.mode==="hover",pitchCmd=trc?clamp(-Math.atan(aF/G)+inp.pitchIn*.07,-tilt,tilt):.05+inp.pitchIn*.3,rollCmd=trc?clamp(Math.atan(aR/G)+inp.rollIn*.33,-tilt,tilt):inp.rollIn*.5;// transition (flight selected, still slow): attitude command, the nozzles accelerate it// no tail strikes close to the ground
     const hq=2.6*(pitchCmd-att.pitch),hp=2.6*(rollCmd-att.roll),hr=inp.yawIn*.8;
     pC+=(1-wFlight)*hp;qC+=(1-wFlight)*hq;rC+=(1-wFlight)*hr;
   }
@@ -157,7 +157,7 @@ export function airframeStep(af,body,dt,env={}){
     pC+=wFlight*inp.rollIn*s.pMax;qC+=wFlight*qf;rC+=wFlight*rf;
   }
   // body-rate errors -> wanted angular acceleration -> moments (dynamic inversion of the aero model)
-  const p=omegaB[1],qq=omegaB[0],r=-omegaB[2];let wantX=I[0]*4.5*(qC-qq),wantY=I[1]*18*(pC-p),wantZ=-I[2]*3.2*(rC-r);
+  const p=omegaB[1],qq=omegaB[0],r=-omegaB[2];let wantX=I[0]*4.5*(qC-qq),wantY=I[1]*35*(pC-p),wantZ=-I[2]*3.2*(rC-r);
   const beta=V>1?Math.asin(clamp(vb[0]/V,-1,1)):0;wantZ+=-I[2]*wFlight*1.8*beta*Math.min(1,V/60);// sideslip: yaw the nose into the relative wind
   // gyroscopic term (ω × Iω) is part of the body dynamics Box3D integrates: the computer cancels it
   const Iw=[I[0]*omegaB[0],I[1]*omegaB[1],I[2]*omegaB[2]],gyro=cross(omegaB,Iw);wantX+=gyro[0];wantY+=gyro[1];wantZ+=gyro[2];

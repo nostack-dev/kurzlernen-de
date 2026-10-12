@@ -3,7 +3,7 @@ import {WorldRigidBodyPhysics} from "./world_rigid_body_physics.mjs";
 
 const FIXED_DT=1/60;
 const MOBILE=globalThis.matchMedia?.("(pointer:coarse)")?.matches||/Android|iPhone|iPad|Mobile/i.test(globalThis.navigator?.userAgent||"");
-const MAX_STEPS_PER_FRAME=MOBILE?2:3;
+const MAX_STEPS_PER_FRAME=MOBILE?4:4;
 const SOLVER_SUBSTEPS=MOBILE?2:4;
 const pendingBodies=new Map(),pendingTargets=new Map();
 let engine=null,lastFrame=performance.now(),accumulator=0,lastBuildingSync=-Infinity,lastTelemetry=-Infinity,bootError="";

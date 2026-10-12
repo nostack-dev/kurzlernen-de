@@ -5,7 +5,7 @@ const input=process.argv[2]||"https://kurzlernen.de/drone_simulator.html",base=n
 // This smoke covers the drone start; the game itself starts on foot by default.
 if(!base.searchParams.has("start"))base.searchParams.set("start","drone");
 if(!executablePath)throw new Error("CHROME_BIN must point to Chrome/Chromium");
-const launchArgs=["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader","--autoplay-policy=no-user-gesture-required"];
+const launchArgs=["--no-sandbox","--disable-dev-shm-usage","--enable-webgl","--ignore-gpu-blocklist","--use-gl=angle","--use-angle=swiftshader","--autoplay-policy=no-user-gesture-required","--use-fake-ui-for-media-stream","--use-fake-device-for-media-stream"];
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function bounded(promise,ms,label){let timer=0;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out after ${ms} ms`)),ms);})]);}finally{clearTimeout(timer);}}
 async function makePhone(label){
@@ -57,6 +57,28 @@ try{
   let ra,rb;for(const until=Date.now()+12000;;){ra=await renderSnapshot(a.page,a.label);rb=await renderSnapshot(b.page,b.label);if((ra.remoteVisuals>=1&&rb.remoteVisuals>=1)||Date.now()>until)break;await pause(400);}
   if(!(ra.remoteVisuals>=1&&rb.remoteVisuals>=1))throw new Error(`paired phones did not both render remote participant: ${JSON.stringify({phoneA:{state:sa,render:ra},phoneB:{state:sb,render:rb}})}`);
   if(!((Number.isFinite(ra.poseAge)&&ra.poseAge>=0)||(Number.isFinite(rb.poseAge)&&rb.poseAge>=0)))throw new Error(`no replicated remote pose was observed: ${JSON.stringify({ra,rb})}`);
+  // Live voice transport: BOTH browsers have a real paired FX data channel.
+  // Check playerInfo positions (formerly absent, causing infinite distance),
+  // explicit microphone capture, actual encrypted/relayed voice delivery,
+  // and decoded audio playback at the other end. No public SOLO mic grant.
+  const peersA=await a.page.evaluate(()=>{
+    const s=globalThis.__arondightRealWorld?.vsSession;
+    return (s?.getPeerIds?.()||[]).map(id=>({id,p:globalThis.__arondightVsMultiplayer?.playerInfo?.(id)?.p}));
+  });
+  if(!peersA.some(x=>Array.isArray(x.p)&&x.p.length===3))
+    throw new Error("Paired client has no real peer positions for proximity voice: "+JSON.stringify(peersA));
+  await bounded(a.page.click("#proximityVoicePtt"),8000,"phone-a mic ON");
+  await a.page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.voiceMic==="on", {timeout:8000});
+  await b.page.waitForFunction(()=>Number(document.querySelector("#viewport")?.dataset.voiceRxPackets||0)>0,{timeout:18000,polling:200});
+  const voice=await Promise.all([a.page,b.page].map(p=>p.evaluate(()=>{
+    const v=document.querySelector("#viewport");
+    return{mic:v?.dataset.voiceMic,tx:Number(v?.dataset.voiceTxPackets)||0,rx:Number(v?.dataset.voiceRxPackets)||0,
+      peer:v?.dataset.voiceRxPeer||"",lastTxTarget:v?.dataset.voiceTxTarget||""};
+  })));
+  if(!(voice[0].tx>0&&voice[1].rx>0))throw Error("2-browser voice TX/RX failed: "+JSON.stringify(voice));
+  await bounded(a.page.click("#proximityVoicePtt"),8000,"phone-a mic OFF");
+  await a.page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.voiceMic==="off", {timeout:8000});
+  console.log("Dual-mobile proximity voice packets delivered and decoded across actual paired network",JSON.stringify({voice,peersA}));
   await mkdir("artifacts",{recursive:true});
   await bounded(a.page.screenshot({path:"artifacts/mobile-multiplayer-a.png",captureBeyondViewport:false}),12000,"phone-a multiplayer screenshot");
   await bounded(b.page.screenshot({path:"artifacts/mobile-multiplayer-b.png",captureBeyondViewport:false}),12000,"phone-b multiplayer screenshot");
