@@ -37,8 +37,14 @@ async function start(){if(muted||talking)return;
     if(!source){source=ctx.createMediaStreamSource(stream);processor=ctx.createScriptProcessor(2048,1,1);silent=ctx.createGain();silent.gain.value=0;source.connect(processor);processor.connect(silent);silent.connect(ctx.destination);processor.onaudioprocess=onAudio;}
     talking=true;status(multiplayer()?.connected?'SPRICHT · PTT':'PTT · kein Mitspieler verbunden');
   }catch{if(generation===inputGeneration){talking=false;status('Mikrofon nicht freigegeben');}}}
-function stop(){++inputGeneration;talking=false;buffer=[];status(muted?'STUMM':'PTT halten');}
-function mute(){muted=!muted;stop();if(muted){stream?.getTracks().forEach(track=>track.stop());stream=null;source?.disconnect();processor?.disconnect();silent?.disconnect();source=processor=silent=null;}else{
+function stop(){++inputGeneration;talking=false;buffer=[];
+  // Push-to-talk is *not* a persistent microphone session. Releasing the
+  // button (or resetting) stops browser microphone tracks as well as sends.
+  stream?.getTracks().forEach(track=>track.stop());stream=null;
+  source?.disconnect();processor?.disconnect();silent?.disconnect();
+  source=processor=silent=null;status(muted?'STUMM':'PTT halten');
+}
+function mute(){muted=!muted;stop();if(!muted){
     // An explicit user tap also unlocks incoming playback on mobile browsers.
     if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();
     void ctx.resume().catch(()=>{});
