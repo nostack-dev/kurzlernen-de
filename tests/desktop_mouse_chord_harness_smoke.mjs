@@ -29,20 +29,31 @@ try{
     const view=document.getElementById('viewport');
     new Function('view',`let mode='foot',state={fireHeld:false};const isPlayerDead=()=>false,fistsOut=()=>window.__arondightFootWeapons.mode==='fists';const selectedWeaponFire=(time,source,hand)=>{window.__chordShots.push({source,hand});return true};window.__switchChordMode=m=>{mode=m};window.__chordFireHeld=()=>state.fireHeld;${code}`)(view);
   },handler);
-  // Browser user gesture: first click claims pointer lock; is not a shot.
-  await page.mouse.click(470,250);
-  await page.waitForFunction(()=>document.pointerLockElement===document.querySelector('#viewport'),{timeout:3000});
+  // The first input is RMB, before pointer lock. This used to do nothing;
+  // the subsequent LMB had no way to dispatch a shooting mousedown.
+  await page.mouse.move(470,250);
+  await page.mouse.down({button:'right'});
+  await page.waitForFunction(()=>document.pointerLockElement===document.querySelector('#viewport')&&globalThis.__arondightDesktopInput?.rmb,{timeout:3000});
+  let a=await state();assert.equal(a.shots.length,0,'RMB capture must not fire the gun');
   await page.mouse.down({button:'left'});
-  let a=await state();assert.equal(a.shots.length,1,'ordinary LMB must fire exactly one shot');assert.equal(a.shots[0].source,'mouse-mousedown');
+  a=await state();assert.equal(a.shots.length,1,'RMB-first -> LMB must shoot while aim remains held');
+  assert.equal(a.shots[0].source,'mouse-mousedown');
+  assert.equal(a.rmb,true,'RMB hold survives chord');
+  await page.mouse.up({button:'left'});
+  a=await state();assert.equal(a.rmb,true,'LMB release cannot release RMB');
+  await page.mouse.up({button:'right'});
+  // Ordinary LMB-only fire still works once the mouse is locked.
+  await page.mouse.down({button:'left'});
+  a=await state();assert.equal(a.shots.length,2,'ordinary LMB must fire exactly one shot');assert.equal(a.shots.at(-1).source,'mouse-mousedown');
   await page.mouse.up({button:'left'});
   await page.mouse.down({button:'right'});
-  a=await state();assert.equal(a.rmb,true,'RMB engages aim');assert.equal(a.shots.length,1,'RMB alone must not shoot gun');
+  a=await state();assert.equal(a.rmb,true,'RMB engages aim');assert.equal(a.shots.length,2,'RMB alone must not shoot gun');
   await page.mouse.down({button:'left'});
-  a=await state();assert.equal(a.rmb,true);assert.equal(a.shots.length,2,'RMB held then LMB must fire');
+  a=await state();assert.equal(a.rmb,true);assert.equal(a.shots.length,3,'RMB held then LMB must fire');
   await page.mouse.up({button:'left'});a=await state();assert.equal(a.rmb,true,'RMB survives LMB release');
   await page.mouse.up({button:'right'});a=await state();assert.equal(a.rmb,false);
   await page.mouse.down({button:'left'});await page.mouse.down({button:'right'});
-  a=await state();assert.equal(a.shots.length,3,'LMB first fires');assert.equal(a.rmb,true,'RMB engages mid-fire');
+  a=await state();assert.equal(a.shots.length,4,'LMB first fires');assert.equal(a.rmb,true,'RMB engages mid-fire');
   await page.mouse.up({button:'right'});await page.mouse.up({button:'left'});
   // Fists retain independent mouse button hands, including while held together.
   await page.evaluate(()=>window.__arondightFootWeapons.mode='fists');

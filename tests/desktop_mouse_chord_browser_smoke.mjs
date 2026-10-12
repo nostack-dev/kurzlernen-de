@@ -14,16 +14,24 @@ try{
   await page.waitForFunction(()=>globalThis.__arondightFootWeapons?.fireAt,{timeout:12000});
   await page.evaluate(()=>globalThis.__arondightFootWeapons.setMode('smg'));
   await page.waitForFunction(()=>document.querySelector('#viewport')?.dataset.playerMode==='foot',{timeout:5000});
-  // First click captures pointer; the click that captures must never shoot.
-  await page.mouse.click(800,370);
-  await page.waitForFunction(()=>document.pointerLockElement===document.getElementById('viewport'),{timeout:5000});
   await page.evaluate(()=>{
     const api=globalThis.__arondightFootWeapons;
     const original=api.fireAt.bind(api);
     api.fireAt=(args)=>{globalThis.__mouseChordShots=(globalThis.__mouseChordShots||0)+1;return original(args);};
     globalThis.__mouseChordShots=0;
   });
-  await page.mouse.down({button:'left'});await page.waitForFunction(()=>globalThis.__mouseChordShots>=1,{timeout:1500});await page.mouse.up({button:'left'});
+  // First-ever gameplay mouse event: hold RMB to capture, then press LMB.
+  await page.mouse.move(800,370);
+  await page.mouse.down({button:'right'});
+  await page.waitForFunction(()=>document.pointerLockElement===document.getElementById('viewport')&&globalThis.__arondightDesktopInput?.rmb,{timeout:5000});
+  const firstRmb=await state();if(firstRmb.shots!==0)throw Error('RMB first-click must not fire');
+  await page.mouse.down({button:'left'});
+  await page.waitForFunction(()=>globalThis.__mouseChordShots>=1,{timeout:2000});
+  const firstChord=await state();if(!firstChord.rmb||!firstChord.lmb||firstChord.shots<1)throw Error('RMB-first capture blocked shooting '+JSON.stringify(firstChord));
+  await page.mouse.up({button:'left'});if(!(await state()).rmb)throw Error('RMB hold dropped when LMB released');
+  await page.mouse.up({button:'right'});
+  // Existing LMB-only behavior remains intact after capture.
+  await page.mouse.down({button:'left'});await page.waitForFunction(()=>globalThis.__mouseChordShots>=2,{timeout:1500});await page.mouse.up({button:'left'});
   const alone=await state();
   await page.mouse.down({button:'right'});
   await page.waitForFunction(()=>globalThis.__arondightDesktopInput?.rmb===true,{timeout:1500});
@@ -48,5 +56,5 @@ try{
   await page.mouse.up({button:'left'});
   const droneReleased=await state();if(droneReleased.fire||!droneReleased.rmb)throw Error('drone LMB released incorrectly '+JSON.stringify(droneReleased));
   await page.mouse.up({button:'right'});
-  console.log('Desktop real Chromium RMB+LMB passed',JSON.stringify({alone,before,both,released,reverse,drone,droneReleased}));
+  console.log('Desktop real Chromium RMB+LMB passed',JSON.stringify({firstRmb,firstChord,alone,before,both,released,reverse,drone,droneReleased}));
 }finally{await browser.close();}

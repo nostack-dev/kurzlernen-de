@@ -81,8 +81,19 @@ function onPointerDown(event){if(event.pointerType==="mouse")document.body.class
   if(!desktop&&event.target instanceof Element&&event.target.closest(UI_SELECTOR)){addEventListener("click",()=>setTimeout(()=>setDesktop(true),0),{once:true,capture:true});return;}
   setDesktop(true);
   if(!locked()){
-    if(!inGame()||!gameplayTarget(event.target)||event.button!==0)return;
-    requestLock();consume(event);return; // the capturing click never fires
+    if(!inGame()||!gameplayTarget(event.target)||(event.button!==0&&event.button!==2))return;
+    if(event.button===2){
+      // RMB-first must capture the mouse too. Keep the held ADS state during the
+      // asynchronous pointer-lock request so a subsequent LMB mousedown can fire.
+      rmb=true;
+      requestLock();
+      // Do NOT preventDefault: that would suppress the compatibility mousedown
+      // when the player presses LMB while RMB stays held.
+      // But stop pointerdown reaching the foot touch/drag handlers.
+      event.stopImmediatePropagation();
+      return;
+    }
+    requestLock();consume(event);return; // LMB capture click never fires
   }
   // pointerdown only occurs for the FIRST pressed mouse button. Crucially,
   // preventDefault() here would suppress compatibility mousedown for the
@@ -226,7 +237,7 @@ export function installDesktopControls(){
   window.addEventListener("blur",releaseAll);
   /* death keeps the mouse captured: R / Enter (or Ⓐ) respawns after the countdown, no cursor in the picture */
   globalThis.__arondightDesktopDroneInput=droneSample;
-  globalThis.__arondightDesktopInput={get active(){return desktop;},get locked(){return locked();},get mode(){return gameMode();},get lmb(){return lmb;},get rmb(){return rmb;},keys,takeMouseDelta(){const d={x:jetDelta.x,y:jetDelta.y};jetDelta.x=jetDelta.y=0;return d;},version:"desktop-independent-mousedown-v2"};
+  globalThis.__arondightDesktopInput={get active(){return desktop;},get locked(){return locked();},get mode(){return gameMode();},get lmb(){return lmb;},get rmb(){return rmb;},keys,takeMouseDelta(){const d={x:jetDelta.x,y:jetDelta.y};jetDelta.x=jetDelta.y=0;return d;},version:"desktop-rmb-first-pointerlock-v3"};
   setInterval(tick,16);
 }
 installDesktopControls();
