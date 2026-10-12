@@ -16,7 +16,7 @@ try {
   await page.waitForFunction(()=>document.querySelector('#viewport')?.dataset.playerMode==='foot',{timeout:7000});
   await page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,600)));
   const data=await page.evaluate(()=>{
-   const ids=['mobileGameplayDock','mobileGameplayReset','mobileGameplayMultiplayer','mobileGameplayMultiplayerStatus','mobileGameplayMode','footMove','footLook','footFire','footJump','thumbWeapon','airStrikeButton','handGrenadeBtn','soloArm','soloKill','proximityVoiceBar','proximityVoicePtt','proximityVoiceMute','enterCarButton','enterJetButton'],rects={};
+   const ids=['mobileGameplayDock','mobileGameplayReset','mobileGameplayMultiplayer','mobileGameplayMultiplayerStatus','mobileGameplayMode','footMove','footLook','footFire','footJump','thumbWeapon','airStrikeButton','handGrenadeBtn','soloArm','soloKill','proximityVoiceBar','proximityVoicePtt','proximityVoiceMute','buildTag','enterCarButton','enterJetButton'],rects={};
    for(const id of ids){const e=document.getElementById(id),style=e&&getComputedStyle(e);if(!e||e.hidden||style.display==='none'||style.visibility==='hidden'||!e.getBoundingClientRect().width)continue;
     const r=e.getBoundingClientRect();rects[id]={left:r.left,right:r.right,top:r.top,bottom:r.bottom};}
    // Scores are not buttons; the old test ignored their collision with STRIKE
@@ -30,6 +30,7 @@ try {
   });
   const pairs=[['mobileGameplayDock','mobileGameplayReset'],['mobileGameplayDock','mobileGameplayMultiplayer'],['mobileGameplayMode','footMove'],['mobileGameplayMode','footLook'],['footMove','footLook'],['footMove','footFire'],['footLook','footFire'],['footJump','footLook'],['footJump','footFire'],['proximityVoiceBar','footMove'],['proximityVoiceBar','footLook'],['enterCarButton','footMove'],['enterJetButton','footLook'],['enterCarButton','enterJetButton'],['proximityVoiceBar','handGrenadeBtn'],['proximityVoiceBar','airStrikeButton'],['proximityVoiceBar','mobileGameplayMultiplayer'],['proximityVoiceBar','mobileGameplayReset'],['airStrikeButton','sandboxScore'],['airStrikeButton','sandboxFlow'],['handGrenadeBtn','sandboxScore'],['handGrenadeBtn','sandboxFlow'],['airStrikeButton','handGrenadeBtn'],['thumbWeapon','footLook'],['thumbWeapon','footJump'],['mobileGameplayMultiplayerStatus','sandboxScore'],['mobileGameplayMultiplayerStatus','sandboxFlow']];
   const clashes=[];
+  if(data.rects.buildTag)clashes.push('buildTag must not obscure gameplay or voice controls on mobile');
   for(const id of ['proximityVoiceBar','proximityVoicePtt','proximityVoiceMute'])if(!data.rects[id])clashes.push(id+' hidden during solo gameplay');
   for(const [a,b] of pairs){const r=data.rects[a],s=data.rects[b];if(r&&s&&Math.min(r.right,s.right)-Math.max(r.left,s.left)>3&&Math.min(r.bottom,s.bottom)-Math.max(r.top,s.top)>3)clashes.push(a+' / '+b);}
   // Actual screen geometry on landscape devices: primary touch actions must remain
