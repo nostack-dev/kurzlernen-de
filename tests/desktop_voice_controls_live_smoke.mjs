@@ -55,11 +55,13 @@ try{
  const set=async(i,pressed)=>page.evaluate(([index,value])=>{
    const button=globalThis.__voiceTestPad.buttons[index];button.pressed=value;button.value=value?1:0;
  },[i,pressed]);
+ const weaponBefore=await page.evaluate(()=>String(globalThis.__arondightDroneWeapons?.mode??globalThis.__arondightFootWeapons?.mode??""));
  await set(11,true); // R3
  await page.waitForFunction(()=>document.querySelector("#proximityVoicePtt")?.getAttribute("aria-pressed")==="true",{timeout:12000});
  await set(3,true);  // Y while R3: mute, not weapon swap
  await page.waitForFunction(()=>document.querySelector("#proximityVoiceMute")?.getAttribute("aria-pressed")==="true",{timeout:12000});
  assert.equal(await page.$eval("#proximityVoicePtt",e=>e.getAttribute("aria-pressed")),"false","Mute chord must end PTT");
+ assert.equal(await page.evaluate(()=>String(globalThis.__arondightDroneWeapons?.mode??globalThis.__arondightFootWeapons?.mode??"")),weaponBefore,"R3+Y must NOT switch weapon");
  await set(3,false);await set(11,false);
  await page.waitForFunction(()=>document.querySelector("#proximityVoicePtt")?.getAttribute("aria-pressed")==="false");
  // A new R3+Y chord unmutes with no repeated button toggle.
