@@ -86,6 +86,26 @@ body.solo-flight:not(.desktop-input) #viewport #proximityVoiceBar button{width:3
 #viewport #proximityVoiceBar button{width:38px;height:38px;min-width:38px;min-height:38px;padding:0;border-radius:50%!important;border:1.5px solid #94d4ea90;background:#132b3ddb;color:#eaf8ff;box-shadow:0 3px 12px #0007;font:800 19px/1 system-ui,sans-serif;display:grid;place-items:center;pointer-events:auto;touch-action:none}
 #viewport #proximityVoicePtt[aria-pressed="true"]{background:#1b674f;border-color:#91ffd7}
 #viewport #proximityVoiceMute[aria-pressed="true"]{background:#60332c;border-color:#ffa998}
+/* Keyboard+mouse: full-size mouse targets below the top utility row, not
+   two tiny 38px touch icons. Pad uses the same buttons with alternate labels. */
+body.desktop-input.solo-flight #viewport #proximityVoiceBar{
+  top:max(56px,calc(var(--solo-safe-top,env(safe-area-inset-top)) + 48px));
+  gap:8px;flex-direction:row;align-items:center
+}
+body.desktop-input.solo-flight #viewport #proximityVoiceBar button{
+  width:auto!important;min-width:116px;height:39px!important;min-height:39px;
+  padding:0 10px!important;display:inline-flex;flex-direction:row;
+  align-items:center;gap:8px;border-radius:9px!important;
+  font-size:16px!important;font-weight:850
+}
+body.desktop-input.solo-flight #viewport #proximityVoiceBar button::after{
+  color:#e8f6ff;font:850 11px/1 system-ui,sans-serif;letter-spacing:.035em;
+  white-space:nowrap
+}
+body.desktop-input.solo-flight:not(.pad-input) #proximityVoicePtt::after{content:"H · TALK"}
+body.desktop-input.solo-flight:not(.pad-input) #proximityVoiceMute::after{content:"K · MUTE"}
+body.desktop-input.solo-flight.pad-input #proximityVoicePtt::after{content:"R3 · TALK"}
+body.desktop-input.solo-flight.pad-input #proximityVoiceMute::after{content:"R3+Y · MUTE"}
 #viewport #proximityVoiceBar button:focus-visible{outline:3px solid #ffd76a;outline-offset:2px}
 #proximityVoiceBar #proximityVoiceStatus{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 #proximityVoiceBar #proximityVoiceSpeaking{position:absolute;top:auto;bottom:calc(100% + 4px);left:0;background:#112a34d9;padding:2px 5px;border-radius:7px;color:#c6ffe6;font:750 10px system-ui,sans-serif;pointer-events:none}
