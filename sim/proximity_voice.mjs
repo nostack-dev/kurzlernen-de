@@ -2,9 +2,10 @@
 import {VS_FX_EVENT,VS_PEER_EVENT} from './lan_vs.mjs';
 import {VOICE_RATE,VOICE_RADIUS_M,proximityGain,encodeMuLaw,decodeMuLaw,validVoicePacket} from './voice_codec.mjs';
 import {voiceHudPosition} from './voice_hud_layout.mjs';
-export const PROXIMITY_VOICE_VERSION='ptt-all-game-modes-v5-edge-scanning';
+import {VOICE_KEY_PTT,VOICE_KEY_MUTE} from './voice_control_bindings.mjs';
+export const PROXIMITY_VOICE_VERSION='ptt-all-inputs-v6';
 let stream=null,ctx=null,source=null,processor=null,silent=null,talking=false,muted=false,seq=0,buffer=[],installed=false,inputGeneration=0;
-const lastSeq=new Map(),playheads=new Map();
+const lastSeq=new Map(),playheads=new Map(),heldInputs=new Set();
 const multiplayer=()=>globalThis.__arondightVsMultiplayer;
 const session=()=>globalThis.__arondightRealWorld?.vsSession;
 const selfPos=()=>{const b=globalThis.__arondightRealWorld,body=document.body;
@@ -45,10 +46,27 @@ function stop(){++inputGeneration;talking=false;buffer=[];
   source?.disconnect();processor?.disconnect();silent?.disconnect();
   source=processor=silent=null;status(muted?'STUMM':'PTT halten');
 }
-function mute(){muted=!muted;stop();if(!muted){
+function mute(){muted=!muted;heldInputs.clear();stop();if(!muted){
     // An explicit user tap also unlocks incoming playback on mobile browsers.
     unlockPlayback();
   }return muted;}
+function playing(){return document.body.classList.contains('solo-flight')&&!document.querySelector('dialog[open],#resetVoteDialog,#quitConfirmDialog,#worldMapFull[open]');}
+function setPttHeld(source,held){
+  held=Boolean(held&&playing()&&!muted);
+  const was=heldInputs.has(source);
+  if(held&&!was){heldInputs.add(source);if(heldInputs.size===1)void start();}
+  else if(!held&&was){heldInputs.delete(source);if(!heldInputs.size)stop();}
+  document.getElementById('proximityVoicePtt')?.setAttribute('aria-pressed',String(heldInputs.size>0));
+}
+function releasePtt(){heldInputs.clear();stop();document.getElementById('proximityVoicePtt')?.setAttribute('aria-pressed','false');}
+function toggleMute(){
+  const value=mute();
+  const button=document.getElementById('proximityVoiceMute');
+  if(button){button.textContent=value?'🔇':'🔈';button.setAttribute('aria-pressed',String(value));button.setAttribute('aria-label',value?'Unmute voice chat':'Mute voice chat');}
+  document.getElementById('viewport')?.setAttribute('data-voice-muted',value?'1':'0');
+  document.getElementById('proximityVoicePtt')?.setAttribute('aria-pressed','false');
+  return value;
+}
 function receive(e){const {peerId,packet}=e.detail||{};if(!peerId||!validVoicePacket(packet)||muted||!multiplayer()?.connected)return;
   const gain=proximityGain(distance(peerId));if(!gain)return;const previous=lastSeq.get(peerId)??-1;if(packet.seq<=previous)return;lastSeq.set(peerId,packet.seq);
   try{if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();if(ctx.state!=='running')return;
@@ -81,18 +99,19 @@ body.solo-flight:not(.desktop-input) #viewport #proximityVoiceBar button{width:3
   },{capture:true});
   const bar=document.createElement('div');bar.id='proximityVoiceBar';bar.hidden=true;
   const ptt=document.createElement('button');ptt.id='proximityVoicePtt';ptt.type='button';ptt.textContent='🎙';ptt.setAttribute('aria-label','Push to talk: hold to speak');ptt.setAttribute('title','PTT halten');ptt.setAttribute('aria-pressed','false');
-  ptt.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();ptt.setPointerCapture?.(e.pointerId);ptt.setAttribute('aria-pressed','true');start();});
-  for(const ev of ['pointerup','pointercancel','lostpointercapture'])ptt.addEventListener(ev,()=>{ptt.setAttribute('aria-pressed','false');stop();});
+  ptt.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();ptt.setPointerCapture?.(e.pointerId);setPttHeld('pointer',true);});
+  for(const ev of ['pointerup','pointercancel','lostpointercapture'])ptt.addEventListener(ev,()=>setPttHeld('pointer',false));
   const m=document.createElement('button');m.id='proximityVoiceMute';m.type='button';m.textContent='🔈';m.setAttribute('aria-label','Mute voice chat');m.setAttribute('title','Voice mute');m.setAttribute('aria-pressed','false');
-  m.onclick=()=>{const value=mute();m.textContent=value?'🔇':'🔈';m.setAttribute('aria-pressed',String(value));m.setAttribute('aria-label',value?'Unmute voice chat':'Mute voice chat');};
+  m.onclick=()=>toggleMute();
   const state=document.createElement('span');state.id='proximityVoiceStatus';state.textContent='PTT halten';state.setAttribute('role','status');state.setAttribute('aria-live','polite');
   const indicator=document.createElement('span');indicator.id='proximityVoiceSpeaking';indicator.hidden=true;bar.append(ptt,m,state,indicator);view.append(bar);
   const viewportRect=el=>{if(!el||!el.offsetParent||getComputedStyle(el).visibility==='hidden')return null;
     let x=0,y=0,node=el;while(node&&node!==view){x+=node.offsetLeft;y+=node.offsetTop;node=node.offsetParent;}
     if(node!==view)return null;return{left:x,top:y,right:x+el.offsetWidth,bottom:y+el.offsetHeight};};
   const updateLayout=()=>{
-    // SOLO uses the same HUD and audio capture as MULTI; only matchmaking differs.
-    if(!document.body.classList.contains('solo-flight')){bar.hidden=true;return;}
+    // SOLO and MULTI have the same voice controls; only public discovery differs.
+    if(!document.body.classList.contains('solo-flight')){if(heldInputs.size)releasePtt();bar.hidden=true;return;}
+    if(!playing()&&heldInputs.size)releasePtt();
     if(document.body.classList.contains('desktop-input')){bar.hidden=false;bar.style.removeProperty('left');bar.style.removeProperty('top');return;}
     const h=view.clientHeight,w=view.clientWidth,small=h<=360,size=small?34:38,blocked=[];
     for(const id of ['footMove','footLook','soloLeft','soloRight','footJump','thumbWeapon','mobileGameplayMode','enterCarButton','enterJetButton','mobileGameplayDock','mobileGameplayReset','mobileGameplayMultiplayer','mobileGameplayMultiplayerStatus','soloArm','soloKill','soloClearance','airStrikeButton','handGrenadeBtn','soloExit','gameExitButton','wantedEmpButton','playerVitalsHud','gameplayScorePill','jetpackFuel']){
@@ -112,7 +131,22 @@ body.solo-flight:not(.desktop-input) #viewport #proximityVoiceBar button{width:3
   };
   const loop=()=>{if(!bar.isConnected)return;try{updateLayout();}catch(e){console.warn('voice hud layout',e);}setTimeout(loop,250);};loop();
   addEventListener('resize',updateLayout);
-  addEventListener('keydown',e=>{if(e.code==='KeyV'&&!e.repeat&&!e.target?.closest?.('input,textarea,dialog'))start();});addEventListener('keyup',e=>{if(e.code==='KeyV')stop();});
+  // Keyboard input is game-wide even while mouse pointer lock is active.
+  // V remains the foot/drone shortcut, T the grenade and P multiplayer.
+  addEventListener('keydown',e=>{
+    if(e.__synthetic||e.repeat||e.ctrlKey||e.altKey||e.metaKey||!playing()||e.target?.closest?.('input,textarea,select,[contenteditable],dialog'))return;
+    if(e.code===VOICE_KEY_PTT){e.preventDefault();setPttHeld('keyboard',true);}
+    else if(e.code===VOICE_KEY_MUTE){e.preventDefault();toggleMute();}
+  });
+  addEventListener('keyup',e=>{if(e.code===VOICE_KEY_PTT)setPttHeld('keyboard',false);});
+  addEventListener('blur',releasePtt);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)releasePtt();});
+  globalThis.__arondightVoiceControls={
+    setPadTalk:held=>setPttHeld('gamepad',held),
+    toggleMute,
+    get muted(){return muted;},
+    get talking(){return talking;}
+  };
 }
-export function installProximityVoice(){if(installed||typeof window==='undefined')return;installed=true;addEventListener(VS_FX_EVENT,receive);addEventListener(VS_PEER_EVENT,e=>{if(e.detail?.type==='leave'){lastSeq.delete(e.detail.peerId);playheads.delete(e.detail.peerId);}if(!multiplayer()?.connected)stop();});addEventListener('arondight:world-reset',()=>{stop();/* preserve the player's explicit mute setting */});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();}
+export function installProximityVoice(){if(installed||typeof window==='undefined')return;installed=true;addEventListener(VS_FX_EVENT,receive);addEventListener(VS_PEER_EVENT,e=>{if(e.detail?.type==='leave'){lastSeq.delete(e.detail.peerId);playheads.delete(e.detail.peerId);}if(!multiplayer()?.connected&&heldInputs.size)releasePtt();});addEventListener('arondight:world-reset',()=>{releasePtt();/* preserve the player's explicit mute setting */});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();}
 installProximityVoice();
