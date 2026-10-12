@@ -72,6 +72,15 @@ function ensureHud(){
    corner; layering solo SCORE/FLOW on top produced unreadable double HUD. */
 body.solo-flight.vs-multiplayer #sandboxHud .sb-score,
 body.solo-flight.vs-multiplayer #sandboxHud .sb-flow{display:none!important}
+/* When the viewport is CSS-rotated from a narrow portrait phone, the
+   GAMELOGICAL y of FLOW becomes its screen x. At 360x740, it grazed the
+   hand grenade by 6 px; lift it 8 px (logical y) into the 10 px gap between
+   grenade and the score label, without moving a single action/stick. */
+@media(max-width:380px) and (orientation:portrait){
+  body.solo-flight #sandboxHud .sb-flow{
+    top:calc(max(8px,var(--solo-safe-top,env(safe-area-inset-top))) + 104px)
+  }
+}
 @media(max-height:340px) and (pointer:coarse){
   body.solo-flight #sandboxHud .sb-score,
   body.solo-flight #sandboxHud .sb-flow{display:none!important}
