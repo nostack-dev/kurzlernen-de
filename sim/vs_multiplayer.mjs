@@ -2,6 +2,7 @@ import * as THREE from "three";
 import {VsPoseTimeline,poseMatchesVsFrame} from "./vs_pose_sync.mjs";
 import {navPoseFromPacket} from "./multiplayer_navigation.mjs";
 import {NavMarkerTimeline} from "./nav_marker_timeline.mjs";
+import {safeMobilePeerMarkerPoint} from "./mobile_peer_marker_layout.mjs";
 import {groupSpawnCenter} from "./vs_group_spawn.mjs";
 import {VS_PEER_EVENT,VS_POSE_EVENT,VS_GAME_EVENT,VS_FX_EVENT} from "./lan_vs.mjs";
 
@@ -126,7 +127,9 @@ function renderMarker(r,camera,view,now){
   const onScreen=inFront&&Math.abs(tempProjected.x)<.97&&Math.abs(tempProjected.y)<.93;
   const margin=Math.min(46,w*.07),halfW=Math.max(1,w/2-margin),halfH=Math.max(1,h/2-margin);let sx=nx*w/2,sy=-ny*h/2;
   if(!onScreen){const k=Math.min(halfW/Math.max(1e-3,Math.abs(sx)),halfH/Math.max(1e-3,Math.abs(sy)));sx*=k;sy*=k;}
-  const x=w/2+sx,y=h/2+sy,distance=tempPosition.distanceTo(tempCamera),index=Math.max(1,participantIds().indexOf(r.id)+1);
+  const mobile=!document.body.classList.contains("desktop-input");
+  const [x,y]=safeMobilePeerMarkerPoint(w/2+sx,h/2+sy,w,h,{mobile});
+  const distance=tempPosition.distanceTo(tempCamera),index=Math.max(1,participantIds().indexOf(r.id)+1);
   marker.hidden=false;marker.classList.toggle("offscreen",!onScreen);marker.classList.toggle("dead",r.dead);marker.classList.toggle("near",onScreen&&distance<6);
   const scale=onScreen?Math.max(.82,Math.min(1.15,1.25-distance/160)):1;
   marker.style.transform=`translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,${onScreen?"-100%":"-50%"}) scale(${scale.toFixed(3)})`;

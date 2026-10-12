@@ -18,6 +18,8 @@ jobs:
           ln -s /tmp/simulator-deps/node_modules node_modules
       - name: Run deployment-equivalent deterministic gates
         run: python3 tools/validate-simulator.py
+      - name: Verify mobile multiplayer marker safe areas
+        run: node tests/mobile_peer_marker_layout_test.mjs
       - name: Verify mobile edge-only voice layout
         run: node tests/mobile_voice_layout_test.mjs
       - name: Verify RMB held + LMB shoots in Chromium
