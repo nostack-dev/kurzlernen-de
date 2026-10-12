@@ -56,6 +56,8 @@ jobs:
           node tests/multiplayer_navigation_test.mjs
           node tests/vs_global_lobby_test.mjs
           node tests/voice_codec_test.mjs
+          node tests/jet_f_interact_test.mjs
+          node tests/mobile_vehicle_entry_layout_test.mjs
           node tests/rules_voice_hud_layout_test.mjs
           node --check sim/proximity_voice.mjs
           node tests/rules_vote_test.mjs
