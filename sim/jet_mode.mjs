@@ -241,7 +241,7 @@ function enterPilot(A){
   document.body.classList.add("jet-mode");renderButtons();window.dispatchEvent(new CustomEvent("arondight:vehicle-mode",{detail:{active:true,jet:true}}));return true;
 }
 function finish(x,y,heading){// back on foot at (x,y)
-  active=false;firing=false;tapFire=null;keys.clear();para=null;if(chute)chute.visible=false;stopVoice();releaseSticks();document.body.classList.remove("jet-mode");
+  active=false;firing=false;rocketSelected=false;rocketMouseLatch=false;tapFire=null;keys.clear();para=null;if(chute)chute.visible=false;stopVoice();releaseSticks();document.body.classList.remove("jet-mode");
   const s=freeSpot(x,y),w=walk();w?.setPose?.({x:s.x,y:s.y,yaw:walkYawOf(heading),pitch:0});
   const cam=bridge()?.threeCamera;if(cam&&baseFar){cam.far=baseFar;cam.updateProjectionMatrix();}farGround.hide();globalThis.__arondightFogScale=1;
   renderButtons();window.dispatchEvent(new CustomEvent("arondight:vehicle-mode",{detail:{active:false,jet:true}}));}
@@ -264,13 +264,13 @@ function readInputs(dt){
   const m=sticks.move,l=sticks.look;let lift=-m.y,yawIn=m.x,pitchIn=l.y,rollIn=l.x;// pitchIn + = stick pulled back = nose up
   if(keys.has("KeyW"))lift+=1;if(keys.has("KeyS"))lift-=1;if(keys.has("KeyA"))yawIn-=1;if(keys.has("KeyD"))yawIn+=1;if(keys.has("ArrowUp"))pitchIn-=1;if(keys.has("ArrowDown"))pitchIn+=1;if(keys.has("ArrowLeft"))rollIn-=1;if(keys.has("ArrowRight"))rollIn+=1;
   // desktop mouse: a rate stick (mouse up = nose up, right = roll right); LMB = gun
-  const desk=globalThis.__arondightDesktopInput;if(desk?.active&&desk.locked&&dt>0){const d=desk.takeMouseDelta(),a=1-Math.exp(-dt/.025);mouseStick.x+=(clamp(d.x/dt/730,-1,1)-mouseStick.x)*a;mouseStick.y+=(clamp(d.y/dt/730,-1,1)-mouseStick.y)*a;rollIn+=mouseStick.x;pitchIn-=mouseStick.y;firing=Boolean(desk.lmb)||keys.has("Space");}else{mouseStick.x=mouseStick.y=0;}
+  const desk=globalThis.__arondightDesktopInput;if(desk?.active&&desk.locked&&dt>0){const d=desk.takeMouseDelta(),a=1-Math.exp(-dt/.025);mouseStick.x+=(clamp(d.x/dt/730,-1,1)-mouseStick.x)*a;mouseStick.y+=(clamp(d.y/dt/730,-1,1)-mouseStick.y)*a;rollIn+=mouseStick.x;pitchIn-=mouseStick.y;const down=Boolean(desk.lmb);if(down&&!rocketMouseLatch&&rocketSelected)launchSelectedRocket();rocketMouseLatch=down;firing=!rocketSelected&&(down||keys.has("Space"));}else{mouseStick.x=mouseStick.y=0;}
   // Xbox, Battlefield jet layout: LS ↑↓ throttle/lift, LS ←→ rudder, RS pitch + roll, RT gun,
   // LT rockets, RB bombs, LB VTOL hover/flight. X exits / ejects and VIEW switches the camera
   // (both handled by the shared pad actions, same as E and C on the keyboard). Under the
   // parachute the sticks steer the canopy.
   const pad=globalThis.__arondightPadBlocked?.()?null:(navigator.getGamepads?.()||[]).find(g=>g&&g.connected);if(pad&&(jet||para)){const ax=a=>Math.abs(a)<.12?0:a;lift+=-ax(pad.axes[1]||0);yawIn+=ax(pad.axes[0]||0);rollIn+=ax(pad.axes[2]||0);pitchIn+=ax(pad.axes[3]||0);
-    if(jet){const rt=(pad.buttons[7]?.value||0)>.4;if(rt!==jet.padFire){firing=rt;jet.padFire=rt;}const lt=(pad.buttons[6]?.value||0)>.5;if(lt&&!jet.padLT)fireRocket();jet.padLT=lt;const rb=Boolean(pad.buttons[5]?.pressed);if(rb&&!jet.padRB)dropBomb();jet.padRB=rb;const lb=Boolean(pad.buttons[4]?.pressed);if(lb&&!jet.padLB)toggleMode();jet.padLB=lb;}}
+    if(jet){const rt=(pad.buttons[7]?.value||0)>.4;if(rt&&!jet.padFire&&rocketSelected)launchSelectedRocket();if(rt!==jet.padFire){firing=rt&&!rocketSelected;jet.padFire=rt;}const lt=(pad.buttons[6]?.value||0)>.5;if(lt&&!jet.padLT)selectRocket();jet.padLT=lt;const rb=Boolean(pad.buttons[5]?.pressed);if(rb&&!jet.padRB)dropBomb();jet.padRB=rb;const lb=Boolean(pad.buttons[4]?.pressed);if(lb&&!jet.padLB)toggleMode();jet.padLB=lb;}}
   return{lift:clamp(lift,-1,1),yawIn:clamp(yawIn,-1,1),pitchIn:clamp(pitchIn,-1,1),rollIn:clamp(rollIn,-1,1)};}
 
 // ------------------------------------------------------------ the flown jet, every frame (the forces run in the physics step)
@@ -283,7 +283,7 @@ function flyFrame(dt,now){
   const s=A.v.length(),m2=machOf(s);if(m2>=1&&machWas<1){boom();coneUntil=now+1600;}machWas=m2;const cone=A.model.userData.cone;if(cone){const k=coneUntil>now?Math.min(1,(coneUntil-now)/600):Math.max(0,1-Math.abs(m2-1)/.05)*.5;cone.material.opacity=.45*k;cone.scale.setScalar(.8+Math.min(.6,Math.max(0,m2-.95)*2));}
   if(Math.abs(m2-1)<.06)addTrauma?.(.04);
   if(Math.hypot(A.p.x,A.p.y)>REBASE_M)rebase(A.p.x,A.p.y);
-  if(firing)gun(now);
+  if(firing&&!rocketSelected)gun(now);
 }
 const angleTo=(a,b)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;};
 function stepPara(dt){const c=para,inp=readInputs(dt)||{pitchIn:0,rollIn:0},age=(performance.now()-c.t)/1000;c.v.z-=G*dt;c.v.x*=1-.25*dt;c.v.y*=1-.25*dt;if(age>1.1){c.v.z+=(-6.5-c.v.z)*Math.min(1,dt*1.6);c.v.x+=(inp.rollIn*4-c.v.x)*Math.min(1,dt*.8);c.v.y+=(-inp.pitchIn*4-c.v.y)*Math.min(1,dt*.8);}
@@ -336,7 +336,10 @@ function tapAim(out){const v=viewport(),c=bridge()?.presentedCamera?.()||bridge(
   tapNdc.set(x/Math.max(1,v.clientWidth)*2-1,-(y/Math.max(1,v.clientHeight))*2+1);tapRay.setFromCamera(tapNdc,c);out.copy(tapRay.ray.direction).normalize();
   const cos=out.dot(fwd);if(cos<Math.cos(.62)){/* clamp to a 35° cone around the nose */const perp=tmp2.copy(out).addScaledVector(fwd,-cos).normalize();out.copy(fwd).multiplyScalar(Math.cos(.62)).addScaledVector(perp,Math.sin(.62)).normalize();}return true;}
 function tapUi(t){return!(t instanceof Element)||Boolean(t.closest("button,input,select,textarea,a,label,dialog,#footMove,#footLook,#footFire,#worldLookHud,#mobileGameplayDock,#soloTopbar,#gpsLiveHud"));}
-function onTapDown(e){if(!active||!jet||para||e.pointerType==="mouse"||document.body.classList.contains("desktop-input")||tapUi(e.target)||tapFire)return;if(!e.target?.closest?.("#viewport"))return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();tapFire={id:e.pointerId,cx:e.clientX,cy:e.clientY};firing=true;}
+function onTapDown(e){if(!active||!jet||para||e.pointerType==="mouse"||document.body.classList.contains("desktop-input")||tapUi(e.target)||tapFire)return;if(!e.target?.closest?.("#viewport"))return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+  tapFire={id:e.pointerId,cx:e.clientX,cy:e.clientY};
+  if(rocketSelected){launchSelectedRocket();tapFire=null;firing=false;return;}
+  firing=true;}
 function onTapMove(e){if(tapFire&&e.pointerId===tapFire.id){tapFire.cx=e.clientX;tapFire.cy=e.clientY;e.stopPropagation();}}
 function onTapUp(e){if(tapFire&&e.pointerId===tapFire.id){tapFire=null;firing=false;}}
 function gun(now){if(!jet||now-lastGun<55)return;lastGun=now;fwd.copy(Y).applyQuaternion(jet.q);const o=jet.p.clone().addScaledVector(fwd,10.5),d=fwd.clone();if(tapFire)tapAim(d);d.x+=(Math.random()-.5)*.006;d.y+=(Math.random()-.5)*.006;d.z+=(Math.random()-.5)*.006;d.normalize();
@@ -353,11 +356,15 @@ const tracerPool=[];function tracer(a,b){let t=tracerPool.find(x=>!x.m.visible);
   tmp.subVectors(b,a);const len=tmp.length();t.m.position.copy(a).addScaledVector(tmp,.5);t.m.quaternion.setFromUnitVectors(Y,tmp.normalize());t.m.scale.set(1,len,1);t.m.visible=true;t.until=performance.now()+45;}
 function dropBomb(){if(!active||!jet||jet.af.contacts>0||(jet.lastBomb&&performance.now()-jet.lastBomb<450))return;jet.lastBomb=performance.now();const m=new THREE.Mesh(new THREE.CapsuleGeometry(.25,1.4,3,8),new THREE.MeshStandardMaterial({color:0x3b4135,roughness:.6}));m.userData.flightFireIgnore=true;m.raycast=()=>{};root.add(m);
   bombs.push({m,p:jet.p.clone().addScaledVector(Z.clone().applyQuaternion(jet.q),-1.6),v:jet.v.clone()});sfx("bounce",{gain:.4,playbackRate:.5});}
+function selectRocket(){if(!jet||para)return false;rocketSelected=!rocketSelected;firing=false;renderButtons();return rocketSelected;}
+function launchSelectedRocket(){if(!rocketSelected)return false;const fired=fireRocket();if(fired){rocketSelected=false;firing=false;renderButtons();}return fired;}
 // unguided rockets from the wing pods: fast, straight, a real blast where they hit
-const rockets=[];let rocketSide=1;
-function fireRocket(){if(!active||!jet||jet.af.contacts>0||(jet.lastRocket&&performance.now()-jet.lastRocket<350))return;jet.lastRocket=performance.now();fwd.copy(Y).applyQuaternion(jet.q);rightv.copy(X).applyQuaternion(jet.q);rocketSide=-rocketSide;
+const rockets=[];let rocketSide=1,rocketSelected=false,rocketMouseLatch=false;const ROCKET_RECHARGE_MS=2400;
+function fireRocket(){if(!active||!jet||jet.af.contacts>0||(jet.lastRocket&&performance.now()-jet.lastRocket<ROCKET_RECHARGE_MS))return false;
+  jet.lastRocket=performance.now();fwd.copy(Y).applyQuaternion(jet.q);rightv.copy(X).applyQuaternion(jet.q);rocketSide=-rocketSide;
+  const aim=fwd.clone();if(tapFire)tapAim(aim);
   const m=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,1.4,6),new THREE.MeshBasicMaterial({color:0xfff0c0}));m.userData.flightFireIgnore=true;m.raycast=()=>{};const fl=new THREE.Mesh(new THREE.SphereGeometry(.25,6,4),new THREE.MeshBasicMaterial({color:0xffa040,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));fl.position.y=-.8;m.add(fl);root.add(m);
-  rockets.push({m,p:jet.p.clone().addScaledVector(rightv,rocketSide*3.2).addScaledVector(fwd,2).addScaledVector(Z.clone().applyQuaternion(jet.q),-.6),v:jet.v.clone().addScaledVector(fwd,260),life:5});sfx("explosion",{gain:.25,playbackRate:1.8});}
+  rockets.push({m,p:jet.p.clone().addScaledVector(rightv,rocketSide*3.2).addScaledVector(fwd,2).addScaledVector(Z.clone().applyQuaternion(jet.q),-.6),v:jet.v.clone().addScaledVector(aim,260),life:5});sfx("explosion",{gain:.25,playbackRate:1.8});return true;}
 function stepRockets(dt){for(let i=rockets.length-1;i>=0;i--){const r=rockets[i],prev=r.p.clone();r.v.z-=G*.15*dt;r.p.addScaledVector(r.v,dt);r.life-=dt;r.m.position.copy(r.p);r.m.quaternion.setFromUnitVectors(Y,tmp.copy(r.v).normalize());const gz=groundHeightAt(r.p.x,r.p.y);
   const d=tmp.copy(r.v).normalize(),rt=physics()?.raycast?.([prev.x,prev.y,prev.z],[d.x,d.y,d.z],prev.distanceTo(r.p)+.5);let hit=rt?.point?new THREE.Vector3(...rt.point):null;if(!hit&&(r.p.z<=gz+.2||hitsBuilding(r.p)))hit=r.p.clone().setZ(Math.max(r.p.z,gz));
   if(hit||r.life<=0){if(hit)globalThis.__fighterJets?.blast?.(hit,{radiusM:8,maxDamage:120,scale:.55,kind:"jet-rocket"});r.m.parent?.remove(r.m);rockets.splice(i,1);}}}
@@ -439,11 +446,17 @@ padding:0!important;border-radius:50%!important;font:900 24px/1 system-ui,-apple
 bottom:calc(max(18px,var(--solo-safe-bottom,env(safe-area-inset-bottom))) + min(25vw,150px) + 35px)!important
 }}
 html body.jet-mode #viewport #footHud #footFire{display:block!important;pointer-events:auto!important}`;document.head.appendChild(st);
-    for(const btn of h.querySelectorAll(".jet-btns button")){const a=btn.dataset.a;btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(a==="bomb")dropBomb();else if(a==="rocket")fireRocket();else if(a==="mode")toggleMode();else if(a==="cam"){camMode=camMode==="chase"?"cockpit":"chase";camInit=false;}else if(a==="exit")exit();});}}
+    for(const btn of h.querySelectorAll(".jet-btns button")){const a=btn.dataset.a;btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(a==="bomb")dropBomb();else if(a==="rocket")selectRocket();else if(a==="mode")toggleMode();else if(a==="cam"){camMode=camMode==="chase"?"cockpit":"chase";camInit=false;}else if(a==="exit")exit();});}}
   if(!document.getElementById("enterJetButton")){const b=document.createElement("button");b.id="enterJetButton";b.type="button";b.hidden=true;b.textContent="✈ JET EINSTEIGEN";b.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(passenger)leavePassenger();else enter();});view.appendChild(b);}
 }
 function renderButtons(){const b=document.getElementById("enterJetButton");if(b){const show=Boolean(passenger)||(!active&&!seatPending&&Boolean(nearestParked()||nearestRemoteBoardable())&&!globalThis.__arondightVehicleDrive?.active);if(b.hidden===show)b.hidden=!show;const cls=document.body.classList,touch=cls.contains("mobile-gameplay-compact")&&!cls.contains("desktop-input"),t=touch?(passenger?"↗":"✈"):passenger?"✈ JET VERLASSEN":cls.contains("pad-input")?"Ⓧ  ✈ JET EINSTEIGEN":cls.contains("desktop-input")?"F · ✈ JET EINSTEIGEN":"✈ JET EINSTEIGEN";
     if(b.textContent!==t)b.textContent=t;b.setAttribute("aria-label",passenger?"Jet verlassen":"In Jet einsteigen");b.title=passenger?"Jet verlassen":"Jet einsteigen";}
+  const rocket=document.querySelector('#jetHud [data-a=rocket]');if(rocket){
+    const left=Math.max(0,ROCKET_RECHARGE_MS-(performance.now()-(jet?.lastRocket||-Infinity)));
+    const label=left>0?`RELOAD ${(left/1000).toFixed(1)}s`:rocketSelected?'2 · FIRE':'1 · ROCKET';
+    if(rocket.textContent!==label)rocket.textContent=label;rocket.dataset.armed=rocketSelected?'1':'0';
+    rocket.dataset.ready=left>0?'0':'1';rocket.setAttribute('aria-label',rocketSelected?'Rocket selected: tap gameplay to fire':left>0?'Rocket recharging':'Select rocket; tap gameplay to fire');
+  }
   const mb=document.querySelector('#jetHud [data-a=mode]');if(mb&&jet){const t=jet.af.mode==='flight'?'⇄ SCHWEBEN':'⇄ FLUG';if(mb.textContent!==t)mb.textContent=t;mb.dataset.flight=jet.af.mode==='flight'?'1':'0';}
   const e=document.querySelector('#jetHud [data-a=exit]');if(e){const landed=jet&&(jet.af.landed||(jet.af.contacts>=2&&jet.v.length()<4));const t=!jet||landed?"AUSSTEIGEN":"EJECT";if(e.textContent!==t)e.textContent=t;const hide=Boolean(para);if(e.hidden!==hide)e.hidden=hide;}}
 // ------------------------------------------------------------ HUD: town below / ahead and a line to its centre
@@ -556,7 +569,7 @@ function frame(now=performance.now()){
 export function installJetMode(){if(globalThis.__jetMode||typeof window==="undefined")return globalThis.__jetMode;
   addEventListener("pointerdown",onTapDown,{capture:true,passive:false});addEventListener("pointermove",onTapMove,{capture:true,passive:true});for(const t of["pointerup","pointercancel"])addEventListener(t,onTapUp,{capture:true,passive:true});
   addEventListener("keydown",e=>{if(e.metaKey||e.ctrlKey)return;if(!active){if(e.code==="KeyE"&&!e.repeat&&(passenger||nearestParked()||nearestRemoteBoardable())&&!globalThis.__arondightVehicleDrive?.active){if(passenger?leavePassenger():enter()){e.preventDefault();e.stopImmediatePropagation();}}return;}
-    if(["KeyW","KeyS","KeyA","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)){keys.add(e.code);e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="Space"){keys.add("Space");firing=!para;e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyB"){dropBomb();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyR"){fireRocket();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyV"&&!e.repeat){toggleMode();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyC"){camMode=camMode==="chase"?"cockpit":"chase";camInit=false;e.stopImmediatePropagation();}else if(e.code==="KeyE"&&!e.repeat){exit();e.preventDefault();e.stopImmediatePropagation();}},{capture:true});
+    if(["KeyW","KeyS","KeyA","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)){keys.add(e.code);e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="Space"){keys.add("Space");firing=!para;e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyB"){dropBomb();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyR"&&!e.repeat){selectRocket();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyV"&&!e.repeat){toggleMode();e.preventDefault();e.stopImmediatePropagation();}else if(e.code==="KeyC"){camMode=camMode==="chase"?"cockpit":"chase";camInit=false;e.stopImmediatePropagation();}else if(e.code==="KeyE"&&!e.repeat){exit();e.preventDefault();e.stopImmediatePropagation();}},{capture:true});
   addEventListener("keyup",e=>{keys.delete(e.code);if(e.code==="Space")firing=false;},{capture:true});addEventListener(VS_FX_EVENT,onFx);
   addEventListener("arondight:world-explosion",onExplosion);addEventListener("arondight:physics-body-hit",onBodyHit);addEventListener("arondight:remote-airframe-hit",onRemoteHit);addEventListener("arondight:world-physics-impact",onPhysicsImpact);
   addEventListener("arondight:world-reset",()=>{if(passenger)leavePassenger();for(const id of sharedPassengerVisuals.keys())peerPassenger(id,null,null);if(heldSeat){seats.release(heldSeat.owner,heldSeat.aid,"pilot");heldSeat=null;}if(active){jet=null;para=null;finish(walk()?.position?.x||0,walk()?.position?.y||0,0);}for(const A of[...airframes.values()])removeAirframe(A);for(const d of debris.splice(0)){if(d.id)physics()?.removeBody?.(d.id);stopWorldCriticalDamage(`${d.id}-fire`);d.group.parent?.remove(d.group);}spawnPad=null;firstSeen=0;padEmptySince=0;});
