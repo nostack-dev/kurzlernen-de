@@ -21,7 +21,9 @@ const status=message=>{const el=document.getElementById('proximityVoiceStatus');
 function unlockPlayback(){try{if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();void ctx.resume().catch(()=>{});}catch{}}
 function transmit(samples){const s=session();if(!talking||muted||!s?.sendFx)return;const bytes=new Uint8Array(samples.map(encodeMuLaw));let binary='';for(const n of bytes)binary+=String.fromCharCode(n);
   const packet={type:'voice',id:`v-${(seq++).toString(36)}`,seq,data:btoa(binary)};
-  for(const id of s.getPeerIds?.()||[])if(distance(id)<=VOICE_RADIUS_M)s.sendFx(packet,{target:id});
+  for(const id of s.getPeerIds?.()||[])if(distance(id)<=VOICE_RADIUS_M&&s.sendFx(packet,{target:id})){
+    const v=document.getElementById('viewport');if(v){v.dataset.voiceTxPackets=String((Number(v.dataset.voiceTxPackets)||0)+1);v.dataset.voiceTxTarget=id;}
+  }
 }
 function onAudio(e){if(!talking||muted)return;const input=e.inputBuffer.getChannelData(0),stride=e.inputBuffer.sampleRate/VOICE_RATE;for(let index=0;index<input.length;index+=stride){buffer.push(input[Math.floor(index)]);if(buffer.length===640){transmit(buffer);buffer=[];}}}
 async function start(){if(muted||talking||!micOn)return;
@@ -77,7 +79,7 @@ function receive(e){const {peerId,packet}=e.detail||{};if(!peerId||!validVoicePa
   const gain=proximityGain(distance(peerId));if(!gain)return;const previous=lastSeq.get(peerId)??-1;if(packet.seq<=previous)return;lastSeq.set(peerId,packet.seq);
   try{if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();if(ctx.state!=='running')return;
     const raw=atob(packet.data);if(raw.length>800)return;const audio=ctx.createBuffer(1,raw.length,VOICE_RATE),ch=audio.getChannelData(0);for(let i=0;i<raw.length;i++)ch[i]=decodeMuLaw(raw.charCodeAt(i));
-    const src=ctx.createBufferSource(),volume=ctx.createGain();src.buffer=audio;volume.gain.value=gain;src.connect(volume).connect(ctx.destination);
+    const src=ctx.createBufferSource(),volume=ctx.createGain();src.buffer=audio;volume.gain.value=gain;src.connect(volume).connect(ctx.destination);const v=document.getElementById('viewport');if(v){v.dataset.voiceRxPackets=String((Number(v.dataset.voiceRxPackets)||0)+1);v.dataset.voiceRxPeer=peerId;}
     const t=Math.max(ctx.currentTime+.03,Math.min(ctx.currentTime+.15,playheads.get(peerId)||0));src.start(t);playheads.set(peerId,t+audio.duration);
     const indicator=document.getElementById('proximityVoiceSpeaking');if(indicator){indicator.textContent=`🔊 P${(multiplayer()?.playerInfo?.(peerId)?.index)||'?'}`;indicator.hidden=false;setTimeout(()=>{if(indicator.textContent.startsWith('🔊'))indicator.hidden=true;},450);}
   }catch{} }
