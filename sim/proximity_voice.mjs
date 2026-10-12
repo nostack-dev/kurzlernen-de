@@ -17,6 +17,7 @@ const selfPos=()=>{const b=globalThis.__arondightRealWorld,body=document.body;
   return at&&Number.isFinite(at.x)&&Number.isFinite(at.y)?[at.x,at.y,Number(at.z)||0]:null;};
 const distance=id=>{const a=selfPos(),b=multiplayer()?.playerInfo?.(id)?.p;return a&&Array.isArray(b)&&b.length>=3&&b.every(Number.isFinite)?Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]):Infinity;};
 const status=message=>{const el=document.getElementById('proximityVoiceStatus');if(el)el.textContent=message;};
+function unlockPlayback(){try{if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();void ctx.resume().catch(()=>{});}catch{}}
 function transmit(samples){const s=session();if(!talking||muted||!s?.sendFx)return;const bytes=new Uint8Array(samples.map(encodeMuLaw));let binary='';for(const n of bytes)binary+=String.fromCharCode(n);
   const packet={type:'voice',id:`v-${(seq++).toString(36)}`,seq,data:btoa(binary)};
   for(const id of s.getPeerIds?.()||[])if(distance(id)<=VOICE_RADIUS_M)s.sendFx(packet,{target:id});
@@ -46,8 +47,7 @@ function stop(){++inputGeneration;talking=false;buffer=[];
 }
 function mute(){muted=!muted;stop();if(!muted){
     // An explicit user tap also unlocks incoming playback on mobile browsers.
-    if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();
-    void ctx.resume().catch(()=>{});
+    unlockPlayback();
   }return muted;}
 function receive(e){const {peerId,packet}=e.detail||{};if(!peerId||!validVoicePacket(packet)||muted||!multiplayer()?.connected)return;
   const gain=proximityGain(distance(peerId));if(!gain)return;const previous=lastSeq.get(peerId)??-1;if(packet.seq<=previous)return;lastSeq.set(peerId,packet.seq);
@@ -73,6 +73,12 @@ body.solo-flight:not(.desktop-input) #viewport #proximityVoiceBar button{width:3
 #proximityVoiceBar #proximityVoiceSpeaking{position:absolute;top:auto;bottom:calc(100% + 4px);left:0;background:#112a34d9;padding:2px 5px;border-radius:7px;color:#c6ffe6;font:750 10px system-ui,sans-serif;pointer-events:none}
 #proximityVoiceBar #proximityVoiceSpeaking[hidden]{display:none!important}`;
   document.head.appendChild(style);
+  // Joining MULTI is itself a user gesture. Unlock incoming audio here so
+  // peers are audible without first speaking or toggling MUTE. This never
+  // requests mic permission and never advertises a SOLO session.
+  view.addEventListener('pointerdown',event=>{
+    if(event.target instanceof Element&&event.target.closest('#mobileGameplayMultiplayer,#lanVsButton'))unlockPlayback();
+  },{capture:true});
   const bar=document.createElement('div');bar.id='proximityVoiceBar';bar.hidden=true;
   const ptt=document.createElement('button');ptt.id='proximityVoicePtt';ptt.type='button';ptt.textContent='🎙';ptt.setAttribute('aria-label','Push to talk: hold to speak');ptt.setAttribute('title','PTT halten');ptt.setAttribute('aria-pressed','false');
   ptt.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();ptt.setPointerCapture?.(e.pointerId);ptt.setAttribute('aria-pressed','true');start();});
