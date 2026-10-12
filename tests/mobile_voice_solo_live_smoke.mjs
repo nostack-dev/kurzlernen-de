@@ -10,6 +10,15 @@ const browser=await puppeteer.launch({
 });
 try{
   const page=await browser.newPage();
+  await page.evaluateOnNewDocument(()=>{
+    globalThis.__soloVoiceTracks=[];
+    const devices=navigator.mediaDevices,original=devices?.getUserMedia?.bind(devices);
+    if(original)devices.getUserMedia=async constraints=>{
+      const media=await original(constraints);
+      globalThis.__soloVoiceTracks.push(...media.getTracks());
+      return media;
+    };
+  });
   await page.setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1");
   await page.setViewport({width:844,height:390,deviceScaleFactor:1,isMobile:true,hasTouch:true});
   await page.goto(url,{waitUntil:"load",timeout:45000});
@@ -30,6 +39,7 @@ try{
   });
   assert.equal(initial.finder,false,"SOLO must not advertise in public lobby");
   assert.equal(initial.mute,"false","Voice must start unmuted");
+  assert.equal(await page.evaluate(()=>globalThis.__soloVoiceTracks?.length||0),0,"SOLO must never request mic before PTT");
   const button=await page.$("#proximityVoicePtt");
   const rect=await button.boundingBox();
   assert.ok(rect&&rect.width>20&&rect.height>20,"PTT should be touch-reachable");
@@ -46,6 +56,10 @@ try{
   assert.equal(talking.noAdvertising,true);
   await page.mouse.up();
   await page.waitForFunction(()=>document.querySelector("#proximityVoicePtt")?.getAttribute("aria-pressed")==="false");
+  const tracks=await page.evaluate(()=>({count:globalThis.__soloVoiceTracks?.length||0,
+    states:(globalThis.__soloVoiceTracks||[]).map(track=>track.readyState)}));
+  assert.ok(tracks.count>=1,"PTT never captured microphone audio");
+  assert.ok(tracks.states.every(state=>state==="ended"),"Releasing PTT must shut down all microphone tracks");
   await page.click("#proximityVoiceMute");
   assert.equal(await page.$eval("#proximityVoiceMute",e=>e.getAttribute("aria-pressed")),"true");
   await page.evaluate(()=>dispatchEvent(new Event("arondight:world-reset")));
