@@ -266,7 +266,7 @@ function readInputs(dt){
   // desktop mouse: a rate stick (mouse up = nose up, right = roll right); LMB = gun
   const desk=globalThis.__arondightDesktopInput;if(desk?.active&&desk.locked&&dt>0){const d=desk.takeMouseDelta(),a=1-Math.exp(-dt/.025);mouseStick.x+=(clamp(d.x/dt/730,-1,1)-mouseStick.x)*a;mouseStick.y+=(clamp(d.y/dt/730,-1,1)-mouseStick.y)*a;rollIn+=mouseStick.x;pitchIn-=mouseStick.y;const down=Boolean(desk.lmb);if(down&&!rocketMouseLatch&&rocketSelected){launchSelectedRocket();rocketSuppressMouse=true;}if(!down)rocketSuppressMouse=false;rocketMouseLatch=down;firing=!rocketSelected&&!rocketSuppressMouse&&(down||keys.has("Space"));}else{mouseStick.x=mouseStick.y=0;}
   // Xbox, Battlefield jet layout: LS ↑↓ throttle/lift, LS ←→ rudder, RS pitch + roll, RT gun,
-  // LT rockets, RB bombs, LB VTOL hover/flight. X exits / ejects and VIEW switches the camera
+  // LT selects rocket (RT then fires), RB bombs, LB VTOL hover/flight. X exits / ejects and VIEW switches the camera
   // (both handled by the shared pad actions, same as E and C on the keyboard). Under the
   // parachute the sticks steer the canopy.
   const pad=globalThis.__arondightPadBlocked?.()?null:(navigator.getGamepads?.()||[]).find(g=>g&&g.connected);if(pad&&(jet||para)){const ax=a=>Math.abs(a)<.12?0:a;lift+=-ax(pad.axes[1]||0);yawIn+=ax(pad.axes[0]||0);rollIn+=ax(pad.axes[2]||0);pitchIn+=ax(pad.axes[3]||0);
