@@ -29,21 +29,22 @@ try{
  assert.equal(info.publicSession,false,"Desktop SOLO must never start public lobby");
  assert.match(info.pttHint,/H/);assert.match(info.muteHint,/K/);
  assert.ok(info.pttWidth>=100,"Desktop mouse voice target should be large");
- // Keyboard: H is hold-to-talk, K toggles mute (V remains foot/drone).
- await page.keyboard.down("h");
+ // Keyboard: H toggles mic, K toggles receiving; no hold required.
+ await page.keyboard.press("h");
  await page.waitForFunction(()=>document.querySelector("#proximityVoicePtt")?.getAttribute("aria-pressed")==="true",{timeout:10000});
- await page.keyboard.up("h");
+ await page.keyboard.press("h");
  await page.waitForFunction(()=>document.querySelector("#proximityVoicePtt")?.getAttribute("aria-pressed")==="false",{timeout:10000});
  await page.keyboard.press("k");
  assert.equal(await page.$eval("#proximityVoiceMute",e=>e.getAttribute("aria-pressed")),"true");
  await page.keyboard.press("k");
  assert.equal(await page.$eval("#proximityVoiceMute",e=>e.getAttribute("aria-pressed")),"false");
- // Mouse: the large target must receive a real pointer hold and release.
+ // Mouse: one click opens mic, remains on after release, second click closes it.
  const r=await (await page.$("#proximityVoicePtt")).boundingBox();
  assert.ok(r&&r.width>=100);
- await page.mouse.move(r.x+r.width/2,r.y+r.height/2);await page.mouse.down();
+ await page.mouse.click(r.x+r.width/2,r.y+r.height/2);
  await page.waitForFunction(()=>document.querySelector("#proximityVoicePtt")?.getAttribute("aria-pressed")==="true",{timeout:10000});
- await page.mouse.up();
+ assert.equal(await page.evaluate(()=>globalThis.__arondightVoiceControls?.micOn),true);
+ await page.mouse.click(r.x+r.width/2,r.y+r.height/2);
  await page.waitForFunction(()=>document.querySelector("#proximityVoicePtt")?.getAttribute("aria-pressed")==="false",{timeout:10000});
  // Xbox: the application's one pad-actions loop must own R3 & R3+Y.
  await page.evaluate(()=>{
@@ -56,8 +57,12 @@ try{
    const button=globalThis.__voiceTestPad.buttons[index];button.pressed=value;button.value=value?1:0;
  },[i,pressed]);
  const weaponBefore=await page.evaluate(()=>String(globalThis.__arondightDroneWeapons?.mode??globalThis.__arondightFootWeapons?.mode??""));
- await set(11,true); // R3
+ await set(11,true); // R3 down
+ await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.voicePadR3==="1",{timeout:8000});
+ await set(11,false); // tap RELEASE toggles mic
  await page.waitForFunction(()=>document.querySelector("#proximityVoicePtt")?.getAttribute("aria-pressed")==="true",{timeout:12000});
+ await set(11,true);
+ await page.waitForFunction(()=>document.querySelector("#viewport")?.dataset.voicePadR3==="1",{timeout:8000});
  await set(3,true);  // Y while R3: mute, not weapon swap
  await page.waitForFunction(()=>document.querySelector("#proximityVoiceMute")?.getAttribute("aria-pressed")==="true",{timeout:12000});
  assert.equal(await page.$eval("#proximityVoicePtt",e=>e.getAttribute("aria-pressed")),"false","Mute chord must end PTT");
@@ -80,5 +85,5 @@ try{
  },{timeout:5000});
  await mkdir("artifacts",{recursive:true});
  await page.screenshot({path:"artifacts/desktop-voice-keyboard-xbox.png"});
- console.log("Desktop voice PASSED: clickable labeled controls, H hold, K mute, R3 PTT, R3+Y toggle, no SOLO advertising",JSON.stringify(info));
+ console.log("Desktop voice PASSED: clickable labeled controls, H mic-toggle, K speaker mute, R3 mic-toggle, R3+Y speaker mute, no SOLO advertising",JSON.stringify(info));
 }finally{await browser.close();}
