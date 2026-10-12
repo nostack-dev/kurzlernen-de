@@ -24,6 +24,17 @@ jobs:
             sleep 5
           done
           test "$ok" = 1
+      - name: Inspect real mobile controls (screenshots and geometry)
+        env:
+          GH_SHA: ${{ github.sha }}
+        run: |
+          CHROME_BIN="$(command -v google-chrome || command -v chromium)" node tests/mobile_controls_visual_smoke.mjs "https://kurzlernen.de/drone_simulator.html?verify=${GH_SHA}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-hud-visual-${{ github.sha }}
+          path: artifacts/mobile-hud-*.png
+          if-no-files-found: ignore
       - name: Verify renderer, terrain and console
         env:
           GH_SHA: ${{ github.sha }}

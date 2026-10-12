@@ -1,7 +1,8 @@
 // Explicit-consent push-to-talk. No microphone opened on page load.
 import {VS_FX_EVENT,VS_PEER_EVENT} from './lan_vs.mjs';
 import {VOICE_RATE,VOICE_RADIUS_M,proximityGain,encodeMuLaw,decodeMuLaw,validVoicePacket} from './voice_codec.mjs';
-export const PROXIMITY_VOICE_VERSION='ptt-proximity-hud-safe-v2';
+import {voiceHudPosition} from './voice_hud_layout.mjs';
+export const PROXIMITY_VOICE_VERSION='ptt-proximity-thumb-safe-v3';
 let stream=null,ctx=null,source=null,processor=null,silent=null,talking=false,muted=false,seq=0,buffer=[],installed=false;
 const lastSeq=new Map(),playheads=new Map();
 const multiplayer=()=>globalThis.__arondightVsMultiplayer;
@@ -34,15 +35,19 @@ function mount(){const view=document.getElementById('viewport');if(!view||docume
   const style=document.createElement('style');style.dataset.proximityVoiceHud=PROXIMITY_VOICE_VERSION;
   style.textContent=`body:not(.solo-flight) #proximityVoiceBar{display:none!important}
 #viewport #proximityVoiceBar{position:absolute;top:max(8px,var(--solo-safe-top,env(safe-area-inset-top)));left:clamp(180px,27vw,320px);bottom:auto;z-index:100002;display:flex;align-items:center;gap:6px;pointer-events:none}
+#viewport #proximityVoiceBar[hidden]{display:none!important}
+body.solo-flight:not(.desktop-input) #viewport #proximityVoiceBar{flex-direction:column;gap:5px;align-items:center}
+body.solo-flight:not(.desktop-input) #viewport #proximityVoiceBar button{width:38px;height:38px;min-width:38px;min-height:38px}
+@media(max-height:360px){body.solo-flight:not(.desktop-input) #viewport #proximityVoiceBar button{width:34px;height:34px;min-width:34px;min-height:34px}}
 #viewport #proximityVoiceBar button{width:38px;height:38px;min-width:38px;min-height:38px;padding:0;border-radius:50%!important;border:1.5px solid #94d4ea90;background:#132b3ddb;color:#eaf8ff;box-shadow:0 3px 12px #0007;font:800 19px/1 system-ui,sans-serif;display:grid;place-items:center;pointer-events:auto;touch-action:none}
 #viewport #proximityVoicePtt[aria-pressed="true"]{background:#1b674f;border-color:#91ffd7}
 #viewport #proximityVoiceMute[aria-pressed="true"]{background:#60332c;border-color:#ffa998}
 #viewport #proximityVoiceBar button:focus-visible{outline:3px solid #ffd76a;outline-offset:2px}
 #proximityVoiceBar #proximityVoiceStatus{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-#proximityVoiceBar #proximityVoiceSpeaking{position:absolute;top:43px;left:0;background:#112a34d9;padding:2px 5px;border-radius:7px;color:#c6ffe6;font:750 10px system-ui,sans-serif;pointer-events:none}
+#proximityVoiceBar #proximityVoiceSpeaking{position:absolute;top:auto;bottom:calc(100% + 4px);left:0;background:#112a34d9;padding:2px 5px;border-radius:7px;color:#c6ffe6;font:750 10px system-ui,sans-serif;pointer-events:none}
 #proximityVoiceBar #proximityVoiceSpeaking[hidden]{display:none!important}`;
   document.head.appendChild(style);
-  const bar=document.createElement('div');bar.id='proximityVoiceBar';
+  const bar=document.createElement('div');bar.id='proximityVoiceBar';bar.hidden=true;
   const ptt=document.createElement('button');ptt.id='proximityVoicePtt';ptt.type='button';ptt.textContent='🎙';ptt.setAttribute('aria-label','Push to talk: hold to speak');ptt.setAttribute('title','PTT halten');ptt.setAttribute('aria-pressed','false');
   ptt.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();ptt.setPointerCapture?.(e.pointerId);ptt.setAttribute('aria-pressed','true');start();});
   for(const ev of ['pointerup','pointercancel','lostpointercapture'])ptt.addEventListener(ev,()=>{ptt.setAttribute('aria-pressed','false');stop();});
@@ -50,6 +55,23 @@ function mount(){const view=document.getElementById('viewport');if(!view||docume
   m.onclick=()=>{const value=mute();m.textContent=value?'🔇':'🔈';m.setAttribute('aria-pressed',String(value));m.setAttribute('aria-label',value?'Unmute voice chat':'Mute voice chat');};
   const state=document.createElement('span');state.id='proximityVoiceStatus';state.textContent='PTT halten';state.setAttribute('role','status');state.setAttribute('aria-live','polite');
   const indicator=document.createElement('span');indicator.id='proximityVoiceSpeaking';indicator.hidden=true;bar.append(ptt,m,state,indicator);view.append(bar);
+  const viewportRect=el=>{if(!el||!el.offsetParent||getComputedStyle(el).visibility==='hidden')return null;
+    let x=0,y=0,node=el;while(node&&node!==view){x+=node.offsetLeft;y+=node.offsetTop;node=node.offsetParent;}
+    if(node!==view)return null;return{left:x,top:y,right:x+el.offsetWidth,bottom:y+el.offsetHeight};};
+  const updateLayout=()=>{
+    // Voice is unavailable outside multiplayer; don't spend HUD real estate on dead controls.
+    if(!document.body.classList.contains('solo-flight')||!multiplayer()?.connected){bar.hidden=true;return;}
+    if(document.body.classList.contains('desktop-input')){bar.hidden=false;bar.style.removeProperty('left');bar.style.removeProperty('top');return;}
+    const h=view.clientHeight,w=view.clientWidth,small=h<=360,size=small?34:38,blocked=[];
+    for(const id of ['footMove','footLook','soloLeft','soloRight','footJump','thumbWeapon','mobileGameplayMode','mobileGameplayDock','mobileGameplayReset','mobileGameplayMultiplayer','mobileGameplayMultiplayerStatus','soloArm','soloKill','soloClearance','airStrikeButton','wantedEmpButton','playerVitalsHud','gameplayScorePill','jetpackFuel']){
+      const r=viewportRect(document.getElementById(id));if(r)blocked.push(r);
+    }
+    const pos=voiceHudPosition({width:w,height:h,move:viewportRect(document.getElementById('footMove'))||viewportRect(document.getElementById('soloLeft')),look:viewportRect(document.getElementById('footLook'))||viewportRect(document.getElementById('soloRight')),blocked,size});
+    bar.hidden=!pos;
+    if(pos){bar.style.setProperty('left',pos.x+'px','important');bar.style.setProperty('top',pos.y+'px','important');bar.dataset.edgePlacement=pos.side;bar.dataset.thumbSafe='1';}
+  };
+  const loop=()=>{if(!bar.isConnected)return;try{updateLayout();}catch(e){console.warn('voice hud layout',e);}setTimeout(loop,250);};loop();
+  addEventListener('resize',updateLayout);
   addEventListener('keydown',e=>{if(e.code==='KeyV'&&!e.repeat&&!e.target?.closest?.('input,textarea,dialog'))start();});addEventListener('keyup',e=>{if(e.code==='KeyV')stop();});
 }
 export function installProximityVoice(){if(installed||typeof window==='undefined')return;installed=true;addEventListener(VS_FX_EVENT,receive);addEventListener(VS_PEER_EVENT,e=>{if(e.detail?.type==='leave'){lastSeq.delete(e.detail.peerId);playheads.delete(e.detail.peerId);}if(!multiplayer()?.connected)stop();});addEventListener('arondight:world-reset',()=>{stop();mute();});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();}

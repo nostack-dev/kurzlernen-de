@@ -28,7 +28,7 @@ function placeModeSwitch(){
   if(!stick){for(const p of["left","top"])setPx(mode,p,null);mode.classList.remove("by-stick");return;}
   mode.classList.add("by-stick");const h=mode.offsetHeight||40;
   // low row, just right of the move stick (the left thumb rolls down-right onto it)
-  const left=stick.right-6,top=stick.bottom-h-10;setPx(mode,"left",left);setPx(mode,"top",top);
+  const left=stick.right+8,top=stick.bottom-h-10;setPx(mode,"left",left);setPx(mode,"top",top);
   // drone: the altitude pad sits right of the stick too — lift it above the switch
   const clr=$("soloClearance"),cr=rectOf(clr);if(clr&&cr&&cr.left<left+mode.offsetWidth&&cr.right>left){const want=top-8-cr.height,off=cr.top-(clr.offsetTop||0);clr.style.setProperty("bottom","auto","important");setPx(clr,"top",want-off);}
 }
