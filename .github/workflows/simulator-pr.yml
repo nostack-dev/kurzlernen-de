@@ -20,6 +20,8 @@ jobs:
         run: python3 tools/validate-simulator.py
       - name: Verify mobile multiplayer marker safe areas
         run: node tests/mobile_peer_marker_layout_test.mjs
+      - name: Verify Xbox R3 PTT and R3+Y mute state machine
+        run: node tests/voice_control_bindings_test.mjs
       - name: Verify SOLO/MULTI shared voice and mic safety contract
         run: node tests/voice_solo_contract_test.mjs
       - name: Verify mobile edge-only voice layout

@@ -71,6 +71,15 @@ jobs:
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
           CHROME_BIN="$CHROME_BIN" node tests/desktop_controls_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?desktop-ci=${GH_SHA}" 2>&1 | tee -a artifacts/desktop_controls_live_smoke.log
+      - name: Verify PC keyboard/mouse and Xbox voice controls
+        env:
+          GH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          CHROME_BIN="$CHROME_BIN" node tests/desktop_voice_controls_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?desktop-voice-ci=${GH_SHA}" 2>&1 | tee -a artifacts/desktop_voice_controls_live_smoke.log
       - name: Test deterministic mobile startup
         env:
           GH_SHA: ${{ github.sha }}
