@@ -1,11 +1,15 @@
 // Compact voice controls stay near a player's thumb, not in the centre of the view.
 // Pure geometry: use real HUD rectangles and reject intersecting touch targets.
-export const VOICE_HUD_LAYOUT_VERSION="edge-thumb-voice-v2";
+export const VOICE_HUD_LAYOUT_VERSION="edge-low-thumb-voice-v3";
 export function voiceHudPosition({width,height,move=null,look=null,blocked=[],size=38,gap=5,safe=8}={}){
   if(!Number.isFinite(width)||!Number.isFinite(height)||width<320||height<230)return null;
   const s=Math.max(8,Number(safe)||8),unit=Math.max(30,Number(size)||38),step=Math.max(3,Number(gap)||5),w=unit,h=unit*2+step;
   const edges=[
-    {x:s,y:(move?.top??height*.62)-h-8},
+    // Slightly LOWER than the old pair. Sit just inward of the two sticks
+    // so this remains reachable without occupying the play/aim center.
+    {x:(move?.right??(s+110))+10,y:(move?.top??height*.62)-h+13},
+    {x:(look?.left??(width-s-110))-w-10,y:(look?.top??height*.62)-h+13},
+    {x:s,y:(move?.top??height*.62)-h-4},
     {x:width-s-w,y:(look?.top??height*.62)-h-8},
     {x:s,y:(move?.top??height*.62)-h-48},
     {x:width-s-w,y:(look?.top??height*.62)-h-48},
@@ -30,8 +34,8 @@ export function voiceHudPosition({width,height,move=null,look=null,blocked=[],si
   const minY=s,maxY=Math.floor(height-h-s);
   const slots=[];
   for(const [side,edge,anchor] of [
-    ["left",s,(move?.top??height*.62)-h-8],
-    ["right",width-s-w,(look?.top??height*.62)-h-8]
+    ["left",s,(move?.top??height*.62)-h+10],
+    ["right",width-s-w,(look?.top??height*.62)-h+10]
   ]){
     // A vehicle button may occupy the complete outer strip, so try one or
     // two button-widths inward while remaining strictly in the outer third.
