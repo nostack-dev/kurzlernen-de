@@ -338,7 +338,14 @@ function render(now=performance.now()){
 }
 
 export function installVsMultiplayer(){
-  if(installed)return;installed=true;globalThis.__arondightVsMultiplayer={reportLocalDamage,resetLevelHealth,blastHit,peerDead:id=>Boolean(peers.get(String(id||""))?.dead),scores:()=>participantIds().map((id,i)=>({id,index:i+1,color:cssColor(colorFor(id)),self:id===selfId,hp:health.get(id)??100,...score(id)})),playerInfo:id=>{const ids=participantIds(),i=ids.indexOf(String(id||""));return i<0?null:{index:i+1,color:cssColor(colorFor(id)),self:id===selfId};},minimapPlayers:()=>{const now=performance.now();return [...peers.values()].filter(r=>r.nav&&now-r.lastPoseMs<=STALE_MS).map(r=>{const vehicle=r.nav.mode==="car"||r.nav.mode==="jet";
+  if(installed)return;installed=true;globalThis.__arondightVsMultiplayer={reportLocalDamage,resetLevelHealth,blastHit,peerDead:id=>Boolean(peers.get(String(id||""))?.dead),scores:()=>participantIds().map((id,i)=>({id,index:i+1,color:cssColor(colorFor(id)),self:id===selfId,hp:health.get(id)??100,...score(id)})),playerInfo:id=>{const key=String(id||""),ids=participantIds(),i=ids.indexOf(key);
+  if(i<0)return null;const r=peers.get(key),now=performance.now();
+  // Voice distance uses the actual player/vehicle in the same local-metric
+  // frame as the listener, not the parked drone or just an index/color record.
+  const sample=r?.nav?.mode==="jet"||r?.nav?.mode==="car"?r?.navTimeline?.sample?.(now):r?.timeline?.sample?.(now);
+  const p=sample?.p||r?.nav?.p||null;
+  return{index:i+1,color:cssColor(colorFor(id)),self:key===selfId,p:Array.isArray(p)&&p.length===3&&p.every(Number.isFinite)?p:null};
+},minimapPlayers:()=>{const now=performance.now();return [...peers.values()].filter(r=>r.nav&&now-r.lastPoseMs<=STALE_MS).map(r=>{const vehicle=r.nav.mode==="car"||r.nav.mode==="jet";
     const sample=vehicle?r.navTimeline.sample(now):r.timeline.sample(now);
     return{id:r.id,index:Math.max(1,participantIds().indexOf(r.id)+1),color:cssColor(colorFor(r.id)),mode:r.nav.mode,p:sample?.p||r.nav.p,headingRad:vehicle?(sample?.headingRad??r.nav.headingRad):r.nav.headingRad,dead:r.dead};});},get connected(){return Boolean(session()&&peers.size>0);},get authority(){return authorityId;},get self(){return selfId;}};style=document.createElement("style");style.textContent=`body.vs-multiplayer #vsEnemyMarker{display:none!important}.vs-player-marker{--vs-player-color:#fff;--vpm-angle:180deg;position:absolute;z-index:14;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;color:#fff;font-family:system-ui,-apple-system,sans-serif;filter:drop-shadow(0 1px 2px #000c);transform-origin:50% 100%;will-change:transform}
 .vs-player-marker .vpm-tag{display:flex;align-items:baseline;gap:6px;padding:3px 8px;border-radius:8px;background:#060b10b8;border:1.5px solid var(--vs-player-color);white-space:nowrap}
