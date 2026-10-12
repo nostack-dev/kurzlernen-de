@@ -241,7 +241,7 @@ function enterPilot(A){
   document.body.classList.add("jet-mode");renderButtons();window.dispatchEvent(new CustomEvent("arondight:vehicle-mode",{detail:{active:true,jet:true}}));return true;
 }
 function finish(x,y,heading){// back on foot at (x,y)
-  active=false;firing=false;rocketSelected=false;rocketMouseLatch=false;tapFire=null;keys.clear();para=null;if(chute)chute.visible=false;stopVoice();releaseSticks();document.body.classList.remove("jet-mode");
+  active=false;firing=false;rocketSelected=false;rocketMouseLatch=false;rocketSuppressMouse=false;tapFire=null;keys.clear();para=null;if(chute)chute.visible=false;stopVoice();releaseSticks();document.body.classList.remove("jet-mode");
   const s=freeSpot(x,y),w=walk();w?.setPose?.({x:s.x,y:s.y,yaw:walkYawOf(heading),pitch:0});
   const cam=bridge()?.threeCamera;if(cam&&baseFar){cam.far=baseFar;cam.updateProjectionMatrix();}farGround.hide();globalThis.__arondightFogScale=1;
   renderButtons();window.dispatchEvent(new CustomEvent("arondight:vehicle-mode",{detail:{active:false,jet:true}}));}
@@ -264,13 +264,13 @@ function readInputs(dt){
   const m=sticks.move,l=sticks.look;let lift=-m.y,yawIn=m.x,pitchIn=l.y,rollIn=l.x;// pitchIn + = stick pulled back = nose up
   if(keys.has("KeyW"))lift+=1;if(keys.has("KeyS"))lift-=1;if(keys.has("KeyA"))yawIn-=1;if(keys.has("KeyD"))yawIn+=1;if(keys.has("ArrowUp"))pitchIn-=1;if(keys.has("ArrowDown"))pitchIn+=1;if(keys.has("ArrowLeft"))rollIn-=1;if(keys.has("ArrowRight"))rollIn+=1;
   // desktop mouse: a rate stick (mouse up = nose up, right = roll right); LMB = gun
-  const desk=globalThis.__arondightDesktopInput;if(desk?.active&&desk.locked&&dt>0){const d=desk.takeMouseDelta(),a=1-Math.exp(-dt/.025);mouseStick.x+=(clamp(d.x/dt/730,-1,1)-mouseStick.x)*a;mouseStick.y+=(clamp(d.y/dt/730,-1,1)-mouseStick.y)*a;rollIn+=mouseStick.x;pitchIn-=mouseStick.y;const down=Boolean(desk.lmb);if(down&&!rocketMouseLatch&&rocketSelected)launchSelectedRocket();rocketMouseLatch=down;firing=!rocketSelected&&(down||keys.has("Space"));}else{mouseStick.x=mouseStick.y=0;}
+  const desk=globalThis.__arondightDesktopInput;if(desk?.active&&desk.locked&&dt>0){const d=desk.takeMouseDelta(),a=1-Math.exp(-dt/.025);mouseStick.x+=(clamp(d.x/dt/730,-1,1)-mouseStick.x)*a;mouseStick.y+=(clamp(d.y/dt/730,-1,1)-mouseStick.y)*a;rollIn+=mouseStick.x;pitchIn-=mouseStick.y;const down=Boolean(desk.lmb);if(down&&!rocketMouseLatch&&rocketSelected){launchSelectedRocket();rocketSuppressMouse=true;}if(!down)rocketSuppressMouse=false;rocketMouseLatch=down;firing=!rocketSelected&&!rocketSuppressMouse&&(down||keys.has("Space"));}else{mouseStick.x=mouseStick.y=0;}
   // Xbox, Battlefield jet layout: LS ↑↓ throttle/lift, LS ←→ rudder, RS pitch + roll, RT gun,
   // LT rockets, RB bombs, LB VTOL hover/flight. X exits / ejects and VIEW switches the camera
   // (both handled by the shared pad actions, same as E and C on the keyboard). Under the
   // parachute the sticks steer the canopy.
   const pad=globalThis.__arondightPadBlocked?.()?null:(navigator.getGamepads?.()||[]).find(g=>g&&g.connected);if(pad&&(jet||para)){const ax=a=>Math.abs(a)<.12?0:a;lift+=-ax(pad.axes[1]||0);yawIn+=ax(pad.axes[0]||0);rollIn+=ax(pad.axes[2]||0);pitchIn+=ax(pad.axes[3]||0);
-    if(jet){const rt=(pad.buttons[7]?.value||0)>.4;if(rt&&!jet.padFire&&rocketSelected)launchSelectedRocket();if(rt!==jet.padFire){firing=rt&&!rocketSelected;jet.padFire=rt;}const lt=(pad.buttons[6]?.value||0)>.5;if(lt&&!jet.padLT)selectRocket();jet.padLT=lt;const rb=Boolean(pad.buttons[5]?.pressed);if(rb&&!jet.padRB)dropBomb();jet.padRB=rb;const lb=Boolean(pad.buttons[4]?.pressed);if(lb&&!jet.padLB)toggleMode();jet.padLB=lb;}}
+    if(jet){const rt=(pad.buttons[7]?.value||0)>.4;if(rt&&!jet.padFire&&rocketSelected){launchSelectedRocket();jet.rocketSuppressPad=true;}if(!rt)jet.rocketSuppressPad=false;if(rt!==jet.padFire){firing=rt&&!rocketSelected&&!jet.rocketSuppressPad;jet.padFire=rt;}const lt=(pad.buttons[6]?.value||0)>.5;if(lt&&!jet.padLT)selectRocket();jet.padLT=lt;const rb=Boolean(pad.buttons[5]?.pressed);if(rb&&!jet.padRB)dropBomb();jet.padRB=rb;const lb=Boolean(pad.buttons[4]?.pressed);if(lb&&!jet.padLB)toggleMode();jet.padLB=lb;}}
   return{lift:clamp(lift,-1,1),yawIn:clamp(yawIn,-1,1),pitchIn:clamp(pitchIn,-1,1),rollIn:clamp(rollIn,-1,1)};}
 
 // ------------------------------------------------------------ the flown jet, every frame (the forces run in the physics step)
@@ -359,7 +359,7 @@ function dropBomb(){if(!active||!jet||jet.af.contacts>0||(jet.lastBomb&&performa
 function selectRocket(){if(!jet||para)return false;rocketSelected=!rocketSelected;firing=false;renderButtons();return rocketSelected;}
 function launchSelectedRocket(){if(!rocketSelected)return false;const fired=fireRocket();if(fired){rocketSelected=false;firing=false;renderButtons();}return fired;}
 // unguided rockets from the wing pods: fast, straight, a real blast where they hit
-const rockets=[];let rocketSide=1,rocketSelected=false,rocketMouseLatch=false;const ROCKET_RECHARGE_MS=2400;
+const rockets=[];let rocketSide=1,rocketSelected=false,rocketMouseLatch=false,rocketSuppressMouse=false;const ROCKET_RECHARGE_MS=2400;
 function fireRocket(){if(!active||!jet||jet.af.contacts>0||(jet.lastRocket&&performance.now()-jet.lastRocket<ROCKET_RECHARGE_MS))return false;
   jet.lastRocket=performance.now();fwd.copy(Y).applyQuaternion(jet.q);rightv.copy(X).applyQuaternion(jet.q);rocketSide=-rocketSide;
   const aim=fwd.clone();if(tapFire)tapAim(aim);
