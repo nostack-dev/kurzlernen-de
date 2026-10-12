@@ -8,6 +8,7 @@ on:
       - "drone_simulator.html"
       - "tests/desktop_controls_live_smoke.mjs"
       - "tests/mobile_startup_live_smoke.mjs"
+      - "tests/mobile_hud_no_overlap_live_smoke.mjs"
       - "tests/mobile_reset_readonly_live_smoke.mjs"
       - "tests/mobile_gameplay_live_smoke.mjs"
       - "tests/mobile_combat_traffic_live_smoke.mjs"
@@ -79,6 +80,15 @@ jobs:
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
           CHROME_BIN="$CHROME_BIN" node tests/mobile_startup_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_startup_live_smoke.log
+      - name: Inspect mobile thumb layout and capture screenshots
+        env:
+          GH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_BIN"
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_hud_no_overlap_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee artifacts/mobile_hud_no_overlap_live_smoke.log
       - name: Test mobile reset and readonly traffic API
         env:
           GH_SHA: ${{ github.sha }}
