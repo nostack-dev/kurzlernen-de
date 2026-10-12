@@ -13,7 +13,7 @@ import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./a
 // are scheduled from the current gain (no jumps), and RESET / START restart
 // the track from the beginning with a short fade-in.
 
-export const MUSIC_PLAYER_VERSION="separate-music-bus-v2";
+export const MUSIC_PLAYER_VERSION="menu-only-music-v3";
 // Resolved against the page (the deployed build inlines this module into
 // drone_simulator.html, so import.meta.url would not point into sim/).
 export const DEFAULT_MUSIC_TRACK=new URL("./sim/audio/8_bits_only.m4a",globalThis.document?.baseURI||"https://kurzlernen.de/").href;
@@ -24,7 +24,7 @@ const MUSIC_HEADROOM=.45,FADE_S=.9;
 let installed=false,element=null,gain=null,context=null,settings=normalizeAudioSettings(loadAudioSettings()),unlocked=false,pauseTimer=0;
 
 function viewport(){return document.getElementById("viewport");}
-function wanted(){return settings.musicEnabled&&settings.musicVolume>0&&!document.hidden&&!globalThis.__arondightRadioPlaying;} /* the car radio (car_radio.mjs) takes over while it plays */
+function wanted(){return settings.musicEnabled&&settings.musicVolume>0&&!document.hidden&&!document.body.classList.contains('solo-flight')&&!globalThis.__arondightRadioPlaying;} /* the car radio (car_radio.mjs) takes over while it plays */
 function targetLevel(){return wanted()?Math.min(1,settings.musicVolume/100)*MUSIC_HEADROOM:0;}
 function setStatus(state){const view=viewport();if(view){view.dataset.musicPlayer=MUSIC_PLAYER_VERSION;view.dataset.musicState=state;view.dataset.musicLevel=targetLevel().toFixed(3);}}
 
@@ -78,7 +78,9 @@ export function installMusicPlayer(){
   for(const type of["pointerdown","keydown","touchend"])window.addEventListener(type,onGesture,{capture:true,passive:true});
   window.addEventListener("click",event=>{const t=event.target instanceof Element?event.target:null;if(t?.closest?.("#soloReset,#mobileGameplayReset"))restartMusic();},{capture:true,passive:true});
   // START keeps the menu music running (no restart); RESET restarts it.
-  window.addEventListener("arondight:game-start",()=>{unlocked=true;apply(.6);});
+  window.addEventListener("arondight:game-start",()=>{unlocked=true;apply(.25);});
+  // The title music is never a gameplay track; a class change (START / EXIT / RESUME) decides the mix.
+  new MutationObserver(()=>apply(.28)).observe(document.body,{attributes:true,attributeFilter:['class']});
   window.addEventListener(AUDIO_SETTINGS_EVENT,event=>{settings=normalizeAudioSettings(event?.detail||loadAudioSettings());apply(.35);});
   document.addEventListener("visibilitychange",()=>apply(.4),{passive:true});
   setStatus("waiting-for-gesture");
