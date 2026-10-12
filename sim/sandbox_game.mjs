@@ -64,6 +64,14 @@ function ensureHud(){
 #sandboxHud .sb-pop.cyan{color:#9fd3ff;text-shadow:0 1px 4px rgba(0,0,0,.7)}
 #sandboxHud .sb-pop.red{color:#ff6a5a;text-shadow:0 1px 4px rgba(0,0,0,.7)}
 #sandboxHud .sb-pop.gold{color:#f5b301;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+/* Safari landscape browser bars can leave only 300px of usable height.
+   Score/FLOW at y=90..138 then occupy the exact same x/y as STRIKE + GRENADE.
+   Keep gameplay actions, movement and unobstructed view; score still accumulates
+   and is visible again immediately in a larger viewport (or after rotation). */
+@media(max-height:340px) and (pointer:coarse){
+  body.solo-flight #sandboxHud .sb-score,
+  body.solo-flight #sandboxHud .sb-flow{display:none!important}
+}
 @keyframes sbPop{0%{opacity:0;transform:scale(1.25)}10%{opacity:1;transform:scale(1)}75%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}`;
   document.head.appendChild(style);return true;
 }
