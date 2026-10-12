@@ -1,4 +1,5 @@
 import {buildingGroundBase} from "./terrain_craters.mjs";
+import {WORLD_BUILDING_COLLISION_MAX_PRISMS} from "./world_building_collisions.mjs";
 const finitePoint=point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite);
 const DEFAULT_LAUNCH_EXCLUSION_POINT=Object.freeze([0,0]);
 
@@ -14,8 +15,8 @@ function pointSegmentDistance(point,a,b){const q=closestPointOnSegment(point,a,b
 function prismEdgeDistance(point,prism){let best=Infinity;const ring=prism?.points||[];for(let index=0;index<ring.length;index++)best=Math.min(best,pointSegmentDistance(point,ring[index],ring[(index+1)%ring.length]));return best;}
 function pointHasLaunchClearance(point,prisms,clearance){for(const prism of prisms){if(pointInPolygon(point,prism.points)||prismEdgeDistance(point,prism)<clearance)return false;}return true;}
 
-export function normalizeBuildingCollisionSnapshot(value,{maxPrisms=512,maxVertices=24}={}){
-  const prisms=[],limit=Math.max(1,Math.floor(Number(maxPrisms)||512)),vertexLimit=Math.max(3,Math.floor(Number(maxVertices)||24));for(const prism of Array.isArray(value?.prisms)?value.prisms:[]){if(prisms.length>=limit)break;const points=prism?.points;if(!Array.isArray(points)||points.length<3||points.length>vertexLimit||!points.every(finitePoint))continue;const base=Number(prism.base),top=Number(prism.top);if(!Number.isFinite(base)||!Number.isFinite(top)||top-base<.1)continue;let twiceArea=0;for(let index=0;index<points.length;index++){const a=points[index],b=points[(index+1)%points.length];twiceArea+=a[0]*b[1]-b[0]*a[1];}if(Math.abs(twiceArea)<.02)continue;prisms.push({buildingKey:String(prism.buildingKey||""),base,top,points:points.map(point=>[...point])});}
+export function normalizeBuildingCollisionSnapshot(value,{maxPrisms=WORLD_BUILDING_COLLISION_MAX_PRISMS,maxVertices=24}={}){
+  const prisms=[],limit=Math.max(1,Math.floor(Number(maxPrisms)||WORLD_BUILDING_COLLISION_MAX_PRISMS)),vertexLimit=Math.max(3,Math.floor(Number(maxVertices)||24));for(const prism of Array.isArray(value?.prisms)?value.prisms:[]){if(prisms.length>=limit)break;const points=prism?.points;if(!Array.isArray(points)||points.length<3||points.length>vertexLimit||!points.every(finitePoint))continue;const base=Number(prism.base),top=Number(prism.top);if(!Number.isFinite(base)||!Number.isFinite(top)||top-base<.1)continue;let twiceArea=0;for(let index=0;index<points.length;index++){const a=points[index],b=points[(index+1)%points.length];twiceArea+=a[0]*b[1]-b[0]*a[1];}if(Math.abs(twiceArea)<.02)continue;prisms.push({buildingKey:String(prism.buildingKey||""),base,top,points:points.map(point=>[...point])});}
   return Object.freeze({hash:String(value?.hash||""),footprintCount:Math.max(0,Math.floor(Number(value?.footprintCount)||0)),prismCount:prisms.length,prisms});
 }
 
@@ -38,13 +39,14 @@ export function findClearBuildingLaunchPoint(value,{point=DEFAULT_LAUNCH_EXCLUSI
 
 export function createWorldBuildingCollisionBodies(b3,world,value,{categoryBits=1n,maskBits=6n,rangefinderCategoryBits=4n,launchExclusionPoint=DEFAULT_LAUNCH_EXCLUSION_POINT}={}){
   const snapshot=normalizeBuildingCollisionSnapshot(value);void launchExclusionPoint;if(!world||!snapshot.prisms.length)return{body:null,shapeCount:0,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze([]),...snapshot};
-  const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_staticBody;bodyDef.position=[0,0,0];const body=b3.b3CreateBody(world,bodyDef),shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.68;shapeDef.baseMaterial.restitution=.025;const collisionMask=BigInt(maskBits)&~BigInt(rangefinderCategoryBits);shapeDef.filter={categoryBits:BigInt(categoryBits),maskBits:collisionMask,groupIndex:0};let shapeCount=0;const activePrisms=[];
+  const anchor=snapshot.prisms[0].points[0],bodyOrigin=[anchor[0],anchor[1],0];
+  const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_staticBody;bodyDef.position=bodyOrigin;const body=b3.b3CreateBody(world,bodyDef),shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.68;shapeDef.baseMaterial.restitution=.025;const collisionMask=BigInt(maskBits)&~BigInt(rangefinderCategoryBits);shapeDef.filter={categoryBits:BigInt(categoryBits),maskBits:collisionMask,groupIndex:0};let shapeCount=0;const activePrisms=[];
   // a building stands on ONE ground level (its whole footprint), like the drawn building and the roof you
   // walk on: a concave footprint is cut into triangles, and each piece must not get its own (higher) base,
   // or pieces on a slope stick up above the visible roof and stop shots and players there
   const groundByKey=new Map();for(const prism of snapshot.prisms){const k=prism.buildingKey;if(!k)continue;let list=groundByKey.get(k);if(!list){list=[];groundByKey.set(k,list);}for(const p of prism.points)list.push(p);}
   for(const[k,pts]of groundByKey)groundByKey.set(k,buildingGroundBase(pts));
-  for(const prism of snapshot.prisms){const vertices=[];let e=prism.buildingKey&&groundByKey.has(prism.buildingKey)?groundByKey.get(prism.buildingKey):buildingGroundBase(prism.points);for(const height of[prism.base+e,prism.top+e])for(const point of prism.points)vertices.push(point[0],point[1],height);const hull=b3.b3CreateHull(vertices);if(!hull)continue;try{b3.b3CreateHullShape(body,shapeDef,hull);shapeCount++;activePrisms.push(prism);}finally{b3.b3DestroyHull(hull);}}
+  for(const prism of snapshot.prisms){const vertices=[];let e=prism.buildingKey&&groundByKey.has(prism.buildingKey)?groundByKey.get(prism.buildingKey):buildingGroundBase(prism.points);for(const height of[prism.base+e,prism.top+e])for(const point of prism.points)vertices.push(point[0]-bodyOrigin[0],point[1]-bodyOrigin[1],height-bodyOrigin[2]);const hull=b3.b3CreateHull(vertices);if(!hull)continue;try{b3.b3CreateHullShape(body,shapeDef,hull);shapeCount++;activePrisms.push(prism);}finally{b3.b3DestroyHull(hull);}}
   if(!shapeCount){b3.b3DestroyBody(body);return{body:null,shapeCount:0,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze([]),...snapshot};}return{body,shapeCount,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze(activePrisms.slice()),...snapshot};
 }
 
@@ -65,7 +67,8 @@ export function destroyWorldBuildingCollisionBodies(b3,state){if(state?.body&&b3
 // Box3D worlds) each time was the biggest CPU cost of a jet flight. Here each prism is its own static
 // body, keyed by its exact geometry: unchanged houses keep their hulls, only new ones are built and
 // gone ones destroyed.
-function prismBodyKey(prism,e){let k=`${prism.buildingKey||""}|${e.toFixed(2)}|${(+prism.base).toFixed(2)}|${(+prism.top).toFixed(2)}|`;for(const p of prism.points)k+=`${p[0].toFixed(2)},${p[1].toFixed(2)};`;return k;}
+// Exact geometry keys prevent silently retaining stale Box3D hulls.
+function prismBodyKey(prism,e){let k=`${prism.buildingKey||""}|${e}|${prism.base}|${prism.top}|`;for(const p of prism.points)k+=`${p[0]},${p[1]};`;return k;}
 export function updateWorldBuildingCollisionBodies(b3,world,prev,value,{categoryBits=1n,maskBits=6n,rangefinderCategoryBits=4n}={}){
   const snapshot=normalizeBuildingCollisionSnapshot(value);if(prev?.body&&!prev.entries){destroyWorldBuildingCollisionBodies(b3,prev);prev=null;}
   const old=prev?.entries||new Map(),next=new Map(),activePrisms=[];let shapeCount=0,built=0;
@@ -75,7 +78,28 @@ export function updateWorldBuildingCollisionBodies(b3,world,prev,value,{category
     for(const[k,pts]of groundByKey)groundByKey.set(k,buildingGroundBase(pts));
     for(const prism of snapshot.prisms){const e=prism.buildingKey&&groundByKey.has(prism.buildingKey)?groundByKey.get(prism.buildingKey):buildingGroundBase(prism.points);let key=prismBodyKey(prism,e);while(next.has(key))key+="#";
       let entry=old.get(key);if(entry&&b3.b3Body_IsValid(entry.body)){old.delete(key);}
-      else{entry=null;const vertices=[];for(const height of[prism.base+e,prism.top+e])for(const point of prism.points)vertices.push(point[0],point[1],height);const hull=b3.b3CreateHull(vertices);if(!hull)continue;const bodyDef=b3.b3DefaultBodyDef();bodyDef.type=b3.b3BodyType.b3_staticBody;bodyDef.position=[0,0,0];const body=b3.b3CreateBody(world,bodyDef);try{b3.b3CreateHullShape(body,shapeDef,hull);}finally{b3.b3DestroyHull(hull);}entry={body};built++;}
+      else{
+        entry=null;
+        // Box3D hull vertices are local to the body; avoid giant coordinates.
+        const anchor=prism.points[0],centerZ=(prism.base+prism.top)*.5+e;
+        const vertices=[];
+        for(const height of[prism.base+e,prism.top+e])
+          for(const point of prism.points)vertices.push(point[0]-anchor[0],point[1]-anchor[1],height-centerZ);
+        const hull=b3.b3CreateHull(vertices);
+        if(!hull)continue;
+        let body=null;
+        try{
+          const bodyDef=b3.b3DefaultBodyDef();
+          bodyDef.type=b3.b3BodyType.b3_staticBody;
+          bodyDef.position=[anchor[0],anchor[1],centerZ];
+          body=b3.b3CreateBody(world,bodyDef);
+          b3.b3CreateHullShape(body,shapeDef,hull);
+          entry={body};built++;
+        }catch(error){
+          if(body&&b3.b3Body_IsValid(body))b3.b3DestroyBody(body);
+          throw error;
+        }finally{b3.b3DestroyHull(hull);}
+      }
       next.set(key,entry);activePrisms.push(prism);shapeCount++;}}
   for(const e of old.values())if(e?.body&&b3.b3Body_IsValid(e.body))b3.b3DestroyBody(e.body);
   return{body:null,entries:next,shapeCount,built,kept:shapeCount-built,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze(activePrisms),...snapshot};
