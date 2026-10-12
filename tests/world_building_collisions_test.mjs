@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {applyDamageToPrisms,buildingDamage,clearDestruction,setBuildingDamage,setFeatureDamage} from "../sim/world_destruction_state.mjs";
 import {
   WORLD_BUILDING_COLLISION_MAX_FOOTPRINTS,
   WORLD_BUILDING_COLLISION_MAX_PRISMS,
@@ -46,5 +47,25 @@ let convexTriangulatorCalls=0;const convexPrisms=buildingCollisionPrismsFromFoot
 let courtyardTriangulatorCalls=0;const courtyardPrisms=buildingCollisionPrismsFromFootprints([yard],()=>{courtyardTriangulatorCalls++;return[[0,1,2]];});assert.equal(courtyardPrisms.length,1);assert.equal(courtyardTriangulatorCalls,1,"a footprint with a hole must never be convex-hull filled");
 const snapshot=makeBuildingCollisionSnapshot([polygon("snap",[square(1,2,5,6)],{render_height:11})],{triangulate:fan});
 assert.match(snapshot.hash,/^osm-[0-9a-f]{8}$/);assert.equal(snapshot.footprintCount,1);assert.equal(snapshot.prismCount,1);assert.equal(Object.isFrozen(snapshot),true);
+
+// Destruction must survive a tile fragment / geometry-key change.
+// Full demolition removes EVERY prism: Box3D then tears down its static bodies.
+const collisionFragments=[
+  {buildingKey:"777:first-tile-geometry",base:0,top:12,points:[[0,0],[1,0],[1,1]]},
+  {buildingKey:"777:new-tile-geometry",base:0,top:12,points:[[1,0],[2,0],[2,1]]},
+  {buildingKey:"888:neighbour",base:0,top:9,points:[[5,0],[6,0],[6,1]]},
+];
+assert.equal(setBuildingDamage("777:first-tile-geometry",{top:4,leveled:false}),true);
+assert.equal(buildingDamage("777:new-tile-geometry")?.top,4,"a tile fragment must inherit the original building's damage");
+let damagedPrisms=applyDamageToPrisms(collisionFragments);
+assert.equal(damagedPrisms.length,3);assert.equal(damagedPrisms[0].top,4);assert.equal(damagedPrisms[1].top,4);
+assert.equal(setFeatureDamage("777",{top:4,leveled:true}),true,"equal-height demolition must upgrade the leveled flag");
+assert.equal(buildingDamage("777:first-tile-geometry")?.leveled,true);
+assert.equal(applyDamageToPrisms(collisionFragments).length,1,"leveled buildings must leave no ghost collider, including newly streamed fragments");
+assert.equal(setBuildingDamage("777:yet-another-fragment",{top:12,leveled:false}),true);
+assert.equal(buildingDamage("777:yet-another-fragment")?.leveled,true,"a reloaded building must never resurrect a leveled collider");
+clearDestruction();
+assert.equal(buildingDamage("777:new-tile-geometry"),null);
+assert.equal(applyDamageToPrisms(collisionFragments).length,3,"RESET must restore the intact building colliders");
 
 console.log("WORLD building geometry passed: OSM Polygon/MultiPolygon, holes, min/max heights, tile fragments, deterministic hashing and collision budgets are bounded.");

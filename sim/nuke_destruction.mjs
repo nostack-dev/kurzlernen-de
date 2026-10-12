@@ -84,7 +84,12 @@ function stepDebris(dt){
 function buildingsFromSnapshot(){
   const groups=new Map();
   const add=(key,rings,base,top,leveled)=>{if(!key||leveled)return;let g=groups.get(key);if(!g){g={key,points:[],rings:[],base,top};groups.set(key,g);}for(const r of rings){const pts=r.filter(p=>Number.isFinite(Number(p?.[0]))&&Number.isFinite(Number(p?.[1])));if(pts.length<3)continue;g.points.push(...pts);g.rings.push(pts);}g.base=Math.min(g.base,base);g.top=Math.max(g.top,top);};
-  for(const prism of bridge()?.buildingCollisionSnapshot?.prisms||[])add(String(prism?.buildingKey||""),[prism.points||[]],Number(prism.base)||0,Number(prism.top)||8,prism.leveled);
+  for(const prism of bridge()?.buildingCollisionSnapshot?.prisms||[]){
+    const d=buildingDamage(prism?.buildingKey||"");
+    add(String(prism?.buildingKey||""),[prism.points||[]],Number(prism.base)||0,
+      d?Math.min(Number(prism.top)||8,d.top):Number(prism.top)||8,
+      Boolean(prism.leveled||d?.leveled));
+  }
   for(const fp of globalThis.__arondightCityBuildings?.footprints?.()||[]){if(groups.has(String(fp.key)))continue;const d=buildingDamage(fp.key);add(String(fp.key),[fp.outer||[]],Number(fp.base)||0,d?Math.min(Number(fp.top)||8,d.top):Number(fp.top)||8,d?.leveled);}
   const list=[];for(const g of groups.values()){if(!g.points.length)continue;let cx=0,cy=0;for(const p of g.points){cx+=+p[0];cy+=+p[1];}cx/=g.points.length;cy/=g.points.length;let r=0,minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;for(const p of g.points){r=Math.max(r,Math.hypot(p[0]-cx,p[1]-cy));minX=Math.min(minX,p[0]);maxX=Math.max(maxX,p[0]);minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);}list.push({...g,cx,cy,r,minX,maxX,minY,maxY,height:Math.max(1,g.top-g.base)});}
   return list;
@@ -116,7 +121,7 @@ const GREEN=new THREE.Color(0x3b3f46),EMBER=new THREE.Color(0xff8a3d),DIM=new TH
 // the whole city's debris stays one instanced draw call.
 const FLOOR_M=3.2,PANEL_MAX_M=7,MAX_PIECES=40;
 function collapseBuilding(scene,b,center,{tear=true}={}){
-  setBuildingDamage(b.key,{top:b.newTop,leveled:b.leveled});pendingCommit=true;
+  if(setBuildingDamage(b.key,{top:b.newTop,leveled:b.leveled}))pendingCommit=true;
   // Instant: the drawn building loses its upper part in this very frame.
   try{globalThis.__arondightCityBuildings?.damageNow?.(b.key,b.newTop);}catch{}
   const removed=Math.max(0,b.top-b.newTop);if(removed<.5)return;
@@ -338,15 +343,16 @@ function frame(now){
   const dt=clamp((now-lastFrame)/1000,0,.05);lastFrame=now;const scene=bridge()?.threeScene;if(scene)ensurePrewarm(scene);
   if(scene&&events.length){let budget=0;while(events.length&&events[0].at<=now&&budget<40){runEvent(scene,events.shift());budget++;}}
   // Rendering already shows damage instantly; the shared state (collision,
-  // map, multiplayer) is committed at most twice a second during a wave.
-  if(pendingCommit&&now-lastCommit>500){pendingCommit=false;lastCommit=now;commitDestruction();}
+  // map, multiplayer) is batched, but at most 150 ms behind the visual damage.
+  // Flush immediately when no more destruction events remain.
+  if(pendingCommit&&(now-lastCommit>150||!events.length)){pendingCommit=false;lastCommit=now;commitDestruction();}
   if(chunks.length)stepChunks(scene,dt);
   const alive=stepDebris(dt);if(flung.length)stepFlung(dt);if(craters.length)stepCraters(now);
   if(alive||flung.length){setData("nukeDebrisAlive",alive);setData("nukeFlungActors",flung.length);}
   requestAnimationFrame(frame);
 }
 function resetWorld(){
-  clearCraters();clearChunks();events.length=0;buildingHp.clear();for(const f of flattenedProps.splice(0)){f.mesh.setMatrixAt(f.index,f.matrix);f.mesh.instanceMatrix.needsUpdate=true;}for(const f of flung){f.clone.parent?.remove(f.clone);f.root.visible=true;}flung.length=0;
+  pendingCommit=false;clearCraters();clearChunks();events.length=0;buildingHp.clear();for(const f of flattenedProps.splice(0)){f.mesh.setMatrixAt(f.index,f.matrix);f.mesh.instanceMatrix.needsUpdate=true;}for(const f of flung){f.clone.parent?.remove(f.clone);f.root.visible=true;}flung.length=0;
   if(debris){const zero=new THREE.Matrix4().makeScale(0,0,0);for(const i of debrisActive){const it=debris.items[i];it.alive=false;debris.mesh.setMatrixAt(i,zero);}debrisActive.length=0;debrisFree=debris.items.map((_,i)=>DEBRIS_POOL-1-i);debris.mesh.instanceMatrix.needsUpdate=true;}
   for(const c of craters){c.mesh.parent?.remove(c.mesh);c.mesh.geometry.dispose();c.mesh.material.dispose();}craters.length=0;
   setData("nukeDebrisAlive",0);setData("nukeFlungActors",0);
