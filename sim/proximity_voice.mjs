@@ -14,7 +14,7 @@ const selfPos=()=>{const b=globalThis.__arondightRealWorld,body=document.body;
     body.classList.contains('player-driving')?globalThis.__arondightVehicleDrive?.cameraAnchor:
     body.classList.contains('on-foot-mode')?globalThis.__arondightWalkMode?.position:null;
   const at=p||b?.airframeFor?.(b.threeScene)?.position;
-  return at&&[at.x,at.y,at.z].every(Number.isFinite)?[at.x,at.y,at.z]:null;};
+  return at&&Number.isFinite(at.x)&&Number.isFinite(at.y)?[at.x,at.y,Number(at.z)||0]:null;};
 const distance=id=>{const a=selfPos(),b=multiplayer()?.playerInfo?.(id)?.p;return a&&Array.isArray(b)&&b.length>=3&&b.every(Number.isFinite)?Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]):Infinity;};
 const status=message=>{const el=document.getElementById('proximityVoiceStatus');if(el)el.textContent=message;};
 function transmit(samples){const s=session();if(!talking||muted||!s?.sendFx)return;const bytes=new Uint8Array(samples.map(encodeMuLaw));let binary='';for(const n of bytes)binary+=String.fromCharCode(n);
@@ -27,13 +27,22 @@ async function start(){if(muted||talking)return;
   // held and never send or advertise. MULTI solely starts public discovery.
   const generation=++inputGeneration;
   try{if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();await ctx.resume();
-    if(!stream){stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});}
+    if(generation!==inputGeneration)return; // released before the permission prompt
+    if(!stream){
+      const acquired=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});
+      if(generation!==inputGeneration){acquired.getTracks().forEach(track=>track.stop());return;}
+      stream=acquired;
+    }
     if(generation!==inputGeneration)return; // released while awaiting mic permission
     if(!source){source=ctx.createMediaStreamSource(stream);processor=ctx.createScriptProcessor(2048,1,1);silent=ctx.createGain();silent.gain.value=0;source.connect(processor);processor.connect(silent);silent.connect(ctx.destination);processor.onaudioprocess=onAudio;}
     talking=true;status(multiplayer()?.connected?'SPRICHT · PTT':'PTT · kein Mitspieler verbunden');
   }catch{if(generation===inputGeneration){talking=false;status('Mikrofon nicht freigegeben');}}}
 function stop(){++inputGeneration;talking=false;buffer=[];status(muted?'STUMM':'PTT halten');}
-function mute(){muted=!muted;stop();if(muted){stream?.getTracks().forEach(track=>track.stop());stream=null;source?.disconnect();processor?.disconnect();silent?.disconnect();source=processor=silent=null;}return muted;}
+function mute(){muted=!muted;stop();if(muted){stream?.getTracks().forEach(track=>track.stop());stream=null;source?.disconnect();processor?.disconnect();silent?.disconnect();source=processor=silent=null;}else{
+    // An explicit user tap also unlocks incoming playback on mobile browsers.
+    if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();
+    void ctx.resume().catch(()=>{});
+  }return muted;}
 function receive(e){const {peerId,packet}=e.detail||{};if(!peerId||!validVoicePacket(packet)||muted||!multiplayer()?.connected)return;
   const gain=proximityGain(distance(peerId));if(!gain)return;const previous=lastSeq.get(peerId)??-1;if(packet.seq<=previous)return;lastSeq.set(peerId,packet.seq);
   try{if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();if(ctx.state!=='running')return;
