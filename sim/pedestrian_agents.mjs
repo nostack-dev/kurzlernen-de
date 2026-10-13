@@ -121,7 +121,7 @@ export function stepAgent(a,dt,now,net){
         return;}}
     a.fightUntil=0;a.annoy=0;a.foe=null;const route=net.get(a.route)||net.get(a.home);if(route){projectOnRoute(route,a.x,a.y,J);a.route=route.key;a.s=J.s;a.side=J.lateral>=0?1:-1;}a.legs.length=0;a.state="wait";a.waitUntil=now+1200;return;}
   // frightened (a shot, a blast): run away from it, then calm down and find the way again
-  if(a.fleeUntil){if(now<a.fleeUntil){/* the first seconds after a fright are a real sprint (≈4.5 m/s, what an untrained adult manages), then a fast run */const top=now<(a.fleeBurstUntil||0)?Math.max(a.fleeSpeed,4.5):a.fleeSpeed;a.v+=clamp(top-a.v,-3*dt,3.2*dt);if(!freeMove(a,a.fleeX,a.fleeY,a.v*dt,{keep:true})){a.fleeX=-a.fleeX;a.fleeY=-a.fleeY;}turn(a,Math.atan2(a.fleeY,a.fleeX),dt*3);a.state="flee";return;}
+  if(a.fleeUntil){if(now<a.fleeUntil){/* the first seconds after a fright are a real sprint (≈4.5 m/s, what an untrained adult manages), then a fast run */const top=now<(a.fleeBurstUntil||0)?Math.max(a.fleeSpeed,6.4):a.fleeSpeed;a.v+=clamp(top-a.v,-3*dt,3.2*dt);if(!freeMove(a,a.fleeX,a.fleeY,a.v*dt,{keep:true})){a.fleeX=-a.fleeX;a.fleeY=-a.fleeY;}turn(a,Math.atan2(a.fleeY,a.fleeX),dt*3);a.state="flee";return;}
     a.fleeUntil=0;a.crossing=false;const L=a.leader;a.leader=null;if(L&&L.alive&&!L.removed){a.leader=L;a.state=L.state;return;}const route=net.get(a.route)||net.get(a.home);if(route){projectOnRoute(route,a.x,a.y,J);a.route=route.key;a.s=J.s;a.side=J.lateral>=0?1:-1;}a.legs.length=0;a.state="wait";a.waitUntil=now+800+agentRandom(a)*1500;return;}
   if(a.leader){const L=a.leader;if(!L.alive||L.removed||L.knocked){detach(a,net,now);return;}
     // companions walk beside / behind their leader, on their own legs (bounded pace, no snapping),
@@ -171,7 +171,7 @@ export function makeAgent(id,seed,route,s){
   routePointInto(route,a.s,a.side*a.off,P);a.x=P.x;a.y=P.y;a.yaw=Math.atan2(P.ty,P.tx)+(seed&2?Math.PI:0);a.waitUntil=0;return a;
 }
 // something frightening happened at (x,y): run away from it for a few seconds
-export function frighten(a,x,y,now,{ms=5600,strength=1}={}){let dx=a.x-x,dy=a.y-y,d=Math.hypot(dx,dy);if(d<.3){const t=agentRandom(a)*Math.PI*2;dx=Math.cos(t);dy=Math.sin(t);d=1;}a.fleeX=dx/d;a.fleeY=dy/d;a.fleeSpeed=Math.min(3.3,a.speed+1.1+.5*strength); /* an everyday person running away: 2.5-3.3 m/s, not a sprinter */a.fleeUntil=now+ms*(.8+.4*agentRandom(a));if(strength>=1.2)a.fleeBurstUntil=now+1500+agentRandom(a)*900;}
+export function frighten(a,x,y,now,{ms=5600,strength=1}={}){let dx=a.x-x,dy=a.y-y,d=Math.hypot(dx,dy);if(d<.3){const t=agentRandom(a)*Math.PI*2;dx=Math.cos(t);dy=Math.sin(t);d=1;}a.fleeX=dx/d;a.fleeY=dy/d;a.fleeSpeed=Math.min(5.4,3.8+1.0*strength+agentRandom(a)*.6); /* panic run: sustained 4.8-5.4 m/s with a short 6.4 m/s burst */a.fleeUntil=now+ms*(.8+.4*agentRandom(a));if(strength>=1.2)a.fleeBurstUntil=now+1500+agentRandom(a)*900;}
 // annoyed by the player (bumped, shoved, punched). Everyone has a temper (fixed per person):
 // most people are fearful (they back off when bumped and run when hit), about a quarter run at
 // once, and only a few (~15 %) are aggressive and square up — a punch makes those fight back.
