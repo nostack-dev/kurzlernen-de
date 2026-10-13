@@ -74,7 +74,7 @@ function set(j,x,y=0,z=0,k=1){j.rotation.x=lerp(j.rotation.x,x,k);j.rotation.y=l
 // speed m/s for the gait; dt for the cadence and pose blending.
 export function animateCharacter(rig,{state="idle",speed=0,weapon="none",dt=1/60,punch=0}={}){
   const air=state==="air";if(air)speed=0;const k=1-Math.exp(-dt*12),moving=speed>.25,run=speed>3.2;rig.phase+=dt*(moving?Math.min(12,4.2+speed*1.9):1.2);
-  const p=rig.phase,swing=moving?Math.sin(p)*Math.min(.75,.3+speed*.09):0,lift=moving?Math.max(0,Math.cos(p))*.35:0,liftO=moving?Math.max(0,-Math.cos(p))*.35:0;
+  const p=rig.phase,swing=moving?Math.sin(p)*(run?Math.min(1.15,.65+speed*.075):Math.min(.75,.3+speed*.09)):0,lift=moving?Math.max(0,Math.cos(p))*(run?.75:.35):0,liftO=moving?Math.max(0,-Math.cos(p))*(run?.75:.35):0;
   const{arms,legs,pelvis,spine,head,visor}=rig;rig.state=state;
   pelvis.position.z=lerp(pelvis.position.z,state==="drive"?.52:(.96-(moving?Math.abs(Math.sin(p))*.03:0)),k);
   // legs
@@ -83,7 +83,7 @@ export function animateCharacter(rig,{state="idle",speed=0,weapon="none",dt=1/60
   else if(air){const sway=Math.sin(p*.9)*.05;set(legs.L.hip,.32+sway,0,.08,k);set(legs.R.hip,.08-sway,0,-.08,k);set(legs.L.kn,-.55,0,0,k);set(legs.R.kn,-.3,0,0,k);}
   else{const shamble=state==="zombie"?.6:1;set(legs.L.hip,swing*shamble,0,0,k);set(legs.R.hip,-swing*shamble,0,0,k);set(legs.L.kn,-lift*(run?1.6:1.1),0,0,k);set(legs.R.kn,-liftO*(run?1.6:1.1),0,0,k);}
   // torso lean
-  set(spine,state==="zombie"?.28:run?.18:state==="drive"?-.12:0,0,0,k);set(head,state==="zombie"?-.2:0,0,state==="zombie"?Math.sin(p*.5)*.15:0,k);
+  set(spine,state==="zombie"?.28:run?.32:state==="drive"?-.12:0,0,0,k);set(head,state==="zombie"?-.2:0,0,state==="zombie"?Math.sin(p*.5)*.15:0,k);
   visor.visible=state==="vr";
   // arms
   const g=state.startsWith("aim")||((state==="walk"||state==="run"||state==="idle"||air)&&weapon!=="none");
