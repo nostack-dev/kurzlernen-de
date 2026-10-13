@@ -34,6 +34,22 @@ for(const a of agents){const x=a.x,y=a.y;stepAgent(a,.5,now+500,net);assert.ok(M
 {const a=agents.find(q=>!q.leader),x0=a.x,y0=a.y;frighten(a,x0-3,y0,now);for(let k=0;k<30*4;k++){now+=1000/30;stepAgent(a,1/30,now,net);}
   assert.ok(a.x-x0>6&&a.state==="flee","a frightened person runs away from the danger");for(let k=0;k<30*12;k++){now+=1000/30;stepAgent(a,1/30,now,net);}assert.ok(a.state!=="flee"&&a.fleeUntil===0,"and calms down again");
   for(let k=0;k<30*30&&a.state!=="walk";k++){now+=1000/30;stepAgent(a,1/30,now,net);}assert.ok(a.state==="walk"&&a.dest,"then goes on to a destination");}
+// Panic must accelerate into a sprint instead of merely speeding up the walking gait.
+// Keep distance and speed coupled to the actual simulation (no positional teleport).
+{const runner=seedRouteAgents(routes[1],{spacingM:200,cap:1})[0];
+  let t=0;const x0=runner.x,y0=runner.y;
+  frighten(runner,x0-3,y0,t,{ms:5000,strength:1.5});
+  assert.ok(runner.fleeBurstUntil>t,"high-intensity danger starts a brief panic burst");
+  let maxSpeed=0,maxDisplacement=0;
+  for(let k=0;k<90;k++){const oldX=runner.x,oldY=runner.y;t+=1000/30;stepAgent(runner,1/30,t,net);
+    maxSpeed=Math.max(maxSpeed,runner.v);
+    maxDisplacement=Math.max(maxDisplacement,Math.hypot(runner.x-oldX,runner.y-oldY));
+  }
+  assert.equal(runner.state,"flee","runner stays in flight during panic");
+  assert.ok(maxSpeed>5,"panic reaches a sprint rather than fast walking");
+  assert.ok(Math.hypot(runner.x-x0,runner.y-y0)>10,"panic visibly escapes the danger");
+  assert.ok(maxDisplacement<6.5/30+0.03,"panic never teleports between frames");
+}
 // nobody steps onto the road in front of a car: crossings wait for a gap
 {const net2=createPedestrianNetwork();net2.sync(routes);let clear=false;net2.crossingClear=()=>clear;const a=seedRouteAgents(routes[1],{spacingM:200,cap:1})[0];a.legs=[{route:"ew",fromS:a.s,toS:a.s,side:-a.side}];a.li=0;a.state="walk";a.trip=1;const y0=a.y;
   for(let k=0;k<60;k++){now+=1000/30;stepAgent(a,1/30,now,net2);}assert.ok(Math.abs(a.y-y0)<.05,"waits at the kerb while traffic comes");clear=true;for(let k=0;k<30*8;k++){now+=1000/30;stepAgent(a,1/30,now,net2);}assert.ok(Math.abs(a.y-y0)>5,"crosses once the road is clear");}
