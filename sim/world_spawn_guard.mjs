@@ -28,6 +28,7 @@ import "./world_map_full.mjs";
 import "./car_radio.mjs";
 import "./jogger_chain.mjs";
 import "./guided_missile.mjs";
+import "./ping_marker.mjs";
 import "./world_rigid_body_runtime.mjs";
 import "./walk_ui_layout_hotfix.mjs";
 import "./combat_hit_stack_guard.mjs";

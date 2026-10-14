@@ -82,7 +82,8 @@ function frame(){
     if(now[BTN.VIEW]&&!prev[BTN.VIEW])viewDownAt=performance.now();
     if(!now[BTN.VIEW]&&prev[BTN.VIEW]&&performance.now()-viewDownAt<400&&!(performance.now()-(Number(globalThis.__arondightSuppressViewTap)||0)<1500))camera();
     if(edge(BTN.X))sendKey("KeyE");
-    if(m==="foot"||m==="drone"){if((edge(BTN.Y)&&!voicePadState.suppressWeapon)||edge(BTN.RIGHT))cycleWeapon(1);else if(edge(BTN.LEFT))cycleWeapon(-1);}
+    if(edge(BTN.RIGHT))globalThis.__arondightPing?.at?.(); /* D-pad right = PING at the crosshair (Y still cycles weapons) */
+    if(m==="foot"||m==="drone"){if(edge(BTN.Y)&&!voicePadState.suppressWeapon)cycleWeapon(1);else if(edge(BTN.LEFT))cycleWeapon(-1);}
     if((m==="foot"||m==="drone")&&edge(BTN.B))emp();
   }finally{prev=now;}
 }

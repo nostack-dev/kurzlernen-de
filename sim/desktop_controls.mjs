@@ -175,7 +175,7 @@ function tick(){
 
 let hintEl=null,playEl=null,lastHint="",hintShownAt=0; // key help: readable 12 s after a mode / weapon change, then fades
 const HINTS={
-  foot:"WASD move · SHIFT sprint · SPACE jump (2× jetpack) · LMB fire · RMB aim / scope · 1 MP 2 Glock 3 Sniper 5 Granatwerfer 6 Raketenwerfer 7 Fäuste (LMB links · RMB rechts) 8 Messer · T halten Granate / Q / WHEEL · F vehicle · V drone · 4 strike · G EMP · P multiplayer · M map · ESC menu",
+  foot:"WASD move · SHIFT sprint · SPACE jump (2× jetpack) · LMB fire · RMB aim / scope · 1 MP 2 Glock 3 Sniper 5 Granatwerfer 6 Raketenwerfer 7 Fäuste (LMB links · RMB rechts) 8 Messer · Z / MMB ping · T halten Granate / Q / WHEEL · F vehicle · V drone · 4 strike · G EMP · P multiplayer · M map · ESC menu",
   drone:"WASD fly · SPACE / SHIFT up / down · MOUSE turn · RMB look · LMB fire · R arm · C camera · 1-3 / Q weapon · V on foot · M map · ESC menu",
   car:"W / S gas / brake · A / D steer · SPACE handbrake · MOUSE look · C camera · F exit · M map · ESC menu",
   jet:"W / S throttle · A / D rudder · MOUSE pitch / roll · LMB / SPACE gun · R rocket · B bomb · V hover / flight · C camera · F exit / eject · M map · ESC menu",

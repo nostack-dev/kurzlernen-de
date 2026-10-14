@@ -5,6 +5,12 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-15",time:"23:54",title:"Ping-Markierung, Luftschlag in Spielerfarbe, Voice-Reichweite",items:[
+    "PING: zeig deinen Mitspielern eine Richtung oder einen Treffpunkt – PC: Z oder mittlere Maustaste, Xbox: Steuerkreuz rechts, Handy: Bildschirm 0,6 s gedrückt halten. Nochmal auf deinen Ping = weg; nach 90 s verschwindet er von selbst.",
+    "Der Luftschlag-Strahl vom Himmel hat jetzt die Farbe des Spielers, der ihn gerufen hat – so ist klar, woher ein roter (oder blauer, grüner …) Strahl kommt.",
+    "Vor dem Luftschlag zeigt eine pulsierende blaue Pfeilspur am Boden, in welche Richtung die Bomben fallen.",
+    "Einstellungen: VOICE ÜBERALL HÖRBAR – aus (Standard) = nur Mitspieler in der Nähe hören dich, an = wie Funk für alle.",
+  ]},
   {date:"2026-10-14",time:"23:48",title:"Multiplayer: Blickrichtung, echte Drohnen, kein Rauswurf",items:[
     "Mitspieler schauen jetzt in die Richtung, in die sie wirklich schauen (vorher war die Drehung seitenverkehrt) – auch im Auto per Live-GPS.",
     "Fremde Drohnen sehen aus wie deine eigene: Arme, Motoren, drehende Propeller, Kufen – in der Spielerfarbe an Haube, Motorglocken und LED-Ring.",
