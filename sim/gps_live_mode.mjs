@@ -55,19 +55,28 @@ function onFix(pos){const c=pos?.coords;if(!c||!Number.isFinite(c.latitude)||!Nu
   if(Number.isFinite(c.speed)&&c.speed>=0){const sp=Math.hypot(live.vx,live.vy);if(sp>.05){const k=c.speed/sp;live.vx=live.vx*.5+live.vx*k*.5;live.vy=live.vy*.5+live.vy*k*.5;}else if(c.speed<.3){live.vx*=.5;live.vy*=.5;}}
   live.speed=Math.hypot(live.vx,live.vy);if(live.speed>1.2){const course=Number.isFinite(c.heading)&&c.heading>=0&&(c.speed??0)>1?c.heading*Math.PI/180:Math.atan2(live.vx,live.vy);live.heading=course;}
   live.distance+=Math.min(Math.hypot(live.x-ox,live.y-oy),MAX_SPEED_MPS*dt);live.fix=c;live.lastFixAt=now;addTrail(live.x,live.y,false);render();}
-function onFixError(e){live.error=e?.code===1?"GPS-Zugriff verweigert":e?.message||"GPS nicht verfügbar";render();}
+function onFixError(e){if(live.fix&&e?.code===3)return;/* a late fix in a tunnel: keep the last one */
+  live.error=e?.code===1?"STANDORT BLOCKIERT – in den Browser-/App-Einstellungen Standort erlauben":e?.code===3?"KEIN GPS-SIGNAL – Standort am Handy an? Draußen geht es am besten":"GPS NICHT VERFÜGBAR";render();}
+// No fix after a while with high accuracy (indoors, GPS chip asleep): also take the network position,
+// so the game starts at once; precise fixes replace it as soon as they come.
+function coarseFallback(){if(!live.active||live.fix||live.coarseId!=null)return;try{live.coarseId=navigator.geolocation.watchPosition(onFix,()=>{},{enableHighAccuracy:false,maximumAge:60000,timeout:30000});}catch{}}
 function onOrientation(e){const h=Number.isFinite(e.webkitCompassHeading)?e.webkitCompassHeading:(e.absolute&&Number.isFinite(e.alpha)?(360-e.alpha)%360:null);if(h!==null)live.compass=h*Math.PI/180;}
 
 // ------------------------------------------------------------------ on/off
 export async function startGpsLive(){if(live.active)return true;if(!navigator.geolocation){live.error="Kein GPS in diesem Browser";render();return false;}
   live.active=true;live.fix=null;worldTried=false;ownOrigin=null;live.trail=[];trailN=0;live.distance=0;live.startedAt=performance.now();live.speedAvg=0;live.error="";globalThis.__arondightGpsLive=api;document.body.classList.add("gps-live");
+  // Ask for the position FIRST, still inside the tap: an await before it uses up the user gesture and
+  // Android Chrome (above all as an installed app) then shows no permission prompt at all
+  live.watchId=navigator.geolocation.watchPosition(onFix,onFixError,{enableHighAccuracy:true,maximumAge:0,timeout:20000});
+  live.coarseId=null;setTimeout(coarseFallback,9000);
+  try{navigator.permissions?.query?.({name:"geolocation"}).then(st=>{const show=()=>{if(!live.active)return;if(st.state==="denied"){live.error="STANDORT BLOCKIERT – in den Browser-/App-Einstellungen Standort erlauben";render();}};show();st.onchange=show;}).catch(()=>{});}catch{}
+  setData("gpsLive","starting");render();
   try{if(typeof DeviceOrientationEvent!=="undefined"&&typeof DeviceOrientationEvent.requestPermission==="function")await DeviceOrientationEvent.requestPermission().catch(()=>{});}catch{}
   addEventListener("deviceorientationabsolute",onOrientation,true);addEventListener("deviceorientation",onOrientation,true);
   try{live.wake=await navigator.wakeLock?.request?.("screen");}catch{}
   const w=walk();if(w?.mode!=="foot")w?.setMode?.("foot",{persist:false,reason:"gps-live"});if(globalThis.__arondightVehicleDrive?.active)globalThis.__arondightVehicleDrive.exit?.();
-  live.watchId=navigator.geolocation.watchPosition(onFix,onFixError,{enableHighAccuracy:true,maximumAge:0,timeout:20000});
-  setData("gpsLive","starting");render();return true;}
-export function stopGpsLive(){if(!live.active)return;live.active=false;if(live.watchId!==null)navigator.geolocation.clearWatch(live.watchId);live.watchId=null;removeEventListener("deviceorientationabsolute",onOrientation,true);removeEventListener("deviceorientation",onOrientation,true);try{live.wake?.release?.();}catch{}live.wake=null;document.body.classList.remove("gps-live");if(puck)puck.visible=false;if(trail)trail.visible=false;setData("gpsLive","off");render();}
+  return true;}
+export function stopGpsLive(){if(!live.active)return;live.active=false;if(live.watchId!==null)navigator.geolocation.clearWatch(live.watchId);live.watchId=null;if(live.coarseId!=null)navigator.geolocation.clearWatch(live.coarseId);live.coarseId=null;removeEventListener("deviceorientationabsolute",onOrientation,true);removeEventListener("deviceorientation",onOrientation,true);try{live.wake?.release?.();}catch{}live.wake=null;document.body.classList.remove("gps-live");if(puck)puck.visible=false;if(trail)trail.visible=false;setData("gpsLive","off");render();}
 document.addEventListener("visibilitychange",async()=>{if(live.active&&!document.hidden){try{live.wake=await navigator.wakeLock?.request?.("screen");}catch{}}});
 
 // ------------------------------------------------------------------ puck + track line

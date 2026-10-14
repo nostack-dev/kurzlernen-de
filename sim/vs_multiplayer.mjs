@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import {buildPeerDroneModel,spinPeerDrone} from "./peer_drone_model.mjs";
 import {VsPoseTimeline,poseMatchesVsFrame} from "./vs_pose_sync.mjs";
 import {navPoseFromPacket} from "./multiplayer_navigation.mjs";
 import {NavMarkerTimeline} from "./nav_marker_timeline.mjs";
@@ -8,7 +9,7 @@ import {VS_PEER_EVENT,VS_POSE_EVENT,VS_GAME_EVENT,VS_FX_EVENT} from "./lan_vs.mj
 
 const VISUAL_SCALE=1;// other players' drones at their true size (a 12x drone sank half into the ground); the player marker keeps them readable
 const HITBOX_PADDING=1.16;
-const STALE_MS=3000;
+const STALE_MS=3000,MESH_STALE_MS=25000; // a mate's craft stays where it was last seen through short gaps (paused phone, lossy link)
 const MAX_PLAYERS=9;
 const COLOR_REFRESH_MS=420;
 const TRACER_SCAN_MS=600;
@@ -47,8 +48,10 @@ function localDead(){return localHealth()<=0;}
 function packetId(prefix){return`${prefix}-${Date.now().toString(36)}-${(++shotSeq).toString(36)}`;}
 
 function applyMaterialColor(root,color){
+  let accents=false;root?.traverse?.(node=>{if(node?.material?.userData?.vsAccent)accents=true;});
   root?.traverse?.(node=>{
     if(!node?.isMesh||node.userData?.vsCombatHitbox)return;
+    if(accents){const m=node.material;if(!m?.userData?.vsAccent)return;m.color?.setHex?.(color);if(m.emissive?.setHex)m.emissive.setHex(color);return;} // the real drone model: only its colour parts
     const m=node.material;if(m?.color?.setHex)m.color.setHex(color);if(m?.emissive?.setHex){m.emissive.setHex(color);m.emissiveIntensity=Math.max(Number(m.emissiveIntensity)||0,1.6);}
   });
   root?.traverse?.(node=>{if(node?.isSprite&&node.material?.color?.setHex)node.material.color.setHex(color);});
@@ -68,9 +71,7 @@ function makeMarker(record){
 
 function createPeerMesh(record){
   const b=bridge(),scene=b?.threeScene;if(!scene)return null;
-  const group=new THREE.Group(),material=new THREE.MeshStandardMaterial({color:record.color,emissive:record.color,emissiveIntensity:1.7,roughness:.24,metalness:.18});group.scale.setScalar(VISUAL_SCALE);
-  const body=new THREE.Mesh(new THREE.BoxGeometry(.09,.11,.044),material);body.userData.flightFireIgnore=true;group.add(body);
-  for(const[x,y]of[[-.19,-.19],[.19,-.19],[-.19,.19],[.19,.19]]){const arm=new THREE.Mesh(new THREE.BoxGeometry(.025,.26,.025),material);arm.position.set(x*.5,y*.5,0);arm.rotation.z=(x*y>0?1:-1)*Math.PI/4;arm.userData.flightFireIgnore=true;group.add(arm);}
+  const group=new THREE.Group();group.scale.setScalar(VISUAL_SCALE);group.add(buildPeerDroneModel(record.color));
   const hitMaterial=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,depthTest:false});hitMaterial.colorWrite=false;
   const hitbox=new THREE.Mesh(new THREE.BoxGeometry(.27*HITBOX_PADDING,.27*HITBOX_PADDING,.06*HITBOX_PADDING),hitMaterial);hitbox.userData.vsCombatHitbox=true;hitbox.userData.vsPlayerId=record.id;hitbox.userData.vsPeerHitProxy=true;group.add(hitbox);
   group.userData.vsPlayerId=record.id;group.userData.vsPlayerColor=record.color;group.userData.vsMultiplayerPeer=true;group.visible=false;scene.add(group);return group;
@@ -333,7 +334,7 @@ function updateHud(){
 function render(now=performance.now()){
   raf=requestAnimationFrame(render);const dt=Math.min(.05,Math.max(0,(now-lastRender)/1000||0));lastRender=now;updateSessionHooks();updateIdentity();reconcilePeers();flushAuthorityHits(now);authorityRegen(now);
   const b=bridge(),camera=b?.presentedCamera?.()||b?.threeCamera,view=viewport();if(!b?.threeScene||!camera||!view)return;document.body.classList.toggle("vs-multiplayer",peers.size>0);refreshColors(false,now);
-  for(const r of peers.values()){if(r.id===primaryId&&b.vsPeerMesh){r.mesh=b.vsPeerMesh;setPrimaryCompatibility(r);}else if(!r.mesh)r.mesh=createPeerMesh(r);if(!r.mesh)continue;const sample=r.timeline.sample(now);if(sample&&!r.dead&&now-r.lastPoseMs<=STALE_MS){r.mesh.position.set(...sample.p);r.mesh.quaternion.set(...sample.q);r.mesh.visible=true;}else if(r.dead||now-r.lastPoseMs>STALE_MS)r.mesh.visible=false;renderMarker(r,camera,view,now);}
+  for(const r of peers.values()){if(r.id===primaryId&&b.vsPeerMesh){r.mesh=b.vsPeerMesh;setPrimaryCompatibility(r);}else if(!r.mesh)r.mesh=createPeerMesh(r);if(!r.mesh)continue;const sample=r.timeline.sample(now);if(sample&&!r.dead&&now-r.lastPoseMs<=MESH_STALE_MS){r.mesh.position.set(...sample.p);r.mesh.quaternion.set(...sample.q);r.mesh.visible=true;spinPeerDrone(r.mesh.children?.[0],dt);}else if(r.dead||now-r.lastPoseMs>MESH_STALE_MS)r.mesh.visible=false;renderMarker(r,camera,view,now);}
   scanLocalFx(now);renderFx(now,dt);syncLegacyLocalState();updateHud();
 }
 
