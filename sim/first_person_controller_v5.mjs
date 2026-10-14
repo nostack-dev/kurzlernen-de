@@ -61,10 +61,10 @@ function resolveDistance(ray,{full=false}={}){let distance=staticDistance(ray,MA
 
 function gunParts(gun){
   const mode=String(footWeapons()?.mode||"smg"),smg=mode==="smg",grenade=mode==="grenade"||mode==="nuke",glock=mode==="glock",sniper=mode==="sniper";
-  const P=grenade?"WALK_GL":smg?"WALK_SMG":glock?"WALK_GLOCK":sniper?"WALK_SNIPER":mode==="fists"?"WALK_FISTS":"WALK_VM";
-  const grip=gun.getObjectByName(grenade?"WALK_GL_GRIP":smg?"WALK_SMG_PISTOL_GRIP":`${P}_GRIP`)||gun.getObjectByName("WALK_VM_GRIP");
+  const rocket=mode==="rocket";const P=rocket?"WALK_RL":grenade?"WALK_GL":smg?"WALK_SMG":glock?"WALK_GLOCK":sniper?"WALK_SNIPER":mode==="fists"?"WALK_FISTS":"WALK_VM";
+  const grip=gun.getObjectByName(rocket?"WALK_RL_GRIP":grenade?"WALK_GL_GRIP":smg?"WALK_SMG_PISTOL_GRIP":`${P}_GRIP`)||gun.getObjectByName("WALK_VM_GRIP");
   const rear=gun.getObjectByName(`${P}_REAR_SIGHT`);
-  const front=gun.getObjectByName(`${P}_FRONT_SIGHT`)||gun.getObjectByName(grenade?"WALK_GRENADE_MUZZLE_NODE":smg?"WALK_SMG_MUZZLE_NODE":glock?"WALK_GLOCK_MUZZLE_NODE":sniper?"WALK_SNIPER_MUZZLE_NODE":"WALK_VM_MUZZLE");
+  const front=gun.getObjectByName(`${P}_FRONT_SIGHT`)||gun.getObjectByName(rocket?"WALK_ROCKET_MUZZLE_NODE":grenade?"WALK_GRENADE_MUZZLE_NODE":smg?"WALK_SMG_MUZZLE_NODE":glock?"WALK_GLOCK_MUZZLE_NODE":sniper?"WALK_SNIPER_MUZZLE_NODE":"WALK_VM_MUZZLE");
   return{grip,rear,front,smg,grenade};
 }
 // Rotate the gun about its grip so the sight line passes through `target`.

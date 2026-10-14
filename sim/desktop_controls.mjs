@@ -61,7 +61,7 @@ function endLook(){const b=bridge();if(lookOwned&&b&&!b.keepLookOrientation)b.lo
 function quietUnlock(){return Boolean(document.getElementById("resetVoteDialog")||document.getElementById("quitConfirmDialog"))||performance.now()<(Number(globalThis.__arondightQuietUnlockUntil)||0);}
 function weaponApi(){return gameMode()==="foot"?globalThis.__arondightFootWeapons:globalThis.__arondightDroneWeapons;}
 function selectWeapon(index){
-  const mode=gameMode();if(mode==="foot"){const order=["smg","glock","sniper","grenade","fists","knife"];if(order[index])globalThis.__arondightFootWeapons?.setMode?.(order[index]);return true;}
+  const mode=gameMode();if(mode==="foot"){const order=["smg","glock","sniper","grenade","rocket","fists","knife"];if(order[index])globalThis.__arondightFootWeapons?.setMode?.(order[index]);return true;}
   if(mode==="drone"){const order=["gun","missile"],api=globalThis.__arondightDroneWeapons;if(order[index])api?.setMode?.(order[index]);return true;}
   return false;
 }
@@ -133,7 +133,7 @@ function onPointerMove(event){
 function onWheel(event){
   if(!locked())return;const mode=gameMode();if(mode!=="foot"&&mode!=="drone")return;
   const api=weaponApi();if(typeof api?.toggle!=="function")return;
-  if(mode==="foot"){const order=["smg","glock","sniper","grenade","fists","knife"],i=order.indexOf(String(api.mode)),n=(i+(event.deltaY>0?1:-1)+order.length)%order.length;api.setMode?.(order[n]);}else api.toggle();
+  if(mode==="foot"){const order=["smg","glock","sniper","grenade","rocket","fists","knife"],i=order.indexOf(String(api.mode)),n=(i+(event.deltaY>0?1:-1)+order.length)%order.length;api.setMode?.(order[n]);}else api.toggle();
   event.preventDefault();
 }
 
@@ -149,9 +149,8 @@ function onKeyDown(event){
   if((event.code==="KeyR"||event.code==="Enter"||event.code==="Space")&&!event.repeat&&playerDown()){event.preventDefault();event.stopImmediatePropagation();if(globalThis.__arondightRespawnReady&&!globalThis.__arondightRespawnReady())return;const hud=document.getElementById("vsRespawnHud");if(hud&&!hud.hidden)hud.querySelector("button")?.click();else globalThis.__arondightRequestReset?.();event.preventDefault();event.stopImmediatePropagation();return;}
   if(!inGame())return;const mode=gameMode();
   if(/^Digit[1-3]$/.test(event.code)&&(mode==="foot"||mode==="drone")){selectWeapon(Number(event.code.slice(5))-1);event.preventDefault();return;}
-  if(event.code==="Digit5"&&mode==="foot"){selectWeapon(3);event.preventDefault();return;} /* 5 = rocket launcher (4 is the air strike) */
-  if(event.code==="Digit6"&&mode==="foot"){selectWeapon(4);event.preventDefault();return;} /* 6 = fists */
-  if(event.code==="Digit7"&&mode==="foot"){selectWeapon(5);event.preventDefault();return;} /* 7 = knife */
+  /* 4 is the air strike; 5 grenade launcher, 6 rocket launcher, 7 fists, 8 knife */
+  {const k={Digit5:3,Digit6:4,Digit7:5,Digit8:6}[event.code];if(k!=null&&mode==="foot"){selectWeapon(k);event.preventDefault();return;}}
   if(mode!=="drone")return;
   if(event.code==="KeyV"&&!event.repeat){walk()?.setMode?.("foot");consume(event);return;}
   if(DRONE_KEYS.has(event.code)){keys.add(event.code);if(event.code==="KeyR"&&!event.repeat)droneSample.arm=true;if(event.code==="KeyC"&&!event.repeat)droneSample.camera=true;event.preventDefault();}
@@ -172,9 +171,9 @@ function tick(){
   syncOverlay();
 }
 
-let hintEl=null,playEl=null,lastHint="";
+let hintEl=null,playEl=null,lastHint="",hintShownAt=0; // key help: readable 12 s after a mode / weapon change, then fades
 const HINTS={
-  foot:"WASD move · SHIFT sprint · SPACE jump (2× jetpack) · LMB fire · RMB aim / scope · 1 MP 2 Glock 3 Sniper 5 Granatwerfer 6 Fäuste (LMB links · RMB rechts) 7 Messer · T halten Granate / Q / WHEEL · F vehicle · V drone · 4 strike · G EMP · P multiplayer · M map · ESC menu",
+  foot:"WASD move · SHIFT sprint · SPACE jump (2× jetpack) · LMB fire · RMB aim / scope · 1 MP 2 Glock 3 Sniper 5 Granatwerfer 6 Raketenwerfer 7 Fäuste (LMB links · RMB rechts) 8 Messer · T halten Granate / Q / WHEEL · F vehicle · V drone · 4 strike · G EMP · P multiplayer · M map · ESC menu",
   drone:"WASD fly · SPACE / SHIFT up / down · MOUSE turn · RMB look · LMB fire · R arm · C camera · 1-3 / Q weapon · V on foot · M map · ESC menu",
   car:"W / S gas / brake · A / D steer · SPACE handbrake · MOUSE look · C camera · F exit · M map · ESC menu",
   jet:"W / S throttle · A / D rudder · MOUSE pitch / roll · LMB / SPACE gun · R rocket · B bomb · V hover / flight · C camera · F exit / eject · M map · ESC menu",
@@ -197,10 +196,11 @@ html body.pad-input #desktopKeyHints{display:none!important}
 html body.pad-input #mobileGameplayDock button::after{display:inline-block;margin-left:6px;padding:1px 4px;border:1px solid #ffffff55;border-radius:3px;font:800 9px/1.2 system-ui,sans-serif;opacity:.85}html body.pad-input #mobileGameplayMode::after{content:"D-PAD ⬇"!important}html body.pad-input #mobileGameplayWeapon::after{content:"Y"!important}html body.pad-input #mobileGameplaySettings::after{content:"☰"!important}
 body.desktop-input #mobileGameplayMode::after{content:"V"}body.desktop-input #mobileGameplayWeapon::after{content:"Q"}body.desktop-input #mobileGameplaySettings::after{content:"ESC"}
 /* jet / car: the dock mode button means leave the vehicle */
-#desktopKeyHints{position:absolute;left:50%;top:calc(max(8px,env(safe-area-inset-top)) + 54px);transform:translateX(-50%);z-index:30;max-width:min(70vw,860px);padding:4px 10px;border-radius:6px;background:#0b0f1680;color:#dfe7f2cc;font:600 10px/1.35 Inter,system-ui,sans-serif;letter-spacing:.04em;text-align:center;pointer-events:none;display:none;white-space:normal}
+#desktopKeyHints{position:absolute;left:50%;top:calc(max(8px,env(safe-area-inset-top)) + 102px);transition:opacity .6s;transform:translateX(-50%);z-index:30;max-width:min(70vw,860px);padding:4px 10px;border-radius:6px;background:#0b0f1680;color:#dfe7f2cc;font:600 10px/1.35 Inter,system-ui,sans-serif;letter-spacing:.04em;text-align:center;pointer-events:none;display:none;white-space:normal}
 body.desktop-input.solo-flight #desktopKeyHints{display:block}
+#desktopKeyHints.faded{opacity:0}
 /* the key line sits under the top dock, the bottom stays free for ARM/STOP, jet and car controls */
-body.desktop-input #navGuide{top:calc(max(8px,env(safe-area-inset-top)) + 96px)!important}
+body.desktop-input #navGuide{top:calc(max(8px,env(safe-area-inset-top)) + 150px)!important}
 #desktopClickToPlay{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:31;padding:14px 22px;border-radius:8px;background:#0b0f16d0;border:1px solid #ffffff44;color:#fff;font:800 15px/1.2 Inter,system-ui,sans-serif;letter-spacing:.12em;text-align:center;pointer-events:none;display:none}
 #desktopClickToPlay small{display:block;margin-top:6px;font-weight:600;font-size:11px;letter-spacing:.05em;opacity:.75}
 body.desktop-input.solo-flight #desktopClickToPlay.show{display:block}`;
@@ -212,8 +212,8 @@ function ensureEls(){
   if(!playEl){playEl=document.createElement("div");playEl.id="desktopClickToPlay";playEl.innerHTML="CLICK TO PLAY<small>mouse + keyboard · ESC / TAB = menu</small>";v.appendChild(playEl);}
   return true;
 }
-const WEAPON_NAMES={smg:"SMG",glock:"PISTOL",grenade:"GRENADE LAUNCHER",gun:"GUN",missile:"MISSILE",nuke:"NUKE"};
-function renderHints(){if(!ensureEls())return;if(desktop&&playerDown()){const t="DOWN · SPACE / ENTER / R = RESPAWN";if(t!==lastHint){hintEl.textContent=t;lastHint=t;}return;}const mode=gameMode(),api=mode==="foot"?globalThis.__arondightFootWeapons:mode==="drone"?globalThis.__arondightDroneWeapons:null,w=api?WEAPON_NAMES[String(api.displayMode||api.mode)]||"":"",text=desktop?(w?`[ ${w} ]  `:"")+(HINTS[mode]||""):"";if(text!==lastHint){hintEl.textContent=text;lastHint=text;}}
+const WEAPON_NAMES={smg:"SMG",glock:"PISTOL",grenade:"GRENADE LAUNCHER",rocket:"ROCKET LAUNCHER",gun:"GUN",missile:"MISSILE",nuke:"NUKE"};
+function renderHints(){if(!ensureEls())return;if(desktop&&playerDown()){const t="DOWN · SPACE / ENTER / R = RESPAWN";if(t!==lastHint){hintEl.textContent=t;lastHint=t;}hintEl.classList.remove("faded");return;}const mode=gameMode(),api=mode==="foot"?globalThis.__arondightFootWeapons:mode==="drone"?globalThis.__arondightDroneWeapons:null,w=api?WEAPON_NAMES[String(api.displayMode||api.mode)]||"":"",text=desktop?(w?`[ ${w} ]  `:"")+(HINTS[mode]||""):"";if(text!==lastHint){hintEl.textContent=text;lastHint=text;hintShownAt=performance.now();}hintEl.classList.toggle("faded",performance.now()-hintShownAt>12000);}
 // No "CLICK TO PLAY" wall: START and RESUME capture the mouse in the same click, losing it (ESC,
 // alt-tab) opens the pause menu, and a stray click into the game captures it again.
 function syncOverlay(){if(!ensureEls())return;renderHints();playEl.classList.remove("show");const v=viewport();if(v)v.dataset.pointerLock=locked()?"1":"0";}

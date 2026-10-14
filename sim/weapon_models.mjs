@@ -8,6 +8,7 @@ import * as THREE from "three";
 //   GOLDEN HAND CANNON — legendary gold slide, black frame, red sights,
 //                        vented compensator glowing orange
 //   BOOMSTICK 40 mm   — chunky drum launcher with hazard stripes
+//   ROCKET LAUNCHER   — shoulder tube with a loaded warhead
 
 export const WEAPON_MODELS_VERSION="hero-skins-v4-classic-glock";
 const tag=(m,partKey)=>{m.frustumCulled=false;m.renderOrder=9998;m.userData.flightFireIgnore=true;m.userData.walkWeaponPart=true;if(partKey)m.userData[partKey]=true;return m;};
@@ -167,6 +168,26 @@ export function buildKnife(){
   knife.add(box(.006,.034,.17,steel,0,.002,-.155,K),box(.003,.012,.17,edge,0,-.016,-.155,K));      // blade + bright edge
   const tip=box(.006,.024,.04,steel,0,-.004,-.25,K);tip.rotation.x=-.45;knife.add(tip);
   hand.add(knife);g.position.set(-.09,-.03,-.02);return g;
+}
+
+// ROCKET LAUNCHER: a shoulder tube (RPG style) with a loaded warhead poking out of the front,
+// a pistol grip + fore grip under the tube, flip-up optic on the left and a flared blast cone behind.
+export function buildRocketLauncher(){
+  const g=new THREE.Group(),K="walkRocketPart";
+  const tube=std(0x3c4630,.55,.25),dark=std(0x17191c,.7,.15),steel=std(0x8d959c,.35,.8),warhead=std(0x55603e,.5,.3),tip=std(0x2a2d31,.4,.6),red=std(0xc8321e,.5,.1),glowR=glow(0xff5a2a);
+  g.add(cyl(.062,.92,tube,0,.03,-.34,K,16));                                   // main tube
+  g.add(cyl(.07,.05,dark,0,.03,-.06,K,16),cyl(.07,.05,dark,0,.03,-.56,K,16));  // grip bands
+  g.add(cyl(.095,.16,dark,0,.03,.18,K,16,.066));                               // flared blast cone behind the shoulder
+  g.add(cyl(.068,.04,steel,0,.03,-.81,K,16));                                  // muzzle ring
+  g.add(cyl(.045,.16,warhead,0,.03,-.9,K,14,.085));                            // warhead body, cone forward
+  g.add(cyl(.085,.14,tip,0,.03,-1.05,K,14,.006));                               // nose
+  g.add(cyl(.088,.02,red,0,.03,-.86,K,14));                                    // red band
+  g.add(solid(profile([[.0,-.03],[.09,-.03],[.07,-.2],[-.01,-.2]],.06),dark,0,0,-.1,K)); // pistol grip
+  g.add(solid(profile([[.0,-.03],[.07,-.03],[.06,-.15],[.0,-.15]],.055),dark,0,0,-.42,K)); // fore grip
+  g.add(box(.035,.07,.1,dark,-.07,.1,-.22,K),box(.03,.03,.02,glowR,-.07,.15,-.18,K)); // optic + lit reticle
+  g.add(marker("WALK_RL_GRIP",0,-.14,-.145),marker("WALK_RL_REAR_SIGHT",0,.115,-.1),marker("WALK_RL_FRONT_SIGHT",0,.115,-.6));
+  g.add(muzzle("WALK_ROCKET_MUZZLE_NODE",-.84,.03));
+  return mergeByMaterial(g);
 }
 
 export function buildBoomstick(){

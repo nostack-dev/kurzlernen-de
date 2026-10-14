@@ -1,11 +1,11 @@
 import * as THREE from "three";
-import {buildVoltSmg,buildGoldenHandCannon,buildBoomstick,buildSniperRifle,buildFists,buildKnife} from "./weapon_models.mjs";
+import {buildVoltSmg,buildGoldenHandCannon,buildBoomstick,buildRocketLauncher,buildSniperRifle,buildFists,buildKnife} from "./weapon_models.mjs";
 
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
 const shotCamera=new THREE.PerspectiveCamera(78,16/9,.01,500),raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2(),forward=new THREE.Vector3(),target=new THREE.Vector3();
 const localBarrelForward=new THREE.Vector3(0,0,-1),currentBarrelForward=new THREE.Vector3(),shotDirection=new THREE.Vector3(0,1,0),fullAdjust=new THREE.Quaternion(),weightedAdjust=new THREE.Quaternion(),identityQuat=new THREE.Quaternion(),lastAppliedAdjust=new THREE.Quaternion();
 const PISTOL_PARTS=new Set(["WALK_VM_FRAME","WALK_VM_RAIL","WALK_VM_SLIDE","WALK_VM_SLIDE_TOP","WALK_VM_BARREL","WALK_VM_MUZZLE","WALK_VM_EJECTION_PORT","WALK_VM_GRIP","WALK_VM_MAG_BASE","WALK_VM_TRIGGER_GUARD","WALK_VM_TRIGGER","WALK_VM_REAR_SIGHT","WALK_VM_FRONT_SIGHT","WALK_VM_FRONT_DOT"]);
-const WEAPON_NAMES={smg:"MP",glock:"GLOCK",sniper:"SNIPER",grenade:"RAKETEN",fists:"FÄUSTE",knife:"MESSER"},WEAPON_ORDER=["smg","glock","sniper","grenade","fists","knife"];
+const WEAPON_NAMES={smg:"MP",glock:"GLOCK",sniper:"SNIPER",grenade:"WERFER",rocket:"RAKETEN",fists:"FÄUSTE",knife:"MESSER"},WEAPON_ORDER=["smg","glock","sniper","grenade","rocket","fists","knife"];
 let installed=false,lastScreenShotAt=-Infinity,lastSwitchAt=-Infinity,lastMode="",lastGun=null,hasAppliedAdjust=false,lastShotClientX=NaN,lastShotClientY=NaN,weaponButton=null,lastButtonMode="";
 
 function viewport(){return document.getElementById("viewport");}
@@ -24,6 +24,7 @@ function launcherMesh(name,geometry,mat,x,y,z,rx=0,ry=0,rz=0,order=9998){const m
 function mount(gun,name,build,offset,meta){let group=gun.getObjectByName?.(name);if(group)return group;group=build();group.name=name;group.position.add(offset);group.userData.flightFireIgnore=true;group.userData.walkWeaponPart=true;Object.assign(group.userData,meta);gun.add(group);return group;}
 function ensureSmg(gun){return mount(gun,"WALK_SMG_3D",buildVoltSmg,new THREE.Vector3(.012,-.008,.015),{walkSmgViewmodel:"volt-smg-epic-v5"});}
 function ensureGrenadeLauncher(gun){return mount(gun,"WALK_GRENADE_LAUNCHER_3D",buildBoomstick,new THREE.Vector3(.01,-.015,.018),{walkGrenadePart:true,walkGrenadeViewmodel:"boomstick-40mm-v2"});}
+function ensureRocketLauncher(gun){return mount(gun,"WALK_ROCKET_LAUNCHER_3D",buildRocketLauncher,new THREE.Vector3(.01,-.01,.02),{walkRocketViewmodel:"shoulder-tube-v1"});}
 function ensureSniper(gun){return mount(gun,"WALK_SNIPER_3D",buildSniperRifle,new THREE.Vector3(.012,-.01,.02),{walkSniperViewmodel:"anti-materiel-50-v1"});}
 function ensureFists(gun){return mount(gun,"WALK_FISTS_3D",buildFists,new THREE.Vector3(0,0,0),{walkFistsViewmodel:"bare-fists-v1"});}
 function ensureKnife(gun){return mount(gun,"WALK_KNIFE_3D",buildKnife,new THREE.Vector3(0,0,0),{walkKnifeViewmodel:"combat-knife-v1"});}
@@ -39,7 +40,7 @@ function ensureGlock(gun){
   group.add(right);gun.add(group);return group;
 }
 function setWeaponModeVisual(gun,mode){
-  const smg=ensureSmg(gun),launcher=ensureGrenadeLauncher(gun),glock=ensureGlock(gun),sniper=ensureSniper(gun),fists=ensureFists(gun),knife=ensureKnife(gun),isSmg=mode==="smg",isGrenade=mode==="grenade",isGlock=mode==="glock",isSniper=mode==="sniper";smg.visible=isSmg;launcher.visible=isGrenade;glock.visible=isGlock;sniper.visible=isSniper;fists.visible=mode==="fists";knife.visible=mode==="knife";const conversion=gun.getObjectByName?.("FINAL_SMG_CONVERSION");if(conversion)conversion.visible=false;
+  const smg=ensureSmg(gun),launcher=ensureGrenadeLauncher(gun),rocketTube=ensureRocketLauncher(gun),glock=ensureGlock(gun),sniper=ensureSniper(gun),fists=ensureFists(gun),knife=ensureKnife(gun),isSmg=mode==="smg",isGrenade=mode==="grenade",isGlock=mode==="glock",isSniper=mode==="sniper";smg.visible=isSmg;launcher.visible=isGrenade;rocketTube.visible=mode==="rocket";glock.visible=isGlock;sniper.visible=isSniper;fists.visible=mode==="fists";knife.visible=mode==="knife";const conversion=gun.getObjectByName?.("FINAL_SMG_CONVERSION");if(conversion)conversion.visible=false;
   gun.traverse?.(node=>{if(PISTOL_PARTS.has(node.name))node.visible=false;});
   const flash=gun.getObjectByName?.("FINAL_MUZZLE_FLASH")||gun.getObjectByName?.("WALK_MUZZLE_FLASH");if(flash){flash.traverse?.(node=>{if(node.isMesh&&node.material){node.material.depthTest=true;node.material.depthWrite=false;node.material.needsUpdate=true;}if(node.isMesh)node.renderOrder=9996;});}
   gun.userData.finalWeapon=mode;gun.userData.walkWeaponViewmodel=isGrenade?"boomstick-40mm-v2":isSmg?"volt-smg-epic-v5":"dual-mirrored-matte-black-glock-v3";const view=viewport();if(view){view.dataset.walkWeapon=mode;view.dataset.walkWeaponViewmodel=gun.userData.walkWeaponViewmodel;view.dataset.walkSmgMesh=isSmg?"dedicated-receiver+barrel+magazine+brace-v4":"hidden";view.dataset.walkGrenadeLauncher=isGrenade?"40mm-visible-v1":"hidden";view.dataset.walkWeaponSwitch="single-owner-touch+q+dpad-v4";view.dataset.walkMuzzleOwnership="gameplay-runtime-dual-glock-nodes-v2";view.dataset.walkGlockViewmodel=isGlock?"dual-mirrored-matte-black-v3":"hidden";}
@@ -71,7 +72,7 @@ let lastVisualSync=-Infinity,gunRef=null,gunLookupAt=-Infinity;
 function findGun(now){const scene=bridge()?.threeScene;if(!scene)return null;let ok=false;for(let n=gunRef;n;n=n.parent)if(n===scene){ok=true;break;}if(ok&&now-gunLookupAt<2000)return gunRef;if(!ok&&now-gunLookupAt<250)return null;gunLookupAt=now;gunRef=scene.getObjectByName?.("WALK_PISTOL_3D")||null;return gunRef;} // visual sync (traversal + material flags) only on change or once a second, not every frame
 function frame(now=performance.now()){
   const gun=findGun(now),mode=String(footWeapons()?.mode||"smg");if(gun){if(gun!==lastGun){hasAppliedAdjust=false;lastAppliedAdjust.identity();lastGun=gun;lastMode="";}if(mode!==lastMode){lastMode=mode;lastVisualSync=now;setWeaponModeVisual(gun,mode);}/* aiming is owned by first_person_controller_v5.mjs */}
-  if(!weaponButton?.isConnected)weaponButton=document.getElementById("footWeaponToggle");const key=mode,name=m=>WEAPON_NAMES[m];if(weaponButton&&key!==lastButtonMode){lastButtonMode=key;const next=WEAPON_ORDER[(WEAPON_ORDER.indexOf(mode)+1)%WEAPON_ORDER.length],text=`${name(mode)||"MP"} → ${name(next)}`;if(weaponButton.textContent!==text)weaponButton.textContent=text;weaponButton.setAttribute("aria-label",`Switch from ${mode} to ${next}`);}
+  if(!weaponButton?.isConnected)weaponButton=document.getElementById("footWeaponToggle");const key=mode,name=m=>WEAPON_NAMES[m];if(weaponButton&&(key!==lastButtonMode||!weaponButton.textContent.includes("→"))){lastButtonMode=key;const next=WEAPON_ORDER[(WEAPON_ORDER.indexOf(mode)+1)%WEAPON_ORDER.length],text=`${name(mode)||"MP"} → ${name(next)}`;if(weaponButton.textContent!==text)weaponButton.textContent=text;weaponButton.setAttribute("aria-label",`Switch from ${mode} to ${next}`);}
   {const dt=Math.min(.05,Math.max(0,(now-lastFxFrame)/1000));lastFxFrame=now;if(mode==="glock"&&gun)ensureGlockFx(gun);stepGlockFx(now,dt);}
   // knife: a quick slash — the hand drives forward and across (alternating sides), blade turning with it
   if(mode==="knife"&&gun){const hand=gun.getObjectByName?.("WALK_KNIFE_HAND");if(hand){const t=now-knifeAt,out=90,back=240,e=t<0||t>out+back?0:t<out?Math.sin(t/out*Math.PI/2):1-((t-out)/back)**2,breathe=Math.sin(now/420)*.006;
