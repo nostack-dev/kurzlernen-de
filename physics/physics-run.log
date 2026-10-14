@@ -1,40 +1,40 @@
-step menu 5257 ms 
-step start 24119 ms 
-step city 12194 ms 
-step drive 22600 ms 
-step explode-cars 4398 ms 
-step relocate 18064 ms 
+step menu 4466 ms 
+step start 20387 ms 
+step city 12805 ms 
+step drive 22435 ms 
+step explode-cars 4395 ms 
+step relocate 18019 ms 
 {
- "url": "https://kurzlernen.de/drone_simulator.html?physics-ci=035183cb9653ebd4546ed3b76814fb690d371c42",
+ "url": "https://kurzlernen.de/drone_simulator.html?physics-ci=4227eb52744b0cbc54b9d5c9203dc4bb06011a20",
  "steps": [
   {
    "name": "menu",
-   "ms": 5257,
+   "ms": 4465,
    "error": null
   },
   {
    "name": "start",
-   "ms": 24119,
+   "ms": 20387,
    "error": null
   },
   {
    "name": "city",
-   "ms": 12194,
+   "ms": 12805,
    "error": null
   },
   {
    "name": "drive",
-   "ms": 22600,
+   "ms": 22435,
    "error": null
   },
   {
    "name": "explode-cars",
-   "ms": 4398,
+   "ms": 4395,
    "error": null
   },
   {
    "name": "relocate",
-   "ms": 18064,
+   "ms": 18019,
    "error": null
   }
  ],
@@ -45,18 +45,18 @@ step relocate 18064 ms
   "roads": "718",
   "elevation": "terrarium-complete-origin-safe-v3 ref=403.1m range=-15.0..14.7",
   "collision": "box3d-active",
-  "prisms": "900"
+  "prisms": "1044"
  },
  "terrain": {
   "physicsMinusRender": {
-   "n": 69,
+   "n": 62,
    "min": 0,
    "max": 0,
    "medianAbs": 0,
    "p95Abs": 0,
    "over50cm": 0
   },
-  "skippedInHouse": 156,
+  "skippedInHouse": 163,
   "roadMinusGround": {
    "n": 1371,
    "min": 0.09,
@@ -67,12 +67,23 @@ step relocate 18064 ms
   },
   "roadSamples": 1371
  },
+ "coverage": {
+  "inside": 291,
+  "roofHit": 291,
+  "missing": [],
+  "missingCount": 0,
+  "box3dHulls": null,
+  "failedHulls": null,
+  "footprints": 480,
+  "prisms": 1044,
+  "coveredRadiusM": 290
+ },
  "scans": [
   {
    "phase": "idle",
    "total": 50,
    "shown": 50,
-   "registered": 24,
+   "registered": 26,
    "near": 0,
    "bad": [],
    "badCount": 0
@@ -81,7 +92,7 @@ step relocate 18064 ms
    "phase": "idle",
    "total": 50,
    "shown": 50,
-   "registered": 24,
+   "registered": 26,
    "near": 0,
    "bad": [],
    "badCount": 0
@@ -90,7 +101,7 @@ step relocate 18064 ms
    "phase": "idle",
    "total": 50,
    "shown": 50,
-   "registered": 25,
+   "registered": 26,
    "near": 0,
    "bad": [],
    "badCount": 0
@@ -99,7 +110,7 @@ step relocate 18064 ms
    "phase": "idle",
    "total": 50,
    "shown": 50,
-   "registered": 25,
+   "registered": 26,
    "near": 0,
    "bad": [],
    "badCount": 0
@@ -108,7 +119,7 @@ step relocate 18064 ms
    "phase": "idle",
    "total": 50,
    "shown": 50,
-   "registered": 25,
+   "registered": 26,
    "near": 0,
    "bad": [],
    "badCount": 0
@@ -126,8 +137,8 @@ step relocate 18064 ms
    "phase": "near-car",
    "total": 50,
    "shown": 50,
-   "registered": 19,
-   "near": 1,
+   "registered": 23,
+   "near": 3,
    "bad": [],
    "badCount": 0
   },
@@ -135,8 +146,8 @@ step relocate 18064 ms
    "phase": "after-drive",
    "total": 50,
    "shown": 50,
-   "registered": 26,
-   "near": 1,
+   "registered": 29,
+   "near": 3,
    "bad": [],
    "badCount": 0
   },
@@ -144,8 +155,8 @@ step relocate 18064 ms
    "phase": "after-drive",
    "total": 50,
    "shown": 50,
-   "registered": 26,
-   "near": 1,
+   "registered": 29,
+   "near": 3,
    "bad": [],
    "badCount": 0
   },
@@ -153,8 +164,8 @@ step relocate 18064 ms
    "phase": "after-drive",
    "total": 50,
    "shown": 50,
-   "registered": 26,
-   "near": 1,
+   "registered": 29,
+   "near": 3,
    "bad": [],
    "badCount": 0
   },
@@ -162,8 +173,8 @@ step relocate 18064 ms
    "phase": "after-explosions",
    "total": 50,
    "shown": 50,
-   "registered": 27,
-   "near": 1,
+   "registered": 30,
+   "near": 3,
    "bad": [],
    "badCount": 0
   },
@@ -171,8 +182,8 @@ step relocate 18064 ms
    "phase": "after-explosions",
    "total": 50,
    "shown": 50,
-   "registered": 27,
-   "near": 1,
+   "registered": 30,
+   "near": 3,
    "bad": [],
    "badCount": 0
   },
@@ -180,8 +191,8 @@ step relocate 18064 ms
    "phase": "after-explosions",
    "total": 50,
    "shown": 50,
-   "registered": 27,
-   "near": 1,
+   "registered": 30,
+   "near": 3,
    "bad": [],
    "badCount": 0
   },
@@ -189,8 +200,8 @@ step relocate 18064 ms
    "phase": "after-explosions",
    "total": 50,
    "shown": 50,
-   "registered": 28,
-   "near": 1,
+   "registered": 31,
+   "near": 3,
    "bad": [],
    "badCount": 0
   },
@@ -198,8 +209,8 @@ step relocate 18064 ms
    "phase": "after-explosions",
    "total": 50,
    "shown": 50,
-   "registered": 28,
-   "near": 1,
+   "registered": 31,
+   "near": 3,
    "bad": [],
    "badCount": 0
   },
@@ -207,8 +218,8 @@ step relocate 18064 ms
    "phase": "after-explosions",
    "total": 50,
    "shown": 50,
-   "registered": 28,
-   "near": 1,
+   "registered": 31,
+   "near": 3,
    "bad": [],
    "badCount": 0
   },
@@ -216,8 +227,8 @@ step relocate 18064 ms
    "phase": "after-explosions",
    "total": 50,
    "shown": 50,
-   "registered": 28,
-   "near": 1,
+   "registered": 31,
+   "near": 3,
    "bad": [],
    "badCount": 0
   },
@@ -225,8 +236,8 @@ step relocate 18064 ms
    "phase": "after-explosions",
    "total": 50,
    "shown": 50,
-   "registered": 28,
-   "near": 1,
+   "registered": 31,
+   "near": 3,
    "bad": [],
    "badCount": 0
   },
@@ -234,8 +245,8 @@ step relocate 18064 ms
    "phase": "after-explosions",
    "total": 50,
    "shown": 50,
-   "registered": 28,
-   "near": 1,
+   "registered": 31,
+   "near": 3,
    "bad": [],
    "badCount": 0
   },
@@ -243,8 +254,8 @@ step relocate 18064 ms
    "phase": "after-explosions",
    "total": 50,
    "shown": 50,
-   "registered": 28,
-   "near": 1,
+   "registered": 31,
+   "near": 3,
    "bad": [],
    "badCount": 0
   },
@@ -261,24 +272,6 @@ step relocate 18064 ms
    "phase": "back",
    "total": 50,
    "shown": 50,
-   "registered": 23,
-   "near": 3,
-   "bad": [],
-   "badCount": 0
-  },
-  {
-   "phase": "back",
-   "total": 50,
-   "shown": 50,
-   "registered": 24,
-   "near": 3,
-   "bad": [],
-   "badCount": 0
-  },
-  {
-   "phase": "back",
-   "total": 50,
-   "shown": 50,
    "registered": 25,
    "near": 3,
    "bad": [],
@@ -288,20 +281,378 @@ step relocate 18064 ms
    "phase": "back",
    "total": 50,
    "shown": 50,
-   "registered": 25,
+   "registered": 26,
+   "near": 3,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "back",
+   "total": 50,
+   "shown": 50,
+   "registered": 27,
+   "near": 3,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "back",
+   "total": 50,
+   "shown": 50,
+   "registered": 27,
    "near": 3,
    "bad": [],
    "badCount": 0
   }
  ],
  "driveEnter": "true",
+ "driveTrack": {
+  "w": [
+   {
+    "t": 60.84,
+    "frames": 0,
+    "thr": 1,
+    "speed": 9.67,
+    "pos": [
+     -12.37,
+     -79.7,
+     0.38
+    ]
+   },
+   {
+    "t": 61.37,
+    "frames": 2,
+    "thr": 1,
+    "speed": 10.03,
+    "pos": [
+     -12.2,
+     -80.99,
+     0.39
+    ]
+   },
+   {
+    "t": 61.88,
+    "frames": 3,
+    "thr": 1,
+    "speed": 10.36,
+    "pos": [
+     -12.12,
+     -81.67,
+     0.39
+    ]
+   },
+   {
+    "t": 62.46,
+    "frames": 5,
+    "thr": 1,
+    "speed": 11.03,
+    "pos": [
+     -11.98,
+     -83.09,
+     0.4
+    ]
+   },
+   {
+    "t": 62.96,
+    "frames": 6,
+    "thr": 1,
+    "speed": 11.36,
+    "pos": [
+     -11.91,
+     -83.84,
+     0.4
+    ]
+   },
+   {
+    "t": 63.55,
+    "frames": 8,
+    "thr": 1,
+    "speed": 12.02,
+    "pos": [
+     -11.79,
+     -85.39,
+     0.41
+    ]
+   },
+   {
+    "t": 64.05,
+    "frames": 9,
+    "thr": 1,
+    "speed": 12.35,
+    "pos": [
+     -11.73,
+     -86.2,
+     0.41
+    ]
+   },
+   {
+    "t": 64.56,
+    "frames": 11,
+    "thr": 1,
+    "speed": 13,
+    "pos": [
+     -11.62,
+     -87.89,
+     0.42
+    ]
+   },
+   {
+    "t": 65.06,
+    "frames": 12,
+    "thr": 1,
+    "speed": 13.32,
+    "pos": [
+     -11.58,
+     -88.77,
+     0.43
+    ]
+   },
+   {
+    "t": 65.59,
+    "frames": 15,
+    "thr": 1,
+    "speed": 13.84,
+    "pos": [
+     -11.61,
+     -91.27,
+     0.45
+    ]
+   }
+  ],
+  "wa": [
+   {
+    "t": 66.1,
+    "frames": 16,
+    "thr": 1,
+    "speed": 0.47,
+    "pos": [
+     -11.64,
+     -91.75,
+     0.47
+    ]
+   },
+   {
+    "t": 66.6,
+    "frames": 18,
+    "thr": 1,
+    "speed": 0.1,
+    "pos": [
+     -11.61,
+     -91.71,
+     0.48
+    ]
+   },
+   {
+    "t": 67.1,
+    "frames": 20,
+    "thr": 1,
+    "speed": 0.5,
+    "pos": [
+     -11.63,
+     -91.74,
+     0.45
+    ]
+   }
+  ],
+  "w2": [
+   {
+    "t": 67.61,
+    "frames": 21,
+    "thr": 1,
+    "speed": 0.04,
+    "pos": [
+     -11.63,
+     -91.75,
+     0.45
+    ]
+   },
+   {
+    "t": 68.11,
+    "frames": 22,
+    "thr": 1,
+    "speed": 0.03,
+    "pos": [
+     -11.63,
+     -91.75,
+     0.45
+    ]
+   },
+   {
+    "t": 68.61,
+    "frames": 24,
+    "thr": 1,
+    "speed": 0.02,
+    "pos": [
+     -11.62,
+     -91.76,
+     0.45
+    ]
+   },
+   {
+    "t": 69.12,
+    "frames": 25,
+    "thr": 1,
+    "speed": 0.02,
+    "pos": [
+     -11.62,
+     -91.76,
+     0.45
+    ]
+   },
+   {
+    "t": 69.62,
+    "frames": 27,
+    "thr": 1,
+    "speed": 0.02,
+    "pos": [
+     -11.62,
+     -91.76,
+     0.45
+    ]
+   }
+  ],
+  "ram": [
+   {
+    "t": 72.06,
+    "frames": 35,
+    "thr": 1,
+    "speed": 0,
+    "pos": [
+     -11.62,
+     -91.77,
+     0.65
+    ]
+   },
+   {
+    "t": 72.56,
+    "frames": 36,
+    "thr": 1,
+    "speed": 0.08,
+    "pos": [
+     -11.84,
+     -91.73,
+     0.63
+    ]
+   },
+   {
+    "t": 73.06,
+    "frames": 38,
+    "thr": 1,
+    "speed": 0.15,
+    "pos": [
+     -12.24,
+     -91.68,
+     0.48
+    ]
+   },
+   {
+    "t": 73.57,
+    "frames": 40,
+    "thr": 1,
+    "speed": 0.01,
+    "pos": [
+     -12.35,
+     -91.71,
+     0.41
+    ]
+   },
+   {
+    "t": 74.13,
+    "frames": 42,
+    "thr": 1,
+    "speed": 0.03,
+    "pos": [
+     -12.35,
+     -91.71,
+     0.43
+    ]
+   },
+   {
+    "t": 74.63,
+    "frames": 43,
+    "thr": 1,
+    "speed": 0.03,
+    "pos": [
+     -12.35,
+     -91.71,
+     0.44
+    ]
+   },
+   {
+    "t": 75.13,
+    "frames": 45,
+    "thr": 1,
+    "speed": 0.01,
+    "pos": [
+     -12.35,
+     -91.72,
+     0.44
+    ]
+   },
+   {
+    "t": 75.63,
+    "frames": 47,
+    "thr": 1,
+    "speed": 0.01,
+    "pos": [
+     -12.35,
+     -91.72,
+     0.44
+    ]
+   },
+   {
+    "t": 76.17,
+    "frames": 49,
+    "thr": 1,
+    "speed": 0.01,
+    "pos": [
+     -12.35,
+     -91.72,
+     0.44
+    ]
+   },
+   {
+    "t": 76.74,
+    "frames": 51,
+    "thr": 1,
+    "speed": 0.01,
+    "pos": [
+     -12.35,
+     -91.73,
+     0.44
+    ]
+   },
+   {
+    "t": 77.24,
+    "frames": 52,
+    "thr": 1,
+    "speed": 0.01,
+    "pos": [
+     -12.35,
+     -91.73,
+     0.44
+    ]
+   },
+   {
+    "t": 77.74,
+    "frames": 54,
+    "thr": 1,
+    "speed": 0.01,
+    "pos": [
+     -12.35,
+     -91.74,
+     0.44
+    ]
+   }
+  ]
+ },
  "driveState": {
   "active": true,
-  "speed": 0.46962740944882087,
+  "speed": 0.0023754264996457995,
   "pos": [
-   -11.8,
-   -91.5,
-   0.4
+   -11.6,
+   -91.8,
+   0.5
   ],
   "inHouse": false
  },
@@ -310,30 +661,41 @@ step relocate 18064 ms
    -2.7,
    -95
   ],
-  "dist": 9.7,
-  "yaw": -0.37,
+  "dist": 9.4,
+  "yaw": -0.35,
   "id": "car-proc-136efe6-23"
  },
  "wallRamAfter": {
   "pos": [
    -12.3,
-   -91.5,
-   0.4
+   -91.7,
+   0.5
   ],
-  "speed": 0.001978110803801553,
+  "speed": 0.0013273831568598054,
   "inHouse": false
  },
  "exploded": [
   "car-proc-136efe6-23",
-  "car-proc-136efe6-20",
-  "car-proc-136efe6-41",
-  "car-proc-136efe6-5"
+  "bus-proc-136efe6-5",
+  "car-proc-136efe6-7",
+  "car-proc-136efe6-41"
  ],
+ "coverageBack": {
+  "inside": 95,
+  "roofHit": 95,
+  "missing": [],
+  "missingCount": 0,
+  "box3dHulls": null,
+  "failedHulls": null,
+  "footprints": 480,
+  "prisms": 386,
+  "coveredRadiusM": 307
+ },
  "building": {
   "key": "536003070:-23,-2479;-344,-2415;-336,-2358;-304,-2334;-7,-2399",
-  "distance": 30.5,
+  "distance": 30.3,
   "before": {
-   "ray": 12.64,
+   "ray": 14.52,
    "prismsOfKey": 1
   },
   "after": {
@@ -344,23 +706,23 @@ step relocate 18064 ms
  },
  "terrainAfter": {
   "physicsMinusRender": {
-   "n": 196,
+   "n": 183,
    "min": 0,
    "max": 0,
    "medianAbs": 0,
    "p95Abs": 0,
    "over50cm": 0
   },
-  "skippedInHouse": 29,
+  "skippedInHouse": 42,
   "roadMinusGround": {
-   "n": 1168,
+   "n": 1169,
    "min": 0.09,
    "max": 0.14,
    "medianAbs": 0.11,
    "p95Abs": 0.11,
    "over50cm": 0
   },
-  "roadSamples": 1168
+  "roadSamples": 1169
  },
  "summary": {
   "maxBad": 0,
