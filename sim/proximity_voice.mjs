@@ -6,6 +6,16 @@ import {VOICE_KEY_PTT,VOICE_KEY_MUTE} from './voice_control_bindings.mjs';
 export const PROXIMITY_VOICE_VERSION='mic-toggle-all-inputs-v7';
 let stream=null,ctx=null,source=null,processor=null,silent=null,talking=false,micOn=false,muted=false,seq=0,buffer=[],installed=false,inputGeneration=0;
 const lastSeq=new Map(),playheads=new Map();
+// VOICE RANGE (settings): NÄHE (default) = only mates within 70 m hear you, louder the closer they are;
+// ÜBERALL = like a team radio — your voice reaches every mate at full volume, wherever they are,
+// and you hear everyone who reaches you. The choice travels in each packet (w), so both ends agree.
+const VOICE_MODE_KEY='arondight.voiceRange.v1';
+function voiceEverywhere(){try{return localStorage.getItem(VOICE_MODE_KEY)==='all';}catch{return false;}}
+function setVoiceEverywhere(on){try{localStorage.setItem(VOICE_MODE_KEY,on?'all':'near');}catch{}}
+function injectVoiceSetting(){const anchor=document.querySelector('[data-slider="left"]')?.closest('.phone-settings-row');if(!anchor||anchor.parentElement?.querySelector('[data-voice-range]'))return;
+  const row=document.createElement('label');row.className='phone-settings-toggle';row.innerHTML='<span>VOICE ÜBERALL HÖRBAR (aus = nur in der Nähe, 70 m)</span><input data-voice-range type="checkbox">';
+  anchor.before(row);const box=row.querySelector('input');box.checked=voiceEverywhere();box.addEventListener('change',()=>setVoiceEverywhere(box.checked));}
+setInterval(()=>{try{injectVoiceSetting();}catch{}},1000);
 const multiplayer=()=>globalThis.__arondightVsMultiplayer;
 const session=()=>globalThis.__arondightRealWorld?.vsSession;
 const selfPos=()=>{const b=globalThis.__arondightRealWorld,body=document.body;
@@ -20,8 +30,8 @@ const distance=id=>{const a=selfPos(),b=multiplayer()?.playerInfo?.(id)?.p;retur
 const status=message=>{const el=document.getElementById('proximityVoiceStatus');if(el)el.textContent=message;};
 function unlockPlayback(){try{if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();void ctx.resume().catch(()=>{});}catch{}}
 function transmit(samples){const s=session();if(!talking||muted||!s?.sendFx)return;const bytes=new Uint8Array(samples.map(encodeMuLaw));let binary='';for(const n of bytes)binary+=String.fromCharCode(n);
-  const packet={type:'voice',id:`v-${(seq++).toString(36)}`,seq,data:btoa(binary)};
-  for(const id of s.getPeerIds?.()||[])if(distance(id)<=VOICE_RADIUS_M&&s.sendFx(packet,{target:id})){
+  const all=voiceEverywhere(),packet={type:'voice',id:`v-${(seq++).toString(36)}`,seq,data:btoa(binary),...(all?{w:1}:{})};
+  for(const id of s.getPeerIds?.()||[])if((all||distance(id)<=VOICE_RADIUS_M)&&s.sendFx(packet,{target:id})){
     const v=document.getElementById('viewport');if(v){v.dataset.voiceTxPackets=String((Number(v.dataset.voiceTxPackets)||0)+1);v.dataset.voiceTxTarget=id;}
   }
 }
@@ -76,7 +86,7 @@ function toggleMute(){
   return value;
 }
 function receive(e){const {peerId,packet}=e.detail||{};if(!peerId||!validVoicePacket(packet)||muted||!multiplayer()?.connected)return;
-  const gain=proximityGain(distance(peerId));if(!gain)return;const previous=lastSeq.get(peerId)??-1;if(packet.seq<=previous)return;lastSeq.set(peerId,packet.seq);
+  const gain=packet.w===1||voiceEverywhere()?Math.max(.85,proximityGain(distance(peerId))):proximityGain(distance(peerId));if(!gain)return;const previous=lastSeq.get(peerId)??-1;if(packet.seq<=previous)return;lastSeq.set(peerId,packet.seq);
   try{if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();if(ctx.state!=='running')return;
     const raw=atob(packet.data);if(raw.length>800)return;const audio=ctx.createBuffer(1,raw.length,VOICE_RATE),ch=audio.getChannelData(0);for(let i=0;i<raw.length;i++)ch[i]=decodeMuLaw(raw.charCodeAt(i));
     const src=ctx.createBufferSource(),volume=ctx.createGain();src.buffer=audio;volume.gain.value=gain;volume.__audioBusExempt=true;/* voice chat is not an effect */src.connect(volume).connect(ctx.destination);const v=document.getElementById('viewport');if(v){v.dataset.voiceRxPackets=String((Number(v.dataset.voiceRxPackets)||0)+1);v.dataset.voiceRxPeer=peerId;}

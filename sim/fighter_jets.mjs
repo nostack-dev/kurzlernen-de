@@ -120,12 +120,22 @@ function aimPoint(){
   const tr=terrainRayDistance?.(o,d,1500);if(Number.isFinite(tr)&&(!best||tr<o.distanceTo(best)))best=o.clone().addScaledVector(d,tr);
   if(!best)best=o.clone().addScaledVector(d,180);best.z=groundHeightAt(best.x,best.y);return best;
 }
-function flare(p,now){const m=new THREE.Mesh(new THREE.SphereGeometry(.35,10,8),new THREE.MeshBasicMaterial({color:0xff2a1a}));m.raycast=()=>{};m.userData.flightFireIgnore=true;const beam=beamMesh(0xff2a1a,.6);const g=new THREE.Group();g.add(m,beam);m.position.copy(p);root.add(g);flares.push({g,beam,p:p.clone(),born:now,until:now+9000,l:{intensity:8}});}
-function updateFlares(now){for(let i=flares.length-1;i>=0;i--){const f=flares[i];if(now>f.until){f.g.parent?.remove(f.g);f.g.traverse(n=>n.material?.dispose?.());flares.splice(i,1);continue;}const k=Math.min(1,(now-f.born)/420);poseBeam(f.beam,f.p,1-(1-k)**3,now);f.l.intensity=6+Math.sin(now*.05)*3;requestLight(f.p,{color:0xff2a1a,intensity:f.l.intensity,distance:30});}}
+// The strike marker is in the caller's player colour (every player has his own), so a beam from the
+// sky always says whose strike it is; a pulsing BLUE run line on the ground shows where the bombs will
+// walk (the jets come in from the south, along +y, and drop a stick of bombs across the mark).
+function myStrikeColor(){try{const me=globalThis.__arondightVsMultiplayer?.scores?.()?.find?.(x=>x.self);if(me?.color)return new THREE.Color(me.color).getHex();}catch{}return 0xff2a1a;}
+const RUN_COLOR=0x3fa9ff,RUN_LEN=STICK_LEN+40,CHEVRONS=9;let chevronGeo=null;
+function runLine(p,now,until){if(!chevronGeo){const sh=new THREE.Shape();sh.moveTo(-2.2,-1.1);sh.lineTo(0,1.1);sh.lineTo(2.2,-1.1);sh.lineTo(1.4,-1.1);sh.lineTo(0,.2);sh.lineTo(-1.4,-1.1);sh.closePath();chevronGeo=new THREE.ShapeGeometry(sh);}
+  const g=new THREE.Group(),list=[];for(let i=0;i<CHEVRONS;i++){const m=new THREE.Mesh(chevronGeo,new THREE.MeshBasicMaterial({color:RUN_COLOR,transparent:true,opacity:.0,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,toneMapped:false}));m.userData.flightFireIgnore=true;m.raycast=()=>{};g.add(m);list.push(m);}
+  root.add(g);return{g,list,p:p.clone(),born:now,until};}
+function poseRunLine(r,now){const t=(now-r.born)/1000,pulse=.55+.45*Math.sin(t*9),fadeIn=Math.min(1,t/.4),fadeOut=Math.min(1,(r.until-now)/600);
+  for(let i=0;i<r.list.length;i++){const u=((i/r.list.length)+t*.35)%1,y=r.p.y-RUN_LEN/2+u*RUN_LEN,m=r.list[i];m.position.set(r.p.x,y,groundHeightAt(r.p.x,y)+.35);m.material.opacity=Math.max(0,.75*pulse*fadeIn*fadeOut*Math.sin(u*Math.PI));}}
+function flare(p,now,color=myStrikeColor()){const m=new THREE.Mesh(new THREE.SphereGeometry(.35,10,8),new THREE.MeshBasicMaterial({color}));m.raycast=()=>{};m.userData.flightFireIgnore=true;const beam=beamMesh(color,.6);const g=new THREE.Group();g.add(m,beam);m.position.copy(p);root.add(g);flares.push({g,beam,p:p.clone(),born:now,until:now+9000,l:{intensity:8},color,run:runLine(p,now,now+5200)});}
+function updateFlares(now){for(let i=flares.length-1;i>=0;i--){const f=flares[i];if(f.run){if(now>f.run.until){f.run.g.parent?.remove(f.run.g);f.run.list.forEach(m=>m.material.dispose());f.run=null;}else poseRunLine(f.run,now);}if(now>f.until){f.g.parent?.remove(f.g);f.g.traverse(n=>n.material?.dispose?.());if(f.run){f.run.g.parent?.remove(f.run.g);f.run=null;}flares.splice(i,1);continue;}const k=Math.min(1,(now-f.born)/420);poseBeam(f.beam,f.p,1-(1-k)**3,now);f.l.intensity=6+Math.sin(now*.05)*3;requestLight(f.p,{color:f.color??0xff2a1a,intensity:f.l.intensity,distance:30});}}
 export function callAirStrike(target=null){
   const now=performance.now();if(now-lastStrike<STRIKE_COOLDOWN_MS||!ensureScene())return false;let p=target||aimPoint();if(!p)return false;if(!p.isVector3)p=new THREE.Vector3(+p.x,+p.y,Number.isFinite(+p.z)?+p.z:groundHeightAt(+p.x,+p.y));if(!Number.isFinite(p.x)||!Number.isFinite(p.y))return false;p.z=groundHeightAt(p.x,p.y);lastStrike=now;strikes.push({x:p.x,y:p.y,until:now+9000});
   flare(p,now);const arrive=now+3500;launch(p.x,p.y,{strike:{x:p.x,y:p.y},offset:0,alt:70,at:arrive-SPAN/SPEED*1000+(380+STICK_LEN/2)/SPEED*1000});
-  sendFx({kind:"strike",p:canon(p.x,p.y),t:Date.now()});renderButton();return true;
+  sendFx({kind:"strike",p:canon(p.x,p.y),t:Date.now(),c:myStrikeColor()});renderButton();return true;
 }
 
 // ------------------------------------------------------------ multiplayer
@@ -135,7 +145,7 @@ const canon=(x,y)=>{const o=localOffset();return[+(x+o[0]).toFixed(2),+(y+o[1]).
 const local=(x,y)=>{const o=localOffset();return[x-o[0],y-o[1]];};
 function sendFx(extra){const s=session();if(!s?.sendFx)return;try{s.sendFx({type:"impact",objectId:"fighter-jets",id:`jets-${Date.now().toString(36)}-${serial}`,...extra});}catch{}}
 function onFx(e){const pk=e?.detail?.packet;if(pk?.objectId!=="fighter-jets"||!Array.isArray(pk.p))return;const[x,y]=local(+pk.p[0]||0,+pk.p[1]||0);const now=performance.now();
-  if(pk.kind==="strike"){const p=new THREE.Vector3(x,y,groundHeightAt(x,y));strikes.push({x,y,until:now+9000});ensureScene();flare(p,now);launch(x,y,{strike:{x,y},alt:70,at:now+3500-SPAN/SPEED*1000+(380+STICK_LEN/2)/SPEED*1000,remote:true});}
+  if(pk.kind==="strike"){const p=new THREE.Vector3(x,y,groundHeightAt(x,y));strikes.push({x,y,until:now+9000});ensureScene();flare(p,now,Number.isFinite(+pk.c)?+pk.c:0xff2a1a);launch(x,y,{strike:{x,y},alt:70,at:now+3500-SPAN/SPEED*1000+(380+STICK_LEN/2)/SPEED*1000,remote:true});}
   else if(pk.kind==="flyover")launch(x,y,{offset:+pk.o||0,alt:+pk.a||70,remote:true});}
 
 // ------------------------------------------------------------ UI
@@ -156,7 +166,7 @@ function lockInput(ms){globalThis.__arondightWeaponLockUntil=Math.max(Number(glo
 function beep(freqs,dur=.09,gain=.12){const c=beepCtx();if(!c||c.state!=="running")return;let t=c.currentTime;for(const f of freqs){const o=c.createOscillator(),g=c.createGain();o.type="square";o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain,t+.008);g.gain.setValueAtTime(gain,t+dur-.02);g.gain.linearRampToValueAtTime(0,t+dur);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+dur+.02);t+=dur+.035;}}
 function screenGround(clientX,clientY){const b=bridge(),cam=b?.presentedCamera?.()||b?.threeCamera,canvas=b?.threeRenderer?.domElement;if(!cam||!canvas)return null;const r=canvas.getBoundingClientRect(),nd=new THREE.Vector2((clientX-r.left)/r.width*2-1,1-(clientY-r.top)/r.height*2);ray.setFromCamera(nd,cam);const o=ray.ray.origin,d=ray.ray.direction;
   let best=null;const solids=[];b.threeScene.traverse(q=>{if(q.isMesh&&q.name==="WORLD_CITY_CHUNK"&&q.visible)solids.push(q);});ray.far=2500;const h=ray.intersectObjects(solids,false)[0];if(h)best=h.point.clone();const tr=terrainRayDistance?.(o,d,2500);if(Number.isFinite(tr)&&(!best||tr<o.distanceTo(best)))best=o.clone().addScaledVector(d,tr);if(!best)return null;best.z=groundHeightAt(best.x,best.y);return best;}
-function place(p){placed=p;placedAt=performance.now();if(!laser){laser=beamMesh(0xff2a1a,.7);root.add(laser);}poseBeam(laser,p,0,placedAt);beep([740,990],.06,.11);overlay?.classList.add("placed");renderButton();}
+function place(p){placed=p;placedAt=performance.now();if(!laser){laser=beamMesh(myStrikeColor(),.7);root.add(laser);}poseBeam(laser,p,0,placedAt);beep([740,990],.06,.11);overlay?.classList.add("placed");renderButton();}
 function confirmStrike(){if(playerDown()){setTargeting(false);return false;}if(!placed&&targeting){const p=aimPoint();if(p){if(preview)preview.visible=false;place(p);}}if(!placed){beep([220],.16,.1);return false;}const p=placed.clone();lockInput(600);if(callAirStrike(p)){beep([880,1175,1568],.08,.12);setTargeting(false,{keepLaser:true});return true;}beep([220],.16,.1);return false;}
 function updateTargeting(now){if(!targeting&&!laser?.visible&&!preview?.visible)return;
   if(targeting)lockInput(400);
