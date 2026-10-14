@@ -1,7 +1,9 @@
+import "./start_location.mjs";
 const $=id=>document.getElementById(id);
 const PLAYER_MODE_KEY="arondight45PlayerModeV2";
 
 function requestStartupLocation(){
+  const chosen=globalThis.__arondightStartPlace?.fix?.();if(chosen)return Promise.resolve({fix:chosen,error:null}); /* a place picked in the menu instead of GPS */
   if(!navigator.geolocation)return Promise.resolve({fix:null,error:Error("Geolocation is not available in this browser")});
   return new Promise(resolve=>navigator.geolocation.getCurrentPosition(
     fix=>resolve({fix,error:null}),
@@ -127,7 +129,7 @@ async function autoWorld(locationResultPromise){
   if(error){trainingFallback(`TRAINING RANGE · GPS unavailable · ${error.message}`);return;}
   if(navigator.onLine===false){trainingFallback("TRAINING RANGE · offline · GPS permission ready");return;}
   try{
-    const pending=bridge.activate(fix);syncWorldButton();await pending;markWorldStartup("startup-gps");syncWorldButton();
+    const pending=bridge.activate(fix);syncWorldButton();await pending;markWorldStartup(fix?.chosen?"startup-place":"startup-gps");syncWorldButton();
   }catch(error){trainingFallback(`TRAINING RANGE · WORLD unavailable · ${error?.message||error}`);}
 }
 
@@ -151,6 +153,8 @@ async function startGame(){
   let startupWarning="";
   try{
     if(!worldRequested){worldRequested=true;setMenuStatus("LOCATING");await withTimeout(autoWorld(requestStartupLocation()),15000);}
+    // a different place picked in the menu while a world is loaded: move the world there
+    else if(globalThis.__arondightStartPlace?.needsMove?.()){setMenuStatus("TRAVELLING");try{bridge.deactivate();}catch{}await withTimeout(autoWorld(requestStartupLocation()),15000);}
     // Keep the 1 kHz flight/Box3D loop stopped while the opaque menu is doing
     // network + scene preparation. Starting physics before the user can see the
     // game only steals main-thread slices from the soundtrack and loader.

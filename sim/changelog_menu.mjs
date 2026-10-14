@@ -5,6 +5,9 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-15",time:"00:23",title:"Spielen, wo du willst",items:[
+    "Im Hauptmenü unter START: 📍 Startort. Standard ist dein GPS-Standort – oder du suchst eine Stadt, Straße oder Adresse (mit Vorschlägen beim Tippen) und startest dort. Die letzten Orte bleiben gespeichert; ein neuer Ort während des Spiels gilt beim nächsten START.",
+  ]},
   {date:"2026-10-15",time:"23:59",title:"Flak!",items:[
     "Ab und zu steht irgendwo in der Stadt eine Vierlings-Flak hinter Sandsäcken. Fliegst du mit Drohne oder Jet in ihre Nähe (gut 1 km, Sichtlinie), feuert sie wie verrückt: vier Rohre, Leuchtspur bei jedem Schuss, Sprengwolken um dich herum, harter Sound. Nahe Detonationen beschädigen dich.",
     "Ausschalten: eine Explosion daneben oder ein paar Scharfschützen-Treffer. Alle Spieler finden die Flak an denselben Orten. Im Menü unter WORLD → FLAK abschaltbar.",
