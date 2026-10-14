@@ -5,6 +5,9 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-15",time:"00:26",title:"Deine Ideen fürs nächste Update",items:[
+    "Nach etwa 15 Minuten Spielzeit mit einer Version fragt das Hauptmenü einmal kurz nach deiner Idee für das nächste Update – eine Zeile, anonym, ohne Konto. Alle Vorschläge werden gesammelt und zusammengefasst; „Später“ fragt nach weiteren 10 Minuten nochmal, „Nein danke“ nie mehr für diese Version.",
+  ]},
   {date:"2026-10-15",time:"00:23",title:"Spielen, wo du willst",items:[
     "Im Hauptmenü unter START: 📍 Startort. Standard ist dein GPS-Standort – oder du suchst eine Stadt, Straße oder Adresse (mit Vorschlägen beim Tippen) und startest dort. Die letzten Orte bleiben gespeichert; ein neuer Ort während des Spiels gilt beim nächsten START.",
   ]},

@@ -1,0 +1,51 @@
+name: Player suggestions
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: player-suggestions
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install Nostr client
+        run: |
+          set -euxo pipefail
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund nostr-tools@2.24.1
+      - name: Collect suggestions from the relays
+        run: |
+          set -euxo pipefail
+          mkdir -p artifacts
+          node tests/collect_suggestions.mjs 2>&1 | tee artifacts/collect.log
+      - name: Publish diagnostics to the ci-diagnostics branch
+        if: always()
+        env:
+          GH_SHA: ${{ github.sha }}
+          SUBDIR: suggestions
+        run: |
+          set -eux
+          mkdir -p artifacts
+          rm -rf /tmp/diag-pub && mkdir -p /tmp/diag-pub
+          cd /tmp/diag-pub
+          git init -q
+          git config user.name "ci-diagnostics"
+          git config user.email "ci-diagnostics@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth 1 origin ci-diagnostics; then git checkout -q -b ci-diagnostics FETCH_HEAD; else git checkout -q --orphan ci-diagnostics; fi
+          rm -rf "$SUBDIR" && mkdir -p "$SUBDIR"
+          cp -r "$GITHUB_WORKSPACE"/artifacts/suggestions/. "$SUBDIR"/ 2>/dev/null || true; cp "$GITHUB_WORKSPACE"/artifacts/collect.log "$SUBDIR"/ 2>/dev/null || true
+          echo "${GH_SHA}" > "$SUBDIR/SHA"
+          git add -A
+          git commit -q -m "diagnostics ${SUBDIR} ${GH_SHA}" || true
+          for i in 1 2 3; do git push -q origin HEAD:ci-diagnostics && break; git fetch -q --depth 1 origin ci-diagnostics && git rebase -q FETCH_HEAD || true; sleep 3; done
