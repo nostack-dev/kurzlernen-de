@@ -1,4 +1,7 @@
 import "./desktop_controls.mjs";
+// menu add-ons (auto_flight_start.mjs is inlined raw into the page and must not import anything)
+import "./start_location.mjs";
+import "./suggestion_box.mjs";
 import "./thumb_layout.mjs";
 import "./sniper_scope.mjs";
 import "./world_props.mjs";

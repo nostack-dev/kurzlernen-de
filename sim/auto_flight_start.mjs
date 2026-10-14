@@ -1,4 +1,3 @@
-import "./start_location.mjs";
 const $=id=>document.getElementById(id);
 const PLAYER_MODE_KEY="arondight45PlayerModeV2";
 
