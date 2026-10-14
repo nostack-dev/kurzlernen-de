@@ -5,6 +5,10 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-14",time:"23:41",title:"Maus-Empfindlichkeit, ADAC zerstörbar",items:[
+    "PC: in den Einstellungen gibt es jetzt MAUS-EMPFINDLICHKEIT (20–300 %) und MAUS Y INVERTIEREN – gilt zu Fuß, in der Drohne, im Auto und im Jet.",
+    "Der gelbe Abschleppwagen kann jetzt zerstört werden: Explosionen und genug Treffer lassen ihn ausbrennen, sein Auftrag fällt weg.",
+  ]},
   {date:"2026-10-14",time:"23:37",title:"Keine Geister-Räder mehr, festere Häuser, Kisten anschießen",items:[
     "Autos aus großer Entfernung (Jet, Fallschirm, Dach) erscheinen nicht mehr als vier lose Räder: die Räder verschwinden jetzt zusammen mit der Karosserie.",
     "Häuser-Kollision: L-förmige Häuser und Höfe bestehen aus wenigen festen Blöcken statt vieler Dreiecke – dadurch sind fast doppelt so viele Häuser rundum fest, und ein Haus ist immer ganz fest, nie nur zur Hälfte.",

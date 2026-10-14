@@ -3,6 +3,7 @@ import {vehicleGeometry,vehicleMaterial,wheelGeometry} from "./vehicle_models.mj
 import {groundHeightAt} from "./terrain_craters.mjs";
 import {requestLight} from "./dynamic_lights.mjs";
 import {wantedPointInRing} from "./wanted_system_logic.mjs";
+import {spawnWorldCarExplosion} from "./world_car_explosion.mjs";
 
 // Breakdown service (ADAC-style). Traffic that is stuck — flipped, wedged,
 // off its road, not moving although it should — is not teleported away: a
@@ -102,7 +103,18 @@ function scan(now){const api=pop();if(!api?.vehicles)return;const list=api.vehic
 let lastFrame=performance.now();
 function frame(now=performance.now()){requestAnimationFrame(frame);lastFrame=now;if(!bridge()?.threeScene||!ensureScene())return;
   if(now-lastScan>500){lastScan=now;try{scan(now);}catch(e){console.warn("tow scan",e);}}
-  for(let i=trucks.length-1;i>=0;i--){try{if(!update(trucks[i],now))trucks.splice(i,1);}catch(e){console.warn("tow truck",e);removeTruck(trucks[i]);trucks.splice(i,1);}}
+  for(let i=trucks.length-1;i>=0;i--){if(trucks[i].dead){removeTruck(trucks[i]);trucks.splice(i,1);continue;}try{if(!update(trucks[i],now))trucks.splice(i,1);}catch(e){console.warn("tow truck",e);removeTruck(trucks[i]);trucks.splice(i,1);}}
   const v=viewport();if(v)v.dataset.towService=`${trucks.length}t/${[...watch.values()].filter(w=>w.dispatched).length}j`;}
-export function installTowService(){if(globalThis.__towService||typeof window==="undefined")return;globalThis.__towService={version:TOW_SERVICE_VERSION,get trucks(){return trucks.map(t=>({id:t.id,state:t.state,job:t.job?.id,reason:t.job?.reason}));},dispatch(id){const v=pop()?.vehicles?.().find(q=>q.id===id);return v?Boolean(spawnTruck({id,x:v.x,y:v.y,reason:"manual"},performance.now())):false;}};addEventListener("arondight:world-reset",()=>{for(const t of trucks)removeTruck(t);trucks=[];watch.clear();});requestAnimationFrame(frame);}
+
+// The ADAC truck is a car like any other: blasts and enough rounds wreck it (it burns out like the
+// traffic, the job it was on is dropped and a new truck can be sent later).
+const TRUCK_HP=110;
+function damageTruck(t,amount){if(t.dead||!(amount>0))return;t.hp=(t.hp??TRUCK_HP)-amount;if(t.hp>0)return;t.dead=true;const p=t.pose||truckPose(t);const pos=p?.position||[t.mesh.group.position.x,t.mesh.group.position.y,t.mesh.group.position.z];
+  try{spawnWorldCarExplosion({position:[pos[0],pos[1],pos[2]+.3],yaw:t.mesh.group.rotation.z,velocity:p?.velocity||[0,0,0],color:0xf2b705,seed:t.id,id:t.id});}catch{}
+  const v=viewport();if(v)v.dataset.towTruckWrecked=String((Number(v.dataset.towTruckWrecked)||0)+1);}
+function truckAt(x,y,z,r){let best=null,bd=r;for(const t of trucks){if(t.dead)continue;const p=t.pose?.position;if(!p)continue;const d=Math.hypot(p[0]-x,p[1]-y,(p[2]+.4)-z);if(d<bd){bd=d;best=t;}}return best?{t:best,d:bd}:null;}
+function onExplosion(e){const d=e?.detail||{},p=d.position;if(!Array.isArray(p))return;const R=Number(d.radiusM)||8,M=Number(d.maxDamage)||100;for(const t of trucks){const q=t.pose?.position;if(!q||t.dead)continue;const dist=Math.hypot(q[0]-p[0],q[1]-p[1],q[2]-p[2]);if(dist<R)damageTruck(t,M*1.3*(1-dist/R)**1.2);}}
+const ROUND_DAMAGE={smg:5,glock:9,sniper:70};
+function onTracer(e){const d=e?.detail||{},b=d.end;if(!Array.isArray(b))return;const hit=truckAt(b[0],b[1],b[2],2.3);if(hit)damageTruck(hit.t,ROUND_DAMAGE[d.weapon]??8);}
+export function installTowService(){if(globalThis.__towService||typeof window==="undefined")return;globalThis.__towService={version:TOW_SERVICE_VERSION,get trucks(){return trucks.map(t=>({id:t.id,state:t.state,job:t.job?.id,reason:t.job?.reason}));},dispatch(id){const v=pop()?.vehicles?.().find(q=>q.id===id);return v?Boolean(spawnTruck({id,x:v.x,y:v.y,reason:"manual"},performance.now())):false;}};addEventListener("arondight:world-reset",()=>{for(const t of trucks)removeTruck(t);trucks=[];watch.clear();});addEventListener("arondight:world-explosion",onExplosion);addEventListener("arondight:foot-tracer",onTracer);requestAnimationFrame(frame);}
 installTowService();

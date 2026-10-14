@@ -14,6 +14,7 @@
 //            (__arondightDesktopInput.takeMouseDelta)
 // This module is imported first, so its window capture listeners run before
 // every other pointer handler.
+import {scaleMouseDelta} from "./mouse_settings.mjs";
 const UI_SELECTOR="button,input,select,textarea,a,label,dialog,[role=button],#soloTopbar,#worldLookHud,#gameMenu,.phone-settings-dialog,#mobileGameplayDock,#vsRespawnHud";
 const DRONE_FULL_RATE_PX_S=1500,DRONE_RATE_TAU_S=.05,LOOK_DEG_PER_PX=.12,LOOK_IDLE_SNAP_MS=1400,MAX_EVENT_PX=420;
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -122,6 +123,7 @@ function onPointerMove(event){
   if(!locked()||event.pointerType!=="mouse")return;
   let dx=Number(event.movementX)||0,dy=Number(event.movementY)||0;
   if(Math.abs(dx)>MAX_EVENT_PX||Math.abs(dy)>MAX_EVENT_PX){consume(event);return;} // pointer-lock entry spikes
+  [dx,dy]=scaleMouseDelta(dx,dy); // SETTINGS: mouse sensitivity / invert Y
   const mode=gameMode();
   if(mode==="foot")walk()?.applyMouseLook?.({dx,dy});
   else if(mode==="car")look(dx,dy);
