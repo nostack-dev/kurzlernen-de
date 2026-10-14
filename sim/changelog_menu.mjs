@@ -5,6 +5,10 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-15",time:"23:59",title:"Flak!",items:[
+    "Ab und zu steht irgendwo in der Stadt eine Vierlings-Flak hinter Sandsäcken. Fliegst du mit Drohne oder Jet in ihre Nähe (gut 1 km, Sichtlinie), feuert sie wie verrückt: vier Rohre, Leuchtspur bei jedem Schuss, Sprengwolken um dich herum, harter Sound. Nahe Detonationen beschädigen dich.",
+    "Ausschalten: eine Explosion daneben oder ein paar Scharfschützen-Treffer. Alle Spieler finden die Flak an denselben Orten. Im Menü unter WORLD → FLAK abschaltbar.",
+  ]},
   {date:"2026-10-15",time:"23:54",title:"Ping-Markierung, Luftschlag in Spielerfarbe, Voice-Reichweite",items:[
     "PING: zeig deinen Mitspielern eine Richtung oder einen Treffpunkt – PC: Z oder mittlere Maustaste, Xbox: Steuerkreuz rechts, Handy: Bildschirm 0,6 s gedrückt halten. Nochmal auf deinen Ping = weg; nach 90 s verschwindet er von selbst.",
     "Der Luftschlag-Strahl vom Himmel hat jetzt die Farbe des Spielers, der ihn gerufen hat – so ist klar, woher ein roter (oder blauer, grüner …) Strahl kommt.",
