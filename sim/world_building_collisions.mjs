@@ -2,10 +2,10 @@ const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const finitePoint=point=>Array.isArray(point)&&point.length>=2&&Number.isFinite(Number(point[0]))&&Number.isFinite(Number(point[1]));
 
 export const WORLD_BUILDING_COLLISION_RADIUS_M=340;
-export const WORLD_BUILDING_COLLISION_MAX_FOOTPRINTS=320;
+export const WORLD_BUILDING_COLLISION_MAX_FOOTPRINTS=480;
 export const WORLD_BUILDING_COLLISION_MAX_VERTICES=64;
 export const WORLD_BUILDING_COLLISION_MAX_CONVEX_VERTICES=24;
-export const WORLD_BUILDING_COLLISION_MAX_PRISMS=900;
+export const WORLD_BUILDING_COLLISION_MAX_PRISMS=1400;
 
 function signedArea(ring){let area=0;for(let i=0,j=ring.length-1;i<ring.length;j=i++)area+=ring[j][0]*ring[i][1]-ring[i][0]*ring[j][1];return area*.5;}
 function centroid(ring){
@@ -55,9 +55,39 @@ export function triangulateBuildingFootprints(footprints,triangulate,{maxTriangl
   return triangles;
 }
 
+// Concave footprints (L-shapes, courtyards) are triangulated and the triangles are then merged back into
+// as few convex pieces as possible (Hertel–Mehlhorn: drop a shared diagonal whenever the union stays
+// convex). Every piece becomes one Box3D hull, so this keeps the hull count — and with it the radius the
+// collision budget covers — 3-5x larger than one hull per triangle. Pieces stay within maxConvexVertices,
+// well below Box3D's hull limits (128 edges ⇒ at most 42 footprint corners per prism).
+function convexPiecesOfFootprint(footprint,triangulate,convexLimit){
+  const outer=footprint.outer||[],holes=footprint.holes||[],vertices=[...outer,...holes.flat()],faces=triangulate(outer,holes)||[];
+  const P=i=>vertices[i],cross=(a,b,c)=>(P(b)[0]-P(a)[0])*(P(c)[1]-P(b)[1])-(P(b)[1]-P(a)[1])*(P(c)[0]-P(b)[0]);
+  let polys=[];
+  for(const face of faces){if(!Array.isArray(face)||face.length!==3)continue;const t=face.map(Number);if(t.some(i=>!finitePoint(vertices[i])))continue;const area=(P(t[1])[0]-P(t[0])[0])*(P(t[2])[1]-P(t[0])[1])-(P(t[2])[0]-P(t[0])[0])*(P(t[1])[1]-P(t[0])[1]);if(Math.abs(area)*.5<.01)continue;polys.push(area>0?t:[t[0],t[2],t[1]]);}
+  const convex=ring=>{for(let i=0;i<ring.length;i++)if(cross(ring[i],ring[(i+1)%ring.length],ring[(i+2)%ring.length])<-1e-9)return false;return true;};
+  for(let merged=true;merged&&polys.length>1;){
+    merged=false;const edgeOwner=new Map();
+    polys.forEach((ring,k)=>{for(let i=0;i<ring.length;i++)edgeOwner.set(`${ring[i]}>${ring[(i+1)%ring.length]}`,k);});
+    for(let k=0;k<polys.length&&!merged;k++){const A=polys[k];
+      for(let i=0;i<A.length;i++){const a=A[i],b=A[(i+1)%A.length],q=edgeOwner.get(`${b}>${a}`);if(q==null||q===k)continue;const B=polys[q];
+        // A as [b … a], B as [a … b]: the union walks A from b to a, then B from a back to b
+        const ra=[...A.slice(i+1),...A.slice(0,i+1)],j=B.indexOf(a),rb=[...B.slice(j),...B.slice(0,j)];
+        let ring=[...ra,...rb.slice(1,-1)];
+        ring=ring.filter((v,n)=>Math.abs(cross(ring[(n-1+ring.length)%ring.length],v,ring[(n+1)%ring.length]))>1e-9); // drop collinear corners
+        if(ring.length<3||ring.length>convexLimit||!convex(ring))continue;
+        polys[k]=ring;polys.splice(q,1);merged=true;break;}}
+  }
+  return polys.map(ring=>({buildingKey:String(footprint.key||""),base:Number(footprint.base)||0,top:Number(footprint.top)||8,points:ring.map(i=>[Number(P(i)[0]),Number(P(i)[1])])}));
+}
+
 export function buildingCollisionPrismsFromFootprints(footprints,triangulate,{maxPrisms=WORLD_BUILDING_COLLISION_MAX_PRISMS,maxConvexVertices=WORLD_BUILDING_COLLISION_MAX_CONVEX_VERTICES}={}){
   const prisms=[],limit=Math.max(1,Math.floor(Number(maxPrisms)||WORLD_BUILDING_COLLISION_MAX_PRISMS)),convexLimit=Math.max(3,Math.floor(Number(maxConvexVertices)||WORLD_BUILDING_COLLISION_MAX_CONVEX_VERTICES));
-  for(const footprint of Array.isArray(footprints)?footprints:[]){if(prisms.length>=limit)break;const outer=footprint.outer||[],holes=footprint.holes||[];if(!holes.length&&outer.length<=convexLimit&&isConvexRing(outer)){prisms.push({buildingKey:String(footprint.key||""),base:Number(footprint.base)||0,top:Number(footprint.top)||8,points:outer.map(point=>[Number(point[0]),Number(point[1])])});continue;}const remaining=limit-prisms.length;prisms.push(...triangulateBuildingFootprints([footprint],triangulate,{maxTriangles:remaining}));}
+  for(const footprint of Array.isArray(footprints)?footprints:[]){if(prisms.length>=limit)break;const outer=footprint.outer||[],holes=footprint.holes||[];
+    if(!holes.length&&outer.length<=convexLimit&&isConvexRing(outer)){prisms.push({buildingKey:String(footprint.key||""),base:Number(footprint.base)||0,top:Number(footprint.top)||8,points:outer.map(point=>[Number(point[0]),Number(point[1])])});continue;}
+    if(typeof triangulate!=="function")continue;const pieces=convexPiecesOfFootprint(footprint,triangulate,convexLimit);
+    // a house is solid as a whole or not at all: never a partial shell you can walk into
+    if(prisms.length+pieces.length>limit)break;prisms.push(...pieces);}
   return prisms;
 }
 

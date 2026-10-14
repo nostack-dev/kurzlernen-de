@@ -68,7 +68,7 @@ export class TerrainTiles{
     const b3=this.b3,h=this.heights;let mn=Infinity;
     for(let r=0;r<N;r++){const y=t.y1+ST-r*ST;for(let c=0;c<N;c++){const x=t.x0-ST+c*ST;let v=terrainNodeHeightAt(x,y);if(withShock)v+=shockHeightAt(x,y);if(r===0||c===0||r===N-1||c===N-1)v-=SKIRT_DROP_M;h[r*N+c]=v;if(v<mn)mn=v;}}
     const field=b3.b3CreateHeightField(h,N,N,[ST,1,ST]);if(!field)return false;
-    if(t.shape){b3.b3DestroyShape(t.shape,false);t.shape=null;}
+    if(t.shape){if(b3.b3Shape_IsValid?.(t.shape)!==false)b3.b3DestroyShape(t.shape,false);t.shape=null;}
     t.shape=b3.b3CreateHeightFieldShape(t.body,this.shapeDef,field);
     if(t.field)b3.b3DestroyHeightField(t.field);t.field=field;t.min=mn;this.tileBuilds++;return true;
   }

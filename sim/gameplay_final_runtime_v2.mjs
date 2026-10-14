@@ -267,7 +267,7 @@ function footShotAt(clientX,clientY,now=performance.now(),hand=0){
   if(footWeapon==="knife")return knifeAt(clientX,clientY,now);
   if(footWeapon==="gravity"){if(!isFoot()||walk()?.dead||now-lastPunt<350)return false;lastPunt=now;const ray=footRay(clientX,clientY);if(!ray)return false;const hit=nearestGrenadeHit(ray,8);const ok=Boolean(globalThis.__arondightGravityGun?.punt?.({ray,hit}));if(ok)weaponFired("gravity",.35,"foot-screen","foot");return ok;}
   if(!isFoot()||walk()?.dead||now-lastSmg<SMG_INTERVAL_MS-.5)return false;lastSmg=now; // `now` = the round's due time (the hold loop keeps the cadence)
-  const ray=footRay(clientX,clientY);if(!ray)return false;const hit=nearestGrenadeHit(ray,180),end=hit?.point?.clone?.()||tmp.copy(ray.origin).addScaledVector(ray.direction,130).clone(),start=footMuzzle(tmp2,ray).clone();showTracer(start,end);{const routed=hit?routeHit(hit):false;if(globalThis.__worldImpacts)globalThis.__worldImpacts.bullet(ray,hit,{routed});else if(hit&&!routed)addFallbackDecal(hit);}flashWeapon(34);audioShot(.18);weaponFired("smg",.14,"foot-screen","foot");
+  const ray=footRay(clientX,clientY);if(!ray)return false;const hit=nearestGrenadeHit(ray,180),end=hit?.point?.clone?.()||tmp.copy(ray.origin).addScaledVector(ray.direction,130).clone(),start=footMuzzle(tmp2,ray).clone();showTracer(start,end);{const routed=hit?routeHit(hit):false;if(globalThis.__worldImpacts)globalThis.__worldImpacts.bullet(ray,hit,{routed});else if(hit&&!routed)addFallbackDecal(hit);if(hit?.point){const pt=[hit.point.x,hit.point.y,hit.point.z],J=bulletImpulse(ray.direction,"9mm");pushHitBody(hit,J,pt);queueMicrotask(()=>rigid()?.impulseHumanAt?.(pt,J));}}flashWeapon(34);audioShot(.18);weaponFired("smg",.14,"foot-screen","foot");
   const view=viewport();if(view){view.dataset.walkWeapon="smg";view.dataset.walkTouchFire="screen-point-raycast-v2";view.dataset.walkPistolTracer="world-ray-muzzle-origin-v2";view.dataset.walkSmgAutoFire="always-on-hold-v1";view.dataset.walkEnhancedShots=String((Number(view.dataset.walkEnhancedShots)||0)+1);view.dataset.walkTouchAimX=ray.point.x.toFixed(1);view.dataset.walkTouchAimY=ray.point.y.toFixed(1);}return true;
 }
 // GOLDEN HAND CANNON (Glock): semi-auto, brutal. One round counts as six
@@ -280,6 +280,10 @@ function footShotAt(clientX,clientY,now=performance.now(),hand=0){
 let assaultSeq=0;
 function reportAssault(id,result,pos){if(!result)return;try{globalThis.__arondightWantedSystem?.reportCrime?.({id:`assault-${id}-${(++assaultSeq).toString(36)}-${Math.round(performance.now())}`,kind:result==="dead"?"person":"person-hit",position:pos||undefined});}catch{}}
 function hitWeight(hit){for(let n=hit?.object;n;n=n.parent){const k=String(n.userData?.worldPopulationKind||n.userData?.worldLifeKind||n.userData?.policeKind||"");if(/car|bus|cruiser|vehicle/.test(k))return 1;if(n.userData?.gtaDrivableVehicle||n.userData?.policeCruiser)return 1;}return /car|bus|cruiser/.test(String(hit?.physicsKind||""))?1:6;}
+// A round's momentum goes into the rigid body it hits, at the hit point (crates, drums, cones, bins,
+// cars, drones). A loose prop you hit becomes yours for a few seconds, so its flight is streamed to the
+// other players instead of being snapped back by theirs.
+function pushHitBody(hit,J,pt){if(!hit?.physicsId)return false;const id=hit.physicsId;if(globalThis.__arondightWorldProps?.has?.(id))globalThis.__arondightWorldProps.claim?.(id);return Boolean(rigid()?.applyImpulse?.(id,J,{point:pt}));}
 function glockShotAt(clientX,clientY,now,hand=0){
   const h=hand===1?1:0;if(!isFoot()||walk()?.dead||now-lastGlock[h]<GLOCK_MIN_INTERVAL_MS)return false;lastGlock[h]=now;
   const ray=footRay(clientX,clientY);if(!ray)return false;const start=footMuzzle(tmp2,ray,h).clone();let origin=ray.origin.clone(),remaining=240,pierced=0,end=null;
@@ -287,7 +291,7 @@ function glockShotAt(clientX,clientY,now,hand=0){
     if(!hit){end=origin.clone().addScaledVector(ray.direction,remaining);globalThis.__worldImpacts?.bullet(r,null,{maxDistance:remaining});break;}
     let routed=false;for(let i=0,n=hitWeight(hit);i<n;i++)routed=routeHit(hit)||routed;{const v=viewport();if(v){const u=hit.object?.userData||{};v.dataset.walkGlockLastHit=(pierced?(v.dataset.walkGlockLastHit||"")+">":"")+`${hit.physicsKind||u.worldPopulationKind||u.worldDecorKind||hit.object?.name||hit.object?.type||"?"}:${hit.physicsId||u.worldPopulationId||""}:${routed?1:0}:${lastRoute}`;}}
     globalThis.__worldImpacts?.bullet(r,hit,{routed});if(hit.point)globalThis.__worldImpacts?.chips?.(hit.point,ray.direction.clone().negate(),routed?"actor":"building",9,6);
-    if(hit.physicsId)rigid()?.applyImpulse?.(hit.physicsId,bulletImpulse(ray.direction,"9mm"),{point:[hit.point.x,hit.point.y,hit.point.z]});
+    pushHitBody(hit,bulletImpulse(ray.direction,"9mm"),[hit.point.x,hit.point.y,hit.point.z]);
     if(hit.point){const pt=[hit.point.x,hit.point.y,hit.point.z],J=bulletImpulse(ray.direction,"9mm");queueMicrotask(()=>rigid()?.impulseHumanAt?.(pt,J));}
     end=hit.point?.clone?.()||origin.clone().addScaledVector(ray.direction,Number(hit.distance)||10);
     if(!routed&&!hit.physicsId)break;pierced++;const d=Number(hit.distance)||origin.distanceTo(end);origin=end.clone().addScaledVector(ray.direction,.6);remaining-=d+.6;}
@@ -309,7 +313,7 @@ function sniperShotAt(clientX,clientY,now){
     const u=hit.object?.userData||{},kind=String(hit.physicsKind||u.worldPopulationKind||""),hits=kind==="car"||kind==="bus"?4:6;hit.weaponDamage=200;let routed=false;for(let i=0;i<hits;i++)routed=routeHit(hit)||routed;
     globalThis.__worldImpacts?.bullet(r,hit,{routed});if(hit.point)globalThis.__worldImpacts?.chips?.(hit.point,ray.direction.clone().negate(),routed?"actor":"building",16,9);
     const pt=hit.point?[hit.point.x,hit.point.y,hit.point.z]:null;
-    if(hit.physicsId)rigid()?.applyImpulse?.(hit.physicsId,J,{point:pt});
+    pushHitBody(hit,J,pt);
     if(pt)queueMicrotask(()=>rigid()?.impulseHumanAt?.(pt,J));
     end=hit.point?.clone?.()||origin.clone().addScaledVector(ray.direction,Number(hit.distance)||10);
     if(!routed&&!hit.physicsId)break;pierced++;const d=Number(hit.distance)||origin.distanceTo(end);origin=end.clone().addScaledVector(ray.direction,.6);remaining-=d+.6;}
@@ -350,7 +354,7 @@ function punchAt(clientX,clientY,now,hand=0){const h=hand===1?1:0;if(!isFoot()||
   else if(hit.physicsKind==="animal"&&hit.physicsId){globalThis.__ambientAnimals?.punch?.({id:hit.physicsId,point:hit.point?[hit.point.x,hit.point.y,hit.point.z]:null,direction:[d.x,d.y,d.z],momentumNs:NS});}
   else if(hit.physicsKind==="cow"&&hit.physicsId){globalThis.__arondightCows?.hit?.({id:hit.physicsId,point:hit.point?[hit.point.x,hit.point.y,hit.point.z]:null,direction:[d.x,d.y,d.z],weapon:"fists",damage:Math.round(dmg*.4)});}
   else if(u.vsPlayerId){routeHit({...hit,weapon:"fists"});const dv=NS/80;globalThis.__arondightPlayerPush?.pushMate?.(String(u.vsPlayerId),[d.x*dv*3,d.y*dv*3,.35],{damage:0,source:"punch"});}
-  else if(hit.physicsId){rigid()?.applyImpulse?.(hit.physicsId,[d.x*NS,d.y*NS,d.z*NS],{point:hit.point?[hit.point.x,hit.point.y,hit.point.z]:null});}
+  else if(hit.physicsId){pushHitBody(hit,[d.x*NS,d.y*NS,d.z*NS],hit.point?[hit.point.x,hit.point.y,hit.point.z]:null);}
   if(hit.point){const pt=[hit.point.x,hit.point.y,hit.point.z];queueMicrotask(()=>rigid()?.impulseHumanAt?.(pt,[d.x*NS,d.y*NS,d.z*NS]));}
   return true;}
 // every swing cuts the air: a short whoosh (the jab quicker and lighter than the cross)
@@ -373,7 +377,7 @@ function knifeAt(clientX,clientY,now){if(!isFoot()||walk()?.dead||now-lastKnife<
   else if(hit.physicsKind==="animal"&&hit.physicsId){globalThis.__ambientAnimals?.hit?.({id:hit.physicsId,point:pt,origin:[ray.origin.x,ray.origin.y,ray.origin.z],direction:[d.x,d.y,d.z],strength:1});}
   else if(hit.physicsKind==="cow"&&hit.physicsId){globalThis.__arondightCows?.hit?.({id:hit.physicsId,point:pt,direction:[d.x,d.y,d.z],weapon:"knife",damage:40});}
   else if(u.vsPlayerId){routeHit({...hit,weapon:"knife"});}
-  else if(hit.physicsId){rigid()?.applyImpulse?.(hit.physicsId,[d.x*10,d.y*10,d.z*10],{point:pt});}
+  else if(hit.physicsId){pushHitBody(hit,[d.x*10,d.y*10,d.z*10],pt);}
   return true;}
 function fxVolume(){return audioSettings.soundEnabled?Math.max(0,Number(audioSettings.fxVolume)||0)/100:0;}
 function knifeSwish(){const a=globalThis.__sharedAudioContext;if(!a||a.state!=="running")return;try{const t=a.currentTime,dur=.13,n=a.createBuffer(1,Math.ceil(a.sampleRate*dur),a.sampleRate),ch=n.getChannelData(0);for(let i=0;i<ch.length;i++){const u=i/ch.length;ch[i]=(Math.random()*2-1)*Math.sin(Math.PI*u)**2;}const s=a.createBufferSource(),bp=a.createBiquadFilter(),g=a.createGain();bp.type="bandpass";bp.Q.value=2.2;bp.frequency.setValueAtTime(2400,t);bp.frequency.exponentialRampToValueAtTime(6800,t+dur);g.gain.value=.34*fxVolume();s.buffer=n;s.connect(bp).connect(g).connect(a.destination);s.start(t);}catch{}}

@@ -67,6 +67,6 @@ export function createBox3dHuman(b3,world,{position=[0,0,0],yaw=0,groupIndex=1,f
   const I=HUMAN_BONE_INDEX;for(const[a,b]of[[I.thigh_l,I.thigh_r],[I.neck_01,I.upperarm_l],[I.neck_01,I.upperarm_r]]){const d=b3.b3DefaultFilterJointDef();d.base.bodyIdA=bodies[a];d.base.bodyIdB=bodies[b];filters.push(b3.b3CreateFilterJoint(world,d));}
   return{bodies,joints,filters};
 }
-export function destroyBox3dHuman(b3,human){if(!human)return;for(const j of[...(human.filters||[]),...(human.joints||[])])try{b3.b3DestroyJoint(j,false);}catch{}for(const b of human.bodies||[])try{if(b3.b3Body_IsValid(b))b3.b3DestroyBody(b);}catch{}human.bodies=[];human.joints=[];human.filters=[];}
+export function destroyBox3dHuman(b3,human){if(!human)return;for(const j of[...(human.filters||[]),...(human.joints||[])])try{/* ids are recycled handles: a joint already gone with its body must not hit whatever reuses its slot */if(b3.b3Joint_IsValid?.(j)!==false)b3.b3DestroyJoint(j,false);}catch{}for(const b of human.bodies||[])try{if(b3.b3Body_IsValid(b))b3.b3DestroyBody(b);}catch{}human.bodies=[];human.joints=[];human.filters=[];}
 // a point given in a bone's local (sample) frame, in world space
 export function humanPoint(b3,human,boneIndex,local,out=[0,0,0]){const body=human.bodies[boneIndex];if(!body)return null;const p=b3.b3Body_GetPosition([0,0,0],body),q=b3.b3Body_GetRotation([0,0,0,1],body),r=qrot(q,local);out[0]=p[0]+r[0];out[1]=p[1]+r[1];out[2]=p[2]+r[2];return out;}

@@ -5,6 +5,11 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-14",time:"23:37",title:"Keine Geister-Räder mehr, festere Häuser, Kisten anschießen",items:[
+    "Autos aus großer Entfernung (Jet, Fallschirm, Dach) erscheinen nicht mehr als vier lose Räder: die Räder verschwinden jetzt zusammen mit der Karosserie.",
+    "Häuser-Kollision: L-förmige Häuser und Höfe bestehen aus wenigen festen Blöcken statt vieler Dreiecke – dadurch sind fast doppelt so viele Häuser rundum fest, und ein Haus ist immer ganz fest, nie nur zur Hälfte.",
+    "Kisten, Fässer, Pylonen und Tonnen reagieren jetzt auf jeden Treffer, auch auf die MP – mit dem echten Impuls der Kugel (Scharfschützengewehr wirft sie um, Pistole schubst Pylonen). Im Multiplayer sehen alle den Flug.",
+  ]},
   {date:"2026-10-14",time:"23:25",title:"Granatwerfer und Raketenwerfer wieder getrennt",items:[
     "Zu Fuß gibt es wieder beide: der Granatwerfer (5) schießt springende 40-mm-Granaten mit Zeitzünder, der neue Raketenwerfer (6) eine schnelle, flache Rakete mit Feuerschweif, die beim Aufprall explodiert. Fäuste jetzt 7, Messer 8.",
     "Raketenwerfer als eigenes Schulterrohr mit sichtbarem Gefechtskopf; Xbox und Mausrad schalten durch alle Waffen.",

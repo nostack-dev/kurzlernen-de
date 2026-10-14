@@ -71,7 +71,7 @@ export function destroyWorldBuildingCollisionBodies(b3,state){if(state?.body&&b3
 function prismBodyKey(prism,e){let k=`${prism.buildingKey||""}|${e}|${prism.base}|${prism.top}|`;for(const p of prism.points)k+=`${p[0]},${p[1]};`;return k;}
 export function updateWorldBuildingCollisionBodies(b3,world,prev,value,{categoryBits=1n,maskBits=6n,rangefinderCategoryBits=4n}={}){
   const snapshot=normalizeBuildingCollisionSnapshot(value);if(prev?.body&&!prev.entries){destroyWorldBuildingCollisionBodies(b3,prev);prev=null;}
-  const old=prev?.entries||new Map(),next=new Map(),activePrisms=[];let shapeCount=0,built=0;
+  const old=prev?.entries||new Map(),next=new Map(),activePrisms=[];let shapeCount=0,built=0,failedHulls=0;
   if(world&&snapshot.prisms.length){
     const shapeDef=b3.b3DefaultShapeDef();shapeDef.baseMaterial.friction=.68;shapeDef.baseMaterial.restitution=.025;shapeDef.filter={categoryBits:BigInt(categoryBits),maskBits:BigInt(maskBits)&~BigInt(rangefinderCategoryBits),groupIndex:0};
     const groundByKey=new Map();for(const prism of snapshot.prisms){const k=prism.buildingKey;if(!k)continue;let list=groundByKey.get(k);if(!list){list=[];groundByKey.set(k,list);}for(const p of prism.points)list.push(p);}
@@ -86,7 +86,7 @@ export function updateWorldBuildingCollisionBodies(b3,world,prev,value,{category
         for(const height of[prism.base+e,prism.top+e])
           for(const point of prism.points)vertices.push(point[0]-anchor[0],point[1]-anchor[1],height-centerZ);
         const hull=b3.b3CreateHull(vertices);
-        if(!hull)continue;
+        if(!hull){failedHulls++;continue;} /* degenerate sliver: Box3D refuses it (counted for the diagnostics) */
         let body=null;
         try{
           const bodyDef=b3.b3DefaultBodyDef();
@@ -102,5 +102,5 @@ export function updateWorldBuildingCollisionBodies(b3,world,prev,value,{category
       }
       next.set(key,entry);activePrisms.push(prism);shapeCount++;}}
   for(const e of old.values())if(e?.body&&b3.b3Body_IsValid(e.body))b3.b3DestroyBody(e.body);
-  return{body:null,entries:next,shapeCount,built,kept:shapeCount-built,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze(activePrisms),...snapshot};
+  return{body:null,entries:next,shapeCount,built,failedHulls,kept:shapeCount-built,skippedLaunchPrisms:0,skippedLaunchBuildings:0,activePrisms:Object.freeze(activePrisms),...snapshot};
 }
