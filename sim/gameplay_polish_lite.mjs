@@ -6,7 +6,7 @@ const MOBILE_RE=/(?:android|iphone|ipad|ipod|macintosh.*mobile)/i;
 const MOBILE=MOBILE_RE.test(globalThis.navigator?.userAgent||"");
 const BLOOD_PARTICLES=MOBILE?14:22;
 const AUDIO_SETTINGS_KEY="arondight45AudioSettingsV1";
-const FLIGHT_UI_SELECTOR="button,input,select,textarea,a,label,dialog,#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,#worldLookHud,#vsRespawnHud";
+const FLIGHT_UI_SELECTOR="button,input,select,textarea,a,label,dialog,#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,#worldLookHud,#vsRespawnHud,#gameMenu,#changelogPanel,#worldOptionsPanel";
 let installed=false,lastDead=false,lastFrame=performance.now(),wrappedWorldHit=null,blood=null;
 const activePointers=new Set(),tmp=new THREE.Vector3();
 

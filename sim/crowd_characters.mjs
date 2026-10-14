@@ -12,7 +12,7 @@ import {buildCharacter,animateCharacter,saveRigState,loadRigState} from "./chara
 export const CROWD_CHARACTERS_VERSION="instanced-articulated-crowd-v2-packed";
 // three bands: < NEAR_M full figure, NEAR_M..FAR_M the same jointed figure with
 // coarser capsules/spheres (~40 % of the triangles, same animation), > FAR_M one block
-const ZERO=new THREE.Matrix4().makeScale(0,0,0),col=new THREE.Color(),FAR_M=95,NEAR_M=18,MID_DETAIL=.5;
+const ZERO=new THREE.Matrix4().makeScale(0,0,0),col=new THREE.Color(),FAR_M=130,NEAR_M=18,MID_DETAIL=.5;
 
 export function createCrowd(scene,{capacity=64,outfit="civilian",name="CROWD"}={}){
   const tpl=buildCharacter({outfit});tpl.root.updateMatrixWorld(true);
@@ -30,7 +30,13 @@ export function createCrowd(scene,{capacity=64,outfit="civilian",name="CROWD"}={
   // block each (one draw call for all) — they keep walking exactly as before
   // (positions still come from their own simulation every frame), only the
   // joint animation and the 24-part body are skipped where they are a few pixels.
-  const farGeo=new THREE.BoxGeometry(.42,.26,1.72);farGeo.translate(0,0,.86);
+  // a person-shaped silhouette (rounded torso + legs + head), not a block: a box read as a crate or a
+  // red bar on the street. Still one draw call for all far people.
+  const farGeo=(()=>{const parts=[],add=(g,x,y,z)=>{g.rotateX(Math.PI/2);g.translate(x,y,z);parts.push(g.index?g.toNonIndexed():g);};
+    add(new THREE.CapsuleGeometry(.2,.5,2,6),0,0,1.18);add(new THREE.CapsuleGeometry(.085,.62,2,5),.1,0,.42);add(new THREE.CapsuleGeometry(.085,.62,2,5),-.1,0,.42);
+    const head=new THREE.SphereGeometry(.13,7,5);head.translate(0,0,1.66);parts.push(head.toNonIndexed());
+    let n=0;for(const g of parts)n+=g.attributes.position.count;const pos=new Float32Array(n*3),nor=new Float32Array(n*3);let o=0;for(const g of parts){pos.set(g.attributes.position.array,o*3);nor.set(g.attributes.normal.array,o*3);o+=g.attributes.position.count;}
+    const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.BufferAttribute(pos,3));g.setAttribute("normal",new THREE.BufferAttribute(nor,3));g.computeBoundingSphere();return g;})();
   const far=new THREE.InstancedMesh(farGeo,new THREE.MeshStandardMaterial({color:0xffffff,roughness:.85}),capacity);far.name=`${name}_FAR`;far.userData.flightFireIgnore=true;far.castShadow=true;far.frustumCulled=false;far.instanceMatrix.setUsage(THREE.DynamicDrawUsage);far.raycast=()=>{};
   for(let i=0;i<capacity;i++){far.setMatrixAt(i,ZERO);far.setColorAt(i,col.set(0x777777));}far.instanceColor.setUsage(THREE.DynamicDrawUsage);far.count=0;group.add(far);
   const farOwner=new Int32Array(capacity).fill(-1);let farCursor=0,farColorDirty=false;const fq=new THREE.Quaternion(),fp=new THREE.Vector3(),fs=new THREE.Vector3(1,1,1),fm=new THREE.Matrix4(),Z=new THREE.Vector3(0,0,1);

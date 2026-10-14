@@ -1,5 +1,5 @@
 const DOUBLE_TAP_MS=340;
-const UI_SELECTOR="button,input,select,textarea,a,label,dialog,[role=button],#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud";
+const UI_SELECTOR="button,input,select,textarea,a,label,dialog,[role=button],#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud,#gameMenu,#changelogPanel,#worldOptionsPanel";
 
 let installed=false,lastTapAt=-Infinity;
 

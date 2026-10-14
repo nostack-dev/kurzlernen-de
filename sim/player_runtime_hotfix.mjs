@@ -5,7 +5,7 @@ import {FPS_PITCH_LIMIT_RAD} from "./fps_control_math.mjs";
 const INDEX_REFRESH_MS=3200;
 const AIM_YAW_PER_PX=.0062;
 const AIM_PITCH_PER_PX=.0049;
-const UI_SELECTOR="#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#footHud,#worldLookHud,dialog,button,input,select,textarea,a,label";
+const UI_SELECTOR="#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#footHud,#worldLookHud,dialog,button,input,select,textarea,a,label,#gameMenu,#changelogPanel,#worldOptionsPanel";
 const WORLD_DECOR_RE=/(?:WORLD_.*(?:TREE|LAMP|PROP|SIGN|DECOR|STREET)|WORLD_LIVELINESS_(?:TREES|LAMPS))/i;
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,Number(v)||0));
 

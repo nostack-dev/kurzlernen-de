@@ -79,7 +79,7 @@ function receive(e){const {peerId,packet}=e.detail||{};if(!peerId||!validVoicePa
   const gain=proximityGain(distance(peerId));if(!gain)return;const previous=lastSeq.get(peerId)??-1;if(packet.seq<=previous)return;lastSeq.set(peerId,packet.seq);
   try{if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();if(ctx.state!=='running')return;
     const raw=atob(packet.data);if(raw.length>800)return;const audio=ctx.createBuffer(1,raw.length,VOICE_RATE),ch=audio.getChannelData(0);for(let i=0;i<raw.length;i++)ch[i]=decodeMuLaw(raw.charCodeAt(i));
-    const src=ctx.createBufferSource(),volume=ctx.createGain();src.buffer=audio;volume.gain.value=gain;src.connect(volume).connect(ctx.destination);const v=document.getElementById('viewport');if(v){v.dataset.voiceRxPackets=String((Number(v.dataset.voiceRxPackets)||0)+1);v.dataset.voiceRxPeer=peerId;}
+    const src=ctx.createBufferSource(),volume=ctx.createGain();src.buffer=audio;volume.gain.value=gain;volume.__audioBusExempt=true;/* voice chat is not an effect */src.connect(volume).connect(ctx.destination);const v=document.getElementById('viewport');if(v){v.dataset.voiceRxPackets=String((Number(v.dataset.voiceRxPackets)||0)+1);v.dataset.voiceRxPeer=peerId;}
     const t=Math.max(ctx.currentTime+.03,Math.min(ctx.currentTime+.15,playheads.get(peerId)||0));src.start(t);playheads.set(peerId,t+audio.duration);
     const indicator=document.getElementById('proximityVoiceSpeaking');if(indicator){indicator.textContent=`🔊 P${(multiplayer()?.playerInfo?.(peerId)?.index)||'?'}`;indicator.hidden=false;setTimeout(()=>{if(indicator.textContent.startsWith('🔊'))indicator.hidden=true;},450);}
   }catch{} }

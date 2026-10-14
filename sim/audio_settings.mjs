@@ -61,3 +61,23 @@ export function mountAudioSettings({dialog,onChange=()=>{}}={}){
   dialog.addEventListener("close",()=>{settings=loadAudioSettings();render();});dialog.querySelector("[data-reset]")?.addEventListener("click",()=>{settings=saveAudioSettings(DEFAULT_AUDIO_SETTINGS);render();onChange({...settings});});
   render();onChange({...settings});return{section,get settings(){return{...settings};},reload(){settings=loadAudioSettings();render();onChange({...settings});return{...settings};}};
 }
+
+// ---------------------------------------------------------------- effects master bus
+// "Effects off" must silence EVERY game sound, whichever module made it (jet engine, sirens, cars,
+// animals …): about 25 modules synthesize sound and not all of them read the settings. Every Web
+// Audio node that connects straight to the speakers is routed through one master gain per audio
+// context instead; music and voice chat mark their output as exempt (they have their own switches).
+export function exemptFromEffectsBus(node){if(node)node.__audioBusExempt=true;return node;}
+const fxBuses=new Set();
+function busGain(){const s=loadAudioSettings();return s.soundEnabled?1:0;}
+function fxBusFor(ctx,orig){let bus=ctx.__arondightFxBus;if(bus)return bus;try{bus=ctx.createGain();bus.__isFxBus=true;bus.gain.value=busGain();orig.call(bus,ctx.destination);ctx.__arondightFxBus=bus;fxBuses.add(bus);return bus;}catch{return null;}}
+function installEffectsBus(){
+  if(typeof window==="undefined"||typeof AudioNode==="undefined"||AudioNode.prototype.__arondightBusPatched)return;
+  const orig=AudioNode.prototype.connect;AudioNode.prototype.__arondightBusPatched=true;
+  AudioNode.prototype.connect=function(dest,...rest){
+    if(typeof AudioDestinationNode!=="undefined"&&dest instanceof AudioDestinationNode&&!this.__isFxBus&&!this.__audioBusExempt){const bus=fxBusFor(dest.context,orig);if(bus){orig.call(this,bus,...rest);return dest;}}
+    return orig.call(this,dest,...rest);};
+  window.addEventListener(AUDIO_SETTINGS_EVENT,()=>{const g=busGain();for(const bus of fxBuses){try{bus.gain.setTargetAtTime(g,bus.context.currentTime,.03);}catch{bus.gain.value=g;}}});
+  globalThis.__arondightEffectsBus={get enabled(){return busGain()>0;},exempt:exemptFromEffectsBus};
+}
+installEffectsBus();

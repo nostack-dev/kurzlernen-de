@@ -110,7 +110,7 @@ function onExplosion(e){const d=e?.detail||{},pos=d.position,x=Array.isArray(pos
 // ------------------------------------------------------------ rounds
 function startNight(now){active=true;round=0;nextRound(now);banner("DIE NACHT BRICHT HEREIN",3600);}
 function nextRound(now){round++;toSpawn=6+round*4;nextSpawn=now+1800;roundBreakUntil=0;banner(`RUNDE ${round}`,2600);}
-function endNight(){active=false;for(const z of [...zombies].slice(0,8))killZombie(z,null,false);for(const z of zombies)z.proxy.parent?.remove(z.proxy);zombies=[];if(round)banner(`MORGENGRAUEN — ${round} RUNDEN ÜBERLEBT`,4200);round=0;toSpawn=0;}
+function endNight(){active=false;for(const z of [...zombies].slice(0,8))killZombie(z,null,false);for(const z of zombies)z.proxy.parent?.remove(z.proxy);zombies=[];if(round)banner(`MORGENGRAUEN — ${round} ${round===1?"RUNDE":"RUNDEN"} ÜBERLEBT`,4200);round=0;toSpawn=0;}
 
 // ------------------------------------------------------------ multiplayer
 function session(){return bridge()?.vsSession||null;}

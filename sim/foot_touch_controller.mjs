@@ -31,7 +31,7 @@ const PASS_SELECTOR="button,input,select,textarea,a,label,dialog,.phone-settings
 const STICK_RADIUS=.42,SPRINT_AT=.9,FIRE_INTERVAL_MS=55,GLOCK_HOLD_MS=170;
 // look: edge-turn starts this far (px) beyond the stick radius and reaches full rate EDGE_RAMP_PX later;
 // the drag origin is pulled along so letting the finger come back stops the turn at once
-const EDGE_START=.92,EDGE_RAMP_PX=42,CATCH_EXTRA_PX=64,INACTIVE_GRACE_MS=320;
+const EDGE_START=.92,EDGE_RAMP_PX=42,CATCH_EXTRA_PX=0,INACTIVE_GRACE_MS=320;
 
 const pointers=new Map();let installed=false,loop=0,lastLoop=performance.now(),nextPistolHand=0,inactiveSince=0;
 const walk=()=>globalThis.__arondightWalkMode||null;

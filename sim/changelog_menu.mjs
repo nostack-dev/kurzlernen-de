@@ -1,8 +1,21 @@
 // Title screen: NEU / CHANGELOG under WORLD. The most important points of every update, newest
 // first. New updates go on top of CHANGELOG (keep each point to one line a player understands).
+// Each entry: date + time (Berlin) of the update; only what is NEW in that update — never repeat a
+// point an earlier entry already announced.
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-14",time:"23:15",title:"Radio mit SWR, NDR & Co., Effekte-Schalter, Steuerung",items:[
+    "Autoradio: die öffentlich-rechtlichen Sender deines Bundeslands (z. B. SWR3, SWR1, NDR 2, Bayern 3, WDR 2, hr3) plus Deutschlandfunk, danach die Lokalsender. Läuft beim Einsteigen, unabhängig vom Musik-Schalter.",
+    "Radio aus: in der Senderliste gibt es den Platz „RADIO AUS“ (📻 tippen bzw. N/B), 📻 halten schaltet direkt aus. Der Motor ist leiser und tritt unter dem Radio zurück.",
+    "„Effekte aus“ schaltet jetzt wirklich alles stumm – auch Düsenjet, Sirenen, Tiere und Motoren.",
+    "Handy: Schießen funktioniert bis direkt an die Sticks heran – die Stickfläche ist genau der gezeichnete Kreis.",
+    "Kein Airstrike mehr, solange man tot ist. Respawn am PC jetzt auch mit der Leertaste.",
+    "Nach dem Schleudersitz verschwinden die Jet-Knöpfe (Flug/Rakete/Bombe).",
+    "Weit entfernte Personen sind Silhouetten statt Klötze und erst ab 130 m vereinfacht.",
+    "Klick neben das Hauptmenü löst keinen Schuss mehr aus. „1 Runde überlebt“ statt „1 Runden“.",
+    "PC: die Tastenhilfe sitzt oben, unten bleibt Platz für ARM/STOP und Fahrzeug-Tasten.",
+  ]},
   {date:"2026-10-13",title:"Passanten sprinten jetzt panisch",items:["Bei Schüssen und Explosionen fliehen Passanten jetzt im echten Sprint mit längeren Schritten, stärkerem Beinabstoß und vorgebeugtem Oberkörper."]},
   {date:"2026-10-13",title:"ARCADE JET, Voice Toggle und übersichtlicheres Gameplay",items:[
     "VOICE: Mikrofon ist jetzt ein echter EIN/AUS-Schalter statt Push-to-Talk. Tippen bzw. H oder Xbox R3 schaltet dauerhaft ein und wieder aus; ohne Freigabe bleibt es aus. Mitspielerpositionen werden für die 70-m-Reichweite korrekt übertragen.",
@@ -239,7 +252,7 @@ function mount(){
   const st=document.createElement("style");st.dataset.changelogMenu=CHANGELOG_MENU_VERSION;st.textContent=CSS;document.head.appendChild(st);
   const btn=document.createElement("button");btn.id="gameMenuChangelog";btn.type="button";btn.textContent="CHANGELOG";anchor.after(btn);
   panel=document.createElement("div");panel.id="changelogPanel";panel.hidden=true;panel.setAttribute("role","dialog");panel.setAttribute("aria-label","Changelog");
-  panel.innerHTML=`<div class="cl-card"><h2>CHANGELOG</h2><div class="cl-list" tabindex="-1">${CHANGELOG.map(u=>`<section><h3><span>${fmt(u.date)}</span>${esc(u.title)}</h3><ul>${u.items.map(i=>`<li>${esc(i)}</li>`).join("")}</ul></section>`).join("")}</div><button type="button" class="cl-done">OK</button></div>`;
+  panel.innerHTML=`<div class="cl-card"><h2>CHANGELOG</h2><div class="cl-list" tabindex="-1">${CHANGELOG.map(u=>`<section><h3><span>${fmt(u.date)}${u.time?` · ${esc(u.time)}`:""}</span>${esc(u.title)}</h3><ul>${u.items.map(i=>`<li>${esc(i)}</li>`).join("")}</ul></section>`).join("")}</div><button type="button" class="cl-done">OK</button></div>`;
   menu.appendChild(panel);
   btn.addEventListener("click",e=>{e.preventDefault();open();});
   panel.addEventListener("click",e=>{if(e.target.closest?.(".cl-done")||e.target===panel)close();});

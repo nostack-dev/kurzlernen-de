@@ -5,7 +5,7 @@
 // "get in" (car, jet) sits above JUMP at the right edge — no reaching into the middle or the
 // top of the screen mid-fight. Positions follow the sticks (layout, safe areas, rotation).
 export const THUMB_LAYOUT_VERSION="thumb-reach-v3-low";
-const STICK_PX=168,CATCH_PX=38; // ~4.5 % smaller than before; the rings sit in the screen corners (tangent to the side and bottom edges)
+const STICK_PX=168,CATCH_PX=0; /* the touch area is exactly the drawn ring: a wider catch zone stole taps meant for shooting */ // ~4.5 % smaller than before; the rings sit in the screen corners (tangent to the side and bottom edges)
 let btn=null,lastKey="",installed=false;
 const $=id=>document.getElementById(id);
 // rectangles in the viewport's own (unrotated) coordinates: in portrait the viewport is turned by
@@ -20,10 +20,10 @@ function ensure(){const v=$("viewport");if(!v)return null;if(btn?.isConnected)re
 html body #viewport #thumbWeapon{border-radius:50%!important;padding:0!important}#thumbWeapon.show{display:flex}#thumbWeapon:active{transform:scale(.94);background:#4a3212e0}
 /* sticks: big, nearly invisible, and they catch the thumb well outside the drawn ring (the touch
    is relative to where it lands, so a wide catch area costs no precision) */
-html body:not(.desktop-input) #viewport :is(#footMove,#footLook,#soloLeft,#soloRight){width:${STICK_PX}px!important;height:${STICK_PX}px!important;overflow:visible!important}
+html body:not(.desktop-input) #viewport :is(#footMove,#footLook,#soloLeft,#soloRight){width:${STICK_PX}px!important;height:${STICK_PX}px!important;overflow:visible!important;border-radius:50%!important;clip-path:circle(50% at 50% 50%)}
 html body:not(.desktop-input) #viewport :is(#footMove,#soloLeft){left:var(--solo-safe-left,env(safe-area-inset-left,0px))!important;right:auto!important;bottom:var(--solo-safe-bottom,env(safe-area-inset-bottom,0px))!important;top:auto!important;transform:none!important}
 html body:not(.desktop-input) #viewport :is(#footLook,#soloRight){right:var(--solo-safe-right,env(safe-area-inset-right,0px))!important;left:auto!important;bottom:var(--solo-safe-bottom,env(safe-area-inset-bottom,0px))!important;top:auto!important;transform:none!important}
-html body:not(.desktop-input) #viewport :is(#footMove,#footLook,#soloLeft,#soloRight)::before{content:"";position:absolute;border-radius:40%;background:transparent;pointer-events:auto}
+html body:not(.desktop-input) #viewport :is(#footMove,#footLook,#soloLeft,#soloRight)::before{content:"";position:absolute;border-radius:50%;background:transparent;pointer-events:auto}
 html body:not(.desktop-input) #viewport :is(#footMove,#soloLeft)::before{top:-${CATCH_PX*2}px;right:-${CATCH_PX*2}px;bottom:-${CATCH_PX}px;left:-${CATCH_PX}px}
 html body:not(.desktop-input) #viewport :is(#footLook,#soloRight)::before{top:-${CATCH_PX}px;right:-${CATCH_PX}px;bottom:-${CATCH_PX}px;left:-${CATCH_PX}px}
 html body:not(.desktop-input) #viewport :is(#footMove,#footLook,#soloLeft,#soloRight)>span{opacity:0!important}

@@ -14,22 +14,45 @@ let installed=false,settings=loadAudioSettings(),audio=null,stations=[],stations
 
 const viewport=()=>document.getElementById("viewport");
 const bridge=()=>globalThis.__arondightRealWorld||null;
-function wantedLevel(){return settings.soundEnabled&&settings.musicEnabled!==false&&inCar&&on&&!document.hidden?Math.min(1,(Number(settings.musicVolume)||0)/100)*HEADROOM:0;}
+// the radio is not the menu music: it plays whenever you sit in a car and it is switched on (📻 hold /
+// "RADIO AUS" in the station list), at least at a level you can hear over the engine
+function wantedLevel(){return inCar&&on&&!document.hidden?Math.max(.55,Math.min(1,(Number(settings.musicVolume)||0)/100))*HEADROOM:0;}
+// Public broadcasters (ARD + Deutschlandradio): official HTTPS streams, chosen by the federal state the
+// map is in, plus the national programmes. Community-directory stations of the area follow.
+const PUBLIC={
+  bw:[["SWR3","https://liveradio.swr.de/sw282p3/swr3/play.mp3"],["SWR1 Baden-Württemberg","https://liveradio.swr.de/sw282p3/swr1bw/play.mp3"],["SWR4 Baden-Württemberg","https://liveradio.swr.de/sw282p3/swr4bw/play.mp3"],["DASDING","https://liveradio.swr.de/sw282p3/dasding/play.mp3"],["SWR Kultur","https://liveradio.swr.de/sw282p3/swrkultur/play.mp3"]],
+  rp:[["SWR3","https://liveradio.swr.de/sw282p3/swr3/play.mp3"],["SWR1 Rheinland-Pfalz","https://liveradio.swr.de/sw282p3/swr1rp/play.mp3"],["SWR4 Rheinland-Pfalz","https://liveradio.swr.de/sw282p3/swr4rp/play.mp3"],["DASDING","https://liveradio.swr.de/sw282p3/dasding/play.mp3"]],
+  sl:[["SR 1","https://liveradio.sr.de/sr/sr1/mp3/128/stream.mp3"],["SR 3 Saarlandwelle","https://liveradio.sr.de/sr/sr3/mp3/128/stream.mp3"],["SWR3","https://liveradio.swr.de/sw282p3/swr3/play.mp3"]],
+  by:[["Bayern 3","https://dispatcher.rndfnk.com/br/br3/live/mp3/mid"],["Bayern 1","https://dispatcher.rndfnk.com/br/br1/obb/mp3/mid"],["BR24","https://dispatcher.rndfnk.com/br/br24/live/mp3/mid"],["PULS","https://dispatcher.rndfnk.com/br/puls/live/mp3/mid"]],
+  he:[["hr3","https://dispatcher.rndfnk.com/hr/hr3/live/mp3/high"],["hr1","https://dispatcher.rndfnk.com/hr/hr1/live/mp3/high"],["YOU FM","https://dispatcher.rndfnk.com/hr/youfm/live/mp3/high"]],
+  nw:[["WDR 2","https://wdr-wdr2-rheinland.icecastssl.wdr.de/wdr/wdr2/rheinland/mp3/128/stream.mp3"],["1LIVE","https://wdr-1live-live.icecastssl.wdr.de/wdr/1live/live/mp3/128/stream.mp3"],["WDR 4","https://wdr-wdr4-live.icecastssl.wdr.de/wdr/wdr4/live/mp3/128/stream.mp3"]],
+  nord:[["NDR 2","https://icecast.ndr.de/ndr/ndr2/niedersachsen/mp3/128/stream.mp3"],["NDR 1 Niedersachsen","https://icecast.ndr.de/ndr/ndr1niedersachsen/hannover/mp3/128/stream.mp3"],["N-JOY","https://icecast.ndr.de/ndr/njoy/live/mp3/128/stream.mp3"],["NDR Info","https://icecast.ndr.de/ndr/ndrinfo/hamburg/mp3/128/stream.mp3"]],
+  hb:[["Bremen Vier","https://icecast.radiobremen.de/rb/bremenvier/live/mp3/128/stream.mp3"],["Bremen Eins","https://icecast.radiobremen.de/rb/bremeneins/live/mp3/128/stream.mp3"],["NDR 2","https://icecast.ndr.de/ndr/ndr2/niedersachsen/mp3/128/stream.mp3"]],
+  bb:[["radioeins","https://dispatcher.rndfnk.com/rbb/radioeins/live/mp3/mid"],["Antenne Brandenburg","https://dispatcher.rndfnk.com/rbb/antennebrandenburg/live/mp3/mid"],["Fritz","https://dispatcher.rndfnk.com/rbb/fritz/live/mp3/mid"],["rbb 88.8","https://dispatcher.rndfnk.com/rbb/rbb888/live/mp3/mid"]],
+  mdr:[["MDR JUMP","https://mdr-284320-0.sslcast.mdr.de/mdr/284320/0/mp3/high/stream.mp3"],["MDR SPUTNIK","https://mdr-284331-0.sslcast.mdr.de/mdr/284331/0/mp3/high/stream.mp3"]],
+  de:[["Deutschlandfunk","https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3"],["Deutschlandfunk Kultur","https://st02.sslstream.dlf.de/dlf/02/128/mp3/stream.mp3"],["Deutschlandfunk Nova","https://st03.sslstream.dlf.de/dlf/03/128/mp3/stream.mp3"]],
+};
+// federal state from coordinates (coarse boxes, good enough to pick the broadcaster)
+function regionOf(lat,lon){if(lat<47.2||lat>55.1||lon<5.8||lon>15.1)return null;
+  if(lat<49.8&&lon<10.5&&lon>=7.5&&!(lat>49.4&&lon<8.3))return"bw";if(lat<50.6&&lon>=9.9&&lat<50.4||lat<49.8&&lon>=10.5)return"by";if(lat>=49.1&&lat<49.65&&lon<7.4)return"sl";
+  if(lat>=50.65&&lat<52.55&&lon<9.5&&lon<8.3+((lat-50.65)*1.2))return"nw";if(lat<50.95&&lon<8.3)return"rp";if(lat>=49.4&&lat<51.7&&lon>=7.7&&lon<10.25&&lat<51.65)return lat<50.95||lon>8.6?"he":"nw";if(lon<9.5&&lat>=50.3&&lat<52.55)return"nw";
+  if(lat>52.95&&lat<53.25&&lon>8.45&&lon<9.0)return"hb";if(lon>=11.2&&lat>=51.35&&lat<53.6)return"bb";if(lon>=9.8&&lat<51.65)return"mdr";if(lat>=53.6&&lon>=11.2)return"nord";return"nord";}
+function publicStations(o){const r=regionOf(o.lat,o.lon);if(!r)return[];return[...(PUBLIC[r]||[]),...PUBLIC.de].map(([name,url])=>({name,url,uuid:"",city:"ARD"}));}
 function setData(k,v){const el=viewport();if(el)el.dataset[k]=String(v);}
 // ---------------------------------------------------------------- station list
 function originLatLon(){const b=bridge();const lat=Number(b?.originLat),lon=Number(b?.originLon);return Number.isFinite(lat)&&Number.isFinite(lon)?{lat,lon}:null;}
 async function fetchJson(path){let last=null;for(const m of MIRRORS){try{const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),6000);const r=await fetch(m+path,{signal:ctl.signal,headers:{Accept:"application/json"}});clearTimeout(t);if(r.ok)return await r.json();last=new Error(`HTTP ${r.status}`);}catch(e){last=e;}}throw last||new Error("no radio directory");}
 function usable(s){const url=String(s?.url_resolved||s?.url||"");if(!/^https:\/\//i.test(url))return false;/* an https page cannot play http streams */const c=String(s.codec||"").toUpperCase();if(c&&!/MP3|AAC|OGG|OPUS|UNKNOWN/.test(c))return false;if(/hls|m3u8/i.test(url)&&!/MP3|AAC/.test(c))return false;return Boolean(String(s.name||"").trim());}
-async function loadStations(){const o=originLatLon();if(!o)return stations;const key=`${o.lat.toFixed(1)},${o.lon.toFixed(1)}`;if(key===stationsFor&&stations.length)return stations;if(loading)return loading;
+async function loadStations(){const o=originLatLon();if(!o)return stations;const key=`${o.lat.toFixed(1)},${o.lon.toFixed(1)}`;if(key===stationsFor&&stations.length)return stations;if(loading)return loading;if(stationsFor!==key){const pub=publicStations(o);if(pub.length){stations=pub;index=Math.min(index,stations.length-1);}}
   loading=(async()=>{let list=[];for(const r of RADIUS_M){try{const got=await fetchJson(`/json/stations/search?geo_lat=${o.lat.toFixed(4)}&geo_long=${o.lon.toFixed(4)}&geo_distance=${r}&hidebroken=true&is_https=true&order=clickcount&reverse=true&limit=60`);list=Array.isArray(got)?got.filter(usable):[];}catch{list=[];}if(list.length>=4)break;}
     const seen=new Set(),out=[];for(const s of list){const name=String(s.name).replace(/\s+/g," ").trim(),k=name.toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,18);if(seen.has(k))continue;seen.add(k);out.push({name:name.slice(0,40),url:String(s.url_resolved||s.url),uuid:String(s.stationuuid||""),city:String(s.state||s.country||"")});if(out.length>=MAX_STATIONS)break;}
-    stations=out;stationsFor=key;index=Math.min(index,Math.max(0,stations.length-1));loading=null;setData("carRadioStations",stations.length);return stations;})();
+    {const pub=publicStations(o),names=new Set(pub.map(p=>p.name.toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,18)));stations=[...pub,...out.filter(x=>!names.has(x.name.toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,18)))].slice(0,MAX_STATIONS+pub.length);}stationsFor=key;index=Math.min(index,Math.max(0,stations.length-1));loading=null;setData("carRadioStations",stations.length);return stations;})();
   return loading;}
 // ---------------------------------------------------------------- playback
 function ensureAudio(){if(audio)return audio;audio=new Audio();audio.preload="none";audio.setAttribute("playsinline","");audio.volume=0;audio.addEventListener("error",()=>{setData("carRadioState","error");if(inCar&&on&&stations.length>1)setTimeout(()=>{if(inCar&&on)tune(index+1,{auto:true});},600);});audio.addEventListener("playing",()=>setData("carRadioState","playing"));return audio;}
 function fadeTo(level,ms=700,then=null){cancelAnimationFrame(fadeRaf);const a=audio;if(!a){then?.();return;}const from=a.volume,t0=performance.now();const step=now=>{const u=Math.min(1,(now-t0)/ms);a.volume=Math.max(0,Math.min(1,from+(level-from)*u));if(u<1)fadeRaf=requestAnimationFrame(step);else then?.();};fadeRaf=requestAnimationFrame(step);}
 function duckMusic(){globalThis.__arondightRadioPlaying=wantedLevel()>0;window.dispatchEvent(new CustomEvent(AUDIO_SETTINGS_EVENT,{detail:{...loadAudioSettings(),source:"car-radio"}}));}
-async function tune(i,{auto=false}={}){await loadStations();if(!stations.length){showBanner(stationsFor?"KEIN LOKALER SENDER":"RADIO · KEIN NETZ");return;}index=((i%stations.length)+stations.length)%stations.length;const s=stations[index],a=ensureAudio();
+async function tune(i,{auto=false}={}){if(!stations.length)await loadStations();else loadStations();if(!stations.length){showBanner(stationsFor?"KEIN LOKALER SENDER":"RADIO · KEIN NETZ");return;}index=((i%stations.length)+stations.length)%stations.length;const s=stations[index],a=ensureAudio();
   showBanner(`📻 ${s.name}`,`${index+1}/${stations.length}${s.city?` · ${s.city}`:""}`);setData("carRadioStation",s.name);
   if(wantedLevel()<=0)return;a.volume=0;a.src=s.url;try{await a.play();fadeTo(wantedLevel(),auto?400:700);}catch{setData("carRadioState","blocked");}duckMusic();}
 function stop(fade=true){if(!audio)return;const a=audio;fadeTo(0,fade?600:0,()=>{a.pause();a.removeAttribute("src");a.load();});setData("carRadioState","off");globalThis.__arondightRadioPlaying=false;duckMusic();}
@@ -39,7 +62,8 @@ function showBanner(title,sub=""){const v=viewport();if(!v)return;if(!banner?.is
   banner.innerHTML=`<div style="font:900 15px/1.15 'Nunito',system-ui,sans-serif;letter-spacing:.05em;color:#ffd36a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div><div style="font:700 11px/1.3 system-ui,sans-serif;color:#b8c2cc;margin-top:2px"></div>`;banner.children[0].textContent=title;banner.children[1].textContent=sub;banner.style.opacity="1";clearTimeout(bannerTimer);bannerTimer=setTimeout(()=>{if(banner)banner.style.opacity="0";},2600);}
 function ensureButton(){const row=document.getElementById("vehicleButtons");if(!row||document.getElementById("carRadioButton"))return;const b=document.createElement("button");b.id="carRadioButton";b.type="button";b.textContent="📻";b.title="Radio: tippen = nächster Sender, halten = aus";b.setAttribute("aria-label","Car radio");let holdT=0,held=false;
   b.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();held=false;holdT=setTimeout(()=>{held=true;toggleOff();},550);});b.addEventListener("pointerup",e=>{e.preventDefault();e.stopPropagation();clearTimeout(holdT);if(!held)next(1);});b.addEventListener("pointercancel",()=>clearTimeout(holdT));row.prepend(b);}
-function next(dir){if(!inCar)return;if(!on){on=true;apply();return;}tune(index+dir);}
+// N / B / tap cycle through the stations and one "RADIO AUS" slot between the last and the first
+function next(dir){if(!inCar)return;if(!on){on=true;index=dir>0?0:Math.max(0,stations.length-1);apply();return;}const n=stations.length;if(n&&((dir>0&&index===n-1)||(dir<0&&index===0))){toggleOff();return;}tune(index+dir);}
 function toggleOff(){on=!on;if(on)apply();else{stop();showBanner("📻 RADIO AUS");}}
 // ---------------------------------------------------------------- events
 function onVehicle(e){const act=Boolean(e?.detail?.active);if(act===inCar)return;inCar=act;if(inCar){ensureButton();loadStations().then(()=>{if(inCar)apply();});}else stop();}

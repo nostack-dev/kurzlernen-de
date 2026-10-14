@@ -431,7 +431,7 @@ function inputCapture(event){
   if(event.type==="pointerdown"&&isFoot()&&event.pointerType!=="mouse"&&target?.closest("#footLookZone")){tap={id:event.pointerId,x:event.clientX,y:event.clientY,lastX:event.clientX,lastY:event.clientY,at:performance.now(),moved:false};}
   if(event.type==="pointermove"&&tap&&event.pointerId===tap.id){tap.lastX=event.clientX;tap.lastY=event.clientY;if(Math.hypot(event.clientX-tap.x,event.clientY-tap.y)>9)tap.moved=true;}
   if((event.type==="pointerup"||event.type==="pointercancel")&&tap&&event.pointerId===tap.id){const t=tap;tap=null;if(event.type==="pointerup"&&!t.moved&&performance.now()-t.at<260)footBurst(t.lastX,t.lastY);}
-  if(event.type==="pointerdown"&&isDrone()&&droneWeapon==="missile"&&event.button===0&&!target?.closest("#worldLookHud,#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#wantedEmpButton,#droneWeaponToggle,dialog,button,input,select,textarea,a,label")){event.preventDefault();event.stopImmediatePropagation();launchMissile(event.clientX,event.clientY,performance.now(),event.pointerType||"pointer");}
+  if(event.type==="pointerdown"&&isDrone()&&droneWeapon==="missile"&&event.button===0&&!target?.closest("#gameMenu,#changelogPanel,#worldOptionsPanel,#worldLookHud,#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#wantedEmpButton,#droneWeaponToggle,dialog,button,input,select,textarea,a,label")){event.preventDefault();event.stopImmediatePropagation();launchMissile(event.clientX,event.clientY,performance.now(),event.pointerType||"pointer");}
 }
 
 function beginPedestrianScan(scene){pedScanScene=scene;pedScanStack.length=0;pedScanNext.length=0;pedScanSeen.clear();pedScanStack.push(scene);}

@@ -8,7 +8,7 @@ const EXTRA_PEOPLE=MOBILE?8:12;
 const BLOOD_PARTICLES=MOBILE?18:30;
 const BLOOD_SPLATS=MOBILE?5:8;
 const AUDIO_SETTINGS_KEY="arondight45AudioSettingsV1";
-const FLIGHT_UI_SELECTOR="button,input,select,textarea,a,label,dialog,#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,#worldLookHud,#vsRespawnHud";
+const FLIGHT_UI_SELECTOR="button,input,select,textarea,a,label,dialog,#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,#worldLookHud,#vsRespawnHud,#gameMenu,#changelogPanel,#worldOptionsPanel";
 
 let installed=false,audioCtx=null,noiseBuffer=null,lastDead=false,lastDensityScan=-Infinity,lastFrame=performance.now();
 let wrappedWorldHit=null,bloodGeometry=null,splatGeometry=null;

@@ -45,7 +45,7 @@ function connectGain(){
   // Rerouting a playing element through Web Audio causes an audible drop-out,
   // so the menu element keeps its direct output (element.volume) for good.
   if(gain||!context||context.state!=="running"||!element||element===globalThis.__oppMusicElement)return;
-  try{const source=context.createMediaElementSource(element);gain=context.createGain();gain.gain.value=element.paused?0:element.volume;element.volume=1;source.connect(gain).connect(context.destination);}catch{gain=null;}
+  try{const source=context.createMediaElementSource(element);gain=context.createGain();gain.gain.value=element.paused?0:element.volume;element.volume=1;gain.__audioBusExempt=true;/* music has its own switch, not the effects one */source.connect(gain).connect(context.destination);}catch{gain=null;}
 }
 function ramp(level,seconds){
   if(gain&&context){const now=context.currentTime,param=gain.gain;param.cancelScheduledValues(now);param.setValueAtTime(param.value,now);param.linearRampToValueAtTime(level,now+Math.max(.02,seconds));}

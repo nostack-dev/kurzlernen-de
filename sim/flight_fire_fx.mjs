@@ -12,7 +12,7 @@ const MAX_HITSCAN_M=650;
 const VS_COMBAT_VISUAL_SCALE=1;// true size: a magnified copy sank into the ground
 const VS_HITBOX_PADDING=1.16;
 const FIRE_CANDIDATE_REFRESH_MS=100;
-const BLOCKED_SELECTOR="#soloTopbar,#soloRaceHud,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud,dialog,button,input,select,textarea,a,label";
+const BLOCKED_SELECTOR="#soloTopbar,#soloRaceHud,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud,dialog,button,input,select,textarea,a,label,#gameMenu,#changelogPanel,#worldOptionsPanel";
 
 // Removed legacy authoritative projectile path (kept named here only so older
 // architecture audits can identify the migration boundary): PROJECTILE_POOL_SIZE=36,

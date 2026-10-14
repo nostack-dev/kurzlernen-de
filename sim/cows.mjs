@@ -44,7 +44,7 @@ function areaOf(poly){let a=0;for(let i=0,j=poly.length-1;i<poly.length;j=i++)a+
 function inside(poly,x,y){let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1]+1e-12)+a[0])c=!c;}return c;}
 function inPasture(m,x,y){if(!inside(m.outer,x,y))return false;for(const h of m.holes||[])if(h.length>2&&inside(h,x,y))return false;return true;}
 function spot(m,seed){const bb=m.bb;for(let k=0;k<14;k++){const x=bb[0]+(bb[2]-bb[0])*hash(`${seed}:x${k}`),y=bb[1]+(bb[3]-bb[1])*hash(`${seed}:y${k}`);if(inPasture(m,x,y))return[x,y];}return m.centre;}
-function focus(){const f=globalThis.__arondightStreamFocus?.()||bridge()?.threeCamera?.position;return f?{x:f.x,y:f.y}:null;}
+function focus(){const b=bridge(),f=globalThis.__arondightStreamFocus?.()||(b?.presentedCamera?.()||b?.threeCamera)?.position;return f?{x:f.x,y:f.y}:null;}
 function rebuildHerds(){const list=globalThis.__worldMeadows,f=focus();if(!Array.isArray(list)||!f)return;
   const cand=[];for(const m of list){if(!m.outer||m.outer.length<3)continue;const a=areaOf(m.outer);if(a<MIN_AREA_M2)continue;let bx0=Infinity,by0=Infinity,bx1=-Infinity,by1=-Infinity,cx=0,cy=0;for(const p of m.outer){bx0=Math.min(bx0,p[0]);by0=Math.min(by0,p[1]);bx1=Math.max(bx1,p[0]);by1=Math.max(by1,p[1]);cx+=p[0];cy+=p[1];}cx/=m.outer.length;cy/=m.outer.length;
     const d=Math.hypot(cx-f.x,cy-f.y);if(d>HERD_RADIUS_M+Math.sqrt(a))continue;cand.push({m:{...m,bb:[bx0,by0,bx1,by1],centre:[cx,cy],area:a},d});}

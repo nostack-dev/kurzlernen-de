@@ -6,7 +6,7 @@ const MOBILE=MOBILE_RE.test(globalThis.navigator?.userAgent||"");
 const DOUBLE_TAP_MS=340;
 const PARTICLE_COUNT=MOBILE?48:72;
 const DECOR_REFRESH_MS=900;
-const UI_SELECTOR="button,input,select,textarea,a,label,dialog,[role=button],#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud";
+const UI_SELECTOR="button,input,select,textarea,a,label,dialog,[role=button],#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#worldLookHud,#gameMenu,#changelogPanel,#worldOptionsPanel";
 const WORLD_DECOR_RE=/(?:WORLD_.*(?:TREE|LAMP|PROP|SIGN|DECOR|STREET)|WORLD_LIVELINESS_(?:TREES|LAMPS))/i;
 
 let installed=false,lastTapAt=-Infinity,lastDecorRefresh=-Infinity,lastFrame=performance.now(),lastDetailedImpactAt=-Infinity,decorScanScene=null,decorScanStack=[],decorScanReleased=0,decorScanPopulation=0;
