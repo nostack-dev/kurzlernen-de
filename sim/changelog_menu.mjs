@@ -5,6 +5,9 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-15",time:"18:45",title:"Echte Panik",items:[
+    "Fliehende Passanten laufen jetzt jeder anders schnell. Bei echter Angst (Schüsse nah, Explosion) sprinten sie ein paar Sekunden mit 6–8,5 m/s, viele reißen dabei die Hände über den Kopf. Danach bleiben sie eine Weile schreckhaft und gehen eilig weiter.",
+  ]},
   {date:"2026-10-15",time:"18:43",title:"Handy-Knöpfe an den Rand, Autos ohne Ruckeln",items:[
     "Handy: alle Knöpfe sitzen jetzt am Rand, in Reichweite des Daumens, der sie braucht – Luftschlag und Granate über dem linken Stick, Waffe/Springen bzw. ARM/STOP links neben dem rechten Stick, Einsteigen und EMP über dem rechten Stick. Die Bildmitte bleibt frei. Gleich in allen Modi und im Hoch- wie Querformat.",
     "Im Auto: Handbremse, Kamera und Radio rechts über dem Daumen, Aussteigen unten rechts. Mikrofon und Stummschalten wandern in die obere Leiste; GPS, Musik und Ton liegen auch im Hochformat oben rechts.",

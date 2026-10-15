@@ -73,7 +73,7 @@ function set(j,x,y=0,z=0,k=1){j.rotation.x=lerp(j.rotation.x,x,k);j.rotation.y=l
 // air: off the ground (jump, jetpack, fall) — no gait: legs hang slightly bent, one a little forward
 // speed m/s for the gait; dt for the cadence and pose blending.
 export function animateCharacter(rig,{state="idle",speed=0,weapon="none",dt=1/60,punch=0}={}){
-  const air=state==="air";if(air)speed=0;const k=1-Math.exp(-dt*12),moving=speed>.25,run=speed>3.2;rig.phase+=dt*(moving?Math.min(12,4.2+speed*1.9):1.2);
+  const air=state==="air";if(air)speed=0;const k=1-Math.exp(-dt*12),moving=speed>.25,run=speed>3.2||(state==="panic"&&speed>1.5);rig.phase+=dt*(moving?Math.min(12,4.2+speed*1.9):1.2);
   const p=rig.phase,swing=moving?Math.sin(p)*(run?Math.min(1.15,.65+speed*.075):Math.min(.75,.3+speed*.09)):0,lift=moving?Math.max(0,Math.cos(p))*(run?.75:.35):0,liftO=moving?Math.max(0,-Math.cos(p))*(run?.75:.35):0;
   const{arms,legs,pelvis,spine,head,visor}=rig;rig.state=state;
   pelvis.position.z=lerp(pelvis.position.z,state==="drive"?.52:(.96-(moving?Math.abs(Math.sin(p))*.03:0)),k);
@@ -95,6 +95,8 @@ export function animateCharacter(rig,{state="idle",speed=0,weapon="none",dt=1/60
   // knife: guard low with the blade forward; a stab drives the right arm straight out and a little down
   else if(weapon==="knife"&&(state==="fight"||state==="run"||state==="walk"||state==="idle")&&(state==="fight"||punch)){const r=Math.abs(punch),kk=Math.max(k,.55);set(arms.L.sh,.95,0,.32,kk);set(arms.L.el,1.6,0,0,kk);set(arms.R.sh,.7+.75*r,0,-.18+.1*r,kk);set(arms.R.el,1.35-1.25*r,0,0,kk);}
   else if(state==="fight"||weapon==="fists"){const r=Math.max(0,punch),l=Math.max(0,-punch),kk=Math.max(k,.55);set(arms.L.sh,1.05+.5*l,0,.28-.2*l,kk);set(arms.L.el,1.75-1.65*l,0,0,kk);set(arms.R.sh,1.05+.5*r,0,-.28+.2*r,kk);set(arms.R.el,1.75-1.65*r,0,0,kk);}
+  // panic: running with both hands thrown up over the head, flailing
+  else if(state==="panic"){const w=Math.sin(p*1.4)*.28;set(arms.L.sh,2.75+w,0,.4,k);set(arms.R.sh,2.75-w,0,-.4,k);set(arms.L.el,.4+w*.5,0,0,k);set(arms.R.el,.4-w*.5,0,0,k);}
   else if(g&&weapon==="akimbo"){set(arms.L.sh,1.45,0,.12,k);set(arms.R.sh,1.45,0,-.12,k);set(arms.L.el,.08,0,0,k);set(arms.R.el,.08,0,0,k);}
   else if(g&&weapon==="smg"){set(arms.R.sh,1.1,0,-.2,k);set(arms.R.el,.3,0,0,k);set(arms.L.sh,1.25,0,.42,k);set(arms.L.el,.6,0,0,k);}
   else if(g&&weapon==="pistol"){set(arms.R.sh,1.48,0,-.05,k);set(arms.R.el,.05,0,0,k);set(arms.L.sh,1.38,0,.32,k);set(arms.L.el,.3,0,0,k);}

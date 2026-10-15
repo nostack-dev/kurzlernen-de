@@ -101,7 +101,7 @@ function makePersonSlot(i){proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.2
   group.name="WORLD_PERSON";group.visible=false;group.userData.worldPopulationKind="person";group.userData.agentDriven=true;/* position owned by the agent: no other module moves it */group.userData.worldPopulationClone=false;group.userData.spawnFarEntryM=PEOPLE_ENTRY_M;return{i,group,agent:null};}
 function updateCrowd(){if(!crowd)return;const now=performance.now(),dt=Math.min(.1,Math.max(.001,(now-crowdLast)/1000));crowdLast=now;const shown=root?.visible!==false;
   // only who is set this frame is drawn (the crowd packs its instances)
-  if(shown)for(const slot of personSlots){const a=slot.agent;if(!a||!slot.group.visible)continue;crowd.set(slot.i,{x:a.x,y:a.y,z:a.z,yaw:a.yaw-Math.PI/2,state:a.state==="fight"?(a.arms==="gun"?"aim-pistol":"fight"):a.v>3.2?"run":a.v>.25?"walk":"idle",speed:a.v,dt,weapon:fightWeapon(a),punch:a.state==="fight"&&a.arms!=="gun"?punchPose(a,now):0});}
+  if(shown)for(const slot of personSlots){const a=slot.agent;if(!a||!slot.group.visible)continue;crowd.set(slot.i,{x:a.x,y:a.y,z:a.z,yaw:a.yaw-Math.PI/2,state:a.state==="fight"?(a.arms==="gun"?"aim-pistol":"fight"):now<(a.handsUpUntil||0)&&a.v>1.5?"panic":a.v>3.2?"run":a.v>.25?"walk":"idle",speed:a.v,dt,weapon:fightWeapon(a),punch:a.state==="fight"&&a.arms!=="gun"?punchPose(a,now):0});}
   crowd.commit();}
 // people wait at the kerb for a gap in the traffic: no car near the crossing, none coming at it
 pedNet.crossingClear=(x0,y0,x1,y1)=>{const mx=(x0+x1)/2,my=(y0+y1)/2;for(const r of records){if((r.kind!=="car"&&r.kind!=="bus")||!r.group.visible)continue;const g=r.group.position,dx=mx-g.x,dy=my-g.y,d=Math.hypot(dx,dy);if(d>40)continue;
