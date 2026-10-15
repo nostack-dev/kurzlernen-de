@@ -121,6 +121,8 @@ function frame(){requestAnimationFrame(frame);const now=performance.now(),dt=Mat
     else if(c.dead){continue;}
     else{const base=pathPose(c,t);if(c.flee&&now<c.flee.until){c.off[0]+=c.flee.vx*dt;c.off[1]+=c.flee.vy*dt;}else{c.flee=null;const k=Math.exp(-dt/14);c.off[0]*=k;c.off[1]*=k;}
       let x=base.x+c.off[0],y=base.y+c.off[1];if(!inPasture(c.m,x,y)&&inPasture(c.m,base.x,base.y)){c.off[0]*=.9;c.off[1]*=.9;x=base.x+c.off[0];y=base.y+c.off[1];}
+      // never into a building (walls and rubble alike): stay put, and a fleeing cow turns along the wall
+      {const at=globalThis.__arondightBuildingAt;if(at&&Number.isFinite(c.x)&&(at(x,y)||at(x+Math.cos(c.yaw)*.9,y+Math.sin(c.yaw)*.9))&&!at(c.x,c.y)){x=c.x;y=c.y;c.off[0]=x-base.x;c.off[1]=y-base.y;if(c.flee){const vx=c.flee.vx;c.flee.vx=-c.flee.vy;c.flee.vy=vx;}}}
       const running=Boolean(c.flee),moving=running||base.walking,yaw=running?Math.atan2(c.flee.vy,c.flee.vx):base.yaw;let dy=yaw-c.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));c.yaw+=dy*Math.min(1,dt*(running?6:2.2));c.x=x;c.y=y;c.walking=moving;
       c.phase+=dt*(running?7:moving?3.2:0);Q.setFromAxisAngle(Z,c.yaw);M.compose(P.set(x,y,groundHeightAt(x,y)+(running?Math.abs(Math.sin(c.phase))*.05:0)),Q,S);
       {const ft=(now-(c.flinchAt||-1e9))/260;if(ft<1){const k=Math.sin(ft*Math.PI)*.12,fd=c.flinchDir||[0,0],side=-fd[0]*Math.sin(c.yaw)+fd[1]*Math.cos(c.yaw);M.multiply(L.makeRotationX(side*k));}} // the hit rocks the body sideways for a moment

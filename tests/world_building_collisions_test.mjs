@@ -49,7 +49,7 @@ const snapshot=makeBuildingCollisionSnapshot([polygon("snap",[square(1,2,5,6)],{
 assert.match(snapshot.hash,/^osm-[0-9a-f]{8}$/);assert.equal(snapshot.footprintCount,1);assert.equal(snapshot.prismCount,1);assert.equal(Object.isFrozen(snapshot),true);
 
 // Destruction must survive a tile fragment / geometry-key change.
-// Full demolition removes EVERY prism: Box3D then tears down its static bodies.
+// Full demolition leaves the drawn rubble stump (and nothing taller) as the collider.
 const collisionFragments=[
   {buildingKey:"777:first-tile-geometry",base:0,top:12,points:[[0,0],[1,0],[1,1]]},
   {buildingKey:"777:new-tile-geometry",base:0,top:12,points:[[1,0],[2,0],[2,1]]},
@@ -61,7 +61,10 @@ let damagedPrisms=applyDamageToPrisms(collisionFragments);
 assert.equal(damagedPrisms.length,3);assert.equal(damagedPrisms[0].top,4);assert.equal(damagedPrisms[1].top,4);
 assert.equal(setFeatureDamage("777",{top:4,leveled:true}),true,"equal-height demolition must upgrade the leveled flag");
 assert.equal(buildingDamage("777:first-tile-geometry")?.leveled,true);
-assert.equal(applyDamageToPrisms(collisionFragments).length,1,"leveled buildings must leave no ghost collider, including newly streamed fragments");
+{setFeatureDamage("777",{top:.8,leveled:true});const rubble=applyDamageToPrisms(collisionFragments);
+assert.equal(rubble.length,3,"a leveled building keeps exactly its drawn rubble stump as collider");
+assert.ok(rubble.slice(0,2).every(p=>p.leveled&&Math.abs(p.top-.8)<1e-9),"the rubble collider has the drawn rubble height, also for newly streamed fragments");
+assert.equal(rubble[2].top,9,"the neighbour is untouched");}
 assert.equal(setBuildingDamage("777:yet-another-fragment",{top:12,leveled:false}),true);
 assert.equal(buildingDamage("777:yet-another-fragment")?.leveled,true,"a reloaded building must never resurrect a leveled collider");
 clearDestruction();

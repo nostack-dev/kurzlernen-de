@@ -5,6 +5,10 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-15",time:"23:49",title:"Trümmer sind fest",items:[
+    "Ein weggesprengtes Haus hinterlässt jetzt einen niedrigen Trümmersockel, der genauso fest ist, wie er aussieht: Du, Passanten, Autos und Tiere laufen nicht mehr hindurch.",
+    "Auf den Trümmersockel kannst du hochspringen und darauf herumlaufen.",
+    "Kühe laufen nicht mehr durch Häuser – auch nicht, wenn sie in Panik davonrennen."]},
   {date:"2026-10-15",time:"23:43",title:"Neuer Name: SpawnCity",items:[
     "Das Spiel heißt jetzt SpawnCity – du spawnst genau dort, wo du gerade stehst, in deiner echten Stadt. Neue Adresse: spawncity.de.",
     "Neuer Titel auf dem Startbildschirm (SPAWN über CITY) und ein neues App-Symbol für den Home-Bildschirm.",

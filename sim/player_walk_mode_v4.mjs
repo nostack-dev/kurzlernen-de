@@ -5,7 +5,7 @@ function standHeightAt(x,y){const g=groundHeightAt(x,y);return waterAt(x,y)?Math
 import {FPS_CONTROL_PROFILE,FPS_DISPLAY_PITCH_LIMIT_RAD,FPS_PITCH_LIMIT_RAD,addFpsShotImpulse,createFpsCameraMotionState,fpsAimAssist,fpsStickVelocity,fpsTouchLookDelta,fpsVerticalFovDegForAspect,integrateFpsLookVelocity,resetFpsCameraMotion,shapeFpsStick,stepFpsCameraMotion,wrapFpsAngleRad} from "./fps_control_math.mjs";
 import {FIRST_PERSON_CONTROL_SETTINGS_EVENT,buildFirstPersonLookProfile,firstPersonLookAxes,firstPersonLookDelta,firstPersonLookSensitivity,loadFirstPersonControlSettings,normalizeFirstPersonControlSettings,shapeFirstPersonMove} from "./first_person_control_settings.mjs";
 import {wantedLineBlockedByPrisms} from "./wanted_system_logic.mjs";
-import {buildingDamage} from "./world_destruction_state.mjs";
+import {buildingDamage,damagedTop} from "./world_destruction_state.mjs";
 import {firstPersonDeathFall} from "./player_vitals_logic.mjs";
 import {normalizedPointer,endPointerDrag} from "./control_semantics.mjs";
 import {findXboxGamepad,standardGamepadFamily} from "./xbox_gamepad.mjs";
@@ -97,10 +97,11 @@ function resolveWalk(from,to,feet){return globalThis.__buildingInteriors?.resolv
 let stuckFor=0,unstuckCount=0;
 // Roof of the solid building under (x,y) (highest, ground-standing parts only), or null.
 function roofAt(x,y){let best=null;for(const fp of globalThis.__arondightCityBuildings?.footprints?.()||[]){const r=fp.outer;if(!r||r.length<3||(Number(fp.base)||0)>1.9)continue;let bb=fp.__bb;if(!bb){bb=fp.__bb=[Infinity,Infinity,-Infinity,-Infinity];for(const p of r){bb[0]=Math.min(bb[0],p[0]);bb[1]=Math.min(bb[1],p[1]);bb[2]=Math.max(bb[2],p[0]);bb[3]=Math.max(bb[3],p[1]);}}if(x<bb[0]||x>bb[2]||y<bb[1]||y>bb[3])continue;let inside=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],c=r[j];if((a[1]>y)!==(c[1]>y)&&x<(c[0]-a[0])*(y-a[1])/(c[1]-a[1])+a[0])inside=!inside;}if(!inside)continue;
-  // Destroyed buildings: the roof follows the persistent damage (same rule as
-  // the Box3D prisms in applyDamageToPrisms) — leveled ones have no roof.
-  const dmg=buildingDamage(fp.key);if(dmg?.leveled)continue;
-  if(fp.__gb===undefined)fp.__gb=buildingGroundBase(r);const top=Math.min(Number(fp.top)||8,dmg?Number(dmg.top):Infinity);if(!(top>.1))continue;const roof=fp.__gb+top;if(best===null||roof>best)best=roof;}return best;}
+  // Destroyed buildings: the roof follows the persistent damage, at the height
+  // that is drawn (same rule as the Box3D prisms) — a leveled house leaves a
+  // low rubble block you can jump onto.
+  const dmg=buildingDamage(fp.key);
+  if(fp.__gb===undefined)fp.__gb=buildingGroundBase(r);const top=damagedTop(fp.base,Number(fp.top)||8,dmg);if(!(top>.1))continue;const roof=fp.__gb+top;if(best===null||roof>best)best=roof;}return best;}
 // inside solid building mass at these feet (standing on the roof is not inside)
 function inFootprint(x,y,feet){const roof=roofAt(x,y);return roof!==null&&!(Number.isFinite(feet)&&feet>=roof-.3);}
 function canMoveFrom(p,feet){for(let k=0;k<8;k++){const a=k*Math.PI/4,to={x:p.x+Math.cos(a)*.3,y:p.y+Math.sin(a)*.3},r=resolveWalk(p,to,feet);if(Math.hypot(r.x-p.x,r.y-p.y)>.08)return true;}return false;}

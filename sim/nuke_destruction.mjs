@@ -19,7 +19,7 @@ export const NUKE_DESTRUCTION_VERSION="shock-front-destruction-v1";
 const SHOCK_MPS=343;
 const FULL_DESTROY_M=180;          // overpressure intensity 1.0 here
 const MAX_EFFECT_M=900;
-const RUBBLE_M=1.6;
+const RUBBLE_M=.8; // a leveled house leaves a low rubble block: solid, and you can jump onto it
 const DEBRIS_POOL=2000,DEBRIS_LIFE_S=22,GRAVITY=9.81;
 const FLING_LIFE_S=9,MAX_FLUNG=140,MAX_SECONDARY=10;
 const CRATER_R=TERRAIN_CRATER_R,CRATER_RINGS=30,CRATER_SEGMENTS=72,MAX_CRATERS=3;

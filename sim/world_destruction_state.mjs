@@ -40,17 +40,19 @@ export function commitDestruction(){revision++;for(const fn of listeners){try{fn
 export function onDestruction(fn){listeners.add(fn);return()=>listeners.delete(fn);}
 export function clearDestruction(){damage.clear();featureDamage.clear();return commitDestruction();}
 
-// Completely leveled buildings must have NO active Box3D building shapes:
-// omitting their prisms makes incremental synchronization destroy old bodies.
-// Partially damaged buildings get fresh hulls at their lowered roofs.
+// Damaged buildings get fresh hulls at exactly the height that is DRAWN
+// (world_city_buildings: max(base+.3, min(top, damage))). A leveled house keeps
+// its rubble stump as a solid, walk-on block — the foundation you see is the
+// foundation you collide with (people, animals, cars, you).
+export function damagedTop(base,top,d){const b=Number(base)||0,t=Number(top)||0;return d?Math.max(b+.3,Math.min(t,Number(d.top))):t;}
 export function applyDamageToPrisms(prisms){
   if(!damage.size&&!featureDamage.size)return prisms;
   const out=[];
-  for(const prism of prisms){const d=buildingDamage(prism?.buildingKey||"");if(d?.leveled)continue;
+  for(const prism of prisms){const d=buildingDamage(prism?.buildingKey||"");
     if(!d){out.push(prism);continue;}
-    const base=Number(prism.base)||0,top=Math.min(Number(prism.top)||0,d.top);
+    const base=Number(prism.base)||0,top=Math.min(Number(prism.top)||0,damagedTop(base,prism.top,d));
     if(top-base<.1)continue;
-    out.push({...prism,top,damaged:true,leveled:false});
+    out.push({...prism,top,damaged:true,leveled:Boolean(d.leveled)});
   }
   return out;
 }
