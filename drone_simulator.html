@@ -84,7 +84,7 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   function menu(){return document.getElementById("gameMenu");}
   function inMenu(){var el=menu();return !el||!el.hidden;}
   var played=false;function playing(){if(!played&&document.body&&document.body.classList.contains("solo-flight"))played=true;return played;}setInterval(playing,1000);
-  function purge(){var jobs=[];try{if(window.caches&&caches.keys)jobs.push(caches.keys().then(function(k){return Promise.all(k.map(function(n){return caches.delete(n);}));}));}catch(e){}
+  function purge(){var jobs=[];/* the offline copy and map data stay (the worker serves the page network-first anyway); legacy caches go */try{if(window.caches&&caches.keys)jobs.push(caches.keys().then(function(k){return Promise.all(k.filter(function(n){return n.indexOf("rush-")!==0;}).map(function(n){return caches.delete(n);}));}));}catch(e){}
     try{if(navigator.serviceWorker&&navigator.serviceWorker.getRegistrations)jobs.push(navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.update().catch(function(){});}));}));}catch(e){}
     return Promise.race([Promise.all(jobs),new Promise(function(r){setTimeout(r,1500);})]);}
   function fresh(sha){if(reloading)return;

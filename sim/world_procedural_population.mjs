@@ -132,12 +132,12 @@ function noticeShots(now){const v=viewport(),shots=Number(v?.dataset.walkShots)|
 // Gunfire in the street is a crime when somebody hears it: a witness within ~30 m phones it in.
 // One report per few seconds of shooting (GTA: a short spray costs a star, a rampage keeps adding).
 let lastGunfireCrime=-Infinity,gunfireSeq=0;
-function gunfireWitnessed(x,y,now){if(now-lastGunfireCrime<2600)return;let w=0;for(const a of people){if(!a.alive||a.knocked)continue;if(Math.hypot(a.x-x,a.y-y)<30&&++w>=1)break;}if(!w)return;lastGunfireCrime=now;
+function gunfireWitnessed(x,y,now){if(now-lastGunfireCrime<6000)return;let w=0;for(const a of people){if(!a.alive||a.knocked)continue;if(Math.hypot(a.x-x,a.y-y)<20&&++w>=1)break;}if(!w)return;lastGunfireCrime=now;
   try{globalThis.__arondightWantedSystem?.reportCrime?.({id:`gunfire-${(++gunfireSeq).toString(36)}-${Math.round(now)}`,kind:"gunfire",severity:1,position:[x,y,0]});}catch{}}
 function shotScare(x,y,now){let nearest=null,nd=Infinity;for(const a of people){if(!a.alive||a.knocked||a.fightUntil)continue;const d=Math.hypot(a.x-x,a.y-y);if(d>16)continue;
     if(d>8){a.shotRoll??=Math.random();if(a.shotRoll>.3)continue;} // only the immediate surroundings: everyone within 8 m, a few up to 16 m
     // an armed gangster does not run from gunfire: he draws and comes for the shooter
-    if(d<14&&armsOf(a)!=="fists"&&provoke(a,now,{shot:true})==="fight"){if(a.slot&&Math.random()<.6)say(a,"angry");continue;}
+    if(d<7&&armsOf(a)!=="fists"&&(a.shotFightRoll??=Math.random())<.35&&provoke(a,now,{shot:true})==="fight"){if(a.slot&&Math.random()<.6)say(a,"angry");continue;}
     const already=a.fleeUntil&&now<a.fleeUntil;frighten(a,x,y,now,{ms:4200+(16-d)*150,strength:1.5-d/16});if(!already&&a.slot&&d<nd){nd=d;nearest=a;}}
   if(nearest&&Math.random()<.45)say(nearest,"scared");}
 // RESET: the population starts over like at the first world show — every car, bus and person
@@ -556,7 +556,7 @@ function driverGetsOut(record,pose,yaw,now){const sideX=-Math.sin(yaw),sideY=Mat
   let pick=null,bd=Infinity;for(const a of people){if(!a.alive||a.knocked||a.slot||a.fightUntil)continue;const d=Math.hypot(a.x-x,a.y-y);if(d<bd){bd=d;pick=a;}}if(!pick)return;
   let best=null,bdist=Infinity;for(const r of pedNet.routes.values()){const o={s:0,lateral:0,distance:0};projectOnRoute(r,x,y,o);if(o.distance<bdist){bdist=o.distance;best={r,o};}}
   pick.x=x;pick.y=y;pick.yaw=yaw+Math.PI/2;pick.v=0;pick.fleeUntil=0;pick.leader=null;if(best){pick.route=best.r.key;pick.s=best.o.s;}
-  pick.temper="aggressive";const r=Math.random();pick.arms=r<.22?"gun":r<.55?"knife":"fists";pick.fightUntil=now+25000;pick.foe=null;pick.annoy=3;say(pick,"angry");
+  pick.temper="aggressive";const r=Math.random();pick.arms=r<.05?"gun":r<.25?"knife":"fists";pick.fightUntil=now+14000;pick.foe=null;pick.annoy=3;say(pick,"angry");
   const v=viewport();if(v)v.dataset.driverOut=`${record.id}:${pick.arms}`;}
 if(typeof window!=="undefined")addEventListener("arondight:foot-tracer",e=>{const b=e?.detail?.end;if(!Array.isArray(b))return;const now=performance.now();for(const r of records){if((r.kind!=="car"&&r.kind!=="bus")||!r.physicsPose||r.deadUntil||r.group.userData?.playerDriven)continue;const p=r.physicsPose.position;if(Math.hypot(p[0]-b[0],p[1]-b[1])<2.6)startDriverMood(r,now,"shot-at");}});
 function updatePhysicalVehicle(record,epoch,now){

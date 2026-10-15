@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {GUIDED_BALANCE,updatePedestrianDodge} from '../sim/guided_balance.mjs';
 import {readFileSync} from 'node:fs';
 const b=GUIDED_BALANCE;
-assert.ok(b.speedMps<=35&&b.turnG<=2.5&&b.blastRadiusM<=4&&b.damage<=45&&b.cooldownMs>=9000);
+assert.ok(b.speedMps<=35&&b.turnG<=2.5&&b.blastRadiusM<=4&&b.damage<=35&&b.cooldownMs>=4000);
 let state={seconds:0,lost:false},x=0;
 for(let i=0;i<9;i++){const old={x,y:0,z:0},next={x:x+=.34,y:0,z:0};state=updatePedestrianDodge(state,{previous:old,current:next,dt:.05,pedestrian:true});}
 assert.equal(state.lost,true,'sustained sprint dodge breaks tracking');

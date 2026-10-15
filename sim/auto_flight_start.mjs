@@ -1,15 +1,24 @@
 const $=id=>document.getElementById(id);
 const PLAYER_MODE_KEY="arondight45PlayerModeV2";
 
-function requestStartupLocation(){
-  const chosen=globalThis.__arondightStartPlace?.fix?.();if(chosen)return Promise.resolve({fix:chosen,error:null}); /* a place picked in the menu instead of GPS */
-  if(!navigator.geolocation)return Promise.resolve({fix:null,error:Error("Geolocation is not available in this browser")});
-  return new Promise(resolve=>navigator.geolocation.getCurrentPosition(
-    fix=>resolve({fix,error:null}),
-    error=>resolve({fix:null,error:Error(error.message||"Location permission failed")}),
-    {enableHighAccuracy:true,timeout:20000,maximumAge:0},
-  ));
+// Every START begins where you really are: a fresh, precise GPS fix (never a cached one). Phones
+// can take a while for the first precise fix; after 12 s the network position is taken so the game
+// starts, and a precise fix that arrives later moves the world there (see refineStartLocation).
+// A place searched in the menu is used only in this browser session (never for the next app start).
+function gpsOnce(options){return new Promise(resolve=>{try{navigator.geolocation.getCurrentPosition(fix=>resolve({fix,error:null}),error=>resolve({fix:null,error}),options);}catch(error){resolve({fix:null,error});}});}
+async function requestStartupLocation(){
+  const chosen=globalThis.__arondightStartPlace?.fix?.();if(chosen)return{fix:chosen,error:null}; /* a place picked in the menu this session */
+  if(!navigator.geolocation)return{fix:null,error:Error("Geolocation is not available in this browser")};
+  const precise=await gpsOnce({enableHighAccuracy:true,timeout:12000,maximumAge:0});if(precise.fix)return precise;
+  if(precise.error?.code===1)return{fix:null,error:Error("Standort-Zugriff verweigert – in den Browser-/App-Einstellungen erlauben")};
+  const coarse=await gpsOnce({enableHighAccuracy:false,timeout:8000,maximumAge:120000});if(coarse.fix){refineStartLocation(coarse.fix);return coarse;}
+  return{fix:null,error:Error(precise.error?.message||coarse.error?.message||"kein GPS-Signal")};
 }
+// started on a rough position: keep listening for a minute; a precise fix far from it moves the world
+function refineStartLocation(rough){let id=null;const stop=()=>{if(id!=null)try{navigator.geolocation.clearWatch(id);}catch{}id=null;};setTimeout(stop,60000);
+  try{id=navigator.geolocation.watchPosition(fix=>{const c=fix.coords;if(!(c.accuracy<=60))return;const b=globalThis.__arondightRealWorld;if(!b?.active||b.vsWorldFromMate||globalThis.__arondightStartPlace?.get?.())return stop();
+    const R=6371000,dLat=(c.latitude-b.originLat)*Math.PI/180,dLon=(c.longitude-b.originLon)*Math.PI/180,d=2*R*Math.asin(Math.sqrt(Math.sin(dLat/2)**2+Math.cos(c.latitude*Math.PI/180)*Math.cos(b.originLat*Math.PI/180)*Math.sin(dLon/2)**2));stop();
+    if(d>250){try{b.deactivate();}catch{}Promise.resolve(b.activate(fix)).catch(()=>{});const v=$("viewport");if(v)v.dataset.autoWorldLocationSource="startup-gps-refined";}},()=>{},{enableHighAccuracy:true,maximumAge:0,timeout:60000});}catch{}}
 
 // Game start menu (markup lives in drone_simulator.html so it shows before
 // the bundle loads). The GPS permission is requested on START — a user
@@ -126,7 +135,8 @@ async function autoWorld(locationResultPromise){
   const {fix,error}=await locationResultPromise;
   if(fix)bridge.lastLocation=fix;
   if(error){trainingFallback(`TRAINING RANGE · GPS unavailable · ${error.message}`);return;}
-  if(navigator.onLine===false){trainingFallback("TRAINING RANGE · offline · GPS permission ready");return;}
+  // offline: the installed app still loads the real world where map data is stored (places you have played); otherwise the training range
+  if(navigator.onLine===false){let warm=false;try{warm=(await (await caches.open("rush-tiles-v1")).keys()).length>40;}catch{}if(!warm){trainingFallback("TRAINING RANGE · offline · GPS permission ready");return;}}
   try{
     const pending=bridge.activate(fix);syncWorldButton();await pending;markWorldStartup(fix?.chosen?"startup-place":"startup-gps");syncWorldButton();
   }catch(error){trainingFallback(`TRAINING RANGE · WORLD unavailable · ${error?.message||error}`);}
@@ -151,9 +161,13 @@ async function startGame(){
   if(startButton){startButton.disabled=true;startButton.textContent="LOADING";}
   let startupWarning="";
   try{
-    if(!worldRequested){worldRequested=true;setMenuStatus("LOCATING");await withTimeout(autoWorld(requestStartupLocation()),15000);}
+    if(!worldRequested){worldRequested=true;setMenuStatus("LOCATING");await withTimeout(autoWorld(requestStartupLocation()),24000);}
     // a different place picked in the menu while a world is loaded: move the world there
-    else if(globalThis.__arondightStartPlace?.needsMove?.()){setMenuStatus("TRAVELLING");try{bridge.deactivate();}catch{}await withTimeout(autoWorld(requestStartupLocation()),15000);}
+    else if(globalThis.__arondightStartPlace?.needsMove?.()){setMenuStatus("TRAVELLING");try{bridge.deactivate();}catch{}await withTimeout(autoWorld(requestStartupLocation()),24000);}
+    // back from the menu (or the app resumed later): you may have moved on — a fresh fix, and when you
+    // are more than 400 m from the loaded world, the world comes to you
+    else if(!globalThis.__arondightStartPlace?.get?.()&&bridge.active&&!bridge.vsWorldFromMate&&navigator.geolocation){setMenuStatus("LOCATING");const r=await withTimeout(gpsOnce({enableHighAccuracy:true,timeout:9000,maximumAge:0}),10000);const c=r?.fix?.coords;
+      if(c&&Number.isFinite(bridge.originLat)){const R=6371000,dLat=(c.latitude-bridge.originLat)*Math.PI/180,dLon=(c.longitude-bridge.originLon)*Math.PI/180,d=2*R*Math.asin(Math.sqrt(Math.sin(dLat/2)**2+Math.cos(c.latitude*Math.PI/180)*Math.cos(bridge.originLat*Math.PI/180)*Math.sin(dLon/2)**2));if(d>400){setMenuStatus("TRAVELLING");try{bridge.deactivate();}catch{}await withTimeout(autoWorld(Promise.resolve(r)),20000);}}}
     // Keep the 1 kHz flight/Box3D loop stopped while the opaque menu is doing
     // network + scene preparation. Starting physics before the user can see the
     // game only steals main-thread slices from the soundtrack and loader.

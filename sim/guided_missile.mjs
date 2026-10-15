@@ -11,7 +11,7 @@ import {staticGroundHeightAt} from "./terrain_craters.mjs";
 import {wantedLineBlockedByPrisms} from "./wanted_system_logic.mjs";
 import {GUIDED_BALANCE,updatePedestrianDodge} from "./guided_balance.mjs";
 
-export const GUIDED_MISSILE_VERSION="balanced-dodge-v2";
+export const GUIDED_MISSILE_VERSION="press-fires-v3";
 const PICK_PX=70,MAX_RANGE_M=600,CRUISE_MPS=GUIDED_BALANCE.speedMps,TURN_G=9.81*GUIDED_BALANCE.turnG,TTL_MS=22000,FUZE_M=2.4,BLAST_M=GUIDED_BALANCE.blastRadiusM,BLAST_DMG=GUIDED_BALANCE.damage,DIVE_RANGE_M=70,COOLDOWN_MS=GUIDED_BALANCE.cooldownMs;
 let installed=false,lock=null,lockEl=null,lastLaunch=-Infinity,smokePool=null,smokeCursor=0;const missiles=[];
 let guidedWarningEl=null;
@@ -92,17 +92,42 @@ function step(now,dt){for(let i=missiles.length-1;i>=0;i--){const m=missiles[i],
     const prisms=bridge()?.buildingCollisionSnapshot?.prisms;if(prisms?.length&&m.prev&&wantedLineBlockedByPrisms({x:m.prev.x,y:m.prev.y,z:m.prev.z},{x:p.x,y:p.y,z:p.z},prisms)){detonate(i,m.prev.clone(),false);continue;}
     (m.prev??=new THREE.Vector3()).copy(p);}}
 // ---------------------------------------------------------------- input (drone weapon "guided")
-export function press({clientX,clientY,source="external"}={}){const now=performance.now();if(now<(Number(globalThis.__arondightWeaponLockUntil)||0)||globalThis.__arondightDroneDamageModel?.destroyed)return false;const picked=pick(clientX,clientY);
-  if(lock&&(!picked||picked.id===lock.id)){if(now-lastLaunch<COOLDOWN_MS)return false;return launch(now);}
-  if(picked){lock=picked;lockTone();warnLock(picked);const v=viewport();if(v){v.dataset.guidedLock=`${picked.kind}:${picked.id}`;v.dataset.guidedLockInput=source;}return true;}
-  return false;}
+// One press = one missile, on every input (tap, click, RT/RB, key). Near the aim point there is
+// something to home on → it locks and flies at it; nothing there → it flies to the spot you aimed at
+// (ground, wall). While it reloads (5 s) a press only shows how long is left — on the weapon button,
+// next to the crosshair and with a short "denied" blip; it never silently does nothing.
+const rc=new THREE.Raycaster(),ndc2=new THREE.Vector2();
+function aimPoint(clientX,clientY){const c=cam(),p=logicalPoint(clientX,clientY);if(!c||!p)return null;c.updateMatrixWorld?.(true);ndc2.set(p.x/p.width*2-1,-(p.y/p.height)*2+1);rc.setFromCamera(ndc2,c);const o=rc.ray.origin,d=rc.ray.direction,R=globalThis.__arondightWorldRigidBodies;
+  try{const hit=R?.raycast?.([o.x,o.y,o.z],[d.x,d.y,d.z],MAX_RANGE_M,{categoryBits:8n,maskBits:1n});if(hit?.point)return new THREE.Vector3(hit.point[0],hit.point[1],hit.point[2]);}catch{}
+  for(let t=3;t<MAX_RANGE_M;t+=t<80?1.5:5){tmp2.copy(o).addScaledVector(d,t);if(tmp2.z<=staticGroundHeightAt(tmp2.x,tmp2.y))return tmp2.clone();}return o.clone().addScaledVector(d,180);}
+export function cooldownLeftMs(now=performance.now()){return Math.max(0,COOLDOWN_MS-(now-lastLaunch));}
+function denied(){const a=ac();if(a)try{const t=a.currentTime,o=a.createOscillator(),g=a.createGain();o.type="square";o.frequency.setValueAtTime(330,t);o.frequency.setValueAtTime(220,t+.07);g.gain.setValueAtTime(.05,t);g.gain.exponentialRampToValueAtTime(.001,t+.16);o.connect(g).connect(a.destination);o.start(t);o.stop(t+.18);}catch{}
+  const v=viewport();if(v){v.dataset.guidedDenied=String(performance.now()|0);document.body.classList.add("guided-denied");clearTimeout(denied.t);denied.t=setTimeout(()=>document.body.classList.remove("guided-denied"),900);}}
+export function press({clientX,clientY,source="external"}={}){const now=performance.now();if(now<(Number(globalThis.__arondightWeaponLockUntil)||0)||globalThis.__arondightDroneDamageModel?.destroyed)return false;
+  if(cooldownLeftMs(now)>0){denied();return false;}
+  const picked=pick(clientX,clientY);
+  if(picked&&(!lock||picked.id!==lock.id)){lock=picked;lockTone();warnLock(picked);}
+  if(!lock){const p=aimPoint(clientX,clientY);if(!p)return false;const at=p.clone();lock={id:`point-${now|0}`,kind:"point",label:"ZIELPUNKT",pos:()=>at};}
+  const v=viewport();if(v){v.dataset.guidedLock=`${lock.kind}:${lock.id}`;v.dataset.guidedLockInput=source;}
+  return launch(now);}
 const BLOCKED="#worldLookHud,#soloTopbar,#soloLeft,#soloRight,#soloClearance,.solo-action,.phone-settings-dialog,#wantedEmpButton,#droneWeaponToggle,#desktopDroneWeaponSwitch,dialog,button,input,select,textarea,a,label";
 function isDrone(){return globalThis.__arondightWalkMode?.mode!=="foot"&&!globalThis.__arondightVehicleDrive?.active&&!globalThis.__jetMode?.active;}
 // taps / clicks in the view while the guided missile is selected: mark, then launch (before the rocket-salvo handler sees them)
 function onPointer(e){if(e.type!=="pointerdown"||e.button!==0||!isDrone()||document.body.classList.contains("air-strike-targeting"))return;if(String(globalThis.__arondightDroneWeapons?.displayMode||"")!=="guided")return;const t=e.target instanceof Element?e.target:null;if(t?.closest?.(BLOCKED))return;e.preventDefault();e.stopImmediatePropagation();
   const locked=Boolean(document.pointerLockElement);press({clientX:locked?undefined:e.clientX,clientY:locked?undefined:e.clientY,source:e.pointerType||"pointer"});}
 let last=performance.now();
-function frame(now=performance.now()){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;if(missiles.length)step(now,dt);stepSmoke(now);
+// reload state on every weapon control (touch button, desktop GUIDED segment, pad dock) and, after a
+// press that came too early, right under the crosshair
+let cdEl=null,cdShown="";
+function renderCooldown(now){const mode=String(globalThis.__arondightDroneWeapons?.displayMode||""),active=mode==="guided"&&isDrone(),left=cooldownLeftMs(now),frac=left/COOLDOWN_MS,b=document.body;
+  const key=active?(left>0?Math.ceil(left/100):0):-1;if(key===cdShown)return;cdShown=key;b.style.setProperty("--guided-cd",active?frac.toFixed(3):"0");b.classList.toggle("guided-reloading",active&&left>0);
+  for(const el of document.querySelectorAll('#droneWeaponToggle,#mobileGameplayWeapon,[data-drone-weapon="guided"]')){if(active&&left>0)el.dataset.guidedCd=`${(left/1000).toFixed(1)} s`;else delete el.dataset.guidedCd;}
+  const v=viewport();if(!v)return;if(!cdEl?.isConnected){cdEl=document.createElement("div");cdEl.id="guidedCooldownNear";v.appendChild(cdEl);const st=document.createElement("style");st.textContent=`#guidedCooldownNear{position:absolute;left:50%;top:calc(50% + 34px);transform:translateX(-50%);padding:3px 9px;border-radius:10px;background:#0b1118d0;border:1px solid #ffb24a;color:#ffe2b8;font:800 11px/1.3 system-ui,sans-serif;letter-spacing:.06em;pointer-events:none;z-index:25;display:none}
+body.guided-denied #guidedCooldownNear{display:block}
+body.guided-reloading #droneWeaponToggle,body.guided-reloading #mobileGameplayWeapon,body.guided-reloading [data-drone-weapon="guided"]{background-image:linear-gradient(90deg,#ffb24a55 calc((1 - var(--guided-cd,0))*100%),transparent 0)!important}
+#droneWeaponToggle[data-guided-cd]::after,#mobileGameplayWeapon[data-guided-cd]::before,[data-drone-weapon="guided"][data-guided-cd]::after{content:" ⏳" attr(data-guided-cd);font-weight:700;opacity:.85}`;document.head.appendChild(st);}
+  cdEl.textContent=left>0?`LENKRAKETE LÄDT · ${(left/1000).toFixed(1)} s`:"LENKRAKETE BEREIT";}
+function frame(now=performance.now()){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;if(missiles.length)step(now,dt);stepSmoke(now);try{renderCooldown(now);}catch{}
   const mode=String(globalThis.__arondightDroneWeapons?.displayMode||"");if(lock&&(mode!=="guided"||globalThis.__arondightWalkMode?.mode==="foot"))clearLock("mode");renderLock(now);}
-export function installGuidedMissile(){if(installed||typeof window==="undefined")return;installed=true;addEventListener("arondight:world-reset",()=>{clearLock("reset");for(const m of missiles.splice(0)){m.scene.remove(m.group);stopVoice(m.voice);}});window.addEventListener("pointerdown",onPointer,{capture:true,passive:false});requestAnimationFrame(frame);globalThis.__arondightGuidedMissile={press,get lock(){return lock?{id:lock.id,kind:lock.kind,label:lock.label}:null;},get inFlight(){return missiles.length;},clear:()=>clearLock("api"),version:GUIDED_MISSILE_VERSION};}
+export function installGuidedMissile(){if(installed||typeof window==="undefined")return;installed=true;addEventListener("arondight:world-reset",()=>{clearLock("reset");for(const m of missiles.splice(0)){m.scene.remove(m.group);stopVoice(m.voice);}});window.addEventListener("pointerdown",onPointer,{capture:true,passive:false});requestAnimationFrame(frame);globalThis.__arondightGuidedMissile={press,get cooldownLeftMs(){return cooldownLeftMs();},get lock(){return lock?{id:lock.id,kind:lock.kind,label:lock.label}:null;},get inFlight(){return missiles.length;},clear:()=>clearLock("api"),version:GUIDED_MISSILE_VERSION};}
 installGuidedMissile();

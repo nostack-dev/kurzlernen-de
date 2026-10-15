@@ -181,7 +181,7 @@ function stepCop(c,u,player,now,dt,stars){
   else{c.speed=0;c.yaw+=angleTo(c.yaw,Math.atan2(dy,dx))*Math.min(1,dt*12);c.anim="aim";}
   // shoot when in range and in sight (also while backing off / closing in)
   if(u.state!=="return"&&c.los&&d<ENGAGE_MAX_M+12&&now>=c.nextShot&&Math.abs(angleTo(c.yaw,Math.atan2(dy,dx)))<.35){
-    c.nextShot=now+Math.max(900,1500-stars*80)+Math.random()*700;c.shots++;c.lastShotAt=now;c.anim="aim";
+    c.nextShot=now+Math.max(1700,2600-stars*120)+Math.random()*1200; /* relaxed: a cop fires every ~2-4 s */c.shots++;c.lastShotAt=now;c.anim="aim";
     const fx=Math.cos(c.yaw),fy=Math.sin(c.yaw),from=new THREE.Vector3(c.x+fx*.45-fy*.12,c.y+fy*.45+fx*.12,c.z+1.38);
     const hit=Math.random()<wantedPoliceHitChance({stars,distanceM:d,playerSpeedMps:player.speedMps||0})*.55;let to;
     if(hit){to=new THREE.Vector3(aimAt.x,aimAt.y,aimAt.z);const dmg=Math.max(2,Math.round(wantedPoliceDamage(stars)*.4));const t=playerTarget();if(t?.model?.damage)t.model.damage(dmg,"police-officer");else window.dispatchEvent(new CustomEvent("arondight:player-damage",{detail:{damage:dmg,source:"police-officer"}}));window.dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage:dmg,source:"police-officer",target:"player"}}));}
@@ -299,7 +299,7 @@ function frame(now=performance.now()){
   if(!ensureScene())return;const w=wanted()?.state,stars=Number(w?.stars)||0,player=playerTarget();
   if(!policeEnabled){if(units.some(u=>!u.car.group.userData.playerDriven)||remote.size)removePolice();for(const u of units)updateUnit(u,null,now,dt,0);/* only a stolen cruiser the player drives is left */renderCops(now,dt);renderRemote(now,dt);stepTracers(now);return;}
   // dispatch: one cruiser per star (max 3) while wanted
-  if(player&&stars>0&&w?.phase!=="searching"){const want=Math.min(MAX_UNITS,stars),active=units.filter(u=>u.state!=="abandoned"&&u.state!=="leave"&&u.state!=="wreck").length;if(active<want&&now-(globalThis.__policeLastSpawn||0)>2600){globalThis.__policeLastSpawn=now;spawnUnit(player,now);}}
+  if(player&&stars>0&&w?.phase!=="searching"){const want=Math.min(MAX_UNITS,Math.max(1,stars-1)),active=units.filter(u=>u.state!=="abandoned"&&u.state!=="leave"&&u.state!=="wreck").length;if(active<want&&now-(globalThis.__policeLastSpawn||0)>2600){globalThis.__policeLastSpawn=now;spawnUnit(player,now);}}
   for(const u of units)updateUnit(u,player,now,dt,stars);
   // sightings keep the wanted level alive while officers or cruisers see the player
   if(player&&stars>0&&now-lastSight>600){lastSight=now;const seen=units.some(u=>u.state!=="abandoned"&&(u.state!=="wreck"||u.cops.some(c=>c.state==="out"))&&(u.cops.some(c=>c.state==="out"&&c.los)||(u.pose&&Math.hypot(player.position.x-u.pose.position[0],player.position.y-u.pose.position[1])<30&&!blocked({x:u.pose.position[0],y:u.pose.position[1],z:1.3},{x:player.position.x,y:player.position.y,z:1.3}))));if(seen)wanted()?.sighting?.(player.position);}

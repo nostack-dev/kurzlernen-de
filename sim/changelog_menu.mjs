@@ -5,6 +5,14 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-15",time:"18:15",title:"Echter Standort, Offline-App, ruhigere Stadt, Lenkrakete",items:[
+    "Jeder Start beginnt an deinem echten Standort: frischer, genauer GPS-Fix (nie ein alter); kommt der genaue Fix spät, springt die Welt nach. Zurück aus dem Menü: bist du über 400 m weiter, kommt die Welt zu dir. Ein im Menü gesuchter Ort gilt nur noch bis zum Schließen der App.",
+    "Installierte App (Startbildschirm): startet auch offline, holt aber online immer sofort die neueste Version. Kartendaten von Orten, an denen du warst, bleiben gespeichert.",
+    "Lenkrakete: jeder Druck feuert – mit Ziel in der Nähe des Fadenkreuzes fliegt sie es an, sonst auf den anvisierten Punkt. 5 s Nachladen, sichtbar auf dem Waffenknopf und unter dem Fadenkreuz. Dafür etwas schwächer.",
+    "Passanten sind deutlich friedlicher (weniger Hitzköpfe, kaum Waffen, langsamer am Abzug). Unsichtbare Schützen gibt es nicht mehr: nur wer sichtbar ist, kann dich angreifen.",
+    "Polizei entspannter: mehr Sterne nötig, weniger Streifen, kommen später, schießen seltener und ungenauer, du entkommst schneller.",
+    "Kühe grasen gemütlich auf ihrem Fleck statt über die Weide zu rasen.",
+  ]},
   {date:"2026-10-15",time:"00:29",title:"Jet-Sticks zeigen dahin, wo du ziehst",items:[
     "Handy im Hochformat: die beiden Sticks im Jet (und im Auto) lasen bisher die Bildschirm-Achsen statt der gedrehten Spielansicht – deshalb ging der linke Stick „irgendwohin“. Jetzt gilt: wohin du ziehst, dahin geht’s. Der Ausschlag zählt ab da, wo der Daumen aufsetzt (kein Ruck beim Antippen).",
     "Belegung wie bei Flugsimulatoren (Mode 2): links ↑↓ Schub/Steigen, ←→ Seitenruder; rechts Nicken und Rollen.",

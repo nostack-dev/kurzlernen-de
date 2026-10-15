@@ -7,12 +7,15 @@ const KEY="rushStartPlaceV1",RECENT_KEY="rushStartPlaceRecentV1",API="https://ph
 const $=id=>document.getElementById(id);
 function load(k,f){try{return JSON.parse(localStorage.getItem(k)||"null")??f;}catch{return f;}}
 function save(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
-let place=load(KEY,null);const valid=p=>p&&Number.isFinite(+p.lat)&&Number.isFinite(+p.lon)&&Math.abs(+p.lat)<=85&&Math.abs(+p.lon)<=180;if(!valid(place))place=null;
+// the chosen place lives only for this browser session: every new start of the app is at your GPS position
+function loadSession(){try{return JSON.parse(sessionStorage.getItem(KEY)||"null");}catch{return null;}}
+let place=loadSession();try{localStorage.removeItem(KEY);}catch{}const valid=p=>p&&Number.isFinite(+p.lat)&&Number.isFinite(+p.lon)&&Math.abs(+p.lat)<=85&&Math.abs(+p.lon)<=180;if(!valid(place))place=null;
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function labelOf(pr){const street=pr.street?`${pr.street}${pr.housenumber?" "+pr.housenumber:""}`:"",head=pr.name||street||pr.city||pr.state||"",tail=[pr.name&&street?street:"",[pr.postcode,pr.city||pr.town||pr.village].filter(Boolean).join(" "),pr.country].filter(x=>x&&x!==head);return{head,tail:tail.join(", ")};}
-function setPlace(p){place=p&&valid(p)?{name:String(p.name||"").slice(0,80),sub:String(p.sub||"").slice(0,120),lat:+p.lat,lon:+p.lon}:null;save(KEY,place);
+function setPlace(p){place=p&&valid(p)?{name:String(p.name||"").slice(0,80),sub:String(p.sub||"").slice(0,120),lat:+p.lat,lon:+p.lon}:null;try{sessionStorage.setItem(KEY,JSON.stringify(place));}catch{}
   if(place){const r=load(RECENT_KEY,[]).filter(q=>Math.abs(q.lat-place.lat)>1e-4||Math.abs(q.lon-place.lon)>1e-4);r.unshift(place);save(RECENT_KEY,r.slice(0,5));}render();}
-function render(){const b=$("startPlaceButton");if(!b)return;b.innerHTML=`<span>📍</span><b>${esc(place?place.name:"MEIN STANDORT (GPS)")}</b><i>ÄNDERN</i>`;b.title=place?`${place.name} · ${place.sub}`:"Start an deinem GPS-Standort";}
+let gpsState="";try{navigator.permissions?.query?.({name:"geolocation"}).then(st=>{const f=()=>{gpsState=st.state;render();};f();st.onchange=f;}).catch(()=>{});}catch{}
+function render(){const b=$("startPlaceButton");if(!b)return;b.innerHTML=`<span>📍</span><b>${esc(place?place.name:gpsState==="denied"?"GPS BLOCKIERT – IN DEN EINSTELLUNGEN ERLAUBEN":"MEIN STANDORT (GPS)")}</b><i>ÄNDERN</i>`;b.title=place?`${place.name} · ${place.sub}`:"Start an deinem GPS-Standort";}
 let panel=null,timer=0,seq=0;
 function row(p,current){return`<button type="button" class="sp-item${current?" sp-on":""}" data-lat="${p?p.lat:""}" data-lon="${p?p.lon:""}" data-name="${esc(p?p.name:"")}" data-sub="${esc(p?p.sub:"")}"><b>${esc(p?p.name:"📡 MEIN STANDORT (GPS)")}</b><small>${esc(p?p.sub:"wo du gerade bist")}</small></button>`;}
 function openPanel(){if(!panel){panel=document.createElement("div");panel.id="startPlacePanel";panel.setAttribute("role","dialog");panel.setAttribute("aria-label","Startort wählen");

@@ -57,7 +57,13 @@ function rebuildHerds(){const list=globalThis.__worldMeadows,f=focus();if(!Array
   const v=document.getElementById("viewport");if(v){v.dataset.cows=String(cows.length);v.dataset.cowsVersion=COWS_VERSION;}}
 
 // the clock-driven grazing walk (identical on every machine)
-function pathPose(c,t){const k=Math.floor(t/PERIOD_MS),A=spot(c.m,`${c.key}:${k}`),B=spot(c.m,`${c.key}:${k+1}`),dx=B[0]-A[0],dy=B[1]-A[1],d=Math.hypot(dx,dy),walkMs=Math.min(PERIOD_MS*.75,d/WALK_MPS*1000),u=Math.min(1,(t-k*PERIOD_MS)/Math.max(1,walkMs));
+// A cow grazes around its own patch (a few metres around a home spot near the herd), so every leg of the
+// clock path is short and walked at a cow's pace. (The old path picked any spot of the whole pasture:
+// on a 300 m meadow the 18 s walk window turned that into a 15 m/s sprint.)
+const GRAZE_R=6,HERD_SPREAD_R=14;
+function homeOf(c){if(c.home)return c.home;const h=spot(c.m,`${c.m.key}:herd`);let best=h;for(let k=0;k<8;k++){const a=hash(`${c.key}:ha${k}`)*Math.PI*2,r=Math.sqrt(hash(`${c.key}:hr${k}`))*HERD_SPREAD_R,x=h[0]+Math.cos(a)*r,y=h[1]+Math.sin(a)*r;if(inPasture(c.m,x,y)){best=[x,y];break;}}c.home=best;return best;}
+function grazeSpot(c,k){const h=homeOf(c);for(let j=0;j<6;j++){const a=hash(`${c.key}:${k}:a${j}`)*Math.PI*2,r=Math.sqrt(hash(`${c.key}:${k}:r${j}`))*GRAZE_R,x=h[0]+Math.cos(a)*r,y=h[1]+Math.sin(a)*r;if(inPasture(c.m,x,y))return[x,y];}return h;}
+function pathPose(c,t){const k=Math.floor(t/PERIOD_MS),A=grazeSpot(c,k),B=grazeSpot(c,k+1),dx=B[0]-A[0],dy=B[1]-A[1],d=Math.hypot(dx,dy),walkMs=Math.min(PERIOD_MS*.75,d/WALK_MPS*1000),u=Math.min(1,(t-k*PERIOD_MS)/Math.max(1,walkMs));
   return{x:A[0]+dx*u,y:A[1]+dy*u,yaw:d>.2?Math.atan2(dy,dx):hash(`${c.key}:${k}:yaw`)*Math.PI*2,walking:u<1&&d>.2};}
 
 // ------------------------------------------------------------------ physics & damage
