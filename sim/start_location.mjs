@@ -3,7 +3,7 @@
 // suggestions (Photon / OpenStreetMap). The choice is remembered (with the last few places) and
 // used on the next START; picked while a game runs, the next START moves the world there.
 export const START_LOCATION_VERSION="start-place-search-v1";
-const KEY="rushStartPlaceV1",RECENT_KEY="rushStartPlaceRecentV1",API="https://photon.komoot.io/api/";
+const KEY="spawnCityStartPlaceV1",RECENT_KEY="spawnCityStartPlaceRecentV1",API="https://photon.komoot.io/api/";
 const $=id=>document.getElementById(id);
 function load(k,f){try{return JSON.parse(localStorage.getItem(k)||"null")??f;}catch{return f;}}
 function save(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}

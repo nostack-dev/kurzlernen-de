@@ -14,8 +14,8 @@ import * as THREE from "three";
 // Toggle: Settings → CAMERA → SIDE-BY-SIDE 3D, or ?sbs=1.
 
 export const STEREO_SBS_VERSION="cross-eye-side-by-side-v2-comfort-parallax";
-export const STEREO_SETTINGS_KEY="rushStereoSbsV1";
-export const STEREO_SETTINGS_EVENT="rush-stereo-sbs-change";
+export const STEREO_SETTINGS_KEY="spawnCityStereoSbsV1";
+export const STEREO_SETTINGS_EVENT="spawncity-stereo-sbs-change";
 export const STEREO_EYE_SEPARATION_M=.064;
 
 let active=false,installedOn=null,inside=false;let focus=NaN;

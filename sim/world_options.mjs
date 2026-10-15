@@ -4,8 +4,8 @@
 //   addEventListener(WORLD_OPTIONS_EVENT, e => e.detail.options)
 // A switched-off kind is not hidden and kept simulating: it does not exist (no bodies, no AI,
 // no draw); switching it back on brings it in out of the player's view like any arrival.
-export const WORLD_OPTIONS_KEY="rushWorldOptionsV1";
-export const WORLD_OPTIONS_EVENT="rush-world-options-change";
+export const WORLD_OPTIONS_KEY="spawnCityWorldOptionsV1";
+export const WORLD_OPTIONS_EVENT="spawncity-world-options-change";
 export const WORLD_OPTIONS=Object.freeze([
   {key:"people",label:"PEOPLE",help:"Pedestrians walking to their own destinations."},
   {key:"traffic",label:"TRAFFIC",help:"Cars and buses driving the streets."},

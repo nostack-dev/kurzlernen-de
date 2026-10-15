@@ -5,6 +5,10 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-15",time:"23:43",title:"Neuer Name: SpawnCity",items:[
+    "Das Spiel heißt jetzt SpawnCity – du spawnst genau dort, wo du gerade stehst, in deiner echten Stadt. Neue Adresse: spawncity.de.",
+    "Neuer Titel auf dem Startbildschirm (SPAWN über CITY) und ein neues App-Symbol für den Home-Bildschirm.",
+    "Deine Einstellungen, der gewählte Startort und die schon geladenen Karten bleiben beim Umzug auf den neuen Namen erhalten."]},
   {date:"2026-10-15",time:"22:02",title:"Lasergelenkter Raketenwerfer, Autos ohne Ruckeln",items:[
     "Raketenwerfer im Half-Life-2-Stil: ein roter Laserpunkt zeigt, wohin du zielst, und die Rakete fliegt dem Punkt hinterher – du lenkst sie mit dem Zielen. Immer nur eine Rakete gleichzeitig; wechselst du die Waffe, fliegt sie ungelenkt weiter.",
     "Der Raketenwerfer hat ein neues Aussehen (dunkles Metall, Laser-Zielgerät mit rotem Licht), die Rakete fliegt gerade ausgerichtet und zieht eine Rauchspur hinter sich her.",

@@ -5,7 +5,7 @@ import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./a
 import {addTrauma} from "./camera_shake.mjs";
 import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 
-// RUSH sandbox loop — no story, just a fun escalation:
+// SpawnCity sandbox loop — no story, just a fun escalation:
 //  * CHAOS earns SCORE: takedowns, wrecked cars, demolished buildings,
 //    police drones, drifting, escaping. Events close together build a
 //    COMBO multiplier (FLOW meter); flashy pop texts call them out.
@@ -237,7 +237,7 @@ export function installSandboxGame(){
   window.addEventListener(AUDIO_SETTINGS_EVENT,e=>{settings=normalizeAudioSettings(e?.detail||loadAudioSettings());});
   window.addEventListener("arondight:world-reset",()=>{for(const e of enemies)e.root.parent?.remove(e.root);enemies=[];for(const r of rockets)r.mesh.parent?.remove(r.mesh);rockets.length=0;score=0;combo=1;flow=0;renderHud(true);});
   const v=document.getElementById("viewport");if(v)v.dataset.sandboxGame=SANDBOX_GAME_VERSION;
-  globalThis.__skyRushSandbox={award,pop,get score(){return score;},get enemies(){return enemies.map(e=>({id:e.id,type:e.type,hp:e.hp,state:e.state}));},spawn:(type="cop")=>{const t=target();return t?Boolean(spawnEnemy(TYPES[type]?type:"cop",t.position)):false;}};
+  globalThis.__spawnCitySandbox={award,pop,get score(){return score;},get enemies(){return enemies.map(e=>({id:e.id,type:e.type,hp:e.hp,state:e.state}));},spawn:(type="cop")=>{const t=target();return t?Boolean(spawnEnemy(TYPES[type]?type:"cop",t.position)):false;}};
   requestAnimationFrame(frame);
 }
 installSandboxGame();

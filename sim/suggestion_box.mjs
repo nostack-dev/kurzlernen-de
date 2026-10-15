@@ -1,10 +1,10 @@
 // SUGGESTIONS: after a while of playing a version (15 min), the main menu asks once, briefly:
 // "Your idea for the next update?" — one short line (max 240 characters), sent anonymously.
 // No account, no server of ours: the note goes out as a signed Nostr event (kind 30078,
-// application data, tagged rush-suggestion + the build) to a few public relays with a throw-away
+// application data, tagged spawncity-suggestion + the build) to a few public relays with a throw-away
 // key. A GitHub workflow collects them from the relays every day and sums them up for us.
 export const SUGGESTION_BOX_VERSION="suggestion-box-nostr-v1";
-const MIN_PLAY_S=15*60,SNOOZE_S=10*60,KEY="rushSuggestV1",RELAYS=["wss://relay.damus.io","wss://nos.lol","wss://relay.primal.net","wss://relay-rpi.edufeed.org"];
+const MIN_PLAY_S=15*60,SNOOZE_S=10*60,KEY="spawnCitySuggestV1",RELAYS=["wss://relay.damus.io","wss://nos.lol","wss://relay.primal.net","wss://relay-rpi.edufeed.org"];
 const $=id=>document.getElementById(id);
 function build(){const f=document.firstChild,m=f&&f.nodeType===8&&/BUILD_SHA:([0-9a-f]{7,40})/.exec(f.nodeValue||"");return m?m[1].slice(0,12):"dev";}
 function state(){try{const s=JSON.parse(localStorage.getItem(KEY)||"{}");return s&&s.build===build()?s:{build:build(),played:0,done:false,snoozeUntil:0};}catch{return{build:build(),played:0,done:false,snoozeUntil:0};}}
@@ -14,7 +14,7 @@ setInterval(()=>{if(!playing())return;const s=state();if(s.done)return;s.played+
 
 async function send(text){const [{SimplePool},{finalizeEvent,generateSecretKey}]=await Promise.all([import("nostr-tools/pool"),import("nostr-tools/pure")]);
   const id=`${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`,lang=(navigator.language||"de").slice(0,5);
-  const ev=finalizeEvent({kind:30078,created_at:Math.floor(Date.now()/1000),tags:[["d",`rush-suggestion-${id}`],["t","rush-suggestion"],["v",build()],["l",lang]],content:JSON.stringify({app:"rush",text,build:build(),lang,ua:/Android/.test(navigator.userAgent)?"android":/iPhone|iPad/.test(navigator.userAgent)?"ios":"desktop"})},generateSecretKey());
+  const ev=finalizeEvent({kind:30078,created_at:Math.floor(Date.now()/1000),tags:[["d",`spawncity-suggestion-${id}`],["t","spawncity-suggestion"],["v",build()],["l",lang]],content:JSON.stringify({app:"spawncity",text,build:build(),lang,ua:/Android/.test(navigator.userAgent)?"android":/iPhone|iPad/.test(navigator.userAgent)?"ios":"desktop"})},generateSecretKey());
   const pool=new SimplePool();try{const results=await Promise.allSettled(pool.publish(RELAYS,ev).map(p=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(Error("timeout")),6000))])));return results.filter(r=>r.status==="fulfilled").length;}finally{setTimeout(()=>{try{pool.close(RELAYS);}catch{}},500);}}
 
 let card=null;

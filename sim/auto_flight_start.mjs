@@ -136,7 +136,7 @@ async function autoWorld(locationResultPromise){
   if(fix)bridge.lastLocation=fix;
   if(error){trainingFallback(`TRAINING RANGE · GPS unavailable · ${error.message}`);return;}
   // offline: the installed app still loads the real world where map data is stored (places you have played); otherwise the training range
-  if(navigator.onLine===false){let warm=false;try{warm=(await (await caches.open("rush-tiles-v1")).keys()).length>40;}catch{}if(!warm){trainingFallback("TRAINING RANGE · offline · GPS permission ready");return;}}
+  if(navigator.onLine===false){let warm=false;try{for(const name of["spawncity-tiles-v1","rush-tiles-v1"])if(await caches.has(name)&&(await (await caches.open(name)).keys()).length>40)warm=true;}catch{}if(!warm){trainingFallback("TRAINING RANGE · offline · GPS permission ready");return;}}
   try{
     const pending=bridge.activate(fix);syncWorldButton();await pending;markWorldStartup(fix?.chosen?"startup-place":"startup-gps");syncWorldButton();
   }catch(error){trainingFallback(`TRAINING RANGE · WORLD unavailable · ${error?.message||error}`);}
