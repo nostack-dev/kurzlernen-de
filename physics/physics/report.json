@@ -1,0 +1,725 @@
+{
+ "url": "https://kurzlernen.de/drone_simulator.html?physics-ci=29089b1ad9f0e00c7209b6ccfce50e9acb2ee932",
+ "steps": [
+  {
+   "name": "menu",
+   "ms": 5215,
+   "error": null
+  },
+  {
+   "name": "start",
+   "ms": 24331,
+   "error": null
+  },
+  {
+   "name": "city",
+   "ms": 15022,
+   "error": null
+  },
+  {
+   "name": "drive",
+   "ms": 22646,
+   "error": null
+  },
+  {
+   "name": "explode-cars",
+   "ms": 4298,
+   "error": null
+  },
+  {
+   "name": "relocate",
+   "ms": 18039,
+   "error": null
+  }
+ ],
+ "errors": [],
+ "world": {
+  "mode": "real",
+  "buildings": "2592",
+  "roads": "718",
+  "elevation": "terrarium-complete-origin-safe-v3 ref=403.1m range=-15.0..14.7",
+  "collision": "box3d-active",
+  "prisms": "1044"
+ },
+ "terrain": {
+  "physicsMinusRender": {
+   "n": 62,
+   "min": 0,
+   "max": 0,
+   "medianAbs": 0,
+   "p95Abs": 0,
+   "over50cm": 0
+  },
+  "skippedInHouse": 163,
+  "roadMinusGround": {
+   "n": 1371,
+   "min": 0.09,
+   "max": 0.14,
+   "medianAbs": 0.11,
+   "p95Abs": 0.11,
+   "over50cm": 0
+  },
+  "roadSamples": 1371
+ },
+ "coverage": {
+  "inside": 291,
+  "roofHit": 291,
+  "missing": [],
+  "missingCount": 0,
+  "box3dHulls": null,
+  "failedHulls": null,
+  "footprints": 480,
+  "prisms": 1044,
+  "coveredRadiusM": 290
+ },
+ "scans": [
+  {
+   "phase": "idle",
+   "total": 50,
+   "shown": 50,
+   "registered": 24,
+   "near": 0,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "idle",
+   "total": 50,
+   "shown": 50,
+   "registered": 26,
+   "near": 0,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "idle",
+   "total": 50,
+   "shown": 50,
+   "registered": 27,
+   "near": 0,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "idle",
+   "total": 50,
+   "shown": 50,
+   "registered": 27,
+   "near": 0,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "idle",
+   "total": 50,
+   "shown": 50,
+   "registered": 27,
+   "near": 0,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "idle",
+   "total": 50,
+   "shown": 50,
+   "registered": 27,
+   "near": 0,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "near-car",
+   "total": 50,
+   "shown": 50,
+   "registered": 20,
+   "near": 1,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "after-drive",
+   "total": 50,
+   "shown": 50,
+   "registered": 25,
+   "near": 1,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "after-drive",
+   "total": 50,
+   "shown": 50,
+   "registered": 25,
+   "near": 1,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "after-drive",
+   "total": 50,
+   "shown": 50,
+   "registered": 25,
+   "near": 1,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "after-explosions",
+   "total": 50,
+   "shown": 50,
+   "registered": 26,
+   "near": 1,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "after-explosions",
+   "total": 50,
+   "shown": 50,
+   "registered": 26,
+   "near": 1,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "after-explosions",
+   "total": 50,
+   "shown": 50,
+   "registered": 26,
+   "near": 1,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "after-explosions",
+   "total": 50,
+   "shown": 50,
+   "registered": 26,
+   "near": 1,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "after-explosions",
+   "total": 50,
+   "shown": 50,
+   "registered": 26,
+   "near": 1,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "after-explosions",
+   "total": 50,
+   "shown": 50,
+   "registered": 27,
+   "near": 1,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "after-explosions",
+   "total": 50,
+   "shown": 50,
+   "registered": 27,
+   "near": 1,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "after-explosions",
+   "total": 50,
+   "shown": 50,
+   "registered": 27,
+   "near": 1,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "after-explosions",
+   "total": 50,
+   "shown": 50,
+   "registered": 27,
+   "near": 1,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "after-explosions",
+   "total": 50,
+   "shown": 50,
+   "registered": 27,
+   "near": 1,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "far",
+   "total": 50,
+   "shown": 50,
+   "registered": 0,
+   "near": 0,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "back",
+   "total": 50,
+   "shown": 50,
+   "registered": 22,
+   "near": 3,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "back",
+   "total": 50,
+   "shown": 50,
+   "registered": 23,
+   "near": 3,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "back",
+   "total": 50,
+   "shown": 50,
+   "registered": 24,
+   "near": 3,
+   "bad": [],
+   "badCount": 0
+  },
+  {
+   "phase": "back",
+   "total": 50,
+   "shown": 50,
+   "registered": 24,
+   "near": 3,
+   "bad": [],
+   "badCount": 0
+  }
+ ],
+ "driveEnter": "true",
+ "driveTrack": {
+  "w": [
+   {
+    "t": 67.73,
+    "frames": 0,
+    "thr": 1,
+    "speed": 6.61,
+    "pos": [
+     -13.21,
+     -72.43,
+     0.36
+    ]
+   },
+   {
+    "t": 68.23,
+    "frames": 1,
+    "thr": 1,
+    "speed": 6.95,
+    "pos": [
+     -13.17,
+     -72.88,
+     0.36
+    ]
+   },
+   {
+    "t": 68.83,
+    "frames": 3,
+    "thr": 1,
+    "speed": 7.63,
+    "pos": [
+     -13.07,
+     -73.85,
+     0.37
+    ]
+   },
+   {
+    "t": 69.33,
+    "frames": 4,
+    "thr": 1,
+    "speed": 7.97,
+    "pos": [
+     -13,
+     -74.36,
+     0.37
+    ]
+   },
+   {
+    "t": 69.84,
+    "frames": 5,
+    "thr": 1,
+    "speed": 8.3,
+    "pos": [
+     -12.93,
+     -74.9,
+     0.37
+    ]
+   },
+   {
+    "t": 70.34,
+    "frames": 6,
+    "thr": 1,
+    "speed": 8.64,
+    "pos": [
+     -12.84,
+     -75.45,
+     0.37
+    ]
+   },
+   {
+    "t": 70.84,
+    "frames": 8,
+    "thr": 1,
+    "speed": 9.23,
+    "pos": [
+     -12.66,
+     -76.48,
+     0.37
+    ]
+   },
+   {
+    "t": 71.39,
+    "frames": 10,
+    "thr": 1,
+    "speed": 9.9,
+    "pos": [
+     -12.42,
+     -77.73,
+     0.38
+    ]
+   },
+   {
+    "t": 71.89,
+    "frames": 11,
+    "thr": 1,
+    "speed": 10.23,
+    "pos": [
+     -12.28,
+     -78.38,
+     0.38
+    ]
+   },
+   {
+    "t": 72.4,
+    "frames": 13,
+    "thr": 1,
+    "speed": 10.9,
+    "pos": [
+     -11.97,
+     -79.75,
+     0.38
+    ]
+   }
+  ],
+  "wa": [
+   {
+    "t": 72.9,
+    "frames": 14,
+    "thr": 1,
+    "speed": 11.23,
+    "pos": [
+     -11.8,
+     -80.47,
+     0.39
+    ]
+   },
+   {
+    "t": 73.41,
+    "frames": 15,
+    "thr": 1,
+    "speed": 11.56,
+    "pos": [
+     -11.61,
+     -81.2,
+     0.39
+    ]
+   },
+   {
+    "t": 73.91,
+    "frames": 17,
+    "thr": 1,
+    "speed": 10.98,
+    "pos": [
+     -11.44,
+     -82.6,
+     0.4
+    ]
+   }
+  ],
+  "w2": [
+   {
+    "t": 74.41,
+    "frames": 18,
+    "thr": 1,
+    "speed": 11.35,
+    "pos": [
+     -11.47,
+     -83.35,
+     0.4
+    ]
+   },
+   {
+    "t": 74.91,
+    "frames": 20,
+    "thr": 1,
+    "speed": 11.7,
+    "pos": [
+     -11.55,
+     -84.89,
+     0.41
+    ]
+   },
+   {
+    "t": 75.42,
+    "frames": 21,
+    "thr": 1,
+    "speed": 12.02,
+    "pos": [
+     -11.65,
+     -85.67,
+     0.41
+    ]
+   },
+   {
+    "t": 75.92,
+    "frames": 23,
+    "thr": 1,
+    "speed": 12.66,
+    "pos": [
+     -11.85,
+     -87.31,
+     0.42
+    ]
+   },
+   {
+    "t": 76.42,
+    "frames": 24,
+    "thr": 1,
+    "speed": 12.97,
+    "pos": [
+     -11.93,
+     -88.16,
+     0.42
+    ]
+   }
+  ],
+  "ram": [
+   {
+    "t": 78.9,
+    "frames": 31,
+    "thr": 1,
+    "speed": 0.4,
+    "pos": [
+     -11.58,
+     -91.7,
+     0.66
+    ]
+   },
+   {
+    "t": 79.4,
+    "frames": 32,
+    "thr": 1,
+    "speed": 0.08,
+    "pos": [
+     -11.78,
+     -91.67,
+     0.64
+    ]
+   },
+   {
+    "t": 79.91,
+    "frames": 33,
+    "thr": 1,
+    "speed": 0.06,
+    "pos": [
+     -12,
+     -91.64,
+     0.58
+    ]
+   },
+   {
+    "t": 80.41,
+    "frames": 35,
+    "thr": 1,
+    "speed": 0.05,
+    "pos": [
+     -12.31,
+     -91.63,
+     0.43
+    ]
+   },
+   {
+    "t": 80.91,
+    "frames": 36,
+    "thr": 1,
+    "speed": 0.06,
+    "pos": [
+     -12.34,
+     -91.64,
+     0.41
+    ]
+   },
+   {
+    "t": 81.41,
+    "frames": 37,
+    "thr": 1,
+    "speed": 0.02,
+    "pos": [
+     -12.35,
+     -91.65,
+     0.42
+    ]
+   },
+   {
+    "t": 81.92,
+    "frames": 39,
+    "thr": 1,
+    "speed": 0.02,
+    "pos": [
+     -12.35,
+     -91.65,
+     0.44
+    ]
+   },
+   {
+    "t": 82.42,
+    "frames": 40,
+    "thr": 1,
+    "speed": 0.02,
+    "pos": [
+     -12.35,
+     -91.65,
+     0.44
+    ]
+   },
+   {
+    "t": 82.92,
+    "frames": 42,
+    "thr": 1,
+    "speed": 0.01,
+    "pos": [
+     -12.35,
+     -91.66,
+     0.44
+    ]
+   },
+   {
+    "t": 83.43,
+    "frames": 43,
+    "thr": 1,
+    "speed": 0.01,
+    "pos": [
+     -12.35,
+     -91.66,
+     0.44
+    ]
+   },
+   {
+    "t": 83.93,
+    "frames": 45,
+    "thr": 1,
+    "speed": 0.01,
+    "pos": [
+     -12.35,
+     -91.66,
+     0.44
+    ]
+   },
+   {
+    "t": 84.43,
+    "frames": 46,
+    "thr": 1,
+    "speed": 0.01,
+    "pos": [
+     -12.35,
+     -91.67,
+     0.44
+    ]
+   }
+  ]
+ },
+ "driveState": {
+  "active": true,
+  "speed": 0.4044564813173722,
+  "pos": [
+   -11.6,
+   -91.7,
+   0.5
+  ],
+  "inHouse": false
+ },
+ "wallRam": {
+  "target": [
+   -2.7,
+   -95
+  ],
+  "dist": 9.4,
+  "yaw": -0.36,
+  "id": "car-proc-136efe6-23"
+ },
+ "wallRamAfter": {
+  "pos": [
+   -12.3,
+   -91.7,
+   0.5
+  ],
+  "speed": 0.0015337399345319962,
+  "inHouse": false
+ },
+ "exploded": [
+  "car-proc-136efe6-23",
+  "car-proc-136efe6-5",
+  "bus-proc-136efe6-4",
+  "bus-proc-136efe6-5"
+ ],
+ "coverageBack": {
+  "inside": 95,
+  "roofHit": 95,
+  "missing": [],
+  "missingCount": 0,
+  "box3dHulls": null,
+  "failedHulls": null,
+  "footprints": 480,
+  "prisms": 386,
+  "coveredRadiusM": 307
+ },
+ "building": {
+  "key": "536003070:-23,-2479;-344,-2415;-336,-2358;-304,-2334;-7,-2399",
+  "distance": 30.3,
+  "before": {
+   "ray": 14.52,
+   "prismsOfKey": 1
+  },
+  "after": {
+   "ray": null,
+   "prismsOfKey": 0,
+   "renderedIntact": false
+  }
+ },
+ "terrainAfter": {
+  "physicsMinusRender": {
+   "n": 182,
+   "min": 0,
+   "max": 0,
+   "medianAbs": 0,
+   "p95Abs": 0,
+   "over50cm": 0
+  },
+  "skippedInHouse": 43,
+  "roadMinusGround": {
+   "n": 1169,
+   "min": 0.09,
+   "max": 0.14,
+   "medianAbs": 0.11,
+   "p95Abs": 0.11,
+   "over50cm": 0
+  },
+  "roadSamples": 1169
+ },
+ "summary": {
+  "maxBad": 0,
+  "badPhases": []
+ }
+}
