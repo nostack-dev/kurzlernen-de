@@ -23,7 +23,7 @@ function inGame(){const b=document.body;if(!b.classList.contains("solo-flight"))
 function rectOf(el){if(!el||!el.offsetParent)return null;const v=viewport();let x=0,y=0,n=el;while(n&&n!==v){x+=n.offsetLeft;y+=n.offsetTop;n=n.offsetParent;}if(n!==v)return null;const w=el.offsetWidth,h=el.offsetHeight;return w>0&&h>0?{left:x,top:y,width:w,height:h,right:x+w,bottom:y+h}:null;}
 function setPx(el,prop,value){const v=value==null?"":`${Math.round(value)}px`;if(el.style.getPropertyValue(prop)!==v){if(v)el.style.setProperty(prop,v,"important");else el.style.removeProperty(prop);}}
 function placeModeSwitch(){
-  const mode=$("mobileGameplayMode"),view=viewport();if(!mode||!view)return;const touch=!document.body.classList.contains("desktop-input");
+  const mode=$("mobileGameplayMode"),view=viewport();if(!mode||!view)return;if(document.body.classList.contains("edge-hud")){mode.classList.add("by-stick");return;} /* edge_hud_layout.mjs places it */const touch=!document.body.classList.contains("desktop-input");
   const stick=touch?(rectOf($("footMove"))||rectOf($("soloLeft"))):null;
   if(!stick){for(const p of["left","top"])setPx(mode,p,null);mode.classList.remove("by-stick");return;}
   mode.classList.add("by-stick");const h=mode.offsetHeight||40;

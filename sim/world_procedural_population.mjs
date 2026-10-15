@@ -607,6 +607,8 @@ function updatePhysicalVehicle(record,epoch,now){
     else{const yielding=yieldsToPedestrian(record,pose,now);honkCheck(record,pose,now,yielding);if(targetPoint)physics?.setTarget?.(record.id,{position:[targetPoint.x,targetPoint.y,0],yaw:targetPoint.yaw,speedMps:yielding?0:driveSpeed(record,pose,targetPoint)});else{physics?.clearTarget?.(record.id);physics?.setDrive?.(record.id,{pedal:0,steer:0,handbrake:true});}}
     pose=physics?.pose?.(record.id,pose)||pose;}
   record.physicsPose=pose;
+  // drawn between the last two physics steps (smooth at any frame rate); logic keeps the stepped pose
+  if(pose){const rp=physics?.renderPose?.(record.id,record.drawPose||(record.drawPose={}));if(rp?.position)pose=rp;}
   if(pose){const q=pose.rotation,off=Number(pose.groundOffset)||shape.half[2];record.group.quaternion.set(q[0],q[1],q[2],q[3]);wheelUp.set(0,0,1).applyQuaternion(record.group.quaternion);record.group.position.set(pose.position[0]-wheelUp.x*off,pose.position[1]-wheelUp.y*off,pose.position[2]-wheelUp.z*off);record.wheelPoses=pose.wheels||null;}
   else{record.group.position.set(initial.x,initial.y,groundHeightAt(initial.x,initial.y));record.group.rotation.set(0,0,initial.yaw);record.wheelPoses=null;}
   record.group.visible=true;if(driven){const view=viewport();if(view)view.dataset.worldDrivenVehicleAi="suspended-while-player-controls-v1";}

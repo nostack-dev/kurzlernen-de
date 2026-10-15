@@ -38,6 +38,8 @@ function blast(center,options){return ensureEngine()?.blast?.(center,options)??0
 function setController(id,fn){const key=String(id||""),config=pendingBodies.get(key);if(config)pendingBodies.set(key,{...config,controller:typeof fn==="function"?fn:null});return ensureEngine()?.setController?.(key,fn)??Boolean(config);}
 function applyImpulse(id,impulse,options){return ensureEngine()?.applyImpulse(String(id||""),impulse,options)??false;}
 function pose(id,out=null){return ensureEngine()?.pose(String(id||""),out)||null;}
+// for drawing: the body between the last two physics steps (see engine.renderPose)
+function renderPose(id,out=null){const e=ensureEngine();if(!e)return null;return e.renderPose?e.renderPose(String(id||""),accumulator/FIXED_DT,out):e.pose(String(id||""),out);}
 function raycast(origin,direction,maxDistance=2000,options){return ensureEngine()?.raycast(origin,direction,maxDistance,options)||null;}
 
 function updateTelemetry(now){if(now-lastTelemetry<250)return;lastTelemetry=now;const v=viewport(),current=engine;if(!v)return;const records=current?[...current.records.values()]:[],vehicles=records.filter(record=>!record.drone).length,drones=records.length-vehicles;v.dataset.worldRigidBodyPhysics=current?"box3d-dynamic-forces-v1":bootError?"error":"waiting-box3d";v.dataset.worldPhysicsBodies=String(records.length);v.dataset.worldPhysicsVehicles=String(vehicles);v.dataset.worldPhysicsDrones=String(drones);v.dataset.worldPhysicsImpacts=String(current?.impactCount||0);v.dataset.worldPhysicsSteps=String(current?.stepCount||0);v.dataset.worldPhysicsBuildingPrisms=String(current?.buildingState?.shapeCount||0);v.dataset.worldPhysicsContinuous="1";v.dataset.worldPhysicsControl="force+torque+impulse";v.dataset.worldPhysicsGravityScale="runtime-v1";v.dataset.worldPhysicsProjectileQuery="category8-mask7-symmetric-v1";v.dataset.worldPhysicsBudget=`${MAX_STEPS_PER_FRAME}x${SOLVER_SUBSTEPS}`;}
@@ -48,6 +50,6 @@ function frame(now=performance.now()){
 onTerrainChange((_craters,regions)=>{try{engine?.rebuildTerrain?.(regions??null);}catch(error){console.warn("rigid terrain",error);}});
 export // every registered body (id, kind, half extents, mass) — e.g. vehicle-vs-pedestrian checks
 function bodies(){const current=ensureEngine();const out=[];for(const b of pendingBodies.values())if(!current||current.records.has(b.id))out.push(b);return out;}
-const worldRigidBodyRuntime=Object.freeze({blast,bodies,setForces,setController,setFriction,createHuman,human,removeHuman,pushHuman,impulseHumanAt,applyAngularImpulse,upsertBody,setTarget,setDrive,clearTarget,setPose,setGravityScale,removeBody,applyImpulse,pose,raycast,get ready(){return Boolean(ensureEngine());},get engine(){return ensureEngine();}});
+const worldRigidBodyRuntime=Object.freeze({blast,bodies,setForces,setController,setFriction,createHuman,human,removeHuman,pushHuman,impulseHumanAt,applyAngularImpulse,upsertBody,setTarget,setDrive,clearTarget,setPose,setGravityScale,removeBody,applyImpulse,pose,renderPose,raycast,get ready(){return Boolean(ensureEngine());},get engine(){return ensureEngine();}});
 globalThis.__arondightWorldRigidBodies=worldRigidBodyRuntime;
 requestAnimationFrame(frame);

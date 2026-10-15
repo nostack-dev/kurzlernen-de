@@ -148,6 +148,7 @@ body.desktop-input.solo-flight.pad-input #proximityVoiceMute::after{content:"R3+
   const updateLayout=()=>{
     // SOLO and MULTI have the same voice controls; only public discovery differs.
     if(!document.body.classList.contains('solo-flight')){if(micOn)releasePtt();bar.hidden=true;return;}
+    if(document.body.classList.contains('edge-hud')){bar.hidden=false;return;} /* edge_hud_layout.mjs puts it into the top bar */
     if(document.body.classList.contains('desktop-input')){bar.hidden=false;bar.style.removeProperty('left');bar.style.removeProperty('top');return;}
     const h=view.clientHeight,w=view.clientWidth,small=h<=360,size=small?34:38,blocked=[];
     for(const id of ['footMove','footLook','soloLeft','soloRight','footJump','thumbWeapon','mobileGameplayMode','enterCarButton','enterJetButton','mobileGameplayDock','mobileGameplayReset','mobileGameplayMultiplayer','mobileGameplayMultiplayerStatus','soloArm','soloKill','soloClearance','airStrikeButton','handGrenadeBtn','soloExit','gameExitButton','wantedEmpButton','playerVitalsHud','gameplayScorePill','jetpackFuel']){

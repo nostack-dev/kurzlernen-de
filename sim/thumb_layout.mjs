@@ -38,8 +38,10 @@ function sync(){
   // low on the screen, out of the shooting area: weapon just below-left of the right stick (the thumb
   // rolls down-left onto it), JUMP left of the stick slightly above its centre line
   const scx=stick.left+stick.width/2,scy=stick.top+stick.height/2,wa=198*Math.PI/180,wr=stick.width/2+12+30;
-  place(b,scx+Math.cos(wa)*wr-30,scy-Math.sin(wa)*wr-30);b.classList.add("show");
+  const edge=document.body.classList.contains("edge-hud"); /* edge_hud_layout.mjs places the buttons */
+  if(!edge)place(b,scx+Math.cos(wa)*wr-30,scy-Math.sin(wa)*wr-30);b.classList.add("show");
   const label=String($("mobileGameplayWeapon")?.textContent||"").replace(/^WEAPON\s*·\s*/i,"").trim();if(label!==lastKey){lastKey=label;b.querySelector("small").textContent=label;}
+  if(edge)return;
   // drone: the altitude pad sits right of the (bigger) left stick, never on it
   const ls=visibleRect($("soloLeft")),clr=$("soloClearance"),cr=visibleRect(clr);if(ls&&cr&&cr.left<ls.right+10){clr.style.setProperty("right","auto","important");clr.style.setProperty("transform","none","important");const v=$("viewport"),off=cr.left-(clr.offsetLeft||0);clr.style.setProperty("left",`${Math.round(ls.right+10-off)}px`,"important");}
   // JUMP: on the arc just up-left of the look stick, where the right thumb rolls off it

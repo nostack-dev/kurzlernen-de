@@ -140,7 +140,7 @@ body.gps-live #footMove{visibility:hidden!important}`;document.head.appendChild(
 let lastRender=0;
 function render(force=false){const now=performance.now();if(!force&&now-lastRender<250)return;lastRender=now;const u=ensureUi();if(!u)return;
   u.btn.classList.toggle("on",live.active);u.btn.querySelector("span").textContent=live.active?"LIVE":"GPS";
-  const m=$("musicSwitch")?.getBoundingClientRect?.();if(m&&m.width){u.btn.style.top=`${Math.round(m.top)}px`;u.btn.style.right=`${Math.round(innerWidth-m.left+8)}px`;}else{u.btn.style.top="10px";u.btn.style.right="150px";}
+  const m=$("musicSwitch")?.getBoundingClientRect?.();if(u.btn.dataset.edgeAdopted){/* placed by edge_hud_layout.mjs while playing on touch */}else if(m&&m.width){u.btn.style.top=`${Math.round(m.top)}px`;u.btn.style.right=`${Math.round(innerWidth-m.left+8)}px`;}else{u.btn.style.top="10px";u.btn.style.right="150px";}
   if(!live.active)return;const q=s=>u.root.querySelector(s),a=ACT[live.activity]||ACT.stand,running=live.activity==="run"||live.activity==="walk";
   q(".act").textContent=a[0];q(".act").title=a[1];
   if(running&&live.speedAvg>.8){const pace=1000/live.speedAvg/60;q('[data-k="speed"]').textContent=`${Math.floor(pace)}:${String(Math.round(pace%1*60)).padStart(2,"0")}`;q('[data-k="unit"]').textContent="MIN/KM";}

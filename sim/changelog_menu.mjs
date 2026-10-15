@@ -5,6 +5,13 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-15",time:"18:43",title:"Handy-Knöpfe an den Rand, Autos ohne Ruckeln",items:[
+    "Handy: alle Knöpfe sitzen jetzt am Rand, in Reichweite des Daumens, der sie braucht – Luftschlag und Granate über dem linken Stick, Waffe/Springen bzw. ARM/STOP links neben dem rechten Stick, Einsteigen und EMP über dem rechten Stick. Die Bildmitte bleibt frei. Gleich in allen Modi und im Hoch- wie Querformat.",
+    "Im Auto: Handbremse, Kamera und Radio rechts über dem Daumen, Aussteigen unten rechts. Mikrofon und Stummschalten wandern in die obere Leiste; GPS, Musik und Ton liegen auch im Hochformat oben rechts.",
+    "Autos ruckeln nicht mehr: die Physik läuft mit festen 60 Schritten pro Sekunde, gezeichnet wird jetzt sauber dazwischen – auch auf 90/120-Hz-Displays und bei schwankender Bildrate.",
+    "Kein „Dach weg“ mehr: steht hinter dem Auto eine Wand, rutscht die Kamera nicht mehr ins Auto, sondern hebt sich darüber.",
+    "Innenansicht: nur noch ein kleines Lenkrad unten im Bild – keine Armaturen, Säulen oder Motorhaube, freie Sicht auf die Straße.",
+  ]},
   {date:"2026-10-15",time:"18:15",title:"Echter Standort, Offline-App, ruhigere Stadt, Lenkrakete",items:[
     "Jeder Start beginnt an deinem echten Standort: frischer, genauer GPS-Fix (nie ein alter); kommt der genaue Fix spät, springt die Welt nach. Zurück aus dem Menü: bist du über 400 m weiter, kommt die Welt zu dir. Ein im Menü gesuchter Ort gilt nur noch bis zum Schließen der App.",
     "Installierte App (Startbildschirm): startet auch offline, holt aber online immer sofort die neueste Version. Kartendaten von Orten, an denen du warst, bleiben gespeichert.",
