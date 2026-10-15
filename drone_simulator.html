@@ -62,6 +62,25 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   </div>
 </div>
 <script>
+// Background silence: when the app is closed / sent to the background (tab hidden, PWA switched
+// away, screen off) every Web Audio context is suspended and every <audio>/<video> paused —
+// music, engine, effects, voices. Nothing may resume while hidden (several modules call resume()
+// on their own); on return exactly what was playing comes back.
+(()=>{const ctxs=new Set(),media=new Set(),Base=window.AudioContext||window.webkitAudioContext;let hiddenNow=false;
+  if(Base&&!Base.__bgGuard){const resume=Base.prototype.resume;Base.prototype.resume=function(){ctxs.add(this);if(hiddenNow||document.hidden){this.__bgResume=true;return Promise.resolve();}return resume.call(this);};
+    class Tracked extends Base{constructor(...a){super(...a);ctxs.add(this);if(document.hidden){this.__bgResume=this.state!=="closed";try{this.suspend();}catch{}}}}Tracked.__bgGuard=true;window.AudioContext=Tracked;if(window.webkitAudioContext)window.webkitAudioContext=Tracked;}
+  const play=HTMLMediaElement.prototype.play;HTMLMediaElement.prototype.play=function(){media.add(this);if(hiddenNow||document.hidden){this.__bgWanted=true;return Promise.resolve();}this.__bgWanted=false;return play.apply(this,arguments);};
+  const pause=HTMLMediaElement.prototype.pause;HTMLMediaElement.prototype.pause=function(){if(!hiddenNow)this.__bgWanted=false;return pause.apply(this,arguments);};
+  function hide(){if(hiddenNow)return;hiddenNow=true;for(const c of ctxs){if(c.state==="running"){c.__bgResume=true;try{c.suspend();}catch{}}}
+    for(const m of new Set([...media,...document.querySelectorAll("audio,video")])){if(!m.paused&&!(m.srcObject&&m.tagName==="VIDEO")){m.__bgWanted=true;try{pause.call(m);}catch{}}}document.documentElement.dataset.bgAudio="suspended";}
+  function show(){if(!hiddenNow||document.hidden)return;hiddenNow=false;for(const c of ctxs){if(c.__bgResume&&c.state==="suspended"){c.__bgResume=false;try{c.resume();}catch{}}}
+    for(const m of media){if(m.__bgWanted){m.__bgWanted=false;try{play.call(m)?.catch?.(()=>{});}catch{}}}document.documentElement.dataset.bgAudio="running";}
+  document.addEventListener("visibilitychange",()=>{document.hidden?hide():show();},{capture:true});
+  window.addEventListener("pagehide",hide,{capture:true});document.addEventListener("freeze",hide,{capture:true});
+  window.addEventListener("pageshow",show,{capture:true});document.addEventListener("resume",show,{capture:true});
+  window.__arondightBackgroundAudio={hide,show,get hidden(){return hiddenNow;},contexts:()=>[...ctxs]};})();
+</script>
+<script>
 // Strict versioning for the installed app (home screen). The deployed page carries its build
 // SHA (first comment of the document); every deploy also publishes ./build.json with the same
 // SHA. We ask for build.json with no-store + a unique query (no CDN, no HTTP cache, no service

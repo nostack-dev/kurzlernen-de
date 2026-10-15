@@ -185,7 +185,7 @@ function renderRemoteAvatars(now,dt){refreshPeerDrones(now);let visible=0,vr=0,c
   if(r.gpsAct!=="bike"&&r.bikeMesh)r.bikeMesh.visible=false;
   if((r.mode==="car"||r.gpsAct==="car")&&r.car){const c=ensureRemoteCar(r);if(c){cars++;const gz=groundHeightAt(r.car.x,r.car.y);if(!c.visible){c.position.set(r.car.x,r.car.y,gz);c.rotation.set(0,0,r.car.yaw);}c.visible=true;c.position.x+=(r.car.x-c.position.x)*alpha;c.position.y+=(r.car.y-c.position.y)*alpha;c.position.z=groundHeightAt(c.position.x,c.position.y);let dy=r.car.yaw-c.rotation.z;dy=((dy+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;c.rotation.z+=dy*alpha;
       // driver seat (left-hand drive): character faces the car's +x
-      const h=c.rotation.z,fx=Math.cos(h),fy=Math.sin(h);r.root.position.set(c.position.x-fx*.15-fy*.38,c.position.y-fy*.15+fx*.38,c.position.z+.05);r.root.rotation.set(0,0,h-Math.PI/2);animateCharacter(r.rig,{state:"drive",dt});}continue;}
+      const h=c.rotation.z,fx=Math.cos(h),fy=Math.sin(h);r.root.position.set(c.position.x-fx*.15-fy*.38,c.position.y-fy*.15+fx*.38,c.position.z-.21);r.root.rotation.set(0,0,h-Math.PI/2);animateCharacter(r.rig,{state:"drive",dt});}continue;}
   if(r.carMesh)r.carMesh.visible=false;
   r.root.position.x+=(r.target.x-r.root.position.x)*alpha;r.root.position.y+=(r.target.y-r.root.position.y)*alpha;r.jz=(r.jz||0)+((Number(r.lastJz)||0)-(r.jz||0))*Math.min(1,alpha*1.5);r.root.position.z=groundHeightAt(r.root.position.x,r.root.position.y)+(r.jz||0);
   let d=r.yaw-r.root.rotation.z;d=((d+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;r.root.rotation.z+=d*alpha;

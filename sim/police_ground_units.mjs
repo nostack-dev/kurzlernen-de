@@ -124,7 +124,7 @@ function spawnUnit(player,now){
 function removeUnit(u,hard=false){stopWorldCriticalDamage(u.id);physics()?.removeBody?.(u.id);u.car.group.parent?.remove(u.car.group);for(const c of u.cops){c.proxy?.parent?.remove(c.proxy);if(crowd)crowd.hide(c.slot);}}
 function carPose(u){const p=physics()?.pose?.(u.id,u.pose);if(p)u.pose=p;return p;}
 function syncCar(u,now){
-  const p=carPose(u),g=u.car.group;if(!p)return;const q=p.rotation,off=Number(p.groundOffset)||.6;g.quaternion.set(q[0],q[1],q[2],q[3]);up.set(0,0,1).applyQuaternion(g.quaternion);g.position.set(p.position[0]-up.x*off,p.position[1]-up.y*off,p.position[2]-up.z*off);
+  if(!carPose(u))return;const p=physics()?.renderPose?.(u.id,u.drawPose||(u.drawPose={}))||u.pose,g=u.car.group;/* drawn between the last two physics steps, like the traffic */const q=p.rotation,off=Number(p.groundOffset)||.6;g.quaternion.set(q[0],q[1],q[2],q[3]);up.set(0,0,1).applyQuaternion(g.quaternion);g.position.set(p.position[0]-up.x*off,p.position[1]-up.y*off,p.position[2]-up.z*off);
   g.updateMatrixWorld(true);if(p.wheels?.length===4){const inv=new THREE.Matrix4().copy(g.matrixWorld).invert();for(let i=0;i<4;i++){const w=p.wheels[i];wp.set(w.position[0],w.position[1],w.position[2]).applyMatrix4(inv);wq.set(w.rotation[0],w.rotation[1],w.rotation[2],w.rotation[3]);u.car.wheels[i].position.copy(wp);u.car.wheels[i].quaternion.copy(g.quaternion).invert().multiply(wq);}}
   flashLights(u.car,now,u.lights);
 }

@@ -5,6 +5,13 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-15",time:"22:02",title:"Lasergelenkter Raketenwerfer, Autos ohne Ruckeln",items:[
+    "Raketenwerfer im Half-Life-2-Stil: ein roter Laserpunkt zeigt, wohin du zielst, und die Rakete fliegt dem Punkt hinterher – du lenkst sie mit dem Zielen. Immer nur eine Rakete gleichzeitig; wechselst du die Waffe, fliegt sie ungelenkt weiter.",
+    "Der Raketenwerfer hat ein neues Aussehen (dunkles Metall, Laser-Zielgerät mit rotem Licht), die Rakete fliegt gerade ausgerichtet und zieht eine Rauchspur hinter sich her.",
+    "Zerstörte Häuser: an der Stelle eines weggeschossenen Hauses bleibt keine unsichtbare Kollision mehr stehen – kein Hochschleudern mehr beim Springen oder mit dem Jetpack.",
+    "Autos ruckeln nicht mehr beim Fahren (Außen- und Innenansicht): Auto, Räder und Kamera werden in jedem Bild an derselben Stelle gezeichnet, auch die Polizeiautos.",
+    "Fahrer sitzen tiefer – ihre Köpfe ragen nicht mehr durchs Autodach.",
+    "Wird die App geschlossen oder in den Hintergrund gelegt, verstummen Musik und alle Geräusche; beim Zurückkehren geht es genau dort weiter."]},
   {date:"2026-10-15",time:"18:50",title:"Fahrer in den Autos, Autoklau mit Folgen",items:[
     "In jedem fahrenden Auto sitzt jetzt ein Fahrer – durch die getönten Scheiben zu sehen.",
     "Klaust du ein Auto, fliegt der Fahrer raus und steht neben dem Wagen: je nach Typ rennt er weg, schimpft erst und haut dann ab oder geht auf dich los. Leute in der Nähe drehen sich um und schimpfen, ein Zeuge meldet es (ein kleiner Stern).",

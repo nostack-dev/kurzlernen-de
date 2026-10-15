@@ -173,20 +173,27 @@ export function buildKnife(){
 // ROCKET LAUNCHER: a shoulder tube (RPG style) with a loaded warhead poking out of the front,
 // a pistol grip + fore grip under the tube, flip-up optic on the left and a flared blast cone behind.
 export function buildRocketLauncher(){
+  // Laser-guided launcher (Half-Life 2 RPG style): gunmetal tube, open black bore,
+  // a guidance box with a red laser lens on the left side — clearly not the olive grenade launcher.
   const g=new THREE.Group(),K="walkRocketPart";
-  const tube=std(0x3c4630,.55,.25),dark=std(0x17191c,.7,.15),steel=std(0x8d959c,.35,.8),warhead=std(0x55603e,.5,.3),tip=std(0x2a2d31,.4,.6),red=std(0xc8321e,.5,.1),glowR=glow(0xff5a2a);
-  g.add(cyl(.062,.92,tube,0,.03,-.34,K,16));                                   // main tube
-  g.add(cyl(.07,.05,dark,0,.03,-.06,K,16),cyl(.07,.05,dark,0,.03,-.56,K,16));  // grip bands
-  g.add(cyl(.095,.16,dark,0,.03,.18,K,16,.066));                               // flared blast cone behind the shoulder
-  g.add(cyl(.068,.04,steel,0,.03,-.81,K,16));                                  // muzzle ring
-  g.add(cyl(.045,.16,warhead,0,.03,-.9,K,14,.085));                            // warhead body, cone forward
-  g.add(cyl(.085,.14,tip,0,.03,-1.05,K,14,.006));                               // nose
-  g.add(cyl(.088,.02,red,0,.03,-.86,K,14));                                    // red band
-  g.add(solid(profile([[.0,-.03],[.09,-.03],[.07,-.2],[-.01,-.2]],.06),dark,0,0,-.1,K)); // pistol grip
-  g.add(solid(profile([[.0,-.03],[.07,-.03],[.06,-.15],[.0,-.15]],.055),dark,0,0,-.42,K)); // fore grip
-  g.add(box(.035,.07,.1,dark,-.07,.1,-.22,K),box(.03,.03,.02,glowR,-.07,.15,-.18,K)); // optic + lit reticle
-  g.add(marker("WALK_RL_GRIP",0,-.14,-.145),marker("WALK_RL_REAR_SIGHT",0,.115,-.1),marker("WALK_RL_FRONT_SIGHT",0,.115,-.6));
-  g.add(muzzle("WALK_ROCKET_MUZZLE_NODE",-.84,.03));
+  const metal=std(0x2b3038,.42,.62),dark=std(0x121418,.72,.18),steel=std(0x8a9199,.3,.85),bore=std(0x030303,.95,0),rubber=std(0x1b1d20,.9,.02),glowR=glow(0xff1a1a),amber=glow(0xffa21a);
+  g.add(cyl(.068,.96,metal,0,.03,-.35,K,18));                                   // main tube
+  g.add(cyl(.084,.11,dark,0,.03,-.81,K,18,.09));                                // muzzle shroud
+  g.add(cyl(.058,.012,bore,0,.03,-.867,K,16));                                  // open bore (no warhead sticking out)
+  g.add(cyl(.072,.022,steel,0,.03,-.05,K,18),cyl(.072,.022,steel,0,.03,-.3,K,18),cyl(.072,.022,steel,0,.03,-.62,K,18)); // reinforcement rings
+  g.add(cyl(.098,.15,dark,0,.03,.18,K,18,.07));                                 // rear venturi
+  g.add(cyl(.086,.012,bore,0,.03,.258,K,16));                                   // rear bore
+  g.add(box(.05,.03,.5,dark,0,.105,-.36,K));                                    // top rail
+  g.add(solid(profile([[.0,-.03],[.09,-.03],[.07,-.2],[-.01,-.2]],.06),rubber,0,0,-.1,K)); // pistol grip
+  g.add(solid(profile([[.0,-.03],[.07,-.03],[.06,-.15],[.0,-.15]],.055),rubber,0,0,-.44,K)); // fore grip
+  g.add(box(.012,.05,.11,dark,0,-.025,-.17,K));                                 // trigger guard
+  // guidance unit: box on the left with the red laser lens and a status light
+  g.add(box(.06,.075,.24,metal,-.095,.06,-.46,K),box(.07,.012,.25,dark,-.095,.104,-.46,K));
+  g.add(cyl(.022,.02,steel,-.095,.06,-.585,K,14),cyl(.015,.012,glowR,-.095,.06,-.597,K,14));
+  g.add(box(.014,.014,.014,amber,-.128,.08,-.38,K),box(.014,.014,.014,glowR,-.128,.08,-.355,K));
+  g.add(marker("WALK_RL_LASER_NODE",-.095,.06,-.61));
+  g.add(marker("WALK_RL_GRIP",0,-.14,-.145),marker("WALK_RL_REAR_SIGHT",0,.135,-.1),marker("WALK_RL_FRONT_SIGHT",0,.135,-.6));
+  g.add(muzzle("WALK_ROCKET_MUZZLE_NODE",-.86,.03));
   return mergeByMaterial(g);
 }
 

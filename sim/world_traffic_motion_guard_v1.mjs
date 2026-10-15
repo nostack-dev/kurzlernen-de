@@ -10,7 +10,7 @@ function publish(){const v=viewport();if(!v)return;v.dataset.worldTrafficMotion=
 function vehicleGroups(now){if(now-lastVehicleScanAt<600)return cachedVehicles;lastVehicleScanAt=now;const scene=bridge()?.threeScene,out=[];scene?.traverse?.(node=>{if(!node?.isGroup||node.visible===false||node.userData?.playerDriven)return;const kind=String(node.userData?.worldPopulationKind||""),id=String(node.userData?.worldPopulationId||node.userData?.worldProceduralId||"");if((kind==="car"||kind==="bus")&&vehicleId(id))out.push({node,id});});cachedVehicles=out;return out;}
 function alignBodies(now){
   const api=rigid();if(!api?.pose||!api?.setPose)return;
-  for(const{node,id}of vehicleGroups(now)){
+  for(const{node,id}of vehicleGroups(now)){if(node.userData?.playerDriven||node.userData?.remoteDriven)continue;
     const pose=api.pose(id);if(!pose?.position||!Array.isArray(pose.velocity))continue;
     const vx=Number(pose.velocity[0])||0,vy=Number(pose.velocity[1])||0,speed=Math.hypot(vx,vy);if(speed<.8)continue;
     // only the traffic AI's own driving is straightened: never a car that is held, thrown, tumbling or in the air
@@ -20,7 +20,9 @@ function alignBodies(now){
     if(slip<.08||angularZ>1.8)continue;
     const last=lastPoseFix.get(id)||-Infinity;if(now-last<220)continue;lastPoseFix.set(id,now);
     const forwardSpeed=Math.max(.2,speed),newVx=Math.cos(heading)*forwardSpeed,newVy=Math.sin(heading)*forwardSpeed;
-    api.setPose(id,{position:[...pose.position],yaw:heading,velocity:[newVx,newVy,Number(pose.velocity[2])||0],angularVelocity:[0,0,Number(pose.angularVelocity?.[2])||0]});node.rotation.set(0,0,heading);fixes++;
+    // a physical nudge (impulse toward the collinear velocity), never a teleport: setPose would
+    // snap the car's yaw and break its render interpolation (visible judder at speed)
+    if(!api.applyImpulse)continue;const mass=/^bus-/.test(id)?9200:1420,k=.6;api.applyImpulse(id,[(newVx-vx)*mass*k,(newVy-vy)*mass*k,0]);fixes++;
   }
   publish();
 }
