@@ -5,6 +5,12 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-15",time:"18:50",title:"Fahrer in den Autos, Autoklau mit Folgen",items:[
+    "In jedem fahrenden Auto sitzt jetzt ein Fahrer – durch die getönten Scheiben zu sehen.",
+    "Klaust du ein Auto, fliegt der Fahrer raus und steht neben dem Wagen: je nach Typ rennt er weg, schimpft erst und haut dann ab oder geht auf dich los. Leute in der Nähe drehen sich um und schimpfen, ein Zeuge meldet es (ein kleiner Stern).",
+    "Ein geräumtes Auto bleibt leer stehen und fährt erst weiter, wenn es keiner mehr sieht. Steigt ein wütender Fahrer aus, steht er sofort sichtbar da.",
+    "Selten zieht ein Hitzkopf selbst einen Fahrer aus einem wartenden Auto und rast damit davon – das Opfer flieht, die Umstehenden schreien.",
+  ]},
   {date:"2026-10-15",time:"18:45",title:"Echte Panik",items:[
     "Fliehende Passanten laufen jetzt jeder anders schnell. Bei echter Angst (Schüsse nah, Explosion) sprinten sie ein paar Sekunden mit 6–8,5 m/s, viele reißen dabei die Hände über den Kopf. Danach bleiben sie eine Weile schreckhaft und gehen eilig weiter.",
   ]},

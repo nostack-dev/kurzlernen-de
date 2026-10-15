@@ -1,7 +1,7 @@
 import {vehicleFootprintsOverlap} from "./vehicle_spawn_clearance.mjs";
 import * as THREE from "three";
 import {groundHeightAt,staticGroundHeightAt,onTerrainChange} from "./terrain_craters.mjs";
-import {vehicleGeometry,vehicleMaterial,wheelGeometry} from "./vehicle_models.mjs";
+import {vehicleGeometry,vehicleMaterial,wheelGeometry,vehicleGlassGeometry,vehicleGlassMaterial} from "./vehicle_models.mjs";
 import {playAnimal} from "./animal_audio.mjs";
 import {createCrowd,civilianColors} from "./crowd_characters.mjs";
 import {VS_FX_EVENT} from "./lan_vs.mjs";
@@ -85,8 +85,8 @@ function ensureShared(){if(shared.carBody)return;shared.carBody=new THREE.BoxGeo
 function tag(mesh,record){mesh.userData.worldPopulationKind=record.kind;mesh.userData.worldPopulationId=record.id;mesh.userData.worldProceduralId=record.id;mesh.userData.worldPopulationClone=false;}
 function retag(record){record.group.userData.worldPopulationKind=record.kind;record.group.userData.worldPopulationId=record.id;record.group.userData.worldProceduralId=record.id;record.group.userData.gtaDrivableVehicle=record.kind==="car";record.group.traverse(node=>{if(node?.isMesh){tag(node,record);node.userData.gtaDrivableVehicle=record.kind==="car";}});}
 function baseRecord(kind,index,group,color=0){return{kind,index,group,color,id:"",seed:0,motion:null,deadUntil:0,speed:0,routeDirection:index&1?-1:1,routeKey:"",placed:false,dOffset:0,relocations:0,physicsRegistered:false,physicsPose:null,stalledSince:0,lastNudgeAt:0};}
-function makeCar(index){ensureShared();const s=hashText(`car:${index}`),group=new THREE.Group(),paint=shared.carMats[s%shared.carMats.length].color.getHex(),body=new THREE.Mesh(vehicleGeometry("car",paint),vehicleMaterial),r=baseRecord("car",index,group,paint);body.castShadow=true;group.add(body);return r;}
-function makeBus(index){ensureShared();const s=hashText(`bus:${index}`),group=new THREE.Group(),paint=shared.busMats[s%shared.busMats.length].color.getHex(),body=new THREE.Mesh(vehicleGeometry("bus",paint),vehicleMaterial),r=baseRecord("bus",index,group,paint);body.castShadow=true;group.add(body);return r;}
+function makeCar(index){ensureShared();const s=hashText(`car:${index}`),group=new THREE.Group(),paint=shared.carMats[s%shared.carMats.length].color.getHex(),body=new THREE.Mesh(vehicleGeometry("car",paint,{glass:false}),vehicleMaterial),glass=new THREE.Mesh(vehicleGlassGeometry("car"),vehicleGlassMaterial),r=baseRecord("car",index,group,paint);body.castShadow=true;glass.renderOrder=2;glass.userData.vehicleGlass=true;group.add(body,glass);return r;}
+function makeBus(index){ensureShared();const s=hashText(`bus:${index}`),group=new THREE.Group(),paint=shared.busMats[s%shared.busMats.length].color.getHex(),body=new THREE.Mesh(vehicleGeometry("bus",paint,{glass:false}),vehicleMaterial),glass=new THREE.Mesh(vehicleGlassGeometry("bus"),vehicleGlassMaterial),r=baseRecord("bus",index,group,paint);body.castShadow=true;glass.renderOrder=2;glass.userData.vehicleGlass=true;group.add(body,glass);return r;}
 // People are drawn by the instanced articulated crowd (crowd_characters.mjs). A person is an agent
 // (pedestrian_agents.mjs) that exists whether anybody looks or not; a draw slot is lent to it while it
 // is near the player. Each slot keeps its logical group plus an invisible, raycastable body proxy so
@@ -102,7 +102,8 @@ function makePersonSlot(i){proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.2
 function updateCrowd(){if(!crowd)return;const now=performance.now(),dt=Math.min(.1,Math.max(.001,(now-crowdLast)/1000));crowdLast=now;const shown=root?.visible!==false;
   // only who is set this frame is drawn (the crowd packs its instances)
   if(shown)for(const slot of personSlots){const a=slot.agent;if(!a||!slot.group.visible)continue;crowd.set(slot.i,{x:a.x,y:a.y,z:a.z,yaw:a.yaw-Math.PI/2,state:a.state==="fight"?(a.arms==="gun"?"aim-pistol":"fight"):now<(a.handsUpUntil||0)&&a.v>1.5?"panic":a.v>3.2?"run":a.v>.25?"walk":"idle",speed:a.v,dt,weapon:fightWeapon(a),punch:a.state==="fight"&&a.arms!=="gun"?punchPose(a,now):0});}
-  crowd.commit();}
+  crowd.commit();
+  try{drawDrivers(dt);npcCarjackCheck(now);}catch(e){console.warn("drivers",e);}}
 // people wait at the kerb for a gap in the traffic: no car near the crossing, none coming at it
 pedNet.crossingClear=(x0,y0,x1,y1)=>{const mx=(x0+x1)/2,my=(y0+y1)/2;for(const r of records){if((r.kind!=="car"&&r.kind!=="bus")||!r.group.visible)continue;const g=r.group.position,dx=mx-g.x,dy=my-g.y,d=Math.hypot(dx,dy);if(d>40)continue;
   // a car right at the crossing (even one waiting for people) goes first; one coming at it is waited for
@@ -216,7 +217,7 @@ function updatePeople(now,focus){
 // away or out of view
 function gatePeople(now,focus){
   let free=0;for(const slot of personSlots){const a=slot.agent;if(!a){free++;continue;}if(a.removed||!a.alive||(!a.knocked&&personDistance(a,focus)>PEOPLE_HIDE_M)){unbindPerson(slot);free++;}}
-  candidates.length=0;for(const a of people)if(a.alive&&!a.knocked&&!a.slot){const d=personDistance(a,focus);if(d<PEOPLE_SHOW_M){a.gateD=d;candidates.push(a);}}
+  candidates.length=0;for(const a of people)if(a.alive&&!a.knocked&&!a.slot&&!(a.inCarUntil>now)){const d=personDistance(a,focus);if(d<PEOPLE_SHOW_M){a.gateD=d;candidates.push(a);}}
   if(!candidates.length)return;candidates.sort((p,q)=>p.gateD-q.gateD);let checks=0;
   for(const a of candidates){if(checks>=48)break;let slot=null;
     if(free>0)slot=personSlots.find(s=>!s.agent);
@@ -551,11 +552,55 @@ function applyDriverMood(record,pose,now,m,targetPoint,physics){const id=record.
   // hothead: stops dead, then the driver gets out and comes for the player (car stays parked)
   physics?.clearTarget?.(id);physics?.setDrive?.(id,{pedal:0,steer:0,handbrake:true});
   if(t>1500&&!m.exited){m.exited=true;const yaw=yawOf(pose);record.parked={x:pose.position[0],y:pose.position[1],yaw,until:now+60000};driverGetsOut(record,pose,yaw,now);}}
+// ---- who sits in the cars. Every car on the move has a driver (drawn seated, close by). Taking a car
+// throws its driver out: he lands beside it and, by his temper, runs off, stands and swears or comes at
+// you; people around shout too, and a witness reports it. A car someone was pulled out of stays empty
+// (parked) until nobody sees it any more. Rarely a hothead off the pavement does the same to a driver
+// waiting in traffic and races off with the car.
+const DRIVER_CAP=MOBILE?14:24,DRIVER_DRAW_M=70;let driverCrowd=null,driverScene=null;const driverOwner=[];
+function seatedDriver(r){return(r.kind==="car"||r.kind==="bus")&&!r.empty&&!r.parked&&!r.deadUntil&&!r.towed&&!r.remoteDriven;}
+function drawDrivers(dt){const scene=bridge()?.threeScene;if(!scene)return;if(driverScene!==scene){driverCrowd=createCrowd(scene,{capacity:DRIVER_CAP,name:"WORLD_DRIVERS"});driverScene=scene;driverOwner.length=0;}
+  const B=bridge(),cam=(B?.presentedCamera?.()||B?.threeCamera)?.position;if(!cam)return;let j=0;
+  for(const r of records){if(j>=DRIVER_CAP)break;if(!seatedDriver(r)||r.group.userData?.playerDriven||!shownInScene(r.group)||!bodyRendered(r))continue;const g=r.group.position;if((g.x-cam.x)**2+(g.y-cam.y)**2>DRIVER_DRAW_M*DRIVER_DRAW_M)continue;
+    r.group.updateMatrixWorld();const bus=r.kind==="bus";wheelOrigin.set(bus?3.05:-.15,bus?.72:.38,bus?.55:.05).applyMatrix4(r.group.matrixWorld);
+    if(driverOwner[j]!==r.id){driverOwner[j]=r.id;driverCrowd.setColors(j,civilianColors(hashText(`${r.id}:driver`)));}
+    driverCrowd.set(j,{x:wheelOrigin.x,y:wheelOrigin.y,z:wheelOrigin.z,yaw:r.group.rotation.z-Math.PI/2,state:"drive",speed:0,dt});j++;}
+  driverCrowd.commit();}
+// a person put somewhere in plain sight right now (an ejected driver): he gets a draw slot at once
+function showPersonNow(a){if(a.slot){a.slot.group.userData.spawnHeld=false;return;}let slot=personSlots.find(s=>!s.agent);
+  if(!slot){const f=populationFocus();let far=-1;for(const s of personSlots){const b=s.agent;if(!b||b.fightUntil)continue;const d=f?Math.hypot(b.x-f.x,b.y-f.y):0;if(d>far){far=d;slot=s;}}if(slot)unbindPerson(slot);}
+  if(!slot)return;bindPerson(slot,a);slot.group.userData.spawnHeld=false;slot.group.visible=true;}
+function scoldAround(x,y,now,{except=null,mood="angry",max=3}={}){let n=0;for(const b of people){if(n>=max)break;if(b===except||!b.alive||b.knocked||!b.slot)continue;if(Math.hypot(b.x-x,b.y-y)<24&&Math.random()<.6){b.annoy=(b.annoy||0)+1;turnTo(b,x,y);setTimeout(()=>say(b,mood),250+n*450);n++;}}}
+function turnTo(b,x,y){b.yaw=Math.atan2(y-b.y,x-b.x);}
+let carjackSeq=0;
+function ejectDriver(record,pose,{by="player",now=performance.now()}={}){if(!pose?.position)return null;const yaw=yawOf(pose),sx=-Math.sin(yaw),sy=Math.cos(yaw),x=pose.position[0]+sx*1.8,y=pose.position[1]+sy*1.8;
+  let pick=null,bd=Infinity;for(const a of people){if(!a.alive||a.knocked||a.slot||a.fightUntil)continue;const d=Math.hypot(a.x-x,a.y-y);if(d<bd){bd=d;pick=a;}}if(!pick)return null;
+  let best=null,bdist=Infinity;for(const r of pedNet.routes.values()){const o={s:0,lateral:0,distance:0};projectOnRoute(r,x,y,o);if(o.distance<bdist){bdist=o.distance;best={r,o};}}
+  pick.x=x;pick.y=y;pick.yaw=yaw+Math.PI/2;pick.v=0;pick.fleeUntil=0;pick.leader=null;pick.crossing=false;if(best){pick.route=best.r.key;pick.s=best.o.s;}
+  record.empty=true;showPersonNow(pick);
+  if(by==="player"){const t=temperOf(pick);
+    if(t==="aggressive"&&Math.random()<.6){pick.fightUntil=now+10000;pick.foe=null;pick.annoy=3;if(armsOf(pick)==="gun"&&Math.random()<.7)pick.arms="fists";say(pick,"angry");}
+    else if(t==="runner"||Math.random()<.5){frighten(pick,pose.position[0],pose.position[1],now,{strength:1.2});say(pick,"scared");}
+    else{pick.state="wait";pick.waitUntil=now+2600;turnTo(pick,pose.position[0],pose.position[1]);say(pick,"angry");setTimeout(()=>{if(pick.alive&&!pick.knocked)frighten(pick,pose.position[0],pose.position[1],performance.now(),{strength:.6});},2600);}
+    scoldAround(x,y,now,{except:pick});
+    try{globalThis.__arondightWantedSystem?.reportCrime?.({id:`carjack-${(++carjackSeq).toString(36)}-${Math.round(now)}`,kind:"carjacking",severity:1,position:[x,y,0]});}catch{}}
+  const v=viewport();if(v)v.dataset.carjack=`${record.id}:${by}:${temperOf(pick)}`;return pick;}
+if(typeof window!=="undefined")addEventListener("arondight:vehicle-mode",e=>{const d=e?.detail;if(!d?.active||!d.id)return;const r=byId.get(String(d.id));if(!r||!seatedDriver(r))return;const pose=r.physicsPose||rigidBodies()?.pose?.(r.id);if(pose)ejectDriver(r,pose,{by:"player"});});
+// rare: a hothead pulls a driver out of a car waiting in traffic (in view, not too close) and races off
+let nextNpcCarjack=performance.now()+180000+Math.random()*180000;
+function npcCarjackCheck(now){if(now<nextNpcCarjack)return;nextNpcCarjack=now+30000;const f=populationFocus();if(!f)return;
+  for(const r of records){if(!seatedDriver(r)||r.group.userData?.playerDriven||!r.physicsPose||!shownInScene(r.group))continue;const p=r.physicsPose.position,v=r.physicsPose.velocity||[0,0,0],d=Math.hypot(p[0]-f.x,p[1]-f.y);if(d<18||d>70||Math.hypot(v[0],v[1])>1.2)continue;
+    let thief=null;for(const a of people){if(!a.alive||a.knocked||!a.slot||a.fightUntil||a.fleeUntil)continue;if(Math.hypot(a.x-p[0],a.y-p[1])<14){thief=a;break;}}if(!thief)continue;
+    const victim=ejectDriver(r,r.physicsPose,{by:"npc",now});if(!victim)return;r.empty=false;r.parked=null; /* the thief drives it now */
+    frighten(victim,p[0],p[1],now,{strength:1});say(victim,"scared");thief.x=p[0];thief.y=p[1];if(thief.slot)unbindPerson(thief.slot);thief.inCarUntil=now+90000; /* in the car: not drawn on the pavement meanwhile */
+    r.mood={kind:"panic",at:now-1400,until:now+25000};scoldAround(p[0],p[1],now,{except:victim,mood:"scared"});
+    const vv=viewport();if(vv)vv.dataset.npcCarjack=r.id;nextNpcCarjack=now+240000+Math.random()*240000;return;}}
 function driverGetsOut(record,pose,yaw,now){const sideX=-Math.sin(yaw),sideY=Math.cos(yaw),x=pose.position[0]+sideX*1.6,y=pose.position[1]+sideY*1.6;
   // the driver is one of the city's people (someone off the pavements nearby who is not on screen)
   let pick=null,bd=Infinity;for(const a of people){if(!a.alive||a.knocked||a.slot||a.fightUntil)continue;const d=Math.hypot(a.x-x,a.y-y);if(d<bd){bd=d;pick=a;}}if(!pick)return;
   let best=null,bdist=Infinity;for(const r of pedNet.routes.values()){const o={s:0,lateral:0,distance:0};projectOnRoute(r,x,y,o);if(o.distance<bdist){bdist=o.distance;best={r,o};}}
   pick.x=x;pick.y=y;pick.yaw=yaw+Math.PI/2;pick.v=0;pick.fleeUntil=0;pick.leader=null;if(best){pick.route=best.r.key;pick.s=best.o.s;}
+  record.empty=true;showPersonNow(pick);
   pick.temper="aggressive";const r=Math.random();pick.arms=r<.05?"gun":r<.25?"knife":"fists";pick.fightUntil=now+14000;pick.foe=null;pick.annoy=3;say(pick,"angry");
   const v=viewport();if(v)v.dataset.driverOut=`${record.id}:${pick.arms}`;}
 if(typeof window!=="undefined")addEventListener("arondight:foot-tracer",e=>{const b=e?.detail?.end;if(!Array.isArray(b))return;const now=performance.now();for(const r of records){if((r.kind!=="car"&&r.kind!=="bus")||!r.physicsPose||r.deadUntil||r.group.userData?.playerDriven)continue;const p=r.physicsPose.position;if(Math.hypot(p[0]-b[0],p[1]-b[1])<2.6)startDriverMood(r,now,"shot-at");}});
@@ -577,7 +622,7 @@ function updatePhysicalVehicle(record,epoch,now){
   let initial=route?vehicleSampleAt(record,route,epoch):null;
   // A car the player left stays where it was parked (GTA): no route AI, handbrake on,
   // until the player is far away or the park time ran out.
-  if(record.parked){const fp=populationFocus(),far=fp&&Math.hypot(record.parked.x-fp.x,record.parked.y-fp.y)>PARK_RELEASE_M;if(now>record.parked.until||far){record.parked=null;rigidBodies()?.setDrive?.(record.id,null);if(route&&record.physicsPose)syncAnalyticToPose(record,route,epoch,record.physicsPose.position[0],record.physicsPose.position[1]);}}
+  if(record.parked){const fp=populationFocus(),far=fp&&Math.hypot(record.parked.x-fp.x,record.parked.y-fp.y)>PARK_RELEASE_M;if(far||(now>record.parked.until&&!record.empty)){record.parked=null;record.empty=false; /* an emptied car only drives on again once nobody sees it (its owner came back) */rigidBodies()?.setDrive?.(record.id,null);if(route&&record.physicsPose)syncAnalyticToPose(record,route,epoch,record.physicsPose.position[0],record.physicsPose.position[1]);}}
   if(record.parked)initial={x:record.parked.x,y:record.parked.y,yaw:record.parked.yaw};
   if(!initial){const pp=record.physicsPose?.position;if(record.physicsRegistered&&pp)initial={x:pp[0],y:pp[1],yaw:Number(record.physicsPose.yaw)||record.group.rotation.z};
     // its street is gone from the map cache (far away): it leaves only where nobody sees it

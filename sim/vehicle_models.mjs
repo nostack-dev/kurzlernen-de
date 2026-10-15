@@ -23,7 +23,7 @@ function merge(parts){
   const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.BufferAttribute(pos,3));g.setAttribute("normal",new THREE.BufferAttribute(nrm,3));g.setAttribute("color",new THREE.BufferAttribute(col,3));g.computeBoundingSphere();return g;
 }
 const GLASS=0x1a2630,RUBBER=0x15161a,RIM=0xb9bec4,TRIM=0x2b2d31,HEAD=0xfff4d6,TAIL=0xb3121a,PLATE=0xe8e6df;
-function sedan(paint){
+function sedan(paint,sel=()=>true){
   const P=[];
   P.push({g:extrudeProfile([[-1.8,.3],[-1.8,.62],[-1.62,.8],[-.98,.84],[.72,.84],[1.62,.7],[1.8,.55],[1.8,.3]],1.64,.07),c:paint});
   P.push({g:extrudeProfile([[-1.02,.8],[-.64,1.32],[.3,1.34],[.86,.8]],1.42,.06),c:GLASS});
@@ -35,9 +35,9 @@ function sedan(paint){
   for(const y of[-.56,.56]){P.push({g:box(.06,.32,.1),at:[1.82,y,.62],c:HEAD},{g:box(.06,.34,.1),at:[-1.82,y,.64],c:TAIL});}
   P.push({g:box(.03,.36,.11),at:[-1.86,0,.45],c:PLATE},{g:box(.03,.36,.11),at:[1.86,0,.45],c:PLATE});
   for(const y of[-.86,.86])P.push({g:box(.14,.08,.08),at:[.62,y,.92],c:paint});
-  return merge(P);
+  return merge(P.filter(sel));
 }
-function bus(paint){
+function bus(paint,sel=()=>true){
   const P=[];
   P.push({g:extrudeProfile([[-4,.3],[-4,2.9],[-3.85,3.05],[3.8,3.05],[4,2.85],[4,.3]],2.42,.1),c:paint});
   P.push({g:box(7.2,2.46,.95),at:[.1,0,2.05],c:GLASS});
@@ -45,8 +45,11 @@ function bus(paint){
   P.push({g:box(8.04,2.44,.12),at:[0,0,.62],c:TRIM});
   for(const y of[-.95,.95]){P.push({g:box(.06,.28,.16),at:[4.02,y,.75],c:HEAD},{g:box(.06,.24,.3),at:[-4.02,y,.95],c:TAIL});}
   P.push({g:box(.05,1.6,.28),at:[4.03,0,2.85],c:0x111111});
-  return merge(P);
+  return merge(P.filter(sel));
 }
 // One tyre + rim + hub, radius .34 (scaled for buses), spin axis = y.
 let wheelGeo=null;export function wheelGeometry(){if(!wheelGeo){const tread=new THREE.CylinderGeometry(.34,.34,.22,18),rim=new THREE.CylinderGeometry(.215,.215,.235,12),hub=new THREE.CylinderGeometry(.07,.07,.25,8),spokes=[0,1,2,3,4].map(i=>{const g=new THREE.BoxGeometry(.05,.236,.36);g.rotateY(i/5*Math.PI);return g;});wheelGeo=merge([{g:tread,c:RUBBER},{g:rim,c:0x8f959b},{g:hub,c:0x3a3d42},...spokes.map(g=>({g,c:RIM}))]);}return wheelGeo;}
-export function vehicleGeometry(kind,paint){const key=`${kind}:${paint}`;let g=cache.get(key);if(!g){g=kind==="bus"?bus(paint):sedan(paint);cache.set(key,g);}return g;}
+export function vehicleGeometry(kind,paint,{glass=true}={}){const key=`${kind}:${paint}:${glass?1:0}`;let g=cache.get(key);if(!g){const sel=glass?()=>true:p=>p.c!==GLASS;g=kind==="bus"?bus(paint,sel):sedan(paint,sel);cache.set(key,g);}return g;}
+// the windows on their own, see-through: with them the drivers and passengers inside are visible
+export const vehicleGlassMaterial=new THREE.MeshStandardMaterial({color:0x2a3b4a,roughness:.08,metalness:.55,transparent:true,opacity:.42,depthWrite:false});
+export function vehicleGlassGeometry(kind){const key=`${kind}:glass`;let g=cache.get(key);if(!g){const sel=p=>p.c===GLASS;g=kind==="bus"?bus(0,sel):sedan(0,sel);g.deleteAttribute("color");cache.set(key,g);}return g;}
