@@ -45,7 +45,7 @@ function enablePadPlay(){if(autoEnabled)return;autoEnabled=true;const box=docume
 function titleNav(edge){const log=document.getElementById("changelogPanel");
   if(log&&!log.hidden){if(edge(BTN.DOWN)||edge(BTN.UP))globalThis.__arondightChangelogMenu?.scroll?.(edge(BTN.DOWN)?140:-140);else if(edge(BTN.B)||edge(BTN.A))globalThis.__arondightChangelogMenu?.close?.();return;}
   const panel=document.getElementById("worldOptionsPanel"),inPanel=panel&&!panel.hidden,scope=inPanel?panel:document.getElementById("gameMenu");
-  const items=[...(scope?.querySelectorAll("button:not([disabled])")||[])].filter(b=>b.offsetParent!==null&&(inPanel||b.id==="gameMenuStart"||b.id==="gameMenuWorld"||b.id==="gameMenuChangelog"));
+  const items=[...(scope?.querySelectorAll("button:not([disabled])")||[])].filter(b=>b.offsetParent!==null&&(inPanel||b.id==="gameMenuStart"||b.id==="gameMenuWorld"||b.id==="gameMenuChangelog"||b.id==="gameMenuShare"));
   const cur=items.indexOf(document.activeElement);
   if(edge(BTN.DOWN)||edge(BTN.UP)){const n=items.length;if(!n)return;const i=cur<0?0:(cur+(edge(BTN.DOWN)?1:-1)+n)%n;items[i].focus({preventScroll:false});return;}
   if(edge(BTN.B)&&inPanel){globalThis.__arondightWorldOptionsMenu?.close?.();return;}

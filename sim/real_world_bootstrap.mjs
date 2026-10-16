@@ -12,6 +12,7 @@ import "./quit_confirm.mjs";
 import "./mp_fun_hud.mjs";
 import "./world_options_menu.mjs";
 import "./changelog_menu.mjs";
+import "./share_button.mjs";
 import "./world_options.mjs";
 import "./pad_actions.mjs";
 import "./settings_help.mjs";

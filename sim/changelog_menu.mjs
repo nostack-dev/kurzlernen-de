@@ -5,6 +5,8 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-16",time:"08:57",title:"Teilen",items:[
+    "Neuer Knopf TEILEN im Startmenü: schick SpawnCity direkt per WhatsApp, X, Instagram & Co. – oder der Link wird kopiert. Geteilte Links zeigen jetzt ein großes Vorschaubild."]},
   {date:"2026-10-16",time:"07:10",title:"Polizei kommt, Busse fahren, neue Autos",items:[
     "Polizei, Polizeidrohnen und Militär kommen wieder: du entkommst erst, wenn sie da waren – nicht mehr, bevor das erste Auto eintrifft. Das Militär rückt bei fünf Sternen deutlich früher aus.",
     "Ein Haus wegzuschießen reißt keinen ganzen Block mehr mit: brennende Autos, Trümmer und Polizeiwagen beschädigen keine Häuser mehr, nur noch echte Waffen.",
