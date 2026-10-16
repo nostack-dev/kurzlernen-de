@@ -1,5 +1,8 @@
 # Kurzlernen Knowledge Base
 
+> **SpawnCity ist umgezogen (16.10.2026):** Das einzige aktive Hauptrepository für den Drohnensimulator ist [nostack-dev/spawncity-de](https://github.com/nostack-dev/spawncity-de). Alle neuen Spieländerungen, Simulator-Tests und Changelog-Einträge gehören dorthin. `drone_simulator_old.html` ist eine unveränderte Legacy-Archivkopie und darf nicht als aktive Spielquelle weiterentwickelt werden. `kurzlernen.de` bleibt als eigene Website bestehen.
+
+
 Welcome! Kurzlernen is a static playground of interactive learning experiments.
 This combined README stitches together the playful per-file guides stored in the `docs/` directory so you can browse everything from one place.
 If you prefer the original short description, it now lives right below this intro.

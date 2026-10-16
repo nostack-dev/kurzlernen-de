@@ -18,7 +18,7 @@ on:
       - "sim/**"
       - "tests/**"
       - "tools/s31_hil_bridge.mjs"
-      - "drone_simulator.html"
+      - "drone_simulator_old.html"
       - "drone_controller.html"
       - ".github/workflows/s31-hil.yml"
       - ".github/workflows/deploy.yml"
@@ -36,7 +36,7 @@ on:
       - "sim/**"
       - "tests/**"
       - "tools/s31_hil_bridge.mjs"
-      - "drone_simulator.html"
+      - "drone_simulator_old.html"
       - "drone_controller.html"
       - ".github/workflows/s31-hil.yml"
       - ".github/workflows/deploy.yml"
@@ -51,6 +51,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Restore legacy HTML fixture only for archived unit tests
+        run: cp drone_simulator_old.html drone_simulator.html
+
       - name: Shared raw-hardware runtime and protocol tests
         run: |
           set -euxo pipefail
