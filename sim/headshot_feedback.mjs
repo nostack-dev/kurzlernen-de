@@ -13,7 +13,7 @@ import {loadAudioSettings,AUDIO_SETTINGS_EVENT,normalizeAudioSettings} from "./a
 import {getSharedCombatAudioContext} from "./combat_audio_bank.mjs";
 
 export const HEADSHOT_FEEDBACK_VERSION="headshot-zone-announcer-v1";
-export const HEADSHOT_VOICE_URL=new URL("./sim/audio/headshot_announcer.mp3",globalThis.document?.baseURI||"https://kurzlernen.de/").href;
+export const HEADSHOT_VOICE_URL=new URL("./sim/audio/headshot_announcer.mp3",globalThis.document?.baseURI||globalThis.location?.href||"http://localhost/").href;
 const VOICE_MIN_INTERVAL_MS=1200,POP_MS=1150,HEAD_PROXIES=new Set(["PERSON_HIT_PROXY","ZOMBIE_HIT_PROXY","POLICE_OFFICER_HIT_PROXY","MILITARY_SOLDIER_HIT_PROXY"]);
 let installed=false,audioSettings=null,voiceBytes=null,voiceFetch=null,voiceBuffer=null,voiceDecoding=null,crackBuffer=null,crackCtx=null,lastVoiceAt=-Infinity,pop=null,popTimer=0,count=0,streak=0,lastHeadAt=-Infinity;
 const viewport=()=>document.getElementById("viewport");
