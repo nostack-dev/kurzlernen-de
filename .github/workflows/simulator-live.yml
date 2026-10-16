@@ -1,8 +1,8 @@
 name: Simulator live verification
+# Archived simulator: gameplay development and automatic CI moved to nostack-dev/spawncity-de.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: read
 jobs:
