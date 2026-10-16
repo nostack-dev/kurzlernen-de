@@ -5,7 +5,7 @@ on:
     branches: ["main"]
     paths:
       - "sim/**"
-      - "drone_simulator.html"
+      - "drone_simulator_old.html"
       - "tests/desktop_controls_live_smoke.mjs"
       - "tests/mobile_startup_live_smoke.mjs"
       - "tests/mobile_hud_no_overlap_live_smoke.mjs"
@@ -42,7 +42,7 @@ jobs:
           set -euxo pipefail
           ok=0
           for attempt in $(seq 1 36); do
-            if curl -fsSL --retry 1 --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}-${attempt}" -o /tmp/mobile-live.html; then
+            if curl -fsSL --retry 1 --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' "https://kurzlernen.de/drone_simulator_old.html?mobile-ci=${GH_SHA}-${attempt}" -o /tmp/mobile-live.html; then
               LIVE_SHA="$(grep -oE 'ARONDIGHT45_BUILD_SHA:[0-9a-f]{40}' /tmp/mobile-live.html | head -1 | cut -d: -f2 || true)"
               if [ "$LIVE_SHA" = "$GH_SHA" ]; then
                 ok=1
@@ -70,7 +70,7 @@ jobs:
           mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/desktop_controls_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?desktop-ci=${GH_SHA}" 2>&1 | tee -a artifacts/desktop_controls_live_smoke.log
+          CHROME_BIN="$CHROME_BIN" node tests/desktop_controls_live_smoke.mjs "https://kurzlernen.de/drone_simulator_old.html?desktop-ci=${GH_SHA}" 2>&1 | tee -a artifacts/desktop_controls_live_smoke.log
       - name: Verify PC keyboard/mouse and Xbox voice controls
         env:
           GH_SHA: ${{ github.sha }}
@@ -79,7 +79,7 @@ jobs:
           mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/desktop_voice_controls_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?desktop-voice-ci=${GH_SHA}" 2>&1 | tee -a artifacts/desktop_voice_controls_live_smoke.log
+          CHROME_BIN="$CHROME_BIN" node tests/desktop_voice_controls_live_smoke.mjs "https://kurzlernen.de/drone_simulator_old.html?desktop-voice-ci=${GH_SHA}" 2>&1 | tee -a artifacts/desktop_voice_controls_live_smoke.log
       - name: Test deterministic mobile startup
         env:
           GH_SHA: ${{ github.sha }}
@@ -88,7 +88,7 @@ jobs:
           mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/mobile_startup_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_startup_live_smoke.log
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_startup_live_smoke.mjs "https://kurzlernen.de/drone_simulator_old.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_startup_live_smoke.log
       - name: Inspect mobile thumb layout and capture screenshots
         env:
           GH_SHA: ${{ github.sha }}
@@ -97,7 +97,7 @@ jobs:
           mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/mobile_hud_no_overlap_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee artifacts/mobile_hud_no_overlap_live_smoke.log
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_hud_no_overlap_live_smoke.mjs "https://kurzlernen.de/drone_simulator_old.html?mobile-ci=${GH_SHA}" 2>&1 | tee artifacts/mobile_hud_no_overlap_live_smoke.log
       - name: Verify SOLO voice mic, mute and gameplay button visibility
         env:
           GH_SHA: ${{ github.sha }}
@@ -106,7 +106,7 @@ jobs:
           mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/mobile_voice_solo_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?voice-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_voice_solo_live_smoke.log
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_voice_solo_live_smoke.mjs "https://kurzlernen.de/drone_simulator_old.html?voice-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_voice_solo_live_smoke.log
       - name: Test mobile reset and readonly traffic API
         env:
           GH_SHA: ${{ github.sha }}
@@ -115,7 +115,7 @@ jobs:
           mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/mobile_reset_readonly_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_reset_readonly_live_smoke.log
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_reset_readonly_live_smoke.mjs "https://kurzlernen.de/drone_simulator_old.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_reset_readonly_live_smoke.log
       - name: Test portrait controls and capture mobile gameplay
         if: always()
         env:
@@ -125,9 +125,9 @@ jobs:
           mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          if ! CHROME_BIN="$CHROME_BIN" node tests/mobile_gameplay_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}-portrait-1" 2>&1 | tee -a artifacts/mobile_gameplay_live_smoke.log; then
+          if ! CHROME_BIN="$CHROME_BIN" node tests/mobile_gameplay_live_smoke.mjs "https://kurzlernen.de/drone_simulator_old.html?mobile-ci=${GH_SHA}-portrait-1" 2>&1 | tee -a artifacts/mobile_gameplay_live_smoke.log; then
             echo "Portrait regression hit a transient FC fault; rerunning once in a fresh browser process."
-            CHROME_BIN="$CHROME_BIN" node tests/mobile_gameplay_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}-portrait-2" 2>&1 | tee -a artifacts/mobile_gameplay_live_smoke.log
+            CHROME_BIN="$CHROME_BIN" node tests/mobile_gameplay_live_smoke.mjs "https://kurzlernen.de/drone_simulator_old.html?mobile-ci=${GH_SHA}-portrait-2" 2>&1 | tee -a artifacts/mobile_gameplay_live_smoke.log
           fi
       - name: Test grip anchor full-auto traffic crowd FPV and EMP
         if: always()
@@ -138,7 +138,7 @@ jobs:
           mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/mobile_combat_traffic_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_combat_traffic_live_smoke.log
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_combat_traffic_live_smoke.mjs "https://kurzlernen.de/drone_simulator_old.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_combat_traffic_live_smoke.log
       - name: Test dual-mobile live multiplayer pairing
         if: always()
         env:
@@ -148,7 +148,7 @@ jobs:
           mkdir -p artifacts
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_BIN"
-          CHROME_BIN="$CHROME_BIN" node tests/mobile_multiplayer_live_smoke.mjs "https://kurzlernen.de/drone_simulator.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_multiplayer_live_smoke.log
+          CHROME_BIN="$CHROME_BIN" node tests/mobile_multiplayer_live_smoke.mjs "https://kurzlernen.de/drone_simulator_old.html?mobile-ci=${GH_SHA}" 2>&1 | tee -a artifacts/mobile_multiplayer_live_smoke.log
       # failure reasons as annotations (readable through the checks API without downloading logs)
       - name: Annotate failures
         if: failure()
