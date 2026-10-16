@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          CHROME_BIN="$CHROME_BIN" node tests/desktop_controls_live_smoke.mjs https://kurzlernen.de/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/desktop_controls_live_smoke.mjs https://kurzlernen.de/drone_simulator_old.html
       - name: F jet boarding and thumb-zone regression tests
         run: |
           set -euo pipefail
