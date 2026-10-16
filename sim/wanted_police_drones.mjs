@@ -14,6 +14,9 @@ const POLICE_HIT_DAMAGE=34;
 const POLICE_RESPAWN_MS=9000; // a downed unit is replaced after a real pause (was 4.4 s)
 const SENSOR_INTERVAL_MS=170;
 const PLAYER_DAMAGE_COOLDOWN_MS=1050;
+// a unit that just got eyes on you takes a moment before the first shot, and the units never fire as one
+// volley: at most one police-drone shot per POLICE_VOLLEY_GAP_MS across the whole squad
+const POLICE_REACTION_MS=750,POLICE_VOLLEY_GAP_MS=650;let lastPoliceShotAt=-Infinity;
 const CRIME_MEMORY_MS=12000;
 const MAX_FRAME_DT=.05;
 const EMP_GRAVITY_SCALE=1.35;
@@ -429,7 +432,7 @@ function updateSensors(now){
       drone.nextSensorAt=now+SENSOR_INTERVAL_MS+drone.index*7;
       const visible=targets.map(target=>({target,distance:drone.root.position.distanceTo(target.position)})).filter(item=>item.distance<=radius&&lineOfSight(drone.root.position,item.target.position)).sort((a,b)=>a.distance-b.distance),nearest=visible[0]||null,preferredKind=drone.index%3===0?"player":"drone",preferred=visible.find(item=>item.target.kind===preferredKind),previous=visible.find(item=>item.target.kind===drone.targetKind);
       const selected=preferred&&preferred.distance<=nearest.distance+14?preferred:previous&&previous.distance<=nearest.distance+3?previous:nearest;
-      drone.seesPlayer=Boolean(selected);if(selected){drone.targetKind=selected.target.kind;drone.targetPosition.set(selected.target.position.x,selected.target.position.y,selected.target.position.z);drone.targetSpeedMps=selected.target.kind==="drone"?playerSpeedMps:Number(selected.target.speedMps)||0;drone.distance=selected.distance;}else{drone.targetKind="";drone.targetSpeedMps=0;drone.distance=Infinity;}
+      {const had=drone.seesPlayer;drone.seesPlayer=Boolean(selected);if(selected&&!had)drone.sightSince=now;}if(selected){drone.targetKind=selected.target.kind;drone.targetPosition.set(selected.target.position.x,selected.target.position.y,selected.target.position.z);drone.targetSpeedMps=selected.target.kind==="drone"?playerSpeedMps:Number(selected.target.speedMps)||0;drone.distance=selected.distance;}else{drone.targetKind="";drone.targetSpeedMps=0;drone.distance=Infinity;}
     }
     if(drone.seesPlayer){seesPlayer=true;if(drone.distance<closestDistance){closestDistance=drone.distance;closestContact=drone.targetPosition;}}
   }
@@ -455,17 +458,17 @@ function showTracer(drone,from,to,now){
 }
 
 function applyTargetDamage(drone,target,now){
-  if(!target||now-lastTargetDamageAt[target.kind]<PLAYER_DAMAGE_COOLDOWN_MS||target.hp<=0)return false;lastTargetDamageAt[target.kind]=now;const assistScale=clamp(Number(globalThis.__arondightGameplayDirector?.policeDamageScale)||1,.70,1),amount=Math.max(3,Math.round(wantedPoliceDamage(stars)*assistScale)),before=Number(target.hp);let after=typeof target.model?.damage==="function"?Number(target.model.damage(amount,"police-drone")):NaN;
+  if(!target||now-lastTargetDamageAt[target.kind]<PLAYER_DAMAGE_COOLDOWN_MS||target.hp<=0)return false;lastTargetDamageAt[target.kind]=now;const assistScale=clamp(Number(globalThis.__arondightGameplayDirector?.policeDamageScale)||1,.70,1),amount=Math.max(2,Math.round(wantedPoliceDamage(stars)*assistScale)),before=Number(target.hp);let after=typeof target.model?.damage==="function"?Number(target.model.damage(amount,"police-drone")):NaN;
   if(!Number.isFinite(after)){window.dispatchEvent(new CustomEvent(target.kind==="drone"?"arondight:drone-damage":"arondight:player-damage",{detail:{damage:amount,source:"police-drone",policeDrone:drone.index,target:target.kind}}));after=Number(target.model?.hp);}
   window.dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage:amount,hp:Number.isFinite(after)?after:Math.max(0,before-amount),source:"police-drone",target:target.kind}}));
   const view=viewport();if(view){view.dataset.wantedPoliceDamage=String((Number(view.dataset.wantedPoliceDamage)||0)+amount);view.dataset.wantedPoliceShotsHit=String((Number(view.dataset.wantedPoliceShotsHit)||0)+1);view.dataset.wantedPoliceLastDamage=String(amount);view.dataset.wantedPoliceHitGraceMs=String(PLAYER_DAMAGE_COOLDOWN_MS);view.dataset.wantedPoliceDamageTarget=target.kind;}return true;
 }
 
 function updateDroneAttack(drone,now){
-  if(drone.empDisabled||drone.retreating||phase!=="pursuit"||!drone.seesPlayer||drone.distance<4.5||drone.distance>34+stars*2||now<drone.engageAt||now<drone.nextShotAt)return;const target=currentDamageTargets().find(item=>item.kind===drone.targetKind);if(!target||target.hp<=0)return;
+  if(drone.empDisabled||drone.retreating||phase!=="pursuit"||!drone.seesPlayer||drone.distance<4.5||drone.distance>34+stars*2||now<drone.engageAt||now<drone.nextShotAt)return;if(now-(Number(drone.sightSince)||0)<POLICE_REACTION_MS+drone.index*90||now-lastPoliceShotAt<POLICE_VOLLEY_GAP_MS)return;const target=currentDamageTargets().find(item=>item.kind===drone.targetKind);if(!target||target.hp<=0)return;
   // Fresh occlusion is safety-critical at the instant of firing, not every render frame.
   if(!lineOfSight(drone.root.position,target.position)){drone.seesPlayer=false;drone.nextSensorAt=Math.min(Number(drone.nextSensorAt)||now,now+20);drone.nextShotAt=now+190;return;}
-  drone.nextShotAt=now+wantedPoliceShotIntervalMs(stars)+drone.index*73;const shot=++drone.shotSerial,chance=wantedPoliceHitChance({stars,distanceM:drone.distance,playerSpeedMps:drone.targetSpeedMps}),roll=((drone.index+1)*.371+shot*.618+drone.spawnSerial*.137)%1,accurate=roll<chance;tmpPosition.set(target.position.x,target.position.y,target.position.z);
+  drone.nextShotAt=now+wantedPoliceShotIntervalMs(stars)+drone.index*73;lastPoliceShotAt=now;const shot=++drone.shotSerial,chance=wantedPoliceHitChance({stars,distanceM:drone.distance,playerSpeedMps:drone.targetSpeedMps}),roll=((drone.index+1)*.371+shot*.618+drone.spawnSerial*.137)%1,accurate=roll<chance;tmpPosition.set(target.position.x,target.position.y,target.position.z);
   if(accurate){tmpPosition.x+=(drone.index%2? .15:-.15);tmpPosition.z+=.04;}else{const missAngle=(drone.index*.93+shot*2.17)% (Math.PI*2),spread=.85+(1-chance)*1.5+drone.distance*.018;tmpPosition.x+=Math.cos(missAngle)*spread;tmpPosition.y+=Math.sin(missAngle)*spread;tmpPosition.z+=Math.sin(missAngle*1.7)*spread*.55;}
   showTracer(drone,drone.root.position,tmpPosition,now);playTone({frequency:310,endFrequency:145,duration:.075,gain:.015,type:"square"});const damaged=accurate&&applyTargetDamage(drone,target,now),view=viewport();if(view){view.dataset.wantedPoliceShots=String((Number(view.dataset.wantedPoliceShots)||0)+1);if(!accurate)view.dataset.wantedPoliceShotsMissed=String((Number(view.dataset.wantedPoliceShotsMissed)||0)+1);view.dataset.wantedPoliceLastShotResult=accurate?(damaged?"hit":"grace"):"miss";view.dataset.wantedPoliceLastHitChance=chance.toFixed(3);view.dataset.wantedPoliceLastShotRoll=roll.toFixed(3);view.dataset.wantedPoliceShotTarget=target.kind;}
 }

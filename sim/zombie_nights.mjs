@@ -20,7 +20,7 @@ import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 
 export const ZOMBIE_NIGHTS_VERSION="cod-zombie-nights-v1";
 const doorNextBreak=new Map();
-const CAP=28,REMOTE_CAP=28,HP0=100,HIT_DMG=34,MELEE_DMG=14,MELEE_MS=1150,PLANK_MS=3400,REPAIR_COST=10,HIT_PTS=10,KILL_PTS=60,SPAWN_MIN=34,SPAWN_MAX=70,SYNC_MS=120;
+const CAP=28,REMOTE_CAP=28,HP0=100,HIT_DMG=34,MELEE_DMG=11 /* was 14: zombie nights ~20 % less deadly */,MELEE_MS=1150,PLANK_MS=3400,REPAIR_COST=10,HIT_PTS=10,KILL_PTS=60,SPAWN_MIN=34,SPAWN_MAX=70,SYNC_MS=120;
 const ZCOL=[0x8a9a78,0x7d8c70,0x93a183,0x6f7e66].map((skin,i)=>({shirt:[0x5d5a4a,0x4b4d43,0x6a5c4a,0x3f4a4f][i],vest:0x3b3428,pants:[0x2f2c28,0x3a3530,0x262a2e,0x40382e][i],boots:0x1f1b18,skin,gloves:skin,helmet:0x2b2620,dark:0x111111}));
 const bridge=()=>globalThis.__arondightRealWorld||null,viewport=()=>document.getElementById("viewport"),interiors=()=>globalThis.__buildingInteriors||null;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),angleTo=(a,b)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;};

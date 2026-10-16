@@ -140,7 +140,10 @@ function scopeWeapon(){return String(footWeapons()?.mode||"")==="sniper";}
 function adsWanted(){if(!isFoot()||walk()?.dead)return false;if(["fists","knife"].includes(String(footWeapons()?.mode||"")))return false; /* fists and knife have no sights */if(scopeWeapon()&&globalThis.__arondightScopeToggle===true)return true;const d=globalThis.__arondightDesktopInput;if(d?.active&&d.locked&&d.rmb)return true;if(globalThis.__arondightPadBlocked?.())return false;for(const p of navigator.getGamepads?.()||[]){if(p?.connected&&p.mapping==="standard"){const b=p.buttons?.[6];return Number(typeof b==="number"?b:b?.value)>.35;}}return false;}
 // the sniper's scope: 8× true magnification (FOV through tan), the rifle drops out of view once the eye is at the scope
 const SCOPE_ZOOM=8;let scopeHidGun=false;
-function stepAds(dt){const goal=adsWanted()?1:0,scope=scopeWeapon();adsT+=(goal-adsT)*(1-Math.exp(-dt/(scope?ADS_TAU_S*1.6:ADS_TAU_S)));if(Math.abs(adsT-goal)<.002)adsT=goal;const zoom=scope?(adsT>.85?SCOPE_ZOOM:1+(ADS_ZOOM-1)*adsT):1+(ADS_ZOOM-1)*adsT,scoped=scope&&adsT>.85;globalThis.__arondightAds={t:adsT,zoom,scoped};document.body.classList.toggle("ads-active",adsT>.6);document.body.classList.toggle("scope-active",scoped);return adsT;}
+// Leaving the sights hard (no ease-out): mode change, death, jet, weapon switch, rotation, hidden tab. Zoom 1 restores
+// the walk FOV and look speed on the next frame; the classes go at once so no scope overlay survives the mode change.
+function resetAds(reason="reset"){const was=adsT>0||Boolean(globalThis.__arondightAds?.scoped)||document.body.classList.contains("scope-active")||document.body.classList.contains("ads-active");adsT=0;globalThis.__arondightAds={t:0,zoom:1,scoped:false};document.body.classList.remove("ads-active","scope-active");if(scopeHidGun){scopeHidGun=false;const rifle=globalThis.__arondightRealWorld?.threeScene?.getObjectByName?.("WALK_SNIPER_3D");if(rifle)rifle.visible=String(footWeapons()?.mode||"")==="sniper";}if(was){const v=viewport();if(v)v.dataset.walkAdsReset=String(reason);}return was;}
+function stepAds(dt){if(!scopeWeapon()&&adsT>.85&&globalThis.__arondightAds?.scoped)resetAds("weapon-switch");const goal=adsWanted()?1:0,scope=scopeWeapon();adsT+=(goal-adsT)*(1-Math.exp(-dt/(scope?ADS_TAU_S*1.6:ADS_TAU_S)));if(Math.abs(adsT-goal)<.002)adsT=goal;const zoom=scope?(adsT>.85?SCOPE_ZOOM:1+(ADS_ZOOM-1)*adsT):1+(ADS_ZOOM-1)*adsT,scoped=scope&&adsT>.85;globalThis.__arondightAds={t:adsT,zoom,scoped};document.body.classList.toggle("ads-active",adsT>.6);document.body.classList.toggle("scope-active",scoped);return adsT;}
 function adsPose(gun,parts,camera,t){const{rear,front}=parts;if(!rear||!front||!camera||t<=.001)return;
   camera.getWorldPosition(adsEye);camera.getWorldDirection(adsDir);rear.getWorldPosition(adsRear);
   adsGoal.copy(adsEye).addScaledVector(adsDir,ADS_EYE_M).sub(adsRear).multiplyScalar(t);
@@ -161,7 +164,7 @@ function beforeRender(scene,camera,now=performance.now()){
   // they stayed hanging in the world where the player got in (floating hands).
   const gun=scene?.getObjectByName?.("WALK_PISTOL_3D");if(gun&&(!isFoot()||now-(Number(gun.userData.placedAt)||-Infinity)>250))gun.visible=false;
   if(detonator)detonator.root.visible=false;if(isFoot()&&gun&&gun.visible!==false)placeDetonator(scene,camera,now);
-  if(!isFoot()){if(leftRoot)leftRoot.visible=false;return;}if(!gun||gun.visible===false){if(leftRoot)leftRoot.visible=false;return;}
+  if(!isFoot()){if(leftRoot)leftRoot.visible=false;if(adsT>0||globalThis.__arondightAds?.zoom>1)resetAds("not-on-foot");return;}if(!gun||gun.visible===false){if(leftRoot)leftRoot.visible=false;if(adsT>0||globalThis.__arondightAds?.zoom>1)resetAds("no-weapon");return;}
   const dt=clamp((now-lastFrameMs)/1000,0,.1);lastFrameMs=now;
   let rest=null;{const ray=centerRay();if(ray){if(now-lastRestResolve>REST_RESOLVE_MS){lastRestResolve=now;restDepth=resolveDistance(ray);}rest=restPoint.copy(ray.origin).addScaledVector(ray.direction,restDepth);}}
   // the left pistol takes its rest pose from the right one *before* aiming
@@ -201,6 +204,6 @@ export function installFirstPersonController(){
   addEventListener("arondight:foot-aim",onAimMove);
   addEventListener("arondight:grenade-detonator",()=>{detonatorPressAt=performance.now();});
   addEventListener("arondight:vehicle-mode",e=>{if(!e?.detail?.active)return;const gun=bridge()?.threeScene?.getObjectByName?.("WALK_PISTOL_3D");if(gun)gun.visible=false;if(leftRoot)leftRoot.visible=false;});
-  globalThis.__arondightFirstPersonController=Object.freeze({version:FIRST_PERSON_CONTROLLER_VERSION,screenRay,snapshotPresentedCamera,get hasPresentedCamera(){return presentedValid;}});
+  globalThis.__arondightFirstPersonController=Object.freeze({version:FIRST_PERSON_CONTROLLER_VERSION,screenRay,snapshotPresentedCamera,resetAds,get hasPresentedCamera(){return presentedValid;}});
 }
 installFirstPersonController();

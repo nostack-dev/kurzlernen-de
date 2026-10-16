@@ -29,6 +29,9 @@ export const POLICE_GROUND_VERSION="gta-police-cruisers+officers-v1";
 const MAX_UNITS=3,COPS_PER_UNIT=2,MAX_COPS=MAX_UNITS*COPS_PER_UNIT,REMOTE_COPS=18,COP_HP=100,HIT_DAMAGE=25;
 const RUN_MPS=3.7,STOP_FOOT_M=17,ENGAGE_MIN_M=6,ENGAGE_MAX_M=15,RETURN_M=42,SPAWN_MIN_M=70,SPAWN_MAX_M=125,DESPAWN_M=230;
 const SYNC_MS=100,PATH_MS=1800,SIGHT_MS=300;
+// toned down (~35-40 % less lethal): longer gaps between shots, a little less accurate, and the
+// officers never fire as one volley (at least COP_VOLLEY_GAP_MS between any two officer shots)
+const COP_VOLLEY_GAP_MS=480,COP_HIT_SCALE=.5;let lastCopShotAt=-Infinity;
 // cruisers can be shot up, blown up and crashed to pieces: ~14 pistol hits,
 // a close explosion or a hard crash. Below a quarter they burn and blow up.
 const CAR_HP=300,CAR_HIT=22,CAR_CRITICAL=.25,CAR_BURN_MS=2600,CRASH_DV=7,CRASH_DMG=16;
@@ -180,10 +183,11 @@ function stepCop(c,u,player,now,dt,stars){
     c.z=groundHeightAt(c.x,c.y);c.speed=ok?sp:0;const face=c.los&&u.state!=="return"&&d<ENGAGE_MAX_M+8?Math.atan2(dy,dx):ang;c.yaw+=angleTo(c.yaw,face)*Math.min(1,dt*10);c.anim=ok?(sp>3?"run":"walk"):"idle";}
   else{c.speed=0;c.yaw+=angleTo(c.yaw,Math.atan2(dy,dx))*Math.min(1,dt*12);c.anim="aim";}
   // shoot when in range and in sight (also while backing off / closing in)
+  if(u.state!=="return"&&c.los&&d<ENGAGE_MAX_M+12&&now>=c.nextShot&&now-lastCopShotAt<COP_VOLLEY_GAP_MS)c.nextShot=lastCopShotAt+COP_VOLLEY_GAP_MS+Math.random()*260;
   if(u.state!=="return"&&c.los&&d<ENGAGE_MAX_M+12&&now>=c.nextShot&&Math.abs(angleTo(c.yaw,Math.atan2(dy,dx)))<.35){
-    c.nextShot=now+Math.max(1700,2600-stars*120)+Math.random()*1200; /* relaxed: a cop fires every ~2-4 s */c.shots++;c.lastShotAt=now;c.anim="aim";
+    c.nextShot=now+Math.max(2300,3500-stars*160)+Math.random()*1500; /* a cop fires every ~3-5 s */lastCopShotAt=now;c.shots++;c.lastShotAt=now;c.anim="aim";
     const fx=Math.cos(c.yaw),fy=Math.sin(c.yaw),from=new THREE.Vector3(c.x+fx*.45-fy*.12,c.y+fy*.45+fx*.12,c.z+1.38);
-    const hit=Math.random()<wantedPoliceHitChance({stars,distanceM:d,playerSpeedMps:player.speedMps||0})*.55;let to;
+    const hit=Math.random()<wantedPoliceHitChance({stars,distanceM:d,playerSpeedMps:player.speedMps||0})*COP_HIT_SCALE;let to;
     if(hit){to=new THREE.Vector3(aimAt.x,aimAt.y,aimAt.z);const dmg=Math.max(2,Math.round(wantedPoliceDamage(stars)*.4));const t=playerTarget();if(t?.model?.damage)t.model.damage(dmg,"police-officer");else window.dispatchEvent(new CustomEvent("arondight:player-damage",{detail:{damage:dmg,source:"police-officer"}}));window.dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage:dmg,source:"police-officer",target:"player"}}));}
     else{to=new THREE.Vector3(aimAt.x+(Math.random()-.5)*2.4,aimAt.y+(Math.random()-.5)*2.4,aimAt.z+(Math.random()-.6)*1.4);const dir=to.clone().sub(from).normalize();to.copy(from).addScaledVector(dir,d+6);globalThis.__worldImpacts?.bullet?.({origin:from,direction:dir},null,{maxDistance:d+12});}
     c.aim=[to.x,to.y,to.z];tracer(from,to);playShot(from.x,from.y,from.z);

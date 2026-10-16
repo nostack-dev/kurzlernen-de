@@ -5,6 +5,14 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-16",time:"10:46",title:"Headshots, Sniper-Fixes, echte Jogger",items:[
+    "HEADSHOT! Kopftreffer mit Sniper und Glock töten sofort, mit der MP dreifacher Schaden – mit Einblendung und Ansager.",
+    "Sniper-Zielfernrohr hängt nicht mehr: Drohne, Auto, Jet, Drehen des Handys oder Tod beenden das Zielen sofort.",
+    "Beim Zielen durchs Fernrohr tauchen keine Zombies oder Leute mehr plötzlich neben dir auf.",
+    "Ein Sniper-Schuss sprengt kein Auto mehr: Karosserie braucht drei Treffer, der Motorraum zwei – erst raucht es, dann knallt es.",
+    "Polizei, Militär und Zombies sind weniger tödlich: weniger Schaden, kurze Reaktionszeit, keine Salven mehr.",
+    "Jogger joggen jetzt wirklich – mit Laufstil, Sportklamotten und ohne durch Häuser zu laufen.",
+    "Die losen Physik-Objekte (Kisten, Fässer, Hütchen) sind raus, auch aus dem Menü."]},
   {date:"2026-10-16",time:"08:57",title:"Teilen",items:[
     "Neuer Knopf TEILEN im Startmenü: schick SpawnCity direkt per WhatsApp, X, Instagram & Co. – oder der Link wird kopiert. Geteilte Links zeigen jetzt ein großes Vorschaubild."]},
   {date:"2026-10-16",time:"07:10",title:"Polizei kommt, Busse fahren, neue Autos",items:[

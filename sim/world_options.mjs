@@ -16,7 +16,6 @@ export const WORLD_OPTIONS=Object.freeze([
   {key:"police",label:"POLICE",help:"Police drones and officers when you are wanted."},
   {key:"military",label:"MILITARY",help:"Soldiers, tanks and helicopters at high wanted levels."},
   {key:"flak",label:"FLAK",help:"Now and then a stationary anti-aircraft gun that fires on your drone and jet."},
-  {key:"props",label:"LOOSE OBJECTS",help:"Crates, oil drums, cones and bins lying around — throw them with the gravity gun."},
   {key:"jetpack",label:"JETPACK",help:"Jump twice to fire a short jetpack burst over houses. Recharges."},
   {key:"friendlyFire",label:"FRIENDLY FIRE",help:"Player weapons can damage other players. The first player in the session sets this rule.",def:false,rule:true},
 ]);

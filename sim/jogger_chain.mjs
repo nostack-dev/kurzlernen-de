@@ -10,8 +10,8 @@ import {staticGroundHeightAt} from "./terrain_craters.mjs";
 import {spawnWorldPersonRagdoll} from "./world_person_ragdoll.mjs";
 import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 
-export const JOGGER_CHAIN_VERSION="running-club-v1";
-const N=10,GAP_M=1.35,SPEED=3.1,LIFE_MS=95000,FIRST_MS=60000,EVERY_MS=[170000,280000],STREAK_WINDOW_MS=12000;
+export const JOGGER_CHAIN_VERSION="running-club-v2-jog-gait";
+const N=10,GAP_M=1.35,SPEED=2.9,LIFE_MS=95000,FIRST_MS=60000,EVERY_MS=[170000,280000],STREAK_WINDOW_MS=12000;
 const SHIRT=0xd8ff3a,SHORTS=0x1c2a3a,SHOES=0xf4f4f0;
 const CALLS=[["Wer läuft mit?","Wir laufen mit!"],["Links, rechts, links!","Wir sind nicht zu bremsen!"],["Eins, zwei, drei, vier!","Die Straße gehört uns hier!"],["Wie weit noch?","Bis zum See und weiter!"],["Was wollen wir?","Kilometer!"],["Schneller?","Immer schneller!"]];
 let installed=false,scene=null,crowd=null,chain=null,nextAt=0,lastFrame=performance.now(),streak={n:0,at:0,chainId:0},banner=null,bannerTimer=0,chainSerial=0;
@@ -21,18 +21,23 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function cam(){const b=bridge();return b?.presentedCamera?.()||b?.threeCamera||null;}
 function playerPos(){const W=globalThis.__arondightWalkMode,D=globalThis.__arondightVehicleDrive;if(D?.active&&D.pose?.position)return{x:D.pose.position[0],y:D.pose.position[1]};if(W?.position)return{x:W.position.x,y:W.position.y};const c=cam();return c?{x:c.position.x,y:c.position.y}:null;}
 function inWorld(){const W=globalThis.__arondightWalkMode;return Boolean(bridge()?.active!==false&&(W?.mode==="foot"||globalThis.__arondightVehicleDrive?.active))&&!globalThis.__arondightGpsLive;}
-function ensureCrowd(){const s=bridge()?.threeScene;if(!s)return null;if(crowd&&scene===s)return crowd;crowd?.dispose?.();scene=s;crowd=createCrowd(s,{capacity:N,name:"JOGGER_CHAIN"});for(let i=0;i<N;i++)crowd.setColors(i,{shirt:SHIRT,vest:SHIRT,pants:SHORTS,boots:SHOES,skin:[0xe0b08c,0xc48e6c,0xa87052,0x7b4a33,0xd2a27e][i%5],gloves:[0xe0b08c,0xc48e6c,0xa87052,0x7b4a33,0xd2a27e][i%5],helmet:[0x2a211b,0x4a3324,0x6b5a3e,0x1a1614][i%4],dark:0x16181a});return crowd;}
+function ensureCrowd(){const s=bridge()?.threeScene;if(!s)return null;if(crowd&&scene===s)return crowd;crowd?.dispose?.();scene=s;crowd=createCrowd(s,{capacity:N,outfit:"runner",name:"JOGGER_CHAIN"});for(let i=0;i<N;i++)crowd.setColors(i,{shirt:SHIRT,vest:SHIRT,pants:SHORTS,boots:SHOES,skin:[0xe0b08c,0xc48e6c,0xa87052,0x7b4a33,0xd2a27e][i%5],gloves:[0xe0b08c,0xc48e6c,0xa87052,0x7b4a33,0xd2a27e][i%5],helmet:[0x2a211b,0x4a3324,0x6b5a3e,0x1a1614][i%4],dark:0x16181a});return crowd;}
 // ---------------------------------------------------------------- the route: one real street's sidewalk
-function buildPath(road,side){const pts=road.pts,off=(Number(road.w)||6)/2+1.7,out=[];for(let i=0;i<pts.length;i++){const a=pts[Math.max(0,i-1)],b=pts[Math.min(pts.length-1,i+1)];let dx=b[0]-a[0],dy=b[1]-a[1];const l=Math.hypot(dx,dy)||1;dx/=l;dy/=l;out.push([pts[i][0]-dy*off*side,pts[i][1]+dx*off*side]);}
-  const cum=[0];for(let i=1;i<out.length;i++)cum.push(cum[i-1]+Math.hypot(out[i][0]-out[i-1][0],out[i][1]-out[i-1][1]));return{pts:out,cum,len:cum.at(-1)};}
-function sample(path,s){const L=path.len;let u=((s%(2*L))+2*L)%(2*L),dir=1;if(u>L){u=2*L-u;dir=-1;}/* run to the end, turn round, run back */let i=1;while(i<path.cum.length-1&&path.cum[i]<u)i++;const a=path.pts[i-1],b=path.pts[i],seg=(path.cum[i]-path.cum[i-1])||1,t=clamp((u-path.cum[i-1])/seg,0,1);return{x:a[0]+(b[0]-a[0])*t,y:a[1]+(b[1]-a[1])*t,yaw:Math.atan2((b[1]-a[1])*dir,(b[0]-a[0])*dir)};}
+function buildPath(road,side,kerb=1.7){const pts=road.pts,off=(Number(road.w)||6)/2+kerb,out=[];for(let i=0;i<pts.length;i++){const a=pts[Math.max(0,i-1)],b=pts[Math.min(pts.length-1,i+1)];let dx=b[0]-a[0],dy=b[1]-a[1];const l=Math.hypot(dx,dy)||1;dx/=l;dy/=l;out.push([pts[i][0]-dy*off*side,pts[i][1]+dx*off*side]);}
+  const cum=[0];for(let i=1;i<out.length;i++)cum.push(cum[i-1]+Math.hypot(out[i][0]-out[i-1][0],out[i][1]-out[i-1][1]));return{pts:out,cum,len:cum.at(-1),side,off};}
+// the whole sidewalk line clear of buildings (the collision grid every free-roaming walker uses), a body's width either side
+const buildingAt=()=>{const f=globalThis.__arondightBuildingAt;return typeof f==="function"?f:null;};
+function blockedAt(x,y){const at=buildingAt();return Boolean(at&&(at(x,y)||at(x+.35,y)||at(x-.35,y)||at(x,y+.35)||at(x,y-.35)));}
+function pathFree(path){if(!buildingAt())return true;for(let s=0;s<=path.len;s+=1.5){const q=sample(path,s);if(blockedAt(q.x,q.y))return false;}return true;}
+function sample(path,s){const L=path.len;let u=((s%(2*L))+2*L)%(2*L),dir=1;if(u>L){u=2*L-u;dir=-1;}/* run to the end, turn round, run back */let i=1;while(i<path.cum.length-1&&path.cum[i]<u)i++;const a=path.pts[i-1],b=path.pts[i],seg=(path.cum[i]-path.cum[i-1])||1,t=clamp((u-path.cum[i-1])/seg,0,1);const sl=Math.hypot(b[0]-a[0],b[1]-a[1])||1,sd=path.side||1;return{x:a[0]+(b[0]-a[0])*t,y:a[1]+(b[1]-a[1])*t,yaw:Math.atan2((b[1]-a[1])*dir,(b[0]-a[0])*dir),nx:-(b[1]-a[1])/sl*sd,ny:(b[0]-a[0])/sl*sd};}
 function pickRoad(p){const roads=globalThis.__streetLamps?.roads?.();if(!Array.isArray(roads)||!roads.length)return null;const cand=[];
   for(const r of roads){if(!r?.pts||r.pts.length<2||/motorway|trunk|path|track/.test(String(r.cls||"")))continue;let len=0,near=Infinity;for(let i=1;i<r.pts.length;i++)len+=Math.hypot(r.pts[i][0]-r.pts[i-1][0],r.pts[i][1]-r.pts[i-1][1]);if(len<60)continue;for(const q of r.pts)near=Math.min(near,Math.hypot(q[0]-p.x,q[1]-p.y));if(near<35||near>150)continue;cand.push({r,score:Math.min(len,260)-near*.6+Math.random()*40});}
   cand.sort((a,b)=>b.score-a.score);return cand[0]?.r||null;}
-function spawn(now){const p=playerPos();if(!p||!ensureCrowd())return false;const road=pickRoad(p);if(!road)return false;const path=buildPath(road,Math.random()<.5?1:-1);if(path.len<50)return false;
+function spawn(now){const p=playerPos();if(!p||!ensureCrowd())return false;const road=pickRoad(p);if(!road)return false;const side0=Math.random()<.5?1:-1;let path=null;
+  for(const side of[side0,-side0])for(const kerb of[1.7,1.2,2.4]){if(path)break;const c=buildPath(road,side,kerb);if(c.len>=50&&pathFree(c))path=c;}if(!path)return false;
   // start at the end of the street that is further from the player (they come towards you)
   const a=path.pts[0],b=path.pts.at(-1),startS=Math.hypot(a[0]-p.x,a[1]-p.y)>Math.hypot(b[0]-p.x,b[1]-p.y)?(N*GAP_M):(path.len+N*GAP_M);const g=globalThis.__spawnVisibilityGuard;const head=sample(path,startS);if(g?.canSpawnAt&&!g.canSpawnAt(head.x,head.y,staticGroundHeightAt(head.x,head.y)+1))return false;
-  chain={id:++chainSerial,path,s:startS,born:now,runners:Array.from({length:N},(_,i)=>({i,alive:true,x:head.x,y:head.y,z:0,yaw:head.yaw,phase:Math.random()})),nextCallAt:now+1500,callIdx:Math.floor(Math.random()*CALLS.length),beat:0,nextBeatAt:now};
+  chain={id:++chainSerial,path,s:startS,born:now,runners:Array.from({length:N},(_,i)=>({i,alive:true,x:head.x,y:head.y,z:0,yaw:head.yaw,yawS:head.yaw,lat:0,phase:Math.random()})),nextCallAt:now+1500,callIdx:Math.floor(Math.random()*CALLS.length),beat:0,nextBeatAt:now};
   const v=viewport();if(v){v.dataset.joggerChain=`spawned-${chain.id}`;v.dataset.joggerChainLen=path.len.toFixed(0);}return true;}
 function despawn(){chain=null;const v=viewport();if(v)v.dataset.joggerChain="gone";}
 // ---------------------------------------------------------------- chant & beat
@@ -62,8 +67,14 @@ function frame(now=performance.now()){requestAnimationFrame(frame);const dt=Math
   if(!worldOption("people")||!inWorld()){if(chain)despawn();if(crowd){crowd.commit();}return;}
   if(!chain){if(!nextAt)nextAt=now+FIRST_MS;if(now>=nextAt){nextAt=now+EVERY_MS[0]+Math.random()*(EVERY_MS[1]-EVERY_MS[0]);if(!spawn(now))nextAt=now+15000;}if(crowd)crowd.commit();return;}
   const p=playerPos(),alive=chain.runners.filter(r=>r.alive);if(!alive.length||now-chain.born>LIFE_MS&&p&&Math.hypot(alive[0].x-p.x,alive[0].y-p.y)>70){despawn();crowd?.commit();return;}
-  chain.s+=SPEED*dt;let k=0;for(const r of chain.runners){const q=sample(chain.path,chain.s-r.i*GAP_M);r.x=q.x;r.y=q.y;r.yaw=q.yaw;r.z=staticGroundHeightAt(q.x,q.y);if(!r.alive)continue;crowd.set(r.i,{x:r.x,y:r.y,z:r.z,yaw:r.yaw-Math.PI/2,state:"run",speed:SPEED,dt});k++;}
+  chain.s+=SPEED*dt;let k=0;for(const r of chain.runners){const q=sample(chain.path,chain.s-r.i*GAP_M);
+    // a building that streamed in after the route was chosen: step towards the kerb (smoothly, never through the wall)
+    let latT=0;if(r.alive&&blockedAt(q.x-q.nx*r.lat,q.y-q.ny*r.lat)||r.lat>0){latT=-1;for(let m=0;m<=chain.path.off-.6;m+=.5)if(!blockedAt(q.x-q.nx*m,q.y-q.ny*m)){latT=m;break;}if(latT<0)latT=r.lat;}
+    r.lat+=(latT-r.lat)*Math.min(1,dt*(latT>r.lat?10:2));r.x=q.x-q.nx*r.lat;r.y=q.y-q.ny*r.lat;r.yaw=q.yaw;
+    // turning round at the end of the street: a quick pivot, not a snap
+    {let d=r.yaw-r.yawS;d=Math.atan2(Math.sin(d),Math.cos(d));const m=9*dt;r.yawS+=clamp(d,-m,m);}
+    r.z=staticGroundHeightAt(r.x,r.y);if(!r.alive)continue;crowd.set(r.i,{x:r.x,y:r.y,z:r.z,yaw:r.yawS-Math.PI/2,state:"run",speed:SPEED,dt});k++;}
   crowd.commit();checkCar();chant(now);}
 export function installJoggerChain(){if(installed||typeof window==="undefined")return;installed=true;addEventListener("arondight:foot-tracer",onTracer);addEventListener("arondight:world-explosion",onBlast);addEventListener("arondight:world-reset",()=>{despawn();nextAt=performance.now()+FIRST_MS;streak={n:0,at:0,chainId:0};});addEventListener(WORLD_OPTIONS_EVENT,()=>{if(!worldOption("people"))despawn();});
-  requestAnimationFrame(frame);globalThis.__arondightJoggerChain={spawn:()=>spawn(performance.now()),despawn,get chain(){return chain?{id:chain.id,alive:chain.runners.filter(r=>r.alive).length,runners:chain.runners.map(r=>({x:r.x,y:r.y,alive:r.alive}))}:null;},get streak(){return streak.n;},version:JOGGER_CHAIN_VERSION};}
+  requestAnimationFrame(frame);globalThis.__arondightJoggerChain={spawn:()=>spawn(performance.now()),despawn,get chain(){return chain?{id:chain.id,alive:chain.runners.filter(r=>r.alive).length,speed:SPEED,runners:chain.runners.map(r=>({x:r.x,y:r.y,yaw:r.yawS,lat:r.lat,alive:r.alive}))}:null;},get streak(){return streak.n;},version:JOGGER_CHAIN_VERSION};}
 installJoggerChain();

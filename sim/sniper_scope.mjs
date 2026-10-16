@@ -4,7 +4,12 @@
 // owns the zoom). On touch a round SCOPE button appears next to the weapon switch while the
 // sniper is out: tap to look through the scope, tap again to come back; a tap on the screen
 // while scoped fires through the crosshair.
-export const SNIPER_SCOPE_VERSION="sniper-scope-v1";
+// The scope is only ever on while you stand on foot with the sniper out, alive, in a running game
+// with the page visible: every way out of that state (mode switch to drone / car / jet, death, game
+// reset or exit, weapon switch, hidden tab, rotation or a big resize, an input change) takes you out
+// of it at once — overlay gone, zoom 1 (walk FOV and look speed back), body classes removed. A
+// per-frame guard backs the events up, so no path can leave the overlay hanging.
+export const SNIPER_SCOPE_VERSION="sniper-scope-v2-hard-exit";
 let installed=false,overlay=null,button=null;
 const $=id=>document.getElementById(id);
 const CSS=`
@@ -33,13 +38,43 @@ function mount(){const v=$("viewport");if(!v)return false;
   const dots=[];for(let k=1;k<=4;k++)for(const s of[-1,1]){dots.push(`<i style="left:${s*k*4.2}vmin;top:0"></i>`);if(s>0||k<=2)dots.push(`<i style="top:${s*k*4.2}vmin;left:0"></i>`);}
   overlay.innerHTML=`<div class="ss-tube"></div><div class="ss-ring"></div><div class="ss-h"></div><div class="ss-v"></div><div class="ss-dots">${dots.join("")}</div><div class="ss-dot"></div><div class="ss-range"></div>`;v.appendChild(overlay);
   button=document.createElement("button");button.id="scopeButton";button.type="button";button.setAttribute("aria-label","Scope");button.innerHTML="<b>◎</b>SCOPE";v.appendChild(button);
-  button.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();globalThis.__arondightScopeToggle=!globalThis.__arondightScopeToggle;sync();},{capture:true});
+  button.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();if(globalThis.__arondightScopeToggle)globalThis.__arondightScopeToggle=false;/* your own tap: the eye comes off the scope as usual */else if(scopeEligible())globalThis.__arondightScopeToggle=true;sync();},{capture:true});
   button.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();});
   return true;}
 // beside the weapon switch (thumb_layout.mjs places that one left of the look stick): above it
 function place(){const w=$("thumbWeapon");if(!w||!w.classList.contains("show"))return false;const l=parseFloat(w.style.left),t=parseFloat(w.style.top);if(!Number.isFinite(l)||!Number.isFinite(t))return false;const L=`${Math.round(l)}px`,T=`${Math.round(t-66)}px`; /* straight above the weapon switch, low by the thumb */if(button.style.left!==L)button.style.setProperty("left",L,"important");if(button.style.top!==T)button.style.setProperty("top",T,"important");return true;}
-function readout(){if(!overlay||!document.body.classList.contains("scope-active"))return;const b=globalThis.__arondightRealWorld,c=b?.presentedCamera?.()||b?.threeCamera,el=overlay.querySelector(".ss-range");if(!c||!el)return;const z=Math.max(1,Math.round(74/Math.max(1,c.fov)));const t=`${z}×`;if(el.textContent!==t)el.textContent=t;}
-function sync(){try{readout();}catch{}if(!button)return;const out=sniperOut(),grav=false;if(!out&&globalThis.__arondightScopeToggle)globalThis.__arondightScopeToggle=false;const show=(out||grav)&&touchPlay()&&place();button.classList.toggle("show",Boolean(show));
+function readout(){if(!overlay||!document.body.classList.contains("scope-active"))return;const b=globalThis.__arondightRealWorld,c=b?.presentedCamera?.()||b?.threeCamera,el=overlay.querySelector(".ss-range");if(!c||!el)return;const ads=Number(globalThis.__arondightAds?.zoom),z=Math.max(1,Math.round(ads>1?ads:74/Math.max(1,c.fov)));/* the true magnification, not FOV ratio */const t=`${z}×`;if(el.textContent!==t)el.textContent=t;}
+function gameRunning(){const b=document.body;if(!b.classList.contains("solo-flight"))return false;const menu=$("gameMenu");return!(menu&&!menu.hidden&&menu.offsetParent);}
+// may the scope be on right now?
+export function scopeEligible(){const w=globalThis.__arondightWalkMode;if(!w||w.mode!=="foot"||w.dead)return false;if(globalThis.__jetMode?.active||globalThis.__arondightVehicleDrive?.active)return false;if(String(globalThis.__arondightFootWeapons?.mode||"")!=="sniper")return false;if(typeof document!=="undefined"&&document.hidden)return false;return gameRunning();}
+let lastExit={reason:"",at:0},unplacedSince=0;
+// out of the scope, now: toggle off, the controller's sights reset (zoom 1, classes off), button off
+export function exitScope(reason="exit"){const b=document.body,was=Boolean(globalThis.__arondightScopeToggle)||b.classList.contains("scope-active")||Number(globalThis.__arondightAds?.zoom)>1;globalThis.__arondightScopeToggle=false;unplacedSince=0;
+  let reset=false;try{reset=Boolean(globalThis.__arondightFirstPersonController?.resetAds?.(reason));}catch{}
+  if(!globalThis.__arondightFirstPersonController?.resetAds){globalThis.__arondightAds={t:0,zoom:1,scoped:false};}
+  b.classList.remove("scope-active","ads-active");if(button){button.classList.remove("on");}
+  if(was||reset){lastExit={reason:String(reason),at:Math.round(performance.now())};const v=$("viewport");if(v){v.dataset.sniperScopeExit=lastExit.reason;v.dataset.sniperScopeExits=String((Number(v.dataset.sniperScopeExits)||0)+1);}}
+  return was||reset;}
+function scopeEngaged(){return Boolean(globalThis.__arondightScopeToggle)||document.body.classList.contains("scope-active")||Number(globalThis.__arondightAds?.zoom)>1.0001&&String(globalThis.__arondightFootWeapons?.mode||"")==="sniper";}
+// per-frame guard: the scope never outlives its state, whatever path changed it
+let guardMode="",guardWeapon="";
+function guard(){requestAnimationFrame(guard);try{const w=globalThis.__arondightWalkMode,mode=`${w?.mode||""}|${w?.dead?"dead":""}|${globalThis.__jetMode?.active?"jet":""}|${globalThis.__arondightVehicleDrive?.active?"car":""}`,weapon=String(globalThis.__arondightFootWeapons?.mode||"");
+  if(guardMode&&mode!==guardMode&&scopeEngaged())exitScope("mode-change");else if(guardWeapon&&weapon!==guardWeapon&&scopeEngaged())exitScope("weapon-switch");guardMode=mode;guardWeapon=weapon;
+  if(scopeEngaged()&&!scopeEligible())exitScope("not-eligible");
+  // the touch toggle belongs to touch play: with mouse (RMB) or pad (LT) it must not keep the scope up
+  if(globalThis.__arondightScopeToggle&&!touchPlay())exitScope("input-change");}catch(e){console.warn("sniper scope guard",e);}}
+let lastW=0,lastH=0;
+function onResize(){const w=innerWidth,h=innerHeight;if(!lastW){lastW=w;lastH=h;return;}const flipped=(w>h)!==(lastW>lastH),big=Math.abs(w-lastW)/Math.max(1,lastW)>.2||Math.abs(h-lastH)/Math.max(1,lastH)>.2;lastW=w;lastH=h;if((flipped||big)&&scopeEngaged())exitScope(flipped?"rotate":"resize");}
+function installExits(){const out=reason=>()=>{if(scopeEngaged())exitScope(reason);};
+  addEventListener("arondight:player-mode",out("player-mode"),{capture:true});addEventListener("arondight:vehicle-mode",out("vehicle-mode"),{capture:true});
+  addEventListener("arondight:game-reset",out("game-reset"));addEventListener("arondight:world-reset",out("world-reset"));addEventListener("arondight:game-start",out("game-start"));
+  addEventListener("arondight:player-damage",()=>{if(globalThis.__arondightWalkMode?.dead&&scopeEngaged())exitScope("death");});
+  document.addEventListener("visibilitychange",()=>{if(document.hidden&&scopeEngaged())exitScope("hidden");},{capture:true});addEventListener("pagehide",out("pagehide"));addEventListener("blur",()=>{/* desktop: RMB release is lost with the focus */if(!touchPlay()&&scopeEngaged())exitScope("blur");});
+  addEventListener("orientationchange",out("orientation"));try{screen.orientation?.addEventListener?.("change",out("orientation"));}catch{}addEventListener("resize",onResize);lastW=innerWidth;lastH=innerHeight;
+  requestAnimationFrame(guard);}
+function sync(){try{readout();}catch{}if(!button)return;const out=sniperOut()&&scopeEligible(),grav=false;if(!out&&globalThis.__arondightScopeToggle)exitScope("not-eligible");const placed=(out||grav)&&touchPlay()&&place(),show=placed;button.classList.toggle("show",Boolean(show));
+  // a scoped touch player always has the button to come back out: if it cannot be placed (rotation, layout change) the scope goes
+  if(globalThis.__arondightScopeToggle&&!placed){const now=performance.now();if(!unplacedSince)unplacedSince=now;else if(now-unplacedSince>350)exitScope("no-button");}else unplacedSince=0;
   const on=grav?Boolean(globalThis.__arondightGravityGun?.holding):Boolean(globalThis.__arondightScopeToggle),html=grav?(on?"<b>✋</b>DROP":"<b>⊛</b>GRAB"):"<b>◎</b>SCOPE";if(button.dataset.html!==html){button.dataset.html=html;button.innerHTML=html;}button.classList.toggle("on",on);}
-export function installSniperScope(){if(installed||typeof document==="undefined")return;installed=true;const boot=()=>{if(!mount()){setTimeout(boot,300);return;}const loop=()=>{try{sync();}catch(e){console.warn("sniper scope",e);}setTimeout(loop,150);};loop();};boot();}
+export function installSniperScope(){if(installed||typeof document==="undefined")return;installed=true;globalThis.__arondightSniperScope={exit:exitScope,eligible:scopeEligible,get lastExit(){return{...lastExit};},version:SNIPER_SCOPE_VERSION};installExits();const boot=()=>{if(!mount()){setTimeout(boot,300);return;}const loop=()=>{try{sync();}catch(e){console.warn("sniper scope",e);}setTimeout(loop,150);};loop();};boot();}
 installSniperScope();

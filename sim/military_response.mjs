@@ -26,6 +26,9 @@ export const MILITARY_RESPONSE_VERSION="military-escalation-v1";
 // keeps piling up (or a truly extreme rampage), then an alert phase in which
 // calming down (losing the fifth star) still calls it off
 const TRIGGER_HEAT=36,TRIGGER_HOLD_MS=40000,TRIGGER_EXTREME_HEAT=55,ALERT_MS=15000,END_STARS=3,SQUAD=4,MAX_SOLDIERS=8,SOLDIER_HP=100,HIT=25,HELI_HP=420,TANK_HP=900;
+// toned down (~35-40 % less lethal): lighter rounds and shells, worse accuracy at range, a reaction
+// before a soldier's first burst, and no more than SOLDIER_BURSTS soldiers opening up per BURST_WINDOW_MS
+const HELI_DMG=4,HELI_DMG_DRONE=6,SOLDIER_DMG=3,SOLDIER_DMG_DRONE=4,SHELL_DMG=30,SOLDIER_REACT_MS=900,SOLDIER_BURSTS=3,BURST_WINDOW_MS=1400;let burstStarts=[];
 const OLIVE=0x4b5634,SOLDIER_COLORS=[0xc8956f,0xa87052,0x7b4a33,0xd2a27e].map(skin=>({shirt:0x55603c,vest:0x3d4530,pants:0x4a5238,boots:0x1d1a16,skin,gloves:0x2a2a24,helmet:0x4b5634}));
 const bridge=()=>globalThis.__arondightRealWorld||null,physics=()=>globalThis.__arondightWorldRigidBodies||null,wanted=()=>globalThis.__arondightWantedSystem||null,viewport=()=>document.getElementById("viewport");
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),angleTo=(a,b)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;};
@@ -90,8 +93,8 @@ function stepHeli(h,t,now,dt){const tp=t.position;
   const gz=groundHeightAt(h.p.x,h.p.y);if(h.p.z<gz+25)h.p.z+=(gz+25-h.p.z)*Math.min(1,dt*3);
   const face=leaving||h.state==="inbound"?Math.atan2(h.v.y,h.v.x):Math.atan2(tp.y-h.p.y,tp.x-h.p.x);h.yaw+=angleTo(h.yaw,face-Math.PI/2)*Math.min(1,dt*1.6);
   // heavy machine gun: bursts with honest spread
-  if(h.state==="orbit"&&!leaving){const d=h.p.distanceTo(tmp.set(tp.x,tp.y,tp.z||0));if(now>h.nextBurst&&d<240&&!blocked({x:h.p.x,y:h.p.y,z:h.p.z},{x:tp.x,y:tp.y,z:(tp.z||1.6)})){h.burst=7;h.nextBurst=now+3200+Math.random()*1500;}
-    if(h.burst>0&&now>h.nextShot){h.burst--;h.nextShot=now+110;const fwd=tmp2.set(-Math.sin(h.yaw),Math.cos(h.yaw),0),from=h.p.clone().addScaledVector(fwd,3.4).setZ(h.p.z-.9),chance=clamp(.32-d/650-(t.speedMps||0)*.025,.05,.32);shoot(from,t,chance,t.kind==="drone"?9:6,"military-heli",3.6);sound("shot",from.x,from.y,from.z,.6,.55);}}
+  if(h.state==="orbit"&&!leaving){const d=h.p.distanceTo(tmp.set(tp.x,tp.y,tp.z||0));if(now>h.nextBurst&&d<240&&!blocked({x:h.p.x,y:h.p.y,z:h.p.z},{x:tp.x,y:tp.y,z:(tp.z||1.6)})){h.burst=7;h.nextBurst=now+3500+Math.random()*1650;}
+    if(h.burst>0&&now>h.nextShot){h.burst--;h.nextShot=now+110;const fwd=tmp2.set(-Math.sin(h.yaw),Math.cos(h.yaw),0),from=h.p.clone().addScaledVector(fwd,3.4).setZ(h.p.z-.9),chance=clamp(.32-d/560-(t.speedMps||0)*.025,.05,.32);shoot(from,t,chance,t.kind==="drone"?HELI_DMG_DRONE:HELI_DMG,"military-heli",3.6);sound("shot",from.x,from.y,from.z,.6,.55);}}
   if(leaving&&Math.hypot(h.p.x-tp.x,h.p.y-tp.y)>650)h.dead=true;render(h,now,dt);}
 function render(h,now,dt){const g=h.m.group;g.position.copy(h.p);g.rotation.set(clamp(-h.v.length()*.004,-.25,0),0,h.yaw);h.rotor+=dt*28;h.m.mast.rotation.z=h.rotor;h.m.tail.rotation.x=h.rotor*1.7;g.updateMatrixWorld();}
 
@@ -132,13 +135,13 @@ function stepTank(tk,t,now,dt){const p=physics()?.pose?.(tk.id,tk.pose);if(!p){t
   if(leaving&&d>300&&!inView(cx,cy,g.position.z+2))tk.dead=true;}
 function stepShells(dt){for(let i=shells.length-1;i>=0;i--){const s=shells[i];const prev=s.p.clone();s.p.addScaledVector(s.v,dt);s.life-=dt;const gz=groundHeightAt(s.p.x,s.p.y);
   let hitP=null;if(s.p.z<=gz+.2)hitP=s.p.clone().setZ(gz);else if(insideBuilding(s.p.x,s.p.y))hitP=prev;else{const t=playerTarget();if(t&&s.p.distanceTo(tmp.set(t.position.x,t.position.y,t.position.z))<2.2)hitP=s.p.clone();}
-  if(hitP||s.life<=0){shells.splice(i,1);if(hitP&&!s.remote)boom(hitP,6,48,.55);else if(hitP)boom(hitP,0,0,.55);continue;}tracer(prev,s.p,0xffb060);}}
+  if(hitP||s.life<=0){shells.splice(i,1);if(hitP&&!s.remote)boom(hitP,6,SHELL_DMG,.55);else if(hitP)boom(hitP,0,0,.55);continue;}tracer(prev,s.p,0xffb060);}}
 
 // ------------------------------------------------------------ soldiers
 function spawnSquad(now,target,n){const g=roadGraph(now),cands=g.nodes.filter(q=>{const d=Math.hypot(q.x-target.x,q.y-target.y);return d>90&&d<170&&!insideBuilding(q.x,q.y)&&!inView(q.x,q.y,groundHeightAt(q.x,q.y)+1);});const base=cands[(Math.random()*cands.length)|0];if(!base)return 0;let placed=0;
   const used=new Set(soldiers.filter(s=>!s.dead).map(s=>s.slot));for(let k=0,slot=0;k<n&&slot<MAX_SOLDIERS;slot++){if(used.has(slot))continue;const x=base.x+(k%2)*1.6,y=base.y+Math.floor(k/2)*1.6;soldiers=soldiers.filter(s=>s.slot!==slot);soldiers.push({slot,x,y,z:groundHeightAt(x,y),yaw:0,hp:SOLDIER_HP,speed:0,anim:"run",los:false,losAt:0,nextShot:now+3000+Math.random()*2000,burst:0,dead:false,proxy:soldierProxy(),hold:20+Math.random()*12});k++;placed++;}return placed;}
 function stepSoldier(s,t,now,dt){if(s.dead)return;const tp=t.position,dx=tp.x-s.x,dy=tp.y-s.y,d=Math.hypot(dx,dy),eye={x:s.x,y:s.y,z:s.z+1.5};
-  if(now-s.losAt>350){s.losAt=now;s.los=d<90&&!blocked(eye,{x:tp.x,y:tp.y,z:(tp.z||1.6)-.3});}
+  if(now-s.losAt>350){s.losAt=now;const was=s.los;s.los=d<90&&!blocked(eye,{x:tp.x,y:tp.y,z:(tp.z||1.6)-.3});if(s.los&&!was&&!s.burst)s.nextShot=Math.max(s.nextShot,now+SOLDIER_REACT_MS+Math.random()*600);}
   let move=null;s.anim="aim";if(active===false){move=d>.1?[-dx/d,-dy/d]:null;}
   else if(!s.los){// no sight: advance along the streets (A* over the road graph), not into walls
     if(!s.path||now-(s.pathAt||0)>3000){s.path=findPath(roadGraph(now),s.x,s.y,tp.x,tp.y);s.pathAt=now;}const wp=s.path?.length?pursuitPoint(s.path,s.x,s.y,5):{x:tp.x,y:tp.y},ex=wp.x-s.x,ey=wp.y-s.y,ed=Math.hypot(ex,ey)||1;move=[ex/ed,ey/ed];}
@@ -146,8 +149,9 @@ function stepSoldier(s,t,now,dt){if(s.dead)return;const tp=t.position,dx=tp.x-s.
   if(move){const sp=active?(d>60?3.8:2.6):3.8;let ang=Math.atan2(move[1],move[0]),ok=false;for(const o of[0,.5,-.5,1,-1,1.6,-1.6]){const a=ang+o,nx=s.x+Math.cos(a)*sp*dt,ny=s.y+Math.sin(a)*sp*dt;if(!insideBuilding(nx,ny)){s.x=nx;s.y=ny;ang=a;ok=true;break;}}s.z=groundHeightAt(s.x,s.y);s.speed=ok?sp:0;const face=s.los&&active?Math.atan2(dy,dx):ang;s.yaw+=angleTo(s.yaw,face)*Math.min(1,dt*9);s.anim=ok?(sp>3?"run":"walk"):"aim";}
   else{s.speed=0;s.yaw+=angleTo(s.yaw,Math.atan2(dy,dx))*Math.min(1,dt*10);}
   // rifle: 3-round bursts from range, dispersion that grows with distance and target speed
-  if(active&&s.los&&d<s.hold+20&&now>s.nextShot&&Math.abs(angleTo(s.yaw,Math.atan2(dy,dx)))<.3){if(!s.burst)s.burst=3;s.burst--;s.nextShot=s.burst?now+120:now+2200+Math.random()*1600;s.lastShotAt=now;const fx=Math.cos(s.yaw),fy=Math.sin(s.yaw),from=new THREE.Vector3(s.x+fx*.55-fy*.12,s.y+fy*.55+fx*.12,s.z+1.4);
-    shoot(from,t,clamp(.24-d/300-(t.speedMps||0)*.03,.04,.24),t.kind==="drone"?6:5,"military-soldier",2.2);sound("shot",from.x,from.y,from.z,.45,.9);}}
+  if(active&&s.los&&d<s.hold+20&&now>s.nextShot&&!s.burst){burstStarts=burstStarts.filter(at=>now-at<BURST_WINDOW_MS);if(burstStarts.length>=SOLDIER_BURSTS)s.nextShot=now+250+Math.random()*400;}
+  if(active&&s.los&&d<s.hold+20&&now>s.nextShot&&Math.abs(angleTo(s.yaw,Math.atan2(dy,dx)))<.3){if(!s.burst){s.burst=3;burstStarts.push(now);}s.burst--;s.nextShot=s.burst?now+120:now+2200+Math.random()*1600;s.lastShotAt=now;const fx=Math.cos(s.yaw),fy=Math.sin(s.yaw),from=new THREE.Vector3(s.x+fx*.55-fy*.12,s.y+fy*.55+fx*.12,s.z+1.4);
+    shoot(from,t,clamp(.24-d/270-(t.speedMps||0)*.03,.04,.24),t.kind==="drone"?SOLDIER_DMG_DRONE:SOLDIER_DMG,"military-soldier",2.2);sound("shot",from.x,from.y,from.z,.45,.9);}}
 function killSoldier(s,dir){if(s.dead)return;s.dead=true;s.hp=0;crowd?.hide(s.slot);s.proxy.visible=false;spawnWorldPersonRagdoll({position:[s.x,s.y,s.z+.05],yaw:s.yaw-Math.PI/2,impulse:dir?[dir.x*3,dir.y*3,2.2]:[0,0,2],seed:`soldier-${s.slot}-${serial}`,id:`soldier-${s.slot}-${now()}`,colors:SOLDIER_COLORS[s.slot%4]});window.dispatchEvent(new CustomEvent("arondight:combat-hit-confirm",{detail:{police:true,killed:true}}));}
 const now=()=>performance.now();
 function renderSoldiers(dt){if(!crowd)return;for(let i=0;i<MAX_SOLDIERS;i++){const s=soldiers.find(q=>q.slot===i&&!q.dead);if(!s){crowd.hide(i);continue;}const st=s.anim==="aim"||now()-(s.lastShotAt||0)<500?"aim-smg":s.anim;crowd.set(i,{x:s.x,y:s.y,z:s.z,yaw:s.yaw-Math.PI/2,state:st,speed:s.speed,weapon:"smg",dt});s.proxy.visible=true;s.proxy.position.set(s.x,s.y,s.z);s.proxy.updateMatrixWorld();}crowd.commit?.();}

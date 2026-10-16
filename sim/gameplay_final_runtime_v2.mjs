@@ -5,6 +5,7 @@ import {getSharedCombatAudioContext,playCombatAudio} from "./combat_audio_bank.m
 import {wantedLineBlockedByPrisms} from "./wanted_system_logic.mjs";
 import {groundHeightAt} from "./terrain_craters.mjs";
 import {bulletImpulse} from "./ballistics.mjs";
+import {headZone,vehicleHit,announceHeadshot,liveInScene} from "./headshot_feedback.mjs";
 
 const IMAGERY_KEY="arondight45WorldImageryV1";
 const FOOT_WEAPON_KEY="arondight45FootWeaponV1";
@@ -122,6 +123,15 @@ function routeHit(hit){if(!hit)return false;
   // times the round is counted against world targets
   if(object?.userData?.vsPlayerId){if(hit.__vsDone)return true;hit.__vsDone=true;}
   const routed={...hit,object,weapon:hit.weapon||footWeapon};lastRoute=object?(object.userData?.worldPopulationId||object.userData?.worldProceduralId||"obj"):"none";if(hit.box3d&&!object)return false;const police=Boolean(b?.registerPoliceHit?.(routed)),population=!police&&Boolean(b?.registerWorldPopulationHit?.({...routed,playerAction:true})),versus=!police&&!population&&Boolean(b?.registerVsHit?.(routed));lastRoute+=`/p${police?1:0}w${population?1:0}v${versus?1:0}`;return police||population||versus;}
+// HEADSHOT (sniper, Glock, MP): a round in the head of a living humanoid — a person, zombie, cop,
+// soldier or a mate (headshot_feedback.mjs finds the zone). The round is counted until the target is
+// down (at most `max` times: a remote target's owner decides, so that bounds the packets), and the
+// HEADSHOT feedback (pop text, crack, announcer) plays once it has reached someone alive.
+function headshotTarget(hit){for(let n=hit?.object;n;n=n.parent){if(n.userData?.vsPlayerId)return{label:"player",remote:true};const nm=String(n.name||"");if(nm==="ZOMBIE_HIT_PROXY")return{label:"zombie",zombie:true};if(nm==="POLICE_OFFICER_HIT_PROXY")return{label:"cop"};if(nm==="MILITARY_SOLDIER_HIT_PROXY")return{label:"soldier"};if(nm==="PERSON_HIT_PROXY")return{label:"person"};}return{label:"actor"};}
+// one body per round: the person / zombie / cop / mate a hit belongs to (their hit proxy or avatar), for piercing rounds
+function actorKey(hit){for(let n=hit?.object,i=0;n&&i<6&&!n.isScene;n=n.parent,i++){const u=n.userData||{};if(u.vsPlayerId)return`vs:${u.vsPlayerId}`;if(u.worldPopulationId)return`id:${u.worldPopulationId}`;if(u.hitProxy)return n;}return hit?.physicsId?`body:${hit.physicsId}`:null;}
+function routeKill(hit,max){const target=hit.object,was=liveInScene(target);let routed=false;for(let i=0;i<max;i++){const r=routeHit(hit);routed=r||routed;if(!r&&i===0)break;if(hit.__vsDone||was&&!liveInScene(target))break;}return routed;}
+function routeHeadshot(hit,weapon,{damage=999,max=10}={}){const who=headshotTarget(hit),alive=liveInScene(hit.object)||who.remote;hit.weaponDamage=Math.max(Number(hit.weaponDamage)||0,damage);hit.headshot=true;hit.zone="head";const routed=routeKill(hit,max);if(routed&&alive){try{announceHeadshot({weapon,target:who.label,remote:Boolean(who.remote)});}catch(e){console.warn("headshot feedback",e);}}const v=viewport();if(v)v.dataset.walkLastHeadshot=`${weapon}:${who.label}:${routed?1:0}`;return routed;}
 function addFallbackDecal(hit){if(!hit?.point)return;const b=bridge(),scene=b?.threeScene;if(!scene)return;const g=new THREE.CircleGeometry(.026,8),m=new THREE.MeshBasicMaterial({color:0x171717,transparent:true,opacity:.9,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,side:THREE.DoubleSide}),mesh=new THREE.Mesh(g,m),n=hit.worldNormal?.clone?.()||hit.face?.normal?.clone?.().transformDirection(hit.object?.matrixWorld)||new THREE.Vector3(0,0,1);mesh.position.copy(hit.point).addScaledVector(n.normalize(),.004);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),n);mesh.userData.flightFireIgnore=true;scene.add(mesh);setTimeout(()=>{scene.remove(mesh);g.dispose();m.dispose();},9000);}
 
 export const SMG_INTERVAL_MS=55,GLOCK_MIN_INTERVAL_MS=110; // MP ~1090 rpm
@@ -319,7 +329,7 @@ function footShotAt(clientX,clientY,now=performance.now(),hand=0){
   if(footWeapon==="knife")return knifeAt(clientX,clientY,now);
   if(footWeapon==="gravity"){if(!isFoot()||walk()?.dead||now-lastPunt<350)return false;lastPunt=now;const ray=footRay(clientX,clientY);if(!ray)return false;const hit=nearestGrenadeHit(ray,8);const ok=Boolean(globalThis.__arondightGravityGun?.punt?.({ray,hit}));if(ok)weaponFired("gravity",.35,"foot-screen","foot");return ok;}
   if(!isFoot()||walk()?.dead||now-lastSmg<SMG_INTERVAL_MS-.5)return false;lastSmg=now; // `now` = the round's due time (the hold loop keeps the cadence)
-  const ray=footRay(clientX,clientY);if(!ray)return false;const hit=nearestGrenadeHit(ray,180),end=hit?.point?.clone?.()||tmp.copy(ray.origin).addScaledVector(ray.direction,130).clone(),start=footMuzzle(tmp2,ray).clone();showTracer(start,end);{const routed=hit?routeHit(hit):false;if(globalThis.__worldImpacts)globalThis.__worldImpacts.bullet(ray,hit,{routed});else if(hit&&!routed)addFallbackDecal(hit);if(hit?.point){const pt=[hit.point.x,hit.point.y,hit.point.z],J=bulletImpulse(ray.direction,"9mm");pushHitBody(hit,J,pt);queueMicrotask(()=>rigid()?.impulseHumanAt?.(pt,J));}}flashWeapon(34);audioShot(.18);weaponFired("smg",.14,"foot-screen","foot");
+  const ray=footRay(clientX,clientY);if(!ray)return false;const hit=nearestGrenadeHit(ray,180),end=hit?.point?.clone?.()||tmp.copy(ray.origin).addScaledVector(ray.direction,130).clone(),start=footMuzzle(tmp2,ray).clone();showTracer(start,end);{let routed=false;if(hit){if(headZone(hit)==="head"){/* MP to the head: ×3 (zombies drop outright) */const z=headshotTarget(hit).zombie;routed=routeHeadshot(hit,"smg",{damage:165,max:z?8:3});}else routed=routeHit(hit);}if(globalThis.__worldImpacts)globalThis.__worldImpacts.bullet(ray,hit,{routed});else if(hit&&!routed)addFallbackDecal(hit);if(hit?.point){const pt=[hit.point.x,hit.point.y,hit.point.z],J=bulletImpulse(ray.direction,"9mm");pushHitBody(hit,J,pt);queueMicrotask(()=>rigid()?.impulseHumanAt?.(pt,J));}}flashWeapon(34);audioShot(.18);weaponFired("smg",.14,"foot-screen","foot");
   const view=viewport();if(view){view.dataset.walkWeapon="smg";view.dataset.walkTouchFire="screen-point-raycast-v2";view.dataset.walkPistolTracer="world-ray-muzzle-origin-v2";view.dataset.walkSmgAutoFire="always-on-hold-v1";view.dataset.walkEnhancedShots=String((Number(view.dataset.walkEnhancedShots)||0)+1);view.dataset.walkTouchAimX=ray.point.x.toFixed(1);view.dataset.walkTouchAimY=ray.point.y.toFixed(1);}return true;
 }
 // GOLDEN HAND CANNON (Glock): semi-auto, brutal. One round counts as six
@@ -338,10 +348,10 @@ function hitWeight(hit){for(let n=hit?.object;n;n=n.parent){const k=String(n.use
 function pushHitBody(hit,J,pt){if(!hit?.physicsId)return false;const id=hit.physicsId;if(globalThis.__arondightWorldProps?.has?.(id))globalThis.__arondightWorldProps.claim?.(id);return Boolean(rigid()?.applyImpulse?.(id,J,{point:pt}));}
 function glockShotAt(clientX,clientY,now,hand=0){
   const h=hand===1?1:0;if(!isFoot()||walk()?.dead||now-lastGlock[h]<GLOCK_MIN_INTERVAL_MS)return false;lastGlock[h]=now;
-  const ray=footRay(clientX,clientY);if(!ray)return false;const start=footMuzzle(tmp2,ray,h).clone();let origin=ray.origin.clone(),remaining=240,pierced=0,end=null;
+  const ray=footRay(clientX,clientY);if(!ray)return false;const start=footMuzzle(tmp2,ray,h).clone();let origin=ray.origin.clone(),remaining=240,pierced=0,end=null;const struck=new Set();
   while(pierced<3&&remaining>1){const r={origin,direction:ray.direction},hit=nearestGrenadeHit(r,remaining);
     if(!hit){end=origin.clone().addScaledVector(ray.direction,remaining);globalThis.__worldImpacts?.bullet(r,null,{maxDistance:remaining});break;}
-    let routed=false;for(let i=0,n=hitWeight(hit);i<n;i++)routed=routeHit(hit)||routed;{const v=viewport();if(v){const u=hit.object?.userData||{};v.dataset.walkGlockLastHit=(pierced?(v.dataset.walkGlockLastHit||"")+">":"")+`${hit.physicsKind||u.worldPopulationKind||u.worldDecorKind||hit.object?.name||hit.object?.type||"?"}:${hit.physicsId||u.worldPopulationId||""}:${routed?1:0}:${lastRoute}`;}}
+    let routed=false;const body=actorKey(hit);/* through and out of the same body: it was counted on the way in */if(body&&struck.has(body))routed=true;else{if(body)struck.add(body);if(headZone(hit)==="head")routed=routeHeadshot(hit,"glock",{damage:999,max:10});else for(let i=0,n=hitWeight(hit);i<n;i++)routed=routeHit(hit)||routed;}{const v=viewport();if(v){const u=hit.object?.userData||{};v.dataset.walkGlockLastHit=(pierced?(v.dataset.walkGlockLastHit||"")+">":"")+`${hit.physicsKind||u.worldPopulationKind||u.worldDecorKind||hit.object?.name||hit.object?.type||"?"}:${hit.physicsId||u.worldPopulationId||""}:${routed?1:0}:${lastRoute}`;}}
     globalThis.__worldImpacts?.bullet(r,hit,{routed});if(hit.point)globalThis.__worldImpacts?.chips?.(hit.point,ray.direction.clone().negate(),routed?"actor":"building",9,6);
     pushHitBody(hit,bulletImpulse(ray.direction,"9mm"),[hit.point.x,hit.point.y,hit.point.z]);
     if(hit.point){const pt=[hit.point.x,hit.point.y,hit.point.z],J=bulletImpulse(ray.direction,"9mm");queueMicrotask(()=>rigid()?.impulseHumanAt?.(pt,J));}
@@ -355,11 +365,16 @@ function glockShotAt(clientX,clientY,now,hand=0){
 // two bodies, kills a person outright and wrecks a car's engine. Its 41 N·s momentum goes into
 // what it hits — into the struck bone of a ragdoll, at the hit point of a rigid body. Scoped, the
 // shot leaves through the crosshair.
+// A car is not a one-shot: a .50 round takes a third of a car's (or bus's) structure, one into the
+// engine bay (the nose) almost half — three body hits or two in the engine; the car smokes, burns and
+// goes up only from the damage model's critical stage. A round that passes through a car counts once.
+// A head hit kills anyone outright (HEADSHOT).
+const SNIPER_CAR_FRACTION=.34,SNIPER_ENGINE_FRACTION=.45;
 const SNIPER_BOLT_MS=1150,SNIPER_RANGE_M=1500,SNIPER_TRACER_MPS=850;let lastSniper=-Infinity,lastPunt=-Infinity;
 function sniperShotAt(clientX,clientY,now){
   if(!isFoot()||walk()?.dead||now-lastSniper<SNIPER_BOLT_MS)return false;lastSniper=now;
   if(globalThis.__arondightAds?.scoped){const v=viewport()?.getBoundingClientRect();if(v){clientX=v.left+v.width/2;clientY=v.top+v.height/2;}}
-  const ray=footRay(clientX,clientY);if(!ray)return false;const start=footMuzzle(tmp2,ray).clone(),dir=ray.direction.clone();let origin=ray.origin.clone(),remaining=SNIPER_RANGE_M,pierced=0,end=null;const J=bulletImpulse(dir,".50bmg");
+  const ray=footRay(clientX,clientY);if(!ray)return false;const start=footMuzzle(tmp2,ray).clone(),dir=ray.direction.clone();let origin=ray.origin.clone(),remaining=SNIPER_RANGE_M,pierced=0,end=null;const J=bulletImpulse(dir,".50bmg"),struck=new Set();
   // The round is traced now, but everything it does at the far end — damage, impulse, decal, chips,
   // hit feedback — lands when the visible bullet gets there (distance / SNIPER_TRACER_MPS), not before.
   const atArrival=(point,fn)=>setTimeout(fn,point?start.distanceTo(point)/SNIPER_TRACER_MPS*1000:0);
@@ -369,7 +384,9 @@ function sniperShotAt(clientX,clientY,now){
     // pierce decision at fire time (the routing result only exists at arrival): Box3D bodies and actors go through
     let actor=false;for(let n=hit.object;n&&!actor;n=n.parent){const q=n.userData||{};actor=Boolean(q.worldPopulationKind||q.worldLifeKind||q.vsPlayerId||q.vsPeer);}
     atArrival(hit.point,()=>{if(hit.object&&!hit.object.parent)return;
-      const u=hit.object?.userData||{},kind=String(hit.physicsKind||u.worldPopulationKind||""),hits=kind==="car"||kind==="bus"?4:6;shotRaycaster.set(r.origin,dir);let routed=false;for(let i=0;i<hits;i++)routed=routeHit(hit)||routed;
+      shotRaycaster.set(r.origin,dir);let routed=false;const veh=vehicleHit(hit);
+      if(veh){/* a car / bus takes one hit per round, however often the round passes through its panels */if(struck.has(veh.key))routed=true;else{struck.add(veh.key);if(veh.police){for(let i=0;i<4;i++)routed=routeHit(hit)||routed;}else{hit.vehicleDamageFraction=veh.engine?SNIPER_ENGINE_FRACTION:SNIPER_CAR_FRACTION;routed=routeHit(hit);}const v=viewport();if(v)v.dataset.walkSniperVehicleHit=`${veh.kind}:${veh.engine?"engine":"body"}:${routed?1:0}`;}}
+      else{const body=actorKey(hit);if(body&&struck.has(body))routed=true;else{if(body)struck.add(body);if(headZone(hit)==="head")routed=routeHeadshot(hit,"sniper",{damage:999,max:10});else for(let i=0;i<6;i++)routed=routeHit(hit)||routed;}}
       globalThis.__worldImpacts?.bullet(r,hit,{routed});if(hit.point)globalThis.__worldImpacts?.chips?.(hit.point,dir.clone().negate(),routed?"actor":"building",16,9);
       const pt=hit.point?[hit.point.x,hit.point.y,hit.point.z]:null;
       pushHitBody(hit,J,pt);

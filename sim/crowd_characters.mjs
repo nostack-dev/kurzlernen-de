@@ -60,7 +60,7 @@ export function createCrowd(scene,{capacity=64,outfit="civilian",name="CROWD"}={
       const mid=meshesMid&&cam&&(x-cam.x)**2+(y-cam.y)**2+(z-cam.z)**2>NEAR_M*NEAR_M,set=mid?meshesMid:meshes,owner=mid?midOwner:slotOwner;
       if((mid?midCursor:cursor)>=capacity)return;const slot=mid?midCursor++:cursor++;
       loadRigState(tpl,p.joints);animateCharacter(tpl,{state,speed,weapon,dt,punch});saveRigState(tpl,p.joints);
-      tpl.root.position.set(x,y,z);tpl.root.rotation.set(lean,0,yaw);tpl.root.updateMatrixWorld(true);
+      tpl.root.position.set(x,y,z);tpl.root.rotation.set(-lean,0,yaw,"ZXY"); /* lean > 0 pitches the body forward along its own heading (yaw applied last) */tpl.root.updateMatrixWorld(true);
       for(let k=0;k<parts.length;k++)set[k].setMatrixAt(slot,parts[k].visible&&visibleChain(parts[k])?parts[k].matrixWorld:ZERO);
       if(owner[slot]!==i){owner[slot]=i;const c=p.colors;for(let k=0;k<set.length;k++){const v=c?.[set[k].userData.cat];set[k].setColorAt(slot,col.set(v??base[k]));}if(mid)midColorDirty=true;else colorDirty=true;}},
     commit(){/* an empty instanced mesh still costs a full draw setup (program, uniforms) per part per pass: hide it */for(const m of meshes){m.count=cursor;m.visible=cursor>0;if(cursor)m.instanceMatrix.needsUpdate=true;if(colorDirty&&m.instanceColor)m.instanceColor.needsUpdate=true;}colorDirty=false;cursor=0;

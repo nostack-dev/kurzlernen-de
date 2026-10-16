@@ -4,7 +4,6 @@ import "./start_location.mjs";
 import "./suggestion_box.mjs";
 import "./thumb_layout.mjs";
 import "./sniper_scope.mjs";
-import "./world_props.mjs";
 import "./player_push.mjs";
 import "./day_night_sync.mjs";
 import "./game_rules_sync.mjs";

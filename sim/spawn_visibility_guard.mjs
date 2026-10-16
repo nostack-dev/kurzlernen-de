@@ -9,11 +9,16 @@ import {wantedLineBlockedByPrisms} from "./wanted_system_logic.mjs";
 //    view cones), unless a building stands in between. Out to the camera's far plane.
 //  a safety net for people roots: one that turns up (or jumps) inside a view is held back
 //    (userData.spawnHeld) until it is out of view; its owner shows it again, the guard never does.
+// The view judged is the UNSCOPED one: looking through the sniper scope (or down the sights) narrows the
+// drawn FOV to a few degrees, but the player still sees everything around that the moment the eye comes
+// off the scope — so a spawn is judged against the walk camera's base FOV (published by the walk camera
+// as __arondightSpawnViewFov), never the zoomed one. What the scope magnifies counts as close: far-entry
+// arrivals inside the scoped cone need zoom × the distance.
 const MIN_SPAWN_DISTANCE_M=24;
 const CONE_MARGIN_RAD=20*Math.PI/180;
 const JUMP_M=6,PEER_SCAN_MS=400,OCCLUSION_MAX_M=420,GRID_M=40,DEFAULT_FAR_M=1500;
-const projectionView=new THREE.Matrix4(),candidatePos=new THREE.Vector3(),peerPos=new THREE.Vector3(),peerQuat=new THREE.Quaternion(),toCandidate=new THREE.Vector3(),sphere=new THREE.Sphere(new THREE.Vector3(),1.5);
-const local={kind:"local",position:new THREE.Vector3(),forward:new THREE.Vector3(),halfAngle:Math.PI/2,frustum:new THREE.Frustum(),far:DEFAULT_FAR_M},lookFrom={x:0,y:0,z:0},lookTo={x:0,y:0,z:0};
+const wideCamera=new THREE.PerspectiveCamera(),scopeView=new THREE.Matrix4(),projectionView=new THREE.Matrix4(),candidatePos=new THREE.Vector3(),peerPos=new THREE.Vector3(),peerQuat=new THREE.Quaternion(),toCandidate=new THREE.Vector3(),sphere=new THREE.Sphere(new THREE.Vector3(),1.5);
+const local={kind:"local",position:new THREE.Vector3(),forward:new THREE.Vector3(),halfAngle:Math.PI/2,frustum:new THREE.Frustum(),far:DEFAULT_FAR_M,fovDeg:78,presentedFovDeg:78,zoom:1,scopeHalfAngle:Math.PI/2,scopeFrustum:new THREE.Frustum()},lookFrom={x:0,y:0,z:0},lookTo={x:0,y:0,z:0};
 const rootState=new WeakMap(),viewerList=[],holdLog=[];// holdLog: the last people held back (diagnostics)
 let installed=false,lastPublish=-Infinity,localKey=NaN,localValid=false,peerViewers=[],peerScanAt=-Infinity,gridSnapshot=null,occluderCandidates=[];
 const grid=new Map(),gridSeen=new Set();
@@ -30,8 +35,17 @@ function dynamicRoot(node){if(!node?.isGroup)return false;const kind=String(node
 function localViewer(){const b=bridge(),camera=presentedCamera();if(!camera?.projectionMatrix||!camera.matrixWorld){localValid=false;return null;}
   const key=Number(b?.viewCameraAt)||performance.now();if(localValid&&key===localKey)return local;localKey=key;localValid=true;
   camera.updateMatrixWorld?.(true);local.position.setFromMatrixPosition(camera.matrixWorld);local.forward.set(0,0,-1).transformDirection(camera.matrixWorld);
-  projectionView.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);local.frustum.setFromProjectionMatrix(projectionView);
-  const vfov=(Number(camera.fov)||78)*Math.PI/180,aspect=Math.max(.2,Number(camera.aspect)||16/9),hfov=2*Math.atan(Math.tan(vfov/2)*aspect);local.halfAngle=Math.min(Math.PI*.92,Math.max(vfov,hfov)/2+CONE_MARGIN_RAD);local.far=Math.max(200,Number(camera.far)||DEFAULT_FAR_M);return local;}
+  const presented=Number(camera.fov)||78,wide=spawnViewFovDeg(camera),aspect=Math.max(.2,Number(camera.aspect)||16/9);local.presentedFovDeg=presented;local.fovDeg=wide;
+  scopeView.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
+  if(wide>presented+.01){wideCamera.fov=wide;wideCamera.aspect=aspect;wideCamera.near=Number(camera.near)||.1;wideCamera.far=Number(camera.far)||DEFAULT_FAR_M;wideCamera.zoom=1;wideCamera.updateProjectionMatrix();projectionView.multiplyMatrices(wideCamera.projectionMatrix,camera.matrixWorldInverse);}else projectionView.copy(scopeView);
+  local.frustum.setFromProjectionMatrix(projectionView);local.scopeFrustum.setFromProjectionMatrix(scopeView);
+  const coneHalf=f=>{const v=f*Math.PI/180,h=2*Math.atan(Math.tan(v/2)*aspect);return Math.max(v,h)/2;};
+  local.halfAngle=Math.min(Math.PI*.92,coneHalf(wide)+CONE_MARGIN_RAD);local.zoom=Math.max(1,Math.tan(wide*Math.PI/360)/Math.max(1e-4,Math.tan(presented*Math.PI/360)));local.scopeHalfAngle=coneHalf(presented)+2*Math.PI/180;local.far=Math.max(200,Number(camera.far)||DEFAULT_FAR_M);return local;}
+// the vertical FOV a spawn is judged against: the drawn one, widened to the unscoped walk FOV while the
+// sights / scope are up (on foot only; a stale value from an earlier walk frame is ignored)
+export function spawnViewFovDeg(camera=presentedCamera()){const fov=Number(camera?.fov)||78;let wide=fov;if(globalThis.__arondightWalkMode?.mode!=="foot")return wide;
+  const s=globalThis.__arondightSpawnViewFov,age=performance.now()-(Number(s?.at)||-Infinity);if(Number.isFinite(Number(s?.fovDeg))&&age<1500)return Math.min(150,Math.max(wide,Number(s.fovDeg)));
+  /* no fresh walk-camera value: undo the sights' zoom */const z=Number(globalThis.__arondightAds?.zoom)||1;if(z>1.0001)wide=Math.max(wide,2*Math.atan(Math.tan(fov*Math.PI/360)*z)*180/Math.PI);return Math.min(150,wide);}
 // peers: a scene scan, but only in multiplayer and at most every PEER_SCAN_MS
 function peerCount(b){const s=b?.vsSession;if(!s)return 0;try{return typeof s.peerCount==="function"?s.peerCount():Number(s.peerCount)||s.getPeerIds?.()?.length||0;}catch{return 0;}}
 function collectPeerViewers(scene,halfAngle,far){const byId=new Map();scene?.traverse?.(node=>{if(node.visible===false)return;const id=String(node.userData?.vsPlayerId||"");if(!id)return;const u=node.userData||{},isDrone=Boolean(u.vsMultiplayerPeer||u.vsLegacyPrimary||u.vsPeer),isHuman=Boolean(u.vsHumanAvatar&&!u.localHumanAvatar);if(!isDrone&&!isHuman)return;const priority=isDrone?2:1,existing=byId.get(id);if(existing&&existing.priority>=priority)return;node.getWorldPosition?.(peerPos);node.getWorldQuaternion?.(peerQuat);
@@ -49,8 +63,10 @@ function occluders(ax,ay,bx,by){occluderCandidates.length=0;gridSeen.clear();con
 function hiddenBehindBuildings(eye,point,height){refreshGrid();if(!grid.size)return false;const list=occluders(eye.x,eye.y,point.x,point.y);if(!list.length)return false;lookFrom.x=eye.x;lookFrom.y=eye.y;lookFrom.z=eye.z;
   for(const dz of[.3,height]){lookTo.x=point.x;lookTo.y=point.y;lookTo.z=point.z+dz;if(!wantedLineBlockedByPrisms(lookFrom,lookTo,list))return false;}return true;}
 // would something at point be seen by this viewer?
-function seenBy(point,viewer,farEntryM,height){toCandidate.copy(point).sub(viewer.position);const distance=toCandidate.length();if(distance<MIN_SPAWN_DISTANCE_M)return true;if(distance>viewer.far)return false;if(farEntryM>0&&distance>=farEntryM)return false;
-  let inside=toCandidate.multiplyScalar(1/Math.max(distance,1e-6)).dot(viewer.forward)>=Math.cos(viewer.halfAngle);
+function seenBy(point,viewer,farEntryM,height){toCandidate.copy(point).sub(viewer.position);const distance=toCandidate.length();if(distance<MIN_SPAWN_DISTANCE_M)return true;if(distance>viewer.far)return false;
+  const cosToward=toCandidate.multiplyScalar(1/Math.max(distance,1e-6)).dot(viewer.forward);
+  if(farEntryM>0&&distance>=farEntryM){/* through a scope, the far arrival is magnified: it counts as zoom × closer */let farEntry=farEntryM;if(viewer.kind==="local"&&viewer.zoom>1.05){sphere.center.copy(point);sphere.center.z+=height*.5;if(cosToward>=Math.cos(viewer.scopeHalfAngle)||viewer.scopeFrustum.intersectsSphere(sphere))farEntry=farEntryM*viewer.zoom;}if(distance>=farEntry)return false;}
+  let inside=cosToward>=Math.cos(viewer.halfAngle);
   if(!inside&&viewer.kind==="local"){sphere.center.copy(point);sphere.center.z+=height*.5;inside=viewer.frustum.intersectsSphere(sphere);}
   if(!inside)return false;return!(distance<=OCCLUSION_MAX_M&&hiddenBehindBuildings(viewer.position,point,height));}
 function safeSpawn(point,allViewers,farEntryM=0,height=2.2){for(const viewer of allViewers)if(seenBy(point,viewer,farEntryM,height))return false;return true;}
@@ -74,5 +90,5 @@ const spawnPoint=new THREE.Vector3();
 // allowed even in view (a few pixels at the horizon, e.g. traffic coming in from far away)
 export function canSpawnAt(x,y,z=0,{farEntryM=0,heightM=2.2}={}){spawnPoint.set(Number(x)||0,Number(y)||0,Number(z)||0);return safeSpawn(spawnPoint,viewers(),farEntryM,heightM);}
 export function presentedViewer(){return localViewer();}
-export function installSpawnVisibilityGuard(){if(installed)return;installed=true;globalThis.__spawnVisibilityGuard={canSpawnAt,presentedViewer,holdLog,version:"spawn-gate-v4"};requestAnimationFrame(frame);}
+export function installSpawnVisibilityGuard(){if(installed)return;installed=true;globalThis.__spawnVisibilityGuard={canSpawnAt,presentedViewer,spawnViewFovDeg,holdLog,version:"spawn-gate-v5-unscoped-fov"};requestAnimationFrame(frame);}
 installSpawnVisibilityGuard();

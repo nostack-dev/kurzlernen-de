@@ -3,6 +3,8 @@ export const WANTED_MAX_STARS=5;
 // not a manhunt yet, units take a while to arrive, give you breathing room and shoot less.
 // Relaxed further (Oct 15): shooting into the air or a scuffle is not a police matter yet; it takes
 // real violence for stars, fewer units come, later, and they shoot less and less accurately.
+// Toned down again (Oct 16, ~35-40 % less lethal): smaller hits, longer gaps between shots, worse
+// accuracy at range, a short reaction before the first shot, and they give up sooner out of sight.
 export const WANTED_HEAT_THRESHOLDS=Object.freeze([4,9,15,22,30]);
 export const WANTED_EMP_RANGE_M=30;
 export const WANTED_EMP_COOLDOWN_MS=18000;
@@ -44,12 +46,12 @@ export function wantedDetectionRadiusM(stars){
 
 export function wantedEscapeDurationMs(stars){
   const level=Math.max(0,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||0)));
-  return level?5000+level*1200:0; /* 6-11 s out of sight: long enough that the chase is a chase */
+  return level?4200+level*900:0; /* 5-9 s out of sight: still a chase, not a siege */
 }
 
 export function wantedPoliceDamage(stars){
   const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
-  return Math.min(5,3+Math.floor((level-1)/2));
+  return Math.min(4,2+Math.floor((level-1)/2)); /* 2,2,3,3,4 (was 3,3,4,4,5) */
 }
 
 export function wantedPoliceSpawnRadiusM(index=0){
@@ -78,11 +80,11 @@ export function wantedPoliceFireRangeM(stars){
 
 export function wantedPoliceShotIntervalMs(stars){
   const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1)));
-  return Math.max(3400,4600-level*200);
+  return Math.max(3900,5100-level*230); /* ~4.9 s at one star, ~4 s at five */
 }
 
 export function wantedPoliceHitChance({stars=1,distanceM=0,playerSpeedMps=0}={}){
-  const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1))),distance=Math.max(0,Number(distanceM)||0),speed=Math.max(0,Number(playerSpeedMps)||0),distancePenalty=Math.min(1,Math.max(0,(distance-7)/38))*.22,movementPenalty=Math.min(1,speed/7.2)*.24;
+  const level=Math.max(1,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||1))),distance=Math.max(0,Number(distanceM)||0),speed=Math.max(0,Number(playerSpeedMps)||0),distancePenalty=Math.min(1,Math.max(0,(distance-6)/32))*.26,movementPenalty=Math.min(1,speed/7.2)*.24;
   return Math.max(.1,Math.min(.38,.28+level*.02-distancePenalty-movementPenalty));
 }
 
