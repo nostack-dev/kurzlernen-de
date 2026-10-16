@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import {buildArm,attachWeaponArms} from "./viewmodel_arms.mjs";
+export {attachWeaponArms};
 
 // Hero weapon viewmodels with skins. Silhouettes are bevelled extrusions of
 // hand-drawn side profiles (cheap: a few hundred triangles each), painted
@@ -134,40 +136,63 @@ export function buildSniperRifle(){
   mergeByMaterial(g);g.scale.setScalar(.62);g.position.set(0,-.01,.10);return g;
 }
 
-// FISTS: two bare fists with sleeves, held low in a guard; each one jabs forward on a punch
-// Bare-knuckle boxer's hands as seen from the eyes: a closed fist (palm block, four curled fingers
-// with the knuckle row in front, thumb folded across), white hand wraps over knuckles and wrist,
-// the forearm running back towards the bottom corner of the view and the sleeve cuff behind it.
-// Each hand is its own group (WALK_FIST_L / _R): the punch animation extends and turns it.
+// FISTS: two gloved fists (same tactical gloves + camo sleeves as on the guns), held low in
+// a guard; each one jabs forward on a punch. Each hand is its own group (WALK_FIST_L / _R):
+// the punch animation extends and turns it. Hand origin = centre of the closed fist.
+export const FIST_HAND_SCALE=1.45;
+function fistArm(side){
+  const hand=new THREE.Group();hand.name=side<0?"WALK_FIST_L":"WALK_FIST_R";hand.position.set(side*.16,-.02,0);
+  hand.userData.flightFireIgnore=true;hand.userData.walkWeaponPart=true;
+  // knuckles forward and slightly inward, back of the hand up/out, forearm back and down to the corner
+  const arm=buildArm(`${hand.name}_ARM`,{side,pos:[0,0,0],axis:[-side,.12,-.2],back:[side*.35,1,.15],forearm:[side*.3,-.5,.81],length:.36,scale:FIST_HAND_SCALE,grip:{rx:.012*FIST_HAND_SCALE,rz:.012*FIST_HAND_SCALE,thumb:"over",knuckle:.15,wrap:1.05}});
+  arm.traverse(n=>{if(n.isMesh)n.userData.walkFistsPart=true;});hand.add(arm);hand.userData.restZ=0;return hand;
+}
 export function buildFists(){
-  const g=new THREE.Group(),K="walkFistsPart",skin=std(0xc58c66,.72,0),shade=std(0xa9714f,.8,0),tape=std(0xe9e4d8,.9,0),sleeve=std(0x2c3440,.85,0),cuff=std(0x1d232c,.9,0);
-  const cyl=(r0,r1,len,mat,x,y,z,rx=0)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r0,r1,len,10),mat);m.rotation.x=Math.PI/2+rx;m.position.set(x,y,z);return tag(m,K);};
-  for(const side of[-1,1]){const hand=new THREE.Group();hand.name=side<0?"WALK_FIST_L":"WALK_FIST_R";hand.position.set(side*.16,-.02,0);
-    // a closed fist reads as one compact rounded block: back of the hand, a single rounded knuckle
-    // ridge (no separate finger stubs), the thumb tucked across, a light tape wrap over the knuckles
-    const capsule=(r,len,mat,x,y,z,rz=0,rx=0)=>{const m=new THREE.Mesh(new THREE.CapsuleGeometry(r,len,4,10),mat);m.rotation.set(rx,0,rz);m.position.set(x,y,z);return tag(m,K);};
-    hand.add(capsule(.038,.03,skin,0,.002,-.004,0,Math.PI/2));                              // fist body (rounded, front-back)
-    hand.add(capsule(.026,.048,skin,0,.012,-.045,Math.PI/2));                              // knuckle ridge across the front
-    hand.add(cyl(.0405,.0405,.018,tape,0,.002,.016));                                       // tape band around the hand behind the knuckles
-    hand.add(capsule(.016,.03,shade,-side*.022,-.03,-.03,side*.9,.2));                     // thumb tucked across
-    hand.add(cyl(.039,.037,.05,tape,0,-.002,.066));                                         // wrist wrap
-    hand.add(cyl(.037,.05,.3,skin,side*.012,-.03,.24,-.12));                                // forearm, back and a little down
-    hand.add(cyl(.058,.062,.16,sleeve,side*.02,-.05,.43,-.12),cyl(.062,.062,.03,cuff,side*.016,-.043,.36,-.12)); // sleeve + cuff
-    hand.userData.restZ=0;g.add(hand);}
+  const g=new THREE.Group();
+  for(const side of[-1,1])g.add(fistArm(side));
   g.add(marker("WALK_FISTS_GRIP",.16,-.02,0),marker("WALK_FISTS_REAR_SIGHT",0,.06,0),marker("WALK_FISTS_FRONT_SIGHT",0,.06,-.3),muzzle("WALK_FISTS_MUZZLE_NODE",-.08,0));
-  g.position.set(-.05,-.03,-.02);return g;
+  g.position.set(-.245,.115,-.12);return g;
 }
 
-// KNIFE: the right fist (same hand as the boxing fists) gripping a combat knife, blade forward
+// KNIFE: a CoD-style combat knife (clip-point blade with a fuller and a bright bevel, black
+// guard, ribbed rubber handle, pommel) in the right gloved hand, held low-right with the
+// blade forward. WALK_KNIFE_HAND is the animated wrist group, WALK_KNIFE_BLADE the knife;
+// WALK_KNIFE_TRAIL is a slash smear the runtime fades in during the strike.
 export function buildKnife(){
   const g=buildFists(),left=g.getObjectByName("WALK_FIST_L");if(left)g.remove(left);
-  const hand=g.getObjectByName("WALK_FIST_R");hand.name="WALK_KNIFE_HAND";const K="walkKnifePart",steel=std(0xd5dade,.22,.9),edge=std(0xf2f5f7,.12,.95),grip=std(0x1b1d20,.75,.05),guard=std(0x3a3d42,.4,.7);
-  const knife=new THREE.Group();knife.name="WALK_KNIFE_BLADE";knife.position.set(0,-.004,-.05);
-  knife.add(box(.026,.03,.11,grip,0,0,.0,K));                                                       // grip (inside the fist)
-  knife.add(box(.07,.012,.016,guard,0,0,-.062,K));                                                  // cross guard
-  knife.add(box(.006,.034,.17,steel,0,.002,-.155,K),box(.003,.012,.17,edge,0,-.016,-.155,K));      // blade + bright edge
-  const tip=box(.006,.024,.04,steel,0,-.004,-.25,K);tip.rotation.x=-.45;knife.add(tip);
-  hand.add(knife);g.position.set(-.09,-.03,-.02);return g;
+  const old=g.getObjectByName("WALK_FIST_R");if(old)g.remove(old);
+  const hand=new THREE.Group();hand.name="WALK_KNIFE_HAND";hand.position.set(.16,-.02,0);hand.userData.flightFireIgnore=true;hand.userData.walkWeaponPart=true;
+  const s=FIST_HAND_SCALE,K="walkKnifePart";
+  // the knife in its own frame: handle centred on the origin, blade along −z, edge down (−y)
+  const knife=new THREE.Group();knife.name="WALK_KNIFE_BLADE";knife.userData.flightFireIgnore=true;knife.userData.walkWeaponPart=true;
+  const steel=std(0x6e757b,.3,.85),edge=std(0xd8dde2,.16,.95),dark=std(0x17191c,.5,.55),rubber=std(0x1a1c1e,.88,.02),pommel=std(0x2a2d31,.38,.75);
+  const blade=new THREE.Shape();[[0,.016],[.13,.0165],[.165,.013],[.2,.0],[.17,-.01],[.12,-.0165],[0,-.016]].forEach(([x,y],i)=>i?blade.lineTo(x,y):blade.moveTo(x,y));blade.closePath();
+  const bg=new THREE.ExtrudeGeometry(blade,{depth:.0022,bevelEnabled:true,bevelThickness:.0016,bevelSize:.0018,bevelSegments:1,curveSegments:2});bg.translate(0,0,-.0011);bg.rotateY(Math.PI/2);bg.computeVertexNormals();
+  const bm=new THREE.Mesh(bg,steel);bm.position.set(0,.002,-.05);knife.add(tag(bm,K));
+  const eg=new THREE.Shape();[[.0,-.0145],[.12,-.0152],[.168,-.0088],[.199,-.0002],[.165,-.0115],[.12,-.0185],[0,-.0182]].forEach(([x,y],i)=>i?eg.lineTo(x,y):eg.moveTo(x,y));eg.closePath();
+  const egg=new THREE.ExtrudeGeometry(eg,{depth:.0052,bevelEnabled:false});egg.translate(0,0,-.0026);egg.rotateY(Math.PI/2);egg.computeVertexNormals();
+  const em=new THREE.Mesh(egg,edge);em.position.set(0,.002,-.05);knife.add(tag(em,K));
+  knife.add(box(.0062,.006,.1,dark,0,.006,-.105,K));                                        // fuller (blood groove)
+  knife.add(box(.012,.006,.04,dark,0,.019,-.07,K));                                         // spine thumb ramp
+  knife.add(box(.016,.05,.012,dark,0,.0,-.046,K));                                          // cross guard
+  const hg=new THREE.CylinderGeometry(.0135,.0125,.095,10,4);{const p=hg.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),k=1+.07*Math.cos(y*200);p.setX(i,p.getX(i)*k*.85);p.setZ(i,p.getZ(i)*k*1.12);}hg.computeVertexNormals();}
+  const hm=new THREE.Mesh(hg,rubber);hm.rotation.x=Math.PI/2;hm.position.set(0,0,0);knife.add(tag(hm,K)); // ribbed handle
+  knife.add(cyl(.0125,.014,pommel,0,0,.054,K,10,.0145));                                   // pommel
+  knife.scale.setScalar(s*1.08);
+  // the hand: grip axis along the knife handle (index side towards the blade)
+  const axis=new THREE.Vector3(0,0,-1),arm=buildArm("WALK_KNIFE_ARM",{side:1,pos:[0,0,0],axis:[0,0,-1],back:[1,.35,0],forearm:[.28,-.5,.82],length:.42,scale:s,grip:{rx:.0115*s*1.08,rz:.0155*s*1.08,curls:[.95,1,1,1]}});void axis;
+  arm.traverse(n=>{if(n.isMesh)n.userData.walkKnifePart=true;});
+  // grip pose inside the hand: blade forward-up, edge turned out to the left
+  const holder=new THREE.Group();holder.name="WALK_KNIFE_GRIP_POSE";holder.add(knife,arm);holder.rotation.set(.32,.18,-.5);hand.add(holder);
+  // slash smear: a ribbon the runtime fills with the blade's recent path (tip → base),
+  // additive, vertex colours fade with age (black = invisible); one tiny dynamic buffer
+  const TRAIL_SAMPLES=12,trailGeo=new THREE.BufferGeometry(),tp=new Float32Array(TRAIL_SAMPLES*2*3),tc=new Float32Array(TRAIL_SAMPLES*2*3),ti=[];
+  for(let i=0;i<TRAIL_SAMPLES-1;i++){const a=i*2;ti.push(a,a+1,a+2,a+1,a+3,a+2);}
+  trailGeo.setAttribute("position",new THREE.BufferAttribute(tp,3).setUsage(THREE.DynamicDrawUsage));trailGeo.setAttribute("color",new THREE.BufferAttribute(tc,3).setUsage(THREE.DynamicDrawUsage));trailGeo.setIndex(ti);trailGeo.setDrawRange(0,0);
+  const trailMat=new THREE.MeshBasicMaterial({color:0xffffff,vertexColors:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,toneMapped:false});
+  const trail=new THREE.Mesh(trailGeo,trailMat);trail.name="WALK_KNIFE_TRAIL";trail.visible=false;tag(trail,K);trail.renderOrder=9999;trail.userData.samples=TRAIL_SAMPLES;
+  knife.userData.tipLocal=new THREE.Vector3(0,.0,-.25);knife.userData.baseLocal=new THREE.Vector3(0,.004,-.1);g.add(trail);
+  g.add(hand);g.position.set(-.2,.09,-.06);return g;
 }
 
 // ROCKET LAUNCHER: a shoulder tube (RPG style) with a loaded warhead poking out of the front,

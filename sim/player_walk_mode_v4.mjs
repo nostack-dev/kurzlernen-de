@@ -96,12 +96,15 @@ function resolveWalk(from,to,feet){return globalThis.__buildingInteriors?.resolv
 // player is put on the nearest free spot outside any building footprint.
 let stuckFor=0,unstuckCount=0;
 // Roof of the solid building under (x,y) (highest, ground-standing parts only), or null.
-function roofAt(x,y){let best=null;for(const fp of globalThis.__arondightCityBuildings?.footprints?.()||[]){const r=fp.outer;if(!r||r.length<3||(Number(fp.base)||0)>1.9)continue;let bb=fp.__bb;if(!bb){bb=fp.__bb=[Infinity,Infinity,-Infinity,-Infinity];for(const p of r){bb[0]=Math.min(bb[0],p[0]);bb[1]=Math.min(bb[1],p[1]);bb[2]=Math.max(bb[2],p[0]);bb[3]=Math.max(bb[3],p[1]);}}if(x<bb[0]||x>bb[2]||y<bb[1]||y>bb[3])continue;let inside=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],c=r[j];if((a[1]>y)!==(c[1]>y)&&x<(c[0]-a[0])*(y-a[1])/(c[1]-a[1])+a[0])inside=!inside;}if(!inside)continue;
+// With feet: the highest roof you stand on (feet >= roof-.3), elevated parts included — rooftop stair
+// housings / building:parts start at the main roof (min_height) and are solid Box3D prisms, so their
+// top must be floor too; below every such roof it falls back to the ground-standing roof.
+function roofAt(x,y,feet){let best=null,stand=null;const withFeet=Number.isFinite(feet);for(const fp of globalThis.__arondightCityBuildings?.footprints?.()||[]){const r=fp.outer,elevated=(Number(fp.base)||0)>1.9;if(!r||r.length<3||(elevated&&!withFeet))continue;let bb=fp.__bb;if(!bb){bb=fp.__bb=[Infinity,Infinity,-Infinity,-Infinity];for(const p of r){bb[0]=Math.min(bb[0],p[0]);bb[1]=Math.min(bb[1],p[1]);bb[2]=Math.max(bb[2],p[0]);bb[3]=Math.max(bb[3],p[1]);}}if(x<bb[0]||x>bb[2]||y<bb[1]||y>bb[3])continue;let inside=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],c=r[j];if((a[1]>y)!==(c[1]>y)&&x<(c[0]-a[0])*(y-a[1])/(c[1]-a[1])+a[0])inside=!inside;}if(!inside)continue;
   // Destroyed buildings: the roof follows the persistent damage, at the height
   // that is drawn (same rule as the Box3D prisms) — a leveled house leaves a
   // low rubble block you can jump onto.
   const dmg=buildingDamage(fp.key);
-  if(fp.__gb===undefined)fp.__gb=buildingGroundBase(r);const top=damagedTop(fp.base,Number(fp.top)||8,dmg);if(!(top>.1))continue;const roof=fp.__gb+top;if(best===null||roof>best)best=roof;}return best;}
+  if(fp.__gb===undefined)fp.__gb=buildingGroundBase(r);const top=damagedTop(fp.base,Number(fp.top)||8,dmg);if(!(top>.1))continue;const roof=fp.__gb+top;if(withFeet&&feet>=roof-.3&&(stand===null||roof>stand))stand=roof;if(!elevated&&(best===null||roof>best))best=roof;}return stand!==null?stand:best;}
 // inside solid building mass at these feet (standing on the roof is not inside)
 function inFootprint(x,y,feet){const roof=roofAt(x,y);return roof!==null&&!(Number.isFinite(feet)&&feet>=roof-.3);}
 function canMoveFrom(p,feet){for(let k=0;k<8;k++){const a=k*Math.PI/4,to={x:p.x+Math.cos(a)*.3,y:p.y+Math.sin(a)*.3},r=resolveWalk(p,to,feet);if(Math.hypot(r.x-p.x,r.y-p.y)>.08)return true;}return false;}
@@ -303,7 +306,7 @@ function update(now,dt,lookDt=dt){
   if(jump.airborne&&dt>1e-5){const airAcc=jet.thrusting?JET_AIR_ACCEL:AIR_ACCEL,wx=dx/dt-jump.vx,wy=dy/dt-jump.vy,wl=Math.hypot(wx,wy),k=held?0:wl>airAcc*dt?airAcc*dt/wl:1;jump.vx+=wx*k;jump.vy+=wy*k;if(held){jump.vx+=held[0]*dt;jump.vy+=held[1]*dt;}dx=jump.vx*dt;dy=jump.vy*dt;}
   const from={x:state.position.x,y:state.position.y},to={x:from.x+dx,y:from.y+dy},interiors=globalThis.__buildingInteriors,prevFeet=Number.isFinite(jump.feet)&&!jump.snap?jump.feet:state.position.z-EYE_Z,resolved=unstuckMove(from,to,prevFeet,dt);previousWalkPosition.copy(state.position);state.position.x=Number(resolved.x)||0;state.position.y=Number(resolved.y)||0;carCollisions(now);
   if(dt>1e-5&&!jump.airborne){jump.vx=(state.position.x-from.x)/dt;jump.vy=(state.position.y-from.y)/dt;}else if(dt>1e-5){if(Math.abs(state.position.x-to.x)>1e-3)jump.vx=(state.position.x-from.x)/dt;if(Math.abs(state.position.y-to.y)>1e-3)jump.vy=(state.position.y-from.y)/dt;}
-  const inside=interiors?.feetHeightAt?.(state.position.x,state.position.y,prevFeet),roof=Number.isFinite(inside)?null:roofAt(state.position.x,state.position.y),terrainFeet=standHeightAt(state.position.x,state.position.y)-EYE_Z,ground=Number.isFinite(inside)?inside:roof!==null&&prevFeet>=roof-.3?Math.max(terrainFeet,roof):terrainFeet;
+  const inside=interiors?.feetHeightAt?.(state.position.x,state.position.y,prevFeet),roof=Number.isFinite(inside)?null:roofAt(state.position.x,state.position.y,prevFeet),terrainFeet=standHeightAt(state.position.x,state.position.y)-EYE_Z,ground=Number.isFinite(inside)?inside:roof!==null&&prevFeet>=roof-.3?Math.max(terrainFeet,roof):terrainFeet;
   if(jump.snap||!Number.isFinite(jump.feet)){jump.feet=ground;jump.vz=0;jump.airborne=false;jump.snap=false;}
   else{
     if(!jump.airborne){if(prevFeet-ground>LEDGE_DROP_M){jump.airborne=true;jump.vz=0;}else jump.feet=ground;}

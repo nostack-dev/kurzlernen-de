@@ -166,7 +166,7 @@ function onExplosion(e){const d=e?.detail||{},p=d.position;if(!Array.isArray(p)&
 }
 function onBodyHit(e){const d=e?.detail||{};const A=airframes.get(String(d.id||""));if(A)damageAirframe(A,Number(d.damage)||5,String(d.source||"bullet"));}
 function onRemoteHit(e){const d=e?.detail||{};if(d.owner)sendHit(String(d.owner),String(d.id||"flying"),Number(d.damage)||5);}
-function onPhysicsImpact(e){const d=e?.detail||{},A=airframes.get(String(d.id||""));if(!A)return;const v=Number(d.approachSpeedMps??d.deltaVelocityMps)||0;if(v>5)damageAirframe(A,Math.pow(v-5,1.7)*4,"impact");if(A===jet&&v>2)addTrauma?.(Math.min(1,v/15));}
+function onPhysicsImpact(e){const d=e?.detail||{},A=airframes.get(String(d.id||""));if(!A)return;if(A.state==="parked"&&!A.flown&&performance.now()-A.born<20000)return;/* fresh parked jet settling as terrain streams in: no impact damage */const v=Number(d.approachSpeedMps??d.deltaVelocityMps)||0;if(v>5)damageAirframe(A,Math.pow(v-5,1.7)*4,"impact");if(A===jet&&v>2)addTrauma?.(Math.min(1,v/15));}
 
 // ------------------------------------------------------------ enter / exit
 function nearestRemoteBoardable(){

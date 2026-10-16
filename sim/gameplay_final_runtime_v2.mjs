@@ -98,7 +98,8 @@ function ensureTracerPool(scene){if(tracerScene===scene&&tracerPool.length)retur
   const flashGeo=new THREE.SphereGeometry(1,10,8),flashMat=new THREE.MeshBasicMaterial({color:0xffd9a0,transparent:true,opacity:.9,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});impactPool=[];for(let i=0;i<16;i++){const m=new THREE.Mesh(flashGeo,flashMat.clone());m.visible=false;m.frustumCulled=false;m.renderOrder=15;m.userData.flightFireIgnore=true;m.userData.neonSkip=true;m.userData.born=0;scene.add(m);impactPool.push(m);}}
 let tracerHand=0;
 let tracerHandFor=0;
-function showTracer(start,end){const scene=bridge()?.threeScene;if(!scene)return;tracerHandFor=tracerHand;if(isFoot()){try{window.dispatchEvent(new CustomEvent("arondight:foot-tracer",{detail:{start:[start.x,start.y,start.z],end:[end.x,end.y,end.z],weapon:footWeapon,hand:tracerHand}}));}catch{}}tracerHand=0;ensureTracerPool(scene);const group=tracerPool[tracerCursor++%tracerPool.length],state=group.userData.tracerState;tracerVector.copy(end).sub(start);const length=tracerVector.length();if(length<.03)return;state.start.copy(start);state.direction.copy(tracerVector).normalize();state.distance=length;state.born=performance.now();state.impacted=false;state.end=(state.end||new THREE.Vector3()).copy(end);state.follow=isFoot()?{weapon:footWeapon,hand:tracerHandFor}:null;group.visible=true;group.scale.set(1,.02,1);const view=viewport();if(view)view.dataset.walkShotVisibility="moving-bullet-segment+phosphor-halo-v2";}
+const TRACER_SPEED_MPS=240;
+function showTracer(start,end,speed=TRACER_SPEED_MPS){const scene=bridge()?.threeScene;if(!scene)return;tracerHandFor=tracerHand;if(isFoot()){try{window.dispatchEvent(new CustomEvent("arondight:foot-tracer",{detail:{start:[start.x,start.y,start.z],end:[end.x,end.y,end.z],weapon:footWeapon,hand:tracerHand}}));}catch{}}tracerHand=0;ensureTracerPool(scene);const group=tracerPool[tracerCursor++%tracerPool.length],state=group.userData.tracerState;tracerVector.copy(end).sub(start);const length=tracerVector.length();if(length<.03)return;state.start.copy(start);state.direction.copy(tracerVector).normalize();state.distance=length;state.speed=speed;state.born=performance.now();state.impacted=false;state.end=(state.end||new THREE.Vector3()).copy(end);state.follow=isFoot()?{weapon:footWeapon,hand:tracerHandFor}:null;group.visible=true;group.scale.set(1,.02,1);const view=viewport();if(view)view.dataset.walkShotVisibility="moving-bullet-segment+phosphor-halo-v2";}
 let impactPool=[],impactCursor=0;
 // The round leaves the muzzle you see: while the trace is short-lived, its back end stays on the
 // muzzle as it is drawn this frame (strafing / sway would otherwise leave it hanging where the gun
@@ -354,21 +355,28 @@ function glockShotAt(clientX,clientY,now,hand=0){
 // two bodies, kills a person outright and wrecks a car's engine. Its 41 N·s momentum goes into
 // what it hits — into the struck bone of a ragdoll, at the hit point of a rigid body. Scoped, the
 // shot leaves through the crosshair.
-const SNIPER_BOLT_MS=1150,SNIPER_RANGE_M=1500;let lastSniper=-Infinity,lastPunt=-Infinity;
+const SNIPER_BOLT_MS=1150,SNIPER_RANGE_M=1500,SNIPER_TRACER_MPS=850;let lastSniper=-Infinity,lastPunt=-Infinity;
 function sniperShotAt(clientX,clientY,now){
   if(!isFoot()||walk()?.dead||now-lastSniper<SNIPER_BOLT_MS)return false;lastSniper=now;
   if(globalThis.__arondightAds?.scoped){const v=viewport()?.getBoundingClientRect();if(v){clientX=v.left+v.width/2;clientY=v.top+v.height/2;}}
-  const ray=footRay(clientX,clientY);if(!ray)return false;const start=footMuzzle(tmp2,ray).clone();let origin=ray.origin.clone(),remaining=SNIPER_RANGE_M,pierced=0,end=null;const J=bulletImpulse(ray.direction,".50bmg");
-  while(pierced<3&&remaining>1){const r={origin,direction:ray.direction},hit=nearestGrenadeHit(r,remaining);
-    if(!hit){end=origin.clone().addScaledVector(ray.direction,Math.min(remaining,400));globalThis.__worldImpacts?.bullet(r,null,{maxDistance:remaining});break;}
-    const u=hit.object?.userData||{},kind=String(hit.physicsKind||u.worldPopulationKind||""),hits=kind==="car"||kind==="bus"?4:6;hit.weaponDamage=200;let routed=false;for(let i=0;i<hits;i++)routed=routeHit(hit)||routed;
-    globalThis.__worldImpacts?.bullet(r,hit,{routed});if(hit.point)globalThis.__worldImpacts?.chips?.(hit.point,ray.direction.clone().negate(),routed?"actor":"building",16,9);
-    const pt=hit.point?[hit.point.x,hit.point.y,hit.point.z]:null;
-    pushHitBody(hit,J,pt);
-    if(pt)queueMicrotask(()=>rigid()?.impulseHumanAt?.(pt,J));
-    end=hit.point?.clone?.()||origin.clone().addScaledVector(ray.direction,Number(hit.distance)||10);
-    if(!routed&&!hit.physicsId)break;pierced++;const d=Number(hit.distance)||origin.distanceTo(end);origin=end.clone().addScaledVector(ray.direction,.6);remaining-=d+.6;}
-  showTracer(start,end||origin);flashWeapon(70);
+  const ray=footRay(clientX,clientY);if(!ray)return false;const start=footMuzzle(tmp2,ray).clone(),dir=ray.direction.clone();let origin=ray.origin.clone(),remaining=SNIPER_RANGE_M,pierced=0,end=null;const J=bulletImpulse(dir,".50bmg");
+  // The round is traced now, but everything it does at the far end — damage, impulse, decal, chips,
+  // hit feedback — lands when the visible bullet gets there (distance / SNIPER_TRACER_MPS), not before.
+  const atArrival=(point,fn)=>setTimeout(fn,point?start.distanceTo(point)/SNIPER_TRACER_MPS*1000:0);
+  while(pierced<3&&remaining>1){const r={origin:origin.clone(),direction:dir},hit=nearestGrenadeHit(r,remaining);
+    if(!hit){end=origin.clone().addScaledVector(dir,Math.min(remaining,400));const left=remaining,t=dir.z<-1e-4?(groundHeightAt(origin.x,origin.y)-origin.z)/dir.z:Infinity;atArrival(origin.clone().addScaledVector(dir,t>0&&t<left?t:Math.min(left,400)),()=>globalThis.__worldImpacts?.bullet(r,null,{maxDistance:left}));break;}
+    hit.weaponDamage=200;hit.weapon="sniper";
+    // pierce decision at fire time (the routing result only exists at arrival): Box3D bodies and actors go through
+    let actor=false;for(let n=hit.object;n&&!actor;n=n.parent){const q=n.userData||{};actor=Boolean(q.worldPopulationKind||q.worldLifeKind||q.vsPlayerId||q.vsPeer);}
+    atArrival(hit.point,()=>{if(hit.object&&!hit.object.parent)return;
+      const u=hit.object?.userData||{},kind=String(hit.physicsKind||u.worldPopulationKind||""),hits=kind==="car"||kind==="bus"?4:6;shotRaycaster.set(r.origin,dir);let routed=false;for(let i=0;i<hits;i++)routed=routeHit(hit)||routed;
+      globalThis.__worldImpacts?.bullet(r,hit,{routed});if(hit.point)globalThis.__worldImpacts?.chips?.(hit.point,dir.clone().negate(),routed?"actor":"building",16,9);
+      const pt=hit.point?[hit.point.x,hit.point.y,hit.point.z]:null;
+      pushHitBody(hit,J,pt);
+      if(pt)queueMicrotask(()=>rigid()?.impulseHumanAt?.(pt,J));});
+    end=hit.point?.clone?.()||origin.clone().addScaledVector(dir,Number(hit.distance)||10);
+    if(!actor&&!hit.physicsId)break;pierced++;const d=Number(hit.distance)||origin.distanceTo(end);origin=end.clone().addScaledVector(dir,.6);remaining-=d+.6;}
+  showTracer(start,end||origin,SNIPER_TRACER_MPS);flashWeapon(70);
   if(audioSettings.soundEnabled&&audioSettings.shotsVolume>0){const ctx=getSharedCombatAudioContext({resume:true});if(ctx){playCombatAudio(ctx,"pistol",{gain:1.0*audioSettings.shotsVolume/100,playbackRate:.52,minIntervalMs:0});playCombatAudio(ctx,"pistol",{gain:.55*audioSettings.shotsVolume/100,playbackRate:.36,minIntervalMs:0});}}
   weaponFired("sniper",.8,"foot-screen","foot");const view=viewport();if(view){view.dataset.walkWeapon="sniper";view.dataset.walkSniperShots=String((Number(view.dataset.walkSniperShots)||0)+1);}return true;
 }
@@ -411,9 +419,16 @@ function punchAt(clientX,clientY,now,hand=0){const h=hand===1?1:0;if(!isFoot()||
 // every swing cuts the air: a short whoosh (the jab quicker and lighter than the cross)
 // KNIFE: a fast slash with the right hand, 1.6 m reach. Two good stabs take a person down; animals,
 // cows and mates take it like a heavy blow; loose things get a small shove.
-const KNIFE_RECOVER_MS=380,KNIFE_REACH_M=1.6,KNIFE_DMG=45;let lastKnife=-Infinity;
-function knifeAt(clientX,clientY,now){if(!isFoot()||walk()?.dead||now-lastKnife<KNIFE_RECOVER_MS)return false;lastKnife=now;lastPunch=now;let ray=footRay(clientX,clientY);if(!ray)return false;
-  weaponFired("knife",.1,"foot-screen","foot",{hand:0});knifeSwish();let hit=nearestGrenadeHit(ray,KNIFE_REACH_M+.3);
+// The swing starts on the press (animation, swish); the blade connects at the strike frame of the
+// first-person animation (wind-up 70 ms + half the 120 ms strike), CoD style. The hit is resolved
+// then, along the ray through the same screen point.
+const KNIFE_RECOVER_MS=380,KNIFE_REACH_M=1.6,KNIFE_DMG=45,KNIFE_STRIKE_MS=130;let lastKnife=-Infinity,knifeSwing=0;
+function knifeAt(clientX,clientY,now){if(!isFoot()||walk()?.dead||now-lastKnife<KNIFE_RECOVER_MS)return false;lastKnife=now;lastPunch=now;const pressRay=footRay(clientX,clientY);if(!pressRay)return false;
+  weaponFired("knife",.1,"foot-screen","foot",{hand:0});knifeSwish();const swing=++knifeSwing;
+  setTimeout(()=>{if(swing!==knifeSwing||!isFoot()||walk()?.dead||footWeapon!=="knife")return;knifeStrike(footRay(clientX,clientY)||pressRay);},KNIFE_STRIKE_MS);
+  {const v=viewport();if(v)v.dataset.walkKnifeHitTiming=`strike-frame-${KNIFE_STRIKE_MS}ms-v1`;}
+  return true;}
+function knifeStrike(ray){let hit=nearestGrenadeHit(ray,KNIFE_REACH_M+.3);
   if(!hit||Number(hit.distance)>KNIFE_REACH_M+.3){const o=ray.origin,f=new THREE.Vector3(ray.direction.x,ray.direction.y,0);if(f.lengthSq()>1e-6){f.normalize();const tgt=new THREE.Vector3(o.x+f.x*1.1,o.y+f.y*1.1,groundHeightAt(o.x+f.x*1.1,o.y+f.y*1.1)+.3),low=new THREE.Ray(o.clone(),tgt.sub(o).normalize()),h2=nearestGrenadeHit(low,KNIFE_REACH_M+.5);if(h2&&(h2.physicsKind==="animal"||h2.physicsKind==="cow"||h2.object?.userData?.worldPopulationKind==="person")){hit=h2;ray=low;}}}
   {const v=viewport();if(v)v.dataset.walkKnife=hit?`${hit.object?.userData?.worldPopulationKind||hit.physicsKind||hit.object?.name||"?"}@${Number(hit.distance).toFixed(2)}`:"air";}
   if(!hit||Number(hit.distance)>KNIFE_REACH_M+.3){const m=meleeFallback(ray,1.2);if(!m)return true;const d=ray.direction,pt=[m.point.x,m.point.y,m.point.z];knifeHit(true);
