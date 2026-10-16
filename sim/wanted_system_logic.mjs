@@ -44,7 +44,7 @@ export function wantedDetectionRadiusM(stars){
 
 export function wantedEscapeDurationMs(stars){
   const level=Math.max(0,Math.min(WANTED_MAX_STARS,Math.floor(Number(stars)||0)));
-  return level?3200+level*500:0;
+  return level?5000+level*1200:0; /* 6-11 s out of sight: long enough that the chase is a chase */
 }
 
 export function wantedPoliceDamage(stars){

@@ -197,10 +197,10 @@ function makeGrenade(scene,start,direction){
 // time: the next one leaves only when the last one has gone off. Switch weapons and it flies dumb.
 const ROCKET_FOOT_SPEED_MPS=40,ROCKET_FOOT_LAUNCH_MPS=22,ROCKET_FOOT_ACCEL_MPS2=55,ROCKET_FOOT_COOLDOWN_MS=900,ROCKET_TURN_RAD_S=2.8,ROCKET_LASER_RANGE_M=420,ROCKET_FOOT_TTL_MS=9000;let lastFootRocket=-Infinity;
 const rocketLaser={dot:null,scene:null,point:new THREE.Vector3(),valid:false,active:false,at:-Infinity,finger:null,pinned:null},laserQuat=new THREE.Quaternion(),laserTmp=new THREE.Vector3(),laserFrom=new THREE.Vector3();
-function laserDotTexture(){const c=document.createElement("canvas");c.width=c.height=64;const x=c.getContext("2d"),gr=x.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,"rgba(255,235,235,1)");gr.addColorStop(.18,"rgba(255,40,30,1)");gr.addColorStop(.45,"rgba(255,0,0,.35)");gr.addColorStop(1,"rgba(255,0,0,0)");x.fillStyle=gr;x.fillRect(0,0,64,64);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
+function laserDotTexture(){const c=document.createElement("canvas");c.width=c.height=64;const x=c.getContext("2d"),gr=x.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,"rgba(255,30,20,1)");gr.addColorStop(.3,"rgba(255,10,0,1)");gr.addColorStop(.5,"rgba(220,0,0,.45)");gr.addColorStop(1,"rgba(200,0,0,0)");x.fillStyle=gr;x.fillRect(0,0,64,64);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
 function ensureRocketLaser(scene){
   if(rocketLaser.scene===scene&&rocketLaser.dot)return rocketLaser;if(rocketLaser.dot)rocketLaser.dot.parent?.remove(rocketLaser.dot);
-  const dot=new THREE.Sprite(new THREE.SpriteMaterial({map:laserDotTexture(),color:0xffffff,transparent:true,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));dot.name="WALK_ROCKET_LASER_DOT";
+  const dot=new THREE.Sprite(new THREE.SpriteMaterial({map:laserDotTexture(),color:0xffffff,transparent:true,depthTest:true,depthWrite:false,blending:THREE.NormalBlending,toneMapped:false})/* normal blending: additive red on a bright wall or sky turned the dot white */);dot.name="WALK_ROCKET_LASER_DOT";
   dot.frustumCulled=false;dot.renderOrder=16;dot.visible=false;dot.raycast=()=>{};dot.userData.flightFireIgnore=true;dot.userData.walkWeaponPart=true;dot.userData.neonSkip=true;scene.add(dot);
   Object.assign(rocketLaser,{dot,scene});return rocketLaser;
 }
@@ -245,7 +245,7 @@ function makeFootRocket(scene,start,direction){const g=new THREE.Group();g.name=
 const rocketAxis=new THREE.Vector3(0,1,0); // the rocket model is built along +y (nose up): that axis is turned onto the flight direction
 let lastRocketDeny=-Infinity;function denyRocket(now){if(now-lastRocketDeny<400)return;lastRocketDeny=now;const view=viewport();if(view)view.dataset.walkRocketDenied=String((Number(view.dataset.walkRocketDenied)||0)+1);}
 function launchFootRocket(clientX,clientY,now=performance.now(),source="foot-screen"){
-  if(!isFoot()||walk()?.dead||now-lastFootRocket<ROCKET_FOOT_COOLDOWN_MS)return false;const ray=footRay(clientX,clientY),scene=bridge()?.threeScene;if(!ray||!scene)return false;if(grenades.some(g=>g.rocket&&g.guided)){denyRocket(now);return false;}lastFootRocket=now;const start=footMuzzle(tmp2,ray).clone().addScaledVector(ray.direction,.25),direction=ray.direction.clone().normalize(),group=makeFootRocket(scene,start,direction);
+  if(!isFoot()||walk()?.dead||now-lastFootRocket<ROCKET_FOOT_COOLDOWN_MS)return false;const ray=footRay(clientX,clientY),scene=bridge()?.threeScene;if(!ray||!scene)return false;/* never blocked: a new rocket takes the laser over, the one still in the air flies on unguided */for(const g of grenades)if(g.rocket&&g.guided)g.guided=false;if(rocketLaser)rocketLaser.pinned=null;lastFootRocket=now;const start=footMuzzle(tmp2,ray).clone().addScaledVector(ray.direction,.25),direction=ray.direction.clone().normalize(),group=makeFootRocket(scene,start,direction);
   grenades.push({group,scene,rocket:true,guided:true,velocity:direction.clone().multiplyScalar(ROCKET_FOOT_LAUNCH_MPS),born:now,fuseAt:now+ROCKET_FOOT_TTL_MS,bounces:0,nextCollisionAt:0,resting:false,source:"rocket"});flashWeapon(70);audioShot(.4);weaponFired("rocket",.7,source,"foot");const view=viewport();if(view){view.dataset.walkWeapon="rocket";view.dataset.walkRocketLaunches=String((Number(view.dataset.walkRocketLaunches)||0)+1);}return true;}
 function launchFootGrenade(clientX,clientY,now=performance.now(),source="foot-screen"){
   // Remote detonation: while a round is still flying / bouncing, the next tap
@@ -438,13 +438,22 @@ function knifeStrike(ray){let hit=nearestGrenadeHit(ray,KNIFE_REACH_M+.3);
     return true;}
   const d=ray.direction,u=hit.object?.userData||{},kind=String(u.worldPopulationKind||hit.physicsKind||""),pt=hit.point?[hit.point.x,hit.point.y,hit.point.z]:null;
   let pid="";for(let n=hit.object;n&&!pid;n=n.parent)pid=String(n.userData?.worldPopulationId||n.userData?.worldProceduralId||"");
-  const flesh=kind==="person"||hit.physicsKind==="animal"||hit.physicsKind==="cow"||Boolean(u.vsPlayerId);knifeHit(flesh);
+  const flesh=kind==="person"||hit.physicsKind==="animal"||hit.physicsKind==="cow"||Boolean(u.vsPlayerId);knifeHit(flesh);knifeMarks(hit,ray,flesh);
   if(kind==="person"&&pid){reportAssault(pid,globalThis.__arondightProceduralPopulation?.punch?.(pid,{dir:[d.x,d.y,d.z],damage:KNIFE_DMG,momentumNs:12}));if(pt)globalThis.__arondightBlood?.(pt);}
   else if(hit.physicsKind==="animal"&&hit.physicsId){globalThis.__ambientAnimals?.hit?.({id:hit.physicsId,point:pt,origin:[ray.origin.x,ray.origin.y,ray.origin.z],direction:[d.x,d.y,d.z],strength:1});}
   else if(hit.physicsKind==="cow"&&hit.physicsId){globalThis.__arondightCows?.hit?.({id:hit.physicsId,point:pt,direction:[d.x,d.y,d.z],weapon:"knife",damage:40});}
   else if(u.vsPlayerId){routeHit({...hit,weapon:"knife"});}
   else if(hit.physicsId){pushHitBody(hit,[d.x*10,d.y*10,d.z*10],pt);}
   return true;}
+// What a blade leaves behind: on flesh a wound (dark red, stuck to the body it hit) and drops on
+// the ground below; on anything hard a short slash scored along the swing (3 dark marks + chips).
+let knifeMarkSide=1;const Z_UP=new THREE.Vector3(0,0,1);
+function knifeMarks(hit,ray,flesh){const W=globalThis.__worldImpacts,pt=hit?.point;if(!W?.decal||!pt)return;const d=ray.direction,n=hit.worldNormal?.clone?.()||grenadeHitNormal(hit,new THREE.Vector3())||new THREE.Vector3(-d.x,-d.y,-d.z);if(n.dot(d)>0)n.multiplyScalar(-1);
+  if(flesh){W.decal(pt,n,{size:.07+Math.random()*.04,color:0x5a0606,attach:hit.object||null});const g=groundHeightAt(pt.x,pt.y);for(let i=0;i<3;i++)W.decal(new THREE.Vector3(pt.x+(Math.random()-.5)*.6,pt.y+(Math.random()-.5)*.6,g),Z_UP,{size:.06+Math.random()*.1,color:0x4a0505,ground:true});return;}
+  // slash direction on the surface: diagonal across the swing (alternates like the swing itself)
+  knifeMarkSide=-knifeMarkSide;const t1=new THREE.Vector3().crossVectors(n,Z_UP);if(t1.lengthSq()<1e-6)t1.set(1,0,0);t1.normalize();const t2=new THREE.Vector3().crossVectors(n,t1).normalize();const along=t1.multiplyScalar(.7).addScaledVector(t2,.7*knifeMarkSide).normalize();
+  for(let i=-1;i<=1;i++)W.decal(pt.clone().addScaledVector(along,i*.045),n,{size:.03,color:0x1a1714,attach:hit.object||null});
+  W.chips?.(pt.clone(),n.clone(),"wall",4,2);}
 function fxVolume(){return audioSettings.soundEnabled?Math.max(0,Number(audioSettings.fxVolume)||0)/100:0;}
 function knifeSwish(){const a=globalThis.__sharedAudioContext;if(!a||a.state!=="running")return;try{const t=a.currentTime,dur=.13,n=a.createBuffer(1,Math.ceil(a.sampleRate*dur),a.sampleRate),ch=n.getChannelData(0);for(let i=0;i<ch.length;i++){const u=i/ch.length;ch[i]=(Math.random()*2-1)*Math.sin(Math.PI*u)**2;}const s=a.createBufferSource(),bp=a.createBiquadFilter(),g=a.createGain();bp.type="bandpass";bp.Q.value=2.2;bp.frequency.setValueAtTime(2400,t);bp.frequency.exponentialRampToValueAtTime(6800,t+dur);g.gain.value=.34*fxVolume();s.buffer=n;s.connect(bp).connect(g).connect(a.destination);s.start(t);}catch{}}
 function knifeHit(flesh){const a=globalThis.__sharedAudioContext;if(!a||a.state!=="running")return;try{const t=a.currentTime+.04,v=fxVolume();if(flesh){const o=a.createOscillator(),g=a.createGain();o.type="sine";o.frequency.setValueAtTime(120,t);o.frequency.exponentialRampToValueAtTime(50,t+.18);g.gain.setValueAtTime(.55*v,t);g.gain.exponentialRampToValueAtTime(.001,t+.22);o.connect(g).connect(a.destination);o.start(t);o.stop(t+.25);}

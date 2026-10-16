@@ -283,8 +283,12 @@ function stepCraters(now){
 // persistent state (collision, rendering, map) as the nuke.
 const buildingHp=new Map();
 function structuralHp(b){return Math.max(220,(b.maxX-b.minX)*(b.maxY-b.minY)*b.height*.22);}
+// Only WEAPONS break buildings. A burning car, a police cruiser going up, wreck debris or flung
+// rubble used to count as fresh blasts too: one rocket set off the cars in the street, each car
+// chipped every house around it, and a whole block fell in a chain ("40 houses gone").
+const STRUCTURAL_KINDS=new Set(["missile","rocket","grenade","strike","airstrike","bomb","jet-rocket","cannon","enemy-rocket"]);
 function onWorldExplosion(event){
-  const d=event?.detail||{};if(d.kind==="nuke")return;const p=d.position,scene=bridge()?.threeScene;if(!scene)return;
+  const d=event?.detail||{};if(d.kind==="nuke")return;if(!STRUCTURAL_KINDS.has(String(d.kind||"")))return;const p=d.position,scene=bridge()?.threeScene;if(!scene)return;
   const x=Array.isArray(p)?+p[0]:+p?.x,y=Array.isArray(p)?+p[1]:+p?.y,z=Array.isArray(p)?+p[2]:+p?.z;if(!Number.isFinite(x)||!Number.isFinite(y))return;
   const radius=clamp(d.radiusM??6,2,40),power=clamp(d.maxDamage??60,10,400)*(d.kind==="missile"||String(d.source||"").includes("missile")?2.2:1);let touched=0;
   for(const b of buildingsFromSnapshot()){

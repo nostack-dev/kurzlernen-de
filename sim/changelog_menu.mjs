@@ -5,6 +5,20 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-16",time:"07:10",title:"Polizei kommt, Busse fahren, neue Autos",items:[
+    "Polizei, Polizeidrohnen und Militär kommen wieder: du entkommst erst, wenn sie da waren – nicht mehr, bevor das erste Auto eintrifft. Das Militär rückt bei fünf Sternen deutlich früher aus.",
+    "Ein Haus wegzuschießen reißt keinen ganzen Block mehr mit: brennende Autos, Trümmer und Polizeiwagen beschädigen keine Häuser mehr, nur noch echte Waffen.",
+    "Busse kannst du jetzt genauso fahren wie Autos – mit Außen- und Innenansicht.",
+    "Mehr Autos auf den Straßen: Kombis, SUVs, Transporter und ein flacher Elektro-Roadster.",
+    "Raketenwerfer: nie mehr blockiert – eine neue Rakete übernimmt den Laserpunkt, die alte fliegt ungelenkt weiter. Der Punkt ist jetzt wirklich rot. Lenkraketen ziehen runde Rauchwolken statt Vierecken.",
+    "Die Glock ist feiner gebaut (Leuchtvisier, Auswurffenster, Abzug), der Schlitten fährt bei jedem Schuss sichtbar zurück, und der Schuss knallt satter.",
+    "Das Messer hinterlässt Spuren: Wunden und Blut bei Treffern, Schnittkerben an Wänden und Autos.",
+    "Die Arme in der Ich-Ansicht verdecken weniger: kürzer, und die zweite Hand kommt von unten statt quer durchs Bild.",
+    "Passanten, die die Arme hochreißen, schreien dabei.",
+    "Spieler halten etwa 18 % mehr aus.",
+    "Zombies brechen nicht mehr sofort durch: eine Barrikade hält, egal wie viele drauf einschlagen, und durch Bretter wird niemand gekratzt. Nachts sind die Eingänge nur noch verbarrikadiert, ohne Türen.",
+    "Routenpfeile liegen jetzt als Pfeile auf der Straße statt als flache Symbole im Bild.",
+    "Die installierte App startet nicht mehr im erzwungenen Vollbild – kein „Zum Beenden nach oben wischen“ mehr, du kommst ganz normal raus."]},
   {date:"2026-10-16",time:"06:38",title:"Feste Häuser, Tauben, Laserpunkt",items:[
     "Häuser sind überall fest: Autos fahren nicht mehr durch Gebäude (auch nicht in der Innenansicht), Passanten und Tiere laufen nicht mehr hindurch – egal wie weit du dich von deiner Drohne entfernst.",
     "Die Physik repariert sich selbst: ein einzelner kaputter Körper kann die Kollisionen nicht mehr lahmlegen, und sollte die Physik doch einmal abstürzen, wird sie sofort neu aufgebaut.",

@@ -29,7 +29,9 @@ function markPlayerDeath(source="world"){
 }
 function revivePlayer(){const wasDead=playerDead;playerDead=false;document.body?.classList.remove("player-dead");if(wasDead)announce("arondight:player-revived",{hp:playerHp});}
 
-function damagePlayer(amount=25,source="world"){if(globalThis.__arondightGpsLive?.active)return currentPlayerHp(); /* LIVE GPS mirrors real life: the game can't hurt you */
+// Players take ~18 % less from every hit (they last that much longer, HUD stays 0-100).
+const PLAYER_DAMAGE_TOLERANCE=1.18;
+function damagePlayer(amount=25,source="world"){amount=Math.max(0,Number(amount)||0)/PLAYER_DAMAGE_TOLERANCE;if(globalThis.__arondightGpsLive?.active)return currentPlayerHp(); /* LIVE GPS mirrors real life: the game can't hurt you */
   // The shielded pilot survives the nuke: during the nuke window every
   // damage source (blast, burn, radiation, debris, secondary explosions,
   // falls) is absorbed.

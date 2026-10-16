@@ -25,7 +25,7 @@ export const MILITARY_RESPONSE_VERSION="military-escalation-v1";
 // the army is the last resort: five stars held for a long time while the heat
 // keeps piling up (or a truly extreme rampage), then an alert phase in which
 // calming down (losing the fifth star) still calls it off
-const TRIGGER_HEAT=45,TRIGGER_HOLD_MS=75000,TRIGGER_EXTREME_HEAT=70,ALERT_MS=25000,END_STARS=3,SQUAD=4,MAX_SOLDIERS=8,SOLDIER_HP=100,HIT=25,HELI_HP=420,TANK_HP=900;
+const TRIGGER_HEAT=36,TRIGGER_HOLD_MS=40000,TRIGGER_EXTREME_HEAT=55,ALERT_MS=15000,END_STARS=3,SQUAD=4,MAX_SOLDIERS=8,SOLDIER_HP=100,HIT=25,HELI_HP=420,TANK_HP=900;
 const OLIVE=0x4b5634,SOLDIER_COLORS=[0xc8956f,0xa87052,0x7b4a33,0xd2a27e].map(skin=>({shirt:0x55603c,vest:0x3d4530,pants:0x4a5238,boots:0x1d1a16,skin,gloves:0x2a2a24,helmet:0x4b5634}));
 const bridge=()=>globalThis.__arondightRealWorld||null,physics=()=>globalThis.__arondightWorldRigidBodies||null,wanted=()=>globalThis.__arondightWantedSystem||null,viewport=()=>document.getElementById("viewport");
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),angleTo=(a,b)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;};

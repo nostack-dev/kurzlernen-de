@@ -898,7 +898,9 @@ function pollDesktopDrone(){
 globalThis.setInterval(()=>{if(soloMode){const now=performance.now();pollXboxGamepad(now);pollDesktopDrone(now);}},16);$("viewport").dataset.gamepadPollLoop="dedicated-60hz-v1";
 async function enterSolo(){
   soloMode=true;resetPresentationTiming();soloPreviousInputSource=inputSource;phoneSettings=loadPhoneControlSettings();soloGroundClearance=phoneSettings.defaultHoverAgl;setSoloHeightAxis(0);soloControls=neutralSoloControls();updateSoloSticks();raceTrack.reset();raceTrack.setVisible(true);document.body.classList.add("solo-flight");syncSoloPresentationOrientation();/* touch mapping needs the orientation now, not at the next resize */soloHud.hidden=false;setXboxControlPreference(phoneSettings.xboxControllerEnabled);inputSource="local";ui.inputSource.value="local";localArm=false;arm=false;localThrottle=0;updateRemoteUI();resize();
-  try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen({navigationUI:"hide"});}catch{}
+  // The installed app (home screen) never forces browser fullscreen: Android then shows its
+  // "swipe to exit" overlay and traps you in the game. Only a plain browser tab asks for it.
+  try{const installed=globalThis.matchMedia?.("(display-mode: standalone)")?.matches||globalThis.matchMedia?.("(display-mode: fullscreen)")?.matches||globalThis.navigator?.standalone===true;if(!installed&&!document.fullscreenElement&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();}catch{}
   try{await screen.orientation?.lock?.("landscape");}catch{}
   resize();
   if(mode==="sim"&&backend&&!running)startRun();

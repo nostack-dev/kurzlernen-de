@@ -285,42 +285,37 @@ function ensureGuide(){const v=viewport();if(!v)return;ensureStyle();if(!guideEl
 const proj=new THREE.Vector3();
 // Small road-aligned arrows only when an actual routing polyline exists. No fake
 // street path for missing routes or for flying aircraft. 8 Hz route sampling, per-frame camera projection.
+// Route arrows lie ON the ground along the road (3-D chevrons in the world, like painted
+// markings), not as flat screen icons: they sit in perspective, behind houses and under cars.
+let arArrows=null,arArrowScene=null;
+function ensureArArrows(){const scene=bridge()?.threeScene;if(!scene)return null;if(arArrows&&arArrowScene===scene)return arArrows;if(arArrows)arArrows.group.parent?.remove(arArrows.group);
+  const shape=new THREE.Shape();shape.moveTo(0,.9);shape.lineTo(.95,-.15);shape.lineTo(.55,-.15);shape.lineTo(0,.42);shape.lineTo(-.55,-.15);shape.lineTo(-.95,-.15);shape.closePath();
+  const geo=new THREE.ShapeGeometry(shape),mat=new THREE.MeshBasicMaterial({color:0x37d7ff,transparent:true,opacity:.85,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,toneMapped:false,side:THREE.DoubleSide});
+  const group=new THREE.Group();group.name="NAV_ROUTE_ARROWS";group.userData.flightFireIgnore=true;group.userData.neonSkip=true;const meshes=[];
+  for(let i=0;i<8;i++){const m=new THREE.Mesh(geo,mat.clone());m.renderOrder=3;m.frustumCulled=false;m.visible=false;m.raycast=()=>{};m.userData.flightFireIgnore=true;group.add(m);meshes.push(m);}
+  scene.add(group);arArrowScene=scene;arArrows={group,meshes};return arArrows;}
+function hideArArrows(){if(arArrows)for(const m of arArrows.meshes)m.visible=false;}
 function updateArTrail(now,c,s,validRoadRoute){
-  if(!arTrailEl)return;
-  if(!validRoadRoute){arTrailEl.hidden=true;lastTurnCue=null;arTrailCrumbs=[];arTrailSampleRoute=null;return;}
-  const v=viewport(),W=v?.clientWidth||0,H=v?.clientHeight||0;
-  if(!c||!W||!H||!route?.coords?.length){arTrailEl.hidden=true;lastTurnCue=null;return;}
-  // Route geometry and turn detection are expensive: keep their 125ms throttle.
-  // A camera can turn every frame: cached world points MUST be reprojected each frame.
+  if(arTrailEl)arTrailEl.hidden=true;/* the old flat screen arrows are retired */
+  const A=ensureArArrows();
+  if(!validRoadRoute||!route?.coords?.length){if(A)for(const m of A.meshes)m.visible=false;lastTurnCue=null;arTrailCrumbs=[];arTrailSampleRoute=null;return;}
   if(now-lastArTrailAt>=125||arTrailSampleRoute!==route||arTrailSampleMode!==s.mode){
     lastArTrailAt=now;arTrailSampleRoute=route;arTrailSampleMode=s.mode;
     const path=route.coords.map(q=>toLocal(q[0],q[1]));
-    const spacing=s.mode==="foot"?12:35,first=s.mode==="foot"?7:18;
-    arTrailCrumbs=sampleNavBreadcrumbs(path,[s.x,s.y],{count:5,spacingM:spacing,startM:first});
+    const spacing=s.mode==="foot"?9:22,first=s.mode==="foot"?5:12;
+    arTrailCrumbs=sampleNavBreadcrumbs(path,[s.x,s.y],{count:8,spacingM:spacing,startM:first});
     lastTurnCue=findUpcomingNavTurn(path,[s.x,s.y],{scanM:s.mode==="foot"?130:350,windowM:s.mode==="foot"?10:20});
   }
-  c.updateMatrixWorld(true);let shown=0;
-  for(let i=0;i<arTrailEl.children.length;i++){
-    const el=arTrailEl.children[i],q=arTrailCrumbs[i];if(!q){el.style.display="none";continue;}
-    const z=groundHeightAt(q.p[0],q.p[1])+.65;
-    const world=new THREE.Vector3(q.p[0],q.p[1],z),eye=world.clone().applyMatrix4(c.matrixWorldInverse);
-    if(eye.z>=-.2){el.style.display="none";continue;}
-    const p=world.project(c);
-    if(p.z< -1||p.z>1||Math.abs(p.x)>.92||Math.abs(p.y)>.88){el.style.display="none";continue;}
-    const x=(p.x*.5+.5)*W,y=(-p.y*.5+.5)*H;
-    if(x<12||x>W-12||y<75||y>H-55){el.style.display="none";continue;}
-    const ahead=new THREE.Vector3(q.p[0]+Math.sin(q.bearingRad)*3,q.p[1]+Math.cos(q.bearingRad)*3,z).project(c);
-    const dx=(ahead.x-p.x)*W,dy=-(ahead.y-p.y)*H;
-    const angle=Math.hypot(dx,dy)>1?Math.atan2(dy,dx)*180/Math.PI+90:0;
-    el.style.display="block";el.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px) rotate(${angle.toFixed(1)}deg)`;
-    shown++;
-  }
-  arTrailEl.hidden=shown===0;
-  if(v)v.dataset.navArBreadcrumbs=String(shown);
+  if(!A)return;let shown=0;const size=s.mode==="foot"?1.1:2.2;
+  for(let i=0;i<A.meshes.length;i++){const m=A.meshes[i],q=arTrailCrumbs[i];if(!q){m.visible=false;continue;}
+    m.position.set(q.p[0],q.p[1],groundHeightAt(q.p[0],q.p[1])+.09);m.rotation.set(0,0,-q.bearingRad);m.scale.setScalar(size);
+    // a soft wave runs along the arrows toward the goal; the far ones fade out
+    const wave=.55+.45*Math.max(0,Math.sin(now*.006-i*.9));m.material.opacity=(.35+.55*wave)*(1-i/(A.meshes.length+2));m.visible=true;shown++;}
+  const v=viewport();if(v)v.dataset.navArBreadcrumbs=String(shown);
 }
 function guide(now){
   ensureGuide();if(!guideEl||!arEl)return;const s=subject();
-  if(!dest||!s||open||!inGame()){if(!guideEl.hidden)guideEl.hidden=true;if(!arEl.hidden)arEl.hidden=true;if(arTrailEl)arTrailEl.hidden=true;lastTurnCue=null;return;}
+  if(!dest||!s||open||!inGame()){if(!guideEl.hidden)guideEl.hidden=true;if(!arEl.hidden)arEl.hidden=true;if(arTrailEl)arTrailEl.hidden=true;hideArArrows();lastTurnCue=null;return;}
   const onRoad=s.mode==="foot"||s.mode==="car";
   // Never leave a car route pending when the player switches to foot (or vice versa).
   if(onRoad&&((route&&route.profile!==profile())||(routing&&requestedProfile&&requestedProfile!==profile()))){
@@ -329,7 +324,7 @@ function guide(now){
   const validRoadRoute=onRoad&&route?.profile===profile()&&route?.coords?.length>=2;
   const target=toLocal(dest.lon,dest.lat),ahead=s.mode==="foot"?30:s.mode==="car"?70:s.mode==="jet"?900:Math.max(60,s.z*1.5);
   const la=validRoadRoute?lookahead(s,ahead):{p:target,off:0,left:Math.hypot(target[0]-s.x,target[1]-s.y)};
-  if(!la){guideEl.hidden=arEl.hidden=true;if(arTrailEl)arTrailEl.hidden=true;return;}
+  if(!la){guideEl.hidden=arEl.hidden=true;if(arTrailEl)arTrailEl.hidden=true;hideArArrows();return;}
   const [dx,dy]=[target[0]-s.x,target[1]-s.y],direct=Math.hypot(dx,dy),left=validRoadRoute?la.left:direct;
   // arrived
   if(direct<(s.mode==="foot"?18:s.mode==="car"?30:60)){toast(`ZIEL ERREICHT · ${dest.name}`);setDestination(null);return;}

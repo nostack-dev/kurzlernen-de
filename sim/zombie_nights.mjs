@@ -19,7 +19,8 @@ import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 // snapshots; the others see and shoot the same zombies (hits forwarded).
 
 export const ZOMBIE_NIGHTS_VERSION="cod-zombie-nights-v1";
-const CAP=28,REMOTE_CAP=28,HP0=100,HIT_DMG=34,MELEE_DMG=14,MELEE_MS=1150,PLANK_MS=1500,REPAIR_COST=10,HIT_PTS=10,KILL_PTS=60,SPAWN_MIN=34,SPAWN_MAX=70,SYNC_MS=120;
+const doorNextBreak=new Map();
+const CAP=28,REMOTE_CAP=28,HP0=100,HIT_DMG=34,MELEE_DMG=14,MELEE_MS=1150,PLANK_MS=3400,REPAIR_COST=10,HIT_PTS=10,KILL_PTS=60,SPAWN_MIN=34,SPAWN_MAX=70,SYNC_MS=120;
 const ZCOL=[0x8a9a78,0x7d8c70,0x93a183,0x6f7e66].map((skin,i)=>({shirt:[0x5d5a4a,0x4b4d43,0x6a5c4a,0x3f4a4f][i],vest:0x3b3428,pants:[0x2f2c28,0x3a3530,0x262a2e,0x40382e][i],boots:0x1f1b18,skin,gloves:skin,helmet:0x2b2620,dark:0x111111}));
 const bridge=()=>globalThis.__arondightRealWorld||null,viewport=()=>document.getElementById("viewport"),interiors=()=>globalThis.__buildingInteriors||null;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),angleTo=(a,b)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;};
@@ -84,14 +85,16 @@ function stepZombie(z,player,now,dt){
   if(z.entering&&z.enterAt){const ix=z.enterAt[0],iy=z.enterAt[1],dd=Math.hypot(ix-z.x,iy-z.y),st=Math.min(dd,Math.max(1.2,z.speed)*dt);z.state="enter";if(dd>1e-3){z.x+=(ix-z.x)/dd*st;z.y+=(iy-z.y)/dd*st;z.yaw+=angleTo(z.yaw,Math.atan2(iy-z.y,ix-z.x))*Math.min(1,dt*8);}z.sp=st/Math.max(dt,1e-3);const h=I?.feetHeightAt?.(z.x,z.y,z.z);z.z=Number.isFinite(h)?h:groundHeightAt(z.x,z.y);if(dd<.25){z.entering=false;z.enterAt=null;z.inside=Boolean(I?.insideActive?.(z.x,z.y));}}
   else if(pIn&&!z.inside){const d=doorFor(z);if(d){const ox=d.cx+d.nx*1.15,oy=d.cy+d.ny*1.15;const dist=moveToward(z,ox,oy,dt);
       if(dist<.9){z.yaw+=angleTo(z.yaw,Math.atan2(-d.ny,-d.nx))*Math.min(1,dt*8);
-        if(d.planks>0){z.state="breach";z.sp=0;if(now>=z.nextPlank){z.nextPlank=now+PLANK_MS*(.8+Math.random()*.5);I.damagePlank?.(d.i);z.swing=now;}}
+        if(d.planks>0){z.state="breach";z.sp=0;/* a barricade holds: one plank per door every PLANK_MS however many of them pound on it */if(now>=z.nextPlank&&now>=(doorNextBreak.get(d.i)||0)){z.nextPlank=now+PLANK_MS*(.8+Math.random()*.5);doorNextBreak.set(d.i,now+PLANK_MS*.9);I.damagePlank?.(d.i);z.swing=now;}}
         else{z.state="enter";z.entering=true;z.enterAt=[d.cx-d.nx*1.8,d.cy-d.ny*1.8];}}
       else z.state="chase";}else moveToward(z,px,py,dt);}
   else if(z.inside){z.state="chase";if(!I?.insideActive?.(z.x,z.y)){z.inside=false;}else moveToward(z,px,py,dt,{indoor:true});}
   else moveToward(z,px,py,dt);
   // melee
   const dd=Math.hypot(px-z.x,py-z.y),dz=Math.abs(((player.position.z||1.68)-1.68)-z.z);
-  if(dd<1.35&&dz<1.3){z.state="attack";if(now>=z.nextHit){z.nextHit=now+MELEE_MS;z.swing=now;const t=playerTarget();t?.model?.damage?.(MELEE_DMG,"zombie");window.dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage:MELEE_DMG,source:"zombie",target:"player"}}));}}
+  // nobody is clawed through an intact barricade
+  const walled=pIn&&!z.inside&&!z.entering&&(()=>{const d=doorFor(z);return Boolean(d&&d.planks>0);})();
+  if(dd<1.35&&dz<1.3&&!walled){z.state="attack";if(now>=z.nextHit){z.nextHit=now+MELEE_MS;z.swing=now;const t=playerTarget();t?.model?.damage?.(MELEE_DMG,"zombie");window.dispatchEvent(new CustomEvent("arondight:combat-damage",{detail:{damage:MELEE_DMG,source:"zombie",target:"player"}}));}}
   if(Math.random()<dt*.25)groan(z,now);
 }
 function killZombie(z,dir=null,award=true,{silent=false}={}){

@@ -3,7 +3,7 @@ import {VS_FX_EVENT} from "./lan_vs.mjs";
 import {requestLight} from "./dynamic_lights.mjs";
 import {AUDIO_SETTINGS_EVENT,loadAudioSettings,normalizeAudioSettings} from "./audio_settings.mjs";
 import {accelerateCriticalDetonation,criticalDamageProfile,isCriticalDamage} from "./critical_damage_logic.mjs";
-import {WANTED_EMP_COOLDOWN_MS,WANTED_EMP_RANGE_M,wantedCrimeSeverity,wantedDetectionRadiusM,wantedEmpImpulseNs,wantedEscapeDurationMs,wantedLineBlockedByPrisms,wantedPointInRing,wantedPoliceAltitudeOffsetM,wantedPoliceCount,wantedPoliceDamage,wantedPoliceEngageDelayMs,wantedPoliceHitChance,wantedPoliceShotIntervalMs,wantedPoliceSpawnRadiusM,wantedPoliceWaveBreakMs,wantedSearchState,wantedStarsForHeat} from "./wanted_system_logic.mjs";
+import {WANTED_EMP_COOLDOWN_MS,WANTED_EMP_RANGE_M,wantedCrimeSeverity,wantedDetectionRadiusM,wantedEmpImpulseNs,wantedEscapeDurationMs,wantedLineBlockedByPrisms,wantedPointInRing,wantedPoliceAltitudeOffsetM,wantedPoliceCount,wantedPoliceDamage,wantedPoliceEngageDelayMs,wantedPoliceArrivalDelayMs,wantedPoliceHitChance,wantedPoliceShotIntervalMs,wantedPoliceSpawnRadiusM,wantedPoliceWaveBreakMs,wantedSearchState,wantedStarsForHeat} from "./wanted_system_logic.mjs";
 import {accelerateWorldCriticalDamage,startWorldCriticalDamage,stopWorldCriticalDamage} from "./world_critical_damage_fx.mjs";
 import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 
@@ -42,7 +42,7 @@ const BUILDING_GRID_CELL_M=32,buildingGrid=new Map(),losCandidates=[],losSeen=ne
 let installed=false;
 // police switched off in the world options: no police drones exist (the wanted level still counts);
 // switched back on, the next wave comes in out of view
-let policeEnabled=worldOption("police"),wavePending=0,waveRetryAt=-Infinity;
+let wantedSince=0,policeEnabled=worldOption("police"),wavePending=0,waveRetryAt=-Infinity;
 let sceneRef=null;
 let policeRoot=null;
 let hud=null,empButton=null,hudStars=[],hudTitle=null,hudDetail=null,lastHudRender=-Infinity,policeHitBridge=null;
@@ -397,7 +397,7 @@ function reportCrime(detail={}){
 }
 
 function clearWanted(reason="escaped"){
-  const now=performance.now(),hadWanted=stars>0,clearedStars=stars;heat=0;stars=0;phase="clear";clearReason=String(reason||"clear");lastContactAt=-Infinity;lastCrimeAt=-Infinity;for(const drone of drones){if(reason==="escaped"&&drone.active&&!drone.empDisabled)beginPoliceRetreat(drone,now);else deactivateDrone(drone);}
+  wantedSince=0;const now=performance.now(),hadWanted=stars>0,clearedStars=stars;heat=0;stars=0;phase="clear";clearReason=String(reason||"clear");lastContactAt=-Infinity;lastCrimeAt=-Infinity;for(const drone of drones){if(reason==="escaped"&&drone.active&&!drone.empDisabled)beginPoliceRetreat(drone,now);else deactivateDrone(drone);}
   lastTargetDamageAt.player=-Infinity;lastTargetDamageAt.drone=-Infinity;waveNumber=0;waveStartedAt=-Infinity;nextWaveAt=-Infinity;playerSpeedMps=0;playerSampleAt=-Infinity;
   if(reason==="reset"){seenCrimes.clear();empReadyAt=-Infinity;empFeedbackUntil=-Infinity;empActivations=0;empLastAffected=0;empInRangeCount=0;}
   escapedBannerUntil=hadWanted&&reason!=="reset"?now+2100:-Infinity;if(hadWanted&&reason==="escaped")playTone({frequency:660,endFrequency:1040,duration:.22,gain:.023,type:"sine"});renderHud(0,true);if(reason!=="reset")window.dispatchEvent(new CustomEvent("arondight:wanted-cleared",{detail:{reason:clearReason,hadWanted,stars:clearedStars}}));return hadWanted;
@@ -476,7 +476,13 @@ function updateWanted(now,dt){
   const player=currentPlayerPosition();if(!player)return;
   if(currentPlayerHp()<=0){clearWanted("busted");return;}
   if(!policeEnabled){for(const drone of drones)if(drone.active)deactivateDrone(drone);wavePending=0;}
-  updatePlayerSpeed(player,now);if(policeEnabled)syncPoliceWaves(player,now);const seesPlayer=updateSensors(now),search=wantedSearchState({stars,seesPlayer,now,lastContactAt});lastContactAt=search.lastContactAt;phase=search.phase;
+  updatePlayerSpeed(player,now);if(policeEnabled)syncPoliceWaves(player,now);
+  // The police must ARRIVE before you can shake them: while they are still on their way (the
+  // witnesses' report stands) the escape clock does not run. Before, the clock ran from the
+  // crime on and you were "escaped" seconds before the first car or drone got there — so they
+  // never came at all, and the army (needs stars held for a while) never either.
+  if(!wantedSince)wantedSince=now;const enRoute=policeEnabled&&now<wantedSince+wantedPoliceArrivalDelayMs(stars)+6000;
+  const seesPlayer=updateSensors(now)||enRoute,search=wantedSearchState({stars,seesPlayer,now,lastContactAt});lastContactAt=search.lastContactAt;phase=search.phase;
   if(search.escaped){clearWanted("escaped");return;}
   for(const drone of drones)if(drone.active){updateDroneMotion(drone,now,dt);updateDroneAttack(drone,now);}updateSiren(now);renderHud(search.remainingMs);
 }

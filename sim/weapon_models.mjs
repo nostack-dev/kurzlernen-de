@@ -76,14 +76,16 @@ export function buildVoltSmg(){
 
 export function buildGoldenHandCannon(){
   const g=new THREE.Group(),K="walkGlockPart";
-  const slide=std(0x24272a,.38,.48),slideCut=std(0x121416,.62,.24),cut=std(0x121416,.62,.24),frame=std(0x101315,.78,.03),barrel=std(0x080a0b,.28,.66),steel=std(0x44484b,.42,.58),white=std(0xe9ece9,.62,.02);
+  const slide=std(0x2b2f33,.3,.62),slideCut=std(0x15181b,.55,.3),cut=std(0x121416,.7,.18),frame=std(0x14171a,.82,.02),barrel=std(0x1c1f22,.22,.8),steel=std(0x5a5f63,.32,.7),white=std(0xe9ece9,.62,.02),tritium=glow(0x7dff6a),brass=std(0xc9a44a,.3,.85);
   // the slide (with its sights) is its own group: it cycles back on every shot
   const top=new THREE.Group();top.name="WALK_GLOCK_SLIDE";top.userData.flightFireIgnore=true;top.userData.walkWeaponPart=true;
   top.add(solid(profile([[-.025,.070],[.315,.070],[.325,.058],[.325,.008],[-.025,.008]],.074),slide,0,0,0,K));
   for(let i=0;i<5;i++)top.add(box(.076,.045,.005,slideCut,0,.040,-.012-i*.016,K));
   for(let i=0;i<3;i++)top.add(box(.076,.030,.004,slideCut,0,.045,-.262-i*.014,K)); // front serrations
-  top.add(box(.052,.020,.020,slideCut,0,.087,-.015,K));top.add(box(.010,.010,.006,white,-.017,.098,-.026,K));top.add(box(.010,.010,.006,white,.017,.098,-.026,K));
-  top.add(box(.018,.024,.018,slideCut,0,.090,-.304,K));top.add(box(.007,.008,.006,white,0,.103,-.313,K));
+  top.add(box(.052,.020,.020,slideCut,0,.087,-.015,K));for(const x of[-.017,.017]){top.add(box(.011,.011,.004,white,x,.098,-.0265,K));top.add(box(.006,.006,.005,tritium,x,.098,-.0272,K));}
+  top.add(box(.018,.024,.018,slideCut,0,.090,-.304,K));top.add(box(.009,.009,.004,white,0,.103,-.3135,K));top.add(box(.005,.005,.005,tritium,0,.103,-.3142,K));
+  // ejection port (dark inset on the right), extractor, slide top bevels
+  top.add(box(.004,.024,.056,slideCut,.038,.054,-.13,K));top.add(box(.005,.006,.024,steel,.0385,.06,-.095,K));for(const x of[-.031,.031])top.add(box(.012,.006,.33,slideCut,x,.07,-.15,K));
   mergeByMaterial(top);g.add(top);
   g.add(box(.076,.010,.072,barrel,0,.067,-.145,K));
   g.add(cyl(.019,.275,barrel,0,.029,-.205,K,16));
@@ -93,7 +95,11 @@ export function buildGoldenHandCannon(){
   g.add(solid(profile([[.005,-.035],[.078,-.040],[.055,-.245],[-.035,-.245],[-.058,-.190],[-.030,-.050]],.078),frame,0,0,0,K));
   for(let i=0;i<5;i++)g.add(box(.080,.005,.050,cut,0,-.080-i*.034,.014-i*.003,K));
   g.add(box(.086,.020,.092,cut,0,-.250,.005,K));
-  g.add(box(.011,.045,.012,steel,0,-.083,-.060,K));
+  g.add(box(.011,.045,.012,steel,0,-.083,-.060,K));g.add(box(.004,.03,.008,steel,0,-.07,-.052,K)); // trigger + safety blade
+  g.add(box(.078,.008,.012,steel,0,-.008,-.10,K)); // takedown lever
+  g.add(cyl(.007,.05,steel,0,-.012,-.33,K,10)); // recoil guide rod tip
+  for(let i=0;i<3;i++)g.add(box(.076,.006,.012,cut,0,-.064,-.17-i*.03,K)); // rail slots
+  g.add(box(.09,.012,.1,steel,0,-.262,.005,K)); // magazine baseplate
   g.add(marker("WALK_GLOCK_GRIP",0,-.145,.005),marker("WALK_GLOCK_REAR_SIGHT",0,.101,-.020),marker("WALK_GLOCK_FRONT_SIGHT",0,.103,-.304));
   g.add(marker("WALK_GLOCK_EJECT",.04,.075,-.13));
   g.add(muzzle("WALK_GLOCK_MUZZLE_NODE",-.362,.029));

@@ -123,14 +123,13 @@ export function buildArm(name,options){const{batch,hand}=addArm(new PartBatch(),
 // on the handguard / fore grip (C-clamp from below: knuckles down, wrist outward).
 const POSES={
   smg:{right:{pos:[0,-.108,-.141],axis:[0,1,-.14],back:[1,0,.1],grip:{rx:.054,rz:.047,curls:[.9,1,1,1]},forearm:[.18,-.4,.9]},
-       left:{pos:[0,-.01,-.47],axis:[0,0,-1],back:[-.35,-1,0],grip:{rx:.062,rz:.083,wrap:.9},forearm:[-.55,-.3,.78]}},
+       left:{pos:[0,-.01,-.47],axis:[0,0,-1],back:[-.35,-1,0],grip:{rx:.062,rz:.083,wrap:.9},forearm:[-.3,-.85,.42]}},
   sniper:{right:{pos:[0,-.12,0],axis:[0,1,-.2],back:[1,0,.1],grip:{rx:.034,rz:.045,curls:[.9,1,1,1]},forearm:[.18,-.4,.9]},
-          left:{pos:[0,.01,-.62],axis:[0,0,-1],back:[-.35,-1,0],grip:{rx:.035,rz:.04,wrap:.95},forearm:[-.55,-.3,.78]}},
+          left:{pos:[0,.01,-.62],axis:[0,0,-1],back:[-.35,-1,0],grip:{rx:.035,rz:.04,wrap:.95},forearm:[-.3,-.85,.42]}},
   grenade:{right:{pos:[0,-.13,-.098],axis:[0,1,-.1],back:[1,0,.1],grip:{rx:.052,rz:.047,curls:[.9,1,1,1]},forearm:[.18,-.4,.9]}},
   rocket:{right:{pos:[0,-.1,-.142],axis:[0,1,-.12],back:[1,0,.1],grip:{rx:.032,rz:.042,curls:[.9,1,1,1]},forearm:[.2,-.45,.87]},
-          left:{pos:[0,-.085,-.473],axis:[0,1,-.06],back:[-1,0,.1],grip:{rx:.03,rz:.035},forearm:[-.5,-.45,.74]}},
-  glock:{right:{pos:[0,-.14,-.022],axis:[0,1,-.15],back:[1,0,.12],grip:{rx:.04,rz:.055,curls:[.85,1,1,1]},forearm:[.15,-.35,.92],scale:HAND_SCALE/1.35},
-         left:{pos:[-.03,-.162,-.035],axis:[0,1,-.15],back:[-1,-.1,-.25],grip:{rx:.07,rz:.07,wrap:.85},forearm:[-.4,-.45,.8],scale:HAND_SCALE/1.35}},
+          left:{pos:[0,-.085,-.473],axis:[0,1,-.06],back:[-1,0,.1],grip:{rx:.03,rz:.035},forearm:[-.3,-.85,.42]}},
+  glock:{right:{pos:[0,-.14,-.022],axis:[0,1,-.15],back:[1,0,.12],grip:{rx:.04,rz:.055,curls:[.85,1,1,1]},forearm:[.25,-.45,.86],scale:HAND_SCALE/1.35}}, /* one hand: a support hand in the middle of the view hid too much */
 };
 // Adds WALK_ARMS_<MODE> to a weapon group (right + left arm merged together: 3 draw
 // calls). The arm geometry is built in the weapon's local frame and keeps real hand
@@ -138,6 +137,6 @@ const POSES={
 export function attachWeaponArms(group,mode){
   const pose=POSES[mode];if(!group||!pose)return null;const name=`WALK_ARMS_${mode.toUpperCase()}`;let arms=group.getObjectByName?.(name);if(arms)return arms;
   const k=Math.max(.05,group.scale?.x||1),P=new PartBatch();
-  for(const[key,side]of[["right",1],["left",-1]]){const p=pose[key];if(!p)continue;addArm(P,{side,...p,scale:(p.scale||HAND_SCALE/k),length:p.length||.24,grip:{...p.grip,rx:p.grip.rx,rz:p.grip.rz}});}
+  for(const[key,side]of[["right",1],["left",-1]]){const p=pose[key];if(!p)continue;addArm(P,{side,...p,scale:(p.scale||HAND_SCALE/k)*.88,length:p.length||.13/* short sleeves: the arms must not wall off the lower middle of the picture */,grip:{...p.grip,rx:p.grip.rx,rz:p.grip.rz}});}
   arms=P.build(name,{userData:{walkArmPart:true}});arms.userData.walkArms=VIEWMODEL_ARMS_VERSION;group.add(arms);return arms;
 }

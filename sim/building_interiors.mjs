@@ -267,7 +267,7 @@ function buildDoorRigs(b){
     return{d,i,root,leaves,planks,angle:0,st};});
   syncPlanks();
 }
-let barricadesShown=false;function syncPlanks(){for(const r of doorRigs)r.planks.forEach((m,k)=>{m.visible=barricadesShown&&k<r.st[r.i];});}
+let barricadesShown=false;function syncPlanks(){for(const r of doorRigs){r.planks.forEach((m,k)=>{m.visible=barricadesShown&&k<r.st[r.i];});/* either or: at night the doorway is boarded up (no door leaves), by day there is a door and no planks */for(const l of r.leaves)l.pivot.visible=!barricadesShown;}}
 function stepDoors(dt){
   if(!doorRigs.length||!active)return;const p=walk()?.position,z=globalThis.__zombies;
   for(const r of doorRigs){const near=(p&&Math.hypot(p.x-r.d.cx,p.y-r.d.cy)<2.6)||Boolean(z?.atDoor?.(r.d.cx,r.d.cy)&&r.st[r.i]===0);const target=near?1.45:0;r.angle+=Math.max(-dt*3.2,Math.min(dt*3.2,target-r.angle));

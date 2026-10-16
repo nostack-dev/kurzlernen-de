@@ -15,7 +15,7 @@ assert.equal(wantedPoliceCount(5),3);
 assert.equal(wantedPoliceCount(9),3);
 assert.ok(wantedDetectionRadiusM(5)>wantedDetectionRadiusM(1));
 assert.ok(wantedEscapeDurationMs(5)>wantedEscapeDurationMs(1));
-assert.ok(wantedEscapeDurationMs(1)<=4000&&wantedEscapeDurationMs(5)<=6000);
+assert.ok(wantedEscapeDurationMs(1)<=7000&&wantedEscapeDurationMs(5)<=12000,"out of sight for 6-11 s shakes the police");
 assert.deepEqual([1,2,3,4,5].map(wantedPoliceDamage),[3,3,4,4,5]);
 assert.ok(wantedPoliceSpawnRadiusM(0)>=58&&wantedPoliceSpawnRadiusM(2)>wantedPoliceSpawnRadiusM(0));
 assert.ok(wantedPoliceArrivalDelayMs(1)>=14000&&wantedPoliceArrivalDelayMs(1)<=16000&&wantedPoliceArrivalDelayMs(5)>=9000&&wantedPoliceArrivalDelayMs(5)<wantedPoliceArrivalDelayMs(1));

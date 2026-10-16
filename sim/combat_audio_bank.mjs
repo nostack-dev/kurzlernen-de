@@ -1,4 +1,4 @@
-export const COMBAT_AUDIO_BANK_VERSION="prebaked-pcm-buffer-bank-v3"; // pistol: hard 9 mm N-wave report v4
+export const COMBAT_AUDIO_BANK_VERSION="prebaked-pcm-buffer-bank-v4"; // pistol: hard 9 mm report v5 (snap, body, three-stage slide clack)
 export const COMBAT_AUDIO_SAMPLE_RATE=44100;
 
 const TAU=Math.PI*2;
@@ -39,27 +39,27 @@ function renderPistol(sampleRate,variant){
   //  5. urban slap-back: early reflections from walls (14–80 ms, low-passed)
   //     and a short diffuse street tail (~0.35 s).
   // Hard-clipped like a close mic'd shot (tanh drive), then normalised.
-  const duration=.46+variant*.012,data=new Float32Array(Math.ceil(duration*sampleRate)),random=rng(0x61c0a7+variant*7919),dry=new Float32Array(data.length);
+  const duration=.58+variant*.012,data=new Float32Array(Math.ceil(duration*sampleRate)),random=rng(0x61c0a7+variant*7919),dry=new Float32Array(data.length);
   const rise=.00028+variant*.00002,fall=.00105+variant*.00006;let hp=0,lpA=0,lpB=0,tail=0,phase=0,ring1=0,ring2=0;
   for(let n=0;n<data.length;n++){
     const t=n/sampleRate,white=random()*2-1;
     let nwave=0;if(t<rise)nwave=t/rise;else if(t<rise+fall)nwave=1-1.6*(t-rise)/fall;else if(t<rise+fall*1.9)nwave=-.6*(1-(t-rise-fall)/(fall*.9));
     lpA+=.55*(white-lpA);hp=white-lpA;lpB+=.22*(lpA-lpB);const band=lpA-lpB;
     const blast=(band*.9+hp*.55)*Math.exp(-t/.0105);
-    const f=150*Math.exp(-t*24)+55;phase+=TAU*f/sampleRate;const thump=Math.sin(phase)*Math.exp(-t/.030)*(1-Math.exp(-t/.0009));
-    let mech=0;for(const[at,f1,f2,g]of[[.0235+variant*.0011,2300,3610,1],[.0478+variant*.0017,1980,3120,.7]]){const u=t-at;if(u>=0&&u<.02)mech+=g*(Math.sin(TAU*f1*u)+.6*Math.sin(TAU*f2*u)+.4*(random()*2-1))*Math.exp(-u/.0042);}
-    dry[n]=nwave*1.25+blast*.95+thump*.85+mech*.22;
+    const f=185*Math.exp(-t*22)+50;phase+=TAU*f/sampleRate;const thump=Math.sin(phase)*Math.exp(-t/.042)*(1-Math.exp(-t/.0009));const boom=Math.sin(TAU*44*t)*Math.exp(-t/.11)*(1-Math.exp(-t/.004)); /* the low body you feel */const snap=t<.0018?(random()*2-1)*(1-t/.0018):0; /* the bright first snap */
+    let mech=0;for(const[at,f1,f2,g]of[[.0215+variant*.0011,2450,3810,1],[.0452+variant*.0017,2080,3260,.8],[.0705+variant*.0013,2900,4400,.35]]){const u=t-at;if(u>=0&&u<.02)mech+=g*(Math.sin(TAU*f1*u)+.6*Math.sin(TAU*f2*u)+.4*(random()*2-1))*Math.exp(-u/.0042);}
+    dry[n]=nwave*1.3+snap*.7+blast*1.0+thump*1.15+boom*.38+mech*.36;
   }
   // reflections + street tail
   const taps=[[.0142,.42],[.0235,.30],[.0371,.24],[.0516,.17],[.0784,.11]].map(([d,g])=>[Math.floor((d+variant*.0007)*sampleRate),g]);
   for(let n=0;n<data.length;n++){
     const t=n/sampleRate;let v=dry[n];for(const[d,g]of taps)if(n>=d){ring1+=0;v+=g*dry[n-d]*.8;}
-    ring2+=.08*((random()*2-1)-ring2);tail+=.15*(ring2-tail);const diffuse=t>.012?tail*.34*Math.exp(-(t-.012)/.11):0;
+    ring2+=.08*((random()*2-1)-ring2);tail+=.15*(ring2-tail);const diffuse=t>.012?tail*.42*Math.exp(-(t-.012)/.16):0;
     data[n]=v+diffuse;
   }
   // low-pass the reflections a bit (walls absorb highs) while keeping the dry crack
   let lp=0;for(let n=0;n<data.length;n++){lp+=.45*(data[n]-lp);data[n]=dry[n]+(lp-dry[n]*.45);}
-  for(let n=0;n<data.length;n++)data[n]=Math.tanh(data[n]*2.2);
+  for(let n=0;n<data.length;n++)data[n]=Math.tanh(data[n]*2.6);
   return finish(data,.99);
 }
 

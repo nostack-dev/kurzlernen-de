@@ -47,6 +47,24 @@ export function honk(position,{kind="car",style="toot",source=""}={}){
   const peak=.34*vol;for(const[s,len]of parts){g.gain.setValueAtTime(0,t0+s);g.gain.linearRampToValueAtTime(peak,t0+s+.012);g.gain.setValueAtTime(peak,t0+s+len-.03);g.gain.linearRampToValueAtTime(0,t0+s+len);}
   const v=document.getElementById("viewport");if(v){v.dataset.streetHonks=String((Number(v.dataset.streetHonks)||0)+1);v.dataset.streetVoices=STREET_VOICES_VERSION;}return true;}
 
+// Scream: a panicked "aaah!" — a buzzy voice (saw + pulse) through two vowel formants, pitch shooting
+// up and wavering, a breathy noise layer; every person has their own pitch. Rate-limited, in 3-D.
+let lastScream=-1e9;
+export function scream(position,{seed=""}={}){
+  const now=performance.now();if(!Array.isArray(position)||now-lastScream<450)return false;const key=`x:${seed}`;if(seed&&now-(lastBySource.get(key)||-1e9)<3000)return false;
+  const d=distanceTo(position),vol=hearing();if(vol<=0||d>55)return false;const a=audio();if(!a||a.state!=="running")return false;lastScream=now;if(seed)lastBySource.set(key,now);placeListener();
+  const k=hash(seed||String(now)),female=k>.45,f0=(female?520:330)+k*160,dur=.55+hash(seed+"d")*.55,t0=a.currentTime+.01;
+  const pan=a.createPanner();pan.panningModel="equalpower";pan.distanceModel="inverse";pan.refDistance=4;pan.maxDistance=200;pan.rolloffFactor=1.2;
+  if(pan.positionX){pan.positionX.setValueAtTime(position[0],t0);pan.positionY.setValueAtTime(position[1],t0);pan.positionZ.setValueAtTime(position[2]||1.6,t0);}else pan.setPosition(position[0],position[1],position[2]||1.6);
+  const out=a.createGain();out.gain.value=0;out.connect(pan).connect(bus);
+  const peak=.42*vol;out.gain.setValueAtTime(0,t0);out.gain.linearRampToValueAtTime(peak,t0+.04);out.gain.setValueAtTime(peak*.9,t0+dur*.75);out.gain.exponentialRampToValueAtTime(.0008,t0+dur);
+  const f1=a.createBiquadFilter(),f2=a.createBiquadFilter();f1.type="bandpass";f1.frequency.value=female?1050:850;f1.Q.value=5;f2.type="bandpass";f2.frequency.value=female?2600:2300;f2.Q.value=6;const g1=a.createGain(),g2=a.createGain();g1.gain.value=1.1;g2.gain.value=.6;f1.connect(g1).connect(out);f2.connect(g2).connect(out);
+  const vib=a.createOscillator(),vg=a.createGain();vib.frequency.value=6+k*3;vg.gain.value=f0*.035;vib.connect(vg);
+  for(const[type,mul,gain]of[["sawtooth",1,.55],["square",1.003,.18]]){const o=a.createOscillator();o.type=type;o.frequency.setValueAtTime(f0*.82*mul,t0);o.frequency.exponentialRampToValueAtTime(f0*1.18*mul,t0+.12);o.frequency.exponentialRampToValueAtTime(f0*.9*mul,t0+dur);vg.connect(o.frequency);const og=a.createGain();og.gain.value=gain;o.connect(og);og.connect(f1);og.connect(f2);o.start(t0);o.stop(t0+dur+.05);}
+  const len=Math.floor(a.sampleRate*dur),buf=a.createBuffer(1,len,a.sampleRate),ch=buf.getChannelData(0);for(let i=0;i<len;i++)ch[i]=(Math.random()*2-1)*.35;const nz=a.createBufferSource();nz.buffer=buf;const ng=a.createGain();ng.gain.value=.25;nz.connect(ng).connect(f2);nz.start(t0);
+  vib.start(t0);vib.stop(t0+dur+.05);
+  const v=document.getElementById("viewport");if(v)v.dataset.streetScreams=String((Number(v.dataset.streetScreams)||0)+1);return true;}
+
 function pickVoice(){if(deVoice!==null||typeof speechSynthesis==="undefined")return deVoice;const vs=speechSynthesis.getVoices?.()||[];if(!vs.length)return null;deVoice=vs.find(v=>/^de(-|_|$)/i.test(v.lang)&&/de-DE/i.test(v.lang))||vs.find(v=>/^de/i.test(v.lang))||false;return deVoice;}
 export function shout(position,{mood="bump",seed="",text=""}={}){
   const now=performance.now();if(!Array.isArray(position))return false;const key=`s:${seed}`;if(now-lastShout<SHOUT_GAP_MS||(seed&&now-(lastBySource.get(key)||-1e9)<SOURCE_GAP_MS))return false;

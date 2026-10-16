@@ -1,7 +1,7 @@
 import {vehicleFootprintsOverlap} from "./vehicle_spawn_clearance.mjs";
 import * as THREE from "three";
 import {groundHeightAt,staticGroundHeightAt,onTerrainChange} from "./terrain_craters.mjs";
-import {vehicleGeometry,vehicleMaterial,wheelGeometry,vehicleGlassGeometry,vehicleGlassMaterial} from "./vehicle_models.mjs";
+import {CAR_STYLES,CAR_STYLE_SEAT_DROP,vehicleGeometry,vehicleMaterial,wheelGeometry,vehicleGlassGeometry,vehicleGlassMaterial} from "./vehicle_models.mjs";
 import {playAnimal} from "./animal_audio.mjs";
 import {createCrowd,civilianColors} from "./crowd_characters.mjs";
 import {VS_FX_EVENT} from "./lan_vs.mjs";
@@ -13,7 +13,7 @@ import {syncWorldBuildingDepthOcclusion} from "./world_building_depth_occlusion.
 import {createPedestrianNetwork,seedRouteAgents,stepAgent,routePointInto,projectOnRoute,agentRandom,shiftAgent,frighten,provoke,punchPose,armsOf,fightWeapon,temperOf} from "./pedestrian_agents.mjs";
 import {worldOption,WORLD_OPTIONS_EVENT} from "./world_options.mjs";
 import {projectileMomentumNs} from "./ballistics.mjs";
-import {honk,shout} from "./street_voices.mjs";
+import {honk,shout,scream} from "./street_voices.mjs";
 
 const MOBILE=/(?:android|iphone|ipad|ipod|macintosh.*mobile)/i.test(globalThis.navigator?.userAgent||"");
 const CAR_COUNT=MOBILE?28:42;
@@ -85,7 +85,7 @@ function ensureShared(){if(shared.carBody)return;shared.carBody=new THREE.BoxGeo
 function tag(mesh,record){mesh.userData.worldPopulationKind=record.kind;mesh.userData.worldPopulationId=record.id;mesh.userData.worldProceduralId=record.id;mesh.userData.worldPopulationClone=false;}
 function retag(record){record.group.userData.worldPopulationKind=record.kind;record.group.userData.worldPopulationId=record.id;record.group.userData.worldProceduralId=record.id;record.group.userData.gtaDrivableVehicle=record.kind==="car";record.group.traverse(node=>{if(node?.isMesh){tag(node,record);node.userData.gtaDrivableVehicle=record.kind==="car";}});}
 function baseRecord(kind,index,group,color=0){return{kind,index,group,color,id:"",seed:0,motion:null,deadUntil:0,speed:0,routeDirection:index&1?-1:1,routeKey:"",placed:false,dOffset:0,relocations:0,physicsRegistered:false,physicsPose:null,stalledSince:0,lastNudgeAt:0};}
-function makeCar(index){ensureShared();const s=hashText(`car:${index}`),group=new THREE.Group(),paint=shared.carMats[s%shared.carMats.length].color.getHex(),body=new THREE.Mesh(vehicleGeometry("car",paint,{glass:false}),vehicleMaterial),glass=new THREE.Mesh(vehicleGlassGeometry("car"),vehicleGlassMaterial),r=baseRecord("car",index,group,paint);body.castShadow=true;glass.renderOrder=2;glass.userData.vehicleGlass=true;group.add(body,glass);return r;}
+function makeCar(index){ensureShared();const s=hashText(`car:${index}`),style=CAR_STYLES[(s>>>5)%CAR_STYLES.length],group=new THREE.Group(),paint=style==="roadster"?ROADSTER_PAINTS[(s>>>9)%ROADSTER_PAINTS.length]:shared.carMats[s%shared.carMats.length].color.getHex(),body=new THREE.Mesh(vehicleGeometry("car",paint,{glass:false,style}),vehicleMaterial),glass=new THREE.Mesh(vehicleGlassGeometry("car",style),vehicleGlassMaterial),r=baseRecord("car",index,group,paint);r.style=style;group.userData.carStyle=style;body.castShadow=true;glass.renderOrder=2;glass.userData.vehicleGlass=true;group.add(body,glass);return r;}
 function makeBus(index){ensureShared();const s=hashText(`bus:${index}`),group=new THREE.Group(),paint=shared.busMats[s%shared.busMats.length].color.getHex(),body=new THREE.Mesh(vehicleGeometry("bus",paint,{glass:false}),vehicleMaterial),glass=new THREE.Mesh(vehicleGlassGeometry("bus"),vehicleGlassMaterial),r=baseRecord("bus",index,group,paint);body.castShadow=true;glass.renderOrder=2;glass.userData.vehicleGlass=true;group.add(body,glass);return r;}
 // People are drawn by the instanced articulated crowd (crowd_characters.mjs). A person is an agent
 // (pedestrian_agents.mjs) that exists whether anybody looks or not; a draw slot is lent to it while it
@@ -101,7 +101,7 @@ function makePersonSlot(i){proxyGeo??=(()=>{const g=new THREE.CapsuleGeometry(.2
   group.name="WORLD_PERSON";group.visible=false;group.userData.worldPopulationKind="person";group.userData.agentDriven=true;/* position owned by the agent: no other module moves it */group.userData.worldPopulationClone=false;group.userData.spawnFarEntryM=PEOPLE_ENTRY_M;return{i,group,agent:null};}
 function updateCrowd(){if(!crowd)return;const now=performance.now(),dt=Math.min(.1,Math.max(.001,(now-crowdLast)/1000));crowdLast=now;const shown=root?.visible!==false;
   // only who is set this frame is drawn (the crowd packs its instances)
-  if(shown)for(const slot of personSlots){const a=slot.agent;if(!a||!slot.group.visible)continue;crowd.set(slot.i,{x:a.x,y:a.y,z:a.z,yaw:a.yaw-Math.PI/2,state:a.state==="fight"?(a.arms==="gun"?"aim-pistol":"fight"):now<(a.handsUpUntil||0)&&a.v>1.5?"panic":a.v>3.2?"run":a.v>.25?"walk":"idle",speed:a.v,dt,weapon:fightWeapon(a),punch:a.state==="fight"&&a.arms!=="gun"?punchPose(a,now):0});}
+  if(shown)for(const slot of personSlots){const a=slot.agent;if(!a||!slot.group.visible)continue;if(now<(a.handsUpUntil||0)&&a.screamFor!==a.handsUpUntil){a.screamFor=a.handsUpUntil;/* arms flung up = a scream, at the same moment */scream([a.x,a.y,(Number(a.z)||groundHeightAt(a.x,a.y))+1.6],{seed:a.id});}crowd.set(slot.i,{x:a.x,y:a.y,z:a.z,yaw:a.yaw-Math.PI/2,state:a.state==="fight"?(a.arms==="gun"?"aim-pistol":"fight"):now<(a.handsUpUntil||0)&&a.v>1.5?"panic":a.v>3.2?"run":a.v>.25?"walk":"idle",speed:a.v,dt,weapon:fightWeapon(a),punch:a.state==="fight"&&a.arms!=="gun"?punchPose(a,now):0});}
   crowd.commit();
   try{drawDrivers(dt);npcCarjackCheck(now);}catch(e){console.warn("drivers",e);}}
 // people wait at the kerb for a gap in the traffic: no car near the crossing, none coming at it
@@ -557,12 +557,13 @@ function applyDriverMood(record,pose,now,m,targetPoint,physics){const id=record.
 // you; people around shout too, and a witness reports it. A car someone was pulled out of stays empty
 // (parked) until nobody sees it any more. Rarely a hothead off the pavement does the same to a driver
 // waiting in traffic and races off with the car.
+const ROADSTER_PAINTS=[0xd8261f,0xe9ecef,0x15171a,0x2a5bd7,0x8e9aa6];
 const DRIVER_CAP=MOBILE?14:24,DRIVER_DRAW_M=70;let driverCrowd=null,driverScene=null;const driverOwner=[];
 function seatedDriver(r){return(r.kind==="car"||r.kind==="bus")&&!r.empty&&!r.parked&&!r.deadUntil&&!r.towed&&!r.remoteDriven;}
 function drawDrivers(dt){const scene=bridge()?.threeScene;if(!scene)return;if(driverScene!==scene){driverCrowd=createCrowd(scene,{capacity:DRIVER_CAP,name:"WORLD_DRIVERS"});driverScene=scene;driverOwner.length=0;}
   const B=bridge(),cam=(B?.presentedCamera?.()||B?.threeCamera)?.position;if(!cam)return;let j=0;
   for(const r of records){if(j>=DRIVER_CAP)break;if(!seatedDriver(r)||r.group.userData?.playerDriven||!shownInScene(r.group)||!bodyRendered(r))continue;const g=r.group.position;if((g.x-cam.x)**2+(g.y-cam.y)**2>DRIVER_DRAW_M*DRIVER_DRAW_M)continue;
-    r.group.updateMatrixWorld();const bus=r.kind==="bus";wheelOrigin.set(bus?3.05:-.15,bus?.72:.38,bus?.55:-.21)/* seated head top 1.49 above the seat origin: the sedan's roof lining is at 1.33 */.applyMatrix4(r.group.matrixWorld);
+    r.group.updateMatrixWorld();const bus=r.kind==="bus";wheelOrigin.set(bus?3.05:-.15,bus?.72:.38,bus?.55:-.21-(CAR_STYLE_SEAT_DROP[r.style]||0))/* seated head top 1.49 above the seat origin: the sedan's roof lining is at 1.33 */.applyMatrix4(r.group.matrixWorld);
     if(driverOwner[j]!==r.id){driverOwner[j]=r.id;driverCrowd.setColors(j,civilianColors(hashText(`${r.id}:driver`)));}
     driverCrowd.set(j,{x:wheelOrigin.x,y:wheelOrigin.y,z:wheelOrigin.z,yaw:r.group.rotation.z-Math.PI/2,state:"drive",speed:0,dt});j++;}
   driverCrowd.commit();}
