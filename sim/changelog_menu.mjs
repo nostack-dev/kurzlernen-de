@@ -5,6 +5,17 @@
 // Mouse, touch, keyboard (Esc closes) and the pad (pad_actions.mjs: up/down scroll, B closes).
 export const CHANGELOG_MENU_VERSION="title-changelog-v1";
 export const CHANGELOG=Object.freeze([
+  {date:"2026-10-16",time:"06:38",title:"Feste Häuser, Tauben, Laserpunkt",items:[
+    "Häuser sind überall fest: Autos fahren nicht mehr durch Gebäude (auch nicht in der Innenansicht), Passanten und Tiere laufen nicht mehr hindurch – egal wie weit du dich von deiner Drohne entfernst.",
+    "Die Physik repariert sich selbst: ein einzelner kaputter Körper kann die Kollisionen nicht mehr lahmlegen, und sollte die Physik doch einmal abstürzen, wird sie sofort neu aufgebaut.",
+    "Tauben! Kleine Trupps laufen in der Stadt herum, nicken, picken und gurren – kommst du ihnen zu nahe, fährt ein Auto vorbei oder knallt es, flattern alle zusammen auf und landen woanders.",
+    "Vögel fliegen jetzt mit dem Kopf voran statt seitwärts.",
+    "Raketenwerfer: nur noch ein großer roter Laserpunkt, kein Strahl mehr. Auf dem Handy lenkst du die fliegende Rakete mit dem Finger: Tipp auf ein neues Ziel und zieh, die Rakete folgt dem Punkt.",
+    "Im Jet gibt es nur noch einen EJECT-Knopf (oben rechts) – der Flugmodus-Knopf unten ist wieder frei erreichbar.",
+    "Die Ton- und Musik-Knöpfe oben wackeln nicht mehr.",
+    "Sounds sind zurück: Motor, Umgebung und Explosionen setzen nach dem Zurückkehren in die App wieder ein (spätestens beim ersten Tippen).",
+    "Straßen und Gehwege verschwinden nicht mehr kurz, wenn irgendwo etwas explodiert.",
+    "Innenansicht im Auto ganz ohne Lenkrad – freie Sicht auf die Straße."]},
   {date:"2026-10-15",time:"23:49",title:"Trümmer sind fest",items:[
     "Ein weggesprengtes Haus hinterlässt jetzt einen niedrigen Trümmersockel, der genauso fest ist, wie er aussieht: Du, Passanten, Autos und Tiere laufen nicht mehr hindurch.",
     "Auf den Trümmersockel kannst du hochspringen und darauf herumlaufen.",

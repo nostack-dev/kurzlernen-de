@@ -71,21 +71,31 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
 // Background silence: when the app is closed / sent to the background (tab hidden, PWA switched
 // away, screen off) every Web Audio context is suspended and every <audio>/<video> paused —
 // music, engine, effects, voices. Nothing may resume while hidden (several modules call resume()
-// on their own); on return exactly what was playing comes back.
+// on their own). Coming back, every context that was running runs again: at once where the
+// browser allows it, otherwise on the very next touch / click / key (phones only let audio
+// start from a gesture) — never left suspended, so engines, ambience and explosions stay.
 (()=>{const ctxs=new Set(),media=new Set(),Base=window.AudioContext||window.webkitAudioContext;let hiddenNow=false;
-  if(Base&&!Base.__bgGuard){const resume=Base.prototype.resume;Base.prototype.resume=function(){ctxs.add(this);if(hiddenNow||document.hidden){this.__bgResume=true;return Promise.resolve();}return resume.call(this);};
-    class Tracked extends Base{constructor(...a){super(...a);ctxs.add(this);if(document.hidden){this.__bgResume=this.state!=="closed";try{this.suspend();}catch{}}}}Tracked.__bgGuard=true;window.AudioContext=Tracked;if(window.webkitAudioContext)window.webkitAudioContext=Tracked;}
-  const play=HTMLMediaElement.prototype.play;HTMLMediaElement.prototype.play=function(){media.add(this);if(hiddenNow||document.hidden){this.__bgWanted=true;return Promise.resolve();}this.__bgWanted=false;return play.apply(this,arguments);};
+  const isHidden=()=>hiddenNow||document.visibilityState==="hidden";
+  if(Base&&!Base.__bgGuard){const resume=Base.prototype.resume;Base.__bgNativeResume=resume;
+    Base.prototype.resume=function(){ctxs.add(this);if(isHidden()){this.__bgWant=true;return Promise.resolve();}return resume.call(this);};
+    class Tracked extends Base{constructor(...a){super(...a);ctxs.add(this);try{this.addEventListener("statechange",()=>{if(this.state==="running")this.__bgWant=false;});}catch(e){}if(isHidden()){this.__bgWant=true;try{this.suspend();}catch(e){}}}}
+    Tracked.__bgGuard=true;window.AudioContext=Tracked;if(window.webkitAudioContext)window.webkitAudioContext=Tracked;}
+  const nativeResume=c=>{try{const r=(Base.__bgNativeResume||c.resume).call(c);if(r&&r.catch)r.catch(function(){});}catch(e){}};
+  const play=HTMLMediaElement.prototype.play;HTMLMediaElement.prototype.play=function(){media.add(this);if(isHidden()){this.__bgWanted=true;return Promise.resolve();}this.__bgWanted=false;return play.apply(this,arguments);};
   const pause=HTMLMediaElement.prototype.pause;HTMLMediaElement.prototype.pause=function(){if(!hiddenNow)this.__bgWanted=false;return pause.apply(this,arguments);};
-  function hide(){if(hiddenNow)return;hiddenNow=true;for(const c of ctxs){if(c.state==="running"){c.__bgResume=true;try{c.suspend();}catch{}}}
-    for(const m of new Set([...media,...document.querySelectorAll("audio,video")])){if(!m.paused&&!(m.srcObject&&m.tagName==="VIDEO")){m.__bgWanted=true;try{pause.call(m);}catch{}}}document.documentElement.dataset.bgAudio="suspended";}
-  function show(){if(!hiddenNow||document.hidden)return;hiddenNow=false;for(const c of ctxs){if(c.__bgResume&&c.state==="suspended"){c.__bgResume=false;try{c.resume();}catch{}}}
-    for(const m of media){if(m.__bgWanted){m.__bgWanted=false;try{play.call(m)?.catch?.(()=>{});}catch{}}}document.documentElement.dataset.bgAudio="running";}
-  document.addEventListener("visibilitychange",()=>{document.hidden?hide():show();},{capture:true});
-  window.addEventListener("pagehide",hide,{capture:true});document.addEventListener("freeze",hide,{capture:true});
+  function hide(){if(hiddenNow)return;hiddenNow=true;for(const c of ctxs){if(c.state==="running"||c.state==="interrupted"){c.__bgWant=true;try{c.suspend();}catch(e){}}}
+    for(const m of new Set([...media,...document.querySelectorAll("audio,video")])){if(!m.paused&&!(m.srcObject&&m.tagName==="VIDEO")){m.__bgWanted=true;try{pause.call(m);}catch(e){}}}document.documentElement.dataset.bgAudio="suspended";}
+  function wake(){if(isHidden())return;for(const c of ctxs){if(c.__bgWant&&c.state!=="running"&&c.state!=="closed")nativeResume(c);}
+    for(const m of media){if(m.__bgWanted){try{const r=play.call(m);if(r&&r.then)r.then(function(){m.__bgWanted=false;}).catch(function(){});else m.__bgWanted=false;}catch(e){}}}}
+  function show(){if(document.visibilityState==="hidden")return;hiddenNow=false;wake();document.documentElement.dataset.bgAudio="running";}
+  document.addEventListener("visibilitychange",()=>{document.visibilityState==="hidden"?hide():show();},{capture:true});
+  window.addEventListener("pagehide",e=>{if(document.visibilityState==="hidden"||e.persisted)hide();},{capture:true});document.addEventListener("freeze",hide,{capture:true});
   window.addEventListener("pageshow",show,{capture:true});document.addEventListener("resume",show,{capture:true});
-  window.__arondightBackgroundAudio={hide,show,get hidden(){return hiddenNow;},contexts:()=>[...ctxs]};})();
+  // the gesture that phones need to start audio again
+  for(const t of["pointerdown","touchend","keydown","click"])window.addEventListener(t,wake,{capture:true,passive:true});
+  window.__arondightBackgroundAudio={hide,show,wake,get hidden(){return hiddenNow;},contexts:()=>[...ctxs]};})();
 </script>
+
 <script>
 // Strict versioning for the installed app (home screen). The deployed page carries its build
 // SHA (first comment of the document); every deploy also publishes ./build.json with the same
@@ -204,7 +214,7 @@ body:not(.dev-ui) .panel,body:not(.dev-ui) .telemetry{display:none!important}
   window.addEventListener("arondight45-audio-settings-change",function(){renderMusic();});renderMusic();
   window.addEventListener("arondight45-audio-settings-change",function(){render();});
   // In game: sit just left of RESET (falls back to the menu's top-right spot).
-  function dock(){var reset=null,menu=document.getElementById("gameMenu");["mobileGameplayReset","soloReset"].forEach(function(id){var el=document.getElementById(id);if(!el||!el.offsetParent)return;var q=el.getBoundingClientRect();if(q.width<4||q.height<4)return;if(!reset||q.top<reset.getBoundingClientRect().top-2)reset=el;});var inGame=menu&&menu.hidden&&reset;
+  function dock(){/* while playing on touch the edge HUD (sim/edge_hud_layout.mjs) owns these two: writing them here as well made them jump back and forth every few hundred ms */if(document.body.classList.contains("edge-hud")||btn.dataset.edgeAdopted){setTimeout(dock,400);return;}var reset=null,menu=document.getElementById("gameMenu");["mobileGameplayReset","soloReset"].forEach(function(id){var el=document.getElementById(id);if(!el||!el.offsetParent)return;var q=el.getBoundingClientRect();if(q.width<4||q.height<4)return;if(!reset||q.top<reset.getBoundingClientRect().top-2)reset=el;});var inGame=menu&&menu.hidden&&reset;
     if(inGame){var r=reset.getBoundingClientRect(),right=window.innerWidth-r.left+6;btn.style.top=r.top+"px";btn.style.right=right+"px";btn.style.height=r.height+"px";mbtn.style.top=r.top+"px";mbtn.style.right=(right+btn.offsetWidth+6)+"px";mbtn.style.height=r.height+"px";}else{btn.style.top="";btn.style.right="";btn.style.height="";mbtn.style.top="";mbtn.style.right="";mbtn.style.height="";}
     setTimeout(dock,400);}
   render();dock();

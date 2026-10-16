@@ -90,7 +90,7 @@ function buildCockpit(){
   const rim=new THREE.MeshStandardMaterial({color:0x22252a,roughness:.55,metalness:.25}),hub=new THREE.MeshStandardMaterial({color:0x15171a,roughness:.5,metalness:.4}),amber=new THREE.MeshBasicMaterial({color:0xffb24a,toneMapped:false});
   const add=(geo,mat,x,y,z,rx=0,ry=0,rz=0,parent=g)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.userData.flightFireIgnore=true;m.castShadow=false;parent.add(m);return m;};
   // the wheel sits low in front of the driver (only its top arc shows at the bottom of the view), tilted towards him
-  cockpitWheel=new THREE.Group();cockpitWheel.position.set(.46,.36,.98);cockpitWheel.rotation.set(0,.5,0);g.add(cockpitWheel);
+  cockpitWheel=new THREE.Group();cockpitWheel.position.set(.46,.36,.98);cockpitWheel.rotation.set(0,.5,0);cockpitWheel.visible=false;/* no wheel in view: the inside view is a clear look at the road */g.add(cockpitWheel);
   const spin=new THREE.Group();cockpitWheel.add(spin);cockpitWheel.userData.spin=spin;
   add(new THREE.TorusGeometry(.13,.013,10,40),rim,0,0,0,0,Math.PI/2,0,spin);
   for(const a of[Math.PI/2,Math.PI*7/6,Math.PI*11/6])add(new THREE.BoxGeometry(.011,.12,.022),rim,0,Math.cos(a)*.065,Math.sin(a)*.065,a,0,0,spin);

@@ -6,6 +6,7 @@ import {COMBAT_AUDIO_BANK_VERSION,playCombatAudio,prepareCombatAudio} from "./co
 import {insideEscapeImproves,pointInsidePolygon,sweptPointClear} from "./walk_collision_math.mjs";
 import {buildCharacter,animateCharacter,shirtColorFor} from "./character_model.mjs";
 import {groundHeightAt} from "./terrain_craters.mjs";
+import {buildingDamage,damagedTop,destructionRevision} from "./world_destruction_state.mjs";
 import {spawnWorldPersonRagdoll} from "./world_person_ragdoll.mjs";
 import {vehicleGeometry,vehicleMaterial,wheelGeometry} from "./vehicle_models.mjs";
 
@@ -31,7 +32,7 @@ const DRONE_LAUNCH_OFFSET_M=2.9;
 let humanAnchor={x:0,y:0,z:0,yaw:0},anchorReady=false,lastHumanSample=null,humanVelocity={x:0,y:0,z:0};
 let pendingTeleport=null,airframeRoot=null,airframeScene=null,lastAirframeScan=-Infinity;
 let audioCtx=null,fxMaster=null;
-let collisionPrisms=null,collisionStamp="",lastGridBuild=-Infinity,lastVehicleScan=-Infinity,lastPeerScan=-Infinity;
+let collisionPrisms=null,collisionDrawn=null,collisionStamp="",lastGridBuild=-Infinity,lastVehicleScan=-Infinity,lastPeerScan=-Infinity;
 let applyingRemoteWorldLife=false,hitRouting=false,lastFxSession=null,patchedBridge=null;
 let localAvatar=null,avatarScene=null,muzzleScene=null,muzzleGeo=null,muzzleConeGeo=null,blastScene=null,blastGeo=null,blastRingGeo=null;
 let perfStart=performance.now(),perfFrames=0;
@@ -98,14 +99,19 @@ function syncMode(){const mode=currentMode();if(mode===lastMode)return;const pre
 
 function gridKey(gx,gy){return`${gx}:${gy}`;}
 function refreshBuildingGrid(now=performance.now()){
-  const b=bridge(),snapshot=b?.buildingCollisionSnapshot,prisms=snapshot?.prisms||[],origin=`${Number(b?.originLon)||0}:${Number(b?.originLat)||0}`,stamp=`${origin}:${prisms.length}:${snapshot?.revision??snapshot?.version??""}`;
-  if(prisms===collisionPrisms&&stamp===collisionStamp&&now-lastGridBuild<GRID_REFRESH_MS)return;
-  collisionPrisms=prisms;collisionStamp=stamp;lastGridBuild=now;buildingGrid.clear();
+  // Every DRAWN building blocks (the city mesh's footprints — the whole streamed city, not only the
+  // Box3D window around you), at its drawn (damaged) height, plus the collision prisms.
+  const b=bridge(),snapshot=b?.buildingCollisionSnapshot,prisms=snapshot?.prisms||[],drawn=globalThis.__arondightCityBuildings?.footprints?.()||[],origin=`${Number(b?.originLon)||0}:${Number(b?.originLat)||0}`,stamp=`${origin}:${prisms.length}:${drawn.length}:${destructionRevision()}`;
+  if(prisms===collisionPrisms&&drawn===collisionDrawn&&stamp===collisionStamp&&now-lastGridBuild<GRID_REFRESH_MS)return;
+  collisionPrisms=prisms;collisionDrawn=drawn;collisionStamp=stamp;lastGridBuild=now;buildingGrid.clear();
+  for(const fp of drawn){const r=fp?.outer;if(!Array.isArray(r)||r.length<3||(Number(fp.base)||0)>1.9)continue;const top=damagedTop(fp.base,Number(fp.top)||8,buildingDamage(fp.key));if(!(top>.25))continue;let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;for(const q of r){minX=Math.min(minX,q[0]);maxX=Math.max(maxX,q[0]);minY=Math.min(minY,q[1]);maxY=Math.max(maxY,q[1]);}if(!Number.isFinite(minX))continue;
+    const entry={points:r,holes:Array.isArray(fp.holes)&&fp.holes.length?fp.holes:null,minX,minY,maxX,maxY},gx0=Math.floor(minX/GRID_M),gx1=Math.floor(maxX/GRID_M),gy0=Math.floor(minY/GRID_M),gy1=Math.floor(maxY/GRID_M);for(let gx=gx0;gx<=gx1;gx++)for(let gy=gy0;gy<=gy1;gy++){const key=gridKey(gx,gy),bucket=buildingGrid.get(key);if(bucket)bucket.push(entry);else buildingGrid.set(key,[entry]);}}
   for(const prism of prisms){if(Number(prism?.top)<=.25||Number(prism?.base)>1.9||!Array.isArray(prism.points)||prism.points.length<3)continue;/* parts starting above head height (arcades, overhangs, skyways) are walked under */let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;for(const p of prism.points){const x=Number(p?.[0]),y=Number(p?.[1]);if(!Number.isFinite(x)||!Number.isFinite(y))continue;minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);}if(!Number.isFinite(minX))continue;const entry={points:prism.points,minX,minY,maxX,maxY},gx0=Math.floor(minX/GRID_M),gx1=Math.floor(maxX/GRID_M),gy0=Math.floor(minY/GRID_M),gy1=Math.floor(maxY/GRID_M);for(let gx=gx0;gx<=gx1;gx++)for(let gy=gy0;gy<=gy1;gy++){const key=gridKey(gx,gy),bucket=buildingGrid.get(key);if(bucket)bucket.push(entry);else buildingGrid.set(key,[entry]);}}
   const v=viewport();if(v){v.dataset.walkCollisionCells=String(buildingGrid.size);v.dataset.walkCollisionPrisms=String(prisms.length);}
 }
-function buildingsAtPoint(x,y){refreshBuildingGrid();const bucket=buildingGrid.get(gridKey(Math.floor(x/GRID_M),Math.floor(y/GRID_M)))||[];return bucket.filter(p=>x>=p.minX&&x<=p.maxX&&y>=p.minY&&y<=p.maxY&&pointInsidePolygon(x,y,p.points));}
-function buildingBlockedPoint(x,y){refreshBuildingGrid();const bucket=buildingGrid.get(gridKey(Math.floor(x/GRID_M),Math.floor(y/GRID_M)))||[];for(const p of bucket)if(x>=p.minX&&x<=p.maxX&&y>=p.minY&&y<=p.maxY&&pointInsidePolygon(x,y,p.points))return true;return false;}
+function buildingsAtPoint(x,y){refreshBuildingGrid();const bucket=buildingGrid.get(gridKey(Math.floor(x/GRID_M),Math.floor(y/GRID_M)))||[];return bucket.filter(p=>insideEntry(p,x,y));}
+function insideEntry(p,x,y){if(!(x>=p.minX&&x<=p.maxX&&y>=p.minY&&y<=p.maxY)||!pointInsidePolygon(x,y,p.points))return false;if(p.holes)for(const h of p.holes)if(Array.isArray(h)&&h.length>2&&pointInsidePolygon(x,y,h))return false;return true;}
+function buildingBlockedPoint(x,y){refreshBuildingGrid();const bucket=buildingGrid.get(gridKey(Math.floor(x/GRID_M),Math.floor(y/GRID_M)))||[];for(const p of bucket)if(insideEntry(p,x,y))return true;return false;}
 globalThis.__arondightBuildingAt=(x,y)=>buildingBlockedPoint(Number(x)||0,Number(y)||0); /* pedestrians and animals that run free never pass through walls */
 function buildingBlocked(x,y){const r=HUMAN_RADIUS,s=.707*r;for(const [dx,dy] of[[0,0],[r,0],[-r,0],[0,r],[0,-r],[s,s],[s,-s],[-s,s],[-s,-s]])if(buildingBlockedPoint(x+dx,y+dy))return true;return false;}
 function refreshVehicleNodes(now=performance.now()){if(now-lastVehicleScan<VEHICLE_SCAN_MS)return;lastVehicleScan=now;vehicleNodes.length=0;const scene=bridge()?.threeScene;if(!scene)return;scene.traverse?.(node=>{if(node?.visible===false)return;const life=String(node?.userData?.worldLifeKind||""),kind=String(node?.userData?.worldPopulationKind||"");if((life==="car"||life==="bus")&&node.children?.length)vehicleNodes.push({node,radius:life==="bus"?2.55:1.30});else if(kind==="car"&&node.children?.length&&!node.userData?.worldLifeId)vehicleNodes.push({node,radius:1.35});});const v=viewport();if(v)v.dataset.walkCollisionVehicles=String(vehicleNodes.length);}

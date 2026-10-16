@@ -190,29 +190,42 @@ function makeGrenade(scene,start,direction){
 }
 // Rocket launcher (RAKETENWERFER): one rocket per shot, 58 m/s, flies flat and goes off on impact —
 // next to the grenade launcher (WERFER), which lobs bouncing grenades with a fuse / remote trigger.
-// Half-Life 2 style: a red laser dot sits where the crosshair points; the rocket in the air
-// turns (rate-limited) toward the CURRENT dot, so you steer it by aiming. One rocket at a time:
-// the next one leaves only when the last one has gone off. Switch weapons and it flies dumb.
+// Half-Life 2 style: a big red laser DOT (no beam) sits where you aim — the crosshair, or on touch
+// the finger: put a finger on the picture while the rocket flies and the dot jumps there, drag it
+// and the dot follows; the rocket turns (rate-limited) toward the CURRENT dot. One rocket at a
+// time: the next one leaves only when the last one has gone off. Switch weapons and it flies dumb.
 const ROCKET_FOOT_SPEED_MPS=40,ROCKET_FOOT_LAUNCH_MPS=22,ROCKET_FOOT_ACCEL_MPS2=55,ROCKET_FOOT_COOLDOWN_MS=900,ROCKET_TURN_RAD_S=2.8,ROCKET_LASER_RANGE_M=420,ROCKET_FOOT_TTL_MS=9000;let lastFootRocket=-Infinity;
-const rocketLaser={dot:null,beam:null,scene:null,point:new THREE.Vector3(),valid:false,active:false,at:-Infinity},laserQuat=new THREE.Quaternion(),laserTmp=new THREE.Vector3(),laserFrom=new THREE.Vector3();
+const rocketLaser={dot:null,scene:null,point:new THREE.Vector3(),valid:false,active:false,at:-Infinity,finger:null,pinned:null},laserQuat=new THREE.Quaternion(),laserTmp=new THREE.Vector3(),laserFrom=new THREE.Vector3();
 function laserDotTexture(){const c=document.createElement("canvas");c.width=c.height=64;const x=c.getContext("2d"),gr=x.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,"rgba(255,235,235,1)");gr.addColorStop(.18,"rgba(255,40,30,1)");gr.addColorStop(.45,"rgba(255,0,0,.35)");gr.addColorStop(1,"rgba(255,0,0,0)");x.fillStyle=gr;x.fillRect(0,0,64,64);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
 function ensureRocketLaser(scene){
-  if(rocketLaser.scene===scene&&rocketLaser.dot)return rocketLaser;if(rocketLaser.dot){rocketLaser.dot.parent?.remove(rocketLaser.dot);rocketLaser.beam.parent?.remove(rocketLaser.beam);}
+  if(rocketLaser.scene===scene&&rocketLaser.dot)return rocketLaser;if(rocketLaser.dot)rocketLaser.dot.parent?.remove(rocketLaser.dot);
   const dot=new THREE.Sprite(new THREE.SpriteMaterial({map:laserDotTexture(),color:0xffffff,transparent:true,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));dot.name="WALK_ROCKET_LASER_DOT";
-  const beamGeo=new THREE.BufferGeometry();beamGeo.setAttribute("position",new THREE.BufferAttribute(new Float32Array(6),3));const beam=new THREE.Line(beamGeo,new THREE.LineBasicMaterial({color:0xff2a1a,transparent:true,opacity:.22,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));beam.name="WALK_ROCKET_LASER_BEAM";
-  for(const n of[dot,beam]){n.frustumCulled=false;n.renderOrder=16;n.visible=false;n.raycast=()=>{};n.userData.flightFireIgnore=true;n.userData.walkWeaponPart=true;n.userData.neonSkip=true;scene.add(n);}
-  Object.assign(rocketLaser,{dot,beam,scene});return rocketLaser;
+  dot.frustumCulled=false;dot.renderOrder=16;dot.visible=false;dot.raycast=()=>{};dot.userData.flightFireIgnore=true;dot.userData.walkWeaponPart=true;dot.userData.neonSkip=true;scene.add(dot);
+  Object.assign(rocketLaser,{dot,scene});return rocketLaser;
 }
 function updateRocketLaser(now){
   const scene=bridge()?.threeScene,on=Boolean(scene)&&isFoot()&&footWeapon==="rocket"&&!walk()?.dead&&!document.hidden;rocketLaser.active=false;
-  if(!on){if(rocketLaser.dot){rocketLaser.dot.visible=false;rocketLaser.beam.visible=false;}rocketLaser.valid=false;return;}
-  const L=ensureRocketLaser(scene),ray=footRay();if(!ray){L.dot.visible=L.beam.visible=false;return;}
+  if(!on){if(rocketLaser.dot)rocketLaser.dot.visible=false;rocketLaser.valid=false;rocketLaser.finger=null;rocketLaser.pinned=null;return;}
+  const flying=grenades.some(g=>g.rocket&&g.guided);if(!flying)rocketLaser.pinned=null;
+  // aim source: a finger on the picture > the point it was lifted at (while that rocket flies) > the crosshair
+  const L=ensureRocketLaser(scene);if(L.pinned){L.point.copy(L.pinned);L.valid=true;L.active=true;L.at=now;const cam=bridge()?.threeCamera;placeDot(L,cam?.position||L.point,now);publishLaser(L);return;}
+  const ray=L.finger?footRay(L.finger.x,L.finger.y):footRay();if(!ray){L.dot.visible=false;return;}
   // the crosshair ray (the same one a shot would take) — the rocket never sees itself: its meshes don't raycast
   const hit=nearestHit(ray,ROCKET_LASER_RANGE_M);L.active=true;L.at=now;
   if(hit?.point){L.point.copy(hit.point);L.valid=true;}else{L.point.copy(ray.origin).addScaledVector(ray.direction,ROCKET_LASER_RANGE_M);L.valid=false;}
-  const dist=L.point.distanceTo(ray.origin);L.dot.visible=L.valid;if(L.valid){L.dot.position.copy(L.point).addScaledVector(ray.direction,-Math.min(.12,.02+dist*.002));const flick=.92+.08*Math.sin(now*.05);L.dot.scale.setScalar(Math.max(.05,dist*.0085)*flick);}
-  const node=scene.getObjectByName?.("WALK_RL_LASER_NODE");if(node?.getWorldPosition){node.updateWorldMatrix?.(true,false);node.getWorldPosition(laserFrom);const a=L.beam.geometry.attributes.position;a.setXYZ(0,laserFrom.x,laserFrom.y,laserFrom.z);a.setXYZ(1,L.point.x,L.point.y,L.point.z);a.needsUpdate=true;L.beam.visible=true;}else L.beam.visible=false;
-  const view=viewport();if(view){view.dataset.walkRocketLaser=L.valid?"dot":"sky";view.dataset.walkRocketGuided=grenades.some(g=>g.rocket&&g.guided)?"1":"0";}
+  placeDot(L,ray.origin,now);publishLaser(L);}
+// the dot: big, pulsing a little, pulled a hair toward the viewer so it never sinks into the wall
+function placeDot(L,eye,now){L.dot.visible=L.valid;if(!L.valid)return;laserTmp.copy(eye).sub(L.point);const dist=laserTmp.length()||1;L.dot.position.copy(L.point).addScaledVector(laserTmp,Math.min(.15,.03+dist*.002)/dist);const flick=.9+.1*Math.sin(now*.045);L.dot.scale.setScalar(Math.max(.14,dist*.016)*flick);}
+function publishLaser(L){
+  const view=viewport();if(view){view.dataset.walkRocketLaser=L.valid?(L.finger?"finger-dot":L.pinned?"pinned-dot":"dot"):"sky";view.dataset.walkRocketGuided=grenades.some(g=>g.rocket&&g.guided)?"1":"0";}
+}
+// touch steering: the on-foot touch owner reports every fire finger (down / drag / lift)
+if(typeof window!=="undefined"){
+  const fingerAt=(d,phase)=>{if(footWeapon!=="rocket"||!isFoot())return;const x=Number(d?.clientX),y=Number(d?.clientY);if(!Number.isFinite(x)||!Number.isFinite(y))return;
+    if(phase==="end"){if(rocketLaser.finger&&grenades.some(g=>g.rocket&&g.guided)&&rocketLaser.valid)rocketLaser.pinned=rocketLaser.point.clone();rocketLaser.finger=null;return;}
+    rocketLaser.pinned=null;rocketLaser.finger={x,y};};
+  addEventListener("arondight:foot-screen-fire-anchor",e=>fingerAt(e.detail,"down"));
+  addEventListener("arondight:foot-aim",e=>fingerAt(e.detail,e.detail?.phase==="end"?"end":"move"));
 }
 // turns the rocket's flight direction toward the laser dot, at most ROCKET_TURN_RAD_S
 function steerRocket(g,dir,stepDt){

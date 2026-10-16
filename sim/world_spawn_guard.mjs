@@ -18,6 +18,7 @@ import "./dynamic_lights.mjs";
 import "./shader_prewarm.mjs";
 import "./street_lamps.mjs";
 import "./cows.mjs";
+import "./pigeons.mjs";
 import "./jetpack_audio.mjs";
 import "./hand_grenade.mjs";
 import "./scene_lighting.mjs";
