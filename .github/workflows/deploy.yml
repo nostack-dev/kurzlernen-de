@@ -37,6 +37,9 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Set up archived simulator fixture for legacy unit tests
+        run: cp drone_simulator_old.html drone_simulator.html
+
       - name: Deterministic critical gates
         run: |
           set -euxo pipefail
@@ -265,6 +268,12 @@ jobs:
           trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true; rm -f node_modules' EXIT
           sleep 1
           CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator_old.html
+
+      - name: Remove legacy fixture before publishing Kurzlernen
+        run: |
+          rm -f drone_simulator.html
+          test ! -e drone_simulator.html
+          test -s drone_simulator_old.html
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
