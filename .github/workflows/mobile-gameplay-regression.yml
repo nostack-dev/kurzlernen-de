@@ -1,19 +1,7 @@
 name: Mobile gameplay regression
 
+# Archived simulator: gameplay development and automatic CI moved to nostack-dev/spawncity-de.
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - "sim/**"
-      - "drone_simulator_old.html"
-      - "tests/desktop_controls_live_smoke.mjs"
-      - "tests/mobile_startup_live_smoke.mjs"
-      - "tests/mobile_hud_no_overlap_live_smoke.mjs"
-      - "tests/mobile_reset_readonly_live_smoke.mjs"
-      - "tests/mobile_gameplay_live_smoke.mjs"
-      - "tests/mobile_combat_traffic_live_smoke.mjs"
-      - "tests/mobile_multiplayer_live_smoke.mjs"
-      - ".github/workflows/mobile-gameplay-regression.yml"
   workflow_dispatch:
 
 concurrency:

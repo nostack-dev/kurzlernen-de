@@ -37,163 +37,13 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up archived simulator fixture for legacy unit tests
-        run: cp drone_simulator_old.html drone_simulator.html
-
-      - name: Deterministic critical gates
+      - name: Verify standalone Kurzlernen sources and stamp site build
         run: |
-          set -euxo pipefail
-          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror -Iesp32 tests/state_control_test.cpp -o /tmp/state_control_test
-          /tmp/state_control_test
-          node tests/fps_control_test.mjs
-          node tests/desktop_mouse_chord_contract_test.mjs
-          node tests/first_person_control_settings_test.mjs
-          node tests/xbox_gamepad_test.mjs
-          node tests/player_vitals_logic_test.mjs
-          node tests/wanted_system_test.mjs
-          node tests/gameplay_fun_logic_test.mjs
-          node tests/editor3d_contract_test.mjs
-          node tests/non_nuclear_weapons_contract_test.mjs
-          node tests/combat_audio_bank_test.mjs
-          node tests/world_population_runtime_contract_test.mjs
-          node tests/multiplayer_navigation_test.mjs
-          node tests/vs_global_lobby_test.mjs
-          node tests/voice_control_bindings_test.mjs
-          node tests/voice_solo_contract_test.mjs
-          node tests/voice_codec_test.mjs
-          node tests/jet_f_interact_test.mjs
-          node tests/mobile_peer_marker_layout_test.mjs
-          node tests/mobile_vehicle_entry_layout_test.mjs
-          node tests/rules_voice_hud_layout_test.mjs
-          node --check sim/proximity_voice.mjs
-          node tests/rules_vote_test.mjs
-          node tests/friendly_fire_authority_test.mjs
-          node tests/minimap_doubletap_modes_test.mjs
-          node tests/vs_first_join_host_test.mjs
-          node tests/vs_host_join_handshake_test.mjs
-          node tests/vs_group_spawn_test.mjs
-          node tests/map_peer_edge_test.mjs
-          node tests/nav_marker_timeline_test.mjs
-          node tests/nav_ar_route_math_test.mjs
-          node tests/nav_ar_turns_test.mjs
-          node tests/nav_route_request_gate_test.mjs
-          node tests/jet_pad_identity_contract_test.mjs
-          node tests/jet_seat_table_test.mjs
-          node tests/jet_seat_coordinator_test.mjs
-          node --check sim/multiplayer_navigation.mjs
-          node --check sim/vs_multiplayer.mjs
-          node --check sim/nav_marker_timeline.mjs
-          node --check sim/jet_mode.mjs
-          node --check sim/jet_seat_table.mjs
-          node --check sim/jet_seat_coordinator.mjs
-          node --check sim/world_map_full.mjs
-          node --check sim/real_world_bootstrap.mjs
-          node --check sim/nav_ar_route_math.mjs
-          node --check sim/nav_route_request_gate.mjs
-          node --check sim/world_map_full.mjs
-          node tests/pedestrian_agents_test.mjs
-          node tests/drone_world_grounding_contract_test.mjs
-          node tests/world_ground_streaming_regression_test.mjs
-          node tests/terrain_dem_consistency_regression_test.mjs
-          node tests/first_person_controller_contract_test.mjs
-          node tools/build-intrinsic-orcl.mjs --check
-          node tests/stockstrend_data_test.mjs
-          node tests/market_clock_test.cjs
-          node tests/price_shock_test.cjs
-          node --check sim/player_walk_mode_v4.mjs
-          node --check sim/gameplay_final_runtime_v2.mjs
-          node --check sim/flight_fire_fx.mjs
-          node --check sim/drone_weapon_modes.mjs
-          node tests/guided_counter_contract_test.mjs
-          node tests/drone_missile_api_routing_regression_test.mjs
-          node --check sim/guided_balance.mjs
-          node --check sim/guided_missile.mjs
-          node --check sim/world_procedural_population.mjs
-          node --check sim/world_city_roads.mjs
-          node --check sim/world_water.mjs
-          node --check sim/training_test_level_v2.mjs
-          node --check sim/world_organic_hit_audio.mjs
-          node --check sim/world_rigid_body_runtime.mjs
-          node --check sim/wanted_police_drones.mjs
-          node --check sim/auto_flight_start.mjs
-          grep -q 'kMaxHorizontalAccelerationMps2 = 7.5f' esp32/Arondight45_StateControl.hpp
-          grep -q 'box3d_hitscan.mjs' sim/flight_fire_fx.mjs
-
-      - name: Build exact shared controller runtime to WebAssembly
-        run: |
-          set -euxo pipefail
-          mkdir -p generated
-          FLAGS=(-std=c++17 -O3 -s MODULARIZE=1 -s EXPORT_ES6=1 -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FILESYSTEM=0 -s SINGLE_FILE=1
-            -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=16777216 -s "EXPORTED_RUNTIME_METHODS=[\"HEAPU8\"]"
-            -s "EXPORTED_FUNCTIONS=[\"_fc_input_buffer\",\"_fc_output_buffer\",\"_fc_input_size\",\"_fc_output_size\",\"_fc_reset\",\"_fc_process\",\"_fc_protocol_version\"]")
-          # the emsdk image (pulled with retries); if Docker Hub cannot deliver it, the same emsdk
-          # version installed directly — the build must not depend on one registry being up
-          have_image=0
-          for i in 1 2 3 4; do if docker pull -q emscripten/emsdk:4.0.10; then have_image=1; break; fi; sleep $((i*15)); done
-          if [ "$have_image" = 1 ]; then
-            EMXX=(docker run --rm -v "$PWD:/src" -w /src emscripten/emsdk:4.0.10 em++)
-          else
-            git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
-            "$RUNNER_TEMP/emsdk/emsdk" install 4.0.10
-            "$RUNNER_TEMP/emsdk/emsdk" activate 4.0.10
-            source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
-            EMXX=(em++)
-          fi
-          "${EMXX[@]}" sim/Arondight45_DroneFC_SIL_WASM.cpp "${FLAGS[@]}" -s ENVIRONMENT='web' -o generated/flight_core.mjs
-          "${EMXX[@]}" sim/Arondight45_DroneFC_SIL_WASM.cpp "${FLAGS[@]}" -s ENVIRONMENT='node' -o generated/flight_core_node.mjs
-          node tests/sil_wasm_smoke.mjs generated/flight_core_node.mjs
-
-      - name: Bundle self-contained Pages
-        run: |
-          set -euxo pipefail
-          BUILD_DIR=/tmp/arondight45-web-build
-          rm -rf "$BUILD_DIR"
-          mkdir -p "$BUILD_DIR"
-          cd "$BUILD_DIR"
-          npm init -y >/dev/null
-          npm install --ignore-scripts --no-audit --no-fund \
-            three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 mqtt@5.15.2 nostr-tools@2.24.1 \
-            qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.3 @trystero-p2p/mqtt@0.25.3 @trystero-p2p/torrent@0.25.3
-          ln -s "$BUILD_DIR/node_modules" "$GITHUB_WORKSPACE/node_modules"
-          cd "$GITHUB_WORKSPACE"
-          node tests/world_building_collision_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
-          node tests/world_building_incremental_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
-          node tests/world_rigid_body_physics_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
-          node tests/world_vehicle_dynamics_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
-          node tests/ground_safety_net_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
-          node tests/vehicle_steering_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
-          node tests/jet_flight_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
-          node tests/ragdoll_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
-          node tests/blast_physics_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
-          node tests/terrain_underground_rescue_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
-          node tests/terrain_tiles_box3d_test.mjs ./node_modules/box3d.js/dist/box3d.inline.mjs
-          node tests/terrain_building_pads_test.mjs
-          node tests/terrain_surface_alignment_test.mjs
-          ./node_modules/.bin/esbuild sim/real_world_bootstrap.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --alias:box3d.js/dist/box3d.inline.mjs=box3d.js/inline --outfile=/tmp/arondight45-simulator.bundle.mjs
-          ./node_modules/.bin/esbuild sim/controller.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=/tmp/arondight45-controller.bundle.mjs
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-          sha=os.environ['GITHUB_SHA']
-          builds=[
-              ('drone_simulator_old.html','<script type="module" src="./sim/real_world_bootstrap.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),
-              ('drone_simulator_old.html','<script type="module" src="./sim/auto_flight_start.mjs"></script>','sim/auto_flight_start.mjs'),
-              ('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs'),
-          ]
-          prefix=f'<!-- ARONDIGHT45_BUILD_SHA:{sha} -->\n'
-          for html_name,marker,bundle_name in builds:
-              path=Path(html_name); html=path.read_text(); assert marker in html
-              bundle=Path(bundle_name).read_text().replace('</script','<\\/script')
-              html=html.replace(marker,'<script type="module">\n'+bundle+'\n</script>')
-              if prefix not in html: html=prefix+html
-              path.write_text(html)
-          PY
-          test "$(wc -c < drone_simulator_old.html)" -gt 100000
-          grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" drone_simulator_old.html
-          grep -q "foot-pistol-fresh-v1" drone_simulator_old.html
+          set -euo pipefail
+          test -s index.html
+          test -s drone_simulator_old.html
+          test ! -e drone_simulator.html
           printf '{"sha":"%s"}\n' "$GITHUB_SHA" > build.json
-          grep -q "$GITHUB_SHA" build.json
-          rm -rf generated
 
       - name: Build ORCL minute feed
         timeout-minutes: 2
@@ -231,49 +81,14 @@ jobs:
           console.log('EURUSD history feed OK:',good.length,'bars');
           NODE
 
-      - name: Fast browser boot gate
-        continue-on-error: true
-        timeout-minutes: 4
+      - name: Verify Kurzlernen website assets without legacy game browser tests
         run: |
-          set -euxo pipefail
-          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
-          test -n "$CHROME_BIN"
-          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-static.log 2>&1 &
-          HTTP_PID=$!
-          trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true' EXIT
-          sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/solo_layout_smoke.mjs http://127.0.0.1:4174
-
-      - name: Desktop RMB + LMB shooting browser gate
-        timeout-minutes: 4
-        run: |
-          set -euxo pipefail
-          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
-          test -n "$CHROME_BIN"
-          python3 -m http.server 4176 --bind 127.0.0.1 >/tmp/arondight45-mouse-chord.log 2>&1 &
-          HTTP_PID=$!
-          trap 'kill "$HTTP_PID" 2>/dev/null || true' EXIT
-          sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/desktop_mouse_chord_browser_smoke.mjs http://127.0.0.1:4176/drone_simulator_old.html
-
-      - name: Advisory FPS regression smoke
-        continue-on-error: true
-        timeout-minutes: 4
-        run: |
-          set -euxo pipefail
-          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
-          test -n "$CHROME_BIN"
-          python3 -m http.server 4174 --bind 127.0.0.1 >/tmp/arondight45-fps-static.log 2>&1 &
-          HTTP_PID=$!
-          trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true; rm -f node_modules' EXIT
-          sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator_old.html
-
-      - name: Remove legacy fixture before publishing Kurzlernen
-        run: |
-          rm -f drone_simulator.html
-          test ! -e drone_simulator.html
+          set -euo pipefail
+          test -s index.html
+          test -s build.json
           test -s drone_simulator_old.html
+          test -s drone_controller.html
+          grep -q "$GITHUB_SHA" build.json
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -323,26 +138,26 @@ jobs:
       contents: read
       issues: write
     steps:
-      - name: Verify exact live build
+      - name: Verify live Kurzlernen build and home page
         id: live_probes
         timeout-minutes: 3
         env:
           GH_SHA: ${{ github.sha }}
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           fetched=0
           for attempt in $(seq 1 12); do
             if curl -fsSL --retry 1 --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' \
-              "https://kurzlernen.de/drone_simulator_old.html?ci=${GH_SHA}-${attempt}" -o /tmp/arondight45-live.html \
-              && test "$(wc -c < /tmp/arondight45-live.html)" -gt 100000 \
-              && grep -q "ARONDIGHT45_BUILD_SHA:${GH_SHA}" /tmp/arondight45-live.html \
-              && grep -q "foot-pistol-fresh-v1" /tmp/arondight45-live.html; then
+              "https://kurzlernen.de/build.json?ci=${GH_SHA}-${attempt}" -o /tmp/kurzlernen-build.json \
+              && jq -e --arg sha "${GH_SHA}" '.sha == $sha' /tmp/kurzlernen-build.json; then
               fetched=1
               break
             fi
             sleep 3
           done
           test "$fetched" = 1
+          curl -fsSL --retry 2 --connect-timeout 8 --max-time 20 https://kurzlernen.de/ -o /tmp/kurzlernen-index.html
+          grep -qi '<html' /tmp/kurzlernen-index.html
 
       - name: Report live E2E final
         if: always()
