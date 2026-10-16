@@ -12,6 +12,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 2
+      - name: Restore archived simulator filename only for frozen legacy tests
+        run: cp drone_simulator_old.html drone_simulator.html
+
       - name: Install simulator dependencies
         run: |
           npm install --prefix /tmp/simulator-deps --ignore-scripts --no-audit --no-fund three@0.185.1 box3d.js@0.1.1 maplibre-gl@5.24.0 esbuild@0.25.8 puppeteer-core@24.16.0 mqtt@5.15.2 nostr-tools@2.24.1 qrcode-generator@1.4.4 jsqr@1.4.0 trystero@0.25.3 @trystero-p2p/mqtt@0.25.3 @trystero-p2p/torrent@0.25.3
@@ -41,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          CHROME_BIN="$CHROME_BIN" node tests/desktop_controls_live_smoke.mjs https://kurzlernen.de/drone_simulator_old.html
+          CHROME_BIN="$CHROME_BIN" node tests/desktop_controls_live_smoke.mjs https://kurzlernen.de/drone_simulator.html
       - name: F jet boarding and thumb-zone regression tests
         run: |
           set -euo pipefail
