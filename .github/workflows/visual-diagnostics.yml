@@ -1,13 +1,7 @@
 name: Visual diagnostics
 
+# Archived simulator: gameplay development and automatic CI moved to nostack-dev/spawncity-de.
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - "sim/**"
-      - "drone_simulator.html"
-      - "tests/visual_diagnostics_live.mjs"
-      - ".github/workflows/visual-diagnostics.yml"
   workflow_dispatch:
 
 concurrency:
