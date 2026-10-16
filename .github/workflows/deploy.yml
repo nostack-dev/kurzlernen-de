@@ -173,8 +173,8 @@ jobs:
           from pathlib import Path
           sha=os.environ['GITHUB_SHA']
           builds=[
-              ('drone_simulator.html','<script type="module" src="./sim/real_world_bootstrap.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),
-              ('drone_simulator.html','<script type="module" src="./sim/auto_flight_start.mjs"></script>','sim/auto_flight_start.mjs'),
+              ('drone_simulator_old.html','<script type="module" src="./sim/real_world_bootstrap.mjs"></script>','/tmp/arondight45-simulator.bundle.mjs'),
+              ('drone_simulator_old.html','<script type="module" src="./sim/auto_flight_start.mjs"></script>','sim/auto_flight_start.mjs'),
               ('drone_controller.html','<script type="module" src="./sim/controller.mjs"></script>','/tmp/arondight45-controller.bundle.mjs'),
           ]
           prefix=f'<!-- ARONDIGHT45_BUILD_SHA:{sha} -->\n'
@@ -185,9 +185,9 @@ jobs:
               if prefix not in html: html=prefix+html
               path.write_text(html)
           PY
-          test "$(wc -c < drone_simulator.html)" -gt 100000
-          grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" drone_simulator.html
-          grep -q "foot-pistol-fresh-v1" drone_simulator.html
+          test "$(wc -c < drone_simulator_old.html)" -gt 100000
+          grep -q "ARONDIGHT45_BUILD_SHA:${GITHUB_SHA}" drone_simulator_old.html
+          grep -q "foot-pistol-fresh-v1" drone_simulator_old.html
           printf '{"sha":"%s"}\n' "$GITHUB_SHA" > build.json
           grep -q "$GITHUB_SHA" build.json
           rm -rf generated
@@ -251,7 +251,7 @@ jobs:
           HTTP_PID=$!
           trap 'kill "$HTTP_PID" 2>/dev/null || true' EXIT
           sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/desktop_mouse_chord_browser_smoke.mjs http://127.0.0.1:4176/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/desktop_mouse_chord_browser_smoke.mjs http://127.0.0.1:4176/drone_simulator_old.html
 
       - name: Advisory FPS regression smoke
         continue-on-error: true
@@ -264,7 +264,7 @@ jobs:
           HTTP_PID=$!
           trap 'kill "$HTTP_PID" 2>/dev/null || true; pkill -9 -f "chrome|chromium" 2>/dev/null || true; rm -f node_modules' EXIT
           sleep 1
-          CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator.html
+          CHROME_BIN="$CHROME_BIN" node tests/fps_first_person_browser_smoke.mjs http://127.0.0.1:4174/drone_simulator_old.html
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -324,7 +324,7 @@ jobs:
           fetched=0
           for attempt in $(seq 1 12); do
             if curl -fsSL --retry 1 --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' \
-              "https://kurzlernen.de/drone_simulator.html?ci=${GH_SHA}-${attempt}" -o /tmp/arondight45-live.html \
+              "https://kurzlernen.de/drone_simulator_old.html?ci=${GH_SHA}-${attempt}" -o /tmp/arondight45-live.html \
               && test "$(wc -c < /tmp/arondight45-live.html)" -gt 100000 \
               && grep -q "ARONDIGHT45_BUILD_SHA:${GH_SHA}" /tmp/arondight45-live.html \
               && grep -q "foot-pistol-fresh-v1" /tmp/arondight45-live.html; then
