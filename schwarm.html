@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050508">
+<title>Schwarm – Christian Heinrich Hohlfeld</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050508}
+canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+#hud{position:fixed;left:clamp(12px,3vw,24px);top:max(12px,env(safe-area-inset-top));display:flex;gap:9px;flex-wrap:wrap;pointer-events:none}
+.stat{background:rgba(10,15,22,.8);border:1px solid rgba(0,255,204,.18);border-radius:12px;padding:9px 12px;color:#99afa9;font:11px/1.3 ui-monospace,SFMono-Regular,monospace;backdrop-filter:blur(7px)}
+.stat b{color:#00ffcc;font-size:14px;font-weight:600}
+#controls{position:fixed;bottom:max(16px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(480px,calc(100% - 24px));padding:14px 17px;display:flex;align-items:center;gap:13px;background:rgba(10,15,22,.9);border:1px solid rgba(0,255,204,.26);border-radius:28px;backdrop-filter:blur(10px)}
+#controls label{display:flex;align-items:center;gap:7px;color:#d6ebe4;font-size:12px;white-space:nowrap}
+#population{flex:1;min-width:38px;appearance:none;-webkit-appearance:none;height:5px;border-radius:8px;background:rgba(0,255,204,.24);outline:none;cursor:pointer}
+#population::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:#00ffcc;box-shadow:0 0 8px #00ffccaa}
+#population::-moz-range-thumb{width:17px;height:17px;border:0;border-radius:50%;background:#00ffcc}
+button{appearance:none;background:#142b28;border:1px solid #265950;color:#00ffcc;border-radius:10px;min-width:32px;height:34px;font-size:18px;cursor:pointer;display:grid;place-items:center}
+button:hover{background:#20453e}button:active{background:#00ffcc;color:#050508}
+#reset{width:37px;min-width:37px;margin-left:4px}
+#legend{position:fixed;bottom:calc(max(16px,env(safe-area-inset-bottom)) + 77px);left:0;right:0;text-align:center;color:#83aba0;font-size:10px;letter-spacing:.03em;pointer-events:none;text-shadow:0 1px 5px #050508}
+@media(max-width:370px){#controls{gap:8px;padding:11px}#controls label{font-size:11px}.stat{padding:7px 9px}}
+</style>
+</head>
+<body>
+<canvas id="world" aria-label="Interaktive evolutionäre Schwarm-Simulation"></canvas>
+<div id="hud">
+  <div class="stat"><b id="count">1.000</b> VÖGEL</div>
+  <div class="stat">GEN <b id="generation">1</b></div>
+  <div class="stat"><b id="fps">—</b> FPS</div>
+</div>
+<div id="legend">Grün: Berührung = abwehren · gedrückt halten = anziehen · Rot: Räuber · Gold: Nahrung</div>
+<div id="controls">
+  <label for="population" title="Zielgröße des Schwarms">Schwarm</label>
+  <button id="minus" title="100 weniger" aria-label="100 Vögel weniger">−</button>
+  <input type="range" id="population" min="100" max="5000" step="100" value="1000" aria-label="Schwarmgröße">
+  <button id="plus" title="100 mehr" aria-label="100 Vögel mehr">+</button>
+  <button id="reset" title="Evolution und Simulation zurücksetzen" aria-label="Zurücksetzen">↺</button>
+</div>
+<script>
+"use strict";
+/*
+ * Schwarm — Christian Heinrich Hohlfeld.
+ * Eine unabhängige, offline-fähige HTML-Datei ohne Fremdbibliotheken.
+ *
+ * Evolutionsmodell (vereinfachte Simulation, keine biologisch validierte Aussage):
+ * Vögel besitzen individuelle vererbbare Verhaltensmerkmale. Nahrung, Energiebedarf,
+ * Kollisionen und Räuber bestimmen Überlebenswahrscheinlichkeit. Gestorbene Vögel
+ * werden durch mutierte Nachkommen energetisch erfolgreicher Überlebender ersetzt.
+ * Abstand, Ausrichtung und Zusammenhalt sind KEINE Benutzerparameter.
+ */
+(()=>{
+const canvas=document.getElementById("world"),ctx=canvas.getContext("2d",{alpha:false});
+const range=document.getElementById("population"),countEl=document.getElementById("count");
+const genEl=document.getElementById("generation"),fpsEl=document.getElementById("fps");
+const MAX=5000,CELL=48,FOOD_CELL=80,TWO_PI=Math.PI*2;
+let w=0,h=0,dpr=1,target=1000,tick=0,boids=[],foods=[],predators=[];
+let nextVX=new Float32Array(MAX),nextVY=new Float32Array(MAX);
+const grid=new Map(),foodGrid=new Map(),pointer={x:-99999,y:-99999,dx:1,dy:0,active:false,down:false};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rand=(a,b)=>a+Math.random()*(b-a);
+const key=(x,y)=>x*65536+y;
+function resize(){
+  const oldW=w||innerWidth,oldH=h||innerHeight;
+  w=Math.max(1,innerWidth);h=Math.max(1,innerHeight);
+  dpr=Math.min(devicePixelRatio||1,2);
+  canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  if(oldW&&oldH&&boids.length){
+    for(const b of boids){b.x=clamp(b.x*w/oldW,2,w-2);b.y=clamp(b.y*h/oldH,2,h-2)}
+    for(const f of foods){f.x=clamp(f.x*w/oldW,2,w-2);f.y=clamp(f.y*h/oldH,2,h-2)}
+    for(const p of predators){p.x=clamp(p.x*w/oldW,2,w-2);p.y=clamp(p.y*h/oldH,2,h-2)}
+  }
+}
+function genome(parent){
+  // Antriebe werden von jedem Tier geerbt und leicht mutiert, nicht gesteuert.
+  const bounds=[[.5,2.2],[.015,.14],[.00005,.0017],[.015,.16],[.5,2.4],[.7,1.35]];
+  const base=parent||[rand(.7,1.8),rand(.025,.11),rand(.00015,.0013),rand(.04,.11),rand(.75,1.8),rand(.85,1.2)];
+  return base.map((value,i)=>clamp(value*(parent?Math.exp(rand(-.19,.19)):1),bounds[i][0],bounds[i][1]));
+}
+function spawn(parent){
+  const a=rand(0,TWO_PI),speed=rand(2.4,3.7);
+  let x=rand(10,Math.max(11,w-10)),y=rand(10,Math.max(11,h-10));
+  if(parent){x=clamp(parent.x+rand(-35,35),4,w-4);y=clamp(parent.y+rand(-35,35),4,h-4)}
+  return {x,y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,
+    genes:genome(parent&&parent.genes),energy:parent?.energy?0.6:.85,
+    age:0,gen:parent?parent.gen+1:1,neighbors:0,dead:false};
+}
+function newFood(){return {x:rand(8,Math.max(9,w-8)),y:rand(8,Math.max(9,h-8)),eaten:false}}
+function newPredator(){
+  const a=rand(0,TWO_PI);
+  return {x:rand(30,Math.max(31,w-30)),y:rand(30,Math.max(31,h-30)),
+    vx:Math.cos(a)*4,vy:Math.sin(a)*4,target:null};
+}
+function reset(){
+  target=1000;range.value="1000";tick=0;
+  boids=Array.from({length:target},()=>spawn(null));
+  foods=Array.from({length:Math.min(360,Math.round(65+target/15))},newFood);
+  predators=[newPredator()];
+  pointer.active=false;pointer.down=false;pointer.x=-99999;
+  genEl.textContent="1";countEl.textContent="1.000";
+}
+function setTarget(n){
+  target=clamp(Math.round(n/100)*100,100,MAX);
+  range.value=String(target);
+}
+range.addEventListener("input",()=>setTarget(Number(range.value)));
+document.getElementById("minus").addEventListener("click",()=>setTarget(target-100));
+document.getElementById("plus").addEventListener("click",()=>setTarget(target+100));
+document.getElementById("reset").addEventListener("click",reset);
+function setPointer(e){
+  const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+  if(pointer.active){const dx=x-pointer.x,dy=y-pointer.y;if(dx*dx+dy*dy>.5){pointer.dx=dx;pointer.dy=dy}}
+  pointer.x=x;pointer.y=y;pointer.active=true;
+}
+canvas.addEventListener("pointermove",setPointer);
+canvas.addEventListener("pointerdown",e=>{setPointer(e);pointer.down=true;try{canvas.setPointerCapture(e.pointerId)}catch(_){}});
+canvas.addEventListener("pointerup",e=>{pointer.down=false;if(e.pointerType!=="mouse")pointer.active=false});
+canvas.addEventListener("pointercancel",()=>{pointer.down=false;pointer.active=false});
+canvas.addEventListener("pointerleave",()=>{pointer.down=false;pointer.active=false});
+window.addEventListener("blur",()=>{pointer.down=false;pointer.active=false});
+window.addEventListener("resize",resize);
+
+function chooseParent(){
+  // Tournament-Auslese: Nahrungserfolg + Lebensdauer steigern Fortpflanzungschance.
+  let best=null,score=-Infinity;
+  for(let i=0;i<6;i++){
+    const b=boids[(Math.random()*boids.length)|0];
+    if(!b||b.dead||b.energy<=.08)continue;
+    const s=b.energy+Math.min(b.age,1200)*.0002+rand(0,.25);
+    if(s>score){score=s;best=b}
+  }
+  return best;
+}
+function adjustPopulation(){
+  if(boids.length>target)boids.length=Math.max(target,boids.length-100);
+  if(boids.length<target){
+    const amount=Math.min(100,target-boids.length);
+    for(let i=0;i<amount;i++){
+      const parent=chooseParent();
+      boids.push(spawn(parent));
+    }
+  }
+  const wanted=Math.min(360,Math.round(65+target/15));
+  while(foods.length<wanted)foods.push(newFood());
+  if(foods.length>wanted)foods.length=wanted;
+  const hunters=target>=3000?3:target>=1600?2:1;
+  while(predators.length<hunters)predators.push(newPredator());
+  predators.length=hunters;
+}
+function buildGrids(){
+  grid.clear();foodGrid.clear();
+  for(let i=0;i<boids.length;i++){
+    const b=boids[i],k=key(Math.floor(b.x/CELL),Math.floor(b.y/CELL));
+    let cell=grid.get(k);if(!cell){cell=[];grid.set(k,cell)}cell.push(i);
+  }
+  for(let i=0;i<foods.length;i++){
+    const f=foods[i];f.eaten=false;
+    const k=key(Math.floor(f.x/FOOD_CELL),Math.floor(f.y/FOOD_CELL));
+    let cell=foodGrid.get(k);if(!cell){cell=[];foodGrid.set(k,cell)}cell.push(i);
+  }
+}
+function nearestFood(b){
+  const cx=Math.floor(b.x/FOOD_CELL),cy=Math.floor(b.y/FOOD_CELL);
+  let nearest=-1,best=110*110;
+  for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
+    const cell=foodGrid.get(key(cx+dx,cy+dy));if(!cell)continue;
+    for(const fi of cell){
+      const f=foods[fi];if(f.eaten)continue;
+      const x=f.x-b.x,y=f.y-b.y,d=x*x+y*y;
+      if(d<best){best=d;nearest=fi}
+    }
+  }
+  return nearest;
+}
+function movePredators(){
+  for(const p of predators){
+    if(tick%24===0 || !p.target || p.target.dead){
+      let candidate=null,best=Infinity;
+      for(let i=0;i<boids.length;i+=2){
+        const b=boids[i],dx=b.x-p.x,dy=b.y-p.y,ds=dx*dx+dy*dy;
+        if(ds>250*250)continue;
+        // Ein isolierter Vogel ist für Räuber leichter zu verfolgen.
+        const value=ds*(1+.12*Math.min(b.neighbors,10));
+        if(value<best){best=value;candidate=b}
+      }
+      p.target=candidate;
+    }
+    if(p.target && !p.target.dead){
+      const dx=p.target.x-p.x,dy=p.target.y-p.y,d=Math.hypot(dx,dy)||1;
+      p.vx+=(dx/d*4.8-p.vx)*.075;p.vy+=(dy/d*4.8-p.vy)*.075;
+    }else{
+      p.vx+=rand(-.14,.14);p.vy+=rand(-.14,.14);
+    }
+    if(p.x<12)p.vx+=.5;if(p.x>w-12)p.vx-=.5;
+    if(p.y<12)p.vy+=.5;if(p.y>h-12)p.vy-=.5;
+    const speed=Math.hypot(p.vx,p.vy)||1;
+    p.vx*=4.8/speed;p.vy*=4.8/speed;
+    p.x=clamp(p.x+p.vx,3,w-3);p.y=clamp(p.y+p.vy,3,h-3);
+  }
+}
+function update(){
+  tick++;
+  adjustPopulation();buildGrids();movePredators();
+  const margin=Math.min(85,Math.max(24,Math.min(w,h)*.17));
+  const n=boids.length;
+  for(let i=0;i<n;i++){
+    const b=boids[i],g=b.genes,cx=Math.floor(b.x/CELL),cy=Math.floor(b.y/CELL);
+    let sx=0,sy=0,avx=0,avy=0,px=0,py=0,close=0,neighbors=0;
+    for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
+      const cell=grid.get(key(cx+dx,cy+dy));if(!cell)continue;
+      for(let k=0;k<cell.length;k++){
+        const j=cell[k];if(i===j)continue;
+        const o=boids[j],rx=b.x-o.x,ry=b.y-o.y,ds=rx*rx+ry*ry;
+        if(ds>=2304)continue;
+        if(ds<225){
+          sx+=rx/(ds+25);sy+=ry/(ds+25);
+          if(ds<25)close++;
+        }else{
+          avx+=o.vx;avy+=o.vy;px+=o.x;py+=o.y;neighbors++;
+        }
+      }
+    }
+    b.neighbors=neighbors;
+    let vx=b.vx+sx*g[0],vy=b.vy+sy*g[0];
+    if(neighbors){
+      const inv=1/neighbors;
+      vx+=(avx*inv-vx)*g[1];vy+=(avy*inv-vy)*g[1];
+      vx+=(px*inv-b.x)*g[2];vy+=(py*inv-b.y)*g[2];
+    }
+    const fi=nearestFood(b);
+    if(fi!==-1){
+      const f=foods[fi],fx=f.x-b.x,fy=f.y-b.y,ds=fx*fx+fy*fy;
+      if(ds<64 && !f.eaten){f.eaten=true;b.energy=Math.min(1.8,b.energy+.31)}
+      else{const inv=1/Math.sqrt(ds+1);vx+=fx*inv*g[3];vy+=fy*inv*g[3]}
+    }
+    for(const p of predators){
+      const dx=b.x-p.x,dy=b.y-p.y,ds=dx*dx+dy*dy;
+      if(ds<150*150){
+        const d=Math.sqrt(ds+1),strength=g[4]*(1-d/150);
+        vx+=dx/d*strength;vy+=dy/d*strength;
+        if(ds<95 && tick%3===0)b.dead=true;
+      }
+    }
+    if(pointer.active){
+      const dx=b.x-pointer.x,dy=b.y-pointer.y,ds=dx*dx+dy*dy;
+      const limit=pointer.down?35000:14000;
+      if(ds<limit){
+        const inv=1/Math.sqrt(ds+1),dir=pointer.down?-.45:.75;
+        vx+=dx*inv*dir;vy+=dy*inv*dir;
+      }
+    }
+    if(b.x<margin)vx+=.24;if(b.x>w-margin)vx-=.24;
+    if(b.y<margin)vy+=.24;if(b.y>h-margin)vy-=.24;
+    const desired=3.35*g[5],min=desired*.65,max=desired*1.32;
+    let speed=Math.hypot(vx,vy);
+    if(speed<.00001){vx=min;vy=0;speed=min}
+    if(speed>max){vx*=max/speed;vy*=max/speed}
+    if(speed<min){vx*=min/speed;vy*=min/speed}
+    nextVX[i]=vx;nextVY[i]=vy;
+    // Fliegen kostet Energie; harte Richtungswechsel / Kollisionen sind teuer.
+    const maneuver=Math.hypot(vx-b.vx,vy-b.vy);
+    b.energy-=.0012+(desired*.00012)+(maneuver*.0007)+(close*.0008);
+    b.age++;
+    if(b.energy<=0||b.age>4200)b.dead=true;
+  }
+  for(let i=0;i<n;i++){
+    const b=boids[i];
+    if(b.dead)continue;
+    b.vx=nextVX[i];b.vy=nextVY[i];
+    b.x=clamp(b.x+b.vx,-18,w+18);b.y=clamp(b.y+b.vy,-18,h+18);
+  }
+  // Tote durch mutierte Nachkommen der erfolgreicheren Überlebenden ersetzen.
+  // Auslesen vor dem Ersetzen verhindert, dass gerade geborene Tiere sofort Eltern sind.
+  const replacements=[];
+  for(let i=0;i<n;i++)if(boids[i].dead)replacements.push(i);
+  const parents=replacements.map(()=>chooseParent());
+  for(let i=0;i<replacements.length;i++){
+    const parent=parents[i];
+    if(parent)parent.energy=Math.max(.15,parent.energy-.025);
+    boids[replacements[i]]=spawn(parent);
+  }
+  // Futter erst nach dem Bewegungsdurchlauf neu platzieren.
+  for(const f of foods)if(f.eaten){f.x=rand(8,Math.max(9,w-8));f.y=rand(8,Math.max(9,h-8))}
+  if(tick%20===0){
+    countEl.textContent=boids.length.toLocaleString("de-DE");
+    // Generationenmittel zeigt die überlebende Population, nicht ein fixes Zeitmaß.
+    let total=0;for(const b of boids)total+=b.gen;
+    genEl.textContent=(total/Math.max(1,n)).toFixed(1);
+  }
+}
+function triangle(x,y,vx,vy,size){
+  const a=Math.atan2(vy,vx),c=Math.cos(a),s=Math.sin(a);
+  ctx.beginPath();
+  ctx.moveTo(x+c*size,y+s*size);
+  ctx.lineTo(x-c*size*.53-s*size*.39,y-s*size*.53+c*size*.39);
+  ctx.lineTo(x-c*size*.53+s*size*.39,y-s*size*.53-c*size*.39);
+  ctx.closePath();ctx.fill();
+}
+function draw(){
+  ctx.fillStyle="#050508";ctx.fillRect(0,0,w,h);
+  ctx.fillStyle="#b4a558";
+  for(const f of foods){ctx.fillRect(f.x-1,f.y-1,2,2)}
+  for(const b of boids){
+    const a=Math.atan2(b.vy,b.vx);
+    ctx.fillStyle="hsl("+(170+Math.sin(a)*18)+",95%,"+(48+Math.min(20,b.energy*10))+"%)";
+    triangle(b.x,b.y,b.vx,b.vy,5);
+  }
+  ctx.fillStyle="#ff596b";
+  for(const p of predators)triangle(p.x,p.y,p.vx,p.vy,12);
+  if(pointer.active){
+    ctx.fillStyle=pointer.down?"#00ffcc":"#39ff14";
+    triangle(pointer.x,pointer.y,pointer.dx,pointer.dy,14);
+  }
+}
+resize();reset();
+let last=0,acc=0,frames=0,fpsElapsed=0;
+function loop(time){
+  if(!last)last=time;
+  const elapsed=Math.min(time-last,100);last=time;acc+=elapsed;
+  let cycles=0;
+  while(acc>=1000/60&&cycles<2){update();acc-=1000/60;cycles++}
+  if(cycles===2)acc=0;
+  draw();frames++;fpsElapsed+=elapsed;
+  if(fpsElapsed>=800){fpsEl.textContent=String(Math.round(frames*1000/fpsElapsed));frames=0;fpsElapsed=0}
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
