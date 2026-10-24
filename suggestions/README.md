@@ -1,6 +1,6 @@
 # SpawnCity – Spieler-Vorschläge
 
-Stand 2026-10-23T10:05:44.624Z · 1 Vorschläge · 1 verschiedene
+Stand 2026-10-24T09:33:38.410Z · 1 Vorschläge · 1 verschiedene
 
 ## Häufigste Begriffe
 prostituierten (1) · straße (1) · fehlen (1)
